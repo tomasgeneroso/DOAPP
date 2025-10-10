@@ -3,7 +3,26 @@
     "allow": [
       "Bash(npm run typecheck:*)",
       "Bash(npm run build:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "mcp__ide__getDiagnostics",
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(npx tsc:*)",
+      "Bash(cat:*)",
+      "Bash(npm run seed:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm run security:check:*)",
+      "Bash(npm run dev:server:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(curl:*)",
+      "Bash(python:*)",
+      "Bash(npx tsx:*)",
+      "Bash(netstat:*)",
+      "Bash(findstr:*)",
+      "Bash(taskkill:*)",
+      "Bash(cmd /c \"taskkill /F /PID 4052\")",
+      "Bash(tasklist:*)",
+      "Bash(git add:*)",
+      "Bash(del nul)"
     ],
     "deny": [],
     "ask": []

@@ -1,143 +1,144 @@
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { clsx } from "clsx";
-import {
-  Calendar,
-  Clock,
-  Filter,
-  MapPin,
-  Plus,
-  Search,
-  Star,
-} from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import type { Job } from "@/types";
 
-import type { JobItem, ScreenId } from "./types";
+export const JobsScreen: React.FC = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [jobs, setJobs] = useState<Job[]>([]);
+  const [loading, setLoading] = useState(true);
 
-interface JobsScreenProps {
-  jobs: JobItem[];
-  activeJobId: string;
-  onSelectJob: (jobId: string) => void;
-  onNavigate: (screen: ScreenId) => void;
-}
+  useEffect(() => {
+    fetchJobs();
+  }, []);
 
-export function JobsScreen({
-  jobs,
-  activeJobId,
-  onSelectJob,
-  onNavigate,
-}: JobsScreenProps) {
+  const fetchJobs = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch("/api/jobs", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      setJobs(data.jobs || []);
+    } catch (error) {
+      console.error("Error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <div className="flex h-full flex-col gap-6">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">
-            Trabajos Disponibles
-          </h1>
-          <p className="mt-1 text-sm text-slate-600">
-            {jobs.length} oportunidades cerca tuyo
-          </p>
-        </div>
-        <Button
-          onClick={() => onNavigate("create")}
-          className="w-full gap-2 sm:w-auto"
-          size="lg"
-        >
-          <Plus className="h-4 w-4" />
-          Publicar trabajo
-        </Button>
-      </div>
-
-      {/* Search and Filter */}
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-          <Input
-            placeholder="Buscar trabajos..."
-            className="h-12 pl-10"
-          />
-        </div>
-        <Button
-          variant="outline"
-          className="h-12 gap-2"
-        >
-          <Filter className="h-4 w-4" />
-          Filtros
-        </Button>
-      </div>
-
-      {/* Jobs Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {jobs.map((job) => (
-          <article
-            key={job.id}
-            className={clsx(
-              "group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-sky-300 hover:shadow-lg",
-              activeJobId === job.id &&
-                "border-sky-400 shadow-lg shadow-sky-100"
-            )}
-            onClick={() => {
-              onSelectJob(job.id);
-              onNavigate("detail");
-            }}
-          >
-            {/* Price Badge */}
-            <div className="absolute right-4 top-4 rounded-full bg-gradient-to-r from-sky-500 to-sky-600 px-3 py-1 text-sm font-bold text-white shadow-lg shadow-sky-500/30">
-              ${job.price.toLocaleString("es-AR")}
-            </div>
-
-            {/* Title and Rating */}
-            <div className="mb-3">
-              <h3 className="mb-2 pr-20 text-lg font-bold text-slate-900 group-hover:text-sky-600">
-                {job.title}
-              </h3>
-              <div className="flex items-center gap-1 text-amber-500">
-                <Star className="h-4 w-4 fill-current" />
-                <Star className="h-4 w-4 fill-current" />
-                <Star className="h-4 w-4 fill-current" />
-                <Star className="h-4 w-4 fill-current" />
-                <Star className="h-4 w-4" />
-                <span className="ml-1 text-xs text-slate-600">(4.2)</span>
-              </div>
-            </div>
-
-            {/* Description */}
-            <p className="mb-4 line-clamp-2 text-sm text-slate-600">
-              {job.summary}
+      <header className="bg-white dark:bg-gray-800 px-5 pt-16 pb-6 rounded-b-3xl shadow-sm">
+        <div className="flex justify-between items-center mb-3">
+          <div>
+            <p className="text-base text-gray-600 dark:text-gray-400 mb-1">
+              ¡Hola de nuevo,
             </p>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+              {user?.name || "Usuario"}!
+            </h1>
+          </div>
 
-            {/* Details */}
-            <div className="mt-auto space-y-2 border-t border-slate-100 pt-4">
-              <div className="flex items-center gap-2 text-xs text-slate-500">
-                <MapPin className="h-4 w-4 text-slate-400" />
-                <span>{job.location}</span>
-              </div>
-              <div className="flex items-center gap-4 text-xs text-slate-500">
-                <div className="flex items-center gap-1">
-                  <Calendar className="h-4 w-4 text-slate-400" />
-                  <span>{job.start.split(" ")[0]}</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Clock className="h-4 w-4 text-slate-400" />
-                  <span>{job.start.split(" ")[1]}</span>
-                </div>
-              </div>
-            </div>
+          <button
+            onClick={() => navigate("/profile")}
+            className="w-12 h-12 rounded-full border-2 border-orange-500 bg-white dark:bg-gray-700 flex items-center justify-center"
+          >
+            <span className="text-xl font-bold text-orange-500">
+              {user?.name?.charAt(0).toUpperCase() || "U"}
+            </span>
+          </button>
+        </div>
 
-            {/* Hover Button */}
-            <div className="absolute inset-x-0 bottom-0 translate-y-full bg-gradient-to-r from-sky-500 to-sky-600 py-3 text-center text-sm font-semibold text-white transition-transform group-hover:translate-y-0">
-              Ver detalles
-            </div>
-          </article>
-        ))}
+        <p className="text-sm text-gray-600 dark:text-gray-400 leading-5 mt-2">
+          ¿Listo para empezar un nuevo proyecto o buscar oportunidades?
+        </p>
+      </header>
+
+      {/* Botón Publicar */}
+      <div className="px-5 -mt-6 mb-6">
+        <button
+          onClick={() => navigate("/create-contract")}
+          className="w-full h-14 px-6 rounded-2xl bg-orange-500 hover:bg-orange-600 text-white font-bold transition-all duration-150 active:scale-95"
+        >
+          Publicar trabajo
+        </button>
       </div>
 
-      {/* Load More */}
-      <div className="flex justify-center py-4">
-        <Button variant="outline">
-          Cargar más trabajos
-        </Button>
+      {/* Contenido */}
+      <div className="px-5 pb-24">
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+          Trabajos Disponibles
+        </h2>
+
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500" />
+          </div>
+        ) : jobs.length === 0 ? (
+          <div className="text-center py-16">
+            <div className="w-20 h-20 rounded-full bg-orange-100 dark:bg-orange-900 flex items-center justify-center mx-auto mb-4">
+              <span className="text-4xl">📋</span>
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+              No hay trabajos disponibles
+            </h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-8">
+              en este momento.
+            </p>
+            <button
+              onClick={() => navigate("/create-contract")}
+              className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl transition-all active:scale-95"
+            >
+              Publicar el primero
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {jobs.map((job) => (
+              <button
+                key={job._id}
+                onClick={() => navigate(`/jobs/${job._id}`)}
+                className="w-full p-5 rounded-2xl text-left bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-sm transition-all active:scale-[0.98]"
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white pr-4">
+                    {job.title}
+                  </h3>
+                  <span className="px-3 py-1 rounded-full bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-300 font-bold text-sm whitespace-nowrap">
+                    ${job.budget?.toLocaleString()}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">
+                  {job.description}
+                </p>
+                <div className="flex justify-between text-xs">
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400">
+                      Inicio:{" "}
+                    </span>
+                    <span className="text-gray-900 dark:text-white font-semibold">
+                      {new Date(job.startDate).toLocaleDateString("es-ES")}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400">
+                      Fin:{" "}
+                    </span>
+                    <span className="text-gray-900 dark:text-white font-semibold">
+                      {new Date(job.endDate).toLocaleDateString("es-ES")}
+                    </span>
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
-}
+};

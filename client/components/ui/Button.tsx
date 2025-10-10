@@ -1,38 +1,59 @@
-import { clsx } from "clsx";
-import { ButtonHTMLAttributes, forwardRef } from "react";
+import React, { useState } from "react";
+import { cn } from "@/lib/utils";
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "primary" | "secondary" | "outline" | "ghost";
-  size?: "sm" | "md" | "lg";
+interface AnimatedButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  variant?: "primary" | "secondary" | "success" | "error";
+  fullWidth?: boolean;
+  children: React.ReactNode;
 }
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "primary", size = "md", ...props }, ref) => {
-    return (
-      <button
-        ref={ref}
-        className={clsx(
-          "inline-flex items-center justify-center rounded-xl font-medium transition-all",
-          "focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2",
-          "disabled:opacity-50 disabled:cursor-not-allowed",
-          {
-            "bg-gradient-to-r from-sky-500 to-sky-600 text-white shadow-lg shadow-sky-500/30 hover:from-sky-600 hover:to-sky-700":
-              variant === "primary",
-            "bg-slate-200 text-slate-900 hover:bg-slate-300":
-              variant === "secondary",
-            "border border-slate-300 bg-transparent hover:bg-slate-50":
-              variant === "outline",
-            "bg-transparent hover:bg-slate-100": variant === "ghost",
-            "px-3 py-1.5 text-sm": size === "sm",
-            "px-4 py-2 text-base": size === "md",
-            "px-6 py-3 text-lg": size === "lg",
-          },
-          className
-        )}
-        {...props}
-      />
-    );
-  }
-);
+export const AnimatedButton: React.FC<AnimatedButtonProps> = ({
+  variant = "primary",
+  fullWidth = false,
+  children,
+  className,
+  disabled,
+  ...props
+}) => {
+  const [isPressed, setIsPressed] = useState(false);
 
-Button.displayName = "Button";
+  const getVariantClasses = () => {
+    const baseClasses = "text-white font-bold";
+
+    switch (variant) {
+      case "primary":
+        return `${baseClasses} bg-[#FF9800] hover:bg-[#FB8C00] dark:bg-[#FFB74D] dark:hover:bg-[#FFC266]`;
+      case "secondary":
+        return `${baseClasses} bg-[#2196F3] hover:bg-[#1E88E5] dark:bg-[#64B5F6] dark:hover:bg-[#90CAF9]`;
+      case "success":
+        return `${baseClasses} bg-[#81C784] hover:bg-[#66BB6A] dark:bg-[#66BB6A] dark:hover:bg-[#81C784]`;
+      case "error":
+        return `${baseClasses} bg-[#E57373] hover:bg-[#EF5350] dark:bg-[#EF5350] dark:hover:bg-[#E57373]`;
+      default:
+        return baseClasses;
+    }
+  };
+
+  return (
+    <button
+      className={cn(
+        "h-14 px-6 rounded-2xl",
+        "transition-all duration-150 ease-out",
+        "focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#FF9800]",
+        "disabled:opacity-50 disabled:cursor-not-allowed",
+        fullWidth && "w-full",
+        isPressed && "scale-95",
+        getVariantClasses(),
+        className,
+      )}
+      onMouseDown={() => setIsPressed(true)}
+      onMouseUp={() => setIsPressed(false)}
+      onMouseLeave={() => setIsPressed(false)}
+      disabled={disabled}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+};

@@ -12,11 +12,14 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:5000',
         changeOrigin: true,
+        secure: false,
+        ws: true,
       },
       // Proxy para los archivos legales
       '/legal': {
         target: 'http://localhost:5000',
         changeOrigin: true,
+        secure: false,
       },
     },
   },

@@ -5,13 +5,17 @@ export interface IJob extends Document {
   summary: string;
   description: string;
   price: number;
-  category?: string;
+  category: string;
+  tags: string[];
   location: string;
   latitude?: number;
   longitude?: number;
+  remoteOk: boolean;
   startDate: Date;
   endDate: Date;
   status: "open" | "in_progress" | "completed" | "cancelled";
+  urgency: "low" | "medium" | "high";
+  experienceLevel: "beginner" | "intermediate" | "expert";
   client: mongoose.Types.ObjectId;
   doer?: mongoose.Types.ObjectId;
   images?: string[];
@@ -19,6 +23,7 @@ export interface IJob extends Document {
   materialsProvided: boolean;
   rating?: number;
   review?: string;
+  views: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -49,7 +54,14 @@ const jobSchema = new Schema<IJob>(
     },
     category: {
       type: String,
+      required: [true, "La categoría es requerida"],
       trim: true,
+      index: true,
+    },
+    tags: {
+      type: [String],
+      default: [],
+      index: true,
     },
     location: {
       type: String,
@@ -58,9 +70,16 @@ const jobSchema = new Schema<IJob>(
     },
     latitude: {
       type: Number,
+      index: true,
     },
     longitude: {
       type: Number,
+      index: true,
+    },
+    remoteOk: {
+      type: Boolean,
+      default: false,
+      index: true,
     },
     startDate: {
       type: Date,
@@ -74,6 +93,19 @@ const jobSchema = new Schema<IJob>(
       type: String,
       enum: ["open", "in_progress", "completed", "cancelled"],
       default: "open",
+      index: true,
+    },
+    urgency: {
+      type: String,
+      enum: ["low", "medium", "high"],
+      default: "medium",
+      index: true,
+    },
+    experienceLevel: {
+      type: String,
+      enum: ["beginner", "intermediate", "expert"],
+      default: "intermediate",
+      index: true,
     },
     client: {
       type: Schema.Types.ObjectId,
@@ -107,11 +139,18 @@ const jobSchema = new Schema<IJob>(
       type: String,
       maxlength: [500, "La reseña no puede exceder 500 caracteres"],
     },
+    views: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,
   }
 );
+
+// Text index for search
+jobSchema.index({ title: "text", description: "text", summary: "text" });
 
 // Validar que endDate sea posterior a startDate
 jobSchema.pre("save", function (next) {

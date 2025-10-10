@@ -32,8 +32,19 @@ export interface IContract extends Document {
   notes?: string;
   cancellationReason?: string;
   cancelledBy?: mongoose.Types.ObjectId;
-  paymentStatus: "pending" | "held" | "released" | "refunded";
+  paymentStatus: "pending" | "held" | "released" | "refunded" | "completed" | "escrow";
   paymentDate?: Date;
+  escrowEnabled: boolean;
+  escrowAmount: number;
+
+  // Soft delete / Ban fields
+  isDeleted: boolean;
+  deletedAt?: Date;
+  deletedBy?: mongoose.Types.ObjectId;
+  deletionReason?: string;
+  infractions: number;
+  isHidden: boolean; // Oculto pero no eliminado
+
   createdAt: Date;
   updatedAt: Date;
 }
@@ -158,11 +169,43 @@ const contractSchema = new Schema<IContract>(
     },
     paymentStatus: {
       type: String,
-      enum: ["pending", "held", "released", "refunded"],
+      enum: ["pending", "held", "released", "refunded", "completed", "escrow"],
       default: "pending",
     },
     paymentDate: {
       type: Date,
+    },
+    escrowEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    escrowAmount: {
+      type: Number,
+      default: 0,
+    },
+    // Soft delete / Ban fields
+    isDeleted: {
+      type: Boolean,
+      default: false,
+    },
+    deletedAt: {
+      type: Date,
+    },
+    deletedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
+    deletionReason: {
+      type: String,
+      maxlength: 500,
+    },
+    infractions: {
+      type: Number,
+      default: 0,
+    },
+    isHidden: {
+      type: Boolean,
+      default: false,
     },
   },
   {

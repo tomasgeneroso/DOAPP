@@ -1,7 +1,8 @@
 import express, { Request, Response } from "express";
 import { body, validationResult } from "express-validator";
 import Job from "../models/Job.js";
-import { protect, AuthRequest } from "../middleware/auth.js";
+import { protect } from "../middleware/auth.js";
+import type { AuthRequest } from "../types/index.js";
 
 const router = express.Router();
 

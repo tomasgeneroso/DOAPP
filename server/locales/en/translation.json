@@ -1,0 +1,127 @@
+{
+  "auth": {
+    "login": "Log in",
+    "logout": "Log out",
+    "register": "Sign up",
+    "email": "Email",
+    "password": "Password",
+    "name": "Name",
+    "loginSuccess": "Login successful",
+    "registerSuccess": "Registration successful",
+    "logoutSuccess": "Logged out successfully",
+    "invalidCredentials": "Invalid credentials",
+    "emailAlreadyExists": "Email already registered",
+    "tokenExpired": "Token expired",
+    "tokenInvalid": "Invalid token",
+    "unauthorized": "Unauthorized"
+  },
+  "user": {
+    "profile": "Profile",
+    "settings": "Settings",
+    "notifications": "Notifications",
+    "updateSuccess": "Profile updated successfully",
+    "notFound": "User not found",
+    "banned": "User banned",
+    "unbanned": "User unbanned"
+  },
+  "job": {
+    "create": "Create job",
+    "update": "Update job",
+    "delete": "Delete job",
+    "list": "Job list",
+    "detail": "Job detail",
+    "title": "Title",
+    "description": "Description",
+    "price": "Price",
+    "location": "Location",
+    "category": "Category",
+    "tags": "Tags",
+    "status": "Status",
+    "created": "Job created successfully",
+    "updated": "Job updated successfully",
+    "deleted": "Job deleted successfully",
+    "notFound": "Job not found"
+  },
+  "contract": {
+    "create": "Create contract",
+    "accept": "Accept contract",
+    "reject": "Reject contract",
+    "complete": "Complete contract",
+    "cancel": "Cancel contract",
+    "status": {
+      "pending": "Pending",
+      "accepted": "Accepted",
+      "in_progress": "In progress",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "disputed": "Disputed"
+    },
+    "created": "Contract created successfully",
+    "accepted": "Contract accepted",
+    "rejected": "Contract rejected",
+    "completed": "Contract completed",
+    "cancelled": "Contract cancelled",
+    "notFound": "Contract not found"
+  },
+  "payment": {
+    "create": "Create payment",
+    "process": "Process payment",
+    "refund": "Refund",
+    "success": "Payment successful",
+    "failed": "Payment failed",
+    "pending": "Payment pending",
+    "refunded": "Payment refunded",
+    "notFound": "Payment not found"
+  },
+  "notification": {
+    "new": "New notification",
+    "markAsRead": "Mark as read",
+    "markAllAsRead": "Mark all as read",
+    "delete": "Delete notification",
+    "preferences": "Notification preferences"
+  },
+  "chat": {
+    "send": "Send",
+    "typing": "is typing...",
+    "online": "Online",
+    "offline": "Offline",
+    "newMessage": "New message",
+    "conversation": "Conversation",
+    "markAsRead": "Mark as read"
+  },
+  "search": {
+    "search": "Search",
+    "filter": "Filter",
+    "sort": "Sort",
+    "noResults": "No results found",
+    "results": "results"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "view": "View",
+    "back": "Back",
+    "next": "Next",
+    "previous": "Previous",
+    "submit": "Submit",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "warning": "Warning",
+    "info": "Information",
+    "confirm": "Confirm",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "error": {
+    "serverError": "Server error",
+    "networkError": "Network error",
+    "validationError": "Validation error",
+    "notFound": "Not found",
+    "forbidden": "Forbidden",
+    "unauthorized": "Unauthorized",
+    "tooManyRequests": "Too many requests"
+  }
+}

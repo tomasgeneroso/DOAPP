@@ -4,11 +4,15 @@ node_modules
 # Build output
 dist
 .vercel
+build
 
 # Environment variables
 .env
 .env.local
 .env.*.local
+.env.production
+.env.development
+.env.test
 
 # Logs
 logs
@@ -17,6 +21,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+lerna-debug.log*
 
 # Editor directories and files
 .vscode/*
@@ -31,3 +36,82 @@ pnpm-debug.log*
 
 # OS
 Thumbs.db
+.DS_Store
+
+# Claude Code
+.claude
+claude
+
+# Uploads and temp files
+uploads/*
+!uploads/.gitkeep
+temp/*
+!temp/.gitkeep
+tmp/*
+
+# Public legal files (keep structure, ignore content if needed)
+# public/legal/*
+
+# Database dumps
+*.dump
+*.sql
+*.sqlite
+*.db
+
+# Redis dump
+dump.rdb
+
+# Cache
+.cache
+*.cache
+
+# i18n missing translations (auto-generated)
+server/locales/*/translation.missing.json
+server/locales/*/errors.missing.json
+server/locales/*/emails.missing.json
+
+# Testing
+coverage
+.nyc_output
+*.lcov
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+# Security and secrets
+*.pem
+*.key
+*.cert
+*.p12
+*.pfx
+firebase-adminsdk*.json
+serviceAccountKey.json
+
+# Package manager
+.pnpm-store
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+.pnp.*
+
+# MacOS
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# Windows
+Desktop.ini
+ehthumbs.db
+$RECYCLE.BIN/
+nul
+
+# Lock files (optional - comment out if you want to commit them)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml

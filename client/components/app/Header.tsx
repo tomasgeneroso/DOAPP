@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
-import { LogOut, User as UserIcon, PlusCircle } from "lucide-react";
+import { LogOut, User as UserIcon, PlusCircle, Wallet } from "lucide-react";
+import { ThemeToggleCompact } from "../ui/ThemeToggle";
 
 export default function Header() {
   const { user, logout } = useAuth();
@@ -24,30 +25,53 @@ export default function Header() {
         </Link>
 
         <div className="flex items-center gap-2">
-          <Link
-            to="/contracts/create"
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-black focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
-          >
-            <PlusCircle className="h-4 w-4" />
-            Publicar trabajo
-          </Link>
+          {user && (
+            <Link
+              to="/payments"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
+              title="Mis Pagos"
+            >
+              <Wallet className="h-4 w-4" />
+              <span className="hidden sm:inline">Pagos</span>
+            </Link>
+          )}
+          {user ? (
+            <Link
+              to="/contracts/create"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-black focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
+            >
+              <PlusCircle className="h-4 w-4" />
+              <span className="hidden sm:inline">Publicar trabajo</span>
+            </Link>
+          ) : (
+            <Link
+              to="/login"
+              state={{ from: '/contracts/create' }}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-black focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
+            >
+              <PlusCircle className="h-4 w-4" />
+              Publicar trabajo
+            </Link>
+          )}
+
+          <ThemeToggleCompact />
 
           {user ? (
             <div className="relative">
-              <button className="flex items-center gap-2 rounded-full bg-slate-100 p-2 text-sm hover:bg-slate-200">
+              <button className="flex items-center gap-2 rounded-full bg-slate-100 dark:bg-slate-800 p-2 text-sm hover:bg-slate-200 dark:hover:bg-slate-700">
                 <img
                   src={user.avatar}
                   alt={user.name}
                   className="h-8 w-8 rounded-full"
                 />
-                <span className="hidden font-medium text-slate-700 md:block">
+                <span className="hidden font-medium text-slate-700 dark:text-slate-300 md:block">
                   {user.name}
                 </span>
               </button>
               {/* Aquí iría un menú desplegable con opciones de perfil y logout */}
               <button
                 onClick={handleLogout}
-                className="ml-2 inline-flex items-center justify-center gap-2 rounded-xl bg-slate-100 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-200"
+                className="ml-2 inline-flex items-center justify-center gap-2 rounded-xl bg-slate-100 dark:bg-slate-800 px-3 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 transition-colors hover:bg-slate-200 dark:hover:bg-slate-700"
                 title="Cerrar sesión"
               >
                 <LogOut className="h-4 w-4" />

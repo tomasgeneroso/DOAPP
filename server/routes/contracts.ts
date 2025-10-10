@@ -3,7 +3,8 @@ import { body, validationResult } from "express-validator";
 import Contract from "../models/Contract.js";
 import Job from "../models/Job.js";
 import User from "../models/User.js";
-import { protect, AuthRequest } from "../middleware/auth.js";
+import { protect } from "../middleware/auth.js";
+import type { AuthRequest } from "../types/index.js";
 
 const router = express.Router();
 
@@ -152,6 +153,7 @@ router.post(
         job: jobId,
         client: req.user._id,
         doer: doerId,
+        type: "trabajo", // tipo por defecto
         price,
         commission,
         totalPrice,

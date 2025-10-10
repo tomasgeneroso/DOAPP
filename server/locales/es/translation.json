@@ -1,0 +1,127 @@
+{
+  "auth": {
+    "login": "Iniciar sesión",
+    "logout": "Cerrar sesión",
+    "register": "Registrarse",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "name": "Nombre",
+    "loginSuccess": "Inicio de sesión exitoso",
+    "registerSuccess": "Registro exitoso",
+    "logoutSuccess": "Sesión cerrada correctamente",
+    "invalidCredentials": "Credenciales inválidas",
+    "emailAlreadyExists": "El correo electrónico ya está registrado",
+    "tokenExpired": "Token expirado",
+    "tokenInvalid": "Token inválido",
+    "unauthorized": "No autorizado"
+  },
+  "user": {
+    "profile": "Perfil",
+    "settings": "Configuración",
+    "notifications": "Notificaciones",
+    "updateSuccess": "Perfil actualizado correctamente",
+    "notFound": "Usuario no encontrado",
+    "banned": "Usuario baneado",
+    "unbanned": "Usuario desbaneado"
+  },
+  "job": {
+    "create": "Crear trabajo",
+    "update": "Actualizar trabajo",
+    "delete": "Eliminar trabajo",
+    "list": "Lista de trabajos",
+    "detail": "Detalle del trabajo",
+    "title": "Título",
+    "description": "Descripción",
+    "price": "Precio",
+    "location": "Ubicación",
+    "category": "Categoría",
+    "tags": "Etiquetas",
+    "status": "Estado",
+    "created": "Trabajo creado correctamente",
+    "updated": "Trabajo actualizado correctamente",
+    "deleted": "Trabajo eliminado correctamente",
+    "notFound": "Trabajo no encontrado"
+  },
+  "contract": {
+    "create": "Crear contrato",
+    "accept": "Aceptar contrato",
+    "reject": "Rechazar contrato",
+    "complete": "Completar contrato",
+    "cancel": "Cancelar contrato",
+    "status": {
+      "pending": "Pendiente",
+      "accepted": "Aceptado",
+      "in_progress": "En progreso",
+      "completed": "Completado",
+      "cancelled": "Cancelado",
+      "disputed": "En disputa"
+    },
+    "created": "Contrato creado correctamente",
+    "accepted": "Contrato aceptado",
+    "rejected": "Contrato rechazado",
+    "completed": "Contrato completado",
+    "cancelled": "Contrato cancelado",
+    "notFound": "Contrato no encontrado"
+  },
+  "payment": {
+    "create": "Crear pago",
+    "process": "Procesar pago",
+    "refund": "Reembolsar",
+    "success": "Pago exitoso",
+    "failed": "Pago fallido",
+    "pending": "Pago pendiente",
+    "refunded": "Pago reembolsado",
+    "notFound": "Pago no encontrado"
+  },
+  "notification": {
+    "new": "Nueva notificación",
+    "markAsRead": "Marcar como leída",
+    "markAllAsRead": "Marcar todas como leídas",
+    "delete": "Eliminar notificación",
+    "preferences": "Preferencias de notificación"
+  },
+  "chat": {
+    "send": "Enviar",
+    "typing": "está escribiendo...",
+    "online": "En línea",
+    "offline": "Desconectado",
+    "newMessage": "Nuevo mensaje",
+    "conversation": "Conversación",
+    "markAsRead": "Marcar como leído"
+  },
+  "search": {
+    "search": "Buscar",
+    "filter": "Filtrar",
+    "sort": "Ordenar",
+    "noResults": "No se encontraron resultados",
+    "results": "resultados"
+  },
+  "common": {
+    "save": "Guardar",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "edit": "Editar",
+    "view": "Ver",
+    "back": "Volver",
+    "next": "Siguiente",
+    "previous": "Anterior",
+    "submit": "Enviar",
+    "loading": "Cargando...",
+    "error": "Error",
+    "success": "Éxito",
+    "warning": "Advertencia",
+    "info": "Información",
+    "confirm": "Confirmar",
+    "yes": "Sí",
+    "no": "No"
+  },
+  "error": {
+    "serverError": "Error del servidor",
+    "networkError": "Error de red",
+    "validationError": "Error de validación",
+    "notFound": "No encontrado",
+    "forbidden": "Prohibido",
+    "unauthorized": "No autorizado",
+    "tooManyRequests": "Demasiadas solicitudes"
+  }
+}

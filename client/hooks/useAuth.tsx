@@ -5,18 +5,7 @@ import {
   useEffect,
   ReactNode,
 } from "react";
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  phone?: string;
-  avatar?: string;
-  rating: number;
-  reviewsCount: number;
-  completedJobs: number;
-  role: "client" | "doer" | "both";
-}
+import type { User, RegisterData } from "@/types";
 
 interface AuthContextType {
   user: User | null;
@@ -26,14 +15,6 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => void;
-}
-
-interface RegisterData {
-  name: string;
-  email: string;
-  password: string;
-  phone?: string;
-  termsAccepted: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -68,6 +49,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
 
       if (!response.ok) {
+        // Manejar errores de validación
+        if (data.errors && Array.isArray(data.errors)) {
+          const errorMessages = data.errors.map((err: any) => err.msg).join(", ");
+          throw new Error(errorMessages);
+        }
         throw new Error(data.message || "Error al iniciar sesión");
       }
 
@@ -94,6 +80,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const responseData = await response.json();
 
       if (!response.ok) {
+        // Manejar errores de validación
+        if (responseData.errors && Array.isArray(responseData.errors)) {
+          const errorMessages = responseData.errors.map((err: any) => err.msg).join(", ");
+          throw new Error(errorMessages);
+        }
         throw new Error(responseData.message || "Error al registrarse");
       }
 

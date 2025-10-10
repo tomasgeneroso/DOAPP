@@ -1,39 +1,34 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "useDefineForClassFields": true,
-    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "lib": ["DOM", "DOM.Iterable", "ES2020"],
     "module": "ESNext",
-    "skipLibCheck": true,
-
-    /* Bundler mode */
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "isolatedModules": true,
-    "moduleDetection": "force",
-    "noEmit": true,
-    "jsx": "react-jsx",
+    "resolveJsonModule": true,
+    "allowJs": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
+    "jsx": "react-jsx",
+    "strict": true,
     "forceConsistentCasingInFileNames": true,
-
-    /* Linting */
-    "strict": false,
-    "noUnusedLocals": false,
-    "noUnusedParameters": false,
-    "noImplicitAny": false,
-    "noFallthroughCasesInSwitch": false,
-    "strictNullChecks": false,
-
-    /* Path mapping */
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["client/*"]
-    },
-
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "incremental": true,
+    "disableSourceOfProjectReferenceRedirect": true,
     "ignoreDeprecations": "6.0",
-    "disableSourceOfProjectReferenceRedirect": true
+    /* ✅ Alias moderno sin baseUrl */
+    "paths": {
+      "@/*": ["./client/*"]
+    }
   },
-  "include": ["client/**/*", "vite.config.ts"],
-  "exclude": ["node_modules", "dist", "server"]
+  "include": [
+    "client/**/*",
+    "server/**/*",
+    "vite.config.ts",
+    "global.d.ts",
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": ["node_modules", "dist", ".next"]
 }

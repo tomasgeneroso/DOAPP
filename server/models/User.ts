@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 export interface IUser extends Document {
   name: string;
   email: string;
-  password: string;
+  password?: string;
   phone?: string;
   avatar?: string;
   bio?: string;
@@ -14,7 +14,53 @@ export interface IUser extends Document {
   termsAccepted: boolean;
   termsAcceptedAt?: Date;
   role: "client" | "doer" | "both";
+  adminRole?: "owner" | "super_admin" | "admin" | "support" | "marketing";
+  permissions: string[];
   isVerified: boolean;
+  googleId?: string;
+  facebookId?: string;
+
+  // 2FA fields
+  twoFactorEnabled: boolean;
+  twoFactorSecret?: string;
+  twoFactorBackupCodes?: string[];
+
+  // Security fields
+  lastLogin?: Date;
+  lastLoginIP?: string;
+  activeSessions: Array<{
+    token: string;
+    ip: string;
+    userAgent: string;
+    createdAt: Date;
+    expiresAt: Date;
+  }>;
+
+  // Ban/Suspension fields
+  isBanned: boolean;
+  banReason?: string;
+  bannedAt?: Date;
+  bannedBy?: mongoose.Types.ObjectId;
+  banExpiresAt?: Date;
+  infractions: number;
+
+  // Trust score
+  trustScore: number;
+  verificationLevel: "none" | "email" | "phone" | "document" | "full";
+
+  // Push notification tokens
+  fcmTokens: string[];
+  notificationPreferences: {
+    email: boolean;
+    push: boolean;
+    sms: boolean;
+    newMessage: boolean;
+    jobUpdate: boolean;
+    contractUpdate: boolean;
+    paymentUpdate: boolean;
+    marketing: boolean;
+  };
+
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -30,7 +76,7 @@ const userSchema = new Schema<IUser>(
     },
     email: {
       type: String,
-      required: [true, "El email es requerido"],
+      sparse: true,
       unique: true,
       lowercase: true,
       trim: true,
@@ -41,9 +87,18 @@ const userSchema = new Schema<IUser>(
     },
     password: {
       type: String,
-      required: [true, "La contraseña es requerida"],
       minlength: [6, "La contraseña debe tener al menos 6 caracteres"],
       select: false,
+    },
+    googleId: {
+      type: String,
+      sparse: true,
+      unique: true,
+    },
+    facebookId: {
+      type: String,
+      sparse: true,
+      unique: true,
     },
     phone: {
       type: String,
@@ -84,9 +139,105 @@ const userSchema = new Schema<IUser>(
       enum: ["client", "doer", "both"],
       default: "both",
     },
+    adminRole: {
+      type: String,
+      enum: ["owner", "super_admin", "admin", "support", "marketing"],
+    },
+    permissions: {
+      type: [String],
+      default: [],
+    },
     isVerified: {
       type: Boolean,
       default: false,
+    },
+    // 2FA fields
+    twoFactorEnabled: {
+      type: Boolean,
+      default: false,
+    },
+    twoFactorSecret: {
+      type: String,
+      select: false,
+    },
+    twoFactorBackupCodes: {
+      type: [String],
+      select: false,
+    },
+    // Security fields
+    lastLogin: {
+      type: Date,
+    },
+    lastLoginIP: {
+      type: String,
+    },
+    activeSessions: [{
+      token: String,
+      ip: String,
+      userAgent: String,
+      createdAt: Date,
+      expiresAt: Date,
+    }],
+    // Ban/Suspension fields
+    isBanned: {
+      type: Boolean,
+      default: false,
+    },
+    banReason: {
+      type: String,
+    },
+    bannedAt: {
+      type: Date,
+    },
+    bannedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
+    banExpiresAt: {
+      type: Date,
+    },
+    infractions: {
+      type: Number,
+      default: 0,
+    },
+    // Trust score
+    trustScore: {
+      type: Number,
+      default: 100,
+      min: 0,
+      max: 100,
+    },
+    verificationLevel: {
+      type: String,
+      enum: ["none", "email", "phone", "document", "full"],
+      default: "none",
+    },
+    // Push notification tokens
+    fcmTokens: {
+      type: [String],
+      default: [],
+    },
+    notificationPreferences: {
+      type: {
+        email: { type: Boolean, default: true },
+        push: { type: Boolean, default: true },
+        sms: { type: Boolean, default: false },
+        newMessage: { type: Boolean, default: true },
+        jobUpdate: { type: Boolean, default: true },
+        contractUpdate: { type: Boolean, default: true },
+        paymentUpdate: { type: Boolean, default: true },
+        marketing: { type: Boolean, default: false },
+      },
+      default: {
+        email: true,
+        push: true,
+        sms: false,
+        newMessage: true,
+        jobUpdate: true,
+        contractUpdate: true,
+        paymentUpdate: true,
+        marketing: false,
+      },
     },
   },
   {
@@ -96,7 +247,7 @@ const userSchema = new Schema<IUser>(
 
 // Hash password antes de guardar
 userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) {
+  if (!this.isModified("password") || !this.password) {
     return next();
   }
 
@@ -113,7 +264,7 @@ userSchema.methods.comparePassword = async function (
 };
 
 // Índices para búsquedas rápidas
-userSchema.index({ email: 1 });
+// El índice de email ya se crea automáticamente por unique: true
 userSchema.index({ rating: -1 });
 
 export default mongoose.model<IUser>("User", userSchema);
