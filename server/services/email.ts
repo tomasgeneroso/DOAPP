@@ -332,6 +332,59 @@ class EmailService {
   }
 
   /**
+   * Send password changed confirmation email
+   */
+  async sendPasswordChangedEmail(
+    email: string,
+    userName: string
+  ): Promise<boolean> {
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+            .button { display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+            .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
+            .warning { background: #fee2e2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>✅ Contraseña actualizada</h1>
+            </div>
+            <div class="content">
+              <p>Hola ${userName},</p>
+              <p>Tu contraseña de DoApp ha sido actualizada correctamente.</p>
+              <div class="warning">
+                <strong>⚠️ ¿No fuiste tú?</strong><br>
+                Si no realizaste este cambio, por favor contacta con nuestro soporte inmediatamente.
+              </div>
+              <a href="${config.clientUrl}/support" class="button">Contactar soporte</a>
+              <p>Por seguridad, todas tus sesiones activas han sido cerradas. Deberás iniciar sesión nuevamente con tu nueva contraseña.</p>
+              <p>Gracias por mantener tu cuenta segura.</p>
+              <p>El equipo de DoApp</p>
+            </div>
+            <div class="footer">
+              <p>© 2025 DoApp. Todos los derechos reservados.</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    return await this.sendEmail({
+      to: email,
+      subject: "Tu contraseña ha sido actualizada - DoApp",
+      html,
+    });
+  }
+
+  /**
    * Send new message notification
    */
   async sendNewMessageNotification(

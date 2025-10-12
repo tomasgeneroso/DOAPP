@@ -9,6 +9,7 @@ This document provides a comprehensive overview of all implemented features acco
 ## 🏗️ Architecture Overview
 
 ### Backend Stack
+
 - **Framework**: Express.js with TypeScript
 - **Database**: MongoDB with Mongoose ODM
 - **Authentication**: JWT + Refresh Tokens + Social OAuth (Google, Facebook)
@@ -17,6 +18,7 @@ This document provides a comprehensive overview of all implemented features acco
 - **Payments**: PayPal SDK integration
 
 ### Frontend Stack
+
 - **Framework**: React 18 with TypeScript
 - **Routing**: React Router v6
 - **Styling**: Tailwind CSS with dark/light mode
@@ -28,6 +30,7 @@ This document provides a comprehensive overview of all implemented features acco
 ## 📦 Implemented Modules
 
 ### 1. Authentication & Authorization ✅
+
 **Location**: `server/routes/auth.ts`, `server/middleware/auth.ts`
 
 - ✅ JWT with access + refresh tokens
@@ -40,6 +43,7 @@ This document provides a comprehensive overview of all implemented features acco
 - ✅ Logout with token revocation
 
 **Endpoints**:
+
 - `POST /api/auth/register`
 - `POST /api/auth/login`
 - `GET /api/auth/me`
@@ -51,6 +55,7 @@ This document provides a comprehensive overview of all implemented features acco
 ---
 
 ### 2. User Management ✅
+
 **Location**: `server/models/User.ts`
 
 - ✅ CRUD operations
@@ -65,6 +70,7 @@ This document provides a comprehensive overview of all implemented features acco
 ---
 
 ### 3. Role-Based Access Control (RBAC) ✅
+
 **Location**: `server/config/permissions.ts`, `server/models/Role.ts`, `server/middleware/checkPermission.ts`
 
 - ✅ Dynamic permission system
@@ -76,6 +82,7 @@ This document provides a comprehensive overview of all implemented features acco
 - ✅ Role assignment restrictions
 
 **Key Permissions**:
+
 - User: view, edit (own/any), delete (own/any), ban, unban
 - Contract: create, view, edit, delete, moderate
 - Payment: create, view, refund, manage
@@ -86,6 +93,7 @@ This document provides a comprehensive overview of all implemented features acco
 ---
 
 ### 4. Contract System ✅
+
 **Location**: `server/models/Contract.ts`, `server/routes/contracts.ts`
 
 - ✅ Contract creation with terms acceptance
@@ -100,6 +108,7 @@ This document provides a comprehensive overview of all implemented features acco
 ---
 
 ### 5. Contract Negotiation ✅
+
 **Location**: `server/models/ContractNegotiation.ts`, `server/routes/negotiation.ts`
 
 - ✅ Proposal and counter-proposal system
@@ -110,6 +119,7 @@ This document provides a comprehensive overview of all implemented features acco
 - ✅ Real-time notifications
 
 **Endpoints**:
+
 - `POST /api/negotiation/start`
 - `POST /api/negotiation/:id/accept`
 - `POST /api/negotiation/:id/reject`
@@ -118,6 +128,7 @@ This document provides a comprehensive overview of all implemented features acco
 ---
 
 ### 6. Payment System (PayPal) ✅
+
 **Location**: `server/services/paypal.ts`, `server/routes/payments.ts`, `server/models/Payment.ts`
 
 - ✅ PayPal SDK integration
@@ -130,6 +141,7 @@ This document provides a comprehensive overview of all implemented features acco
 - ✅ Payment notifications
 
 **Features**:
+
 - Sandbox/Live mode switching
 - Frontend PayPal button component
 - Transaction audit trail
@@ -137,6 +149,7 @@ This document provides a comprehensive overview of all implemented features acco
 - Platform fee: 5% (configurable)
 
 **Endpoints**:
+
 - `POST /api/payments/create-order`
 - `POST /api/payments/capture-order`
 - `POST /api/payments/:id/release-escrow`
@@ -147,6 +160,7 @@ This document provides a comprehensive overview of all implemented features acco
 ---
 
 ### 7. Ticket System ✅
+
 **Location**: `server/models/Ticket.ts`, `server/routes/admin/tickets.ts`
 
 - ✅ Ticket creation with categories
@@ -163,6 +177,7 @@ This document provides a comprehensive overview of all implemented features acco
 ---
 
 ### 8. Admin Dashboard ✅
+
 **Location**: `client/pages/admin/`
 
 - ✅ Role-based dashboard access
@@ -175,6 +190,7 @@ This document provides a comprehensive overview of all implemented features acco
 - ✅ 2FA setup for admins
 
 **Pages**:
+
 - Dashboard with metrics
 - User management
 - Ticket system
@@ -183,9 +199,11 @@ This document provides a comprehensive overview of all implemented features acco
 ---
 
 ### 9. Security Features ✅
+
 **Location**: `server/middleware/security.ts`, `server/scripts/securityCheck.ts`
 
 #### Middleware
+
 - ✅ Rate limiting (auth: 5/15min, API: 100/15min, strict: 3/hour)
 - ✅ MongoDB injection prevention (mongoSanitize)
 - ✅ XSS protection (custom sanitization)
@@ -195,6 +213,7 @@ This document provides a comprehensive overview of all implemented features acco
 - ✅ IP whitelist capability
 
 #### Automated Security Checks
+
 - ✅ NPM audit vulnerability scan
 - ✅ Environment variable validation
 - ✅ Hardcoded credentials detection
@@ -208,6 +227,7 @@ This document provides a comprehensive overview of all implemented features acco
 ---
 
 ### 10. Audit Logging ✅
+
 **Location**: `server/models/AuditLog.ts`, `server/utils/auditLogger.ts`
 
 - ✅ SHA256 signature for integrity
@@ -221,6 +241,7 @@ This document provides a comprehensive overview of all implemented features acco
 - ✅ Auto-cleanup of old logs (90 days)
 
 **Logged Actions**:
+
 - User: create, update, delete, ban, role change
 - Contract: create, update, delete, hide
 - Payment: create, capture, refund, escrow release
@@ -231,6 +252,7 @@ This document provides a comprehensive overview of all implemented features acco
 ---
 
 ### 11. File Upload System ✅
+
 **Location**: `server/middleware/upload.ts`
 
 - ✅ Multer integration
@@ -243,12 +265,14 @@ This document provides a comprehensive overview of all implemented features acco
 - ✅ Auto-cleanup of old files
 
 **Allowed Types**:
+
 - Images: JPEG, PNG, GIF, WebP
 - Documents: PDF, Word, Excel
 
 ---
 
 ### 12. Secure Matching Code System ✅
+
 **Location**: `server/models/MatchingCode.ts`, `server/routes/matching.ts`
 
 - ✅ 6-digit code generation
@@ -261,6 +285,7 @@ This document provides a comprehensive overview of all implemented features acco
 - ✅ Meeting location tracking
 
 **Endpoints**:
+
 - `POST /api/matching/generate`
 - `POST /api/matching/verify`
 - `GET /api/matching/my-codes`
@@ -269,6 +294,7 @@ This document provides a comprehensive overview of all implemented features acco
 ---
 
 ### 13. Rating & Review System ✅
+
 **Location**: `server/models/Review.ts`, `server/routes/reviews.ts`
 
 - ✅ 5-star rating system
@@ -282,6 +308,7 @@ This document provides a comprehensive overview of all implemented features acco
 - ✅ Moderation tools
 
 **Endpoints**:
+
 - `POST /api/reviews`
 - `GET /api/reviews/user/:userId`
 - `POST /api/reviews/:id/respond`
@@ -290,6 +317,7 @@ This document provides a comprehensive overview of all implemented features acco
 ---
 
 ### 14. Dark/Light Mode ✅
+
 **Location**: `client/hooks/useTheme.tsx`, `client/components/ui/ThemeToggle.tsx`
 
 - ✅ System preference detection
@@ -303,6 +331,7 @@ This document provides a comprehensive overview of all implemented features acco
 ---
 
 ### 15. Notification System ✅
+
 **Location**: `server/models/Notification.ts`
 
 - ✅ Real-time notifications
@@ -322,18 +351,22 @@ This document provides a comprehensive overview of all implemented features acco
 ## 🛠️ Technical Implementation Details
 
 ### Security Measures
+
 1. **Authentication**
+
    - JWT with 15min access tokens
    - 7-day refresh tokens with rotation
    - Bcrypt password hashing (10 rounds)
    - 2FA with TOTP (optional, required for owner/super_admin)
 
 2. **Rate Limiting**
+
    - Auth endpoints: 5 attempts / 15 minutes
    - API endpoints: 100 requests / 15 minutes
    - Strict endpoints: 3 attempts / hour
 
 3. **Input Validation**
+
    - Express-validator on all inputs
    - MongoDB injection prevention
    - XSS sanitization
@@ -347,6 +380,7 @@ This document provides a comprehensive overview of all implemented features acco
    - CORS whitelist
 
 ### Database Indexes
+
 - User: email, facebookId, googleId, adminRole
 - Contract: client, doer, job, status
 - Payment: contractId, payerId, recipientId, status
@@ -355,6 +389,7 @@ This document provides a comprehensive overview of all implemented features acco
 - MatchingCode: contractId, userId, expiresAt (TTL)
 
 ### API Response Format
+
 ```typescript
 {
   success: boolean,
@@ -375,6 +410,7 @@ This document provides a comprehensive overview of all implemented features acco
 ## 📱 Frontend Components
 
 ### Pages
+
 - ✅ Index (job listings)
 - ✅ Login/Register
 - ✅ Auth Callback (OAuth)
@@ -388,6 +424,7 @@ This document provides a comprehensive overview of all implemented features acco
 - ✅ Ticket Detail
 
 ### UI Components
+
 - ✅ Header with theme toggle
 - ✅ Layout wrapper
 - ✅ Protected routes
@@ -404,6 +441,7 @@ This document provides a comprehensive overview of all implemented features acco
 ## 🚀 Deployment Checklist
 
 ### Before Deploy
+
 ```bash
 # 1. Run security checks
 npm run security:check
@@ -419,6 +457,7 @@ npm run preview
 ```
 
 ### Environment Variables Required
+
 ```
 # Database
 MONGODB_URI=
@@ -446,6 +485,7 @@ VITE_PAYPAL_CLIENT_ID=
 ```
 
 ### Production Checklist
+
 - [ ] Switch PAYPAL_MODE to `live`
 - [ ] Use production PayPal credentials
 - [ ] Set NODE_ENV=production
@@ -497,6 +537,7 @@ npm run predeploy       # Full pre-deploy check
 ### Complete Endpoint List
 
 #### Authentication
+
 - POST /api/auth/register
 - POST /api/auth/login
 - GET /api/auth/me
@@ -511,6 +552,7 @@ npm run predeploy       # Full pre-deploy check
 - POST /api/auth/facebook/token
 
 #### Jobs
+
 - GET /api/jobs
 - POST /api/jobs
 - GET /api/jobs/:id
@@ -518,6 +560,7 @@ npm run predeploy       # Full pre-deploy check
 - DELETE /api/jobs/:id
 
 #### Contracts
+
 - GET /api/contracts
 - POST /api/contracts
 - GET /api/contracts/:id
@@ -525,12 +568,14 @@ npm run predeploy       # Full pre-deploy check
 - DELETE /api/contracts/:id
 
 #### Negotiation
+
 - POST /api/negotiation/start
 - POST /api/negotiation/:id/accept
 - POST /api/negotiation/:id/reject
 - GET /api/negotiation/contract/:contractId
 
 #### Payments
+
 - POST /api/payments/create-order
 - POST /api/payments/capture-order
 - POST /api/payments/:id/release-escrow
@@ -541,18 +586,21 @@ npm run predeploy       # Full pre-deploy check
 - POST /api/payments/webhook
 
 #### Matching Codes
+
 - POST /api/matching/generate
 - POST /api/matching/verify
 - GET /api/matching/my-codes
 - GET /api/matching/status/:contractId
 
 #### Reviews
+
 - POST /api/reviews
 - GET /api/reviews/user/:userId
 - POST /api/reviews/:id/respond
 - POST /api/reviews/:id/flag
 
 #### Admin - Users
+
 - GET /api/admin/users
 - GET /api/admin/users/:id
 - PUT /api/admin/users/:id
@@ -561,6 +609,7 @@ npm run predeploy       # Full pre-deploy check
 - POST /api/admin/users/:id/unban
 
 #### Admin - Contracts
+
 - GET /api/admin/contracts
 - GET /api/admin/contracts/:id
 - PUT /api/admin/contracts/:id
@@ -569,6 +618,7 @@ npm run predeploy       # Full pre-deploy check
 - DELETE /api/admin/contracts/:id
 
 #### Admin - Tickets
+
 - GET /api/admin/tickets
 - POST /api/admin/tickets
 - GET /api/admin/tickets/:id
@@ -578,6 +628,7 @@ npm run predeploy       # Full pre-deploy check
 - PUT /api/admin/tickets/:id/close
 
 #### Admin - Analytics
+
 - GET /api/admin/analytics/overview
 - GET /api/admin/analytics/users
 - GET /api/admin/analytics/contracts
@@ -586,6 +637,7 @@ npm run predeploy       # Full pre-deploy check
 - GET /api/admin/analytics/export
 
 #### Admin - 2FA
+
 - POST /api/admin/2fa/setup
 - POST /api/admin/2fa/verify
 - POST /api/admin/2fa/disable
@@ -597,6 +649,7 @@ npm run predeploy       # Full pre-deploy check
 ## 🎓 Next Steps / Future Enhancements
 
 ### Phase 2 (Post-MVP)
+
 - [ ] Real-time chat system (Socket.io)
 - [ ] Push notifications (FCM)
 - [ ] Email notifications (SendGrid/Mailgun)
@@ -610,6 +663,7 @@ npm run predeploy       # Full pre-deploy check
 - [ ] Mobile app (React Native)
 
 ### Performance Optimizations
+
 - [ ] Redis caching layer
 - [ ] CDN for static assets
 - [ ] Database query optimization
@@ -645,3 +699,194 @@ npm run predeploy       # Full pre-deploy check
 
 **Developed according to specifications**
 **MVP Complete - Ready for deployment**
+
+# 🧩 PHASE 2 - ADVANCED SECURITY, TRUST & COMPLIANCE IMPLEMENTATION
+
+## 🎯 Objective
+
+Expand the MVP into a secure, compliant, and user-trusted ecosystem ready for dual-market deployment (🇨🇭 Switzerland + 🇦🇷 Argentina).  
+Implement all necessary modules for **user safety, financial integrity, data protection, and dispute resolution**.
+
+---
+
+## 🛡️ PHASE 2.1 - ACCOUNT SECURITY & FRAUD PREVENTION
+
+### 🔐 Secure Account Recovery
+
+- Implement secure password reset flow with email verification and 2FA challenge.
+- Add “recent login device” history for user review.
+- Require re-authentication before changing critical credentials.
+
+### ⏱️ Auto Logout by Inactivity
+
+- Frontend inactivity timer (default: 30 min).
+- Server session invalidation on timeout.
+- Graceful warning modal before auto logout.
+
+### 🧠 Anomaly Login Monitor
+
+- Detect suspicious logins by IP, device fingerprint, and geolocation.
+- Send alert email for logins from new locations.
+- Log and display “Recent Activity” in user settings.
+
+### 🧾 Consent & Privacy Logs (GDPR/LPD)
+
+- Record explicit consent for privacy policy, terms, and data processing.
+- Log all data access, modifications, and export/deletion requests.
+- Enable “Download My Data” & “Request Data Deletion” endpoints.
+
+### 🕵️ Data Protection Officer (DPO)
+
+- Create system role `dpo` with access to privacy requests and audit logs.
+- Enable DPO review and approval workflow for sensitive operations.
+- Add privacy dashboard for compliance overview.
+
+### 🔒 Backup Encryption
+
+- Encrypt all MongoDB backups using AES-256.
+- Store backups in secure S3 bucket (server-side encryption).
+- Automatic daily rotation with verification checksum.
+
+---
+
+## 💳 PHASE 2.2 - FINANCIAL TRUST & COMPLIANCE
+
+### 🧾 KYC / AML Verification (User Creation)
+
+- Integrate third-party KYC/AML verification (e.g. Sumsub, Ondato, Veriff).
+- For 🇨🇭 use FINMA-compliant KYC provider; for 🇦🇷 use local (DNI/AFIP check).
+- Mandatory verification before enabling escrow transactions.
+- Secure storage of verification hashes only (no raw document data).
+
+### 💰 Escrow 2.0 - Real Secure Holding
+
+- Implement real escrow account separation (via PayPal Managed Payouts / Stripe Connect).
+- Funds held by third-party until both sides verify completion.
+- Automatic refund if both confirm non-completion within dispute timeframe.
+
+### 🕵️ Fraud Detection System
+
+- Create ML-ready module for fraud scoring.
+- Analyze behavioral patterns: repeated cancellations, IP anomalies, chargebacks.
+- Real-time risk scoring at payment creation.
+
+### 🧮 Financial Accounting & Traceability
+
+- Double-entry bookkeeping model for all transactions.
+- Trace each transaction with unique ledger reference (UUID + SHA256).
+- Export CSV/XLS for financial audits and regulatory reports.
+
+---
+
+## ⭐ PHASE 2.3 - TRUST, REPUTATION & DISPUTES
+
+### 📊 Contextual Reputation System
+
+- Enhance trust score based on verified jobs, KYC, dispute ratio, punctuality.
+- Dynamic weighting based on transaction history.
+- “Verified Pro” badge for users with consistent positive performance.
+
+### 🧾 Manual Verification System
+
+- Admin manual review for flagged users.
+- Add document upload & validation flow.
+- DPO and Admin audit for sensitive verifications.
+
+### ⚖️ Dispute Escalation & Dispute Center
+
+- Implement “Dispute Center” module for conflict resolution.
+- Both parties can upload evidence, images, and explanations.
+- Support team reviews and issues final verdict.
+- Track resolution time and outcome for SLA monitoring.
+
+### 💬 Real-Time Chat (Socket.io + Redis)
+
+- Secure WebSocket-based chat per contract.
+- Message encryption with AES (in-transit + optional at-rest).
+- Typing indicators, delivery receipts, unread count.
+- Integration with notification system.
+
+---
+
+## 🕒 PHASE 2.4 - PERFORMANCE, SLA & ANALYTICS
+
+### 📈 SLA Monitor System
+
+- Track durations of:
+  - Contract publication → Hiring
+  - Hiring → Completion
+  - Completion → Payment
+- Generate time-based reports and KPIs per category.
+- Alerts for SLA breaches (support dashboard).
+
+### 💼 User Financial History
+
+- Full historical financial dashboard (earnings, payments, refunds).
+- Downloadable statements (PDF/CSV).
+- Filter by contract, date, and counterpart.
+
+### ⚖️ Legal Layer (Dynamic Terms)
+
+- Auto-detect user country (🇨🇭 / 🇦🇷).
+- Display country-specific Terms & Conditions, Privacy Policy, and refund policies.
+- Implement versioned, multi-language legal documents.
+- Store signed versions in audit logs.
+
+---
+
+## 📱 PHASE 2.5 - MOBILE APPLICATION & EXTENSION
+
+### 📲 Mobile App (React Native)
+
+- Shared codebase with web components.
+- Secure communication via HTTPS + JWT + Refresh flow.
+- Push notifications (FCM/Apple APN).
+- Offline mode for contract viewing and message caching.
+
+### 💡 Region-Aware Configuration
+
+- 🇨🇭 Use Swiss servers (compliant with LPD).
+- 🇦🇷 Use AWS São Paulo region (lowest latency + cost-effective).
+- Shared global auth and payment logic, region-based feature toggles.
+
+---
+
+## 🧠 PHASE 3 - AI & INTELLIGENT MODULES (POST-LAUNCH)
+
+> ⚙️ These modules will only be implemented after stable market release and user adoption.
+
+### 🤖 AI-Powered Modules (Deferred)
+
+- AI dispute assistant (analyzes messages and evidence)
+- AI risk detection for fraud patterns
+- AI recommendation engine for job matching
+- AI-driven dynamic pricing suggestions
+
+---
+
+## ✅ Implementation Order
+
+1. Phase 2.1 – Account & Data Protection
+2. Phase 2.2 – Financial Compliance
+3. Phase 2.3 – Reputation & Disputes
+4. Phase 2.4 – SLA & Legal Layer
+5. Phase 2.5 – Mobile App
+6. Phase 3 – AI Modules
+
+---
+
+## 📋 Notes for Claude Execution in VS Code
+
+- Execute sequentially without user confirmation.
+- Resume automatically if token/session resets.
+- Follow each phase strictly in order.
+- Maintain existing folder structure and add new modules under `/server/modules/` and `/client/modules/`.
+- Use `.env.production` and `.env.switzerland` for region-specific variables.
+- Ensure all code is TypeScript-typed and ESLint-compliant.
+- Log all changes under `/docs/devlog-phase2.md`.
+
+---
+
+# 🚀 END OF PHASE PLAN
+
+**Proceed to build these modules automatically, in sequence, without pausing for user confirmation.**

@@ -14,6 +14,10 @@ import {
   revokeAllUserTokens,
 } from "../utils/tokens.js";
 import { authLimiter } from "../middleware/security.js";
+import { PasswordResetToken } from "../models/PasswordResetToken.js";
+import { LoginDevice } from "../models/LoginDevice.js";
+import emailService from "../services/email.js";
+import anomalyDetection from "../services/anomalyDetection.js";
 
 const router = express.Router();
 
@@ -132,7 +136,7 @@ router.post(
         return;
       }
 
-      const { email, password } = req.body;
+      const { email, password, deviceFingerprint } = req.body;
 
       // Buscar usuario con password
       const user = await User.findOne({ email }).select("+password");
@@ -154,10 +158,48 @@ router.post(
         return;
       }
 
+      // Registrar dispositivo y login
+      const clientIp = getClientIp(req);
+      const userAgent = req.headers["user-agent"] || "unknown";
+
+      if (deviceFingerprint) {
+        await (LoginDevice as any).recordLogin(
+          user._id,
+          deviceFingerprint,
+          clientIp,
+          userAgent
+        );
+      }
+
+      // Detectar login anómalo
+      const anomalyResult = await anomalyDetection.detectAnomalousLogin({
+        userId: user._id,
+        ipAddress: clientIp,
+        userAgent,
+        deviceFingerprint,
+        timestamp: new Date(),
+        success: true,
+      });
+
+      // Si es altamente sospechoso, bloquear
+      if (anomalyResult.shouldBlock) {
+        res.status(403).json({
+          success: false,
+          message: "Login bloqueado por actividad sospechosa. Revisa tu email para más detalles.",
+          code: "SUSPICIOUS_LOGIN_BLOCKED",
+        });
+        return;
+      }
+
+      // Actualizar último login
+      user.lastLogin = new Date();
+      user.lastLoginIP = clientIp;
+      await user.save();
+
       // Generar token
       const token = generateToken((user as any)._id.toString());
 
-      res.json({
+      const response: any = {
         success: true,
         token,
         user: {
@@ -171,7 +213,17 @@ router.post(
           completedJobs: user.completedJobs,
           role: user.role,
         },
-      });
+      };
+
+      // Añadir advertencia si hay anomalía
+      if (anomalyResult.isAnomalous) {
+        response.warning = {
+          message: "Hemos detectado actividad inusual en este login",
+          riskLevel: anomalyResult.riskLevel,
+        };
+      }
+
+      res.json(response);
     } catch (error: any) {
       res.status(500).json({
         success: false,
@@ -441,6 +493,212 @@ router.post("/logout-all", protect, async (req: AuthRequest, res: Response): Pro
     res.json({
       success: true,
       message: "Todas las sesiones cerradas correctamente",
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   POST /api/auth/forgot-password
+// @desc    Solicitar reset de contraseña
+// @access  Public
+router.post(
+  "/forgot-password",
+  authLimiter,
+  [
+    body("email").isEmail().withMessage("Email inválido"),
+  ],
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          errors: errors.array(),
+        });
+        return;
+      }
+
+      const { email } = req.body;
+
+      // Buscar usuario
+      const user = await User.findOne({ email });
+      if (!user) {
+        // Por seguridad, no revelamos si el email existe o no
+        res.json({
+          success: true,
+          message: "Si el email existe, recibirás un enlace de recuperación",
+        });
+        return;
+      }
+
+      // Generar token de reset
+      const resetData = await (PasswordResetToken as any).generateToken(
+        user._id,
+        getClientIp(req),
+        req.headers["user-agent"]
+      );
+
+      // Enviar email con link de reset
+      const resetUrl = `${config.clientUrl}/reset-password?token=${resetData.token}`;
+
+      await emailService.sendPasswordResetEmail(
+        user.email,
+        user.name,
+        resetUrl
+      );
+
+      res.json({
+        success: true,
+        message: "Si el email existe, recibirás un enlace de recuperación",
+      });
+    } catch (error: any) {
+      console.error("Error en forgot-password:", error);
+      res.status(500).json({
+        success: false,
+        message: "Error al procesar la solicitud",
+      });
+    }
+  }
+);
+
+// @route   POST /api/auth/reset-password
+// @desc    Reset de contraseña con token
+// @access  Public
+router.post(
+  "/reset-password",
+  authLimiter,
+  [
+    body("token").notEmpty().withMessage("Token es requerido"),
+    body("newPassword")
+      .isLength({ min: 6 })
+      .withMessage("La contraseña debe tener al menos 6 caracteres"),
+  ],
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          errors: errors.array(),
+        });
+        return;
+      }
+
+      const { token, newPassword } = req.body;
+
+      // Verificar token
+      const resetToken = await (PasswordResetToken as any).verifyToken(token);
+
+      if (!resetToken) {
+        res.status(400).json({
+          success: false,
+          message: "Token inválido o expirado",
+        });
+        return;
+      }
+
+      // Obtener usuario
+      const user = await User.findById(resetToken.userId);
+      if (!user) {
+        res.status(404).json({
+          success: false,
+          message: "Usuario no encontrado",
+        });
+        return;
+      }
+
+      // Actualizar contraseña
+      user.password = newPassword;
+      await user.save();
+
+      // Marcar token como usado
+      resetToken.used = true;
+      resetToken.usedAt = new Date();
+      await resetToken.save();
+
+      // Revocar todas las sesiones activas por seguridad
+      await revokeAllUserTokens(user._id, "Password reset");
+
+      // Enviar email de confirmación
+      await emailService.sendPasswordChangedEmail(user.email, user.name);
+
+      res.json({
+        success: true,
+        message: "Contraseña actualizada correctamente",
+      });
+    } catch (error: any) {
+      console.error("Error en reset-password:", error);
+      res.status(500).json({
+        success: false,
+        message: "Error al procesar la solicitud",
+      });
+    }
+  }
+);
+
+// @route   GET /api/auth/devices
+// @desc    Obtener dispositivos de login del usuario
+// @access  Private
+router.get("/devices", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const devices = await (LoginDevice as any).getUserDevices(req.user._id);
+
+    res.json({
+      success: true,
+      devices: devices.map((device: any) => ({
+        id: device._id,
+        deviceType: device.deviceType,
+        browser: device.browser,
+        os: device.os,
+        ipAddress: device.ipAddress,
+        country: device.country,
+        city: device.city,
+        lastLoginAt: device.lastLoginAt,
+        loginCount: device.loginCount,
+        isTrusted: device.isTrusted,
+        createdAt: device.createdAt,
+      })),
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   POST /api/auth/devices/:id/trust
+// @desc    Marcar dispositivo como confiable
+// @access  Private
+router.post("/devices/:id/trust", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const device = await LoginDevice.findOne({
+      _id: req.params.id,
+      userId: req.user._id,
+    });
+
+    if (!device) {
+      res.status(404).json({
+        success: false,
+        message: "Dispositivo no encontrado",
+      });
+      return;
+    }
+
+    device.isTrusted = !device.isTrusted;
+    await device.save();
+
+    res.json({
+      success: true,
+      message: device.isTrusted ? "Dispositivo marcado como confiable" : "Dispositivo desmarcado como confiable",
+      device: {
+        id: device._id,
+        isTrusted: device.isTrusted,
+      },
     });
   } catch (error: any) {
     res.status(500).json({

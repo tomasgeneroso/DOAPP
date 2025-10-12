@@ -22,7 +22,20 @@
       "Bash(cmd /c \"taskkill /F /PID 4052\")",
       "Bash(tasklist:*)",
       "Bash(git add:*)",
-      "Bash(del nul)"
+      "Bash(del nul)",
+      "Bash(del \"D:\\DOAPP\\INSTRUCCIONES.md\")",
+      "Bash(del \"D:\\DOAPP\\PAYPAL_SETUP.md\")",
+      "Bash(del \"D:\\DOAPP\\PAYPAL_INTEGRATION_SUMMARY.md\")",
+      "Bash(del \"D:\\DOAPP\\PHASE2.1_COMPLETE.md\")",
+      "Bash(cmd /c \"del D:\\DOAPP\\INSTRUCCIONES.md & del D:\\DOAPP\\PAYPAL_SETUP.md & del D:\\DOAPP\\PAYPAL_INTEGRATION_SUMMARY.md & del D:\\DOAPP\\PHASE2.1_COMPLETE.md & echo Files deleted successfully\")",
+      "Bash(if exist INSTRUCCIONES.md del INSTRUCCIONES.md)",
+      "Bash(if exist PAYPAL_SETUP.md del PAYPAL_SETUP.md)",
+      "Bash(if exist PAYPAL_INTEGRATION_SUMMARY.md del PAYPAL_INTEGRATION_SUMMARY.md)",
+      "Bash(powershell -Command \"if (Test-Path INSTRUCCIONES.md) { Remove-Item INSTRUCCIONES.md -Force }; if (Test-Path PAYPAL_SETUP.md) { Remove-Item PAYPAL_SETUP.md -Force }; if (Test-Path PAYPAL_INTEGRATION_SUMMARY.md) { Remove-Item PAYPAL_INTEGRATION_SUMMARY.md -Force }; Write-Host ''Redundant files removed''\")",
+      "Bash(powershell -Command:*)",
+      "Bash(echo:*)",
+      "Bash(dir:*)",
+      "Bash(awk:*)"
     ],
     "deny": [],
     "ask": []

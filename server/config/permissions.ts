@@ -57,6 +57,15 @@ export const PERMISSIONS = {
   SYSTEM_RESTORE: "system:restore",
   SYSTEM_MAINTENANCE: "system:maintenance",
 
+  // Privacy & Data Protection Officer (DPO) permissions
+  PRIVACY_VIEW_CONSENTS: "privacy:view_consents",
+  PRIVACY_VIEW_DATA_ACCESS: "privacy:view_data_access",
+  PRIVACY_EXPORT_DATA: "privacy:export_data",
+  PRIVACY_DELETE_DATA: "privacy:delete_data",
+  PRIVACY_MANAGE_REQUESTS: "privacy:manage_requests",
+  PRIVACY_VIEW_AUDIT: "privacy:view_audit",
+  PRIVACY_COMPLIANCE_REPORT: "privacy:compliance_report",
+
   // Special permissions
   SUPERUSER: "*", // All permissions
 } as const;
@@ -155,6 +164,23 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.USER_VIEW,
     PERMISSIONS.CONTRACT_VIEW_ANY,
   ],
+  dpo: [
+    // Privacy & compliance permissions
+    PERMISSIONS.PRIVACY_VIEW_CONSENTS,
+    PERMISSIONS.PRIVACY_VIEW_DATA_ACCESS,
+    PERMISSIONS.PRIVACY_EXPORT_DATA,
+    PERMISSIONS.PRIVACY_DELETE_DATA,
+    PERMISSIONS.PRIVACY_MANAGE_REQUESTS,
+    PERMISSIONS.PRIVACY_VIEW_AUDIT,
+    PERMISSIONS.PRIVACY_COMPLIANCE_REPORT,
+
+    // User management (view only for privacy purposes)
+    PERMISSIONS.USER_VIEW,
+
+    // Admin access for privacy dashboard
+    PERMISSIONS.ADMIN_DASHBOARD,
+    PERMISSIONS.ADMIN_AUDIT_LOG,
+  ],
   user: [
     // Basic user permissions
     PERMISSIONS.USER_VIEW,
@@ -185,6 +211,7 @@ export const ROLE_LEVELS = {
   owner: 0,
   super_admin: 1,
   admin: 2,
+  dpo: 2, // Same level as admin
   support: 3,
   marketing: 4,
   user: 100,
@@ -223,6 +250,12 @@ export const ROLE_INFO = {
     description: "Access analytics and reports. No sensitive data access.",
     color: "#D97706", // amber-600
     assignable: true,
+  },
+  dpo: {
+    displayName: "Data Protection Officer",
+    description: "Manage privacy compliance, consents, data access requests, and GDPR/LPD obligations.",
+    color: "#0891B2", // cyan-600
+    assignable: false, // Only owner/super_admin can assign
   },
   user: {
     displayName: "User",

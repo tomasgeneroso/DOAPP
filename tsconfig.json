@@ -16,7 +16,6 @@
     "noEmit": true,
     "incremental": true,
     "disableSourceOfProjectReferenceRedirect": true,
-    "ignoreDeprecations": "6.0",
     /* ✅ Alias moderno sin baseUrl */
     "paths": {
       "@/*": ["./client/*"]

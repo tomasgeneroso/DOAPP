@@ -14,7 +14,7 @@ export interface IUser extends Document {
   termsAccepted: boolean;
   termsAcceptedAt?: Date;
   role: "client" | "doer" | "both";
-  adminRole?: "owner" | "super_admin" | "admin" | "support" | "marketing";
+  adminRole?: "owner" | "super_admin" | "admin" | "support" | "marketing" | "dpo";
   permissions: string[];
   isVerified: boolean;
   googleId?: string;
@@ -28,6 +28,7 @@ export interface IUser extends Document {
   // Security fields
   lastLogin?: Date;
   lastLoginIP?: string;
+  lastActivity?: Date;
   activeSessions: Array<{
     token: string;
     ip: string;
@@ -141,7 +142,7 @@ const userSchema = new Schema<IUser>(
     },
     adminRole: {
       type: String,
-      enum: ["owner", "super_admin", "admin", "support", "marketing"],
+      enum: ["owner", "super_admin", "admin", "support", "marketing", "dpo"],
     },
     permissions: {
       type: [String],
@@ -170,6 +171,9 @@ const userSchema = new Schema<IUser>(
     },
     lastLoginIP: {
       type: String,
+    },
+    lastActivity: {
+      type: Date,
     },
     activeSessions: [{
       token: String,

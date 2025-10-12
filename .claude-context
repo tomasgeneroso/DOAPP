@@ -1,0 +1,92 @@
+# Claude Code - Contexto Optimizado
+
+## Orden de Lectura de Archivos (Prioridad)
+
+### 1. SIEMPRE leer primero:
+- **CLAUDE.md** - Context técnico completo y optimizado (8.6 KB)
+  - Stack, estructura, modelos, servicios, middleware
+  - Patrones de código y convenciones
+  - Tips específicos para desarrollo
+
+### 2. Leer SOLO cuando sea necesario:
+- **PHASE2_COMPLETE.md** - Detalles de Chat, Notificaciones, Portfolio, Búsqueda
+- **PHASE3_COMPLETE.md** - Detalles de Redis, Analytics, i18n, Optimización
+- **IMPLEMENTATION_COMPLETE.md** - Referencia completa del MVP
+
+### 3. NUNCA leer en conversaciones técnicas:
+- README.md (para usuarios/stakeholders)
+- SETUP_GUIDE.md (guía de instalación para humanos)
+
+## Estrategia de Tokens
+
+**Para tareas comunes:**
+- Solo CLAUDE.md proporciona todo el contexto necesario
+- Ahorra ~60KB de tokens innecesarios
+
+**Para features específicas:**
+- CLAUDE.md + archivo específico del módulo que estás modificando
+- Ejemplo: modificar cache → CLAUDE.md + server/services/cache.ts
+
+**Para debugging de PHASE específica:**
+- CLAUDE.md + PHASEx_COMPLETE.md correspondiente
+
+## Archivos Clave del Proyecto
+
+### Más Referenciados:
+```
+server/models/User.ts              - Schema de usuario
+server/config/permissions.ts       - Definición de permisos
+server/services/cache.ts           - API de caché Redis
+server/utils/sanitizer.ts          - Funciones de sanitización
+server/middleware/auth.ts          - Guards de autenticación
+server/middleware/advancedRateLimit.ts - Rate limiting
+```
+
+### Para Nuevas Features:
+1. Leer CLAUDE.md para entender arquitectura
+2. Buscar archivos relacionados con Glob/Grep
+3. Leer solo los archivos específicos necesarios
+4. Evitar leer documentación completa
+
+## Resumen de Tokens
+
+| Archivo | Tamaño | Cuándo Leer |
+|---------|--------|-------------|
+| CLAUDE.md | 8.6 KB | ✅ SIEMPRE |
+| PHASE2_COMPLETE.md | 16 KB | ⚠️ Si necesitas detalles de PHASE 2 |
+| PHASE3_COMPLETE.md | 15 KB | ⚠️ Si necesitas detalles de PHASE 3 |
+| IMPLEMENTATION_COMPLETE.md | 23 KB | ⚠️ Solo para referencia completa |
+| README.md | 11 KB | ❌ NUNCA (es para humanos) |
+| SETUP_GUIDE.md | 7.6 KB | ❌ NUNCA (es para instalación) |
+
+**Ahorro potencial: 72 KB por conversación (~36,000 tokens)**
+
+## Comandos Útiles (Memorizar)
+
+```bash
+# Desarrollo
+npm run dev:all        # Frontend + Backend
+npm run dev:server     # Solo backend
+npm run dev            # Solo frontend
+
+# Verificación
+npm run typecheck      # TypeScript
+npm run security:check # Seguridad
+
+# Base de datos
+npm run seed           # Poblar con datos de prueba
+```
+
+## Variables de Entorno Críticas
+
+```env
+MONGODB_URI=           # Base de datos
+JWT_SECRET=            # Auth
+REDIS_URL=             # Cache (opcional)
+PAYPAL_CLIENT_ID=      # Pagos
+```
+
+---
+
+**Última actualización:** 2025-10-12
+**Versión del proyecto:** PHASE 3 completa
