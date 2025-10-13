@@ -1,3 +1,4 @@
+// @ts-ignore - PayPal SDK has incomplete type definitions
 import paypal from "@paypal/checkout-server-sdk";
 import { config } from "../config/env";
 

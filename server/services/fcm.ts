@@ -94,7 +94,6 @@ class FCMService {
             sound: payload.sound || "default",
             clickAction: payload.clickAction,
             channelId: "default",
-            badge: payload.badge,
           },
         },
         apns: {

@@ -14,6 +14,8 @@ export interface IContract extends Document {
   client: mongoose.Types.ObjectId;
   doer: mongoose.Types.ObjectId;
   type: "trabajo" | "service";
+  title?: string;
+  description?: string;
   price: number;
   commission: number;
   totalPrice: number;
@@ -28,6 +30,7 @@ export interface IContract extends Document {
   endDate: Date;
   actualStartDate?: Date;
   actualEndDate?: Date;
+  workCompletedAt?: Date;
   deliveries?: IDelivery[];
   notes?: string;
   cancellationReason?: string;
@@ -99,6 +102,14 @@ const contractSchema = new Schema<IContract>(
       enum: ["trabajo", "service"],
       required: [true, "El tipo de contrato es requerido"],
     },
+    title: {
+      type: String,
+      maxlength: [200, "El título no puede exceder 200 caracteres"],
+    },
+    description: {
+      type: String,
+      maxlength: [2000, "La descripción no puede exceder 2000 caracteres"],
+    },
     price: {
       type: Number,
       required: [true, "El precio es requerido"],
@@ -152,6 +163,9 @@ const contractSchema = new Schema<IContract>(
       type: Date,
     },
     actualEndDate: {
+      type: Date,
+    },
+    workCompletedAt: {
       type: Date,
     },
     deliveries: [deliverySchema],

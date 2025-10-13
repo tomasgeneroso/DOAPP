@@ -59,8 +59,8 @@ router.post(
 
       // Verify user is part of contract
       if (
-        contract.clientId.toString() !== reviewerId.toString() &&
-        contract.doerId.toString() !== reviewerId.toString()
+        contract.client.toString() !== reviewerId.toString() &&
+        contract.doer.toString() !== reviewerId.toString()
       ) {
         res.status(403).json({
           success: false,
@@ -71,9 +71,9 @@ router.post(
 
       // Determine who is being reviewed
       const reviewedId =
-        contract.clientId.toString() === reviewerId.toString()
-          ? contract.doerId
-          : contract.clientId;
+        contract.client.toString() === reviewerId.toString()
+          ? contract.doer
+          : contract.client;
 
       // Check if review already exists
       const existingReview = await Review.findOne({

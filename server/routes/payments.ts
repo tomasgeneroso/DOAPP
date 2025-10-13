@@ -26,16 +26,16 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
     }
 
     // Verify user is part of the contract
-    if (contract.clientId.toString() !== userId.toString() && contract.doerId.toString() !== userId.toString()) {
+    if (contract.client.toString() !== userId.toString() && contract.doer.toString() !== userId.toString()) {
       res.status(403).json({ success: false, message: "Unauthorized" });
       return;
     }
 
     // Determine payer and recipient
     let payerId = userId;
-    let recipientId = contract.clientId.toString() === userId.toString()
-      ? contract.doerId
-      : contract.clientId;
+    let recipientId = contract.client.toString() === userId.toString()
+      ? contract.doer
+      : contract.client;
 
     // Calculate platform fee
     const platformFee = paypalService.calculatePlatformFee(parseFloat(amount));
@@ -388,8 +388,8 @@ router.get("/contract/:contractId", protect, async (req: AuthRequest, res: Respo
 
     // Verify user is part of the contract
     if (
-      contract.clientId.toString() !== userId.toString() &&
-      contract.doerId.toString() !== userId.toString()
+      contract.client.toString() !== userId.toString() &&
+      contract.doer.toString() !== userId.toString()
     ) {
       const user = await User.findById(userId);
       if (!user?.adminRole) {

@@ -47,8 +47,8 @@ router.post(
 
       // Verify user is part of contract
       if (
-        contract.clientId.toString() !== userId.toString() &&
-        contract.doerId.toString() !== userId.toString()
+        contract.client.toString() !== userId.toString() &&
+        contract.doer.toString() !== userId.toString()
       ) {
         res.status(403).json({
           success: false,
@@ -85,8 +85,8 @@ router.post(
         // Create new negotiation
         negotiation = await ContractNegotiation.create({
           contractId,
-          clientId: contract.clientId,
-          doerId: contract.doerId,
+          clientId: contract.client,
+          doerId: contract.doer,
           messages: [{
             userId,
             message,
@@ -107,9 +107,9 @@ router.post(
       }
 
       // Notify other party
-      const otherParty = contract.clientId.toString() === userId.toString()
-        ? contract.doerId
-        : contract.clientId;
+      const otherParty = contract.client.toString() === userId.toString()
+        ? contract.doer
+        : contract.client;
 
       await Notification.create({
         userId: otherParty,
@@ -324,8 +324,8 @@ router.get(
 
       // Verify user is part of contract
       if (
-        contract.clientId.toString() !== userId.toString() &&
-        contract.doerId.toString() !== userId.toString()
+        contract.client.toString() !== userId.toString() &&
+        contract.doer.toString() !== userId.toString()
       ) {
         res.status(403).json({
           success: false,

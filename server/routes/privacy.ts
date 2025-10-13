@@ -4,8 +4,8 @@ import type { AuthRequest } from "../types/index.js";
 import User from "../models/User.js";
 import { ConsentLog } from "../models/ConsentLog.js";
 import { DataAccessLog } from "../models/DataAccessLog.js";
-import { Contract } from "../models/Contract.js";
-import { Payment } from "../models/Payment.js";
+import Contract from "../models/Contract.js";
+import Payment from "../models/Payment.js";
 import { body, validationResult } from "express-validator";
 
 const router = express.Router();

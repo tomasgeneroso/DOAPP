@@ -79,7 +79,7 @@ app.use(helmet({
 
 // CORS - Permitir múltiples orígenes en producción
 const allowedOrigins = config.isProduction
-  ? [config.clientUrl, process.env.RAILWAY_PUBLIC_DOMAIN].filter(Boolean)
+  ? [config.clientUrl, process.env.RAILWAY_PUBLIC_DOMAIN].filter((url): url is string => Boolean(url))
   : [config.clientUrl, "http://localhost:5173", "http://localhost:5000"];
 
 app.use(

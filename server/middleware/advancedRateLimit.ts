@@ -7,11 +7,32 @@ import cache from "../services/cache.js";
  * Provides per-user, per-endpoint rate limiting
  */
 
-// Rate limiter instances
-let authLimiter: RateLimiterRedis | RateLimiterMemory;
-let apiLimiter: RateLimiterRedis | RateLimiterMemory;
-let strictLimiter: RateLimiterRedis | RateLimiterMemory;
-let perUserLimiter: RateLimiterRedis | RateLimiterMemory;
+// Rate limiter instances - Initialize with memory fallback immediately
+let authLimiter: RateLimiterRedis | RateLimiterMemory = new RateLimiterMemory({
+  keyPrefix: "rl:auth",
+  points: 30,
+  duration: 15 * 60,
+  blockDuration: 15 * 60,
+});
+
+let apiLimiter: RateLimiterRedis | RateLimiterMemory = new RateLimiterMemory({
+  keyPrefix: "rl:api",
+  points: 100,
+  duration: 15 * 60,
+});
+
+let strictLimiter: RateLimiterRedis | RateLimiterMemory = new RateLimiterMemory({
+  keyPrefix: "rl:strict",
+  points: 3,
+  duration: 60 * 60,
+  blockDuration: 60 * 60,
+});
+
+let perUserLimiter: RateLimiterRedis | RateLimiterMemory = new RateLimiterMemory({
+  keyPrefix: "rl:user",
+  points: 200,
+  duration: 60 * 60,
+});
 
 // Initialize rate limiters
 function initializeRateLimiters() {
