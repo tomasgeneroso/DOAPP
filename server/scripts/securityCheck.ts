@@ -92,11 +92,16 @@ async function checkNpmAudit(): Promise<SecurityCheckResult> {
  * Check 2: Verify environment variables
  */
 function checkEnvironmentVariables(): SecurityCheckResult {
+  // Critical vars required for core functionality
   const requiredVars = [
     "MONGODB_URI",
     "JWT_SECRET",
     "PAYPAL_CLIENT_ID",
     "PAYPAL_CLIENT_SECRET",
+  ];
+
+  // Optional OAuth vars - only warn if missing
+  const optionalVars = [
     "GOOGLE_CLOUD_AUTH_ID",
     "GOOGLE_CLOUD_AUTH_PASS",
     "FACEBOOK_APP_ID",
@@ -104,8 +109,10 @@ function checkEnvironmentVariables(): SecurityCheckResult {
   ];
 
   const missing: string[] = [];
+  const missingOptional: string[] = [];
   const weak: string[] = [];
 
+  // Check required vars
   for (const varName of requiredVars) {
     if (!process.env[varName]) {
       missing.push(varName);
@@ -117,19 +124,33 @@ function checkEnvironmentVariables(): SecurityCheckResult {
     }
   }
 
+  // Check optional vars
+  for (const varName of optionalVars) {
+    if (!process.env[varName]) {
+      missingOptional.push(varName);
+    }
+  }
+
   if (missing.length > 0) {
     return {
       check: "Environment Variables",
       status: "fail",
       message: `Missing required variables: ${missing.join(", ")}`,
-      details: { missing },
+      details: { missing, missingOptional },
     };
   } else if (weak.length > 0) {
     return {
       check: "Environment Variables",
       status: "warning",
       message: `Weak secrets detected: ${weak.join(", ")}`,
-      details: { weak },
+      details: { weak, missingOptional },
+    };
+  } else if (missingOptional.length > 0) {
+    return {
+      check: "Environment Variables",
+      status: "warning",
+      message: `Optional OAuth variables missing: ${missingOptional.join(", ")} (OAuth login disabled)`,
+      details: { missingOptional },
     };
   } else {
     return {
