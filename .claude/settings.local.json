@@ -38,7 +38,11 @@
       "Bash(awk:*)",
       "Bash(node -e:*)",
       "Bash(node test-smtp.js:*)",
-      "Bash(del \"D:\\DOAPP\\RAILWAY_DEPLOYMENT.md\")"
+      "Bash(del \"D:\\DOAPP\\RAILWAY_DEPLOYMENT.md\")",
+      "Bash(git commit -m \"$(cat <<''EOF''\nFix: Resolve deployment errors and make OAuth optional\n\n- Modified security check to make OAuth credentials optional (only required: MongoDB, JWT, PayPal)\n- Fixed TypeScript errors in upload.ts (Express Request types)\n- Fixed TypeScript errors in paypal.ts (added @ts-ignore for incomplete SDK types)\n- Added RAILWAY_SETUP.md with comprehensive deployment guide\n\nOAuth providers (Google, Facebook) now show warnings instead of blocking deployment.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git push)",
+      "Bash(git commit:*)",
+      "Bash(npm run build:server:*)"
     ],
     "deny": [],
     "ask": []
