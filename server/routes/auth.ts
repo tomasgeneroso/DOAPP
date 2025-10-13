@@ -173,7 +173,7 @@ router.post(
 
       // Detectar login anómalo
       const anomalyResult = await anomalyDetection.detectAnomalousLogin({
-        userId: user._id,
+        userId: user._id as any,
         ipAddress: clientIp,
         userAgent,
         deviceFingerprint,
@@ -621,7 +621,7 @@ router.post(
       await resetToken.save();
 
       // Revocar todas las sesiones activas por seguridad
-      await revokeAllUserTokens(user._id, "Password reset");
+      await revokeAllUserTokens(user._id as any, "Password reset");
 
       // Enviar email de confirmación
       await emailService.sendPasswordChangedEmail(user.email, user.name);
