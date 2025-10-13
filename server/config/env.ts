@@ -57,8 +57,14 @@ export const config = {
 };
 
 // Validar variables críticas
-if (!config.mongodbUri && config.isProduction) {
-  throw new Error("MONGODB_URI es requerida en producción");
+console.log("🔍 Environment check:");
+console.log("NODE_ENV:", config.nodeEnv);
+console.log("MONGODB_URI exists:", !!config.mongodbUri);
+console.log("JWT_SECRET exists:", !!config.jwtSecret && config.jwtSecret !== "tu-secreto-super-seguro-cambialo");
+console.log("PAYPAL_CLIENT_ID exists:", !!config.paypalClientId);
+
+if (!config.mongodbUri) {
+  throw new Error("MONGODB_URI es requerida. Configúrala en Railway Variables.");
 }
 
 if (!config.jwtSecret || config.jwtSecret === "tu-secreto-super-seguro-cambialo") {
