@@ -353,6 +353,19 @@ router.get(
   }
 );
 
+// Facebook User Response Interface
+interface FacebookUser {
+  id: string;
+  name: string;
+  email: string;
+  picture?: {
+    data?: {
+      url: string;
+    };
+  };
+  error?: any;
+}
+
 // Facebook Token Authentication (for SDK login)
 router.post("/facebook/token", async (req: Request, res: Response): Promise<void> => {
   try {
@@ -371,7 +384,7 @@ router.post("/facebook/token", async (req: Request, res: Response): Promise<void
       `https://graph.facebook.com/me?fields=id,name,email,picture&access_token=${accessToken}`
     );
 
-    const fbUser = await response.json();
+    const fbUser = await response.json() as FacebookUser;
 
     if (fbUser.error || fbUser.id !== userID) {
       res.status(401).json({
