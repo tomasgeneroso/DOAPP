@@ -43,6 +43,7 @@ export interface CaptureOrderResult {
 export async function createPayPalOrder(data: CreateOrderData) {
   const client = getPayPalClient();
   const request = new paypal.orders.OrdersCreateRequest();
+  // @ts-ignore - prefer method exists but not in types
   request.prefer("return=representation");
 
   const { amount, currency = "USD", description, contractId } = data;
@@ -87,6 +88,7 @@ export async function createPayPalOrder(data: CreateOrderData) {
 export async function capturePayPalOrder(orderId: string): Promise<CaptureOrderResult> {
   const client = getPayPalClient();
   const request = new paypal.orders.OrdersCaptureRequest(orderId);
+  // @ts-ignore - prefer method exists but not in types
   request.prefer("return=representation");
 
   try {
@@ -131,6 +133,7 @@ export async function getPayPalOrderDetails(orderId: string) {
 export async function refundPayPalPayment(captureId: string, amount?: string, currency?: string) {
   const client = getPayPalClient();
   const request = new paypal.payments.CapturesRefundRequest(captureId);
+  // @ts-ignore - prefer method exists but not in types
   request.prefer("return=representation");
 
   if (amount && currency) {
@@ -173,6 +176,7 @@ export async function verifyWebhookSignature(
   webhookId: string
 ): Promise<boolean> {
   const client = getPayPalClient();
+  // @ts-ignore - notifications module exists but not in types
   const request = new paypal.notifications.WebhookVerifySignatureRequest();
 
   request.requestBody({

@@ -2,6 +2,7 @@ import multer from "multer";
 import path from "path";
 import crypto from "crypto";
 import fs from "fs";
+import { Request } from "express";
 
 /**
  * File upload middleware with security validations
@@ -221,11 +222,11 @@ export function deleteFile(filepath: string): void {
 /**
  * Get file URL from filepath
  */
-export function getFileUrl(filepath: string, req: Express.Request): string {
+export function getFileUrl(filepath: string, req: Request): string {
   const filename = path.basename(filepath);
   const directory = path.basename(path.dirname(filepath));
   const protocol = req.protocol;
-  const host = req.get("host");
+  const host = req.get("host") || "localhost";
 
   return `${protocol}://${host}/uploads/${directory}/${filename}`;
 }
