@@ -31,7 +31,7 @@ const createUsers = async () => {
   console.log("👥 Creando usuarios de prueba...");
 
   const salt = await bcrypt.genSalt(10);
-  const hashedPassword = await bcrypt.hash("password123", salt);
+  const hashedPassword = await bcrypt.hash("123", salt);
 
   const users = await User.create([
     {
@@ -277,12 +277,12 @@ const seed = async () => {
 
     console.log("\n🎉 Seed completado exitosamente!");
     console.log("\n📝 Credenciales de prueba:");
-    console.log("   Email: maria@example.com");
-    console.log("   Email: carlos@example.com");
-    console.log("   Email: ana@example.com");
-    console.log("   Email: juan@example.com");
-    console.log("   Email: laura@example.com");
-    console.log("   Password: password123\n");
+    console.log("   Email: maria@example.com (Cliente)");
+    console.log("   Email: carlos@example.com (Doer)");
+    console.log("   Email: ana@example.com (Cliente)");
+    console.log("   Email: juan@example.com (Doer)");
+    console.log("   Email: laura@example.com (Ambos)");
+    console.log("   Password: 123\n");
 
     await mongoose.connection.close();
     console.log("🔌 Conexión a MongoDB cerrada");

@@ -343,10 +343,35 @@ DoApp aspira a ser **la plataforma de referencia para trabajo freelance** en mer
 
 Para información técnica sobre instalación, configuración y deployment, consulta:
 
-- **[SETUP_GUIDE.md](./SETUP_GUIDE.md)** - Guía completa de instalación y configuración
-- **[IMPLEMENTATION_COMPLETE.md](./IMPLEMENTATION_COMPLETE.md)** - Documentación técnica PHASE 1 (MVP)
-- **[PHASE2_COMPLETE.md](./PHASE2_COMPLETE.md)** - Documentación técnica PHASE 2 (Post-MVP)
-- **[PHASE3_COMPLETE.md](./PHASE3_COMPLETE.md)** - Documentación técnica PHASE 3 (Optimización)
+- **[CLAUDE.md](./CLAUDE.md)** - Contexto completo del proyecto para desarrollo
+- **[.env.example](./.env.example)** - Template de variables de entorno
+
+### 🚂 Deployment en Railway
+
+**Variables de entorno mínimas requeridas:**
+```env
+NODE_ENV=production
+PORT=5000
+MONGODB_URI=mongodb+srv://...
+JWT_SECRET=tu-secret-fuerte-32-chars
+SMTP_HOST=smtp.hostinger.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=tu-email@dominio.com
+SMTP_PASS=tu-contraseña
+SMTP_FROM_EMAIL=tu-email@dominio.com
+PAYPAL_MODE=live
+PAYPAL_CLIENT_ID=tu-client-id
+PAYPAL_CLIENT_SECRET=tu-secret
+```
+
+**Pasos:**
+1. Conectar repo GitHub a Railway
+2. Agregar variables de entorno en dashboard
+3. Agregar Redis: New → Database → Add Redis
+4. Railway auto-detectará `railway.json` y desplegará
+5. Configurar MongoDB Atlas whitelist: `0.0.0.0/0`
+6. Actualizar OAuth redirect URIs con dominio de Railway
 
 ---
 

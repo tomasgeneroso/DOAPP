@@ -4,10 +4,11 @@ export interface IChatMessage extends Document {
   conversationId: mongoose.Types.ObjectId; // Reference to Contract or Chat Room
   sender: mongoose.Types.ObjectId;
   message: string;
-  type: "text" | "image" | "file" | "system";
+  type: "text" | "image" | "file" | "system" | "proposal";
   fileUrl?: string;
   fileName?: string;
   fileSize?: number;
+  proposalAmount?: number;
   read: boolean;
   readAt?: Date;
   deleted: boolean;
@@ -36,7 +37,7 @@ const ChatMessageSchema = new Schema<IChatMessage>(
     },
     type: {
       type: String,
-      enum: ["text", "image", "file", "system"],
+      enum: ["text", "image", "file", "system", "proposal"],
       default: "text",
     },
     fileUrl: {
@@ -47,6 +48,10 @@ const ChatMessageSchema = new Schema<IChatMessage>(
     },
     fileSize: {
       type: Number,
+    },
+    proposalAmount: {
+      type: Number,
+      min: 0,
     },
     read: {
       type: Boolean,

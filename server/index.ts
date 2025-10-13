@@ -77,10 +77,23 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-// CORS
+// CORS - Permitir múltiples orígenes en producción
+const allowedOrigins = config.isProduction
+  ? [config.clientUrl, process.env.RAILWAY_PUBLIC_DOMAIN].filter(Boolean)
+  : [config.clientUrl, "http://localhost:5173", "http://localhost:5000"];
+
 app.use(
   cors({
-    origin: config.clientUrl,
+    origin: (origin, callback) => {
+      // Permitir requests sin origin (como mobile apps o curl)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.some(allowed => origin.startsWith(allowed.replace(/\/$/, '')))) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
   })
 );
@@ -167,6 +180,17 @@ app.get("/api/legal/terms-app", (req, res) => {
 app.get("/api/legal/terms-contract", (req, res) => {
   res.sendFile(path.join(__dirname, "../public/legal/terminos-condiciones-contrato.txt"));
 });
+
+// Servir el SPA en producción (debe ir después de todas las rutas de API)
+if (config.isProduction) {
+  const spaPath = path.join(__dirname, "../spa");
+  app.use(express.static(spaPath));
+
+  // Todas las demás rutas redirigen al index.html (SPA routing)
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(spaPath, "index.html"));
+  });
+}
 
 // Error handler (debe ser el último middleware)
 app.use(errorHandler);

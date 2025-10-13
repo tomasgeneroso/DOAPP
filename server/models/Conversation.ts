@@ -3,6 +3,7 @@ import mongoose, { Schema, Document } from "mongoose";
 export interface IConversation extends Document {
   participants: mongoose.Types.ObjectId[];
   contractId?: mongoose.Types.ObjectId;
+  jobId?: mongoose.Types.ObjectId;
   type: "contract" | "direct" | "support";
   lastMessage?: string;
   lastMessageAt?: Date;
@@ -23,6 +24,10 @@ const ConversationSchema = new Schema<IConversation>(
     contractId: {
       type: Schema.Types.ObjectId,
       ref: "Contract",
+    },
+    jobId: {
+      type: Schema.Types.ObjectId,
+      ref: "Job",
     },
     type: {
       type: String,

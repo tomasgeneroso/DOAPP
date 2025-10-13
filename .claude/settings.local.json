@@ -35,7 +35,10 @@
       "Bash(powershell -Command:*)",
       "Bash(echo:*)",
       "Bash(dir:*)",
-      "Bash(awk:*)"
+      "Bash(awk:*)",
+      "Bash(node -e:*)",
+      "Bash(node test-smtp.js:*)",
+      "Bash(del \"D:\\DOAPP\\RAILWAY_DEPLOYMENT.md\")"
     ],
     "deny": [],
     "ask": []

@@ -25,10 +25,23 @@ class CacheService {
     try {
       this.client = new Redis(config.redisUrl, {
         retryStrategy: (times) => {
+          // Stop retrying after 3 attempts
+          if (times > 3) {
+            console.log("⚠️  Redis connection failed. Running without cache.");
+            return null; // Stop retrying
+          }
           const delay = Math.min(times * 50, 2000);
           return delay;
         },
         maxRetriesPerRequest: 3,
+        enableOfflineQueue: false, // Don't queue commands when offline
+        lazyConnect: true, // Don't connect immediately
+      });
+
+      // Try to connect (non-blocking)
+      this.client.connect().catch((err) => {
+        console.log("⚠️  Redis not available. Running without cache.");
+        this.isEnabled = false;
       });
 
       this.client.on("connect", () => {
@@ -37,16 +50,18 @@ class CacheService {
       });
 
       this.client.on("error", (err) => {
-        console.error("❌ Redis connection error:", err.message);
+        // Don't log every error, just disable cache silently
+        if (this.isEnabled) {
+          console.log("⚠️  Redis connection lost. Cache disabled.");
+        }
         this.isEnabled = false;
       });
 
       this.client.on("close", () => {
-        console.log("⚠️  Redis connection closed");
         this.isEnabled = false;
       });
     } catch (error: any) {
-      console.error("❌ Failed to initialize Redis:", error.message);
+      console.log("⚠️  Redis initialization failed. Running without cache.");
       this.isEnabled = false;
     }
   }

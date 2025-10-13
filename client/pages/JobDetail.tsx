@@ -59,8 +59,9 @@ export default function JobDetail() {
     setError(null);
 
     try {
-      const response = await fetch(`/api/jobs/${id}/apply`, {
-        method: "PUT",
+      // Create or get conversation with job owner
+      const response = await fetch(`/api/jobs/${id}/start-conversation`, {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
@@ -70,13 +71,13 @@ export default function JobDetail() {
       const data = await response.json();
 
       if (data.success) {
-        alert("¡Aplicación exitosa! El cliente se pondrá en contacto contigo.");
-        setJob(data.job);
+        // Redirect to chat with the conversation ID
+        navigate(`/chat/${data.conversationId}`);
       } else {
-        setError(data.message || "No se pudo aplicar al trabajo");
+        setError(data.message || "No se pudo iniciar la conversación");
       }
     } catch (err: any) {
-      setError(err.message || "Error al aplicar al trabajo");
+      setError(err.message || "Error al iniciar conversación");
     } finally {
       setApplying(false);
     }
@@ -272,7 +273,11 @@ export default function JobDetail() {
                 </div>
               </div>
               {user && !isOwnJob && (
-                <button className="mt-4 w-full gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50">
+                <button
+                  onClick={handleApply}
+                  disabled={applying}
+                  className="mt-4 w-full gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   <MessageSquare className="inline h-4 w-4 mr-2" />
                   Enviar mensaje
                 </button>
@@ -298,10 +303,10 @@ export default function JobDetail() {
                       {applying ? (
                         <>
                           <Loader2 className="inline h-5 w-5 mr-2 animate-spin" />
-                          Aplicando...
+                          Iniciando chat...
                         </>
                       ) : user ? (
-                        "Aplicar al trabajo"
+                        "Aplicar y enviar propuesta"
                       ) : (
                         "Inicia sesión para aplicar"
                       )}

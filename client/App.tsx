@@ -1,7 +1,9 @@
+import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./hooks/useAuth";
 import { HelmetProvider } from "react-helmet-async";
 import { FacebookSDK } from "./components/FacebookSDK";
+import LoadingScreen from "./components/LoadingScreen";
 import Index from "./pages/Index";
 import LoginScreen from "./pages/LoginScreen";
 import AuthCallback from "./pages/AuthCallback";
@@ -9,6 +11,10 @@ import CreateContractScreen from "./pages/CreateContractScreen";
 import JobDetail from "./pages/JobDetail";
 import ContractDetail from "./pages/ContractDetail";
 import PaymentsScreen from "./pages/PaymentsScreen";
+import ChatScreen from "./pages/ChatScreen";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
+import VerifyWhatsAppCode from "./pages/VerifyWhatsAppCode";
 import ProtectedRoute from "./components/app/ProtectedRoute";
 import Layout from "./components/app/Layout";
 
@@ -20,6 +26,21 @@ import AdminTickets from "./pages/admin/Tickets";
 import TicketDetail from "./pages/admin/TicketDetail";
 
 export default function App() {
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate initial app loading time
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 2500);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (isLoading) {
+    return <LoadingScreen onLoadingComplete={() => setIsLoading(false)} />;
+  }
+
   return (
     <HelmetProvider>
       <AuthProvider>
@@ -53,8 +74,19 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/chat/:conversationId"
+                element={
+                  <ProtectedRoute>
+                    <ChatScreen />
+                  </ProtectedRoute>
+                }
+              />
             </Route>
             <Route path="/login" element={<LoginScreen />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/verify-whatsapp-code" element={<VerifyWhatsAppCode />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
 
             {/* Admin Routes */}

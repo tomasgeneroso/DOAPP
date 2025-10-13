@@ -4,6 +4,7 @@ import Conversation from "../models/Conversation";
 import ChatMessage from "../models/ChatMessage";
 import Contract from "../models/Contract";
 import { body, validationResult } from "express-validator";
+import { socketService } from "../index.js";
 
 const router = Router();
 
@@ -64,7 +65,8 @@ router.get("/conversations/:id", protect, async (req: AuthRequest, res: Response
 
     const conversation = await Conversation.findById(id)
       .populate("participants", "name avatar lastLogin")
-      .populate("contractId", "title status");
+      .populate("contractId", "title status")
+      .populate("jobId", "title price");
 
     if (!conversation) {
       res.status(404).json({
@@ -151,10 +153,16 @@ router.post(
           message,
         });
 
+        await chatMessage.populate("sender", "name avatar");
+
         conversation.lastMessage = message.substring(0, 200);
         conversation.lastMessageAt = new Date();
         conversation.unreadCount.set(participantId.toString(), 1);
         await conversation.save();
+
+        // Emit Socket.io event for real-time update
+        const io = socketService.getIO();
+        io.to(`conversation:${conversation._id.toString()}`).emit("message:new", chatMessage);
       }
 
       await conversation.populate("participants", "name avatar lastLogin");
@@ -304,6 +312,109 @@ router.get("/conversations/:id/messages", protect, async (req: AuthRequest, res:
     });
   }
 });
+
+/**
+ * Send a message to a conversation
+ * POST /api/chat/conversations/:id/messages
+ */
+router.post(
+  "/conversations/:id/messages",
+  protect,
+  [
+    body("message").trim().notEmpty().withMessage("El mensaje es requerido"),
+    body("type").optional().isIn(["text", "proposal", "system"]).withMessage("Tipo de mensaje inválido"),
+    body("proposalAmount").optional().isNumeric().withMessage("Monto de propuesta inválido"),
+  ],
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          errors: errors.array(),
+        });
+        return;
+      }
+
+      const { id } = req.params;
+      const userId = req.user._id;
+      const { message, type = "text", proposalAmount } = req.body;
+
+      // Verify user is participant
+      const conversation = await Conversation.findById(id);
+
+      if (!conversation) {
+        res.status(404).json({
+          success: false,
+          message: "Conversación no encontrada",
+        });
+        return;
+      }
+
+      const isParticipant = conversation.participants.some(
+        (p) => p.toString() === userId.toString()
+      );
+
+      if (!isParticipant) {
+        res.status(403).json({
+          success: false,
+          message: "No tienes permiso para enviar mensajes en esta conversación",
+        });
+        return;
+      }
+
+      // Create message
+      const chatMessage = await ChatMessage.create({
+        conversationId: id,
+        sender: userId,
+        message,
+        type,
+        proposalAmount: type === "proposal" ? proposalAmount : undefined,
+      });
+
+      // Update conversation
+      conversation.lastMessage = message.substring(0, 200);
+      conversation.lastMessageAt = new Date();
+
+      // Update unread count for other participants
+      conversation.participants.forEach((participantId) => {
+        if (participantId.toString() !== userId.toString()) {
+          const currentCount = conversation.unreadCount.get(participantId.toString()) || 0;
+          conversation.unreadCount.set(participantId.toString(), currentCount + 1);
+        }
+      });
+
+      await conversation.save();
+
+      // Populate sender info
+      await chatMessage.populate("sender", "name avatar");
+
+      // Emit Socket.io event for real-time update
+      const io = socketService.getIO();
+      io.to(`conversation:${id}`).emit("message:new", chatMessage);
+
+      // Also emit to all participants' personal rooms for notification updates
+      conversation.participants.forEach((participantId) => {
+        io.to(`user:${participantId.toString()}`).emit("conversation:updated", {
+          conversationId: id,
+          lastMessage: message.substring(0, 200),
+          lastMessageAt: conversation.lastMessageAt,
+        });
+      });
+
+      res.status(201).json({
+        success: true,
+        data: chatMessage,
+      });
+    } catch (error: any) {
+      console.error("Send message error:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor",
+      });
+    }
+  }
+);
 
 /**
  * Delete a message

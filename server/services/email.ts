@@ -1,8 +1,6 @@
-import sgMail from "@sendgrid/mail";
-import formData from "form-data";
-import Mailgun from "mailgun.js";
-import { config } from "../config/env";
-import User from "../models/User";
+import nodemailer from "nodemailer";
+import { config } from "../config/env.js";
+import User from "../models/User.js";
 
 interface EmailOptions {
   to: string;
@@ -13,130 +11,93 @@ interface EmailOptions {
   replyTo?: string;
 }
 
-interface TemplateEmailOptions {
-  to: string;
-  subject: string;
-  templateName: string;
-  templateData: Record<string, any>;
-}
-
 class EmailService {
-  private sendgridInitialized = false;
-  private mailgunInitialized = false;
-  private mailgunClient: any = null;
+  private transporter: nodemailer.Transporter | null = null;
+  private initialized = false;
 
   constructor() {
     this.initialize();
   }
 
   private initialize() {
-    const provider = config.emailProvider;
-
-    if (provider === "sendgrid") {
-      this.initializeSendGrid();
-    } else if (provider === "mailgun") {
-      this.initializeMailgun();
-    } else {
-      console.warn("⚠️  No email provider configured. Email notifications will be disabled.");
-    }
-  }
-
-  private initializeSendGrid() {
     try {
-      if (config.sendgridApiKey) {
-        sgMail.setApiKey(config.sendgridApiKey);
-        this.sendgridInitialized = true;
-        console.log("✅ SendGrid initialized");
-      } else {
-        console.warn("⚠️  SendGrid API key not configured.");
+      if (!config.smtpHost || !config.smtpUser || !config.smtpPass) {
+        console.warn("⚠️  SMTP credentials not configured. Email notifications will be disabled.");
+        return;
       }
-    } catch (error) {
-      console.error("❌ Failed to initialize SendGrid:", error);
-    }
-  }
 
-  private initializeMailgun() {
-    try {
-      if (config.mailgunApiKey && config.mailgunDomain) {
-        const mailgun = new Mailgun(formData);
-        this.mailgunClient = mailgun.client({
-          username: "api",
-          key: config.mailgunApiKey,
-        });
-        this.mailgunInitialized = true;
-        console.log("✅ Mailgun initialized");
-      } else {
-        console.warn("⚠️  Mailgun API key or domain not configured.");
-      }
+      // Configure nodemailer with Hostinger SMTP
+      // Hostinger typically uses:
+      // - Port 465 with SSL (secure: true)
+      // - Port 587 with STARTTLS (secure: false)
+      this.transporter = nodemailer.createTransport({
+        host: config.smtpHost,
+        port: config.smtpPort,
+        secure: config.smtpSecure, // true for 465, false for 587
+        auth: {
+          user: config.smtpUser,
+          pass: config.smtpPass,
+        },
+        // Additional options for better compatibility
+        tls: {
+          // Do not fail on invalid certificates
+          rejectUnauthorized: false,
+          minVersion: 'TLSv1.2',
+        },
+        // Connection timeout
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 10000,
+      });
+
+      // Verify connection
+      this.transporter.verify((error) => {
+        if (error) {
+          console.error("❌ SMTP connection failed:", error.message);
+          console.error(`\n📧 Please check your Hostinger SMTP credentials:`);
+          console.error(`   Host: ${config.smtpHost}`);
+          console.error(`   Port: ${config.smtpPort}`);
+          console.error(`   User: ${config.smtpUser}`);
+          console.error(`   Secure: ${config.smtpSecure}`);
+          console.error(`\n💡 Common issues:`);
+          console.error(`   1. Incorrect email/password`);
+          console.error(`   2. Email account not activated in Hostinger`);
+          console.error(`   3. Wrong port (try 465 with SMTP_SECURE=true or 587 with SMTP_SECURE=false)`);
+          console.error(`   4. SMTP access not enabled in Hostinger panel\n`);
+        } else {
+          this.initialized = true;
+          console.log("✅ Hostinger SMTP initialized successfully");
+        }
+      });
     } catch (error) {
-      console.error("❌ Failed to initialize Mailgun:", error);
+      console.error("❌ Failed to initialize SMTP:", error);
     }
   }
 
   /**
-   * Send email using configured provider
+   * Send email using Hostinger SMTP
    */
   async sendEmail(options: EmailOptions): Promise<boolean> {
-    if (!this.sendgridInitialized && !this.mailgunInitialized) {
-      console.warn("No email provider initialized. Skipping email.");
+    if (!this.initialized || !this.transporter) {
+      console.warn("SMTP not initialized. Skipping email.");
       return false;
     }
 
     try {
-      if (config.emailProvider === "sendgrid" && this.sendgridInitialized) {
-        return await this.sendViaSendGrid(options);
-      } else if (config.emailProvider === "mailgun" && this.mailgunInitialized) {
-        return await this.sendViaMailgun(options);
-      }
-      return false;
-    } catch (error) {
-      console.error("Error sending email:", error);
-      return false;
-    }
-  }
-
-  /**
-   * Send email via SendGrid
-   */
-  private async sendViaSendGrid(options: EmailOptions): Promise<boolean> {
-    try {
-      const msg = {
+      const mailOptions = {
+        from: options.from || config.smtpFromEmail,
         to: options.to,
-        from: options.from || config.sendgridFromEmail,
-        replyTo: options.replyTo,
+        replyTo: options.replyTo || config.smtpFromEmail,
         subject: options.subject,
         text: options.text || this.stripHtml(options.html),
         html: options.html,
       };
 
-      await sgMail.send(msg);
-      console.log(`✅ Email sent via SendGrid to ${options.to}`);
+      await this.transporter.sendMail(mailOptions);
+      console.log(`✅ Email sent via Hostinger SMTP to ${options.to}`);
       return true;
     } catch (error: any) {
-      console.error("SendGrid error:", error.response?.body || error);
-      return false;
-    }
-  }
-
-  /**
-   * Send email via Mailgun
-   */
-  private async sendViaMailgun(options: EmailOptions): Promise<boolean> {
-    try {
-      const messageData = {
-        from: options.from || config.mailgunFromEmail,
-        to: options.to,
-        subject: options.subject,
-        text: options.text || this.stripHtml(options.html),
-        html: options.html,
-        "h:Reply-To": options.replyTo,
-      };
-
-      await this.mailgunClient.messages.create(config.mailgunDomain, messageData);
-      console.log(`✅ Email sent via Mailgun to ${options.to}`);
-      return true;
-    } catch (error) {
-      console.error("Mailgun error:", error);
+      console.error("SMTP error:", error);
       return false;
     }
   }

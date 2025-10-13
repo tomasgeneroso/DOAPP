@@ -1,0 +1,210 @@
+/* Loading Screen Container */
+.loading-screen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  opacity: 0;
+  transition: opacity 0.8s ease-in-out;
+}
+
+.loading-screen.visible {
+  opacity: 1;
+}
+
+/* Logo Container */
+.logo-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 100px;
+  animation: logoEntrance 0.8s ease-out forwards;
+}
+
+@keyframes logoEntrance {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* Logo Placeholder */
+.logo-placeholder {
+  width: 120px;
+  height: 120px;
+  border-radius: 30px;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 20px;
+  box-shadow:
+    0 10px 30px rgba(59, 130, 246, 0.3),
+    0 20px 50px rgba(59, 130, 246, 0.15);
+  animation: logoFloat 3s ease-in-out infinite;
+}
+
+@keyframes logoFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.logo-text {
+  font-size: 48px;
+  font-weight: bold;
+  color: #ffffff;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+/* App Name */
+.app-name {
+  font-size: 32px;
+  font-weight: bold;
+  color: #1e293b;
+  letter-spacing: 4px;
+  margin: 0;
+  animation: textFadeIn 1s ease-out 0.3s forwards;
+  opacity: 0;
+}
+
+@keyframes textFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Messages Container */
+.messages-container {
+  position: fixed;
+  bottom: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: messagesFadeIn 1s ease-out 0.5s forwards;
+  opacity: 0;
+}
+
+@keyframes messagesFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Loading Message */
+.loading-message {
+  font-size: 16px;
+  color: #64748b;
+  margin-bottom: 20px;
+  text-align: center;
+  font-weight: 500;
+  min-height: 24px;
+  animation: messagePulse 1.5s ease-in-out infinite;
+}
+
+@keyframes messagePulse {
+  0%, 100% {
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Dots Container */
+.dots-container {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+/* Individual Dot */
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #cbd5e1;
+  transition: all 0.3s ease;
+}
+
+.dot.active {
+  background-color: #3b82f6;
+  transform: scale(1.3);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .logo-placeholder {
+    width: 100px;
+    height: 100px;
+    border-radius: 25px;
+  }
+
+  .logo-text {
+    font-size: 40px;
+  }
+
+  .app-name {
+    font-size: 28px;
+    letter-spacing: 3px;
+  }
+
+  .loading-message {
+    font-size: 14px;
+    padding: 0 20px;
+  }
+
+  .messages-container {
+    bottom: 60px;
+  }
+
+  .logo-container {
+    margin-bottom: 80px;
+  }
+}
+
+@media (max-width: 480px) {
+  .logo-placeholder {
+    width: 80px;
+    height: 80px;
+    border-radius: 20px;
+  }
+
+  .logo-text {
+    font-size: 32px;
+  }
+
+  .app-name {
+    font-size: 24px;
+    letter-spacing: 2px;
+  }
+
+  .loading-message {
+    font-size: 13px;
+  }
+}

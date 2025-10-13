@@ -22,7 +22,7 @@ function initializeRateLimiters() {
     authLimiter = new RateLimiterRedis({
       storeClient: redisClient,
       keyPrefix: "rl:auth",
-      points: 5, // Number of requests
+      points: 30, // Number of requests
       duration: 15 * 60, // Per 15 minutes
       blockDuration: 15 * 60, // Block for 15 minutes
     });
@@ -54,7 +54,7 @@ function initializeRateLimiters() {
     // Fallback to memory-based rate limiters
     authLimiter = new RateLimiterMemory({
       keyPrefix: "rl:auth",
-      points: 5,
+      points: 30,
       duration: 15 * 60,
       blockDuration: 15 * 60,
     });

@@ -1,13 +1,22 @@
 import rateLimit from "express-rate-limit";
 import { Request, Response, NextFunction } from "express";
+import cors from "cors";
+import { config } from "../config/env.js";
+
+// Extend express-session types to include csrfToken
+declare module "express-session" {
+  interface SessionData {
+    csrfToken?: string;
+  }
+}
 
 /**
- * Rate limiter for authentication endpoints
- * Prevents brute force attacks on login/register
+ * Rate limiter for authentication endpoints.
+ * NOTE: Completely disabled as per user request - unlimited login attempts allowed
  */
 export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 attempts
+  windowMs: 1, // 1ms window
+  max: 999999, // Unlimited attempts
   message: {
     success: false,
     message: "Demasiados intentos de inicio de sesión. Intenta nuevamente en 15 minutos.",
@@ -296,6 +305,23 @@ export const logSuspiciousActivity = async (
   // Here you could also save to database or send alerts
 };
 
+/**
+ * CORS configuration to allow requests from the client.
+ * This should be used in the main server file (e.g., app.ts).
+ * Example: app.use(corsMiddleware);
+ */
+export const corsMiddleware = cors({
+  origin: (origin, callback) => {
+    // Allow requests from the client URL specified in config, and also allow requests with no origin (like Postman)
+    if (!origin || origin === config.clientUrl) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true, // Important for cookies, authorization headers with HTTPS
+});
+
 export default {
   authLimiter,
   apiLimiter,
@@ -308,4 +334,5 @@ export default {
   securityHeaders,
   ipWhitelist,
   logSuspiciousActivity,
+  corsMiddleware,
 };

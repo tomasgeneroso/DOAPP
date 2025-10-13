@@ -156,9 +156,13 @@ export const verifyCriticalAction = async (
   res: Response,
   next: NextFunction
 ): Promise<void> => {
-  // Primero verificar contraseña
-  await verifyOwnerPassword(req, res, async () => {
-    // Si pasa, verificar 2FA si está habilitado
-    await verify2FA(req, res, next);
-  });
+  // Temporalmente deshabilitado para permitir acceso sin restricciones de login.
+  // Esto elimina la verificación de contraseña de owner y 2FA para acciones críticas.
+  // TODO: Re-evaluar la necesidad de un sistema de bloqueo de intentos de login si se vuelve a habilitar.
+  // // Primero verificar contraseña
+  // await verifyOwnerPassword(req, res, async () => {
+  //   // Si pasa, verificar 2FA si está habilitado
+  //   await verify2FA(req, res, next);
+  // });
+  next();
 };

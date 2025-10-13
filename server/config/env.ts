@@ -37,13 +37,25 @@ export const config = {
   // Firebase (for push notifications)
   firebaseServiceAccountKey: process.env.FIREBASE_SERVICE_ACCOUNT_KEY || "",
 
-  // Email (SendGrid/Mailgun)
-  emailProvider: process.env.EMAIL_PROVIDER || "sendgrid", // 'sendgrid' or 'mailgun'
-  sendgridApiKey: process.env.SENDGRID_API_KEY || "",
-  sendgridFromEmail: process.env.SENDGRID_FROM_EMAIL || "noreply@doapp.com",
-  mailgunApiKey: process.env.MAILGUN_API_KEY || "",
-  mailgunDomain: process.env.MAILGUN_DOMAIN || "",
-  mailgunFromEmail: process.env.MAILGUN_FROM_EMAIL || "noreply@doapp.com",
+  // Email (Hostinger SMTP via nodemailer)
+  smtpHost: process.env.SMTP_HOST || "smtp.hostinger.com",
+  smtpPort: parseInt(process.env.SMTP_PORT || "465"),
+  smtpSecure: process.env.SMTP_SECURE === "true" || true, // true for 465, false for 587
+  smtpUser: process.env.SMTP_USER || "",
+  smtpPass: process.env.SMTP_PASS || "",
+  smtpFromEmail: process.env.SMTP_FROM_EMAIL || "noreply@doapparg.site",
+
+  // Twilio (SMS verification only)
+  // En desarrollo usa test credentials, en producción usa las reales
+  twilioAccountSid: process.env.NODE_ENV === "production"
+    ? process.env.TWILIO_ACCOUNT_SID || ""
+    : process.env.TWILIO_TEST_ACCOUNT_SID || process.env.TWILIO_ACCOUNT_SID || "",
+  twilioAuthToken: process.env.NODE_ENV === "production"
+    ? process.env.TWILIO_AUTH_TOKEN || ""
+    : process.env.TWILIO_TEST_AUTH_TOKEN || process.env.TWILIO_AUTH_TOKEN || "",
+  twilioPhoneNumber: process.env.NODE_ENV === "production"
+    ? process.env.TWILIO_PHONE_NUMBER || ""
+    : process.env.TWILIO_TEST_PHONE_NUMBER || process.env.TWILIO_PHONE_NUMBER || "",
 
   // Redis (Cache)
   redisUrl: process.env.REDIS_URL || "",

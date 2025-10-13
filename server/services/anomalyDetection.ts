@@ -32,6 +32,10 @@ class AnomalyDetectionService {
     const reasons: string[] = [];
     let riskScore = 0;
 
+    // En desarrollo, reducir sensibilidad para localhost
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const isLocalhost = attempt.ipAddress === '::1' || attempt.ipAddress === '127.0.0.1' || attempt.ipAddress === '::ffff:127.0.0.1';
+
     // 1. Verificar si es un dispositivo nuevo
     const isNewDevice = await this.isNewDevice(
       attempt.userId,
@@ -39,12 +43,13 @@ class AnomalyDetectionService {
     );
     if (isNewDevice) {
       reasons.push("Dispositivo no reconocido");
-      riskScore += 30;
+      // En desarrollo local, reducir puntos
+      riskScore += (isDevelopment && isLocalhost) ? 10 : 30;
     }
 
     // 2. Verificar si es una IP nueva
     const isNewIP = await this.isNewIP(attempt.userId, attempt.ipAddress);
-    if (isNewIP) {
+    if (isNewIP && !isLocalhost) {
       reasons.push("IP no reconocida");
       riskScore += 20;
     }
@@ -265,15 +270,28 @@ class AnomalyDetectionService {
       }
 
       // Registrar en audit log
-      console.log(
-        `[ANOMALY] Suspicious login detected for user ${user.email}:`,
-        {
-          riskLevel: result.riskLevel,
-          reasons: result.reasons,
-          ipAddress: attempt.ipAddress,
-          userAgent: attempt.userAgent,
-        }
-      );
+      const isLocalhost = attempt.ipAddress === '::1' || attempt.ipAddress === '127.0.0.1' || attempt.ipAddress === '::ffff:127.0.0.1';
+      const isDevelopment = process.env.NODE_ENV === 'development';
+
+      if (isDevelopment && isLocalhost) {
+        console.log(
+          `[SECURITY] Login from new device/IP for ${user.email} (localhost - development)`,
+          {
+            riskLevel: result.riskLevel,
+            reasons: result.reasons,
+          }
+        );
+      } else {
+        console.log(
+          `[ANOMALY] Suspicious login detected for user ${user.email}:`,
+          {
+            riskLevel: result.riskLevel,
+            reasons: result.reasons,
+            ipAddress: attempt.ipAddress,
+            userAgent: attempt.userAgent,
+          }
+        );
+      }
     } catch (error) {
       console.error("Error handling anomalous login:", error);
     }

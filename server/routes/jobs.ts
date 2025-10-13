@@ -1,6 +1,8 @@
 import express, { Request, Response } from "express";
 import { body, validationResult } from "express-validator";
 import Job from "../models/Job.js";
+import Conversation from "../models/Conversation.js";
+import Notification from "../models/Notification.js";
 import { protect } from "../middleware/auth.js";
 import type { AuthRequest } from "../types/index.js";
 
@@ -195,6 +197,73 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
       message: "Trabajo eliminado",
     });
   } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   POST /api/jobs/:id/start-conversation
+// @desc    Iniciar conversación con el creador del trabajo
+// @access  Private
+router.post("/:id/start-conversation", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const job = await Job.findById(req.params.id).populate("client", "name");
+
+    if (!job) {
+      res.status(404).json({
+        success: false,
+        message: "Trabajo no encontrado",
+      });
+      return;
+    }
+
+    // Check if user is trying to message themselves
+    if (job.client._id.toString() === req.user._id.toString()) {
+      res.status(400).json({
+        success: false,
+        message: "No puedes iniciar una conversación contigo mismo",
+      });
+      return;
+    }
+
+    // Check if conversation already exists
+    let conversation = await Conversation.findOne({
+      participants: { $all: [req.user._id, job.client._id] },
+      type: "direct",
+    });
+
+    if (!conversation) {
+      // Create new conversation
+      conversation = await Conversation.create({
+        participants: [req.user._id, job.client._id],
+        type: "direct",
+        jobId: job._id,
+      });
+
+      // Create notification for job owner
+      await Notification.create({
+        recipient: job.client._id,
+        type: "info",
+        category: "user",
+        title: "Nueva solicitud de trabajo",
+        message: `${req.user.name} está interesado en tu trabajo: ${job.title}`,
+        relatedModel: "Job",
+        relatedId: job._id,
+        actionUrl: `/chat/${conversation._id}`,
+        actionText: "Ver conversación",
+        sentVia: ["in_app"],
+      });
+    }
+
+    res.json({
+      success: true,
+      conversationId: conversation._id,
+      message: "Conversación iniciada",
+    });
+  } catch (error: any) {
+    console.error("Start conversation error:", error);
     res.status(500).json({
       success: false,
       message: error.message || "Error del servidor",

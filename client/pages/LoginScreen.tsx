@@ -21,7 +21,12 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { login, register } = useAuth();
-  const { loginWithFacebook, isLoading: fbLoading, error: fbError, fbStatus } = useFacebookLogin();
+  const {
+    loginWithFacebook,
+    isLoading: fbLoading,
+    error: fbError,
+    fbStatus,
+  } = useFacebookLogin();
   const navigate = useNavigate();
   const location = useLocation();
   const from =
@@ -183,12 +188,12 @@ export default function LoginScreen() {
                 </label>
                 {!isRegister && (
                   <div className="text-sm">
-                    <a
-                      href="#" // TODO: Implementar recuperación de contraseña
+                    <Link
+                      to="/forgot-password"
                       className="font-semibold text-sky-600 hover:text-sky-500"
                     >
                       ¿Olvidaste tu contraseña?
-                    </a>
+                    </Link>
                   </div>
                 )}
               </div>
@@ -309,7 +314,9 @@ export default function LoginScreen() {
             </a>
           </div>
 
-          {fbError && <p className="mt-4 text-sm text-center text-red-600">{fbError}</p>}
+          {fbError && (
+            <p className="mt-4 text-sm text-center text-red-600">{fbError}</p>
+          )}
         </div>
       </div>
     </>

@@ -1,5 +1,6 @@
 import express, { Request, Response } from "express";
 import { body, validationResult } from "express-validator";
+import cors from "cors";
 import jwt, { Secret, SignOptions } from "jsonwebtoken";
 import User, { IUser } from "../models/User.js";
 import { config } from "../config/env.js";
@@ -15,11 +16,24 @@ import {
 } from "../utils/tokens.js";
 import { authLimiter } from "../middleware/security.js";
 import { PasswordResetToken } from "../models/PasswordResetToken.js";
+import PhoneVerificationCode from "../models/PhoneVerificationCode.js";
 import { LoginDevice } from "../models/LoginDevice.js";
 import emailService from "../services/email.js";
+import whatsappService from "../services/whatsapp.js";
 import anomalyDetection from "../services/anomalyDetection.js";
+import mongoose from "mongoose";
 
 const router = express.Router();
+
+// Configuración de CORS específica para estas rutas de autenticación.
+// Esto permite solicitudes desde el cliente (http://localhost:5173).
+const corsOptions = {
+  origin: config.clientUrl,
+  credentials: true,
+  optionsSuccessStatus: 200,
+};
+
+router.use(cors(corsOptions));
 
 // Generar JWT Token (legacy - para compatibilidad)
 const generateToken = (id: string): string => {
@@ -44,7 +58,6 @@ const getClientIp = (req: Request): string => {
 // @access  Public
 router.post(
   "/register",
-  authLimiter,
   [
     body("name").trim().notEmpty().withMessage("El nombre es requerido"),
     body("email").isEmail().withMessage("Email inválido"),
@@ -120,7 +133,6 @@ router.post(
 // @access  Public
 router.post(
   "/login",
-  authLimiter,
   [
     body("email").isEmail().withMessage("Email inválido"),
     body("password").notEmpty().withMessage("La contraseña es requerida"),
@@ -173,7 +185,7 @@ router.post(
 
       // Detectar login anómalo
       const anomalyResult = await anomalyDetection.detectAnomalousLogin({
-        userId: user._id,
+        userId: user._id as mongoose.Types.ObjectId,
         ipAddress: clientIp,
         userAgent,
         deviceFingerprint,
@@ -507,7 +519,6 @@ router.post("/logout-all", protect, async (req: AuthRequest, res: Response): Pro
 // @access  Public
 router.post(
   "/forgot-password",
-  authLimiter,
   [
     body("email").isEmail().withMessage("Email inválido"),
   ],
@@ -570,7 +581,6 @@ router.post(
 // @access  Public
 router.post(
   "/reset-password",
-  authLimiter,
   [
     body("token").notEmpty().withMessage("Token es requerido"),
     body("newPassword")
@@ -621,7 +631,7 @@ router.post(
       await resetToken.save();
 
       // Revocar todas las sesiones activas por seguridad
-      await revokeAllUserTokens(user._id, "Password reset");
+      await revokeAllUserTokens((user._id as string).toString(), "Password reset");
 
       // Enviar email de confirmación
       await emailService.sendPasswordChangedEmail(user.email, user.name);
@@ -707,5 +717,118 @@ router.post("/devices/:id/trust", protect, async (req: AuthRequest, res: Respons
     });
   }
 });
+
+// @route   POST /api/auth/send-phone-verification
+// @desc    Enviar código de verificación SMS al teléfono
+// @access  Public
+router.post(
+  "/send-phone-verification",
+  [
+    body("phone").notEmpty().withMessage("Teléfono es requerido"),
+  ],
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          errors: errors.array(),
+        });
+        return;
+      }
+
+      const { phone, userName } = req.body;
+
+      // Generar código de 6 dígitos y guardarlo en BD
+      const { code, expiresAt } = await (PhoneVerificationCode as any).generateCode(
+        phone,
+        getClientIp(req),
+        req.headers["user-agent"]
+      );
+
+      // Enviar código por SMS
+      const sent = await whatsappService.sendPhoneVerificationCode(
+        phone,
+        userName || "Usuario",
+        code
+      );
+
+      if (!sent) {
+        console.warn("SMS not sent, but code was saved");
+      }
+
+      res.json({
+        success: true,
+        message: "Código de verificación enviado por SMS",
+        expiresIn: 10, // minutos
+      });
+    } catch (error: any) {
+      console.error("Error en send-phone-verification:", error);
+      res.status(500).json({
+        success: false,
+        message: "Error al procesar la solicitud",
+      });
+    }
+  }
+);
+
+// @route   POST /api/auth/verify-phone-code
+// @desc    Verificar código de verificación SMS
+// @access  Public
+router.post(
+  "/verify-phone-code",
+  [
+    body("phone").notEmpty().withMessage("Teléfono es requerido"),
+    body("code").notEmpty().withMessage("Código es requerido"),
+  ],
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          errors: errors.array(),
+        });
+        return;
+      }
+
+      const { phone, code } = req.body;
+
+      // Verificar código
+      const verificationCode = await (PhoneVerificationCode as any).verifyCode(phone, code);
+
+      if (!verificationCode) {
+        res.status(400).json({
+          success: false,
+          message: "Código inválido o expirado",
+        });
+        return;
+      }
+
+      // Marcar código como usado
+      verificationCode.used = true;
+      verificationCode.usedAt = new Date();
+      await verificationCode.save();
+
+      // Si hay userId asociado, actualizar el usuario como verificado
+      if (verificationCode.userId) {
+        await User.findByIdAndUpdate(verificationCode.userId, {
+          phoneVerified: true,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: "Teléfono verificado correctamente",
+      });
+    } catch (error: any) {
+      console.error("Error en verify-phone-code:", error);
+      res.status(500).json({
+        success: false,
+        message: "Error al procesar la solicitud",
+      });
+    }
+  }
+);
 
 export default router;
