@@ -20,6 +20,9 @@ export const config = {
   // Frontend URL (para CORS)
   clientUrl: process.env.CLIENT_URL || "http://localhost:5173",
 
+  // Server URL (para logs y callbacks)
+  serverUrl: process.env.SERVER_URL || (process.env.NODE_ENV === "production" ? "https://doapparg.site" : "http://localhost:5000"),
+
   // OAuth - Google
   googleClientId: process.env.GOOGLE_CLOUD_AUTH_ID || "",
   googleClientSecret: process.env.GOOGLE_CLOUD_AUTH_PASS || "",

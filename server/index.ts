@@ -191,10 +191,10 @@ escrowAutomation.initialize();
 // Iniciar servidor
 httpServer.listen(PORT, () => {
   console.log(`\n🚀 Servidor corriendo en modo ${config.nodeEnv}`);
-  console.log(`📍 URL: http://localhost:${PORT}`);
-  console.log(`📡 API: http://localhost:${PORT}/api`);
-  console.log(`💬 WebSocket: ws://localhost:${PORT}`);
-  console.log(`📄 Legal: http://localhost:${PORT}/legal\n`);
+  console.log(`📍 URL: ${config.serverUrl}`);
+  console.log(`📡 API: ${config.serverUrl}/api`);
+  console.log(`💬 WebSocket: ${config.serverUrl.replace('http', 'ws')}`);
+  console.log(`📄 Legal: ${config.serverUrl}/legal\n`);
 });
 
 export default app;
