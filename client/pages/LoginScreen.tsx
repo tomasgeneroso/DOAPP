@@ -190,12 +190,12 @@ export default function LoginScreen() {
                 </label>
                 {!isRegister && (
                   <div className="text-sm">
-                    <a
-                      href="#" // TODO: Implementar recuperación de contraseña
+                    <Link
+                      to="/forgot-password"
                       className="font-semibold text-sky-600 hover:text-sky-500"
                     >
                       ¿Olvidaste tu contraseña?
-                    </a>
+                    </Link>
                   </div>
                 )}
               </div>

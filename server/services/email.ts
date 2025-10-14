@@ -1,6 +1,7 @@
 import sgMail from "@sendgrid/mail";
 import formData from "form-data";
 import Mailgun from "mailgun.js";
+import nodemailer from "nodemailer";
 import { config } from "../config/env";
 import User from "../models/User";
 
@@ -23,7 +24,9 @@ interface TemplateEmailOptions {
 class EmailService {
   private sendgridInitialized = false;
   private mailgunInitialized = false;
+  private smtpInitialized = false;
   private mailgunClient: any = null;
+  private smtpTransporter: any = null;
 
   constructor() {
     this.initialize();
@@ -36,6 +39,8 @@ class EmailService {
       this.initializeSendGrid();
     } else if (provider === "mailgun") {
       this.initializeMailgun();
+    } else if (provider === "smtp") {
+      this.initializeSMTP();
     } else {
       console.warn("⚠️  No email provider configured. Email notifications will be disabled.");
     }
@@ -73,11 +78,39 @@ class EmailService {
     }
   }
 
+  private initializeSMTP() {
+    try {
+      const smtpHost = process.env.SMTP_HOST;
+      const smtpPort = parseInt(process.env.SMTP_PORT || "465");
+      const smtpSecure = process.env.SMTP_SECURE === "true";
+      const smtpUser = process.env.SMTP_USER;
+      const smtpPass = process.env.SMTP_PASS;
+
+      if (smtpHost && smtpUser && smtpPass) {
+        this.smtpTransporter = nodemailer.createTransport({
+          host: smtpHost,
+          port: smtpPort,
+          secure: smtpSecure,
+          auth: {
+            user: smtpUser,
+            pass: smtpPass,
+          },
+        });
+        this.smtpInitialized = true;
+        console.log("✅ SMTP initialized with host:", smtpHost);
+      } else {
+        console.warn("⚠️  SMTP configuration incomplete.");
+      }
+    } catch (error) {
+      console.error("❌ Failed to initialize SMTP:", error);
+    }
+  }
+
   /**
    * Send email using configured provider
    */
   async sendEmail(options: EmailOptions): Promise<boolean> {
-    if (!this.sendgridInitialized && !this.mailgunInitialized) {
+    if (!this.sendgridInitialized && !this.mailgunInitialized && !this.smtpInitialized) {
       console.warn("No email provider initialized. Skipping email.");
       return false;
     }
@@ -87,6 +120,8 @@ class EmailService {
         return await this.sendViaSendGrid(options);
       } else if (config.emailProvider === "mailgun" && this.mailgunInitialized) {
         return await this.sendViaMailgun(options);
+      } else if (config.emailProvider === "smtp" && this.smtpInitialized) {
+        return await this.sendViaSMTP(options);
       }
       return false;
     } catch (error) {
@@ -137,6 +172,31 @@ class EmailService {
       return true;
     } catch (error) {
       console.error("Mailgun error:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Send email via SMTP
+   */
+  private async sendViaSMTP(options: EmailOptions): Promise<boolean> {
+    try {
+      const smtpFrom = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
+
+      const mailOptions = {
+        from: options.from || smtpFrom,
+        to: options.to,
+        subject: options.subject,
+        text: options.text || this.stripHtml(options.html),
+        html: options.html,
+        replyTo: options.replyTo,
+      };
+
+      await this.smtpTransporter.sendMail(mailOptions);
+      console.log(`✅ Email sent via SMTP to ${options.to}`);
+      return true;
+    } catch (error) {
+      console.error("SMTP error:", error);
       return false;
     }
   }

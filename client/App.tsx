@@ -16,6 +16,8 @@ import Dashboard from "./pages/Dashboard";
 import ProposalsScreen from "./pages/ProposalsScreen";
 import OnboardingScreen from "./pages/OnboardingScreen";
 import UserSettings from "./pages/UserSettings";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import ProtectedRoute from "./components/app/ProtectedRoute";
 import Layout from "./components/app/Layout";
 
@@ -99,6 +101,8 @@ export default function App() {
               />
             </Route>
             <Route path="/login" element={<LoginScreen />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route
               path="/onboarding"
