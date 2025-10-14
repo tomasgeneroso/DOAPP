@@ -18,6 +18,7 @@ import { PasswordResetToken } from "../models/PasswordResetToken.js";
 import { LoginDevice } from "../models/LoginDevice.js";
 import emailService from "../services/email.js";
 import anomalyDetection from "../services/anomalyDetection.js";
+import { createAuditLog, getClientIp, getUserAgent } from "../utils/auditLogger.js";
 
 const router = express.Router();
 
@@ -254,6 +255,11 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         completedJobs: user?.completedJobs,
         role: user?.role,
         isVerified: user?.isVerified,
+        interests: user?.interests,
+        onboardingCompleted: user?.onboardingCompleted,
+        address: user?.address,
+        legalInfo: user?.legalInfo,
+        notificationPreferences: user?.notificationPreferences,
       },
     });
   } catch (error: any) {
@@ -290,6 +296,172 @@ router.put("/update", protect, async (req: AuthRequest, res: Response): Promise<
         reviewsCount: user?.reviewsCount,
         completedJobs: user?.completedJobs,
         role: user?.role,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   POST /api/auth/onboarding
+// @desc    Completar onboarding y guardar intereses del usuario
+// @access  Private
+router.post("/onboarding", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { interests, onboardingCompleted } = req.body;
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id as string,
+      {
+        interests: interests || [],
+        onboardingCompleted: onboardingCompleted || true
+      },
+      { new: true, runValidators: true }
+    );
+
+    res.json({
+      success: true,
+      user: {
+        id: (user?._id as unknown as string),
+        name: user?.name,
+        email: user?.email,
+        interests: user?.interests,
+        onboardingCompleted: user?.onboardingCompleted,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   PUT /api/auth/settings
+// @desc    Actualizar configuración completa del usuario con audit logs
+// @access  Private
+router.put("/settings", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const {
+      name,
+      phone,
+      bio,
+      address,
+      bankingInfo,
+      legalInfo,
+      interests,
+      notificationPreferences,
+    } = req.body;
+
+    // Obtener usuario actual para comparar cambios
+    const oldUser = await User.findById(req.user._id as string).select('+bankingInfo');
+
+    if (!oldUser) {
+      res.status(404).json({
+        success: false,
+        message: "Usuario no encontrado",
+      });
+      return;
+    }
+
+    // Preparar cambios para audit log
+    const changes: { field: string; oldValue: any; newValue: any }[] = [];
+
+    if (name && name !== oldUser.name) {
+      changes.push({ field: "name", oldValue: oldUser.name, newValue: name });
+    }
+    if (phone && phone !== oldUser.phone) {
+      changes.push({ field: "phone", oldValue: oldUser.phone || "N/A", newValue: phone });
+    }
+    if (bio && bio !== oldUser.bio) {
+      changes.push({ field: "bio", oldValue: oldUser.bio || "N/A", newValue: bio });
+    }
+    if (address) {
+      if (JSON.stringify(address) !== JSON.stringify(oldUser.address)) {
+        changes.push({ field: "address", oldValue: oldUser.address || {}, newValue: address });
+      }
+    }
+    if (bankingInfo) {
+      changes.push({
+        field: "bankingInfo",
+        oldValue: "***", // No registrar datos sensibles en logs
+        newValue: "***",
+      });
+    }
+    if (legalInfo) {
+      if (JSON.stringify(legalInfo) !== JSON.stringify(oldUser.legalInfo)) {
+        changes.push({
+          field: "legalInfo",
+          oldValue: oldUser.legalInfo || {},
+          newValue: legalInfo,
+        });
+      }
+    }
+    if (interests && JSON.stringify(interests) !== JSON.stringify(oldUser.interests)) {
+      changes.push({ field: "interests", oldValue: oldUser.interests || [], newValue: interests });
+    }
+    if (notificationPreferences && JSON.stringify(notificationPreferences) !== JSON.stringify(oldUser.notificationPreferences)) {
+      changes.push({
+        field: "notificationPreferences",
+        oldValue: oldUser.notificationPreferences || {},
+        newValue: notificationPreferences,
+      });
+    }
+
+    // Actualizar usuario
+    const updateData: any = {};
+    if (name) updateData.name = name;
+    if (phone !== undefined) updateData.phone = phone;
+    if (bio !== undefined) updateData.bio = bio;
+    if (address) updateData.address = address;
+    if (bankingInfo) updateData.bankingInfo = bankingInfo;
+    if (legalInfo) updateData.legalInfo = legalInfo;
+    if (interests) updateData.interests = interests;
+    if (notificationPreferences) updateData.notificationPreferences = notificationPreferences;
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id as string,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    // Crear audit log si hubo cambios
+    if (changes.length > 0) {
+      await createAuditLog({
+        userId: req.user._id,
+        action: "user.settings_updated",
+        entity: "user",
+        entityId: (req.user._id as any).toString(),
+        description: `User updated their settings (${changes.length} changes)`,
+        ipAddress: getClientIp(req),
+        userAgent: getUserAgent(req),
+        changes,
+        metadata: {
+          changedFields: changes.map(c => c.field),
+        },
+      });
+    }
+
+    res.json({
+      success: true,
+      user: {
+        id: (user?._id as unknown as string),
+        name: user?.name,
+        email: user?.email,
+        phone: user?.phone,
+        bio: user?.bio,
+        avatar: user?.avatar,
+        rating: user?.rating,
+        reviewsCount: user?.reviewsCount,
+        completedJobs: user?.completedJobs,
+        role: user?.role,
+        address: user?.address,
+        legalInfo: user?.legalInfo,
+        interests: user?.interests,
+        notificationPreferences: user?.notificationPreferences,
       },
     });
   } catch (error: any) {

@@ -4,29 +4,52 @@ import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { MapPin, Calendar, Clock, Star } from "lucide-react";
 import type { Job } from "@/types";
+import SearchBar, { SearchFilters } from "../components/SearchBar";
 
 export default function Index() {
   const { user, isLoading } = useAuth();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [jobsLoading, setJobsLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchJobs = async () => {
-      try {
-        const response = await fetch('/api/jobs?status=open&limit=6');
-        const data = await response.json();
-        if (data.success) {
-          setJobs(data.jobs);
-        }
-      } catch (error) {
-        console.error('Error al cargar trabajos:', error);
-      } finally {
-        setJobsLoading(false);
-      }
-    };
+  const fetchJobs = async (filters?: SearchFilters) => {
+    try {
+      setJobsLoading(true);
+      const params = new URLSearchParams({
+        status: 'open',
+        limit: '20',
+      });
 
+      if (filters) {
+        if (filters.query) params.append('query', filters.query);
+        if (filters.location) params.append('location', filters.location);
+        if (filters.category) params.append('category', filters.category);
+        if (filters.tags.length > 0) params.append('tags', filters.tags.join(','));
+      }
+
+      const response = await fetch(`/api/jobs?${params.toString()}`);
+      const data = await response.json();
+      if (data.success) {
+        setJobs(data.jobs);
+      }
+    } catch (error) {
+      console.error('Error al cargar trabajos:', error);
+    } finally {
+      setJobsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchJobs();
   }, []);
+
+  const handleSearch = (filters: SearchFilters) => {
+    fetchJobs(filters);
+  };
+
+  // Real-time search
+  const handleSearchChange = (filters: SearchFilters) => {
+    fetchJobs(filters);
+  };
 
   return (
     <>
@@ -39,7 +62,7 @@ export default function Index() {
       </Helmet>
       <div className="container mx-auto px-4 py-12">
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl md:text-6xl">
+          <h1 className="text-4xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-5xl md:text-6xl">
             {user ? (
               `¡Hola de nuevo, ${user.name}!`
             ) : (
@@ -49,7 +72,7 @@ export default function Index() {
               </>
             )}
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-gray-600">
+          <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-gray-600 dark:text-slate-400">
             {isLoading
               ? "Cargando..."
               : user
@@ -72,6 +95,11 @@ export default function Index() {
               </Link>
             </div>
           )}
+        </div>
+
+        {/* Search Bar */}
+        <div className="mt-12 max-w-4xl mx-auto">
+          <SearchBar onSearch={handleSearch} onSearchChange={handleSearchChange} />
         </div>
 
         {/* Lista de trabajos disponibles */}

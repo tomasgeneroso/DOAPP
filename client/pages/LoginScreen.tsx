@@ -6,6 +6,7 @@ import { Helmet } from "react-helmet-async";
 import { AnimatedButton } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input"; // Asegúrate que este componente se esté usando
 import { Chrome, Facebook, Twitter } from "lucide-react";
+import TokenExpiredNotice from "../components/TokenExpiredNotice";
 
 type FormMode = "login" | "register";
 
@@ -24,7 +25,11 @@ export default function LoginScreen() {
   const { loginWithFacebook, isLoading: fbLoading, error: fbError, fbStatus } = useFacebookLogin();
   const navigate = useNavigate();
   const location = useLocation();
-  const from =
+
+  // Get redirect path from URL query params or location state
+  const searchParams = new URLSearchParams(location.search);
+  const redirectParam = searchParams.get("redirect");
+  const from = redirectParam ||
     (typeof location.state?.from === "string"
       ? location.state.from
       : location.state?.from?.pathname) || "/";
@@ -82,13 +87,15 @@ export default function LoginScreen() {
           }
         />
       </Helmet>
-      <div className="flex min-h-full flex-col justify-center bg-slate-50 px-6 py-12 lg:px-8">
-        <div className="mx-auto w-full max-w-md rounded-2xl bg-white p-8 shadow-lg sm:p-12">
-          <h2 className="mb-8 text-center text-2xl font-bold text-slate-900">
+      <div className="flex min-h-full flex-col justify-center bg-slate-50 dark:bg-slate-900 px-6 py-12 lg:px-8">
+        <div className="mx-auto w-full max-w-md rounded-2xl bg-white dark:bg-slate-800 p-8 shadow-lg sm:p-12">
+          <h2 className="mb-8 text-center text-2xl font-bold text-slate-900 dark:text-white">
             {isRegister ? "Crea tu cuenta" : "Inicia sesión en tu cuenta"}
           </h2>
 
-          <div className="mb-4 border-b border-gray-200">
+          <TokenExpiredNotice />
+
+          <div className="mb-4 border-b border-gray-200 dark:border-slate-700">
             <ul
               className="flex flex-wrap -mb-px text-sm font-medium text-center"
               role="tablist"
@@ -98,7 +105,7 @@ export default function LoginScreen() {
                   className={`inline-block p-4 border-b-2 rounded-t-lg ${
                     mode === "login"
                       ? "border-sky-600 text-sky-600"
-                      : "border-transparent hover:text-slate-600 hover:border-slate-300"
+                      : "border-transparent hover:text-slate-600 dark:hover:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600 text-slate-500 dark:text-slate-400"
                   }`}
                   onClick={() => setMode("login")}
                   type="button"
@@ -113,7 +120,7 @@ export default function LoginScreen() {
                   className={`inline-block p-4 border-b-2 rounded-t-lg ${
                     mode === "register"
                       ? "border-sky-600 text-sky-600"
-                      : "border-transparent hover:text-slate-600 hover:border-slate-300"
+                      : "border-transparent hover:text-slate-600 dark:hover:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600 text-slate-500 dark:text-slate-400"
                   }`}
                   onClick={() => setMode("register")}
                   type="button"
@@ -131,7 +138,7 @@ export default function LoginScreen() {
               <div>
                 <label
                   htmlFor="name"
-                  className="block text-sm font-medium leading-6 text-slate-600"
+                  className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
                 >
                   Nombre completo
                 </label>
@@ -154,7 +161,7 @@ export default function LoginScreen() {
             <div>
               <label
                 htmlFor="email"
-                className="block text-sm font-medium leading-6 text-slate-600"
+                className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
               >
                 Email
               </label>
@@ -177,7 +184,7 @@ export default function LoginScreen() {
               <div className="flex items-center justify-between">
                 <label
                   htmlFor="password"
-                  className="block text-sm font-medium leading-6 text-slate-600"
+                  className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
                 >
                   Contraseña
                 </label>
@@ -214,7 +221,7 @@ export default function LoginScreen() {
                 <div>
                   <label
                     htmlFor="phone"
-                    className="block text-sm font-medium leading-6 text-slate-600"
+                    className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
                   >
                     Teléfono
                   </label>
@@ -244,7 +251,7 @@ export default function LoginScreen() {
                   />
                   <label
                     htmlFor="termsAccepted"
-                    className="ml-3 block text-sm leading-6 text-slate-600"
+                    className="ml-3 block text-sm leading-6 text-slate-600 dark:text-slate-300"
                   >
                     Acepto los{" "}
                     <Link
@@ -277,9 +284,9 @@ export default function LoginScreen() {
           </form>
 
           <div className="my-6 flex items-center gap-4">
-            <div className="h-px flex-1 bg-slate-200"></div>
-            <span className="text-sm text-slate-500">o continúa con</span>
-            <div className="h-px flex-1 bg-slate-200"></div>
+            <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
+            <span className="text-sm text-slate-500 dark:text-slate-400">o continúa con</span>
+            <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
           </div>
 
           <div className="flex items-center justify-center gap-4">
@@ -288,21 +295,21 @@ export default function LoginScreen() {
               type="button"
               onClick={loginWithFacebook}
               disabled={fbLoading || isLoading}
-              className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl text-sky-600 transition hover:border-sky-300 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-xl text-sky-600 transition hover:border-sky-300 hover:bg-slate-50 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Ingresar con Facebook"
             >
               <Facebook className="h-5 w-5" />
             </button>
             <a
               href={`${import.meta.env.VITE_API_URL}/auth/google`}
-              className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl text-amber-500 transition hover:border-sky-300 hover:bg-slate-50"
+              className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-xl text-amber-500 transition hover:border-sky-300 hover:bg-slate-50 dark:hover:bg-slate-600"
               aria-label="Ingresar con Google"
             >
               <Chrome className="h-5 w-5" />
             </a>
             <a
               href={`${import.meta.env.VITE_API_URL}/auth/twitter`}
-              className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-white text-xl text-sky-400 transition hover:border-sky-300 hover:bg-slate-50"
+              className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-xl text-sky-400 transition hover:border-sky-300 hover:bg-slate-50 dark:hover:bg-slate-600"
               aria-label="Ingresar con Twitter"
             >
               <Twitter className="h-5 w-5" />

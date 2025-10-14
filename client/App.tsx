@@ -2,13 +2,20 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./hooks/useAuth";
 import { HelmetProvider } from "react-helmet-async";
 import { FacebookSDK } from "./components/FacebookSDK";
+import { useEffect } from "react";
+import { setupFetchInterceptor } from "./utils/fetchWithAuth";
 import Index from "./pages/Index";
 import LoginScreen from "./pages/LoginScreen";
 import AuthCallback from "./pages/AuthCallback";
 import CreateContractScreen from "./pages/CreateContractScreen";
 import JobDetail from "./pages/JobDetail";
 import ContractDetail from "./pages/ContractDetail";
+import ContractsScreen from "./pages/ContractsScreen";
 import PaymentsScreen from "./pages/PaymentsScreen";
+import Dashboard from "./pages/Dashboard";
+import ProposalsScreen from "./pages/ProposalsScreen";
+import OnboardingScreen from "./pages/OnboardingScreen";
+import UserSettings from "./pages/UserSettings";
 import ProtectedRoute from "./components/app/ProtectedRoute";
 import Layout from "./components/app/Layout";
 
@@ -20,6 +27,11 @@ import AdminTickets from "./pages/admin/Tickets";
 import TicketDetail from "./pages/admin/TicketDetail";
 
 export default function App() {
+  // Setup fetch interceptor for automatic token handling
+  useEffect(() => {
+    setupFetchInterceptor();
+  }, []);
+
   return (
     <HelmetProvider>
       <AuthProvider>
@@ -29,6 +41,14 @@ export default function App() {
             <Route element={<Layout />}>
               <Route path="/" element={<Index />} />
               <Route path="/jobs/:id" element={<JobDetail />} />
+              <Route
+                path="/contracts"
+                element={
+                  <ProtectedRoute>
+                    <ContractsScreen />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/contracts/create"
                 element={
@@ -46,6 +66,14 @@ export default function App() {
                 }
               />
               <Route
+                path="/proposals"
+                element={
+                  <ProtectedRoute>
+                    <ProposalsScreen />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/payments"
                 element={
                   <ProtectedRoute>
@@ -53,9 +81,33 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/dashboard"
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/settings"
+                element={
+                  <ProtectedRoute>
+                    <UserSettings />
+                  </ProtectedRoute>
+                }
+              />
             </Route>
             <Route path="/login" element={<LoginScreen />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route
+              path="/onboarding"
+              element={
+                <ProtectedRoute>
+                  <OnboardingScreen />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Admin Routes */}
             <Route

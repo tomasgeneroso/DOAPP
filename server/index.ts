@@ -61,6 +61,9 @@ import portfolioRoutes from "./routes/portfolio.js";
 // Dispute routes
 import disputesRoutes from "./routes/disputes.js";
 
+// Proposal routes
+import proposalsRoutes from "./routes/proposals.js";
+
 // ESM __dirname equivalent
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -142,6 +145,7 @@ app.use("/api/notifications", notificationsRoutes);
 app.use("/api/search", searchRoutes);
 app.use("/api/portfolio", portfolioRoutes);
 app.use("/api/disputes", disputesRoutes);
+app.use("/api/proposals", proposalsRoutes);
 
 // Admin Routes
 app.use("/api/admin/users", adminUsersRoutes);

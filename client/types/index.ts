@@ -25,4 +25,36 @@ export interface User {
   completedJobs: number;
   role: 'user' | 'admin';
   isVerified: boolean;
+  interests?: string[];
+  onboardingCompleted?: boolean;
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    country?: string;
+  };
+  bankingInfo?: {
+    accountHolder?: string;
+    bankName?: string;
+    accountType?: "savings" | "checking";
+    cbu?: string;
+    alias?: string;
+  };
+  legalInfo?: {
+    idType?: "dni" | "passport" | "cuit" | "cuil";
+    idNumber?: string;
+    taxStatus?: "freelancer" | "autonomo" | "monotributo" | "responsable_inscripto";
+    taxId?: string;
+  };
+  notificationPreferences?: {
+    email: boolean;
+    push: boolean;
+    sms: boolean;
+    newMessage: boolean;
+    jobUpdate: boolean;
+    contractUpdate: boolean;
+    paymentUpdate: boolean;
+    marketing: boolean;
+  };
 }

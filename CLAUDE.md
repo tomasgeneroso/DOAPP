@@ -140,6 +140,11 @@ GOOGLE_ANALYTICS_ID=G-XXXXXXXXXX
 - Sistema de ratings
 - Impacta trust score
 
+**Proposal** (`server/models/Proposal.ts`)
+- Sistema de propuestas para trabajos
+- Estados: pending, approved, rejected, cancelled, withdrawn
+- Vincula freelancer con job y cliente
+
 ---
 
 ## Servicios Clave
@@ -238,6 +243,14 @@ GET    /api/search/jobs
 GET    /api/search/tags
 GET    /api/search/categories
 
+GET    /api/proposals
+GET    /api/proposals/job/:jobId
+POST   /api/proposals
+PUT    /api/proposals/:id/approve
+PUT    /api/proposals/:id/reject
+PUT    /api/proposals/:id/withdraw
+DELETE /api/proposals/:id
+
 # Admin routes
 GET    /api/admin/analytics
 GET    /api/admin/users
@@ -264,6 +277,9 @@ GET    /api/admin/tickets
 ✅ **i18n**: ES/EN
 ✅ **Security**: Sanitización, GDPR, audit logs
 ✅ **Images**: Optimización con Sharp
+✅ **Propuestas**: Sistema completo de propuestas para trabajos
+✅ **Dashboard**: Página de métricas de usuario (ingresos, gastos, contratos, propuestas)
+✅ **UI/UX**: Menú desplegable de usuario, modo oscuro mejorado
 
 ---
 
@@ -362,5 +378,5 @@ npm run dev:server      # Test backend solo
 ---
 
 **Fecha de creación:** 2025-10-12
-**Última actualización:** PHASE 3 completada
-**Versión:** 1.0.0
+**Última actualización:** Sistema de propuestas y Dashboard implementados (2025-10-14)
+**Versión:** 1.1.0

@@ -62,6 +62,37 @@ export interface IUser extends Document {
     marketing: boolean;
   };
 
+  // User interests/preferences
+  interests: string[];
+  onboardingCompleted: boolean;
+
+  // Address information
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    country?: string;
+  };
+
+  // Banking information
+  bankingInfo?: {
+    accountHolder?: string;
+    bankName?: string;
+    accountType?: "savings" | "checking";
+    accountNumber?: string; // Encrypted
+    cbu?: string; // Argentina CBU
+    alias?: string;
+  };
+
+  // Legal/Tax information
+  legalInfo?: {
+    idType?: "dni" | "passport" | "cuit" | "cuil";
+    idNumber?: string;
+    taxStatus?: "freelancer" | "autonomo" | "monotributo" | "responsable_inscripto";
+    taxId?: string; // CUIT/CUIL
+  };
+
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -242,6 +273,53 @@ const userSchema = new Schema<IUser>(
         paymentUpdate: true,
         marketing: false,
       },
+    },
+    // User interests/preferences
+    interests: {
+      type: [String],
+      default: [],
+      index: true,
+    },
+    onboardingCompleted: {
+      type: Boolean,
+      default: false,
+    },
+    // Address information
+    address: {
+      type: {
+        street: { type: String, trim: true },
+        city: { type: String, trim: true },
+        state: { type: String, trim: true },
+        postalCode: { type: String, trim: true },
+        country: { type: String, trim: true, default: "Argentina" },
+      },
+      default: {},
+    },
+    // Banking information
+    bankingInfo: {
+      type: {
+        accountHolder: { type: String, trim: true },
+        bankName: { type: String, trim: true },
+        accountType: { type: String, enum: ["savings", "checking"] },
+        accountNumber: { type: String, select: false }, // Encrypted, not returned by default
+        cbu: { type: String, trim: true },
+        alias: { type: String, trim: true },
+      },
+      default: {},
+      select: false, // Don't return banking info by default
+    },
+    // Legal/Tax information
+    legalInfo: {
+      type: {
+        idType: { type: String, enum: ["dni", "passport", "cuit", "cuil"] },
+        idNumber: { type: String, trim: true },
+        taxStatus: {
+          type: String,
+          enum: ["freelancer", "autonomo", "monotributo", "responsable_inscripto"]
+        },
+        taxId: { type: String, trim: true }, // CUIT/CUIL
+      },
+      default: {},
     },
   },
   {

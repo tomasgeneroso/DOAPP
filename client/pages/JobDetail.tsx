@@ -157,28 +157,28 @@ export default function JobDetail() {
 
               {/* Time Info */}
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 text-sky-600">
+                <div className="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/30 text-sky-600">
                     <Calendar className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-slate-500">
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                       Fecha de inicio
                     </p>
-                    <p className="mt-0.5 text-sm font-semibold text-slate-900">
+                    <p className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white">
                       {new Date(job.startDate).toLocaleDateString("es-AR")}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 text-sky-600">
+                <div className="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/30 text-sky-600">
                     <Clock className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-slate-500">
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                       Hora de inicio
                     </p>
-                    <p className="mt-0.5 text-sm font-semibold text-slate-900">
+                    <p className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white">
                       {new Date(job.startDate).toLocaleTimeString("es-AR", {
                         hour: "2-digit",
                         minute: "2-digit",
@@ -186,28 +186,28 @@ export default function JobDetail() {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 text-sky-600">
+                <div className="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/30 text-sky-600">
                     <Calendar className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-slate-500">
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                       Fecha de fin
                     </p>
-                    <p className="mt-0.5 text-sm font-semibold text-slate-900">
+                    <p className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white">
                       {new Date(job.endDate).toLocaleDateString("es-AR")}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 text-sky-600">
+                <div className="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/30 text-sky-600">
                     <Clock className="h-5 w-5" />
                   </div>
                   <div>
-                    <p className="text-xs font-medium text-slate-500">
+                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                       Hora de fin
                     </p>
-                    <p className="mt-0.5 text-sm font-semibold text-slate-900">
+                    <p className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white">
                       {new Date(job.endDate).toLocaleTimeString("es-AR", {
                         hour: "2-digit",
                         minute: "2-digit",

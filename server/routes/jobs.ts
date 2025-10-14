@@ -7,26 +7,56 @@ import type { AuthRequest } from "../types/index.js";
 const router = express.Router();
 
 // @route   GET /api/jobs
-// @desc    Obtener todos los trabajos
+// @desc    Obtener todos los trabajos con búsqueda avanzada
 // @access  Public
 router.get("/", async (req: Request, res: Response): Promise<void> => {
   try {
-    const { status, category, minPrice, maxPrice, limit = "20" } = req.query;
+    const {
+      status,
+      category,
+      minPrice,
+      maxPrice,
+      limit = "20",
+      query: searchQuery,
+      location,
+      tags
+    } = req.query;
 
     const query: any = {};
 
+    // Status filter
     if (status) {
       query.status = status;
     }
 
+    // Category filter
     if (category) {
       query.category = category;
     }
 
+    // Price range filter
     if (minPrice || maxPrice) {
       query.price = {};
       if (minPrice) query.price.$gte = Number(minPrice);
       if (maxPrice) query.price.$lte = Number(maxPrice);
+    }
+
+    // Text search (title, description, summary)
+    if (searchQuery && typeof searchQuery === 'string') {
+      query.$text = { $search: searchQuery };
+    }
+
+    // Location search (case-insensitive partial match)
+    if (location && typeof location === 'string') {
+      query.location = { $regex: location, $options: 'i' };
+    }
+
+    // Tags filter (match any of the provided tags)
+    if (tags) {
+      const tagsArray = typeof tags === 'string' ? tags.split(',') : tags;
+      if (Array.isArray(tagsArray) && tagsArray.length > 0) {
+        query.tags = { $in: tagsArray };
+      }
     }
 
     const jobs = await Job.find(query)
