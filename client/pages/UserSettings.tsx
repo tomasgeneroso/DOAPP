@@ -12,10 +12,11 @@ import {
   CheckCircle2,
   Tag,
   Bell,
+  MessageCircle,
 } from "lucide-react";
 import { JOB_CATEGORIES } from "../../shared/constants/categories";
 
-type TabType = "basic" | "address" | "banking" | "legal" | "interests" | "notifications";
+type TabType = "basic" | "address" | "banking" | "legal" | "interests" | "notifications" | "contact";
 
 export default function UserSettings() {
   const { user, refreshUser } = useAuth();
@@ -144,6 +145,7 @@ export default function UserSettings() {
     { id: "legal", label: "Información Legal", icon: FileText },
     { id: "interests", label: "Rubros de Interés", icon: Tag },
     { id: "notifications", label: "Notificaciones", icon: Bell },
+    { id: "contact", label: "Contacto y Soporte", icon: MessageCircle },
   ];
 
   return (
@@ -607,17 +609,119 @@ export default function UserSettings() {
                 </div>
               )}
 
-              {/* Save button */}
-              <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700">
-                <button
-                  onClick={handleSave}
-                  disabled={loading}
-                  className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 text-white font-semibold shadow-lg shadow-sky-500/30 hover:from-sky-600 hover:to-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                >
-                  <Save className="h-5 w-5" />
-                  {loading ? "Guardando..." : "Guardar Cambios"}
-                </button>
-              </div>
+              {activeTab === "contact" && (
+                <div className="space-y-6">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Contacto y Soporte
+                  </h2>
+                  <p className="text-sm text-gray-600 dark:text-slate-400">
+                    ¿Necesitas ayuda o tienes alguna consulta? Estamos aquí para ayudarte.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Support */}
+                    <button
+                      onClick={() => navigate('/contact?subject=support')}
+                      className="p-6 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-500 transition-all text-left"
+                    >
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                          <AlertCircle className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <h3 className="font-semibold text-gray-900 dark:text-white">
+                          Soporte Técnico
+                        </h3>
+                      </div>
+                      <p className="text-sm text-gray-600 dark:text-slate-400">
+                        Problemas técnicos, errores o dudas sobre el funcionamiento
+                      </p>
+                    </button>
+
+                    {/* Complaint */}
+                    <button
+                      onClick={() => navigate('/contact?subject=complaint')}
+                      className="p-6 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-500 transition-all text-left"
+                    >
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                          <FileText className="h-6 w-6 text-red-600 dark:text-red-400" />
+                        </div>
+                        <h3 className="font-semibold text-gray-900 dark:text-white">
+                          Hacer un Reclamo
+                        </h3>
+                      </div>
+                      <p className="text-sm text-gray-600 dark:text-slate-400">
+                        Reportar problemas con trabajos, usuarios o pagos
+                      </p>
+                    </button>
+
+                    {/* Advertising */}
+                    <button
+                      onClick={() => navigate('/contact?subject=advertising')}
+                      className="p-6 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-500 transition-all text-left"
+                    >
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                          <Tag className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                        </div>
+                        <h3 className="font-semibold text-gray-900 dark:text-white">
+                          Solicitar Publicidad
+                        </h3>
+                      </div>
+                      <p className="text-sm text-gray-600 dark:text-slate-400">
+                        Información sobre espacios publicitarios y precios
+                      </p>
+                    </button>
+
+                    {/* General */}
+                    <button
+                      onClick={() => navigate('/contact?subject=general')}
+                      className="p-6 rounded-xl border-2 border-slate-200 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-500 transition-all text-left"
+                    >
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                          <MessageCircle className="h-6 w-6 text-gray-600 dark:text-gray-400" />
+                        </div>
+                        <h3 className="font-semibold text-gray-900 dark:text-white">
+                          Consulta General
+                        </h3>
+                      </div>
+                      <p className="text-sm text-gray-600 dark:text-slate-400">
+                        Otras consultas o información sobre la plataforma
+                      </p>
+                    </button>
+                  </div>
+
+                  <div className="p-4 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg">
+                    <p className="text-sm text-sky-800 dark:text-sky-300">
+                      <strong>Email directo:</strong>{' '}
+                      <a
+                        href="mailto:support@doapp.com"
+                        className="underline hover:text-sky-600"
+                      >
+                        support@doapp.com
+                      </a>
+                    </p>
+                    <p className="text-sm text-sky-800 dark:text-sky-300 mt-2">
+                      Tiempo de respuesta promedio: 24-48 horas
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Save button (hide on contact tab) */}
+              {activeTab !== "contact" && (
+                <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700">
+                  <button
+                    onClick={handleSave}
+                    disabled={loading}
+                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 text-white font-semibold shadow-lg shadow-sky-500/30 hover:from-sky-600 hover:to-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                  >
+                    <Save className="h-5 w-5" />
+                    {loading ? "Guardando..." : "Guardar Cambios"}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -6,6 +6,15 @@ import type { AuthRequest } from "../types/index.js";
 
 const router = express.Router();
 
+// Normalize location string: remove punctuation and convert to lowercase
+const normalizeLocation = (location: string): string => {
+  return location
+    .toLowerCase()
+    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '') // Remove punctuation
+    .replace(/\s+/g, ' ') // Normalize spaces
+    .trim();
+};
+
 // @route   GET /api/jobs
 // @desc    Obtener todos los trabajos con búsqueda avanzada
 // @access  Public
@@ -19,7 +28,8 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       limit = "20",
       query: searchQuery,
       location,
-      tags
+      tags,
+      sortBy = 'date'
     } = req.query;
 
     const query: any = {};
@@ -46,9 +56,9 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       query.$text = { $search: searchQuery };
     }
 
-    // Location search (case-insensitive partial match)
+    // Location - will be handled with post-processing for normalized matching
     if (location && typeof location === 'string') {
-      query.location = { $regex: location, $options: 'i' };
+      query.location = { $exists: true };
     }
 
     // Tags filter (match any of the provided tags)
@@ -59,11 +69,36 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       }
     }
 
-    const jobs = await Job.find(query)
+    // Determine sort order based on sortBy parameter
+    let sortCriteria: any = { createdAt: -1 }; // default
+
+    if (sortBy === 'budget-asc') {
+      sortCriteria = { price: 1 };
+    } else if (sortBy === 'budget-desc') {
+      sortCriteria = { price: -1 };
+    } else if (sortBy === 'proximity') {
+      // For proximity, we'll need to sort after filtering by location
+      sortCriteria = { createdAt: -1 }; // fallback to date for now
+    }
+
+    let jobs = await Job.find(query)
       .populate("client", "name avatar rating reviewsCount")
       .populate("doer", "name avatar rating reviewsCount")
-      .sort({ createdAt: -1 })
-      .limit(Number(limit));
+      .sort(sortCriteria)
+      .lean();
+
+    // Apply location filter with normalization if provided
+    if (location && typeof location === 'string') {
+      const normalizedSearchLocation = normalizeLocation(location);
+      jobs = jobs.filter((job: any) => {
+        if (!job.location) return false;
+        const normalizedJobLocation = normalizeLocation(job.location);
+        return normalizedJobLocation.includes(normalizedSearchLocation);
+      });
+    }
+
+    // Apply limit after filtering
+    jobs = jobs.slice(0, Number(limit));
 
     res.json({
       success: true,

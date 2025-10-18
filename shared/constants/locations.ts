@@ -64,18 +64,27 @@ export const ARGENTINA_LOCATIONS = [
 
 export type LocationOption = typeof ARGENTINA_LOCATIONS[number];
 
+// Normalize location string: remove punctuation and convert to lowercase
+export const normalizeLocation = (location: string): string => {
+  return location
+    .toLowerCase()
+    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '') // Remove punctuation
+    .replace(/\s+/g, ' ') // Normalize spaces
+    .trim();
+};
+
 // Helper para buscar ubicaciones por término
 export const searchLocations = (searchTerm: string, limit = 5): LocationOption[] => {
   if (!searchTerm || searchTerm.length < 2) return [];
 
-  const lowerSearch = searchTerm.toLowerCase();
+  const normalizedSearch = normalizeLocation(searchTerm);
 
   return ARGENTINA_LOCATIONS
     .filter(location =>
-      location.label.toLowerCase().includes(lowerSearch) ||
-      location.value.toLowerCase().includes(lowerSearch) ||
-      location.city.toLowerCase().includes(lowerSearch) ||
-      location.zone.toLowerCase().includes(lowerSearch)
+      normalizeLocation(location.label).includes(normalizedSearch) ||
+      normalizeLocation(location.value).includes(normalizedSearch) ||
+      normalizeLocation(location.city).includes(normalizedSearch) ||
+      normalizeLocation(location.zone).includes(normalizedSearch)
     )
     .slice(0, limit);
 };

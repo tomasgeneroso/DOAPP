@@ -2,6 +2,7 @@ import express, { Request, Response } from "express";
 import { body, validationResult } from "express-validator";
 import jwt, { Secret, SignOptions } from "jsonwebtoken";
 import User, { IUser } from "../models/User.js";
+import Referral from "../models/Referral.js";
 import { config } from "../config/env.js";
 import { protect } from "../middleware/auth.js";
 import type { AuthRequest } from "../types/index.js";
@@ -67,7 +68,7 @@ router.post(
         return;
       }
 
-      const { name, email, password, phone, termsAccepted } = req.body;
+      const { name, email, password, phone, termsAccepted, referralCode } = req.body;
 
       // Verificar si el usuario ya existe
       const existingUser = await User.findOne({ email });
@@ -79,6 +80,19 @@ router.post(
         return;
       }
 
+      // Verificar código de referido si se proporcionó
+      let referrer = null;
+      if (referralCode) {
+        referrer = await User.findOne({ referralCode: referralCode.toUpperCase() });
+        if (!referrer) {
+          res.status(400).json({
+            success: false,
+            message: "Código de referido inválido",
+          });
+          return;
+        }
+      }
+
       // Crear usuario
       const user = await User.create({
         name,
@@ -87,7 +101,26 @@ router.post(
         phone,
         termsAccepted,
         termsAcceptedAt: termsAccepted ? new Date() : undefined,
+        referredBy: referrer?._id,
       });
+
+      // Crear registro de referido si existe
+      if (referrer) {
+        await Referral.create({
+          referrer: referrer._id,
+          referred: user._id,
+          referralCode: referralCode.toUpperCase(),
+          status: "pending",
+          metadata: {
+            ipAddress: getClientIp(req),
+            userAgent: req.headers["user-agent"],
+          },
+        });
+
+        // Incrementar contador de referidos del referrer
+        referrer.totalReferrals += 1;
+        await referrer.save();
+      }
 
       // Generar token
       const token = generateToken((user as any)._id.toString());
@@ -260,6 +293,9 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         address: user?.address,
         legalInfo: user?.legalInfo,
         notificationPreferences: user?.notificationPreferences,
+        referralCode: user?.referralCode,
+        freeContractsRemaining: user?.freeContractsRemaining,
+        totalReferrals: user?.totalReferrals,
       },
     });
   } catch (error: any) {
@@ -714,13 +750,11 @@ router.post(
         req.headers["user-agent"]
       );
 
-      // Enviar email con link de reset
-      const resetUrl = `${config.clientUrl}/reset-password?token=${resetData.token}`;
-
+      // Enviar email con link de reset (solo pasar el token, el email service construye la URL)
       await emailService.sendPasswordResetEmail(
         user.email,
         user.name,
-        resetUrl
+        resetData.token
       );
 
       res.json({
@@ -762,10 +796,26 @@ router.post(
 
       const { token, newPassword } = req.body;
 
+      console.log('Reset password attempt with token:', token?.substring(0, 10) + '...');
+
       // Verificar token
       const resetToken = await (PasswordResetToken as any).verifyToken(token);
 
       if (!resetToken) {
+        console.log('Token verification failed - token not found or expired');
+        // Log for debugging - check if token exists at all
+        const anyToken = await PasswordResetToken.findOne({ token });
+        if (anyToken) {
+          console.log('Token found but:', {
+            used: anyToken.used,
+            expiresAt: anyToken.expiresAt,
+            now: new Date(),
+            isExpired: anyToken.expiresAt < new Date()
+          });
+        } else {
+          console.log('Token not found in database');
+        }
+
         res.status(400).json({
           success: false,
           message: "Token inválido o expirado",

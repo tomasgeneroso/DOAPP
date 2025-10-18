@@ -64,6 +64,21 @@ import disputesRoutes from "./routes/disputes.js";
 // Proposal routes
 import proposalsRoutes from "./routes/proposals.js";
 
+// Referral routes
+import referralsRoutes from "./routes/referrals.js";
+
+// Advertisement routes
+import advertisementsRoutes from "./routes/advertisements.js";
+import adminAdvertisementsRoutes from "./routes/admin/advertisements.js";
+
+// Contact routes
+import contactRoutes from "./routes/contact.js";
+import adminContactRoutes from "./routes/admin/contact.js";
+
+// Blog routes
+import blogsRoutes from "./routes/blogs.js";
+import adminBlogsRoutes from "./routes/admin/blogs.js";
+
 // ESM __dirname equivalent
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -146,6 +161,10 @@ app.use("/api/search", searchRoutes);
 app.use("/api/portfolio", portfolioRoutes);
 app.use("/api/disputes", disputesRoutes);
 app.use("/api/proposals", proposalsRoutes);
+app.use("/api/referrals", referralsRoutes);
+app.use("/api/advertisements", advertisementsRoutes);
+app.use("/api/contact", contactRoutes);
+app.use("/api/blogs", blogsRoutes);
 
 // Admin Routes
 app.use("/api/admin/users", adminUsersRoutes);
@@ -153,6 +172,9 @@ app.use("/api/admin/contracts", adminContractsRoutes);
 app.use("/api/admin/tickets", adminTicketsRoutes);
 app.use("/api/admin/analytics", adminAnalyticsRoutes);
 app.use("/api/admin/2fa", adminTwoFactorRoutes);
+app.use("/api/admin/advertisements", adminAdvertisementsRoutes);
+app.use("/api/admin/contact", adminContactRoutes);
+app.use("/api/admin/blogs", adminBlogsRoutes);
 
 // Health check
 app.get("/api/health", (req, res) => {
@@ -198,7 +220,23 @@ httpServer.listen(PORT, () => {
   console.log(`📍 URL: ${config.serverUrl}`);
   console.log(`📡 API: ${config.serverUrl}/api`);
   console.log(`💬 WebSocket: ${config.serverUrl.replace('http', 'ws')}`);
-  console.log(`📄 Legal: ${config.serverUrl}/legal\n`);
+  console.log(`📄 Legal: ${config.serverUrl}/legal`);
+
+  // Mostrar credenciales de desarrollo
+  if (config.nodeEnv === 'development') {
+    console.log('\n📧 Login credentials:');
+    console.log('\n👑 Admin:');
+    console.log('   Owner: admin@doapp.com / password123');
+    console.log('   Super Admin: superadmin@doapp.com / password123');
+    console.log('   Moderator: moderator@doapp.com / password123');
+    console.log('   Support: support@doapp.com / password123');
+    console.log('\n👥 Regular users:');
+    console.log('   Client 1: maria@example.com / password123');
+    console.log('   Client 2: ana@example.com / password123');
+    console.log('   Doer 1: carlos@example.com / password123');
+    console.log('   Doer 2: juan@example.com / password123');
+    console.log('   Both (Client & Doer): laura@example.com / password123\n');
+  }
 });
 
 export default app;

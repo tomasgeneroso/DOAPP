@@ -13,6 +13,9 @@ export interface SearchFilters {
   location: string;
   category: string;
   tags: string[];
+  minBudget?: number;
+  maxBudget?: number;
+  sortBy?: 'date' | 'budget-asc' | 'budget-desc' | 'proximity';
 }
 
 export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) {
@@ -20,11 +23,18 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
   const [location, setLocation] = useState("");
   const [category, setCategory] = useState("");
   const [tags, setTags] = useState<string[]>([]);
+  const [minBudget, setMinBudget] = useState<string>("");
+  const [maxBudget, setMaxBudget] = useState<string>("");
+  const [sortBy, setSortBy] = useState<SearchFilters['sortBy']>('date');
   const [showFilters, setShowFilters] = useState(false);
   const [locationSuggestions, setLocationSuggestions] = useState<ReturnType<typeof searchLocations>>([]);
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
+  const [showQueryLocationSuggestions, setShowQueryLocationSuggestions] = useState(false);
+  const [queryLocationSuggestions, setQueryLocationSuggestions] = useState<ReturnType<typeof searchLocations>>([]);
   const locationInputRef = useRef<HTMLInputElement>(null);
+  const queryInputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
+  const querySuggestionsRef = useRef<HTMLDivElement>(null);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -36,6 +46,15 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
         !locationInputRef.current.contains(event.target as Node)
       ) {
         setShowLocationSuggestions(false);
+      }
+
+      if (
+        querySuggestionsRef.current &&
+        !querySuggestionsRef.current.contains(event.target as Node) &&
+        queryInputRef.current &&
+        !queryInputRef.current.contains(event.target as Node)
+      ) {
+        setShowQueryLocationSuggestions(false);
       }
     };
 
@@ -66,12 +85,81 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
         location,
         category,
         tags,
+        minBudget: minBudget ? parseFloat(minBudget) : undefined,
+        maxBudget: maxBudget ? parseFloat(maxBudget) : undefined,
+        sortBy,
       });
     }, 500); // 500ms debounce
   };
 
   const handleQueryChange = (value: string) => {
     setQuery(value);
+
+    // Detectar si el usuario está escribiendo una ubicación
+    // Buscar sugerencias si hay al menos 2 caracteres y parece ser texto de ubicación
+    if (value.length >= 2) {
+      // Extraer la última palabra o frase después de coma/espacio
+      const words = value.trim().split(/\s+/);
+      const lastWord = words[words.length - 1];
+
+      // También buscar después de comas (para casos como "plomero en Palermo, CABA")
+      const parts = value.split(',');
+      const lastPart = parts[parts.length - 1].trim();
+
+      // Buscar con la última palabra o la última parte después de coma
+      const searchTerm = lastPart.length > lastWord.length ? lastPart : lastWord;
+
+      if (searchTerm.length >= 2) {
+        const suggestions = searchLocations(searchTerm, 8);
+        if (suggestions.length > 0) {
+          setQueryLocationSuggestions(suggestions);
+          setShowQueryLocationSuggestions(true);
+        } else {
+          setShowQueryLocationSuggestions(false);
+        }
+      } else {
+        setShowQueryLocationSuggestions(false);
+      }
+    } else {
+      setShowQueryLocationSuggestions(false);
+    }
+  };
+
+  const handleSelectQueryLocation = (locationValue: string) => {
+    // Extraer el nombre corto de la ciudad para agregarlo al query
+    const locationLabel = queryLocationSuggestions.find(s => s.value === locationValue)?.label || locationValue;
+
+    // Si el query ya tiene contenido, agregar la ubicación al final
+    // Si está vacío, solo poner la ubicación
+    const currentQuery = query.trim();
+
+    // Remover la última palabra/parte que se estaba escribiendo
+    let newQuery = currentQuery;
+
+    // Si hay una coma, reemplazar todo después de la última coma
+    if (currentQuery.includes(',')) {
+      const parts = currentQuery.split(',');
+      parts[parts.length - 1] = '';
+      newQuery = parts.join(',').trim();
+      if (newQuery) {
+        newQuery += ', ' + locationLabel;
+      } else {
+        newQuery = locationLabel;
+      }
+    } else {
+      // Si no hay coma, remover la última palabra y agregar la ubicación
+      const words = currentQuery.split(/\s+/);
+      if (words.length > 1) {
+        words[words.length - 1] = '';
+        newQuery = words.join(' ').trim() + ' en ' + locationLabel;
+      } else {
+        newQuery = locationLabel;
+      }
+    }
+
+    setQuery(newQuery);
+    setLocation(locationValue);
+    setShowQueryLocationSuggestions(false);
   };
 
   const handleLocationChange = (value: string) => {
@@ -88,7 +176,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
   // Trigger search whenever filters change
   useEffect(() => {
     triggerRealTimeSearch();
-  }, [query, location, category, tags]);
+  }, [query, location, category, tags, minBudget, maxBudget, sortBy]);
 
   const handleSelectLocation = (locationValue: string) => {
     setLocation(locationValue);
@@ -103,6 +191,9 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
       location,
       category,
       tags,
+      minBudget: minBudget ? parseFloat(minBudget) : undefined,
+      maxBudget: maxBudget ? parseFloat(maxBudget) : undefined,
+      sortBy,
     });
   };
 
@@ -111,13 +202,21 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
     setLocation("");
     setCategory("");
     setTags([]);
+    setMinBudget("");
+    setMaxBudget("");
+    setSortBy('date');
     setLocationSuggestions([]);
     setShowLocationSuggestions(false);
+    setQueryLocationSuggestions([]);
+    setShowQueryLocationSuggestions(false);
     onSearch({
       query: "",
       location: "",
       category: "",
       tags: [],
+      minBudget: undefined,
+      maxBudget: undefined,
+      sortBy: 'date',
     });
   };
 
@@ -129,7 +228,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
     }
   };
 
-  const hasActiveFilters = location || category || tags.length > 0;
+  const hasActiveFilters = location || category || tags.length > 0 || minBudget || maxBudget || sortBy !== 'date';
 
   return (
     <div className="w-full">
@@ -160,7 +259,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
             <span className="hidden sm:inline">Filtros</span>
             {hasActiveFilters && (
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-sky-500 text-xs text-white">
-                {(location ? 1 : 0) + (category ? 1 : 0) + tags.length}
+                {(location ? 1 : 0) + (category ? 1 : 0) + tags.length + (minBudget ? 1 : 0) + (maxBudget ? 1 : 0) + (sortBy !== 'date' ? 1 : 0)}
               </span>
             )}
           </button>
@@ -295,6 +394,60 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Budget Range */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                Rango de presupuesto
+              </label>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="minBudget" className="block text-xs text-slate-600 dark:text-slate-400 mb-1">
+                    Mínimo
+                  </label>
+                  <input
+                    id="minBudget"
+                    type="number"
+                    value={minBudget}
+                    onChange={(e) => setMinBudget(e.target.value)}
+                    placeholder="$ 0"
+                    min="0"
+                    className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="maxBudget" className="block text-xs text-slate-600 dark:text-slate-400 mb-1">
+                    Máximo
+                  </label>
+                  <input
+                    id="maxBudget"
+                    type="number"
+                    value={maxBudget}
+                    onChange={(e) => setMaxBudget(e.target.value)}
+                    placeholder="$ Sin límite"
+                    min="0"
+                    className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Sort By */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                Ordenar por
+              </label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SearchFilters['sortBy'])}
+                className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+              >
+                <option value="date">Fecha de publicación</option>
+                <option value="budget-asc">Presupuesto (menor a mayor)</option>
+                <option value="budget-desc">Presupuesto (mayor a menor)</option>
+                <option value="proximity">Cercanía</option>
+              </select>
             </div>
           </div>
         )}

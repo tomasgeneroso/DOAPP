@@ -1,7 +1,7 @@
 import { useState, FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
-import { Mail, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { Mail, ArrowLeft, CheckCircle2, Home } from "lucide-react";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
@@ -48,13 +48,22 @@ export default function ForgotPassword() {
       </Helmet>
       <div className="flex min-h-full flex-col justify-center bg-slate-50 dark:bg-slate-900 px-6 py-12 lg:px-8">
         <div className="mx-auto w-full max-w-md">
-          <Link
-            to="/login"
-            className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white mb-6"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Volver al inicio de sesión
-          </Link>
+          <div className="flex items-center justify-between mb-6">
+            <Link
+              to="/login"
+              className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Volver al inicio de sesión
+            </Link>
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+            >
+              <Home className="h-4 w-4" />
+              Inicio
+            </Link>
+          </div>
 
           <div className="rounded-2xl bg-white dark:bg-slate-800 p-8 shadow-lg sm:p-12">
             {!success ? (

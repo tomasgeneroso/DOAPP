@@ -3,6 +3,7 @@ import { body, validationResult } from "express-validator";
 import Contract from "../models/Contract.js";
 import Job from "../models/Job.js";
 import User from "../models/User.js";
+import Referral from "../models/Referral.js";
 import { protect } from "../middleware/auth.js";
 import type { AuthRequest } from "../types/index.js";
 
@@ -10,6 +11,57 @@ const router = express.Router();
 
 // Comisión de la plataforma (10%)
 const PLATFORM_COMMISSION = 0.1;
+
+/**
+ * Process referral credit when a referred user completes their first contract
+ * @param userId - The user ID who completed the contract (client or doer)
+ * @param contractId - The contract ID that was completed
+ */
+async function processReferralCredit(userId: any, contractId: any): Promise<void> {
+  try {
+    // Find if this user was referred
+    const referral = await Referral.findOne({
+      referred: userId,
+      status: "pending",
+    }).populate("referrer");
+
+    if (!referral) {
+      return; // User was not referred or already processed
+    }
+
+    // Check if this is their first completed contract (as client or doer)
+    const completedContracts = await Contract.countDocuments({
+      $or: [{ client: userId }, { doer: userId }],
+      status: "completed",
+    });
+
+    if (completedContracts === 1) {
+      // This is their first completed contract!
+      // Update referral status
+      referral.status = "completed";
+      referral.firstContractId = contractId;
+      referral.firstContractCompletedAt = new Date();
+      await referral.save();
+
+      // Credit the referrer with a free contract
+      const referrer = await User.findById(referral.referrer);
+      if (referrer) {
+        referrer.freeContractsRemaining += 1;
+        await referrer.save();
+
+        // Update referral to credited
+        referral.status = "credited";
+        referral.creditedAt = new Date();
+        await referral.save();
+
+        console.log(`Referral credit applied: User ${userId} completed first contract, credited referrer ${referrer._id}`);
+      }
+    }
+  } catch (error) {
+    console.error("Error processing referral credit:", error);
+    // Don't throw - we don't want to fail contract completion if referral processing fails
+  }
+}
 
 // @route   GET /api/contracts
 // @desc    Obtener contratos del usuario
@@ -113,7 +165,7 @@ router.post(
         return;
       }
 
-      const { job: jobId, doer: doerId, price, startDate, endDate, termsAccepted, notes } = req.body;
+      const { job: jobId, doer: doerId, price, startDate, endDate, termsAccepted, notes, useFreeContract } = req.body;
 
       // Verificar que el trabajo existe
       const job = await Job.findById(jobId);
@@ -144,8 +196,19 @@ router.post(
         return;
       }
 
-      // Calcular comisión
-      const commission = price * PLATFORM_COMMISSION;
+      // Check if user wants to use a free contract and has one available
+      const client = await User.findById(req.user._id);
+      let isFreeContract = false;
+
+      if (useFreeContract && client && client.freeContractsRemaining > 0) {
+        isFreeContract = true;
+        // Decrement free contracts
+        client.freeContractsRemaining -= 1;
+        await client.save();
+      }
+
+      // Calcular comisión (0 si es contrato gratis)
+      const commission = isFreeContract ? 0 : price * PLATFORM_COMMISSION;
       const totalPrice = price + commission;
 
       // Crear contrato
@@ -280,6 +343,11 @@ router.put("/:id/complete", protect, async (req: AuthRequest, res: Response): Pr
     await User.findByIdAndUpdate(contract.doer, {
       $inc: { completedJobs: 1 },
     });
+
+    // Verificar si este es el primer contrato de un usuario referido
+    // y acreditar al referidor si aplica
+    await processReferralCredit(contract.client, contract._id);
+    await processReferralCredit(contract.doer, contract._id);
 
     res.json({
       success: true,

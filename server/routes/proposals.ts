@@ -3,8 +3,12 @@ import { body, validationResult } from "express-validator";
 import Proposal from "../models/Proposal.js";
 import Job from "../models/Job.js";
 import Contract from "../models/Contract.js";
+import Conversation from "../models/Conversation.js";
+import ChatMessage from "../models/ChatMessage.js";
 import { protect } from "../middleware/auth.js";
 import type { AuthRequest } from "../types/index.js";
+import emailService from "../services/email.js";
+import { config } from "../config/env.js";
 
 const router = express.Router();
 
@@ -487,5 +491,301 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
     });
   }
 });
+
+// @route   POST /api/proposals/apply-and-accept
+// @desc    Aplicar y aceptar trabajo directamente (crea propuesta, conversación y envía emails)
+// @access  Private
+router.post(
+  "/apply-and-accept",
+  protect,
+  [body("jobId").notEmpty().withMessage("El trabajo es requerido")],
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          errors: errors.array(),
+        });
+        return;
+      }
+
+      const { jobId } = req.body;
+
+      // Verificar que el trabajo existe y está abierto
+      const job = await Job.findById(jobId).populate("client", "name email");
+      if (!job) {
+        res.status(404).json({
+          success: false,
+          message: "Trabajo no encontrado",
+        });
+        return;
+      }
+
+      if (job.status !== "open") {
+        res.status(400).json({
+          success: false,
+          message: "Este trabajo ya no está abierto",
+        });
+        return;
+      }
+
+      // Verificar que el usuario no sea el dueño del trabajo
+      if (job.client._id.toString() === req.user._id.toString()) {
+        res.status(400).json({
+          success: false,
+          message: "No puedes aplicar a tu propio trabajo",
+        });
+        return;
+      }
+
+      // Verificar que no haya una propuesta previa
+      const existingProposal = await Proposal.findOne({
+        job: jobId,
+        freelancer: req.user._id,
+      });
+
+      if (existingProposal) {
+        res.status(400).json({
+          success: false,
+          message: "Ya has enviado una propuesta para este trabajo",
+        });
+        return;
+      }
+
+      // Crear propuesta automáticamente aprobada
+      const proposal = await Proposal.create({
+        job: jobId,
+        freelancer: req.user._id,
+        client: job.client._id,
+        coverLetter: "Aplicación directa - El freelancer aceptó los términos del trabajo tal como fueron publicados.",
+        proposedPrice: job.price,
+        estimatedDuration: Math.ceil(
+          (new Date(job.endDate).getTime() - new Date(job.startDate).getTime()) /
+            (1000 * 60 * 60 * 24)
+        ),
+        status: "approved",
+      });
+
+      // Actualizar trabajo
+      job.status = "in_progress";
+      job.doer = req.user._id;
+      await job.save();
+
+      // Crear o encontrar conversación entre el freelancer y el cliente
+      let conversation = await Conversation.findOne({
+        participants: { $all: [req.user._id, job.client._id] },
+        type: "direct",
+      });
+
+      if (!conversation) {
+        conversation = await Conversation.create({
+          participants: [req.user._id, job.client._id],
+          type: "direct",
+        });
+      }
+
+      // Crear mensaje automático del sistema
+      const jobUrl = `${config.clientUrl}/jobs/${job._id}`;
+      const systemMessage = `✅ **Trabajo Aceptado**\n\n${req.user.name} ha aceptado el trabajo "${job.title}".\n\n📅 **Detalles:**\n• Inicio: ${new Date(job.startDate).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}\n• Fin: ${new Date(job.endDate).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}\n• Precio: $${job.price.toLocaleString("es-AR")}\n\n🔗 Ver trabajo: ${jobUrl}`;
+
+      await ChatMessage.create({
+        conversationId: conversation._id,
+        sender: req.user._id,
+        message: systemMessage,
+        type: "system",
+      });
+
+      // Actualizar conversación
+      conversation.lastMessage = "Trabajo aceptado";
+      conversation.lastMessageAt = new Date();
+      await conversation.save();
+
+      // Enviar emails a ambas partes
+      const freelancerUser = await req.user.populate("name email");
+      const clientUser = job.client as any;
+
+      // Email al freelancer
+      await emailService.sendEmail({
+        to: req.user.email,
+        subject: `Has aceptado el trabajo: ${job.title}`,
+        html: `
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+                .button { display: inline-block; padding: 12px 30px; background: #0ea5e9; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+                .info-box { background: white; border-left: 4px solid #0ea5e9; padding: 15px; margin: 20px 0; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="header">
+                  <h1>✅ Trabajo Aceptado</h1>
+                </div>
+                <div class="content">
+                  <p>Hola ${req.user.name},</p>
+                  <p>Has aceptado exitosamente el trabajo:</p>
+                  <div class="info-box">
+                    <h3>${job.title}</h3>
+                    <p><strong>Cliente:</strong> ${clientUser.name}</p>
+                    <p><strong>Ubicación:</strong> ${job.location}</p>
+                    <p><strong>Inicio:</strong> ${new Date(job.startDate).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                    <p><strong>Fin:</strong> ${new Date(job.endDate).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                    <p><strong>Pago:</strong> $${job.price.toLocaleString("es-AR")}</p>
+                  </div>
+                  <p>El cliente ha sido notificado. Pueden comenzar a coordinar los detalles a través del chat.</p>
+                  <a href="${config.clientUrl}/chat/${conversation._id}" class="button">Ir al Chat</a>
+                  <a href="${jobUrl}" class="button" style="background: #64748b;">Ver Trabajo</a>
+                </div>
+              </div>
+            </body>
+          </html>
+        `,
+      });
+
+      // Email al cliente
+      await emailService.sendEmail({
+        to: clientUser.email,
+        subject: `${req.user.name} ha aceptado tu trabajo: ${job.title}`,
+        html: `
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+                .button { display: inline-block; padding: 12px 30px; background: #10b981; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+                .info-box { background: white; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="header">
+                  <h1>🎉 ¡Encontraste un profesional!</h1>
+                </div>
+                <div class="content">
+                  <p>Hola ${clientUser.name},</p>
+                  <p><strong>${req.user.name}</strong> ha aceptado tu trabajo:</p>
+                  <div class="info-box">
+                    <h3>${job.title}</h3>
+                    <p><strong>Profesional:</strong> ${req.user.name}</p>
+                    <p><strong>Inicio:</strong> ${new Date(job.startDate).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                    <p><strong>Fin:</strong> ${new Date(job.endDate).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                    <p><strong>Pago:</strong> $${job.price.toLocaleString("es-AR")}</p>
+                  </div>
+                  <p>Pueden coordinar los detalles finales a través del chat.</p>
+                  <a href="${config.clientUrl}/chat/${conversation._id}" class="button">Ir al Chat</a>
+                  <a href="${jobUrl}" class="button" style="background: #64748b;">Ver Trabajo</a>
+                </div>
+              </div>
+            </body>
+          </html>
+        `,
+      });
+
+      res.json({
+        success: true,
+        conversationId: conversation._id,
+        message: "Trabajo aceptado exitosamente",
+      });
+    } catch (error: any) {
+      console.error("Error in apply-and-accept:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor",
+      });
+    }
+  }
+);
+
+// @route   POST /api/proposals/start-negotiation
+// @desc    Iniciar negociación (crea conversación sin aceptar el trabajo)
+// @access  Private
+router.post(
+  "/start-negotiation",
+  protect,
+  [body("jobId").notEmpty().withMessage("El trabajo es requerido")],
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          errors: errors.array(),
+        });
+        return;
+      }
+
+      const { jobId } = req.body;
+
+      // Verificar que el trabajo existe
+      const job = await Job.findById(jobId).populate("client", "name email");
+      if (!job) {
+        res.status(404).json({
+          success: false,
+          message: "Trabajo no encontrado",
+        });
+        return;
+      }
+
+      // Verificar que el usuario no sea el dueño del trabajo
+      if (job.client._id.toString() === req.user._id.toString()) {
+        res.status(400).json({
+          success: false,
+          message: "No puedes negociar tu propio trabajo",
+        });
+        return;
+      }
+
+      // Crear o encontrar conversación
+      let conversation = await Conversation.findOne({
+        participants: { $all: [req.user._id, job.client._id] },
+        type: "direct",
+      });
+
+      if (!conversation) {
+        conversation = await Conversation.create({
+          participants: [req.user._id, job.client._id],
+          type: "direct",
+        });
+      }
+
+      // Crear mensaje automático
+      const jobUrl = `${config.clientUrl}/jobs/${job._id}`;
+      const systemMessage = `💬 **Inicio de Conversación**\n\n${req.user.name} está interesado en el trabajo "${job.title}" y quiere discutir los detalles.\n\n📋 **Información del trabajo:**\n• Precio propuesto: $${job.price.toLocaleString("es-AR")}\n• Ubicación: ${job.location}\n• Inicio: ${new Date(job.startDate).toLocaleDateString("es-AR", { day: "numeric", month: "long" })}\n\n🔗 Ver trabajo: ${jobUrl}`;
+
+      await ChatMessage.create({
+        conversationId: conversation._id,
+        sender: req.user._id,
+        message: systemMessage,
+        type: "system",
+      });
+
+      // Actualizar conversación
+      conversation.lastMessage = "Nueva conversación iniciada";
+      conversation.lastMessageAt = new Date();
+      await conversation.save();
+
+      res.json({
+        success: true,
+        conversationId: conversation._id,
+        message: "Conversación iniciada",
+      });
+    } catch (error: any) {
+      console.error("Error in start-negotiation:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor",
+      });
+    }
+  }
+);
 
 export default router;

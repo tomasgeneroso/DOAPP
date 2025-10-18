@@ -145,6 +145,13 @@ GOOGLE_ANALYTICS_ID=G-XXXXXXXXXX
 - Estados: pending, approved, rejected, cancelled, withdrawn
 - Vincula freelancer con job y cliente
 
+**Advertisement** (`server/models/Advertisement.ts`)
+- Sistema de publicidad con 3 tipos de anuncios
+- Modelos: model1 (3x1 banner), model2 (1x2 sidebar), model3 (1x1 card)
+- Status: pending, active, paused, expired, rejected
+- Analytics: impressions, clicks, CTR
+- Payment integration con pricing dinámico
+
 ---
 
 ## Servicios Clave
@@ -181,6 +188,13 @@ GOOGLE_ANALYTICS_ID=G-XXXXXXXXXX
 **FCM** (`server/services/fcm.ts`)
 - Push notifications
 - Device tokens
+
+**Advertisement Service** (`server/services/advertisementService.ts`)
+- Gestión de anuncios activos
+- Integración de ads en listings (jobs, search)
+- Cálculo de pricing dinámico
+- Analytics y reporting (impressions, clicks, CTR)
+- Auto-expiración de campañas
 
 ---
 
@@ -251,10 +265,31 @@ PUT    /api/proposals/:id/reject
 PUT    /api/proposals/:id/withdraw
 DELETE /api/proposals/:id
 
+GET    /api/advertisements/pricing
+GET    /api/advertisements/active
+GET    /api/advertisements
+POST   /api/advertisements
+GET    /api/advertisements/:id
+PUT    /api/advertisements/:id
+POST   /api/advertisements/:id/pause
+POST   /api/advertisements/:id/resume
+POST   /api/advertisements/:id/impression
+POST   /api/advertisements/:id/click
+GET    /api/advertisements/:id/performance
+GET    /api/advertisements/stats/overview
+DELETE /api/advertisements/:id
+
 # Admin routes
 GET    /api/admin/analytics
 GET    /api/admin/users
 GET    /api/admin/tickets
+GET    /api/admin/advertisements
+GET    /api/admin/advertisements/pending
+POST   /api/admin/advertisements/:id/approve
+POST   /api/admin/advertisements/:id/reject
+PUT    /api/admin/advertisements/:id/priority
+GET    /api/admin/advertisements/stats/platform
+POST   /api/admin/advertisements/expire
 ```
 
 ---
@@ -280,6 +315,7 @@ GET    /api/admin/tickets
 ✅ **Propuestas**: Sistema completo de propuestas para trabajos
 ✅ **Dashboard**: Página de métricas de usuario (ingresos, gastos, contratos, propuestas)
 ✅ **UI/UX**: Menú desplegable de usuario, modo oscuro mejorado
+✅ **Publicidad**: Sistema completo de anuncios con 3 modelos, pricing dinámico, analytics y aprobación admin
 
 ---
 
@@ -363,8 +399,10 @@ router.get('/admin', authenticateToken, requireRole(['admin']), handler);
 
 **Archivos a consultar frecuentemente:**
 - `server/models/User.ts` - Schema de usuario
+- `server/models/Advertisement.ts` - Schema de anuncios
 - `server/config/permissions.ts` - Definición de permisos
 - `server/services/cache.ts` - API de caché
+- `server/services/advertisementService.ts` - Servicio de publicidad
 - `server/utils/sanitizer.ts` - Funciones de sanitización
 - `server/middleware/auth.ts` - Guards de autenticación
 
@@ -378,5 +416,76 @@ npm run dev:server      # Test backend solo
 ---
 
 **Fecha de creación:** 2025-10-12
-**Última actualización:** Sistema de propuestas y Dashboard implementados (2025-10-14)
-**Versión:** 1.1.0
+**Última actualización:** Sistema de publicidad implementado (2025-10-16)
+**Versión:** 1.2.0
+
+---
+
+## Sistema de Publicidad
+
+### Descripción
+Sistema completo de gestión de anuncios publicitarios que se integran entre los trabajos disponibles. Los anunciantes pueden crear campañas, elegir entre 3 modelos de anuncios, y monitorear su rendimiento.
+
+### Modelos de Anuncios
+
+**Model 1 (Banner 3x1)** - Premium
+- Tamaño: 3 cards de ancho × 1 card de alto
+- Precio base: $50/día
+- Ubicación: Cada 6 trabajos
+- Ideal para: Máxima visibilidad
+
+**Model 2 (Sidebar 1x2)**
+- Tamaño: 1 card de ancho × 2 cards de alto
+- Precio base: $35/día
+- Ubicación: Cada 4 trabajos
+- Ideal para: Presencia destacada
+
+**Model 3 (Card 1x1)**
+- Tamaño: 1 card de ancho × 1 card de alto
+- Precio base: $20/día
+- Ubicación: Cada 3 trabajos
+- Ideal para: Presupuesto ajustado
+
+### Características
+
+**Para Anunciantes:**
+- Creación de campañas con fechas de inicio/fin
+- Selección de tipo de anuncio
+- Targeting por categorías, tags y ubicaciones
+- Niveles de prioridad (costo adicional +10% por nivel)
+- Dashboard de rendimiento con métricas detalladas
+- Control de campañas: pausar, reanudar, eliminar
+- Analytics en tiempo real: impressions, clicks, CTR
+- Análisis de costos: CPM, CPC
+
+**Para Administradores:**
+- Sistema de aprobación de anuncios
+- Gestión de prioridades
+- Estadísticas de plataforma
+- Moderación de contenido
+- Expiración automática de campañas
+
+**Integración:**
+- Ads mezclados orgánicamente en listings de trabajos
+- Tracking automático de impressions y clicks
+- Cache optimizado con Redis
+- Responsive design para todos los dispositivos
+
+### Pricing Dinámico
+```typescript
+totalPrice = basePricePerDay × durationDays × (1 + priority × 0.1)
+```
+
+### Archivos Clave
+
+**Backend:**
+- `server/models/Advertisement.ts` - Modelo de datos
+- `server/routes/advertisements.ts` - API endpoints
+- `server/routes/admin/advertisements.ts` - Admin endpoints
+- `server/services/advertisementService.ts` - Lógica de negocio
+
+**Frontend:**
+- `client/components/Advertisement.tsx` - Componente de visualización
+- `client/hooks/useAdvertisements.ts` - Hooks de gestión
+- `client/pages/AdvertisementManager.tsx` - Gestor de campañas
+- `client/components/app/JobsScreen.tsx` - Integración en listings

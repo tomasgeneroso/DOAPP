@@ -351,33 +351,165 @@ class EmailService {
       <html>
         <head>
           <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .button { display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-            .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
-            .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; }
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+              line-height: 1.6;
+              color: #333;
+              background-color: #f5f5f5;
+              margin: 0;
+              padding: 0;
+            }
+            .email-wrapper {
+              max-width: 600px;
+              margin: 40px auto;
+              background-color: white;
+              border-radius: 12px;
+              overflow: hidden;
+              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            }
+            .logo-section {
+              text-align: center;
+              padding: 40px 20px 20px;
+              background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+            }
+            .logo {
+              font-size: 48px;
+              font-weight: bold;
+              color: white;
+              margin: 0;
+              letter-spacing: -1px;
+            }
+            .subtitle {
+              text-align: center;
+              font-size: 24px;
+              font-weight: 600;
+              color: #0ea5e9;
+              margin: 30px 0 20px;
+              padding: 0 20px;
+            }
+            .content {
+              padding: 30px 40px;
+              text-align: center;
+            }
+            .greeting {
+              font-size: 16px;
+              color: #475569;
+              margin-bottom: 20px;
+            }
+            .message {
+              font-size: 15px;
+              color: #64748b;
+              margin-bottom: 30px;
+              line-height: 1.8;
+            }
+            .button {
+              display: inline-block;
+              padding: 14px 40px;
+              background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
+              color: white !important;
+              text-decoration: none;
+              border-radius: 8px;
+              margin: 20px 0;
+              font-weight: 600;
+              font-size: 16px;
+              box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+              transition: transform 0.2s;
+            }
+            .button:hover {
+              transform: translateY(-2px);
+            }
+            .link-section {
+              margin: 30px 0;
+              padding: 20px;
+              background: #f8fafc;
+              border-radius: 8px;
+              border: 1px solid #e2e8f0;
+            }
+            .link-label {
+              font-size: 13px;
+              color: #64748b;
+              margin-bottom: 10px;
+            }
+            .reset-link {
+              word-break: break-all;
+              color: #0ea5e9;
+              font-size: 13px;
+              text-decoration: none;
+            }
+            .warning {
+              background: #fef3c7;
+              border: 1px solid #fbbf24;
+              border-left: 4px solid #f59e0b;
+              padding: 16px;
+              margin: 25px 0;
+              border-radius: 8px;
+              text-align: left;
+            }
+            .warning-title {
+              font-weight: 600;
+              color: #92400e;
+              margin-bottom: 5px;
+            }
+            .warning-text {
+              color: #78350f;
+              font-size: 14px;
+            }
+            .security-note {
+              font-size: 14px;
+              color: #64748b;
+              margin-top: 25px;
+              padding-top: 20px;
+              border-top: 1px solid #e2e8f0;
+            }
+            .footer {
+              text-align: center;
+              padding: 30px 20px;
+              background: #f8fafc;
+              color: #94a3b8;
+              font-size: 13px;
+              border-top: 1px solid #e2e8f0;
+            }
           </style>
         </head>
         <body>
-          <div class="container">
-            <div class="header">
-              <h1>Restablecer contraseña</h1>
+          <div class="email-wrapper">
+            <div class="logo-section">
+              <h1 class="logo">Doers</h1>
             </div>
+
+            <h2 class="subtitle">Restablecer Contraseña</h2>
+
             <div class="content">
-              <p>Hola ${userName},</p>
-              <p>Recibimos una solicitud para restablecer tu contraseña de DoApp.</p>
+              <p class="greeting">Hola <strong>${userName}</strong>,</p>
+
+              <p class="message">
+                Recibimos una solicitud para restablecer la contraseña de tu cuenta en Doers.
+                Si fuiste tú, haz clic en el botón de abajo para crear una nueva contraseña.
+              </p>
+
               <a href="${resetUrl}" class="button">Restablecer mi contraseña</a>
-              <p>O copia y pega este enlace en tu navegador:</p>
-              <p style="word-break: break-all; color: #667eea;">${resetUrl}</p>
-              <div class="warning">
-                <strong>⚠️ Importante:</strong> Este enlace expirará en 1 hora.
+
+              <div class="link-section">
+                <p class="link-label">O copia y pega este enlace en tu navegador:</p>
+                <a href="${resetUrl}" class="reset-link">${resetUrl}</a>
               </div>
-              <p>Si no solicitaste restablecer tu contraseña, ignora este email y tu contraseña permanecerá sin cambios.</p>
+
+              <div class="warning">
+                <div class="warning-title">⚠️ Importante</div>
+                <div class="warning-text">
+                  Este enlace expirará en <strong>24 horas</strong> por razones de seguridad.
+                </div>
+              </div>
+
+              <p class="security-note">
+                Si no solicitaste restablecer tu contraseña, puedes ignorar este email de forma segura.
+                Tu contraseña permanecerá sin cambios.
+              </p>
             </div>
+
             <div class="footer">
-              <p>© 2025 DoApp. Todos los derechos reservados.</p>
+              <p>© 2025 Doers. Todos los derechos reservados.</p>
+              <p style="margin-top: 10px;">La plataforma segura para contratar y trabajar</p>
             </div>
           </div>
         </body>

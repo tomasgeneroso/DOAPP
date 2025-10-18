@@ -93,6 +93,13 @@ export interface IUser extends Document {
     taxId?: string; // CUIT/CUIL
   };
 
+  // Referral system
+  referralCode: string; // Unique code for inviting others
+  referredBy?: mongoose.Types.ObjectId; // User who referred this user
+  freeContractsRemaining: number; // Number of commission-free contracts earned
+  totalReferrals: number; // Count of users referred
+  referralEarnings: number; // Total earned from referrals (for future use)
+
   createdAt: Date;
   updatedAt: Date;
   comparePassword(candidatePassword: string): Promise<boolean>;
@@ -321,6 +328,33 @@ const userSchema = new Schema<IUser>(
       },
       default: {},
     },
+    // Referral system
+    referralCode: {
+      type: String,
+      unique: true,
+      sparse: true,
+      index: true,
+    },
+    referredBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      index: true,
+    },
+    freeContractsRemaining: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    totalReferrals: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    referralEarnings: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
   },
   {
     timestamps: true,
@@ -335,6 +369,43 @@ userSchema.pre("save", async function (next) {
 
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
+  next();
+});
+
+// Generate unique referral code for new users
+userSchema.pre("save", async function (next) {
+  if (!this.isNew || this.referralCode) {
+    return next();
+  }
+
+  // Generate a unique 8-character alphanumeric code
+  const generateCode = () => {
+    const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Exclude similar looking chars (0, O, 1, I)
+    let code = "";
+    for (let i = 0; i < 8; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return code;
+  };
+
+  // Keep trying until we get a unique code
+  let attempts = 0;
+  const maxAttempts = 10;
+
+  while (attempts < maxAttempts) {
+    const code = generateCode();
+    const existing = await mongoose.model("User").findOne({ referralCode: code });
+
+    if (!existing) {
+      this.referralCode = code;
+      return next();
+    }
+
+    attempts++;
+  }
+
+  // If we couldn't generate a unique code after max attempts, use timestamp-based code
+  this.referralCode = `USER${Date.now().toString(36).toUpperCase()}`;
   next();
 });
 

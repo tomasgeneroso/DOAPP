@@ -34,6 +34,80 @@ const createUsers = async () => {
   const hashedPassword = await bcrypt.hash("password123", salt);
 
   const users = await User.create([
+    // Admin users
+    {
+      name: "Admin Principal",
+      email: "admin@doapp.com",
+      password: hashedPassword,
+      phone: "+54 11 0000-0001",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Admin",
+      bio: "Administrador principal de la plataforma.",
+      rating: 5.0,
+      reviewsCount: 0,
+      completedJobs: 0,
+      role: "both",
+      adminRole: "owner",
+      termsAccepted: true,
+      termsAcceptedAt: new Date(),
+      isVerified: true,
+      trustScore: 100,
+      verificationLevel: "full",
+    },
+    {
+      name: "Super Admin",
+      email: "superadmin@doapp.com",
+      password: hashedPassword,
+      phone: "+54 11 0000-0002",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=SuperAdmin",
+      bio: "Super administrador con permisos extendidos.",
+      rating: 5.0,
+      reviewsCount: 0,
+      completedJobs: 0,
+      role: "both",
+      adminRole: "super_admin",
+      termsAccepted: true,
+      termsAcceptedAt: new Date(),
+      isVerified: true,
+      trustScore: 100,
+      verificationLevel: "full",
+    },
+    {
+      name: "Moderador",
+      email: "moderator@doapp.com",
+      password: hashedPassword,
+      phone: "+54 11 0000-0003",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Moderator",
+      bio: "Moderador de contenido y usuarios.",
+      rating: 5.0,
+      reviewsCount: 0,
+      completedJobs: 0,
+      role: "both",
+      adminRole: "admin",
+      termsAccepted: true,
+      termsAcceptedAt: new Date(),
+      isVerified: true,
+      trustScore: 100,
+      verificationLevel: "full",
+    },
+    {
+      name: "Soporte Técnico",
+      email: "support@doapp.com",
+      password: hashedPassword,
+      phone: "+54 11 0000-0004",
+      avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=Support",
+      bio: "Equipo de soporte al usuario.",
+      rating: 5.0,
+      reviewsCount: 0,
+      completedJobs: 0,
+      role: "both",
+      adminRole: "support",
+      termsAccepted: true,
+      termsAcceptedAt: new Date(),
+      isVerified: true,
+      trustScore: 100,
+      verificationLevel: "full",
+    },
+    // Regular users
     {
       name: "María González",
       email: "maria@example.com",
@@ -276,13 +350,18 @@ const seed = async () => {
     await createJobs(users);
 
     console.log("\n🎉 Seed completado exitosamente!");
-    console.log("\n📝 Credenciales de prueba:");
-    console.log("   Email: maria@example.com");
-    console.log("   Email: carlos@example.com");
-    console.log("   Email: ana@example.com");
-    console.log("   Email: juan@example.com");
-    console.log("   Email: laura@example.com");
-    console.log("   Password: password123\n");
+    console.log("\n📧 Credenciales de prueba:");
+    console.log("\n👑 Admin:");
+    console.log("   Owner: admin@doapp.com / password123");
+    console.log("   Super Admin: superadmin@doapp.com / password123");
+    console.log("   Moderator: moderator@doapp.com / password123");
+    console.log("   Support: support@doapp.com / password123");
+    console.log("\n👥 Usuarios regulares:");
+    console.log("   Client 1: maria@example.com / password123");
+    console.log("   Client 2: ana@example.com / password123");
+    console.log("   Doer 1: carlos@example.com / password123");
+    console.log("   Doer 2: juan@example.com / password123");
+    console.log("   Both: laura@example.com / password123\n");
 
     await mongoose.connection.close();
     console.log("🔌 Conexión a MongoDB cerrada");

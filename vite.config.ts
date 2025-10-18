@@ -10,14 +10,14 @@ export default defineConfig({
     proxy: {
       // Proxy para las rutas de la API
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:5001',
         changeOrigin: true,
         secure: false,
         ws: true,
       },
       // Proxy para los archivos legales
       '/legal': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:5001',
         changeOrigin: true,
         secure: false,
       },

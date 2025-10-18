@@ -66,6 +66,14 @@ export const PERMISSIONS = {
   PRIVACY_VIEW_AUDIT: "privacy:view_audit",
   PRIVACY_COMPLIANCE_REPORT: "privacy:compliance_report",
 
+  // Blog permissions
+  BLOG_VIEW: "blog:view",
+  BLOG_CREATE: "blog:create",
+  BLOG_EDIT: "blog:edit",
+  BLOG_DELETE: "blog:delete",
+  BLOG_MANAGE: "blog:manage",
+  BLOG_PUBLISH: "blog:publish",
+
   // Special permissions
   SUPERUSER: "*", // All permissions
 } as const;
@@ -117,6 +125,13 @@ export const ROLE_PERMISSIONS = {
     // System
     PERMISSIONS.SYSTEM_BACKUP,
     PERMISSIONS.SYSTEM_RESTORE,
+
+    // Blog management
+    PERMISSIONS.BLOG_MANAGE,
+    PERMISSIONS.BLOG_CREATE,
+    PERMISSIONS.BLOG_EDIT,
+    PERMISSIONS.BLOG_DELETE,
+    PERMISSIONS.BLOG_PUBLISH,
   ],
   admin: [
     // User management (limited)
@@ -139,6 +154,13 @@ export const ROLE_PERMISSIONS = {
     // Admin access
     PERMISSIONS.ADMIN_DASHBOARD,
     PERMISSIONS.ADMIN_ANALYTICS,
+
+    // Blog management
+    PERMISSIONS.BLOG_MANAGE,
+    PERMISSIONS.BLOG_CREATE,
+    PERMISSIONS.BLOG_EDIT,
+    PERMISSIONS.BLOG_DELETE,
+    PERMISSIONS.BLOG_PUBLISH,
   ],
   support: [
     // User management (view only)

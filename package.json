@@ -14,6 +14,9 @@
     "start": "tsx server/index.ts",
     "typecheck": "tsc --noEmit",
     "seed": "tsx server/scripts/seed.ts",
+    "seed:ads": "tsx server/scripts/seedAdvertisements.ts",
+    "seed:blogs": "tsx server/scripts/seedBlogs.ts",
+    "seed:mockup": "tsx server/scripts/seedMockup.ts",
     "security:check": "tsx server/scripts/securityCheck.ts",
     "security:audit": "npm audit && npm audit fix"
   },

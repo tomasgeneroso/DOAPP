@@ -130,6 +130,7 @@ export default function Dashboard() {
       icon: TrendingUp,
       color: "text-green-500",
       bgColor: "bg-green-100 dark:bg-green-900/20",
+      link: "/dashboard/earnings",
     },
     {
       title: "Gastos Totales",
@@ -137,6 +138,7 @@ export default function Dashboard() {
       icon: TrendingDown,
       color: "text-red-500",
       bgColor: "bg-red-100 dark:bg-red-900/20",
+      link: "/dashboard/expenses",
     },
     {
       title: "Contratos Activos",
@@ -144,6 +146,7 @@ export default function Dashboard() {
       icon: Briefcase,
       color: "text-sky-500",
       bgColor: "bg-sky-100 dark:bg-sky-900/20",
+      link: "/dashboard/active-contracts",
     },
     {
       title: "Contratos Completados",
@@ -151,6 +154,7 @@ export default function Dashboard() {
       icon: CheckCircle,
       color: "text-emerald-500",
       bgColor: "bg-emerald-100 dark:bg-emerald-900/20",
+      link: "/contracts?status=completed",
     },
     {
       title: "Propuestas Pendientes",
@@ -158,6 +162,7 @@ export default function Dashboard() {
       icon: Clock,
       color: "text-amber-500",
       bgColor: "bg-amber-100 dark:bg-amber-900/20",
+      link: "/dashboard/proposals?status=pending",
     },
     {
       title: "Propuestas Aprobadas",
@@ -165,6 +170,7 @@ export default function Dashboard() {
       icon: CheckCircle,
       color: "text-teal-500",
       bgColor: "bg-teal-100 dark:bg-teal-900/20",
+      link: "/dashboard/proposals?status=approved",
     },
     {
       title: "Propuestas Rechazadas",
@@ -172,6 +178,7 @@ export default function Dashboard() {
       icon: XCircle,
       color: "text-rose-500",
       bgColor: "bg-rose-100 dark:bg-rose-900/20",
+      link: "/dashboard/proposals?status=rejected",
     },
     {
       title: "Total Propuestas",
@@ -179,6 +186,7 @@ export default function Dashboard() {
       icon: FileText,
       color: "text-violet-500",
       bgColor: "bg-violet-100 dark:bg-violet-900/20",
+      link: "/dashboard/proposals",
     },
   ];
 
@@ -200,24 +208,28 @@ export default function Dashboard() {
           {statCards.map((stat, index) => {
             const Icon = stat.icon;
             return (
-              <div
+              <Link
                 key={index}
-                className="rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-md transition-shadow"
+                to={stat.link}
+                className="rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm border border-slate-200 dark:border-slate-700 hover:shadow-lg hover:border-sky-300 dark:hover:border-sky-600 transition-all cursor-pointer group"
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                    <p className="text-sm font-medium text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white transition-colors">
                       {stat.title}
                     </p>
                     <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
                       {stat.value}
                     </p>
+                    <p className="mt-1 text-xs text-sky-600 dark:text-sky-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                      Ver detalles →
+                    </p>
                   </div>
-                  <div className={`rounded-full p-3 ${stat.bgColor}`}>
+                  <div className={`rounded-full p-3 ${stat.bgColor} group-hover:scale-110 transition-transform`}>
                     <Icon className={`h-6 w-6 ${stat.color}`} />
                   </div>
                 </div>
-              </div>
+              </Link>
             );
           })}
         </div>

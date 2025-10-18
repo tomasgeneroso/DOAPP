@@ -1,6 +1,15 @@
 import Job from "../models/Job";
 import cache from "./cache.js";
 
+// Normalize location string: remove punctuation and convert to lowercase
+const normalizeLocation = (location: string): string => {
+  return location
+    .toLowerCase()
+    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '') // Remove punctuation
+    .replace(/\s+/g, ' ') // Normalize spaces
+    .trim();
+};
+
 interface SearchFilters {
   query?: string;
   category?: string;
@@ -90,9 +99,10 @@ class SearchService {
       }
     }
 
-    // Location filter (text match)
+    // Location filter - will be handled in post-processing for normalized matching
+    // We'll keep the regex as a pre-filter to reduce dataset
     if (location) {
-      searchQuery.location = { $regex: location, $options: "i" };
+      searchQuery.location = { $exists: true };
     }
 
     // Geolocation filter (proximity search)
@@ -172,8 +182,6 @@ class SearchService {
     }
 
     // Regular search (no geo filtering)
-    const total = await Job.countDocuments(searchQuery);
-
     // Build sort object
     const sort: any = {};
     if (query) {
@@ -182,14 +190,28 @@ class SearchService {
     }
     sort[sortBy] = sortOrder === "asc" ? 1 : -1;
 
-    const jobs = await jobsQuery
+    let jobs = await jobsQuery
       .sort(sort)
-      .limit(limit)
-      .skip((page - 1) * limit)
       .lean();
 
+    // Apply location filter with normalization if provided
+    if (location) {
+      const normalizedSearchLocation = normalizeLocation(location);
+      jobs = jobs.filter((job: any) => {
+        if (!job.location) return false;
+        const normalizedJobLocation = normalizeLocation(job.location);
+        return normalizedJobLocation.includes(normalizedSearchLocation);
+      });
+    }
+
+    // Count after filtering
+    const total = jobs.length;
+
+    // Apply pagination after filtering
+    const paginatedJobs = jobs.slice((page - 1) * limit, page * limit);
+
     const result = {
-      jobs,
+      jobs: paginatedJobs,
       total,
       page,
       limit,

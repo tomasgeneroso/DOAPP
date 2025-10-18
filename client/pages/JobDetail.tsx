@@ -47,39 +47,14 @@ export default function JobDetail() {
     }
   }, [id]);
 
-  const handleApply = async () => {
+  const handleApply = () => {
     if (!user) {
       navigate("/login", { state: { from: `/jobs/${id}` } });
       return;
     }
 
-    if (!job) return;
-
-    setApplying(true);
-    setError(null);
-
-    try {
-      const response = await fetch(`/api/jobs/${id}/apply`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        alert("¡Aplicación exitosa! El cliente se pondrá en contacto contigo.");
-        setJob(data.job);
-      } else {
-        setError(data.message || "No se pudo aplicar al trabajo");
-      }
-    } catch (err: any) {
-      setError(err.message || "Error al aplicar al trabajo");
-    } finally {
-      setApplying(false);
-    }
+    // Redirect to application summary page
+    navigate(`/jobs/${id}/apply`);
   };
 
   if (loading) {

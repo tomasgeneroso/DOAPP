@@ -65,8 +65,8 @@ PasswordResetTokenSchema.statics.generateToken = async function (
   // Generate secure random token
   const token = crypto.randomBytes(32).toString("hex");
 
-  // Token expires in 1 hour
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+  // Token expires in 24 hours (increased from 1 hour for better UX)
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
   const resetToken = await this.create({
     userId,

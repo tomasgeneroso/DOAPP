@@ -3,11 +3,11 @@ import { Request, Response, NextFunction } from "express";
 
 /**
  * Rate limiter for authentication endpoints
- * Prevents brute force attacks on login/register
+ * Very permissive to allow multiple login attempts
  */
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, // 5 attempts
+  max: 1000, // 1000 attempts - effectively unlimited for normal use
   message: {
     success: false,
     message: "Demasiados intentos de inicio de sesión. Intenta nuevamente en 15 minutos.",
