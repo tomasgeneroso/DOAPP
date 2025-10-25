@@ -11,6 +11,8 @@ import CreateContractScreen from "./pages/CreateContractScreen";
 import JobDetail from "./pages/JobDetail";
 import JobApplicationSummary from "./pages/JobApplicationSummary";
 import ContractDetail from "./pages/ContractDetail";
+import ContractSummary from "./pages/ContractSummary";
+import ContractChangeRequestDetail from "./pages/ContractChangeRequestDetail";
 import ContractsScreen from "./pages/ContractsScreen";
 import PaymentsScreen from "./pages/PaymentsScreen";
 import Dashboard from "./pages/Dashboard";
@@ -19,6 +21,8 @@ import ExpensesDetail from "./pages/dashboard/ExpensesDetail";
 import ActiveContractsDetail from "./pages/dashboard/ActiveContractsDetail";
 import ProposalsDetail from "./pages/dashboard/ProposalsDetail";
 import ProposalsScreen from "./pages/ProposalsScreen";
+import ProposalDetail from "./pages/ProposalDetail";
+import MessagesScreen from "./pages/MessagesScreen";
 import OnboardingScreen from "./pages/OnboardingScreen";
 import UserSettings from "./pages/UserSettings";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -27,7 +31,20 @@ import ContactPage from "./pages/ContactPage";
 import ReferralsScreen from "./pages/ReferralsScreen";
 import BlogsScreen from "./pages/BlogsScreen";
 import BlogDetailScreen from "./pages/BlogDetailScreen";
+import ChatScreen from "./pages/ChatScreen";
+import CreateTicket from "./pages/CreateTicket";
+import CreateDispute from "./pages/CreateDispute";
+import DisputeDetail from "./pages/DisputeDetail";
+import HelpPage from "./pages/HelpPage";
+import PortfolioManager from "./pages/PortfolioManager";
+import ProUsageDashboard from "./pages/ProUsageDashboard";
+import BalancePage from "./pages/BalancePage";
+import WithdrawalRequestPage from "./pages/WithdrawalRequestPage";
+import MembershipCheckout from "./pages/MembershipCheckout";
 import TermsAndConditions from "./pages/legal/TermsAndConditions";
+import PaymentSuccess from "./pages/PaymentSuccess";
+import PaymentCancel from "./pages/PaymentCancel";
+import MembershipPaymentSuccess from "./pages/MembershipPaymentSuccess";
 import ProtectedRoute from "./components/app/ProtectedRoute";
 import Layout from "./components/app/Layout";
 
@@ -35,8 +52,21 @@ import Layout from "./components/app/Layout";
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminUsers from "./pages/admin/Users";
+import AdminRoles from "./pages/admin/RoleManagement";
+import AdminRolePermissions from "./pages/admin/RolePermissions";
+import AdminAnalytics from "./pages/admin/Analytics";
+import AdminAnalyticsUsers from "./pages/admin/AnalyticsUsers";
+import AdminAnalyticsContracts from "./pages/admin/AnalyticsContracts";
+import AdminAnalyticsTickets from "./pages/admin/AnalyticsTickets";
+import AdminSettings from "./pages/admin/Settings";
+import AdminContracts from "./pages/admin/Contracts";
+import AdminCreateContract from "./pages/admin/CreateContract";
 import AdminTickets from "./pages/admin/Tickets";
 import TicketDetail from "./pages/admin/TicketDetail";
+import AdminCreateTicket from "./pages/admin/CreateTicket";
+import AdminDisputeManager from "./pages/admin/AdminDisputeManager";
+import AdminCreateDispute from "./pages/admin/CreateDispute";
+import AdminWithdrawalManager from "./pages/admin/AdminWithdrawalManager";
 
 export default function App() {
   // Setup fetch interceptor for automatic token handling
@@ -78,10 +108,26 @@ export default function App() {
                 }
               />
               <Route
+                path="/contracts/:id/summary"
+                element={
+                  <ProtectedRoute>
+                    <ContractSummary />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/contracts/:id"
                 element={
                   <ProtectedRoute>
                     <ContractDetail />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/contracts/:contractId/change-requests/:id"
+                element={
+                  <ProtectedRoute>
+                    <ContractChangeRequestDetail />
                   </ProtectedRoute>
                 }
               />
@@ -94,6 +140,46 @@ export default function App() {
                 }
               />
               <Route
+                path="/proposals/:id"
+                element={
+                  <ProtectedRoute>
+                    <ProposalDetail />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/messages"
+                element={
+                  <ProtectedRoute>
+                    <MessagesScreen />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/portfolio"
+                element={
+                  <ProtectedRoute>
+                    <PortfolioManager />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/pro/usage"
+                element={
+                  <ProtectedRoute>
+                    <ProUsageDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/messages/:id"
+                element={
+                  <ProtectedRoute>
+                    <MessagesScreen />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/payments"
                 element={
                   <ProtectedRoute>
@@ -101,6 +187,9 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route path="/payment/success" element={<PaymentSuccess />} />
+              <Route path="/payment/cancel" element={<PaymentCancel />} />
+              <Route path="/membership/payment/success" element={<MembershipPaymentSuccess />} />
               <Route
                 path="/dashboard"
                 element={
@@ -157,6 +246,38 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/chat/:id"
+                element={
+                  <ProtectedRoute>
+                    <ChatScreen />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/balance"
+                element={
+                  <ProtectedRoute>
+                    <BalancePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/withdrawals"
+                element={
+                  <ProtectedRoute>
+                    <WithdrawalRequestPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/membership/checkout"
+                element={
+                  <ProtectedRoute>
+                    <MembershipCheckout />
+                  </ProtectedRoute>
+                }
+              />
             </Route>
             <Route path="/login" element={<LoginScreen />} />
             <Route path="/register" element={<LoginScreen />} />
@@ -175,6 +296,38 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/tickets/new"
+              element={
+                <ProtectedRoute>
+                  <CreateTicket />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/disputes/new"
+              element={
+                <ProtectedRoute>
+                  <CreateDispute />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/disputes/:id"
+              element={
+                <ProtectedRoute>
+                  <DisputeDetail />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/help"
+              element={
+                <ProtectedRoute>
+                  <HelpPage />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Admin Routes */}
             <Route
@@ -187,7 +340,20 @@ export default function App() {
             >
               <Route index element={<AdminDashboard />} />
               <Route path="users" element={<AdminUsers />} />
+              <Route path="roles" element={<AdminRoles />} />
+              <Route path="role-permissions" element={<AdminRolePermissions />} />
+              <Route path="analytics" element={<AdminAnalytics />} />
+              <Route path="analytics/users" element={<AdminAnalyticsUsers />} />
+              <Route path="analytics/contracts" element={<AdminAnalyticsContracts />} />
+              <Route path="analytics/tickets" element={<AdminAnalyticsTickets />} />
+              <Route path="settings" element={<AdminSettings />} />
+              <Route path="contracts" element={<AdminContracts />} />
+              <Route path="contracts/create" element={<AdminCreateContract />} />
+              <Route path="disputes" element={<AdminDisputeManager />} />
+              <Route path="disputes/create" element={<AdminCreateDispute />} />
+              <Route path="withdrawals" element={<AdminWithdrawalManager />} />
               <Route path="tickets" element={<AdminTickets />} />
+              <Route path="tickets/create" element={<AdminCreateTicket />} />
               <Route path="tickets/:id" element={<TicketDetail />} />
             </Route>
           </Routes>

@@ -10,16 +10,23 @@ export default defineConfig({
     proxy: {
       // Proxy para las rutas de la API
       '/api': {
-        target: 'http://localhost:5001',
+        target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
         ws: true,
       },
       // Proxy para los archivos legales
       '/legal': {
-        target: 'http://localhost:5001',
+        target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
+      },
+      // Proxy para Socket.io
+      '/socket.io': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+        secure: false,
+        ws: true,
       },
     },
   },

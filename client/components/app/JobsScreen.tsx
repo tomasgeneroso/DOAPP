@@ -1,14 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useSocket } from "@/hooks/useSocket";
 import { useAdvertisements } from "@/hooks/useAdvertisements";
+import { SkeletonJobCard } from "@/components/ui/Skeleton";
 import Advertisement from "@/components/Advertisement";
 import AdPlaceholder from "@/components/AdPlaceholder";
+import UserNameWithBadge from "@/components/user/UserNameWithBadge";
 import type { Job } from "@/types";
 
 export const JobsScreen: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { registerJobsRefreshHandler, registerJobUpdateHandler } = useSocket();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const { ads, recordImpression, recordClick } = useAdvertisements({
@@ -17,6 +21,17 @@ export const JobsScreen: React.FC = () => {
 
   useEffect(() => {
     fetchJobs();
+
+    // Register real-time event handlers
+    registerJobsRefreshHandler(() => {
+      console.log("🔄 Jobs list refreshing due to real-time event...");
+      fetchJobs();
+    });
+
+    registerJobUpdateHandler((data: any) => {
+      console.log("💼 Job update detected:", data);
+      fetchJobs();
+    });
   }, []);
 
   // Debug: log ads and mixed content
@@ -107,7 +122,7 @@ export const JobsScreen: React.FC = () => {
               ¡Hola de nuevo,
             </p>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              {user?.name || "Usuario"}!
+              {user ? <UserNameWithBadge user={user} badgeSize="lg" /> : "Usuario"}!
             </h1>
           </div>
 
@@ -143,8 +158,10 @@ export const JobsScreen: React.FC = () => {
         </h2>
 
         {loading ? (
-          <div className="flex justify-center py-16">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500" />
+          <div className="space-y-4">
+            {[...Array(6)].map((_, i) => (
+              <SkeletonJobCard key={i} />
+            ))}
           </div>
         ) : jobs.length === 0 ? (
           <div className="text-center py-16">

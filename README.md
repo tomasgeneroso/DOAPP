@@ -186,11 +186,12 @@ DoApp es más que una simple plataforma de trabajos freelance. Es un ecosistema 
 - **Zustand** para state management
 
 ### Integraciones
-- **PayPal** para pagos
+- **MercadoPago** para pagos (Argentina - principal)
+- **PayPal** para pagos (legacy - usuarios antiguos)
 - **Firebase Cloud Messaging** para push notifications
-- **SendGrid/Mailgun** para emails
+- **SMTP (Hostinger)** para emails
 - **Google OAuth** y **Facebook Login**
-- **Google Analytics** para métricas
+- **Analytics Custom** sin servicios externos (privacy-friendly)
 - **Sharp** para optimización de imágenes
 
 ### Seguridad
@@ -291,17 +292,27 @@ DoApp es más que una simple plataforma de trabajos freelance. Es un ecosistema 
 - Optimización de imágenes
 - Sanitización HTML completa
 - Internacionalización (i18n)
-- Google Analytics
-- Internal analytics service
+- Analytics Custom (sin servicios externos)
+- Sistema de publicidad integrado
 
-### Fase 4 - Futuro 🔮
-- Testing automatizado (Unit, Integration, E2E)
+### Fase 4 - Argentina 🇦🇷 ✅ **COMPLETADO**
+- Integración completa de MercadoPago
+- Sistema de escrow bidireccional
+- Conversión automática USD/ARS
+- Sistema de disputas con adjuntos
+- Sistema de membresía ($6 USD/mes)
+- Programa de referidos (primeros 1000 usuarios)
+- Testing completo (Jest + Supertest + 90+ tests)
+- Documentación completa para programadores
+
+### Fase 5 - Futuro 🔮
 - Mobile app (React Native)
 - PWA completo con offline mode
 - AI para matching inteligente
 - Sistema de recomendaciones
 - Pagos con criptomonedas
 - Integración con más pasarelas de pago
+- Optimización de performance avanzada
 
 ---
 
@@ -341,12 +352,45 @@ DoApp aspira a ser **la plataforma de referencia para trabajo freelance** en mer
 
 ## 📚 Documentación
 
-Para información técnica sobre instalación, configuración y deployment, consulta:
+### 🇦🇷 Configuración Argentina
 
-- **[SETUP_GUIDE.md](./SETUP_GUIDE.md)** - Guía completa de instalación y configuración
-- **[IMPLEMENTATION_COMPLETE.md](./IMPLEMENTATION_COMPLETE.md)** - Documentación técnica PHASE 1 (MVP)
-- **[PHASE2_COMPLETE.md](./PHASE2_COMPLETE.md)** - Documentación técnica PHASE 2 (Post-MVP)
-- **[PHASE3_COMPLETE.md](./PHASE3_COMPLETE.md)** - Documentación técnica PHASE 3 (Optimización)
+DoApp está **completamente adaptado para Argentina** con:
+- **MercadoPago** como sistema de pagos principal
+- **Conversión automática USD/ARS**
+- **Sistema de membresía** ($6 USD/mes)
+- **Programa de referidos** (primeros 1000 usuarios)
+- **Escrow bidireccional** con confirmación de ambas partes
+- **Sistema de disputas** con adjuntos y resolución admin
+
+Ver **[README_ARGENTINA.md](./README_ARGENTINA.md)** para detalles completos.
+
+### 📖 Guías Disponibles
+
+**Para Programadores:**
+- **[DEVELOPER_GUIDE.md](./DEVELOPER_GUIDE.md)** ⭐ **NUEVO** - Manual completo para programadores
+  - Comandos y scripts explicados
+  - Creación de usuarios con diferentes roles
+  - Workflows de desarrollo
+  - Testing y debugging
+  - Troubleshooting
+
+**Setup y Deployment:**
+- **[SETUP_GUIDE.md](./SETUP_GUIDE.md)** - Setup rápido en 5 minutos
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Deployment en producción (VPS, Railway, Render, Heroku)
+
+**Arquitectura y Sistema:**
+- **[CLAUDE.md](./CLAUDE.md)** - Arquitectura completa y contexto del proyecto
+- **[ANALYTICS_GUIDE.md](./ANALYTICS_GUIDE.md)** - Sistema de analytics custom (sin Sentry)
+- **[README_ARGENTINA.md](./README_ARGENTINA.md)** - Resumen ejecutivo (configuración Argentina)
+
+**Testing y Versiones:**
+- **[tests/README.md](./tests/README.md)** - Documentación completa de testing
+- **[CHANGELOG.md](./CHANGELOG.md)** - Historial de cambios
+
+**Documentación Legacy:**
+- **[IMPLEMENTATION_COMPLETE.md](./IMPLEMENTATION_COMPLETE.md)** - PHASE 1 (MVP)
+- **[PHASE2_COMPLETE.md](./PHASE2_COMPLETE.md)** - PHASE 2 (Post-MVP)
+- **[PHASE3_COMPLETE.md](./PHASE3_COMPLETE.md)** - PHASE 3 (Optimización)
 
 ---
 
