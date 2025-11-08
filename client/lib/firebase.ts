@@ -1,6 +1,9 @@
 /**
  * Firebase Configuration for DOAPP
- * Handles push notifications (FCM)
+ * Handles push notifications (FCM) only
+ *
+ * Note: We use Google Analytics (client/utils/analytics.ts) for analytics tracking,
+ * so Firebase Analytics is not needed.
  */
 
 import { initializeApp } from "firebase/app";
@@ -50,9 +53,13 @@ export const requestNotificationPermission = async (): Promise<string | null> =>
       console.log('✅ Notification permission granted');
 
       // Get FCM token
-      // You need to generate a VAPID key in Firebase Console:
-      // Settings → Cloud Messaging → Web Push certificates → Generate key pair
-      const vapidKey = 'YOUR_VAPID_KEY_HERE'; // TODO: Replace with actual VAPID key
+      // VAPID key from Firebase Console: Settings → Cloud Messaging → Web Push certificates
+      const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+
+      if (!vapidKey) {
+        console.error('❌ VAPID key not configured. Set VITE_FIREBASE_VAPID_KEY in .env');
+        return null;
+      }
 
       const token = await getToken(messaging, { vapidKey });
 

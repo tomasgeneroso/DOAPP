@@ -6,6 +6,7 @@ import {
   ReactNode,
 } from "react";
 import type { User, RegisterData } from "@/types";
+import { initializeNotifications } from "@/lib/firebase";
 
 interface AuthContextType {
   user: User | null;
@@ -47,6 +48,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           setUser(data.user);
           setToken(data.token || 'cookie'); // Indicador de que usamos cookies
+
+          // Inicializar notificaciones push si el usuario ya está logueado
+          setTimeout(() => {
+            initializeNotifications().catch(err => {
+              console.error('Error initializing push notifications:', err);
+            });
+          }, 2000); // Delay para que el usuario vea la UI primero
         } else {
           console.warn('⚠️ No valid session cookie found');
           localStorage.removeItem("token");
@@ -94,6 +102,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(data.token);
       setUser(data.user);
       console.log('✅ Login exitoso, usuario:', data.user.name);
+
+      // Inicializar notificaciones push después del login
+      setTimeout(() => {
+        initializeNotifications().catch(err => {
+          console.error('Error initializing push notifications:', err);
+        });
+      }, 1000); // Pequeño delay para que el usuario vea la UI primero
     } catch (error) {
       console.error("Login error:", error);
       throw error;
