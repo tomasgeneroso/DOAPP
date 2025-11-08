@@ -1,6 +1,9 @@
 import { Router, Response } from "express";
 import { protect, AuthRequest } from "../middleware/auth";
-import PortfolioItem from "../models/Portfolio";
+import { Portfolio as PortfolioItem } from "../models/sql/Portfolio.model.js";
+import { User } from "../models/sql/User.model.js";
+import { Contract } from "../models/sql/Contract.model.js";
+import { Job } from "../models/sql/Job.model.js";
 import { body, validationResult } from "express-validator";
 
 const router = Router();
@@ -14,12 +17,17 @@ router.get("/user/:userId", async (req: AuthRequest, res: Response): Promise<voi
     const { userId } = req.params;
     const { page = 1, limit = 12 } = req.query;
 
-    const items = await PortfolioItem.find({ userId })
-      .sort({ featured: -1, createdAt: -1 })
-      .limit(Number(limit))
-      .skip((Number(page) - 1) * Number(limit));
+    const items = await PortfolioItem.findAll({
+      where: { userId },
+      order: [
+        ['featured', 'DESC'],
+        ['createdAt', 'DESC']
+      ],
+      limit: Number(limit),
+      offset: (Number(page) - 1) * Number(limit),
+    });
 
-    const total = await PortfolioItem.countDocuments({ userId });
+    const total = await PortfolioItem.count({ where: { userId } });
 
     res.json({
       success: true,
@@ -47,7 +55,24 @@ router.get("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
 
-    const item = await PortfolioItem.findById(id).populate("userId", "name avatar rating");
+    const item = await PortfolioItem.findByPk(id, {
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount']
+        },
+        {
+          model: Contract,
+          as: 'contract'
+        },
+        {
+          model: Job,
+          as: 'job',
+          attributes: ['id', 'title', 'summary']
+        }
+      ]
+    });
 
     if (!item) {
       res.status(404).json({
@@ -97,20 +122,40 @@ router.post(
         return;
       }
 
-      const userId = req.user._id;
-      const { title, description, category, images, tags, completedAt, clientName, projectDuration, featured } = req.body;
+      const userId = req.user.id;
+      const {
+        title,
+        description,
+        category,
+        price,
+        images,
+        videos,
+        documents,
+        tags,
+        completedAt,
+        clientName,
+        projectDuration,
+        featured,
+        linkedContract,
+        linkedJob
+      } = req.body;
 
       const item = await PortfolioItem.create({
         userId,
         title,
         description,
         category,
+        price,
         images,
+        videos: videos || [],
+        documents: documents || [],
         tags: tags || [],
         completedAt,
         clientName,
         projectDuration,
         featured: featured || false,
+        linkedContract,
+        linkedJob,
       });
 
       res.status(201).json({
@@ -133,9 +178,9 @@ router.post(
 router.put("/:id", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const userId = req.user._id;
+    const userId = req.user.id;
 
-    const item = await PortfolioItem.findById(id);
+    const item = await PortfolioItem.findByPk(id);
 
     if (!item) {
       res.status(404).json({
@@ -146,7 +191,7 @@ router.put("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
     }
 
     // Verify ownership
-    if (item.userId.toString() !== userId.toString()) {
+    if (item.userId !== userId) {
       res.status(403).json({
         success: false,
         message: "No tienes permiso para editar este elemento",
@@ -154,17 +199,37 @@ router.put("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
-    const { title, description, category, images, tags, completedAt, clientName, projectDuration, featured } = req.body;
+    const {
+      title,
+      description,
+      category,
+      price,
+      images,
+      videos,
+      documents,
+      tags,
+      completedAt,
+      clientName,
+      projectDuration,
+      featured,
+      linkedContract,
+      linkedJob
+    } = req.body;
 
     if (title) item.title = title;
     if (description) item.description = description;
     if (category) item.category = category;
+    if (price !== undefined) item.price = price;
     if (images) item.images = images;
+    if (videos !== undefined) item.videos = videos;
+    if (documents !== undefined) item.documents = documents;
     if (tags !== undefined) item.tags = tags;
     if (completedAt !== undefined) item.completedAt = completedAt;
     if (clientName !== undefined) item.clientName = clientName;
     if (projectDuration !== undefined) item.projectDuration = projectDuration;
     if (featured !== undefined) item.featured = featured;
+    if (linkedContract !== undefined) item.linkedContract = linkedContract;
+    if (linkedJob !== undefined) item.linkedJob = linkedJob;
 
     await item.save();
 
@@ -187,9 +252,9 @@ router.put("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
 router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const userId = req.user._id;
+    const userId = req.user.id;
 
-    const item = await PortfolioItem.findById(id);
+    const item = await PortfolioItem.findByPk(id);
 
     if (!item) {
       res.status(404).json({
@@ -200,7 +265,7 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
     }
 
     // Verify ownership
-    if (item.userId.toString() !== userId.toString()) {
+    if (item.userId !== userId) {
       res.status(403).json({
         success: false,
         message: "No tienes permiso para eliminar este elemento",
@@ -208,7 +273,7 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
       return;
     }
 
-    await PortfolioItem.findByIdAndDelete(id);
+    await item.destroy();
 
     res.json({
       success: true,
@@ -229,9 +294,9 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
 router.post("/:id/like", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const userId = req.user._id;
+    const userId = req.user.id;
 
-    const item = await PortfolioItem.findById(id);
+    const item = await PortfolioItem.findByPk(id);
 
     if (!item) {
       res.status(404).json({
@@ -241,14 +306,14 @@ router.post("/:id/like", protect, async (req: AuthRequest, res: Response): Promi
       return;
     }
 
-    const likeIndex = item.likes.findIndex((like) => like.toString() === userId.toString());
+    const likeIndex = item.likes.findIndex((like) => like === userId);
 
     if (likeIndex > -1) {
       // Unlike
-      item.likes.splice(likeIndex, 1);
+      item.likes = item.likes.filter((like) => like !== userId);
     } else {
       // Like
-      item.likes.push(userId);
+      item.likes = [...item.likes, userId];
     }
 
     await item.save();

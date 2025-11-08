@@ -1,7 +1,8 @@
 import admin from "firebase-admin";
 import { config } from "../config/env";
-import User from "../models/User";
-import Notification from "../models/Notification";
+import { User } from "../models/sql/User.model.js";
+import { Notification } from "../models/sql/Notification.model.js";
+import { Op } from 'sequelize';
 
 interface NotificationPayload {
   userId: string;
@@ -27,24 +28,39 @@ class FCMService {
       // Initialize Firebase Admin SDK
       // Note: You need to set FIREBASE_SERVICE_ACCOUNT_KEY in your .env
       // as a base64 encoded JSON string of your Firebase service account key
-      if (config.firebaseServiceAccountKey) {
-        const serviceAccount = JSON.parse(
-          Buffer.from(config.firebaseServiceAccountKey, "base64").toString("utf-8")
-        );
-
-        if (!admin.apps.length) {
-          admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount),
-          });
-        }
-
-        this.initialized = true;
-        console.log("✅ Firebase Admin SDK initialized");
-      } else {
+      if (!config.firebaseServiceAccountKey) {
         console.warn("⚠️  Firebase service account key not configured. Push notifications will be disabled.");
+        return;
       }
+
+      // Validate base64 format
+      if (config.firebaseServiceAccountKey.length < 10) {
+        console.warn("⚠️  Firebase service account key appears invalid. Push notifications will be disabled.");
+        return;
+      }
+
+      // Decode and parse service account
+      const decoded = Buffer.from(config.firebaseServiceAccountKey, "base64").toString("utf-8");
+
+      // Check if decoded string looks like JSON
+      if (!decoded.startsWith("{")) {
+        console.warn("⚠️  Firebase service account key is not valid JSON. Push notifications will be disabled.");
+        return;
+      }
+
+      const serviceAccount = JSON.parse(decoded);
+
+      if (!admin.apps.length) {
+        admin.initializeApp({
+          credential: admin.credential.cert(serviceAccount),
+        });
+      }
+
+      this.initialized = true;
+      console.log("✅ Firebase Admin SDK initialized");
     } catch (error) {
-      console.error("❌ Failed to initialize Firebase Admin SDK:", error);
+      console.error("❌ Failed to initialize Firebase Admin SDK:", error instanceof Error ? error.message : error);
+      console.warn("⚠️  Push notifications will be disabled.");
     }
   }
 
@@ -58,7 +74,7 @@ class FCMService {
     }
 
     try {
-      const user = await User.findById(payload.userId);
+      const user = await User.findByPk(payload.userId);
 
       if (!user) {
         console.error(`User ${payload.userId} not found`);
@@ -135,7 +151,7 @@ class FCMService {
         // Remove invalid tokens from user
         if (failedTokens.length > 0) {
           await User.findByIdAndUpdate(payload.userId, {
-            $pull: { fcmTokens: { $in: failedTokens } },
+            $pull: { fcmTokens: { [Op.in]: failedTokens } },
           });
         }
       }
@@ -220,7 +236,7 @@ class FCMService {
     }
 
     try {
-      const user = await User.findById(userId);
+      const user = await User.findByPk(userId);
       if (!user || user.fcmTokens.length === 0) {
         return false;
       }
@@ -243,7 +259,7 @@ class FCMService {
     }
 
     try {
-      const user = await User.findById(userId);
+      const user = await User.findByPk(userId);
       if (!user || user.fcmTokens.length === 0) {
         return false;
       }
@@ -266,7 +282,7 @@ class FCMService {
     messagePreview: string,
     conversationId: string
   ): Promise<void> {
-    const user = await User.findById(userId);
+    const user = await User.findByPk(userId);
     if (!user?.notificationPreferences?.newMessage) {
       return;
     }
@@ -293,7 +309,7 @@ class FCMService {
     updateType: string,
     jobId: string
   ): Promise<void> {
-    const user = await User.findById(userId);
+    const user = await User.findByPk(userId);
     if (!user?.notificationPreferences?.jobUpdate) {
       return;
     }
@@ -319,7 +335,7 @@ class FCMService {
     updateType: string,
     contractId: string
   ): Promise<void> {
-    const user = await User.findById(userId);
+    const user = await User.findByPk(userId);
     if (!user?.notificationPreferences?.contractUpdate) {
       return;
     }
@@ -346,7 +362,7 @@ class FCMService {
     updateType: string,
     paymentId: string
   ): Promise<void> {
-    const user = await User.findById(userId);
+    const user = await User.findByPk(userId);
     if (!user?.notificationPreferences?.paymentUpdate) {
       return;
     }

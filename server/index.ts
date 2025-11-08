@@ -7,22 +7,26 @@ import session from "express-session";
 import path from "path";
 import { fileURLToPath } from "url";
 import { config } from "./config/env.js";
-import connectDB from "./config/database.js";
+import { initDatabase } from "./config/database.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import passport from "./config/passport.js";
 import SocketService from "./services/socket.js";
 import {
-  sanitizeMongoInput,
   xssProtection,
   preventDirectoryTraversal,
   securityHeaders,
   apiLimiter,
 } from "./middleware/security.js";
+import { initSentry, sentryErrorHandler } from "./config/sentry.js";
+// TEMPORARILY DISABLED - DEBUGGING
+// import { startEscalateExpiredChangeRequestsJob } from "./jobs/escalateExpiredChangeRequests.js";
+import { startResetProMembershipCountersJob } from "./jobs/resetProMembershipCounters.js";
 
 // Rutas
 import authRoutes from "./routes/auth.js";
 import jobsRoutes from "./routes/jobs.js";
 import contractsRoutes from "./routes/contracts.js";
+import usersRoutes from "./routes/users.js";
 
 // Admin routes
 import adminUsersRoutes from "./routes/admin/users.js";
@@ -30,6 +34,8 @@ import adminContractsRoutes from "./routes/admin/contracts.js";
 import adminTicketsRoutes from "./routes/admin/tickets.js";
 import adminAnalyticsRoutes from "./routes/admin/analytics.js";
 import adminTwoFactorRoutes from "./routes/admin/twoFactor.js";
+import adminDisputesRoutes from "./routes/admin/disputes.js";
+import adminRolesRoutes from "./routes/admin/roles.js";
 
 // Payment routes
 import paymentsRoutes from "./routes/payments.js";
@@ -67,6 +73,15 @@ import proposalsRoutes from "./routes/proposals.js";
 // Referral routes
 import referralsRoutes from "./routes/referrals.js";
 
+// Membership routes
+import membershipRoutes from "./routes/membership.js";
+
+// Contract Change Request routes
+import contractChangeRequestsRoutes from "./routes/contractChangeRequests.js";
+
+// Webhook routes
+import webhooksRoutes from "./routes/webhooks.js";
+
 // Advertisement routes
 import advertisementsRoutes from "./routes/advertisements.js";
 import adminAdvertisementsRoutes from "./routes/admin/advertisements.js";
@@ -79,6 +94,30 @@ import adminContactRoutes from "./routes/admin/contact.js";
 import blogsRoutes from "./routes/blogs.js";
 import adminBlogsRoutes from "./routes/admin/blogs.js";
 
+// Analytics routes
+import analyticsDisputesRoutes from "./routes/analytics/disputes.js";
+
+// Balance routes
+import balanceRoutes from "./routes/balance.js";
+
+// Post routes
+import postsRoutes from "./routes/posts.js";
+
+// Blog Article routes (admin)
+import blogArticleRoutes from "./routes/admin/blog.js";
+
+// Company Balance routes (owner only)
+import companyBalanceRoutes from "./routes/admin/companyBalance.js";
+
+// Marketing routes (owner, super_admin, admin)
+import marketingRoutes from "./routes/admin/marketing.js";
+
+// Promoter routes
+import promoterRoutes from "./routes/promoter.js";
+
+// User Analytics routes (Super PRO)
+import userAnalyticsRoutes from "./routes/userAnalytics.js";
+
 // ESM __dirname equivalent
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -86,8 +125,11 @@ const __dirname = path.dirname(__filename);
 // Inicializar Express
 const app: Express = express();
 
-// Conectar a MongoDB
-connectDB();
+// Initialize Sentry (must be before other middleware)
+initSentry(app);
+
+// Conectar a PostgreSQL
+await initDatabase();
 
 // Middleware de seguridad
 app.use(helmet({
@@ -112,7 +154,7 @@ app.use(cookieParser());
 
 // Security middleware
 app.use(securityHeaders);
-app.use(sanitizeMongoInput);
+// Note: sanitizeMongoInput removed - not needed for PostgreSQL
 app.use(xssProtection);
 app.use(preventDirectoryTraversal);
 
@@ -141,11 +183,18 @@ app.use("/api", apiLimiter);
 // Servir archivos estáticos (documentos legales)
 app.use("/legal", express.static(path.join(__dirname, "../public/legal")));
 
-// Servir archivos subidos
-app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
+// Servir archivos subidos con CORS headers
+app.use("/uploads", (req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", config.clientUrl);
+  res.setHeader("Access-Control-Allow-Methods", "GET");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+  next();
+}, express.static(path.join(__dirname, "../uploads")));
 
 // API Routes
 app.use("/api/auth", authRoutes);
+app.use("/api/users", usersRoutes);
 app.use("/api/jobs", jobsRoutes);
 app.use("/api/contracts", contractsRoutes);
 app.use("/api/payments", paymentsRoutes);
@@ -162,9 +211,16 @@ app.use("/api/portfolio", portfolioRoutes);
 app.use("/api/disputes", disputesRoutes);
 app.use("/api/proposals", proposalsRoutes);
 app.use("/api/referrals", referralsRoutes);
+app.use("/api/membership", membershipRoutes);
+app.use("/api/contract-change-requests", contractChangeRequestsRoutes);
+app.use("/api/webhooks", webhooksRoutes);
 app.use("/api/advertisements", advertisementsRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/blogs", blogsRoutes);
+app.use("/api/balance", balanceRoutes);
+app.use("/api/posts", postsRoutes);
+app.use("/api/promoter", promoterRoutes);
+app.use("/api/user-analytics", userAnalyticsRoutes);
 
 // Admin Routes
 app.use("/api/admin/users", adminUsersRoutes);
@@ -172,9 +228,18 @@ app.use("/api/admin/contracts", adminContractsRoutes);
 app.use("/api/admin/tickets", adminTicketsRoutes);
 app.use("/api/admin/analytics", adminAnalyticsRoutes);
 app.use("/api/admin/2fa", adminTwoFactorRoutes);
+app.use("/api/admin/disputes", adminDisputesRoutes);
+app.use("/api/admin/roles", adminRolesRoutes);
 app.use("/api/admin/advertisements", adminAdvertisementsRoutes);
 app.use("/api/admin/contact", adminContactRoutes);
 app.use("/api/admin/blogs", adminBlogsRoutes);
+app.use("/api/admin/withdrawals", (await import('./routes/admin/withdrawals.js')).default);
+app.use("/api/admin/blog-articles", blogArticleRoutes);
+app.use("/api/admin/company-balance", companyBalanceRoutes);
+app.use("/api/admin/marketing", marketingRoutes);
+
+// Analytics Routes
+app.use("/api/analytics/disputes", analyticsDisputesRoutes);
 
 // Health check
 app.get("/api/health", (req, res) => {
@@ -194,6 +259,9 @@ app.get("/api/legal/terms-contract", (req, res) => {
   res.sendFile(path.join(__dirname, "../public/legal/terminos-condiciones-contrato.txt"));
 });
 
+// Sentry error handler (must be before other error handlers)
+app.use(sentryErrorHandler());
+
 // Error handler (debe ser el último middleware)
 app.use(errorHandler);
 
@@ -211,8 +279,35 @@ console.log("🔌 Socket.io initialized");
 export { socketService };
 
 // Initialize escrow automation
-import escrowAutomation from "./services/escrowAutomation.js";
-escrowAutomation.initialize();
+// TEMPORARILY DISABLED - DEBUGGING
+// import escrowAutomation from "./services/escrowAutomation.js";
+// escrowAutomation.initialize();
+
+// Initialize contract change requests escalation cron job
+// TEMPORARILY DISABLED - DEBUGGING
+// startEscalateExpiredChangeRequestsJob();
+
+// Initialize PRO membership monthly reset job
+startResetProMembershipCountersJob();
+
+// Manejo de errores del servidor
+httpServer.on('error', (error: NodeJS.ErrnoException) => {
+  if (error.code === 'EADDRINUSE') {
+    console.error(`\n❌ Error: El puerto ${PORT} ya está en uso`);
+    console.log('\n💡 Soluciones:');
+    console.log('   1. Ejecuta: npm run kill-ports');
+    console.log(`   2. O manualmente: netstat -ano | findstr :${PORT}`);
+    console.log(`   3. Luego: taskkill //F //PID <PID>\n`);
+    process.exit(1);
+  } else if (error.code === 'EACCES') {
+    console.error(`\n❌ Error: No tienes permisos para usar el puerto ${PORT}`);
+    console.log('💡 Intenta usar un puerto diferente (> 1024)\n');
+    process.exit(1);
+  } else {
+    console.error('\n❌ Error al iniciar el servidor:', error);
+    process.exit(1);
+  }
+});
 
 // Iniciar servidor
 httpServer.listen(PORT, () => {

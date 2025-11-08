@@ -3,6 +3,7 @@ import BlogPost from "../models/BlogPost.js";
 import User from "../models/User.js";
 import { config } from "../config/env.js";
 import connectDB from "../config/database.js";
+import { Op } from 'sequelize';
 
 const blogPosts = [
   {
@@ -400,7 +401,7 @@ async function seedBlogs() {
     console.log("📦 Connected to database");
 
     // Find an admin user to assign as creator
-    const adminUser = await User.findOne({ adminRole: { $in: ["owner", "super_admin", "admin"] } });
+    const adminUser = await User.findOne({ adminRole: { [Op.in]: ["owner", "super_admin", "admin"] } });
 
     if (!adminUser) {
       console.error("❌ No admin user found. Please create an admin user first.");

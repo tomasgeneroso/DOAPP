@@ -192,8 +192,25 @@ export default function TermsAndConditions() {
 
               <section className="mb-8">
                 <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-4">
-                  10. Programa de Referidos
+                  10. Programa de Referidos y Beneficios
                 </h2>
+
+                <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2 mt-4">
+                  Primeros 1000 Usuarios
+                </h3>
+                <p className="text-slate-600 dark:text-slate-300 mb-4">
+                  ¡Los primeros 1000 usuarios registrados obtienen 1 año de membresía premium completamente gratis! Esto incluye:
+                </p>
+                <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 mb-4 space-y-2">
+                  <li>Comisión reducida del 3% (en lugar del 5% estándar) durante todo el año</li>
+                  <li>5 contratos gratis al activar la membresía</li>
+                  <li>Acceso a todas las funcionalidades premium</li>
+                  <li>El beneficio se otorga automáticamente al registrarse (sujeto a disponibilidad)</li>
+                </ul>
+
+                <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2 mt-4">
+                  Sistema de Referidos
+                </h3>
                 <p className="text-slate-600 dark:text-slate-300 mb-4">
                   Al invitar a un amigo con tu código de referido:
                 </p>

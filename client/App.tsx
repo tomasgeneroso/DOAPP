@@ -15,6 +15,7 @@ import ContractSummary from "./pages/ContractSummary";
 import ContractChangeRequestDetail from "./pages/ContractChangeRequestDetail";
 import ContractsScreen from "./pages/ContractsScreen";
 import PaymentsScreen from "./pages/PaymentsScreen";
+import JobPayment from "./pages/JobPayment";
 import Dashboard from "./pages/Dashboard";
 import EarningsDetail from "./pages/dashboard/EarningsDetail";
 import ExpensesDetail from "./pages/dashboard/ExpensesDetail";
@@ -42,9 +43,14 @@ import BalancePage from "./pages/BalancePage";
 import WithdrawalRequestPage from "./pages/WithdrawalRequestPage";
 import MembershipCheckout from "./pages/MembershipCheckout";
 import TermsAndConditions from "./pages/legal/TermsAndConditions";
+import PrivacyPolicy from "./pages/legal/PrivacyPolicy";
+import CookiesPolicy from "./pages/legal/CookiesPolicy";
+import DisputeResolution from "./pages/legal/DisputeResolution";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import PaymentCancel from "./pages/PaymentCancel";
 import MembershipPaymentSuccess from "./pages/MembershipPaymentSuccess";
+import ProfilePage from "./pages/ProfilePage";
+import BannedUserScreen from "./pages/BannedUserScreen";
 import ProtectedRoute from "./components/app/ProtectedRoute";
 import Layout from "./components/app/Layout";
 
@@ -67,6 +73,7 @@ import AdminCreateTicket from "./pages/admin/CreateTicket";
 import AdminDisputeManager from "./pages/admin/AdminDisputeManager";
 import AdminCreateDispute from "./pages/admin/CreateDispute";
 import AdminWithdrawalManager from "./pages/admin/AdminWithdrawalManager";
+import FinancialTransactions from "./pages/admin/FinancialTransactions";
 
 export default function App() {
   // Setup fetch interceptor for automatic token handling
@@ -88,6 +95,14 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <JobApplicationSummary />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/jobs/:id/payment"
+                element={
+                  <ProtectedRoute>
+                    <JobPayment />
                   </ProtectedRoute>
                 }
               />
@@ -163,6 +178,7 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route path="/profile/:userId" element={<ProfilePage />} />
               <Route
                 path="/pro/usage"
                 element={
@@ -281,12 +297,16 @@ export default function App() {
             </Route>
             <Route path="/login" element={<LoginScreen />} />
             <Route path="/register" element={<LoginScreen />} />
+            <Route path="/banned" element={<BannedUserScreen />} />
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/blog" element={<BlogsScreen />} />
             <Route path="/blog/:slug" element={<BlogDetailScreen />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/legal/terminos-y-condiciones" element={<TermsAndConditions />} />
+            <Route path="/legal/privacidad" element={<PrivacyPolicy />} />
+            <Route path="/legal/cookies" element={<CookiesPolicy />} />
+            <Route path="/legal/disputas" element={<DisputeResolution />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route
               path="/onboarding"
@@ -352,6 +372,7 @@ export default function App() {
               <Route path="disputes" element={<AdminDisputeManager />} />
               <Route path="disputes/create" element={<AdminCreateDispute />} />
               <Route path="withdrawals" element={<AdminWithdrawalManager />} />
+              <Route path="financial-transactions" element={<FinancialTransactions />} />
               <Route path="tickets" element={<AdminTickets />} />
               <Route path="tickets/create" element={<AdminCreateTicket />} />
               <Route path="tickets/:id" element={<TicketDetail />} />

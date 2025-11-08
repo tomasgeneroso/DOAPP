@@ -1,7 +1,7 @@
 import express, { Request, Response } from "express";
 import speakeasy from "speakeasy";
 import QRCode from "qrcode";
-import User from "../../models/User.js";
+import { User } from "../../models/sql/User.model.js";
 import { protect } from "../../middleware/auth.js";
 import { logAudit } from "../../utils/auditLog.js";
 import type { AuthRequest } from "../../types/index.js";
@@ -15,7 +15,7 @@ router.use(protect);
 // @access  Private
 router.post("/setup", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const user = await User.findById(req.user._id);
+    const user = await User.findByPk(req.user._id);
 
     if (!user) {
       res.status(404).json({
@@ -87,7 +87,7 @@ router.post("/verify", async (req: AuthRequest, res: Response): Promise<void> =>
       return;
     }
 
-    const user = await User.findById(req.user._id).select("+twoFactorSecret");
+    const user = await User.findByPk(req.user._id).select("+twoFactorSecret");
 
     if (!user || !user.twoFactorSecret) {
       res.status(400).json({
@@ -155,7 +155,7 @@ router.post("/disable", async (req: AuthRequest, res: Response): Promise<void> =
       return;
     }
 
-    const user = await User.findById(req.user._id).select("+password +twoFactorSecret");
+    const user = await User.findByPk(req.user._id).select("+password +twoFactorSecret");
 
     if (!user) {
       res.status(404).json({
@@ -219,7 +219,7 @@ router.post("/validate", async (req: AuthRequest, res: Response): Promise<void> 
       return;
     }
 
-    const user = await User.findById(req.user._id).select("+twoFactorSecret +twoFactorBackupCodes");
+    const user = await User.findByPk(req.user._id).select("+twoFactorSecret +twoFactorBackupCodes");
 
     if (!user || !user.twoFactorEnabled || !user.twoFactorSecret) {
       res.status(400).json({
@@ -273,7 +273,7 @@ router.post("/validate", async (req: AuthRequest, res: Response): Promise<void> 
 // @access  Private
 router.get("/backup-codes", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const user = await User.findById(req.user._id).select("+twoFactorBackupCodes");
+    const user = await User.findByPk(req.user._id).select("+twoFactorBackupCodes");
 
     if (!user || !user.twoFactorEnabled) {
       res.status(400).json({

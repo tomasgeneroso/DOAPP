@@ -1,16 +1,22 @@
 import express, { Request, Response } from "express";
 import { body, validationResult } from "express-validator";
-import Contract from "../models/Contract.js";
-import Job from "../models/Job.js";
-import User from "../models/User.js";
-import Referral from "../models/Referral.js";
+import { Contract } from "../models/sql/Contract.model.js";
+import { Job } from "../models/sql/Job.model.js";
+import { User } from "../models/sql/User.model.js";
+import { Referral } from "../models/sql/Referral.model.js";
 import { protect } from "../middleware/auth.js";
 import type { AuthRequest } from "../types/index.js";
+import { socketService } from "../index.js";
+import { Op } from 'sequelize';
 
 const router = express.Router();
 
-// Comisión de la plataforma (10%)
+// Comisión de la plataforma (10%) - DEPRECATED: usar currentCommissionRate del usuario
 const PLATFORM_COMMISSION = 0.1;
+
+// Mínimo de contrato en ARS
+const MINIMUM_CONTRACT_AMOUNT = 8000;
+const MINIMUM_COMMISSION = 1000;
 
 /**
  * Process referral credit when a referred user completes their first contract
@@ -21,18 +27,28 @@ async function processReferralCredit(userId: any, contractId: any): Promise<void
   try {
     // Find if this user was referred
     const referral = await Referral.findOne({
-      referred: userId,
-      status: "pending",
-    }).populate("referrer");
+      where: {
+        referredId: userId,
+        status: "pending",
+      },
+      include: [
+        {
+          model: User,
+          as: 'referrer',
+        }
+      ]
+    });
 
     if (!referral) {
       return; // User was not referred or already processed
     }
 
     // Check if this is their first completed contract (as client or doer)
-    const completedContracts = await Contract.countDocuments({
-      $or: [{ client: userId }, { doer: userId }],
-      status: "completed",
+    const completedContracts = await Contract.count({
+      where: {
+        [Op.or]: [{ clientId: userId }, { doerId: userId }],
+        status: "completed",
+      }
     });
 
     if (completedContracts === 1) {
@@ -44,7 +60,7 @@ async function processReferralCredit(userId: any, contractId: any): Promise<void
       await referral.save();
 
       // Credit the referrer with a free contract
-      const referrer = await User.findById(referral.referrer);
+      const referrer = await User.findByPk(referral.referrerId);
       if (referrer) {
         referrer.freeContractsRemaining += 1;
         await referrer.save();
@@ -54,7 +70,7 @@ async function processReferralCredit(userId: any, contractId: any): Promise<void
         referral.creditedAt = new Date();
         await referral.save();
 
-        console.log(`Referral credit applied: User ${userId} completed first contract, credited referrer ${referrer._id}`);
+        console.log(`Referral credit applied: User ${userId} completed first contract, credited referrer ${referrer.id}`);
       }
     }
   } catch (error) {
@@ -64,29 +80,59 @@ async function processReferralCredit(userId: any, contractId: any): Promise<void
 }
 
 // @route   GET /api/contracts
-// @desc    Obtener contratos del usuario
+// @desc    Obtener contratos del usuario con paginación
 // @access  Private
 router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { status } = req.query;
+    const { status, page = "1", limit = "10" } = req.query;
 
     const query: any = {
-      $or: [{ client: req.user._id }, { doer: req.user._id }],
+      [Op.or]: [{ clientId: req.user.id }, { doerId: req.user.id }],
     };
 
     if (status) {
       query.status = status;
     }
 
-    const contracts = await Contract.find(query)
-      .populate("job", "title summary location")
-      .populate("client", "name avatar rating reviewsCount")
-      .populate("doer", "name avatar rating reviewsCount")
-      .sort({ createdAt: -1 });
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Get total count for pagination
+    const total = await Contract.count({ where: query });
+
+    // Get paginated contracts
+    const contracts = await Contract.findAll({
+      where: query,
+      include: [
+        {
+          model: Job,
+          as: 'job',
+          attributes: ['title', 'summary', 'location']
+        },
+        {
+          model: User,
+          as: 'client',
+          attributes: ['name', 'avatar', 'rating', 'reviewsCount']
+        },
+        {
+          model: User,
+          as: 'doer',
+          attributes: ['name', 'avatar', 'rating', 'reviewsCount']
+        }
+      ],
+      order: [['createdAt', 'DESC']],
+      offset: skip,
+      limit: limitNum
+    });
 
     res.json({
       success: true,
       count: contracts.length,
+      total,
+      page: pageNum,
+      pages: Math.ceil(total / limitNum),
+      hasMore: skip + contracts.length < total,
       contracts,
     });
   } catch (error: any) {
@@ -102,10 +148,24 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
 // @access  Private
 router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const contract = await Contract.findById(req.params.id)
-      .populate("job")
-      .populate("client", "name email phone avatar rating reviewsCount")
-      .populate("doer", "name email phone avatar rating reviewsCount");
+    const contract = await Contract.findByPk(req.params.id, {
+      include: [
+        {
+          model: Job,
+          as: 'job'
+        },
+        {
+          model: User,
+          as: 'client',
+          attributes: ['name', 'email', 'phone', 'avatar', 'rating', 'reviewsCount']
+        },
+        {
+          model: User,
+          as: 'doer',
+          attributes: ['name', 'email', 'phone', 'avatar', 'rating', 'reviewsCount']
+        }
+      ]
+    });
 
     if (!contract) {
       res.status(404).json({
@@ -117,8 +177,8 @@ router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
 
     // Verificar que el usuario sea parte del contrato
     if (
-      contract.client._id.toString() !== req.user._id.toString() &&
-      contract.doer._id.toString() !== req.user._id.toString()
+      contract.clientId.toString() !== req.user.id.toString() &&
+      contract.doerId.toString() !== req.user.id.toString()
     ) {
       res.status(403).json({
         success: false,
@@ -167,8 +227,17 @@ router.post(
 
       const { job: jobId, doer: doerId, price, startDate, endDate, termsAccepted, notes, useFreeContract } = req.body;
 
+      // Validar monto mínimo de $8,000 ARS
+      if (price < MINIMUM_CONTRACT_AMOUNT) {
+        res.status(400).json({
+          success: false,
+          message: `El monto mínimo del contrato es de $${MINIMUM_CONTRACT_AMOUNT.toLocaleString()} ARS`,
+        });
+        return;
+      }
+
       // Verificar que el trabajo existe
-      const job = await Job.findById(jobId);
+      const job = await Job.findByPk(jobId);
       if (!job) {
         res.status(404).json({
           success: false,
@@ -178,7 +247,7 @@ router.post(
       }
 
       // Verificar que el usuario sea el dueño del trabajo
-      if (job.client.toString() !== req.user._id.toString()) {
+      if (job.clientId.toString() !== req.user.id.toString()) {
         res.status(403).json({
           success: false,
           message: "No tienes permiso para crear un contrato para este trabajo",
@@ -187,7 +256,7 @@ router.post(
       }
 
       // Verificar que el doer existe
-      const doer = await User.findById(doerId);
+      const doer = await User.findByPk(doerId);
       if (!doer) {
         res.status(404).json({
           success: false,
@@ -197,7 +266,7 @@ router.post(
       }
 
       // Check if user wants to use a free contract and has one available
-      const client = await User.findById(req.user._id);
+      const client = await User.findByPk(req.user.id);
       let isFreeContract = false;
 
       if (useFreeContract && client && client.freeContractsRemaining > 0) {
@@ -207,18 +276,44 @@ router.post(
         await client.save();
       }
 
-      // Calcular comisión (0 si es contrato gratis)
-      const commission = isFreeContract ? 0 : price * PLATFORM_COMMISSION;
+      // Calcular comisión basada en el tier del usuario
+      // FREE: 8% | PRO: 3% | SUPER PRO: 2%
+      // Mínimo de contrato: $8,000 ARS
+      let commissionRate = client?.currentCommissionRate || 8; // 8% por defecto para usuarios FREE
+
+      // Asegurar que la tasa sea correcta según el tier
+      if (client?.membershipTier === 'super_pro') {
+        commissionRate = 2;
+      } else if (client?.membershipTier === 'pro') {
+        commissionRate = 3;
+      } else if (!client?.hasMembership) {
+        commissionRate = 8;
+      }
+
+      // Calcular comisión con mínimo de contrato ($8,000 ARS)
+      let commission = 0;
+
+      if (!isFreeContract) {
+        if (price < MINIMUM_CONTRACT_AMOUNT) {
+          // Si el contrato es menor a $8,000, cobrar comisión mínima fija de $1,000
+          commission = MINIMUM_COMMISSION;
+        } else {
+          // Si es mayor o igual, cobrar comisión normal
+          commission = price * (commissionRate / 100);
+        }
+      }
+
       const totalPrice = price + commission;
 
       // Crear contrato
       const contract = await Contract.create({
-        job: jobId,
-        client: req.user._id,
-        doer: doerId,
+        jobId: jobId,
+        clientId: req.user.id,
+        doerId: doerId,
         type: "trabajo", // tipo por defecto
         price,
         commission,
+        commissionPercentage: commissionRate,
         totalPrice,
         startDate,
         endDate,
@@ -230,13 +325,54 @@ router.post(
 
       // Actualizar estado del trabajo
       job.status = "in_progress";
-      job.doer = doerId as any;
+      job.doerId = doerId as any;
       await job.save();
 
-      const populatedContract = await Contract.findById(contract._id)
-        .populate("job")
-        .populate("client", "name email phone avatar")
-        .populate("doer", "name email phone avatar");
+      const populatedContract = await Contract.findByPk(contract.id, {
+        include: [
+          {
+            model: Job,
+            as: 'job'
+          },
+          {
+            model: User,
+            as: 'client',
+            attributes: ['name', 'email', 'phone', 'avatar']
+          },
+          {
+            model: User,
+            as: 'doer',
+            attributes: ['name', 'email', 'phone', 'avatar']
+          }
+        ]
+      });
+
+      // Send email notifications
+      const emailService = (await import('../services/email.js')).default;
+      const jobPopulated = populatedContract!.job as any;
+      await emailService.sendContractCreatedEmail(
+        req.user.id.toString(),
+        doerId,
+        contract.id.toString(),
+        jobPopulated.title || 'Contrato',
+        price,
+        'ARS'
+      );
+
+      // Send real-time notifications via Socket.io
+      socketService.notifyContractUpdate(
+        contract.id.toString(),
+        req.user.id.toString(),
+        doerId,
+        {
+          action: 'created',
+          contract: populatedContract
+        }
+      );
+
+      // Notify dashboard refresh
+      socketService.notifyDashboardRefresh(req.user.id.toString());
+      socketService.notifyDashboardRefresh(doerId);
 
       res.status(201).json({
         success: true,
@@ -256,7 +392,7 @@ router.post(
 // @access  Private
 router.put("/:id/accept", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const contract = await Contract.findById(req.params.id);
+    const contract = await Contract.findByPk(req.params.id);
 
     if (!contract) {
       res.status(404).json({
@@ -267,7 +403,7 @@ router.put("/:id/accept", protect, async (req: AuthRequest, res: Response): Prom
     }
 
     // Verificar que el usuario sea el doer
-    if (contract.doer.toString() !== req.user._id.toString()) {
+    if (contract.doerId.toString() !== req.user.id.toString()) {
       res.status(403).json({
         success: false,
         message: "Solo el doer puede aceptar este contrato",
@@ -288,6 +424,31 @@ router.put("/:id/accept", protect, async (req: AuthRequest, res: Response): Prom
     contract.paymentStatus = "held";
     await contract.save();
 
+    // Send email notification
+    const emailService = (await import('../services/email.js')).default;
+    const job = await Job.findByPk(contract.jobId);
+    await emailService.sendContractAcceptedEmail(
+      contract.clientId.toString(),
+      req.user.id.toString(),
+      contract.id.toString(),
+      job?.title || 'Contrato'
+    );
+
+    // Send real-time notifications via Socket.io
+    socketService.notifyContractUpdate(
+      contract.id.toString(),
+      contract.clientId.toString(),
+      req.user.id.toString(),
+      {
+        action: 'accepted',
+        contract
+      }
+    );
+
+    // Notify dashboard refresh
+    socketService.notifyDashboardRefresh(contract.clientId.toString());
+    socketService.notifyDashboardRefresh(req.user.id.toString());
+
     res.json({
       success: true,
       contract,
@@ -305,7 +466,14 @@ router.put("/:id/accept", protect, async (req: AuthRequest, res: Response): Prom
 // @access  Private
 router.put("/:id/complete", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const contract = await Contract.findById(req.params.id).populate("job");
+    const contract = await Contract.findByPk(req.params.id, {
+      include: [
+        {
+          model: Job,
+          as: 'job'
+        }
+      ]
+    });
 
     if (!contract) {
       res.status(404).json({
@@ -316,7 +484,7 @@ router.put("/:id/complete", protect, async (req: AuthRequest, res: Response): Pr
     }
 
     // Solo el cliente puede marcar como completado
-    if (contract.client.toString() !== req.user._id.toString()) {
+    if (contract.clientId.toString() !== req.user.id.toString()) {
       res.status(403).json({
         success: false,
         message: "Solo el cliente puede marcar el contrato como completado",
@@ -331,8 +499,8 @@ router.put("/:id/complete", protect, async (req: AuthRequest, res: Response): Pr
     await contract.save();
 
     // Actualizar el trabajo
-    if (contract.job) {
-      const job = await Job.findById(contract.job);
+    if (contract.jobId) {
+      const job = await Job.findByPk(contract.jobId);
       if (job) {
         job.status = "completed";
         await job.save();
@@ -340,14 +508,31 @@ router.put("/:id/complete", protect, async (req: AuthRequest, res: Response): Pr
     }
 
     // Incrementar trabajos completados del doer
-    await User.findByIdAndUpdate(contract.doer, {
-      $inc: { completedJobs: 1 },
-    });
+    const doer = await User.findByPk(contract.doerId);
+    if (doer) {
+      doer.completedJobs = (doer.completedJobs || 0) + 1;
+      await doer.save();
+    }
 
     // Verificar si este es el primer contrato de un usuario referido
     // y acreditar al referidor si aplica
-    await processReferralCredit(contract.client, contract._id);
-    await processReferralCredit(contract.doer, contract._id);
+    await processReferralCredit(contract.clientId, contract.id);
+    await processReferralCredit(contract.doerId, contract.id);
+
+    // Send real-time notifications via Socket.io
+    socketService.notifyContractUpdate(
+      contract.id.toString(),
+      contract.clientId.toString(),
+      contract.doerId.toString(),
+      {
+        action: 'completed',
+        contract
+      }
+    );
+
+    // Notify dashboard refresh
+    socketService.notifyDashboardRefresh(contract.clientId.toString());
+    socketService.notifyDashboardRefresh(contract.doerId.toString());
 
     res.json({
       success: true,
@@ -368,7 +553,7 @@ router.put("/:id/cancel", protect, async (req: AuthRequest, res: Response): Prom
   try {
     const { cancellationReason } = req.body;
 
-    const contract = await Contract.findById(req.params.id);
+    const contract = await Contract.findByPk(req.params.id);
 
     if (!contract) {
       res.status(404).json({
@@ -379,8 +564,8 @@ router.put("/:id/cancel", protect, async (req: AuthRequest, res: Response): Prom
     }
 
     // Verificar que el usuario sea parte del contrato
-    const isClient = contract.client.toString() === req.user._id.toString();
-    const isDoer = contract.doer.toString() === req.user._id.toString();
+    const isClient = contract.clientId.toString() === req.user.id.toString();
+    const isDoer = contract.doerId.toString() === req.user.id.toString();
 
     if (!isClient && !isDoer) {
       res.status(403).json({
@@ -392,16 +577,33 @@ router.put("/:id/cancel", protect, async (req: AuthRequest, res: Response): Prom
 
     contract.status = "cancelled";
     contract.cancellationReason = cancellationReason;
-    contract.cancelledBy = req.user._id;
+    contract.cancelledBy = req.user.id;
     contract.paymentStatus = "refunded";
     await contract.save();
 
     // Actualizar el trabajo
-    const job = await Job.findById(contract.job);
+    const job = await Job.findByPk(contract.jobId);
     if (job) {
       job.status = "cancelled";
       await job.save();
     }
+
+    // Send real-time notifications via Socket.io
+    const otherPartyId = isClient ? contract.doerId.toString() : contract.clientId.toString();
+    socketService.notifyContractUpdate(
+      contract.id.toString(),
+      contract.clientId.toString(),
+      contract.doerId.toString(),
+      {
+        action: 'cancelled',
+        contract,
+        cancelledBy: req.user.id.toString()
+      }
+    );
+
+    // Notify dashboard refresh
+    socketService.notifyDashboardRefresh(contract.clientId.toString());
+    socketService.notifyDashboardRefresh(contract.doerId.toString());
 
     res.json({
       success: true,
@@ -411,6 +613,976 @@ router.put("/:id/cancel", protect, async (req: AuthRequest, res: Response): Prom
     res.status(500).json({
       success: false,
       message: error.message || "Error del servidor",
+    });
+  }
+});
+
+/**
+ * POST /api/contracts/:id/confirm
+ * Confirmar que el servicio fue realizado correctamente
+ * Cliente o Doer pueden confirmar
+ */
+router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id.toString();
+    const { review } = req.body; // Opcional: agregar review al confirmar
+
+    const contract = await Contract.findByPk(id);
+    if (!contract) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    const isClient = contract.clientId.toString() === userId;
+    const isDoer = contract.doerId.toString() === userId;
+
+    if (!isClient && !isDoer) {
+      res.status(403).json({ success: false, message: "No eres parte de este contrato" });
+      return;
+    }
+
+    // Marcar confirmación
+    if (isClient) {
+      contract.clientConfirmed = true;
+      contract.clientConfirmedAt = new Date();
+    } else {
+      contract.doerConfirmed = true;
+      contract.doerConfirmedAt = new Date();
+    }
+
+    // Si ambas partes confirmaron, liberar el pago
+    if (contract.clientConfirmed && contract.doerConfirmed) {
+      contract.status = 'completed';
+      contract.paymentStatus = 'released';
+      contract.actualEndDate = new Date();
+
+      // Buscar el pago y liberarlo
+      const Payment = (await import('../models/sql/Payment.model.js')).default;
+      const payment = await Payment.findOne({ where: { contractId: id } });
+
+      if (payment) {
+        payment.status = 'completed';
+        payment.escrowReleasedAt = new Date();
+        payment.payerConfirmed = contract.clientConfirmed;
+        payment.recipientConfirmed = contract.doerConfirmed;
+        await payment.save();
+
+        // TODO: Transferir fondos al destinatario usando MercadoPago
+      }
+
+      // Send completion email
+      const emailService = (await import('../services/email.js')).default;
+      const job = await Job.findByPk(contract.jobId);
+      await emailService.sendContractCompletedEmail(
+        contract.clientId.toString(),
+        contract.doerId.toString(),
+        contract.id.toString(),
+        job?.title || 'Contrato',
+        payment?.amountARS || contract.price,
+        'ARS'
+      );
+    } else {
+      contract.status = 'awaiting_confirmation';
+
+      // Send awaiting confirmation email to the other party
+      const emailService = (await import('../services/email.js')).default;
+      const job = await Job.findByPk(contract.jobId);
+
+      const otherPartyId = isClient ? contract.doerId.toString() : contract.clientId.toString();
+      const currentUser = await User.findByPk(userId);
+      const otherPartyUser = await User.findByPk(otherPartyId);
+
+      if (currentUser && otherPartyUser) {
+        await emailService.sendContractAwaitingConfirmationEmail(
+          otherPartyId,
+          currentUser.name,
+          contract.id.toString(),
+          job?.title || 'Contrato',
+          !isClient
+        );
+      }
+    }
+
+    await contract.save();
+
+    // Send real-time notifications via Socket.io
+    socketService.notifyContractUpdate(
+      contract.id.toString(),
+      contract.clientId.toString(),
+      contract.doerId.toString(),
+      {
+        action: contract.clientConfirmed && contract.doerConfirmed ? 'both_confirmed' : 'confirmation_pending',
+        contract,
+        confirmedBy: userId
+      }
+    );
+
+    // Notify dashboard refresh
+    socketService.notifyDashboardRefresh(contract.clientId.toString());
+    socketService.notifyDashboardRefresh(contract.doerId.toString());
+
+    res.json({
+      success: true,
+      message: contract.clientConfirmed && contract.doerConfirmed
+        ? '¡Contrato completado! El pago ha sido liberado.'
+        : 'Confirmación registrada. Esperando confirmación de la otra parte.',
+      contract,
+    });
+  } catch (error: any) {
+    console.error('Error confirming contract:', error);
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+  }
+});
+
+/**
+ * POST /api/contracts/:id/dispute
+ * Reportar un problema con el contrato (rápido)
+ * Esto crea una disputa y pausa el pago
+ */
+router.post("/:id/dispute", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id.toString();
+    const { reason, description, category } = req.body;
+
+    const contract = await Contract.findByPk(id);
+    if (!contract) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    const isClient = contract.clientId.toString() === userId;
+    const isDoer = contract.doerId.toString() === userId;
+
+    if (!isClient && !isDoer) {
+      res.status(403).json({ success: false, message: "No eres parte de este contrato" });
+      return;
+    }
+
+    // Redirigir a crear disputa
+    res.json({
+      success: true,
+      message: 'Por favor, proporciona más detalles sobre el problema en la página de disputas',
+      redirect: `/disputes/create?contractId=${id}`,
+    });
+  } catch (error: any) {
+    console.error('Error creating dispute:', error);
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+  }
+});
+
+/**
+ * Request contract modification
+ * POST /api/contracts/:id/request-modification
+ */
+router.post("/:id/request-modification", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { startDate, endDate, price, notes } = req.body;
+    const userId = req.user.id;
+
+    const contract = await Contract.findByPk(id);
+    if (!contract) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    // Verificar que el usuario sea parte del contrato
+    const isClient = contract.clientId.toString() === userId.toString();
+    const isDoer = contract.doerId.toString() === userId.toString();
+
+    if (!isClient && !isDoer) {
+      res.status(403).json({ success: false, message: "No tienes permiso para modificar este contrato" });
+      return;
+    }
+
+    // Verificar que falten al menos 2 días para el inicio
+    const daysUntilStart = Math.ceil((new Date(contract.startDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    if (daysUntilStart < 2) {
+      res.status(400).json({
+        success: false,
+        message: "No se puede modificar el contrato: faltan menos de 2 días para el inicio"
+      });
+      return;
+    }
+
+    // Crear solicitud de modificación
+    contract.pendingModification = {
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined,
+      price: price,
+      notes: notes,
+      requestedBy: userId,
+      requestedAt: new Date(),
+      clientApproved: isClient,
+      doerApproved: isDoer,
+    };
+
+    await contract.save();
+
+    res.json({
+      success: true,
+      message: "Solicitud de modificación enviada. Esperando confirmación de la otra parte.",
+      contract,
+    });
+  } catch (error: any) {
+    console.error('Error requesting modification:', error);
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+  }
+});
+
+/**
+ * Approve contract modification
+ * POST /api/contracts/:id/approve-modification
+ */
+router.post("/:id/approve-modification", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const contract = await Contract.findByPk(id);
+    if (!contract) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    if (!contract.pendingModification) {
+      res.status(400).json({ success: false, message: "No hay modificación pendiente" });
+      return;
+    }
+
+    // Verificar que el usuario sea parte del contrato
+    const isClient = contract.clientId.toString() === userId.toString();
+    const isDoer = contract.doerId.toString() === userId.toString();
+
+    if (!isClient && !isDoer) {
+      res.status(403).json({ success: false, message: "No tienes permiso" });
+      return;
+    }
+
+    // Marcar como aprobado por esta parte
+    if (isClient) {
+      contract.pendingModification.clientApproved = true;
+    } else {
+      contract.pendingModification.doerApproved = true;
+    }
+
+    // Si ambos aprobaron, aplicar los cambios
+    if (contract.pendingModification.clientApproved && contract.pendingModification.doerApproved) {
+      if (contract.pendingModification.startDate) {
+        contract.startDate = contract.pendingModification.startDate;
+      }
+      if (contract.pendingModification.endDate) {
+        contract.endDate = contract.pendingModification.endDate;
+      }
+      if (contract.pendingModification.price) {
+        contract.price = contract.pendingModification.price;
+        contract.totalPrice = contract.price * (1 + contract.commission);
+      }
+      if (contract.pendingModification.notes) {
+        contract.notes = contract.pendingModification.notes;
+      }
+
+      // Limpiar modificación pendiente
+      contract.pendingModification = undefined;
+
+      await contract.save();
+
+      res.json({
+        success: true,
+        message: "Modificación aplicada exitosamente",
+        contract,
+      });
+    } else {
+      await contract.save();
+      res.json({
+        success: true,
+        message: "Modificación aprobada. Esperando confirmación de la otra parte.",
+        contract,
+      });
+    }
+  } catch (error: any) {
+    console.error('Error approving modification:', error);
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+  }
+});
+
+/**
+ * Cancel contract (up to 2 days before start)
+ * POST /api/contracts/:id/cancel
+ */
+router.post("/:id/cancel", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const userId = req.user.id;
+
+    const contract = await Contract.findByPk(id);
+    if (!contract) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    // Verificar que el usuario sea parte del contrato
+    const isClient = contract.clientId.toString() === userId.toString();
+    const isDoer = contract.doerId.toString() === userId.toString();
+
+    if (!isClient && !isDoer) {
+      res.status(403).json({ success: false, message: "No tienes permiso para cancelar este contrato" });
+      return;
+    }
+
+    // Verificar que falten al menos 2 días para el inicio
+    const daysUntilStart = Math.ceil((new Date(contract.startDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    if (daysUntilStart < 2) {
+      res.status(400).json({
+        success: false,
+        message: "No se puede cancelar el contrato: faltan menos de 2 días para el inicio"
+      });
+      return;
+    }
+
+    // Si el contrato ya está en progreso, no se puede cancelar sin penalización
+    if (contract.status === 'in_progress' || contract.status === 'completed') {
+      res.status(400).json({
+        success: false,
+        message: "No se puede cancelar un contrato en progreso o completado. Debes crear una disputa."
+      });
+      return;
+    }
+
+    contract.status = 'cancelled';
+    contract.cancellationReason = reason;
+    contract.cancelledBy = userId;
+
+    // Si hay pago en escrow, reembolsar
+    if (contract.paymentStatus === 'escrow' || contract.paymentStatus === 'held') {
+      contract.paymentStatus = 'refunded';
+    }
+
+    await contract.save();
+
+    res.json({
+      success: true,
+      message: "Contrato cancelado exitosamente",
+      contract,
+    });
+  } catch (error: any) {
+    console.error('Error cancelling contract:', error);
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+  }
+});
+
+/**
+ * Request contract extension (max 1 extension per contract)
+ * POST /api/contracts/:id/request-extension
+ */
+router.post("/:id/request-extension", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { extensionDays, extensionAmount, extensionNotes } = req.body;
+    const userId = req.user.id;
+
+    if (!extensionDays || extensionDays < 1) {
+      res.status(400).json({ success: false, message: "Debes especificar los días de extensión (mínimo 1)" });
+      return;
+    }
+
+    const contract = await Contract.findByPk(id);
+    if (!contract) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    // Verificar que el usuario sea parte del contrato
+    const isClient = contract.clientId.toString() === userId.toString();
+    const isDoer = contract.doerId.toString() === userId.toString();
+
+    if (!isClient && !isDoer) {
+      res.status(403).json({ success: false, message: "No tienes permiso para solicitar una extensión de este contrato" });
+      return;
+    }
+
+    // Verificar que no se haya extendido antes (máximo 1 extensión)
+    if (contract.hasBeenExtended) {
+      res.status(400).json({
+        success: false,
+        message: "Este contrato ya fue extendido. Solo se permite 1 extensión por contrato. Si necesitas más tiempo, debes crear un nuevo contrato."
+      });
+      return;
+    }
+
+    // Verificar que el contrato esté activo o en progreso
+    if (contract.status !== 'accepted' && contract.status !== 'in_progress') {
+      res.status(400).json({
+        success: false,
+        message: "Solo puedes solicitar extensiones para contratos aceptados o en progreso"
+      });
+      return;
+    }
+
+    // Almacenar la fecha de fin original si no existe
+    if (!contract.originalEndDate) {
+      contract.originalEndDate = contract.endDate;
+    }
+
+    // Marcar la solicitud de extensión
+    contract.extensionRequestedBy = userId;
+    contract.extensionRequestedAt = new Date();
+    contract.extensionDays = extensionDays;
+    contract.extensionAmount = extensionAmount || 0;
+    contract.extensionNotes = extensionNotes;
+
+    await contract.save();
+
+    // Notificar a la otra parte
+    const otherPartyId = isClient ? contract.doerId.toString() : contract.clientId.toString();
+    socketService.notifyContractUpdate(
+      contract.id.toString(),
+      contract.clientId.toString(),
+      contract.doerId.toString(),
+      {
+        action: 'extension_requested',
+        contract,
+        requestedBy: userId.toString()
+      }
+    );
+
+    res.json({
+      success: true,
+      message: "Solicitud de extensión enviada. Esperando aprobación de la otra parte.",
+      contract,
+    });
+  } catch (error: any) {
+    console.error('Error requesting extension:', error);
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+  }
+});
+
+/**
+ * Approve contract extension
+ * POST /api/contracts/:id/approve-extension
+ */
+router.post("/:id/approve-extension", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const contract = await Contract.findByPk(id);
+    if (!contract) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    // Verificar que haya una solicitud de extensión pendiente
+    if (!contract.extensionRequestedBy || contract.extensionApprovedBy) {
+      res.status(400).json({ success: false, message: "No hay solicitud de extensión pendiente" });
+      return;
+    }
+
+    // Verificar que el usuario sea la otra parte (no quien solicitó)
+    if (contract.extensionRequestedBy.toString() === userId.toString()) {
+      res.status(400).json({
+        success: false,
+        message: "No puedes aprobar tu propia solicitud de extensión"
+      });
+      return;
+    }
+
+    const isClient = contract.clientId.toString() === userId.toString();
+    const isDoer = contract.doerId.toString() === userId.toString();
+
+    if (!isClient && !isDoer) {
+      res.status(403).json({ success: false, message: "No tienes permiso" });
+      return;
+    }
+
+    // Aplicar la extensión
+    contract.hasBeenExtended = true;
+    contract.extensionApprovedBy = userId;
+    contract.extensionApprovedAt = new Date();
+
+    // Extender la fecha de finalización
+    const currentEndDate = new Date(contract.endDate);
+    const newEndDate = new Date(currentEndDate);
+    newEndDate.setDate(newEndDate.getDate() + (contract.extensionDays || 0));
+    contract.endDate = newEndDate;
+
+    // Si hay monto adicional, actualizar el precio
+    if (contract.extensionAmount && contract.extensionAmount > 0) {
+      contract.price += contract.extensionAmount;
+      // Recalcular comisión y precio total
+      contract.totalPrice = contract.price + contract.commission;
+    }
+
+    await contract.save();
+
+    // Notificar a ambas partes
+    socketService.notifyContractUpdate(
+      contract.id.toString(),
+      contract.clientId.toString(),
+      contract.doerId.toString(),
+      {
+        action: 'extension_approved',
+        contract,
+        approvedBy: userId.toString()
+      }
+    );
+
+    // Notify dashboard refresh
+    socketService.notifyDashboardRefresh(contract.clientId.toString());
+    socketService.notifyDashboardRefresh(contract.doerId.toString());
+
+    res.json({
+      success: true,
+      message: `Extensión aprobada. El contrato se extendió ${contract.extensionDays} días${contract.extensionAmount ? ` con un monto adicional de $${contract.extensionAmount.toLocaleString()} ARS` : ''}.`,
+      contract,
+    });
+  } catch (error: any) {
+    console.error('Error approving extension:', error);
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+  }
+});
+
+/**
+ * Reject contract extension
+ * POST /api/contracts/:id/reject-extension
+ */
+router.post("/:id/reject-extension", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+    const userId = req.user.id;
+
+    const contract = await Contract.findByPk(id);
+    if (!contract) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    // Verificar que haya una solicitud de extensión pendiente
+    if (!contract.extensionRequestedBy || contract.extensionApprovedBy) {
+      res.status(400).json({ success: false, message: "No hay solicitud de extensión pendiente" });
+      return;
+    }
+
+    // Verificar que el usuario sea la otra parte
+    if (contract.extensionRequestedBy.toString() === userId.toString()) {
+      res.status(400).json({
+        success: false,
+        message: "No puedes rechazar tu propia solicitud de extensión"
+      });
+      return;
+    }
+
+    const isClient = contract.clientId.toString() === userId.toString();
+    const isDoer = contract.doerId.toString() === userId.toString();
+
+    if (!isClient && !isDoer) {
+      res.status(403).json({ success: false, message: "No tienes permiso" });
+      return;
+    }
+
+    // Limpiar la solicitud de extensión
+    contract.extensionRequestedBy = undefined;
+    contract.extensionRequestedAt = undefined;
+    contract.extensionDays = undefined;
+    contract.extensionAmount = undefined;
+    contract.extensionNotes = reason || "Solicitud de extensión rechazada";
+
+    await contract.save();
+
+    // Notificar a ambas partes
+    socketService.notifyContractUpdate(
+      contract.id.toString(),
+      contract.clientId.toString(),
+      contract.doerId.toString(),
+      {
+        action: 'extension_rejected',
+        contract,
+        rejectedBy: userId.toString()
+      }
+    );
+
+    res.json({
+      success: true,
+      message: "Solicitud de extensión rechazada",
+      contract,
+    });
+  } catch (error: any) {
+    console.error('Error rejecting extension:', error);
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+  }
+});
+
+/**
+ * Generate pairing code for contract
+ * POST /api/contracts/:id/generate-pairing
+ */
+router.post("/:id/generate-pairing", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const contract = await Contract.findByPk(id);
+
+    if (!contract) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    // Verificar que el contrato esté aceptado por ambas partes
+    if (!contract.termsAcceptedByClient || !contract.termsAcceptedByDoer) {
+      res.status(400).json({
+        success: false,
+        message: "Ambas partes deben aceptar el contrato antes de generar el código"
+      });
+      return;
+    }
+
+    // Verificar que la fecha de inicio haya llegado o esté cerca (dentro de 24 horas)
+    const hoursUntilStart = (new Date(contract.startDate).getTime() - Date.now()) / (1000 * 60 * 60);
+    if (hoursUntilStart > 24) {
+      res.status(400).json({
+        success: false,
+        message: "El código solo se puede generar 24 horas antes de la fecha de inicio"
+      });
+      return;
+    }
+
+    // Generar código de 10 caracteres (alfanumérico)
+    const code = Array.from({ length: 10 }, () =>
+      'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]
+    ).join('');
+
+    contract.pairingCode = code;
+    contract.pairingGeneratedAt = new Date();
+    contract.pairingExpiry = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72 horas para confirmar
+
+    await contract.save();
+
+    res.json({
+      success: true,
+      message: "Código de pareamiento generado",
+      pairingCode: code,
+      expiresAt: contract.pairingExpiry,
+    });
+  } catch (error: any) {
+    console.error('Error generating pairing code:', error);
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+  }
+});
+
+/**
+ * Confirm pairing code
+ * POST /api/contracts/:id/confirm-pairing
+ */
+router.post("/:id/confirm-pairing", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { code } = req.body;
+    const userId = req.user.id;
+
+    if (!code) {
+      res.status(400).json({ success: false, message: "El código es requerido" });
+      return;
+    }
+
+    const contract = await Contract.findByPk(id);
+    if (!contract) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    // Verificar que el usuario sea parte del contrato
+    const isClient = contract.clientId.toString() === userId.toString();
+    const isDoer = contract.doerId.toString() === userId.toString();
+
+    if (!isClient && !isDoer) {
+      res.status(403).json({ success: false, message: "No tienes permiso" });
+      return;
+    }
+
+    // Verificar que existe un código
+    if (!contract.pairingCode) {
+      res.status(400).json({ success: false, message: "No hay código de pareamiento generado" });
+      return;
+    }
+
+    // Verificar que no haya expirado
+    if (contract.pairingExpiry && new Date() > contract.pairingExpiry) {
+      res.status(400).json({
+        success: false,
+        message: "El código de pareamiento ha expirado. Genera uno nuevo."
+      });
+      return;
+    }
+
+    // Verificar que el código sea correcto
+    if (contract.pairingCode !== code.toUpperCase()) {
+      res.status(400).json({ success: false, message: "Código incorrecto" });
+      return;
+    }
+
+    // Marcar como confirmado por esta parte
+    if (isClient && !contract.clientConfirmedPairing) {
+      contract.clientConfirmedPairing = true;
+      contract.clientPairingConfirmedAt = new Date();
+    } else if (isDoer && !contract.doerConfirmedPairing) {
+      contract.doerConfirmedPairing = true;
+      contract.doerPairingConfirmedAt = new Date();
+    } else {
+      res.status(400).json({ success: false, message: "Ya confirmaste el pareamiento" });
+      return;
+    }
+
+    // Si ambos confirmaron, iniciar el contrato
+    if (contract.clientConfirmedPairing && contract.doerConfirmedPairing) {
+      contract.status = 'in_progress';
+      contract.actualStartDate = new Date();
+
+      await contract.save();
+
+      res.json({
+        success: true,
+        message: "¡Pareamiento confirmado! El contrato ha comenzado.",
+        contract,
+      });
+    } else {
+      await contract.save();
+      res.json({
+        success: true,
+        message: "Pareamiento confirmado. Esperando confirmación de la otra parte.",
+        contract,
+      });
+    }
+  } catch (error: any) {
+    console.error('Error confirming pairing:', error);
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+  }
+});
+
+// Modify contract price (only if no proposals exist)
+router.put("/:id/modify-price", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { newPrice, reason } = req.body;
+    const userId = req.user.id;
+
+    // Validations
+    if (!newPrice || newPrice < 5000) {
+      res.status(400).json({
+        success: false,
+        message: "El precio mínimo es de $5000 ARS"
+      });
+      return;
+    }
+
+    const contract = await Contract.findByPk(id, {
+      include: [
+        {
+          model: User,
+          as: 'client'
+        },
+        {
+          model: Job,
+          as: 'job'
+        }
+      ]
+    });
+
+    if (!contract) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    // Only client can modify price
+    if (contract.clientId.toString() !== userId.toString()) {
+      res.status(403).json({
+        success: false,
+        message: "Solo el cliente puede modificar el precio del contrato"
+      });
+      return;
+    }
+
+    // Check if contract is still pending (no one has accepted yet)
+    if (contract.status !== 'pending') {
+      res.status(400).json({
+        success: false,
+        message: "Solo puedes modificar el precio de contratos pendientes"
+      });
+      return;
+    }
+
+    // Import Proposal model dynamically
+    const Proposal = (await import('../models/sql/Proposal.model.js')).default;
+
+    // Check if there are any proposals for this contract's job
+    const proposalCount = await Proposal.count({
+      where: {
+        jobId: contract.jobId,
+        status: { [Op.in]: ['pending', 'approved'] }
+      }
+    });
+
+    if (proposalCount > 0) {
+      res.status(400).json({
+        success: false,
+        message: "No puedes modificar el precio porque ya hay propuestas para este trabajo"
+      });
+      return;
+    }
+
+    const previousPrice = contract.price;
+    const priceDifference = newPrice - previousPrice;
+
+    // Import models
+    const BalanceTransaction = (await import('../models/sql/BalanceTransaction.model.js')).default;
+
+    const client = await User.findByPk(userId);
+    if (!client) {
+      res.status(404).json({ success: false, message: "Usuario no encontrado" });
+      return;
+    }
+
+    let transaction;
+
+    if (priceDifference > 0) {
+      // Price increased - check if user has enough balance
+      if (client.balance < priceDifference) {
+        // User needs to pay the difference via MercadoPago
+        res.status(402).json({
+          success: false,
+          message: "Debes pagar la diferencia para aumentar el precio",
+          requiresPayment: true,
+          amountRequired: priceDifference,
+          currentBalance: client.balance
+        });
+        return;
+      }
+
+      // Deduct from user balance
+      const balanceBefore = client.balance;
+      client.balance -= priceDifference;
+      await client.save();
+
+      // Create transaction record
+      transaction = await BalanceTransaction.create({
+        userId: userId,
+        type: 'payment',
+        amount: -priceDifference,
+        balanceBefore,
+        balanceAfter: client.balance,
+        description: `Pago de diferencia por aumento de precio de contrato`,
+        relatedContractId: contract.id,
+        metadata: {
+          previousPrice,
+          newPrice,
+          reason: reason || 'Aumento de precio'
+        },
+        status: 'completed'
+      });
+
+    } else if (priceDifference < 0) {
+      // Price decreased - refund to user balance
+      const refundAmount = Math.abs(priceDifference);
+      const balanceBefore = client.balance;
+      client.balance += refundAmount;
+      await client.save();
+
+      // Create transaction record
+      transaction = await BalanceTransaction.create({
+        userId: userId,
+        type: 'refund',
+        amount: refundAmount,
+        balanceBefore,
+        balanceAfter: client.balance,
+        description: `Reembolso por reducción de precio de contrato`,
+        relatedContractId: contract.id,
+        metadata: {
+          previousPrice,
+          newPrice,
+          reason: reason || 'Reducción de precio'
+        },
+        status: 'completed'
+      });
+    }
+
+    // Save original price if this is the first modification
+    if (!contract.originalPrice) {
+      contract.originalPrice = previousPrice;
+    }
+
+    // Update contract price
+    contract.price = newPrice;
+    contract.commission = newPrice * (client.currentCommissionRate / 100);
+    contract.totalPrice = newPrice + contract.commission;
+
+    // Add to price modification history
+    if (!contract.priceModificationHistory) {
+      contract.priceModificationHistory = [];
+    }
+
+    contract.priceModificationHistory.push({
+      previousPrice,
+      newPrice,
+      modifiedBy: userId,
+      modifiedAt: new Date(),
+      reason: reason || '',
+      paymentDifference: priceDifference,
+      transactionId: transaction?.id
+    });
+
+    await contract.save();
+
+    // Update the related Job price as well
+    const jobToUpdate = await Job.findByPk(contract.jobId);
+    if (jobToUpdate) {
+      jobToUpdate.price = newPrice;
+      jobToUpdate.budget = newPrice;
+      await jobToUpdate.save();
+    }
+
+    // Send email notifications
+    const emailService = (await import('../services/email.js')).default;
+
+    if (priceDifference > 0) {
+      // Price increase - user paid difference
+      await emailService.sendPriceModificationEmail(
+        client.email,
+        client.name,
+        contract.id.toString(),
+        previousPrice,
+        newPrice,
+        true, // isIncrease
+        priceDifference
+      );
+    } else if (priceDifference < 0) {
+      // Price decrease - user got refund to balance
+      await emailService.sendBalanceRefundEmail(
+        client.email,
+        client.name,
+        Math.abs(priceDifference),
+        `Reducción de precio en contrato ${contract.id}`,
+        client.balance
+      );
+    }
+
+    res.status(200).json({
+      success: true,
+      message: priceDifference > 0
+        ? 'Precio aumentado y diferencia pagada desde saldo'
+        : priceDifference < 0
+          ? 'Precio reducido y diferencia reembolsada a tu saldo'
+          : 'Precio actualizado',
+      contract,
+      transaction,
+      newBalance: client.balance
+    });
+  } catch (error: any) {
+    console.error("Error modifying contract price:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error al modificar precio del contrato"
     });
   }
 });

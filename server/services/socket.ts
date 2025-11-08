@@ -2,12 +2,13 @@ import { Server, Socket } from "socket.io";
 import { Server as HTTPServer } from "http";
 import jwt from "jsonwebtoken";
 import { config } from "../config/env";
-import ChatMessage from "../models/ChatMessage";
-import Conversation from "../models/Conversation";
-import User from "../models/User";
-import Notification from "../models/Notification";
+import { ChatMessage } from "../models/sql/ChatMessage.model.js";
+import { Conversation } from "../models/sql/Conversation.model.js";
+import { User } from "../models/sql/User.model.js";
+import { Notification } from "../models/sql/Notification.model.js";
 import fcmService from "./fcm";
 import emailService from "./email";
+import { Op } from 'sequelize';
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -60,13 +61,15 @@ export class SocketService {
         }
 
         const decoded = jwt.verify(token, config.jwtSecret) as any;
-        const user = await User.findById(decoded.id).select("-password");
+        const user = await User.findByPk(decoded.id, {
+          attributes: { exclude: ['password'] }
+        });
 
         if (!user) {
           return next(new Error("Authentication error: User not found"));
         }
 
-        socket.userId = user._id.toString();
+        socket.userId = user.id;
         socket.user = user;
         next();
       } catch (error) {
@@ -137,7 +140,7 @@ export class SocketService {
 
   private async handleJoinConversation(socket: AuthenticatedSocket, conversationId: string) {
     try {
-      const conversation = await Conversation.findById(conversationId);
+      const conversation = await Conversation.findByPk(conversationId);
 
       if (!conversation) {
         socket.emit("error", { message: "Conversation not found" });
@@ -157,13 +160,18 @@ export class SocketService {
       socket.join(`conversation:${conversationId}`);
 
       // Load recent messages
-      const messages = await ChatMessage.find({
-        conversationId,
-        deleted: false,
-      })
-        .sort({ createdAt: -1 })
-        .limit(50)
-        .populate("sender", "name avatar");
+      const messages = await ChatMessage.findAll({
+        where: {
+          conversationId,
+        },
+        order: [['createdAt', 'DESC']],
+        limit: 50,
+        include: [{
+          model: User,
+          as: 'sender',
+          attributes: ['name', 'avatar']
+        }]
+      });
 
       socket.emit("conversation:history", {
         conversationId,
@@ -180,7 +188,7 @@ export class SocketService {
       const { conversationId, message, type = "text", fileUrl, fileName, fileSize } = data;
 
       // Verify conversation exists and user is participant
-      const conversation = await Conversation.findById(conversationId);
+      const conversation = await Conversation.findByPk(conversationId);
 
       if (!conversation) {
         socket.emit("error", { message: "Conversation not found" });
@@ -199,7 +207,7 @@ export class SocketService {
       // Create message
       const chatMessage = await ChatMessage.create({
         conversationId,
-        sender: socket.userId,
+        senderId: socket.userId,
         message,
         type,
         fileUrl,
@@ -207,7 +215,14 @@ export class SocketService {
         fileSize,
       });
 
-      await chatMessage.populate("sender", "name avatar");
+      // Reload with sender data
+      await chatMessage.reload({
+        include: [{
+          model: User,
+          as: 'sender',
+          attributes: ['name', 'avatar']
+        }]
+      });
 
       // Update conversation
       conversation.lastMessage = message.substring(0, 200);
@@ -235,6 +250,28 @@ export class SocketService {
       for (const participantId of otherParticipants) {
         const participantIdStr = participantId.toString();
         const isOnline = this.userSockets.has(participantIdStr);
+
+        // Notify unread count update to the recipient
+        const participantConversations = await Conversation.findAll({
+          where: {
+            participants: participantId,
+            archived: false,
+          },
+          attributes: ['id']
+        });
+
+        const conversationIds = participantConversations.map(c => c.id);
+
+        const unreadCount = await ChatMessage.count({
+          where: {
+            conversationId: {
+              [Op.in]: conversationIds
+            },
+            senderId: { [Op.ne]: participantId },
+            read: false,
+          }
+        });
+        this.notifyUnreadMessagesUpdate(participantIdStr, unreadCount);
 
         if (!isOnline) {
           // Create notification for offline user
@@ -288,7 +325,7 @@ export class SocketService {
     try {
       const { conversationId, messageId } = data;
 
-      const message = await ChatMessage.findById(messageId);
+      const message = await ChatMessage.findByPk(messageId);
 
       if (!message) {
         return;
@@ -313,22 +350,24 @@ export class SocketService {
 
   private async handleMarkConversationRead(socket: AuthenticatedSocket, conversationId: string) {
     try {
-      const conversation = await Conversation.findById(conversationId);
+      const conversation = await Conversation.findByPk(conversationId);
 
       if (!conversation) {
         return;
       }
 
       // Mark all unread messages as read
-      await ChatMessage.updateMany(
-        {
-          conversationId,
-          sender: { $ne: socket.userId },
-          read: false,
-        },
+      await ChatMessage.update(
         {
           read: true,
           readAt: new Date(),
+        },
+        {
+          where: {
+            conversationId,
+            senderId: { [Op.ne]: socket.userId },
+            read: false,
+          }
         }
       );
 
@@ -355,7 +394,7 @@ export class SocketService {
     try {
       const chatMessage = await ChatMessage.create({
         conversationId,
-        sender: null, // System message
+        senderId: null, // System message
         message,
         type: "system",
       });
@@ -375,6 +414,46 @@ export class SocketService {
 
   public getIO(): Server {
     return this.io;
+  }
+
+  // Broadcast updates to specific users
+  public broadcastToUser(userId: string, event: string, data: any) {
+    this.io.to(`user:${userId}`).emit(event, data);
+  }
+
+  // Broadcast contract updates
+  public notifyContractUpdate(contractId: string, clientId: string, doerId: string, data: any) {
+    this.broadcastToUser(clientId, "contract:updated", { contractId, ...data });
+    this.broadcastToUser(doerId, "contract:updated", { contractId, ...data });
+  }
+
+  // Broadcast job updates
+  public notifyJobUpdate(jobId: string, clientId: string, data: any) {
+    this.broadcastToUser(clientId, "job:updated", { jobId, ...data });
+    // Broadcast to all users for job listings
+    this.io.emit("jobs:refresh", { jobId, ...data });
+  }
+
+  // Broadcast proposal updates
+  public notifyProposalUpdate(proposalId: string, freelancerId: string, clientId: string, data: any) {
+    this.broadcastToUser(freelancerId, "proposal:updated", { proposalId, ...data });
+    this.broadcastToUser(clientId, "proposal:updated", { proposalId, ...data });
+  }
+
+  // Broadcast payment updates
+  public notifyPaymentUpdate(paymentId: string, clientId: string, doerId: string, data: any) {
+    this.broadcastToUser(clientId, "payment:updated", { paymentId, ...data });
+    this.broadcastToUser(doerId, "payment:updated", { paymentId, ...data });
+  }
+
+  // Broadcast dashboard refresh
+  public notifyDashboardRefresh(userId: string) {
+    this.broadcastToUser(userId, "dashboard:refresh", {});
+  }
+
+  // Notify unread message count update
+  public notifyUnreadMessagesUpdate(userId: string, unreadCount: number) {
+    this.broadcastToUser(userId, "unread:updated", { unreadCount });
   }
 }
 

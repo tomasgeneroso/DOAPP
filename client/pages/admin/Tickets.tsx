@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { adminApi } from "@/lib/adminApi";
 import type { Ticket } from "@/types/admin";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+
+type SortField = 'subject' | 'category' | 'priority' | 'status' | 'date' | 'user';
+type SortDirection = 'asc' | 'desc' | null;
 
 export default function AdminTickets() {
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -10,6 +13,8 @@ export default function AdminTickets() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
 
   useEffect(() => {
     loadTickets();
@@ -65,6 +70,82 @@ export default function AdminTickets() {
     }
   };
 
+  const handleSort = (field: SortField) => {
+    let newDirection: SortDirection = 'asc';
+
+    if (sortField === field) {
+      if (sortDirection === 'asc') {
+        newDirection = 'desc';
+      } else if (sortDirection === 'desc') {
+        newDirection = null;
+      }
+    }
+
+    setSortField(newDirection === null ? null : field);
+    setSortDirection(newDirection);
+  };
+
+  const getPriorityOrder = (priority: string): number => {
+    const order: Record<string, number> = {
+      'urgent': 4,
+      'high': 3,
+      'medium': 2,
+      'low': 1
+    };
+    return order[priority] || 0;
+  };
+
+  const getStatusOrder = (status: string): number => {
+    const order: Record<string, number> = {
+      'open': 1,
+      'assigned': 2,
+      'in_progress': 3,
+      'resolved': 4,
+      'closed': 5
+    };
+    return order[status] || 0;
+  };
+
+  const getSortedTickets = () => {
+    if (!sortField || !sortDirection) return tickets;
+
+    return [...tickets].sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortField) {
+        case 'subject':
+          comparison = a.subject.localeCompare(b.subject, 'es');
+          break;
+        case 'user':
+          comparison = a.createdBy.name.localeCompare(b.createdBy.name, 'es');
+          break;
+        case 'category':
+          comparison = a.category.localeCompare(b.category, 'es');
+          break;
+        case 'priority':
+          comparison = getPriorityOrder(a.priority) - getPriorityOrder(b.priority);
+          break;
+        case 'status':
+          comparison = getStatusOrder(a.status) - getStatusOrder(b.status);
+          break;
+        case 'date':
+          comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          break;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="w-4 h-4 opacity-40" />;
+    }
+    return sortDirection === 'asc'
+      ? <ArrowUp className="w-4 h-4" />
+      : <ArrowDown className="w-4 h-4" />;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -75,17 +156,19 @@ export default function AdminTickets() {
 
   return (
     <div>
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-8 flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Tickets de Soporte</h1>
-          <p className="text-gray-600 mt-2">Gestiona consultas y problemas de usuarios</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Tickets de Soporte</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">
+            Gestiona consultas y problemas de usuarios. Los usuarios crean tickets desde su panel.
+          </p>
         </div>
         <Link
-          to="/admin/tickets/new"
-          className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition"
+          to="/admin/tickets/create"
+          className="flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg transition shadow-md hover:shadow-lg"
         >
           <Plus className="h-5 w-5" />
-          Nuevo Ticket
+          Crear Ticket
         </Link>
       </div>
 
@@ -124,24 +207,54 @@ export default function AdminTickets() {
                 Ticket
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Asunto
+                <button
+                  onClick={() => handleSort('subject')}
+                  className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+                >
+                  Asunto
+                  <SortIcon field="subject" />
+                </button>
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Categoría
+                <button
+                  onClick={() => handleSort('category')}
+                  className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+                >
+                  Categoría
+                  <SortIcon field="category" />
+                </button>
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Prioridad
+                <button
+                  onClick={() => handleSort('priority')}
+                  className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+                >
+                  Prioridad
+                  <SortIcon field="priority" />
+                </button>
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Estado
+                <button
+                  onClick={() => handleSort('status')}
+                  className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+                >
+                  Estado
+                  <SortIcon field="status" />
+                </button>
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Creado
+                <button
+                  onClick={() => handleSort('date')}
+                  className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+                >
+                  Creado
+                  <SortIcon field="date" />
+                </button>
               </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {tickets.map((ticket) => (
+            {getSortedTickets().map((ticket) => (
               <tr key={ticket._id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <Link

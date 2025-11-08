@@ -1,10 +1,9 @@
-import { LoginDevice } from "../models/LoginDevice.js";
-import User from "../models/User.js";
+import { LoginDevice } from "../models/sql/LoginDevice.model.js";
+import { User } from "../models/sql/User.model.js";
 import emailService from "./email.js";
-import mongoose from "mongoose";
 
 export interface LoginAttempt {
-  userId: mongoose.Types.ObjectId;
+  userId: string;
   ipAddress: string;
   userAgent: string;
   deviceFingerprint?: string;
@@ -216,7 +215,7 @@ class AnomalyDetectionService {
     userId: mongoose.Types.ObjectId
   ): Promise<boolean> {
     // Obtener últimos 2 logins
-    const recentDevices = await LoginDevice.find({ userId })
+    const recentDevices = await LoginDevice.findAll({ where: { userId } })
       .sort({ lastLoginAt: -1 })
       .limit(2);
 
@@ -256,7 +255,7 @@ class AnomalyDetectionService {
   ): Promise<void> {
     try {
       // Obtener usuario
-      const user = await User.findById(attempt.userId);
+      const user = await User.findByPk(attempt.userId);
       if (!user) return;
 
       // Enviar notificación de email

@@ -1,7 +1,7 @@
 import { Response, NextFunction } from "express";
 import jwt, { JwtPayload } from "jsonwebtoken";
 import { config } from "../config/env.js";
-import User from "../models/User.js";
+import { User } from "../models/sql/User.model.js";
 import type { AuthRequest } from "../types/index.js";
 
 export type { AuthRequest };
@@ -18,16 +18,16 @@ export const protect = async (
   try {
     let token;
 
-    // Obtener token del header
-    if (
+    // Prioridad 1: Obtener token de la cookie httpOnly (más seguro)
+    if (req.cookies.token) {
+      token = req.cookies.token;
+    }
+    // Prioridad 2: Fallback al header Authorization para compatibilidad
+    else if (
       req.headers.authorization &&
       req.headers.authorization.startsWith("Bearer")
     ) {
       token = req.headers.authorization.split(" ")[1];
-    }
-    // O del cookie
-    else if (req.cookies.token) {
-      token = req.cookies.token;
     }
 
     // Verificar que el token exista
@@ -43,8 +43,10 @@ export const protect = async (
       // Verificar token
       const decoded = jwt.verify(token, config.jwtSecret) as DecodedToken;
 
-      // Agregar usuario al request
-      req.user = await User.findById(decoded.id).select("-password");
+      // Agregar usuario al request (PostgreSQL/Sequelize)
+      req.user = await User.findByPk(decoded.id, {
+        attributes: { exclude: ['password'] }
+      });
 
       if (!req.user) {
         res.status(401).json({
@@ -81,10 +83,22 @@ export const authorize = (...roles: string[]) => {
       return;
     }
 
-    if (!roles.includes(req.user.role)) {
+    // Define admin roles that should check adminRole field
+    const adminRoles = ['owner', 'super_admin', 'admin', 'support', 'marketing', 'dpo', 'moderator'];
+
+    // Check if all requested roles are admin roles
+    const isAdminRoleCheck = roles.every(r => adminRoles.includes(r));
+
+    // Verify role or adminRole depending on context
+    const hasRole = isAdminRoleCheck
+      ? (req.user.adminRole && roles.includes(req.user.adminRole))
+      : roles.includes(req.user.role);
+
+    if (!hasRole) {
+      const currentRole = isAdminRoleCheck ? req.user.adminRole : req.user.role;
       res.status(403).json({
         success: false,
-        message: `El rol ${req.user.role} no tiene permiso para acceder a esta ruta`,
+        message: `El rol ${currentRole || 'sin asignar'} no tiene permiso para acceder a esta ruta`,
       });
       return;
     }

@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import { protect, AuthRequest } from "../middleware/auth";
-import User from "../models/User";
-import Notification from "../models/Notification";
+import { User } from "../models/sql/User.model.js";
+import { Notification } from "../models/sql/Notification.model.js";
 import fcmService from "../services/fcm";
 import { body, validationResult } from "express-validator";
 
@@ -29,7 +29,7 @@ router.post(
       const userId = req.user._id;
       const { token } = req.body;
 
-      const user = await User.findById(userId);
+      const user = await User.findByPk(userId);
 
       if (!user) {
         res.status(404).json({
@@ -107,7 +107,7 @@ router.get("/preferences", protect, async (req: AuthRequest, res: Response): Pro
   try {
     const userId = req.user._id;
 
-    const user = await User.findById(userId).select("notificationPreferences");
+    const user = await User.findByPk(userId).select("notificationPreferences");
 
     if (!user) {
       res.status(404).json({
@@ -139,7 +139,7 @@ router.put("/preferences", protect, async (req: AuthRequest, res: Response): Pro
     const userId = req.user._id;
     const preferences = req.body;
 
-    const user = await User.findById(userId);
+    const user = await User.findByPk(userId);
 
     if (!user) {
       res.status(404).json({
@@ -192,10 +192,10 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
       .skip((Number(page) - 1) * Number(limit));
 
     const total = await Notification.countDocuments(query);
-    const unreadCount = await Notification.countDocuments({
+    const unreadCount = await Notification.count({ where: {
       userId,
       read: false,
-    });
+    } });
 
     res.json({
       success: true,

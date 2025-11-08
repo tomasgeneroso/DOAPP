@@ -46,11 +46,12 @@ export const strictLimiter = rateLimit({
 });
 
 /**
- * MongoDB sanitization middleware
- * Prevents NoSQL injection attacks by removing $ and . from user input
+ * Input sanitization middleware
+ * Prevents SQL and NoSQL injection attacks by sanitizing user input
+ * Removes potentially dangerous characters from request data
  * Custom implementation compatible with Express 5
  */
-export const sanitizeMongoInput = (req: Request, res: Response, next: NextFunction) => {
+export const sanitizeInput = (req: Request, res: Response, next: NextFunction) => {
   const sanitize = (obj: any): any => {
     if (obj === null || obj === undefined) {
       return obj;
@@ -300,7 +301,8 @@ export default {
   authLimiter,
   apiLimiter,
   strictLimiter,
-  sanitizeMongoInput,
+  sanitizeInput,
+  sanitizeMongoInput: sanitizeInput, // Backward compatibility alias
   xssProtection,
   csrfProtection,
   generateCsrfToken,

@@ -1,12 +1,13 @@
 import express, { Request, Response } from "express";
 import { protect } from "../middleware/auth.js";
 import type { AuthRequest } from "../types/index.js";
-import User from "../models/User.js";
-import { ConsentLog } from "../models/ConsentLog.js";
-import { DataAccessLog } from "../models/DataAccessLog.js";
-import { Contract } from "../models/Contract.js";
-import { Payment } from "../models/Payment.js";
+import { User } from "../models/sql/User.model.js";
+import { ConsentLog } from "../models/sql/ConsentLog.model.js";
+import { DataAccessLog } from "../models/sql/DataAccessLog.model.js";
+import { Contract } from "../models/sql/Contract.model.js";
+import { Payment } from "../models/sql/Payment.model.js";
 import { body, validationResult } from "express-validator";
+import { Op } from 'sequelize';
 
 const router = express.Router();
 
@@ -61,7 +62,7 @@ router.post(
 
       // Registrar consentimiento
       await (ConsentLog as any).logConsent({
-        userId: req.user._id,
+        userId: req.user.id,
         consentType,
         action,
         version,
@@ -95,7 +96,7 @@ router.get("/consent", protect, async (req: AuthRequest, res: Response): Promise
     const { consentType } = req.query;
 
     const consents = await (ConsentLog as any).getUserConsents(
-      req.user._id,
+      req.user.id,
       consentType as string
     );
 
@@ -120,8 +121,8 @@ router.get("/export", protect, async (req: AuthRequest, res: Response): Promise<
   try {
     // Log data access
     await (DataAccessLog as any).logAccess({
-      userId: req.user._id,
-      accessedBy: req.user._id,
+      userId: req.user.id,
+      accessedBy: req.user.id,
       accessType: "export",
       dataType: "full_account",
       reason: "User requested data export",
@@ -131,16 +132,25 @@ router.get("/export", protect, async (req: AuthRequest, res: Response): Promise<
     });
 
     // Obtener todos los datos del usuario
-    const user = await User.findById(req.user._id).select("+twoFactorSecret");
-    const contracts = await Contract.find({
-      $or: [{ client: req.user._id }, { doer: req.user._id }],
-    }).populate("job");
-    const payments = await Payment.find({
-      $or: [{ payerId: req.user._id }, { recipientId: req.user._id }],
+    const user = await User.findByPk(req.user.id, {
+      attributes: { include: ['twoFactorSecret'] },
     });
-    const consents = await (ConsentLog as any).getUserConsents(req.user._id);
+    const contracts = await Contract.findAll({
+      where: {
+        [Op.or]: [{ clientId: req.user.id }, { doerId: req.user.id }],
+      },
+      include: [{
+        association: 'job',
+      }],
+    });
+    const payments = await Payment.findAll({
+      where: {
+        [Op.or]: [{ payerId: req.user.id }, { recipientId: req.user.id }],
+      },
+    });
+    const consents = await (ConsentLog as any).getUserConsents(req.user.id);
     const dataAccessLogs = await (DataAccessLog as any).getUserAccessHistory(
-      req.user._id
+      req.user.id
     );
 
     const exportData = {
@@ -168,14 +178,14 @@ router.get("/export", protect, async (req: AuthRequest, res: Response): Promise<
         preferences: user?.notificationPreferences,
       },
       contracts: contracts.map((c) => ({
-        id: c._id,
+        id: c.id,
         title: c.title,
         status: c.status,
         price: c.price,
         createdAt: c.createdAt,
       })),
       payments: payments.map((p) => ({
-        id: p._id,
+        id: p.id,
         amount: p.amount,
         status: p.status,
         createdAt: p.createdAt,
@@ -193,8 +203,8 @@ router.get("/export", protect, async (req: AuthRequest, res: Response): Promise<
 
     // Log failed access
     await (DataAccessLog as any).logAccess({
-      userId: req.user._id,
-      accessedBy: req.user._id,
+      userId: req.user.id,
+      accessedBy: req.user.id,
       accessType: "export",
       dataType: "full_account",
       reason: "User requested data export",
@@ -234,7 +244,9 @@ router.post(
       const { reason, password } = req.body;
 
       // Verificar contraseña
-      const user = await User.findById(req.user._id).select("+password");
+      const user = await User.findByPk(req.user.id, {
+        attributes: { include: ['password'] },
+      });
       if (!user || !(await user.comparePassword(password))) {
         res.status(401).json({
           success: false,
@@ -245,8 +257,8 @@ router.post(
 
       // Log data access
       await (DataAccessLog as any).logAccess({
-        userId: req.user._id,
-        accessedBy: req.user._id,
+        userId: req.user.id,
+        accessedBy: req.user.id,
         accessType: "delete",
         dataType: "full_account",
         reason: `Account deletion requested: ${reason}`,
@@ -289,7 +301,7 @@ router.get(
       const { limit, skip, accessType, dataType } = req.query;
 
       const history = await (DataAccessLog as any).getUserAccessHistory(
-        req.user._id,
+        req.user.id,
         {
           limit: limit ? parseInt(limit as string) : 50,
           skip: skip ? parseInt(skip as string) : 0,

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { TermsModal } from "@/components/ui/TermsModal";
+import { CustomDateInput } from "@/components/ui/CustomDatePicker";
 import {
   ArrowLeft,
   Calendar,
@@ -113,32 +114,20 @@ export function CreateContractScreen({
 
               {/* Date and Time */}
               <div className="grid gap-6 sm:grid-cols-2">
-                <Field label="Fecha de inicio" icon={Calendar}>
-                  <Input
-                    type="date"
-                    defaultValue="2021-04-30"
-                    className="h-12 rounded-xl border-slate-300 focus-visible:border-sky-500 focus-visible:ring-sky-200"
+                <Field label="Fecha y hora de inicio" icon={Calendar}>
+                  <CustomDateInput
+                    name="startDate"
+                    type="datetime"
+                    placeholder="Selecciona fecha y hora"
+                    minDate={new Date()}
                   />
                 </Field>
-                <Field label="Hora de inicio" icon={Clock}>
-                  <Input
-                    type="time"
-                    defaultValue="13:00"
-                    className="h-12"
-                  />
-                </Field>
-                <Field label="Fecha de fin" icon={Calendar}>
-                  <Input
-                    type="date"
-                    defaultValue="2021-04-30"
-                    className="h-12 rounded-xl border-slate-300 focus-visible:border-sky-500 focus-visible:ring-sky-200"
-                  />
-                </Field>
-                <Field label="Hora de fin" icon={Clock}>
-                  <Input
-                    type="time"
-                    defaultValue="21:00"
-                    className="h-12 rounded-xl border-slate-300 focus-visible:border-sky-500 focus-visible:ring-sky-200"
+                <Field label="Fecha y hora de fin" icon={Clock}>
+                  <CustomDateInput
+                    name="endDate"
+                    type="datetime"
+                    placeholder="Selecciona fecha y hora"
+                    minDate={new Date()}
                   />
                 </Field>
               </div>

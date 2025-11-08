@@ -70,15 +70,26 @@ export default function JobApplicationSummary() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          jobId: job._id,
+          jobId: job.id || job._id, // Use id for PostgreSQL, fallback to _id for backward compatibility
         }),
       });
 
       const data = await response.json();
 
       if (data.success) {
-        // Redirect to chat with the created conversation
-        navigate(`/chat/${data.conversationId}`);
+        // Redirect to chat with job context (accepted)
+        navigate(`/chat/${data.conversationId}`, {
+          state: {
+            jobContext: {
+              jobId: job.id || job._id,
+              title: job.title,
+              description: job.description,
+              budget: job.price,
+              category: job.category,
+              accepted: true, // Indicar que ya aceptó las condiciones
+            }
+          }
+        });
       } else {
         setError(data.message || "No se pudo aceptar el trabajo");
       }
@@ -104,15 +115,25 @@ export default function JobApplicationSummary() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          jobId: job._id,
+          jobId: job.id || job._id,
         }),
       });
 
       const data = await response.json();
 
       if (data.success) {
-        // Redirect to chat
-        navigate(`/chat/${data.conversationId}`);
+        // Redirect to chat with job context for counter-offer
+        navigate(`/chat/${data.conversationId}`, {
+          state: {
+            jobContext: {
+              jobId: job.id || job._id,
+              title: job.title,
+              description: job.description,
+              budget: job.price,
+              category: job.category,
+            }
+          }
+        });
       } else {
         setError(data.message || "No se pudo iniciar la negociación");
       }
@@ -153,8 +174,7 @@ export default function JobApplicationSummary() {
     );
   }
 
-  const isOwnJob = user && job.client._id === user.id;
-  const hasDoer = !!job.doer;
+  const isOwnJob = user && (job.client.id || job.client._id) === user.id;
 
   if (isOwnJob) {
     return (
@@ -166,7 +186,7 @@ export default function JobApplicationSummary() {
               No puedes aplicar a tu propio trabajo
             </p>
             <Link
-              to={`/jobs/${job._id}`}
+              to={`/jobs/${job.id || job._id}`}
               className="inline-flex items-center gap-2 text-sky-600 hover:text-sky-700 font-medium"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -178,27 +198,8 @@ export default function JobApplicationSummary() {
     );
   }
 
-  if (hasDoer) {
-    return (
-      <div className="container mx-auto px-4 py-12">
-        <div className="max-w-2xl mx-auto">
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center">
-            <AlertCircle className="h-12 w-12 text-amber-600 mx-auto mb-4" />
-            <p className="text-amber-900 mb-4 text-lg">
-              Este trabajo ya tiene un profesional asignado
-            </p>
-            <Link
-              to="/"
-              className="inline-flex items-center gap-2 text-sky-600 hover:text-sky-700 font-medium"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Volver a trabajos
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Permitir múltiples aplicaciones al mismo trabajo
+  // Se eliminó la restricción de "ya tiene profesional asignado"
 
   return (
     <>
@@ -211,7 +212,7 @@ export default function JobApplicationSummary() {
           {/* Back Button */}
           <div className="mb-6">
             <Link
-              to={`/jobs/${job._id}`}
+              to={`/jobs/${job.id || job._id}`}
               className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -359,7 +360,7 @@ export default function JobApplicationSummary() {
                   condiciones actuales. Se creará una conversación automáticamente.
                 </p>
                 <p>
-                  <strong>Chatear/Regatear:</strong> Inicia una conversación con el
+                  <strong>Chatear/Contraofertar:</strong> Inicia una conversación con el
                   cliente para negociar términos, precio o detalles adicionales.
                 </p>
               </div>
@@ -405,7 +406,7 @@ export default function JobApplicationSummary() {
                 ) : (
                   <>
                     <MessageCircle className="h-5 w-5" />
-                    Chatear / Regatear
+                    Chatear / Contraofertar
                   </>
                 )}
               </button>

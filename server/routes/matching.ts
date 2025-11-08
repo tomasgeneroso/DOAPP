@@ -1,9 +1,10 @@
 import { Router, Response } from "express";
 import { protect, AuthRequest } from "../middleware/auth";
-import MatchingCode from "../models/MatchingCode";
-import Contract from "../models/Contract";
-import Notification from "../models/Notification";
+import { MatchingCode } from "../models/sql/MatchingCode.model.js";
+import { Contract } from "../models/sql/Contract.model.js";
+import { Notification } from "../models/sql/Notification.model.js";
 import { body, validationResult } from "express-validator";
+import { Op } from 'sequelize';
 
 const router = Router();
 
@@ -31,10 +32,10 @@ router.post(
       }
 
       const { contractId, scheduledMeetingTime, meetingLocation } = req.body;
-      const userId = req.user._id;
+      const userId = req.user.id;
 
       // Verify contract exists and user is part of it
-      const contract = await Contract.findById(contractId);
+      const contract = await Contract.findByPk(contractId);
       if (!contract) {
         res.status(404).json({
           success: false,
@@ -44,8 +45,8 @@ router.post(
       }
 
       if (
-        contract.client.toString() !== userId.toString() &&
-        contract.doer.toString() !== userId.toString()
+        contract.client !== userId &&
+        contract.doer !== userId
       ) {
         res.status(403).json({
           success: false,
@@ -65,7 +66,7 @@ router.post(
       }
 
       // Delete any existing codes for this user and contract
-      await MatchingCode.deleteMany({ contractId, userId });
+      await MatchingCode.destroy({ where: { contractId, userId } });
 
       // Generate new code
       const { code, document } = await (MatchingCode as any).generateCode(
@@ -77,7 +78,7 @@ router.post(
 
       // Notify the other party
       const otherUserId =
-        contract.client.toString() === userId.toString()
+        contract.client === userId
           ? contract.doer
           : contract.client;
 
@@ -136,11 +137,11 @@ router.post(
       }
 
       const { contractId, partnerCode } = req.body;
-      const userId = req.user._id;
+      const userId = req.user.id;
       const clientIp = req.headers["x-forwarded-for"] || req.socket.remoteAddress;
 
       // Verify contract exists and user is part of it
-      const contract = await Contract.findById(contractId);
+      const contract = await Contract.findByPk(contractId);
       if (!contract) {
         res.status(404).json({
           success: false,
@@ -150,8 +151,8 @@ router.post(
       }
 
       if (
-        contract.client.toString() !== userId.toString() &&
-        contract.doer.toString() !== userId.toString()
+        contract.client !== userId &&
+        contract.doer !== userId
       ) {
         res.status(403).json({
           success: false,
@@ -162,13 +163,15 @@ router.post(
 
       // Find partner's code
       const partnerId =
-        contract.client.toString() === userId.toString()
+        contract.client === userId
           ? contract.doer
           : contract.client;
 
       const partnerMatchingCode = await MatchingCode.findOne({
-        contractId,
-        userId: partnerId,
+        where: {
+          contractId,
+          userId: partnerId,
+        }
       });
 
       if (!partnerMatchingCode) {
@@ -250,19 +253,25 @@ router.post(
  */
 router.get("/my-codes", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
 
-    const codes = await MatchingCode.find({
-      userId,
-      expiresAt: { $gt: new Date() },
-    })
-      .populate("contractId", "title")
-      .sort({ createdAt: -1 });
+    const codes = await MatchingCode.findAll({
+      where: {
+        userId,
+        expiresAt: { [Op.gt]: new Date() },
+      },
+      include: [{
+        model: Contract,
+        as: 'contract',
+        attributes: ['title']
+      }],
+      order: [['createdAt', 'DESC']]
+    });
 
     res.json({
       success: true,
       data: codes.map((code) => ({
-        id: code._id,
+        id: code.id,
         contractId: code.contractId,
         validFrom: code.validFrom,
         expiresAt: code.expiresAt,
@@ -288,10 +297,10 @@ router.get("/my-codes", protect, async (req: AuthRequest, res: Response): Promis
 router.get("/status/:contractId", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { contractId } = req.params;
-    const userId = req.user._id;
+    const userId = req.user.id;
 
     // Verify contract exists and user is part of it
-    const contract = await Contract.findById(contractId);
+    const contract = await Contract.findByPk(contractId);
     if (!contract) {
       res.status(404).json({
         success: false,
@@ -301,8 +310,8 @@ router.get("/status/:contractId", protect, async (req: AuthRequest, res: Respons
     }
 
     if (
-      contract.client.toString() !== userId.toString() &&
-      contract.doer.toString() !== userId.toString()
+      contract.client !== userId &&
+      contract.doer !== userId
     ) {
       res.status(403).json({
         success: false,
@@ -312,17 +321,19 @@ router.get("/status/:contractId", protect, async (req: AuthRequest, res: Respons
     }
 
     // Get both users' codes
-    const codes = await MatchingCode.find({
-      contractId,
-      expiresAt: { $gt: new Date() },
+    const codes = await MatchingCode.findAll({
+      where: {
+        contractId,
+        expiresAt: { [Op.gt]: new Date() },
+      }
     });
 
-    const myCode = codes.find((c) => c.userId.toString() === userId.toString());
+    const myCode = codes.find((c) => c.userId === userId);
     const partnerId =
-      contract.client.toString() === userId.toString()
+      contract.client === userId
         ? contract.doer
         : contract.client;
-    const partnerCode = codes.find((c) => c.userId.toString() === partnerId.toString());
+    const partnerCode = codes.find((c) => c.userId === partnerId);
 
     res.json({
       success: true,

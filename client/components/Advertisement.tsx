@@ -32,11 +32,11 @@ const Advertisement: React.FC<AdvertisementProps> = ({ ad, onImpression, onClick
   // Base classes for all ad types
   const baseClasses = 'relative overflow-hidden rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300 cursor-pointer bg-white dark:bg-gray-800';
 
-  // Ad type specific classes - reduced height by 30%
+  // Ad type specific classes
   const typeClasses = {
-    model1: 'col-span-1 sm:col-span-2 lg:col-span-3 aspect-[3/0.7]', // 3x0.7 - Wide banner (30% less height)
-    model2: 'col-span-1 row-span-2 aspect-[1/1.4]', // 1x1.4 - Tall sidebar (30% less height)
-    model3: 'col-span-1 aspect-[1/0.7]', // 1x0.7 - Card (30% less height)
+    model1: 'col-span-1 sm:col-span-2 lg:col-span-3 aspect-[3/1]', // Banner 3x1 - Wide banner (full width)
+    model2: 'col-span-1 row-span-2 h-full', // Sidebar 1x2 - Tall sidebar (1 col, 2 rows height)
+    model3: 'col-span-1 aspect-[1/1]', // Card 1x1 - Square card (same as job cards)
   };
 
   return (

@@ -1,7 +1,7 @@
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { Strategy as FacebookStrategy } from "passport-facebook";
-import User from "../models/User.js";
+import { User } from "../models/sql/User.model.js";
 import { config } from "./env.js";
 
 // Configurar Google OAuth solo si las credenciales están disponibles
@@ -16,7 +16,7 @@ if (config.googleClientId && config.googleClientSecret) {
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
-          let user = await User.findOne({ googleId: profile.id });
+          let user = await User.findOne({ where: { googleId: profile.id } });
 
           if (user) {
             return done(null, user);
@@ -25,8 +25,10 @@ if (config.googleClientId && config.googleClientSecret) {
           // Si no existe, lo creamos
           user = await User.create({
             googleId: profile.id,
-            name: profile.displayName,
-            email: profile.emails?.[0].value,
+            name: profile.displayName || 'Google User',
+            username: profile.emails?.[0].value.split('@')[0] || `google_${profile.id}`,
+            email: profile.emails?.[0].value || '',
+            passwordHash: '', // No necesario para OAuth
             avatar: profile.photos?.[0].value,
             isVerified: true, // Verificado por Google
             termsAccepted: true, // Asumimos aceptación al usar social login
@@ -57,7 +59,7 @@ if (config.facebookAppId && config.facebookAppSecret) {
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
-          let user = await User.findOne({ facebookId: profile.id });
+          let user = await User.findOne({ where: { facebookId: profile.id } });
 
           if (user) {
             return done(null, user);
@@ -66,8 +68,10 @@ if (config.facebookAppId && config.facebookAppSecret) {
           // Si no existe, lo creamos
           user = await User.create({
             facebookId: profile.id,
-            name: profile.displayName,
-            email: profile.emails?.[0].value,
+            name: profile.displayName || 'Facebook User',
+            username: profile.emails?.[0].value.split('@')[0] || `facebook_${profile.id}`,
+            email: profile.emails?.[0].value || '',
+            passwordHash: '', // No necesario para OAuth
             avatar: profile.photos?.[0].value,
             isVerified: true, // Verificado por Facebook
             termsAccepted: true, // Asumimos aceptación al usar social login
@@ -89,9 +93,13 @@ passport.serializeUser((user: any, done) => {
   done(null, user.id);
 });
 
-passport.deserializeUser(async (id, done) => {
-  const user = await User.findById(id);
-  done(null, user);
+passport.deserializeUser(async (id: string, done) => {
+  try {
+    const user = await User.findByPk(id);
+    done(null, user);
+  } catch (error) {
+    done(error, null);
+  }
 });
 
 export default passport;

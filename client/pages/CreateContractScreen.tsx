@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../hooks/useAuth";
 import {
   Calendar,
   Clock,
@@ -13,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { JOB_CATEGORIES, JOB_TAGS } from "../../shared/constants/categories";
+import { CustomDateInput } from "@/components/ui/CustomDatePicker";
 
 interface FormFieldProps {
   label: string;
@@ -45,6 +47,7 @@ function FormField({
 
 export default function CreateContractScreen() {
   const navigate = useNavigate();
+  const { refreshUser } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -93,8 +96,8 @@ export default function CreateContractScreen() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
+        credentials: 'include', // Importante: envía las cookies automáticamente
         body: JSON.stringify(jobData),
       });
 
@@ -104,7 +107,17 @@ export default function CreateContractScreen() {
         throw new Error(data.message || "Error al crear el trabajo");
       }
 
-      navigate("/");
+      // Refresh user data to update contract counts
+      await refreshUser();
+
+      // Check if payment is required (for FREE users)
+      if (data.requiresPayment) {
+        // Redirect to payment page for job publication
+        navigate(`/jobs/${data.job.id || data.job._id}/payment`);
+      } else {
+        // PRO users go directly to home (job is auto-published)
+        navigate("/");
+      }
     } catch (err: any) {
       setError(
         err.message || "No se pudo publicar el trabajo. Inténtalo de nuevo."
@@ -153,7 +166,7 @@ export default function CreateContractScreen() {
                 type="text"
                 required
                 placeholder="Ej: Reparación de cañería en cocina"
-                className="block w-full rounded-md border-0 py-1.5 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
+                className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
               />
             </FormField>
 
@@ -168,7 +181,7 @@ export default function CreateContractScreen() {
                 required
                 maxLength={200}
                 placeholder="Ej: Necesito arreglar una pérdida de agua en la cocina"
-                className="block w-full rounded-md border-0 py-1.5 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
+                className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
               />
             </FormField>
 
@@ -182,7 +195,7 @@ export default function CreateContractScreen() {
                 rows={5}
                 required
                 placeholder="Describe el problema, qué esperas que se haga, si se necesitan materiales especiales, etc."
-                className="block w-full rounded-md border-0 py-1.5 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
+                className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
               />
             </FormField>
 
@@ -257,7 +270,7 @@ export default function CreateContractScreen() {
                     onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), handleAddCustomTag())}
                     placeholder="O agrega una etiqueta personalizada"
                     disabled={selectedTags.length >= 10}
-                    className="block flex-1 rounded-md border-0 py-1.5 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50"
+                    className="block flex-1 rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50"
                   />
                   <button
                     type="button"
@@ -279,7 +292,7 @@ export default function CreateContractScreen() {
                     type="number"
                     required
                     placeholder="15000"
-                    className="block w-full rounded-md border-0 py-1.5 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
+                    className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
                   />
                 </FormField>
               </div>
@@ -290,7 +303,7 @@ export default function CreateContractScreen() {
                     type="text"
                     required
                     placeholder="Ej: Palermo, CABA"
-                    className="block w-full rounded-md border-0 py-1.5 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
+                    className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
                   />
                 </FormField>
               </div>
@@ -299,21 +312,23 @@ export default function CreateContractScreen() {
             <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
               <div className="sm:col-span-3">
                 <FormField label="Fecha de inicio" icon={Calendar}>
-                  <input
+                  <CustomDateInput
                     name="startDate"
-                    type="datetime-local"
+                    type="datetime"
                     required
-                    className="block w-full rounded-md border-0 py-1.5 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
+                    placeholder="Selecciona fecha y hora de inicio"
+                    minDate={new Date()}
                   />
                 </FormField>
               </div>
               <div className="sm:col-span-3">
                 <FormField label="Fecha de finalización estimada" icon={Clock}>
-                  <input
+                  <CustomDateInput
                     name="endDate"
-                    type="datetime-local"
+                    type="datetime"
                     required
-                    className="block w-full rounded-md border-0 py-1.5 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
+                    placeholder="Selecciona fecha y hora de fin"
+                    minDate={new Date()}
                   />
                 </FormField>
               </div>

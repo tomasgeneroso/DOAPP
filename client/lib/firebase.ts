@@ -1,0 +1,179 @@
+/**
+ * Firebase Configuration for DOAPP
+ * Handles push notifications (FCM)
+ */
+
+import { initializeApp } from "firebase/app";
+import { getMessaging, getToken, onMessage, Messaging } from "firebase/messaging";
+
+// Firebase configuration from Firebase Console
+const firebaseConfig = {
+  apiKey: "AIzaSyCwqJITo8rB26m8id2RZeK7yVq00cWPCiU",
+  authDomain: "doapp-f7506.firebaseapp.com",
+  projectId: "doapp-f7506",
+  storageBucket: "doapp-f7506.firebasestorage.app",
+  messagingSenderId: "464269120979",
+  appId: "1:464269120979:web:4b8db1890e27ad53cbcb26",
+  measurementId: "G-PKXWQFPCN0"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+
+// Initialize Firebase Cloud Messaging
+let messaging: Messaging | null = null;
+
+// Only initialize messaging if supported (not in SSR)
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  try {
+    messaging = getMessaging(app);
+  } catch (error) {
+    console.error('Error initializing Firebase Messaging:', error);
+  }
+}
+
+/**
+ * Request permission for notifications and get FCM token
+ * @returns FCM token or null if permission denied
+ */
+export const requestNotificationPermission = async (): Promise<string | null> => {
+  if (!messaging) {
+    console.warn('Firebase Messaging not initialized');
+    return null;
+  }
+
+  try {
+    // Request notification permission
+    const permission = await Notification.requestPermission();
+
+    if (permission === 'granted') {
+      console.log('✅ Notification permission granted');
+
+      // Get FCM token
+      // You need to generate a VAPID key in Firebase Console:
+      // Settings → Cloud Messaging → Web Push certificates → Generate key pair
+      const vapidKey = 'YOUR_VAPID_KEY_HERE'; // TODO: Replace with actual VAPID key
+
+      const token = await getToken(messaging, { vapidKey });
+
+      if (token) {
+        console.log('📱 FCM Token:', token);
+        return token;
+      } else {
+        console.log('⚠️ No registration token available');
+        return null;
+      }
+    } else if (permission === 'denied') {
+      console.log('❌ Notification permission denied');
+      return null;
+    } else {
+      console.log('⏸️ Notification permission dismissed');
+      return null;
+    }
+  } catch (error) {
+    console.error('Error getting notification permission:', error);
+    return null;
+  }
+};
+
+/**
+ * Register FCM token with backend
+ * @param token FCM token
+ */
+export const registerFCMToken = async (token: string): Promise<boolean> => {
+  try {
+    const response = await fetch('/api/notifications/subscribe', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+      body: JSON.stringify({ fcmToken: token }),
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      console.log('✅ FCM token registered with backend');
+      return true;
+    } else {
+      console.error('❌ Failed to register FCM token:', data.message);
+      return false;
+    }
+  } catch (error) {
+    console.error('Error registering FCM token:', error);
+    return false;
+  }
+};
+
+/**
+ * Setup foreground message handler
+ * This handles notifications when the app is open
+ */
+export const setupForegroundMessageHandler = () => {
+  if (!messaging) {
+    return;
+  }
+
+  onMessage(messaging, (payload) => {
+    console.log('📬 Foreground notification received:', payload);
+
+    // Show notification
+    const { title, body, icon } = payload.notification || {};
+
+    if (title) {
+      // You can use a toast notification library here
+      // or create a custom in-app notification
+      console.log('Notification:', title, body);
+
+      // Example: Show browser notification even when app is open
+      if (Notification.permission === 'granted') {
+        new Notification(title, {
+          body: body || '',
+          icon: icon || '/logo.png',
+          badge: '/logo.png',
+          tag: payload.messageId,
+        });
+      }
+    }
+  });
+};
+
+/**
+ * Initialize Firebase notifications
+ * Call this when user logs in
+ */
+export const initializeNotifications = async (): Promise<void> => {
+  console.log('🔔 Initializing push notifications...');
+
+  // Check if browser supports notifications
+  if (!('Notification' in window)) {
+    console.warn('⚠️ This browser does not support notifications');
+    return;
+  }
+
+  // Check if service workers are supported
+  if (!('serviceWorker' in navigator)) {
+    console.warn('⚠️ This browser does not support service workers');
+    return;
+  }
+
+  try {
+    // Request permission and get token
+    const token = await requestNotificationPermission();
+
+    if (token) {
+      // Register token with backend
+      await registerFCMToken(token);
+
+      // Setup foreground message handler
+      setupForegroundMessageHandler();
+
+      console.log('✅ Push notifications initialized successfully');
+    }
+  } catch (error) {
+    console.error('❌ Error initializing notifications:', error);
+  }
+};
+
+export { app, messaging };

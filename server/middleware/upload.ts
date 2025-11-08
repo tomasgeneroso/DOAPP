@@ -25,18 +25,28 @@ const ALLOWED_DOCUMENT_TYPES = [
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ];
 
+const ALLOWED_VIDEO_TYPES = [
+  "video/mp4",
+  "video/mpeg",
+  "video/quicktime",
+  "video/x-msvideo",
+  "video/webm",
+];
+
 // File size limits (in bytes)
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_DOCUMENT_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_VIDEO_SIZE = 50 * 1024 * 1024; // 50MB
 
 // Upload directories
 const UPLOAD_DIR = path.join(process.cwd(), "uploads");
 const AVATAR_DIR = path.join(UPLOAD_DIR, "avatars");
 const DOCUMENT_DIR = path.join(UPLOAD_DIR, "documents");
 const PORTFOLIO_DIR = path.join(UPLOAD_DIR, "portfolio");
+const DISPUTE_DIR = path.join(UPLOAD_DIR, "disputes");
 
 // Ensure directories exist
-[UPLOAD_DIR, AVATAR_DIR, DOCUMENT_DIR, PORTFOLIO_DIR].forEach((dir) => {
+[UPLOAD_DIR, AVATAR_DIR, DOCUMENT_DIR, PORTFOLIO_DIR, DISPUTE_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -118,6 +128,23 @@ function allFilesFilter(
 }
 
 /**
+ * File filter for dispute attachments (images, videos, documents)
+ */
+function disputeFileFilter(
+  req: Express.Request,
+  file: Express.Multer.File,
+  callback: multer.FileFilterCallback
+) {
+  const allowedTypes = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES, ...ALLOWED_DOCUMENT_TYPES];
+
+  if (!allowedTypes.includes(file.mimetype)) {
+    callback(new Error("Tipo de archivo no permitido. Solo se permiten imágenes, videos y documentos."));
+    return;
+  }
+  callback(null, true);
+}
+
+/**
  * Storage configuration for avatars
  */
 const avatarStorage = multer.diskStorage({
@@ -157,6 +184,19 @@ const portfolioStorage = multer.diskStorage({
 });
 
 /**
+ * Storage configuration for dispute attachments
+ */
+const disputeStorage = multer.diskStorage({
+  destination: (req, file, callback) => {
+    callback(null, DISPUTE_DIR);
+  },
+  filename: (req, file, callback) => {
+    const uniqueName = generateUniqueFilename(sanitizeFilename(file.originalname));
+    callback(null, uniqueName);
+  },
+});
+
+/**
  * Upload middleware for avatar images
  */
 export const uploadAvatar = multer({
@@ -167,6 +207,18 @@ export const uploadAvatar = multer({
     files: 1,
   },
 }).single("avatar");
+
+/**
+ * Upload middleware for cover image
+ */
+export const uploadCover = multer({
+  storage: avatarStorage, // Reuse avatar storage
+  fileFilter: imageFileFilter,
+  limits: {
+    fileSize: MAX_IMAGE_SIZE,
+    files: 1,
+  },
+}).single("cover");
 
 /**
  * Upload middleware for documents
@@ -205,6 +257,30 @@ export const uploadMixed = multer({
 }).array("files", 5);
 
 /**
+ * Upload middleware for dispute attachments (images, videos, documents)
+ */
+export const uploadDisputeAttachments = multer({
+  storage: disputeStorage,
+  fileFilter: disputeFileFilter,
+  limits: {
+    fileSize: MAX_VIDEO_SIZE, // Allow up to 50MB for videos
+    files: 10, // Max 10 attachments per dispute
+  },
+}).array("attachments", 10);
+
+/**
+ * Upload middleware for post gallery (images and videos)
+ */
+export const uploadPostGallery = multer({
+  storage: disputeStorage, // Reuse dispute storage for posts
+  fileFilter: disputeFileFilter, // Allows images and videos
+  limits: {
+    fileSize: MAX_VIDEO_SIZE, // Allow up to 50MB for videos
+    files: 10, // Max 10 files per post
+  },
+}).array("gallery", 10);
+
+/**
  * Delete uploaded file
  */
 export function deleteFile(filepath: string): void {
@@ -221,11 +297,11 @@ export function deleteFile(filepath: string): void {
 /**
  * Get file URL from filepath
  */
-export function getFileUrl(filepath: string, req: Express.Request): string {
+export function getFileUrl(filepath: string, req: any): string {
   const filename = path.basename(filepath);
   const directory = path.basename(path.dirname(filepath));
-  const protocol = req.protocol;
-  const host = req.get("host");
+  const protocol = req.protocol || 'http';
+  const host = req.get ? req.get("host") : 'localhost:5000';
 
   return `${protocol}://${host}/uploads/${directory}/${filename}`;
 }
@@ -274,6 +350,7 @@ export default {
   uploadDocument,
   uploadPortfolio,
   uploadMixed,
+  uploadDisputeAttachments,
   deleteFile,
   getFileUrl,
   verifyFile,
@@ -282,4 +359,5 @@ export default {
   AVATAR_DIR,
   DOCUMENT_DIR,
   PORTFOLIO_DIR,
+  DISPUTE_DIR,
 };

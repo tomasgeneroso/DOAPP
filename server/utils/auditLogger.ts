@@ -1,6 +1,6 @@
 import crypto from "crypto";
-import AuditLog from "../models/AuditLog";
 import { Request } from "express";
+import { AuditLog } from "../models/sql/AuditLog.model.js";
 
 /**
  * Generate SHA256 hash for audit integrity
@@ -60,18 +60,20 @@ export async function createAuditLog(params: {
 
     const signature = generateHash(dataToHash);
 
-    const auditEntry = await AuditLog.create({
-      userId: params.userId,
+    const auditEntry = await AuditLog.logAdminAction({
+      performedBy: params.userId?.toString() || 'system',
+      adminRole: 'system',
       action: params.action,
-      entity: params.entity,
-      entityId: params.entityId,
+      category: params.entity,
       description: params.description,
-      ipAddress: params.ipAddress || "unknown",
+      targetModel: params.entity,
+      targetId: params.entityId,
+      ip: params.ipAddress || "unknown",
       userAgent: params.userAgent || "unknown",
       changes: params.changes || [],
       metadata: params.metadata || {},
       signature,
-      ownerPasswordVerified: params.ownerPasswordVerified || false,
+      passwordVerified: params.ownerPasswordVerified || false,
       twoFactorVerified: params.twoFactorVerified || false,
     });
 
@@ -222,17 +224,9 @@ export async function logSuspiciousActivity(
  */
 export async function cleanupOldAuditLogs(retentionDays: number = 90) {
   try {
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
-
-    const result = await AuditLog.deleteMany({
-      createdAt: { $lt: cutoffDate },
-      // Keep critical logs forever
-      action: { $not: /^(admin\.(delete|ban)|security\.)/i },
-    });
-
-    console.log(`[Audit Log] Cleaned up ${result.deletedCount} old logs`);
-    return result.deletedCount;
+    const deletedCount = await AuditLog.cleanupOldLogs(retentionDays);
+    console.log(`[Audit Log] Cleaned up ${deletedCount} old logs`);
+    return deletedCount;
   } catch (error) {
     console.error("[Audit Log] Error cleaning up logs:", error);
     return 0;

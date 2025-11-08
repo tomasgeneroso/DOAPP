@@ -1,6 +1,8 @@
 import express, { Request, Response } from "express";
-import Ticket from "../../models/Ticket.js";
-import Notification from "../../models/Notification.js";
+import { Ticket } from "../../models/sql/Ticket.model.js";
+import { User } from "../../models/sql/User.model.js";
+import { Notification } from "../../models/sql/Notification.model.js";
+import { Contract } from "../../models/sql/Contract.model.js";
 import { protect } from "../../middleware/auth.js";
 import { requirePermission, requireAdminRole } from "../../middleware/permissions.js";
 import { logAudit, getSeverityForAction } from "../../utils/auditLog.js";
@@ -44,17 +46,18 @@ router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
     const sortOptions: any = {};
     sortOptions[sortBy as string] = sortOrder === "desc" ? -1 : 1;
 
-    const [tickets, total] = await Promise.all([
-      Ticket.find(query)
-        .populate("createdBy", "name email avatar")
-        .populate("assignedTo", "name email avatar")
-        .populate("relatedUser", "name email")
-        .populate("relatedContract")
-        .sort(sortOptions)
-        .skip(skip)
-        .limit(parseInt(limit as string)),
-      Ticket.countDocuments(query),
-    ]);
+    const { rows: tickets, count: total } = await Ticket.findAndCountAll({
+      where: query,
+      limit: parseInt(limit as string),
+      offset: skip,
+      order: Object.entries(sortOptions).map(([key, value]) => [key, value === -1 ? 'DESC' : 'ASC']),
+      include: [
+        { model: User, as: 'createdBy', attributes: ['name', 'email', 'avatar'] },
+        { model: User, as: 'assignedTo', attributes: ['name', 'email', 'avatar'] },
+        { model: User, as: 'relatedUser', attributes: ['name', 'email'] },
+        { model: Contract, as: 'relatedContract' }
+      ]
+    });
 
     res.json({
       success: true,
@@ -79,13 +82,15 @@ router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
 // @access  Private
 router.get("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const ticket = await Ticket.findById(req.params.id)
-      .populate("createdBy", "name email avatar")
-      .populate("assignedTo", "name email avatar adminRole")
-      .populate("relatedUser", "name email")
-      .populate("relatedContract")
-      .populate("messages.author", "name email avatar adminRole")
-      .populate("closedBy", "name email");
+    const ticket = await Ticket.findByPk(req.params.id, {
+      include: [
+        { model: User, as: 'createdBy', attributes: ['name', 'email', 'avatar'] },
+        { model: User, as: 'assignedTo', attributes: ['name', 'email', 'avatar', 'adminRole'] },
+        { model: User, as: 'relatedUser', attributes: ['name', 'email'] },
+        { model: Contract, as: 'relatedContract' },
+        { model: User, as: 'closedBy', attributes: ['name', 'email'] }
+      ]
+    });
 
     if (!ticket) {
       res.status(404).json({
@@ -96,7 +101,8 @@ router.get("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
     }
 
     // Usuarios normales solo ven sus tickets
-    if (!req.user.adminRole && ticket.createdBy._id.toString() !== req.user._id.toString()) {
+    const createdById = typeof ticket.createdBy === 'object' ? ticket.createdBy.id : ticket.createdBy;
+    if (!req.user.adminRole && createdById.toString() !== req.user._id.toString()) {
       res.status(403).json({
         success: false,
         message: "No tienes permiso para ver este ticket",
@@ -105,8 +111,8 @@ router.get("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
     }
 
     // Filtrar mensajes internos si no es staff
-    if (!req.user.adminRole) {
-      ticket.messages = ticket.messages.filter((msg) => !msg.isInternal);
+    if (!req.user.adminRole && ticket.messages) {
+      ticket.messages = ticket.messages.filter((msg: any) => !msg.isInternal);
     }
 
     res.json({
@@ -152,7 +158,9 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
       ],
     });
 
-    await ticket.populate("createdBy", "name email avatar");
+    await ticket.reload({
+      include: [{ model: User, as: 'createdBy', attributes: ['name', 'email', 'avatar'] }]
+    });
 
     // Notificar a staff
     // TODO: Implementar lógica de notificación a support team
@@ -185,7 +193,7 @@ router.post("/:id/messages", async (req: AuthRequest, res: Response): Promise<vo
       return;
     }
 
-    const ticket = await Ticket.findById(req.params.id);
+    const ticket = await Ticket.findByPk(req.params.id);
 
     if (!ticket) {
       res.status(404).json({
@@ -196,7 +204,8 @@ router.post("/:id/messages", async (req: AuthRequest, res: Response): Promise<vo
     }
 
     // Usuarios normales solo pueden comentar en sus tickets
-    if (!req.user.adminRole && ticket.createdBy.toString() !== req.user._id.toString()) {
+    const createdById = typeof ticket.createdBy === 'object' ? ticket.createdBy.id : ticket.createdBy;
+    if (!req.user.adminRole && createdById.toString() !== req.user._id.toString()) {
       res.status(403).json({
         success: false,
         message: "No tienes permiso para comentar en este ticket",
@@ -207,27 +216,29 @@ router.post("/:id/messages", async (req: AuthRequest, res: Response): Promise<vo
     // Solo staff puede hacer comentarios internos
     const messageIsInternal = req.user.adminRole ? isInternal : false;
 
-    ticket.messages.push({
+    const messages = ticket.messages || [];
+    messages.push({
       author: req.user._id,
       message,
       isInternal: messageIsInternal,
       createdAt: new Date(),
-    });
+    } as any);
 
-    await ticket.save();
-    await ticket.populate("messages.author", "name email avatar adminRole");
+    await ticket.update({ messages });
+    await ticket.reload();
 
     // Notificar al creador si el mensaje es de staff
     if (req.user.adminRole && !messageIsInternal) {
+      const recipientId = typeof ticket.createdBy === 'object' ? ticket.createdBy.id : ticket.createdBy;
       await Notification.create({
-        recipient: ticket.createdBy,
+        recipient: recipientId,
         type: "info",
         category: "ticket",
         title: `Nuevo mensaje en ticket ${ticket.ticketNumber}`,
         message: `${req.user.name} ha respondido a tu ticket`,
         relatedModel: "Ticket",
-        relatedId: ticket._id,
-        actionUrl: `/admin/tickets/${ticket._id}`,
+        relatedId: ticket.id,
+        actionUrl: `/admin/tickets/${ticket.id}`,
         actionText: "Ver ticket",
         sentVia: ["in_app"],
       });
@@ -256,16 +267,7 @@ router.put(
     try {
       const { assignedTo } = req.body;
 
-      const ticket = await Ticket.findByIdAndUpdate(
-        req.params.id,
-        {
-          assignedTo,
-          status: assignedTo ? "assigned" : "open",
-        },
-        { new: true }
-      )
-        .populate("createdBy", "name email")
-        .populate("assignedTo", "name email");
+      const ticket = await Ticket.findByPk(req.params.id);
 
       if (!ticket) {
         res.status(404).json({
@@ -275,6 +277,18 @@ router.put(
         return;
       }
 
+      await ticket.update({
+        assignedTo,
+        status: assignedTo ? "assigned" : "open",
+      });
+
+      await ticket.reload({
+        include: [
+          { model: User, as: 'createdBy', attributes: ['name', 'email'] },
+          { model: User, as: 'assignedTo', attributes: ['name', 'email'] }
+        ]
+      });
+
       await logAudit({
         req,
         action: "assign_ticket",
@@ -282,7 +296,7 @@ router.put(
         severity: "low",
         description: `Ticket ${ticket.ticketNumber} asignado`,
         targetModel: "Ticket",
-        targetId: ticket._id.toString(),
+        targetId: ticket.id.toString(),
         targetIdentifier: ticket.ticketNumber,
         metadata: { assignedTo },
       });
@@ -319,11 +333,7 @@ router.put(
         return;
       }
 
-      const ticket = await Ticket.findByIdAndUpdate(
-        req.params.id,
-        { status },
-        { new: true }
-      ).populate("createdBy", "name email");
+      const ticket = await Ticket.findByPk(req.params.id);
 
       if (!ticket) {
         res.status(404).json({
@@ -333,6 +343,11 @@ router.put(
         return;
       }
 
+      await ticket.update({ status });
+      await ticket.reload({
+        include: [{ model: User, as: 'createdBy', attributes: ['name', 'email'] }]
+      });
+
       await logAudit({
         req,
         action: "update_ticket_status",
@@ -340,7 +355,7 @@ router.put(
         severity: "low",
         description: `Estado de ticket ${ticket.ticketNumber} cambiado a ${status}`,
         targetModel: "Ticket",
-        targetId: ticket._id.toString(),
+        targetId: ticket.id.toString(),
         targetIdentifier: ticket.ticketNumber,
         metadata: { status },
       });
@@ -369,18 +384,7 @@ router.put(
     try {
       const { resolution } = req.body;
 
-      const ticket = await Ticket.findByIdAndUpdate(
-        req.params.id,
-        {
-          status: "closed",
-          resolution,
-          closedAt: new Date(),
-          closedBy: req.user._id,
-        },
-        { new: true }
-      )
-        .populate("createdBy", "name email")
-        .populate("closedBy", "name email");
+      const ticket = await Ticket.findByPk(req.params.id);
 
       if (!ticket) {
         res.status(404).json({
@@ -390,6 +394,20 @@ router.put(
         return;
       }
 
+      await ticket.update({
+        status: "closed",
+        resolution,
+        closedAt: new Date(),
+        closedBy: req.user._id,
+      });
+
+      await ticket.reload({
+        include: [
+          { model: User, as: 'createdBy', attributes: ['name', 'email'] },
+          { model: User, as: 'closedBy', attributes: ['name', 'email'] }
+        ]
+      });
+
       await logAudit({
         req,
         action: "close_ticket",
@@ -397,21 +415,22 @@ router.put(
         severity: "low",
         description: `Ticket ${ticket.ticketNumber} cerrado`,
         targetModel: "Ticket",
-        targetId: ticket._id.toString(),
+        targetId: ticket.id.toString(),
         targetIdentifier: ticket.ticketNumber,
         metadata: { resolution },
       });
 
       // Notificar al creador
+      const createdById = typeof ticket.createdBy === 'object' ? ticket.createdBy.id : ticket.createdBy;
       await Notification.create({
-        recipient: ticket.createdBy._id,
+        recipient: createdById,
         type: "success",
         category: "ticket",
         title: `Ticket ${ticket.ticketNumber} cerrado`,
         message: resolution || "Tu ticket ha sido cerrado",
         relatedModel: "Ticket",
-        relatedId: ticket._id,
-        actionUrl: `/admin/tickets/${ticket._id}`,
+        relatedId: ticket.id,
+        actionUrl: `/admin/tickets/${ticket.id}`,
         actionText: "Ver ticket",
         sentVia: ["in_app"],
       });
@@ -429,5 +448,64 @@ router.put(
     }
   }
 );
+
+/**
+ * POST /api/admin/tickets/create
+ * Create a ticket on behalf of a user (admin only)
+ */
+router.post("/create", async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { userId, subject, category, priority, message } = req.body;
+
+    if (!userId || !subject || !category || !priority || !message) {
+      res.status(400).json({
+        success: false,
+        message: "Faltan campos requeridos",
+      });
+      return;
+    }
+
+    // Verify user exists
+    const user = await User.findByPk(userId);
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: "Usuario no encontrado",
+      });
+      return;
+    }
+
+    // Create ticket
+    const ticket = await Ticket.create({
+      createdBy: userId,
+      subject,
+      category,
+      priority,
+      status: "open",
+      messages: [
+        {
+          sender: userId,
+          message,
+          isAdminResponse: false,
+        },
+      ],
+    });
+
+    await ticket.reload({
+      include: [{ model: User, as: 'createdBy', attributes: ['name', 'email', 'avatar'] }]
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Ticket creado exitosamente",
+      data: ticket,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
 
 export default router;

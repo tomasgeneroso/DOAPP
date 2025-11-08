@@ -57,3 +57,5 @@ export const AnimatedButton: React.FC<AnimatedButtonProps> = ({
     </button>
   );
 };
+
+export default AnimatedButton;

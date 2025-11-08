@@ -1,14 +1,17 @@
 import express, { Request, Response } from "express";
 import { body, validationResult } from "express-validator";
-import Proposal from "../models/Proposal.js";
-import Job from "../models/Job.js";
-import Contract from "../models/Contract.js";
-import Conversation from "../models/Conversation.js";
-import ChatMessage from "../models/ChatMessage.js";
+import { Proposal } from "../models/sql/Proposal.model.js";
+import { Job } from "../models/sql/Job.model.js";
+import { Contract } from "../models/sql/Contract.model.js";
+import { Conversation } from "../models/sql/Conversation.model.js";
+import { ChatMessage } from "../models/sql/ChatMessage.model.js";
+import { User } from "../models/sql/User.model.js";
 import { protect } from "../middleware/auth.js";
 import type { AuthRequest } from "../types/index.js";
 import emailService from "../services/email.js";
 import { config } from "../config/env.js";
+import { socketService } from "../index.js";
+import { Op } from 'sequelize';
 
 const router = express.Router();
 
@@ -19,27 +22,46 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
   try {
     const { status, type } = req.query;
 
-    let query: any = {};
+    let whereClause: any = {};
 
     // type: 'sent' (propuestas enviadas) o 'received' (propuestas recibidas)
     if (type === "sent") {
-      query.freelancer = req.user._id;
+      whereClause.freelancerId = req.user.id;
     } else if (type === "received") {
-      query.client = req.user._id;
+      whereClause.clientId = req.user.id;
     } else {
       // Por defecto, mostrar todas las propuestas relacionadas con el usuario
-      query.$or = [{ freelancer: req.user._id }, { client: req.user._id }];
+      whereClause[Op.or] = [
+        { freelancerId: req.user.id },
+        { clientId: req.user.id }
+      ];
     }
 
     if (status) {
-      query.status = status;
+      whereClause.status = status;
     }
 
-    const proposals = await Proposal.find(query)
-      .populate("job", "title summary price location category")
-      .populate("freelancer", "name avatar rating reviewsCount completedJobs")
-      .populate("client", "name avatar")
-      .sort({ createdAt: -1 });
+    const proposals = await Proposal.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: Job,
+          as: 'job',
+          attributes: ['title', 'summary', 'price', 'location', 'category']
+        },
+        {
+          model: User,
+          as: 'freelancer',
+          attributes: ['name', 'avatar', 'rating', 'reviewsCount', 'completedJobs']
+        },
+        {
+          model: User,
+          as: 'client',
+          attributes: ['name', 'avatar']
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
 
     res.json({
       success: true,
@@ -59,7 +81,7 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
 // @access  Private
 router.get("/job/:jobId", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const job = await Job.findById(req.params.jobId);
+    const job = await Job.findByPk(req.params.jobId);
 
     if (!job) {
       res.status(404).json({
@@ -70,7 +92,7 @@ router.get("/job/:jobId", protect, async (req: AuthRequest, res: Response): Prom
     }
 
     // Verificar que el usuario sea el dueño del trabajo
-    if (job.client.toString() !== req.user._id.toString()) {
+    if (job.clientId !== req.user.id) {
       res.status(403).json({
         success: false,
         message: "No tienes permiso para ver las propuestas de este trabajo",
@@ -78,9 +100,17 @@ router.get("/job/:jobId", protect, async (req: AuthRequest, res: Response): Prom
       return;
     }
 
-    const proposals = await Proposal.find({ job: req.params.jobId })
-      .populate("freelancer", "name avatar rating reviewsCount completedJobs")
-      .sort({ createdAt: -1 });
+    const proposals = await Proposal.findAll({
+      where: { jobId: req.params.jobId },
+      include: [
+        {
+          model: User,
+          as: 'freelancer',
+          attributes: ['name', 'avatar', 'rating', 'reviewsCount', 'completedJobs']
+        }
+      ],
+      order: [['createdAt', 'DESC']]
+    });
 
     res.json({
       success: true,
@@ -100,10 +130,24 @@ router.get("/job/:jobId", protect, async (req: AuthRequest, res: Response): Prom
 // @access  Private
 router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const proposal = await Proposal.findById(req.params.id)
-      .populate("job")
-      .populate("freelancer", "name email avatar rating reviewsCount completedJobs")
-      .populate("client", "name email avatar");
+    const proposal = await Proposal.findByPk(req.params.id, {
+      include: [
+        {
+          model: Job,
+          as: 'job'
+        },
+        {
+          model: User,
+          as: 'freelancer',
+          attributes: ['name', 'email', 'avatar', 'rating', 'reviewsCount', 'completedJobs']
+        },
+        {
+          model: User,
+          as: 'client',
+          attributes: ['name', 'email', 'avatar']
+        }
+      ]
+    });
 
     if (!proposal) {
       res.status(404).json({
@@ -114,8 +158,8 @@ router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
     }
 
     // Verificar que el usuario sea parte de la propuesta
-    const isFreelancer = proposal.freelancer._id.toString() === req.user._id.toString();
-    const isClient = proposal.client._id.toString() === req.user._id.toString();
+    const isFreelancer = proposal.freelancerId === req.user.id;
+    const isClient = proposal.clientId === req.user.id;
 
     if (!isFreelancer && !isClient) {
       res.status(403).json({
@@ -173,7 +217,7 @@ router.post(
       const { job: jobId, coverLetter, proposedPrice, estimatedDuration } = req.body;
 
       // Verificar que el trabajo existe y está abierto
-      const job = await Job.findById(jobId);
+      const job = await Job.findByPk(jobId);
       if (!job) {
         res.status(404).json({
           success: false,
@@ -191,7 +235,7 @@ router.post(
       }
 
       // Verificar que el usuario no sea el dueño del trabajo
-      if (job.client.toString() === req.user._id.toString()) {
+      if (job.clientId === req.user.id) {
         res.status(400).json({
           success: false,
           message: "No puedes enviar una propuesta a tu propio trabajo",
@@ -201,8 +245,10 @@ router.post(
 
       // Verificar que no haya enviado una propuesta previamente
       const existingProposal = await Proposal.findOne({
-        job: jobId,
-        freelancer: req.user._id,
+        where: {
+          jobId: jobId,
+          freelancerId: req.user.id,
+        }
       });
 
       if (existingProposal) {
@@ -213,24 +259,103 @@ router.post(
         return;
       }
 
+      // Detectar si es contraoferta (precio diferente al original)
+      const isCounterOffer = proposedPrice !== job.price;
+
       // Crear propuesta
       const proposal = await Proposal.create({
-        job: jobId,
-        freelancer: req.user._id,
-        client: job.client,
+        jobId: jobId,
+        freelancerId: req.user.id,
+        clientId: job.clientId,
         coverLetter,
         proposedPrice,
         estimatedDuration,
+        isCounterOffer,
+        originalJobPrice: job.price,
       });
 
-      const populatedProposal = await Proposal.findById(proposal._id)
-        .populate("job", "title summary price location")
-        .populate("freelancer", "name avatar rating reviewsCount")
-        .populate("client", "name avatar");
+      const populatedProposal = await Proposal.findByPk(proposal.id, {
+        include: [
+          {
+            model: Job,
+            as: 'job',
+            attributes: ['title', 'summary', 'price', 'location']
+          },
+          {
+            model: User,
+            as: 'freelancer',
+            attributes: ['name', 'avatar', 'rating', 'reviewsCount']
+          },
+          {
+            model: User,
+            as: 'client',
+            attributes: ['name', 'avatar']
+          }
+        ]
+      });
+
+      // Crear o encontrar conversación
+      let conversation = await Conversation.findOne({
+        where: {
+          participants: {
+            [Op.contains]: [req.user.id, job.clientId]
+          },
+          jobId: job.id,
+          type: "direct",
+        }
+      });
+
+      if (!conversation) {
+        conversation = await Conversation.create({
+          participants: [req.user.id, job.clientId],
+          jobId: job.id,
+          type: "direct",
+        });
+      }
+
+      // Crear mensaje del sistema
+      const messageText = isCounterOffer
+        ? `${req.user.name} envió una contraoferta||${job.title}||**Contraoferta:** $${proposedPrice.toLocaleString("es-AR")} ARS (Precio original: $${job.price.toLocaleString("es-AR")} ARS)\n**Ubicación:** ${job.location}\n**Duración estimada:** ${estimatedDuration} días\n\n**Mensaje:**\n${coverLetter}`
+        : `${req.user.name} aplicó al trabajo||${job.title}||**Precio propuesto:** $${proposedPrice.toLocaleString("es-AR")} ARS\n**Ubicación:** ${job.location}\n**Duración estimada:** ${estimatedDuration} días\n**Fecha de inicio:** ${new Date(job.startDate).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })}`;
+
+      await ChatMessage.create({
+        conversationId: conversation.id,
+        senderId: req.user.id,
+        message: messageText,
+        type: "system",
+        metadata: {
+          jobId: job.id,
+          proposalId: proposal.id,
+          action: "job_application",
+          isCounterOffer,
+        },
+      });
+
+      // Actualizar conversación
+      conversation.lastMessage = isCounterOffer ? "Nueva contraoferta recibida" : "Nueva aplicación recibida";
+      conversation.lastMessageAt = new Date();
+      await conversation.save();
+
+      // Send real-time notifications via Socket.io
+      socketService.notifyProposalUpdate(
+        proposal.id,
+        req.user.id,
+        job.clientId,
+        {
+          action: 'created',
+          proposal: populatedProposal,
+          isCounterOffer
+        }
+      );
+
+      // Notify dashboard refresh for both parties
+      socketService.notifyDashboardRefresh(req.user.id);
+      socketService.notifyDashboardRefresh(job.clientId);
 
       res.status(201).json({
         success: true,
         proposal: populatedProposal,
+        conversationId: conversation.id,
       });
     } catch (error: any) {
       res.status(500).json({
@@ -246,7 +371,14 @@ router.post(
 // @access  Private
 router.put("/:id/approve", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const proposal = await Proposal.findById(req.params.id).populate("job");
+    const proposal = await Proposal.findByPk(req.params.id, {
+      include: [
+        {
+          model: Job,
+          as: 'job'
+        }
+      ]
+    });
 
     if (!proposal) {
       res.status(404).json({
@@ -257,7 +389,7 @@ router.put("/:id/approve", protect, async (req: AuthRequest, res: Response): Pro
     }
 
     // Verificar que el usuario sea el cliente
-    if (proposal.client.toString() !== req.user._id.toString()) {
+    if (proposal.clientId !== req.user.id) {
       res.status(403).json({
         success: false,
         message: "Solo el cliente puede aprobar esta propuesta",
@@ -278,24 +410,36 @@ router.put("/:id/approve", protect, async (req: AuthRequest, res: Response): Pro
     await proposal.save();
 
     // Rechazar todas las demás propuestas del mismo trabajo
-    await Proposal.updateMany(
-      {
-        job: proposal.job._id,
-        _id: { $ne: proposal._id },
-        status: "pending",
-      },
+    await Proposal.update(
       {
         status: "rejected",
         rejectionReason: "Se aprobó otra propuesta",
+      },
+      {
+        where: {
+          jobId: proposal.jobId,
+          id: { [Op.ne]: proposal.id },
+          status: "pending",
+        }
       }
     );
 
     // Actualizar trabajo
-    const job = await Job.findById(proposal.job._id);
+    const job = await Job.findByPk(proposal.jobId);
     if (job) {
       job.status = "in_progress";
-      job.doer = proposal.freelancer;
+      job.doerId = proposal.freelancerId;
       await job.save();
+    }
+
+    // Validar monto mínimo de $5000 ARS
+    const MINIMUM_CONTRACT_AMOUNT = 5000;
+    if (proposal.proposedPrice < MINIMUM_CONTRACT_AMOUNT) {
+      res.status(400).json({
+        success: false,
+        message: `El monto mínimo del contrato es de $${MINIMUM_CONTRACT_AMOUNT.toLocaleString()} ARS`,
+      });
+      return;
     }
 
     // Crear contrato automáticamente
@@ -307,10 +451,10 @@ router.put("/:id/approve", protect, async (req: AuthRequest, res: Response): Pro
     const endDate = new Date();
     endDate.setDate(endDate.getDate() + proposal.estimatedDuration);
 
-    await Contract.create({
-      job: proposal.job._id,
-      client: proposal.client,
-      doer: proposal.freelancer,
+    const contract = await Contract.create({
+      jobId: proposal.jobId,
+      clientId: proposal.clientId,
+      doerId: proposal.freelancerId,
       type: "trabajo",
       price: proposal.proposedPrice,
       commission,
@@ -323,9 +467,25 @@ router.put("/:id/approve", protect, async (req: AuthRequest, res: Response): Pro
       termsAcceptedByDoer: false,
     });
 
+    // Send real-time notifications via Socket.io
+    socketService.notifyProposalUpdate(
+      proposal.id,
+      proposal.freelancerId,
+      req.user.id,
+      {
+        action: 'approved',
+        proposal
+      }
+    );
+
+    // Notify dashboard refresh for both parties
+    socketService.notifyDashboardRefresh(proposal.freelancerId);
+    socketService.notifyDashboardRefresh(req.user.id);
+
     res.json({
       success: true,
       proposal,
+      contractId: contract.id,
       message: "Propuesta aprobada y contrato creado",
     });
   } catch (error: any) {
@@ -347,7 +507,7 @@ router.put(
     try {
       const { rejectionReason } = req.body;
 
-      const proposal = await Proposal.findById(req.params.id);
+      const proposal = await Proposal.findByPk(req.params.id);
 
       if (!proposal) {
         res.status(404).json({
@@ -358,7 +518,7 @@ router.put(
       }
 
       // Verificar que el usuario sea el cliente
-      if (proposal.client.toString() !== req.user._id.toString()) {
+      if (proposal.clientId !== req.user.id) {
         res.status(403).json({
           success: false,
           message: "Solo el cliente puede rechazar esta propuesta",
@@ -377,6 +537,22 @@ router.put(
       proposal.status = "rejected";
       proposal.rejectionReason = rejectionReason;
       await proposal.save();
+
+      // Send real-time notifications via Socket.io
+      socketService.notifyProposalUpdate(
+        proposal.id,
+        proposal.freelancerId,
+        req.user.id,
+        {
+          action: 'rejected',
+          proposal,
+          rejectionReason
+        }
+      );
+
+      // Notify dashboard refresh for both parties
+      socketService.notifyDashboardRefresh(proposal.freelancerId);
+      socketService.notifyDashboardRefresh(req.user.id);
 
       res.json({
         success: true,
@@ -402,7 +578,7 @@ router.put(
     try {
       const { withdrawnReason } = req.body;
 
-      const proposal = await Proposal.findById(req.params.id);
+      const proposal = await Proposal.findByPk(req.params.id);
 
       if (!proposal) {
         res.status(404).json({
@@ -413,7 +589,7 @@ router.put(
       }
 
       // Verificar que el usuario sea el freelancer
-      if (proposal.freelancer.toString() !== req.user._id.toString()) {
+      if (proposal.freelancerId !== req.user.id) {
         res.status(403).json({
           success: false,
           message: "Solo el freelancer puede retirar esta propuesta",
@@ -433,6 +609,22 @@ router.put(
       proposal.withdrawnReason = withdrawnReason;
       await proposal.save();
 
+      // Send real-time notifications via Socket.io
+      socketService.notifyProposalUpdate(
+        proposal.id,
+        req.user.id,
+        proposal.clientId,
+        {
+          action: 'withdrawn',
+          proposal,
+          withdrawnReason
+        }
+      );
+
+      // Notify dashboard refresh for both parties
+      socketService.notifyDashboardRefresh(req.user.id);
+      socketService.notifyDashboardRefresh(proposal.clientId);
+
       res.json({
         success: true,
         proposal,
@@ -451,7 +643,7 @@ router.put(
 // @access  Private
 router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const proposal = await Proposal.findById(req.params.id);
+    const proposal = await Proposal.findByPk(req.params.id);
 
     if (!proposal) {
       res.status(404).json({
@@ -462,7 +654,7 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
     }
 
     // Verificar que el usuario sea el freelancer
-    if (proposal.freelancer.toString() !== req.user._id.toString()) {
+    if (proposal.freelancerId !== req.user.id) {
       res.status(403).json({
         success: false,
         message: "No tienes permiso para eliminar esta propuesta",
@@ -478,7 +670,7 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
       return;
     }
 
-    await proposal.deleteOne();
+    await proposal.destroy();
 
     res.json({
       success: true,
@@ -513,7 +705,15 @@ router.post(
       const { jobId } = req.body;
 
       // Verificar que el trabajo existe y está abierto
-      const job = await Job.findById(jobId).populate("client", "name email");
+      const job = await Job.findByPk(jobId, {
+        include: [
+          {
+            model: User,
+            as: 'client',
+            attributes: ['name', 'email']
+          }
+        ]
+      });
       if (!job) {
         res.status(404).json({
           success: false,
@@ -531,7 +731,7 @@ router.post(
       }
 
       // Verificar que el usuario no sea el dueño del trabajo
-      if (job.client._id.toString() === req.user._id.toString()) {
+      if (job.clientId === req.user.id) {
         res.status(400).json({
           success: false,
           message: "No puedes aplicar a tu propio trabajo",
@@ -541,8 +741,10 @@ router.post(
 
       // Verificar que no haya una propuesta previa
       const existingProposal = await Proposal.findOne({
-        job: jobId,
-        freelancer: req.user._id,
+        where: {
+          jobId: jobId,
+          freelancerId: req.user.id,
+        }
       });
 
       if (existingProposal) {
@@ -553,47 +755,63 @@ router.post(
         return;
       }
 
+      // Ensure price is a number
+      const jobPrice = typeof job.price === 'string' ? parseFloat(job.price) : job.price;
+
+      // Calculate duration safely
+      const startDate = new Date(job.startDate);
+      const endDate = new Date(job.endDate);
+      const durationMs = endDate.getTime() - startDate.getTime();
+      const durationDays = Math.max(1, Math.ceil(durationMs / (1000 * 60 * 60 * 24)));
+
       // Crear propuesta automáticamente aprobada
       const proposal = await Proposal.create({
-        job: jobId,
-        freelancer: req.user._id,
-        client: job.client._id,
+        jobId: jobId,
+        freelancerId: req.user.id,
+        clientId: job.clientId,
         coverLetter: "Aplicación directa - El freelancer aceptó los términos del trabajo tal como fueron publicados.",
-        proposedPrice: job.price,
-        estimatedDuration: Math.ceil(
-          (new Date(job.endDate).getTime() - new Date(job.startDate).getTime()) /
-            (1000 * 60 * 60 * 24)
-        ),
+        proposedPrice: jobPrice,
+        estimatedDuration: durationDays,
         status: "approved",
       });
 
       // Actualizar trabajo
       job.status = "in_progress";
-      job.doer = req.user._id;
+      job.doerId = req.user.id;
       await job.save();
 
-      // Crear o encontrar conversación entre el freelancer y el cliente
+      // Crear o encontrar conversación para este trabajo específico
       let conversation = await Conversation.findOne({
-        participants: { $all: [req.user._id, job.client._id] },
-        type: "direct",
+        where: {
+          participants: {
+            [Op.contains]: [req.user.id, job.clientId]
+          },
+          jobId: job.id,
+          type: "direct",
+        }
       });
 
       if (!conversation) {
         conversation = await Conversation.create({
-          participants: [req.user._id, job.client._id],
+          participants: [req.user.id, job.clientId],
+          jobId: job.id,
           type: "direct",
         });
       }
 
-      // Crear mensaje automático del sistema
-      const jobUrl = `${config.clientUrl}/jobs/${job._id}`;
-      const systemMessage = `✅ **Trabajo Aceptado**\n\n${req.user.name} ha aceptado el trabajo "${job.title}".\n\n📅 **Detalles:**\n• Inicio: ${new Date(job.startDate).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}\n• Fin: ${new Date(job.endDate).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}\n• Precio: $${job.price.toLocaleString("es-AR")}\n\n🔗 Ver trabajo: ${jobUrl}`;
+      // Crear mensaje automático del sistema con nuevo formato
+      const systemMessage = `${req.user.name} aceptó el trabajo||${job.title}||Inicio: ${startDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })} a las ${startDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}\nFinalización estimada: ${endDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })} a las ${endDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}\nPrecio Acordado: $${jobPrice.toLocaleString("es-AR")} ARS\nUbicación: ${job.location}`;
 
       await ChatMessage.create({
-        conversationId: conversation._id,
-        sender: req.user._id,
+        conversationId: conversation.id,
+        senderId: req.user.id,
         message: systemMessage,
         type: "system",
+        metadata: {
+          jobId: job.id,
+          proposalId: proposal.id,
+          action: "job_accepted",
+        },
       });
 
       // Actualizar conversación
@@ -602,8 +820,8 @@ router.post(
       await conversation.save();
 
       // Enviar emails a ambas partes
-      const freelancerUser = await req.user.populate("name email");
       const clientUser = job.client as any;
+      const jobUrl = `${config.clientUrl}/jobs/${job.id}`;
 
       // Email al freelancer
       await emailService.sendEmail({
@@ -634,12 +852,12 @@ router.post(
                     <h3>${job.title}</h3>
                     <p><strong>Cliente:</strong> ${clientUser.name}</p>
                     <p><strong>Ubicación:</strong> ${job.location}</p>
-                    <p><strong>Inicio:</strong> ${new Date(job.startDate).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
-                    <p><strong>Fin:</strong> ${new Date(job.endDate).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
-                    <p><strong>Pago:</strong> $${job.price.toLocaleString("es-AR")}</p>
+                    <p><strong>Inicio:</strong> ${startDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                    <p><strong>Fin:</strong> ${endDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                    <p><strong>Pago:</strong> $${jobPrice.toLocaleString("es-AR")}</p>
                   </div>
                   <p>El cliente ha sido notificado. Pueden comenzar a coordinar los detalles a través del chat.</p>
-                  <a href="${config.clientUrl}/chat/${conversation._id}" class="button">Ir al Chat</a>
+                  <a href="${config.clientUrl}/chat/${conversation.id}" class="button">Ir al Chat</a>
                   <a href="${jobUrl}" class="button" style="background: #64748b;">Ver Trabajo</a>
                 </div>
               </div>
@@ -676,12 +894,12 @@ router.post(
                   <div class="info-box">
                     <h3>${job.title}</h3>
                     <p><strong>Profesional:</strong> ${req.user.name}</p>
-                    <p><strong>Inicio:</strong> ${new Date(job.startDate).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
-                    <p><strong>Fin:</strong> ${new Date(job.endDate).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
-                    <p><strong>Pago:</strong> $${job.price.toLocaleString("es-AR")}</p>
+                    <p><strong>Inicio:</strong> ${startDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                    <p><strong>Fin:</strong> ${endDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                    <p><strong>Pago:</strong> $${jobPrice.toLocaleString("es-AR")}</p>
                   </div>
                   <p>Pueden coordinar los detalles finales a través del chat.</p>
-                  <a href="${config.clientUrl}/chat/${conversation._id}" class="button">Ir al Chat</a>
+                  <a href="${config.clientUrl}/chat/${conversation.id}" class="button">Ir al Chat</a>
                   <a href="${jobUrl}" class="button" style="background: #64748b;">Ver Trabajo</a>
                 </div>
               </div>
@@ -692,7 +910,7 @@ router.post(
 
       res.json({
         success: true,
-        conversationId: conversation._id,
+        conversationId: conversation.id,
         message: "Trabajo aceptado exitosamente",
       });
     } catch (error: any) {
@@ -726,7 +944,15 @@ router.post(
       const { jobId } = req.body;
 
       // Verificar que el trabajo existe
-      const job = await Job.findById(jobId).populate("client", "name email");
+      const job = await Job.findByPk(jobId, {
+        include: [
+          {
+            model: User,
+            as: 'client',
+            attributes: ['name', 'email']
+          }
+        ]
+      });
       if (!job) {
         res.status(404).json({
           success: false,
@@ -736,7 +962,7 @@ router.post(
       }
 
       // Verificar que el usuario no sea el dueño del trabajo
-      if (job.client._id.toString() === req.user._id.toString()) {
+      if (job.clientId === req.user.id) {
         res.status(400).json({
           success: false,
           message: "No puedes negociar tu propio trabajo",
@@ -744,29 +970,24 @@ router.post(
         return;
       }
 
-      // Crear o encontrar conversación
+      // Solo crear o encontrar conversación (NO crear propuesta automáticamente)
       let conversation = await Conversation.findOne({
-        participants: { $all: [req.user._id, job.client._id] },
-        type: "direct",
+        where: {
+          participants: {
+            [Op.contains]: [req.user.id, job.clientId]
+          },
+          jobId: job.id,
+          type: "direct",
+        }
       });
 
       if (!conversation) {
         conversation = await Conversation.create({
-          participants: [req.user._id, job.client._id],
+          participants: [req.user.id, job.clientId],
+          jobId: job.id,
           type: "direct",
         });
       }
-
-      // Crear mensaje automático
-      const jobUrl = `${config.clientUrl}/jobs/${job._id}`;
-      const systemMessage = `💬 **Inicio de Conversación**\n\n${req.user.name} está interesado en el trabajo "${job.title}" y quiere discutir los detalles.\n\n📋 **Información del trabajo:**\n• Precio propuesto: $${job.price.toLocaleString("es-AR")}\n• Ubicación: ${job.location}\n• Inicio: ${new Date(job.startDate).toLocaleDateString("es-AR", { day: "numeric", month: "long" })}\n\n🔗 Ver trabajo: ${jobUrl}`;
-
-      await ChatMessage.create({
-        conversationId: conversation._id,
-        sender: req.user._id,
-        message: systemMessage,
-        type: "system",
-      });
 
       // Actualizar conversación
       conversation.lastMessage = "Nueva conversación iniciada";
@@ -775,7 +996,7 @@ router.post(
 
       res.json({
         success: true,
-        conversationId: conversation._id,
+        conversationId: conversation.id,
         message: "Conversación iniciada",
       });
     } catch (error: any) {

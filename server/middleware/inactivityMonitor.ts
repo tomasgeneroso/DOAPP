@@ -1,6 +1,6 @@
 import { Response, NextFunction } from "express";
 import { AuthRequest } from "../types/index.js";
-import User from "../models/User.js";
+import { User } from "../models/sql/User.model.js";
 
 // Configuración de inactividad (en milisegundos)
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000; // 30 minutos

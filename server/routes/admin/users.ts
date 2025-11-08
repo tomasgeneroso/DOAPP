@@ -1,11 +1,12 @@
 import express, { Request, Response } from "express";
-import User from "../../models/User.js";
-import RefreshToken from "../../models/RefreshToken.js";
+import { User } from "../../models/sql/User.model.js";
+import { RefreshToken } from "../../models/sql/RefreshToken.model.js";
 import { protect } from "../../middleware/auth.js";
 import { requirePermission, requireRole } from "../../middleware/permissions.js";
 import { verifyOwnerPassword } from "../../middleware/ownerVerification.js";
 import { logAudit, getSeverityForAction, detectChanges } from "../../utils/auditLog.js";
 import type { AuthRequest } from "../../types/index.js";
+import { Op } from 'sequelize';
 
 const router = express.Router();
 
@@ -37,8 +38,8 @@ router.get(
       // Filtros
       if (search) {
         query.$or = [
-          { name: { $regex: search, $options: "i" } },
-          { email: { $regex: search, $options: "i" } },
+          { name: { [Op.regexp]: search, $options: "i" } },
+          { email: { [Op.regexp]: search, $options: "i" } },
         ];
       }
 
@@ -87,7 +88,7 @@ router.get(
   requirePermission("users:read"),
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const user = await User.findById(req.params.id).select(
+      const user = await User.findByPk(req.params.id).select(
         "-password -twoFactorSecret -twoFactorBackupCodes"
       );
 
@@ -124,7 +125,7 @@ router.put(
       const { name, email, phone, bio, avatar, role, adminRole, permissions, verificationLevel } =
         req.body;
 
-      const oldUser = await User.findById(req.params.id);
+      const oldUser = await User.findByPk(req.params.id);
 
       if (!oldUser) {
         res.status(404).json({
@@ -201,7 +202,7 @@ router.post(
         return;
       }
 
-      const user = await User.findById(req.params.id);
+      const user = await User.findByPk(req.params.id);
 
       if (!user) {
         res.status(404).json({
@@ -275,7 +276,7 @@ router.post(
   requirePermission("users:unban"),
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const user = await User.findById(req.params.id);
+      const user = await User.findByPk(req.params.id);
 
       if (!user) {
         res.status(404).json({
@@ -326,7 +327,7 @@ router.delete(
   verifyOwnerPassword,
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const user = await User.findById(req.params.id);
+      const user = await User.findByPk(req.params.id);
 
       if (!user) {
         res.status(404).json({

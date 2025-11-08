@@ -40,13 +40,17 @@ export interface CaptureOrderResult {
  * Create a PayPal order for payment
  */
 export async function createPayPalOrder(data: CreateOrderData) {
+  console.log("🔵 [PAYPAL SERVICE] Creating PayPal order...");
+  console.log("🔵 [PAYPAL SERVICE] Amount:", data.amount, data.currency || "USD");
+  console.log("🔵 [PAYPAL SERVICE] ContractId:", data.contractId);
+
   const client = getPayPalClient();
   const request = new paypal.orders.OrdersCreateRequest();
   request.prefer("return=representation");
 
   const { amount, currency = "USD", description, contractId } = data;
 
-  request.requestBody({
+  const requestBody = {
     intent: "CAPTURE",
     purchase_units: [
       {
@@ -65,17 +69,26 @@ export async function createPayPalOrder(data: CreateOrderData) {
       return_url: data.returnUrl || `${config.clientUrl}/payment/success`,
       cancel_url: data.cancelUrl || `${config.clientUrl}/payment/cancel`,
     },
-  });
+  };
+
+  console.log("🔵 [PAYPAL SERVICE] Request body:", JSON.stringify(requestBody, null, 2));
+  request.requestBody(requestBody);
 
   try {
     const response = await client.execute(request);
+    console.log("✅ [PAYPAL SERVICE] Order created successfully");
+    console.log("✅ [PAYPAL SERVICE] OrderId:", response.result.id);
+    console.log("✅ [PAYPAL SERVICE] Status:", response.result.status);
+    console.log("✅ [PAYPAL SERVICE] Links:", response.result.links?.map((l: any) => `${l.rel}: ${l.href}`));
+
     return {
       orderId: response.result.id,
       status: response.result.status,
       links: response.result.links,
     };
   } catch (error: any) {
-    console.error("PayPal Order Creation Error:", error);
+    console.error("❌ [PAYPAL SERVICE] Order Creation Error:", error);
+    console.error("❌ [PAYPAL SERVICE] Error details:", JSON.stringify(error, null, 2));
     throw new Error(`Failed to create PayPal order: ${error.message}`);
   }
 }
@@ -84,14 +97,30 @@ export async function createPayPalOrder(data: CreateOrderData) {
  * Capture payment for an approved order
  */
 export async function capturePayPalOrder(orderId: string): Promise<CaptureOrderResult> {
+  console.log("🟢 [PAYPAL SERVICE] Capturing PayPal order...");
+  console.log("🟢 [PAYPAL SERVICE] OrderId:", orderId);
+
   const client = getPayPalClient();
   const request = new paypal.orders.OrdersCaptureRequest(orderId);
   request.prefer("return=representation");
 
   try {
+    console.log("🟢 [PAYPAL SERVICE] Executing capture request...");
     const response = await client.execute(request);
+
+    console.log("🟢 [PAYPAL SERVICE] Capture response received");
+    console.log("🟢 [PAYPAL SERVICE] Response status:", response.statusCode);
+    console.log("🟢 [PAYPAL SERVICE] Full response:", JSON.stringify(response.result, null, 2));
+
     const capture = response.result.purchase_units[0].payments.captures[0];
     const payer = response.result.payer;
+
+    console.log("✅ [PAYPAL SERVICE] Capture successful");
+    console.log("✅ [PAYPAL SERVICE] CaptureId:", capture.id);
+    console.log("✅ [PAYPAL SERVICE] Capture Status:", capture.status);
+    console.log("✅ [PAYPAL SERVICE] Amount:", capture.amount.value, capture.amount.currency_code);
+    console.log("✅ [PAYPAL SERVICE] PayerId:", payer.payer_id);
+    console.log("✅ [PAYPAL SERVICE] PayerEmail:", payer.email_address);
 
     return {
       orderId: response.result.id,
@@ -103,7 +132,18 @@ export async function capturePayPalOrder(orderId: string): Promise<CaptureOrderR
       currency: capture.amount.currency_code,
     };
   } catch (error: any) {
-    console.error("PayPal Order Capture Error:", error);
+    console.error("❌ [PAYPAL SERVICE] Order Capture Error:", error);
+    console.error("❌ [PAYPAL SERVICE] Error message:", error.message);
+    console.error("❌ [PAYPAL SERVICE] Error details:", JSON.stringify(error, null, 2));
+
+    // Log additional error information if available
+    if (error.statusCode) {
+      console.error("❌ [PAYPAL SERVICE] HTTP Status Code:", error.statusCode);
+    }
+    if (error.headers) {
+      console.error("❌ [PAYPAL SERVICE] Response headers:", error.headers);
+    }
+
     throw new Error(`Failed to capture PayPal order: ${error.message}`);
   }
 }

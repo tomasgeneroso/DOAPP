@@ -39,6 +39,14 @@ export const PERMISSIONS = {
   TICKET_RESOLVE: "ticket:resolve",
   TICKET_DELETE: "ticket:delete",
 
+  // Dispute permissions
+  DISPUTE_CREATE: "dispute:create",
+  DISPUTE_VIEW_OWN: "dispute:view:own",
+  DISPUTE_VIEW_ANY: "dispute:view:any",
+  DISPUTE_ASSIGN: "dispute:assign",
+  DISPUTE_RESOLVE: "dispute:resolve",
+  DISPUTE_DELETE: "dispute:delete",
+
   // Admin permissions
   ADMIN_DASHBOARD: "admin:dashboard",
   ADMIN_ANALYTICS: "admin:analytics",
@@ -110,6 +118,12 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.TICKET_RESOLVE,
     PERMISSIONS.TICKET_DELETE,
 
+    // Dispute management
+    PERMISSIONS.DISPUTE_VIEW_ANY,
+    PERMISSIONS.DISPUTE_ASSIGN,
+    PERMISSIONS.DISPUTE_RESOLVE,
+    PERMISSIONS.DISPUTE_DELETE,
+
     // Admin access
     PERMISSIONS.ADMIN_DASHBOARD,
     PERMISSIONS.ADMIN_ANALYTICS,
@@ -150,6 +164,11 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.TICKET_VIEW_ANY,
     PERMISSIONS.TICKET_ASSIGN,
     PERMISSIONS.TICKET_RESOLVE,
+
+    // Dispute management
+    PERMISSIONS.DISPUTE_VIEW_ANY,
+    PERMISSIONS.DISPUTE_ASSIGN,
+    PERMISSIONS.DISPUTE_RESOLVE,
 
     // Admin access
     PERMISSIONS.ADMIN_DASHBOARD,
@@ -222,6 +241,10 @@ export const ROLE_PERMISSIONS = {
     // Ticket permissions
     PERMISSIONS.TICKET_CREATE,
     PERMISSIONS.TICKET_VIEW_OWN,
+
+    // Dispute permissions
+    PERMISSIONS.DISPUTE_CREATE,
+    PERMISSIONS.DISPUTE_VIEW_OWN,
   ],
 } as const;
 

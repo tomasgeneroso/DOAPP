@@ -1,10 +1,12 @@
 import express, { Response } from 'express';
 import { body, param, validationResult } from 'express-validator';
-import ContactMessage from '../../models/ContactMessage.js';
+import { ContactMessage } from '../../models/sql/ContactMessage.model.js';
+import { User } from '../../models/sql/User.model.js';
 import { protect, authorize } from '../../middleware/auth.js';
 import type { AuthRequest } from '../../middleware/auth.js';
 import sanitizer from '../../utils/sanitizer.js';
 import cache from '../../services/cache.js';
+import { Op } from 'sequelize';
 
 const router = express.Router();
 
@@ -27,24 +29,27 @@ router.get('/', async (req: AuthRequest, res: Response) => {
       sortOrder = 'desc',
     } = req.query;
 
-    const query: any = {};
+    const where: any = {};
 
-    if (status) query.status = status;
-    if (subject) query.subject = subject;
+    if (status) where.status = status;
+    if (subject) where.subject = subject;
 
-    const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
-    const sort: any = {};
-    sort[sortBy as string] = sortOrder === 'desc' ? -1 : 1;
+    const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
+    const order: any = [[sortBy as string, sortOrder === 'desc' ? 'DESC' : 'ASC']];
 
     const [messages, total] = await Promise.all([
-      ContactMessage.find(query)
-        .sort(sort)
-        .skip(skip)
-        .limit(parseInt(limit as string))
-        .populate('user', 'name email')
-        .populate('assignedTo', 'name email')
-        .populate('respondedBy', 'name email'),
-      ContactMessage.countDocuments(query),
+      ContactMessage.findAll({
+        where,
+        order,
+        offset,
+        limit: parseInt(limit as string),
+        include: [
+          { model: User, as: 'userContact', attributes: ['name', 'email'] },
+          { model: User, as: 'assignedAdmin', attributes: ['name', 'email'] },
+          { model: User, as: 'responder', attributes: ['name', 'email'] },
+        ],
+      }),
+      ContactMessage.count({ where }),
     ]);
 
     res.json({
@@ -71,11 +76,15 @@ router.get('/', async (req: AuthRequest, res: Response) => {
  */
 router.get('/pending', async (req: AuthRequest, res: Response) => {
   try {
-    const messages = await ContactMessage.find({
-      status: 'pending',
-    })
-      .sort({ createdAt: -1 })
-      .populate('user', 'name email');
+    const messages = await ContactMessage.findAll({
+      where: {
+        status: 'pending',
+      },
+      order: [['createdAt', 'DESC']],
+      include: [
+        { model: User, as: 'userContact', attributes: ['name', 'email'] },
+      ],
+    });
 
     res.json({
       success: true,
@@ -93,7 +102,7 @@ router.get('/pending', async (req: AuthRequest, res: Response) => {
  */
 router.get(
   '/:id',
-  [param('id').isMongoId()],
+  [param('id').isUUID()],
   async (req: AuthRequest, res: Response) => {
     try {
       const errors = validationResult(req);
@@ -101,10 +110,13 @@ router.get(
         return res.status(400).json({ success: false, errors: errors.array() });
       }
 
-      const message = await ContactMessage.findById(req.params.id)
-        .populate('user', 'name email')
-        .populate('assignedTo', 'name email')
-        .populate('respondedBy', 'name email');
+      const message = await ContactMessage.findByPk(req.params.id, {
+        include: [
+          { model: User, as: 'userContact', attributes: ['name', 'email'] },
+          { model: User, as: 'assignedAdmin', attributes: ['name', 'email'] },
+          { model: User, as: 'responder', attributes: ['name', 'email'] },
+        ],
+      });
 
       if (!message) {
         return res
@@ -129,7 +141,7 @@ router.get(
  */
 router.put(
   '/:id/assign',
-  [param('id').isMongoId()],
+  [param('id').isUUID()],
   async (req: AuthRequest, res: Response) => {
     try {
       const errors = validationResult(req);
@@ -137,7 +149,7 @@ router.put(
         return res.status(400).json({ success: false, errors: errors.array() });
       }
 
-      const message = await ContactMessage.findById(req.params.id);
+      const message = await ContactMessage.findByPk(req.params.id);
 
       if (!message) {
         return res
@@ -146,10 +158,10 @@ router.put(
       }
 
       // Assign to current user
-      message.assignedTo = req.user!.id as any;
-      message.status = 'in_progress';
-
-      await message.save();
+      await message.update({
+        assignedTo: req.user!.id,
+        status: 'in_progress',
+      });
 
       res.json({
         success: true,
@@ -170,7 +182,7 @@ router.put(
 router.put(
   '/:id/status',
   [
-    param('id').isMongoId(),
+    param('id').isUUID(),
     body('status').isIn(['pending', 'in_progress', 'resolved', 'closed']),
   ],
   async (req: AuthRequest, res: Response) => {
@@ -180,7 +192,7 @@ router.put(
         return res.status(400).json({ success: false, errors: errors.array() });
       }
 
-      const message = await ContactMessage.findById(req.params.id);
+      const message = await ContactMessage.findByPk(req.params.id);
 
       if (!message) {
         return res
@@ -188,9 +200,9 @@ router.put(
           .json({ success: false, message: 'Message not found' });
       }
 
-      message.status = req.body.status;
-
-      await message.save();
+      await message.update({
+        status: req.body.status,
+      });
 
       res.json({
         success: true,
@@ -210,7 +222,7 @@ router.put(
  */
 router.post(
   '/:id/respond',
-  [param('id').isMongoId(), body('response').trim().notEmpty().isLength({ max: 2000 })],
+  [param('id').isUUID(), body('response').trim().notEmpty().isLength({ max: 2000 })],
   async (req: AuthRequest, res: Response) => {
     try {
       const errors = validationResult(req);
@@ -218,7 +230,7 @@ router.post(
         return res.status(400).json({ success: false, errors: errors.array() });
       }
 
-      const message = await ContactMessage.findById(req.params.id);
+      const message = await ContactMessage.findByPk(req.params.id);
 
       if (!message) {
         return res
@@ -226,12 +238,12 @@ router.post(
           .json({ success: false, message: 'Message not found' });
       }
 
-      message.response = sanitizer.sanitizeInput(req.body.response);
-      message.respondedBy = req.user!.id as any;
-      message.respondedAt = new Date();
-      message.status = 'resolved';
-
-      await message.save();
+      await message.update({
+        response: sanitizer.sanitizeInput(req.body.response),
+        respondedBy: req.user!.id,
+        respondedAt: new Date(),
+        status: 'resolved',
+      });
 
       // TODO: Send email notification to user with response
 
@@ -265,20 +277,20 @@ router.get('/stats/overview', async (req: AuthRequest, res: Response) => {
       pendingMessages,
       inProgressMessages,
       resolvedMessages,
-      bySubject,
+      subjectStats,
     ] = await Promise.all([
-      ContactMessage.countDocuments(),
-      ContactMessage.countDocuments({ status: 'pending' }),
-      ContactMessage.countDocuments({ status: 'in_progress' }),
-      ContactMessage.countDocuments({ status: 'resolved' }),
-      ContactMessage.aggregate([
-        {
-          $group: {
-            _id: '$subject',
-            count: { $sum: 1 },
-          },
-        },
-      ]),
+      ContactMessage.count(),
+      ContactMessage.count({ where: { status: 'pending' } }),
+      ContactMessage.count({ where: { status: 'in_progress' } }),
+      ContactMessage.count({ where: { status: 'resolved' } }),
+      ContactMessage.findAll({
+        attributes: [
+          'subject',
+          [ContactMessage.sequelize!.fn('COUNT', ContactMessage.sequelize!.col('id')), 'count'],
+        ],
+        group: ['subject'],
+        raw: true,
+      }),
     ]);
 
     const stats = {
@@ -288,8 +300,8 @@ router.get('/stats/overview', async (req: AuthRequest, res: Response) => {
         inProgress: inProgressMessages,
         resolved: resolvedMessages,
       },
-      bySubject: bySubject.reduce((acc: any, item: any) => {
-        acc[item._id] = item.count;
+      bySubject: subjectStats.reduce((acc: any, item: any) => {
+        acc[item.subject] = parseInt(item.count);
         return acc;
       }, {}),
     };
@@ -313,7 +325,7 @@ router.get('/stats/overview', async (req: AuthRequest, res: Response) => {
  */
 router.delete(
   '/:id',
-  [param('id').isMongoId()],
+  [param('id').isUUID()],
   async (req: AuthRequest, res: Response) => {
     try {
       const errors = validationResult(req);
@@ -321,7 +333,7 @@ router.delete(
         return res.status(400).json({ success: false, errors: errors.array() });
       }
 
-      const message = await ContactMessage.findById(req.params.id);
+      const message = await ContactMessage.findByPk(req.params.id);
 
       if (!message) {
         return res
@@ -329,7 +341,7 @@ router.delete(
           .json({ success: false, message: 'Message not found' });
       }
 
-      await message.deleteOne();
+      await message.destroy();
 
       // Invalidate cache
       await cache.delPattern('contact:*');

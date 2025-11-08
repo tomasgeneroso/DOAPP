@@ -378,19 +378,31 @@ Ver **[README_ARGENTINA.md](./README_ARGENTINA.md)** para detalles completos.
 - **[SETUP_GUIDE.md](./SETUP_GUIDE.md)** - Setup rápido en 5 minutos
 - **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Deployment en producción (VPS, Railway, Render, Heroku)
 
-**Arquitectura y Sistema:**
+**📚 Documentación Principal:**
 - **[CLAUDE.md](./CLAUDE.md)** - Arquitectura completa y contexto del proyecto
-- **[ANALYTICS_GUIDE.md](./ANALYTICS_GUIDE.md)** - Sistema de analytics custom (sin Sentry)
-- **[README_ARGENTINA.md](./README_ARGENTINA.md)** - Resumen ejecutivo (configuración Argentina)
+- **[docs/INDEX.md](./docs/INDEX.md)** - 📁 Índice completo de toda la documentación
 
-**Testing y Versiones:**
-- **[tests/README.md](./tests/README.md)** - Documentación completa de testing
-- **[CHANGELOG.md](./CHANGELOG.md)** - Historial de cambios
+**🇦🇷 Configuración Argentina:**
+- **[docs/README_ARGENTINA.md](./docs/README_ARGENTINA.md)** - Resumen ejecutivo (MercadoPago, CBU)
+- **[docs/CBU_ENCRYPTION_IMPLEMENTATION.md](./docs/CBU_ENCRYPTION_IMPLEMENTATION.md)** - Sistema de encriptación de datos bancarios
 
-**Documentación Legacy:**
-- **[IMPLEMENTATION_COMPLETE.md](./IMPLEMENTATION_COMPLETE.md)** - PHASE 1 (MVP)
-- **[PHASE2_COMPLETE.md](./PHASE2_COMPLETE.md)** - PHASE 2 (Post-MVP)
-- **[PHASE3_COMPLETE.md](./PHASE3_COMPLETE.md)** - PHASE 3 (Optimización)
+**🚀 Guías de Inicio:**
+- **[docs/SETUP_GUIDE.md](./docs/SETUP_GUIDE.md)** - Instalación y configuración inicial
+- **[docs/DEVELOPER_GUIDE.md](./docs/DEVELOPER_GUIDE.md)** - Guía para desarrolladores
+- **[docs/ADMIN_SETUP.md](./docs/ADMIN_SETUP.md)** - Configuración de roles administrativos
+
+**🗄️ Base de Datos:**
+- **[docs/CONFIGURAR_POSTGRESQL.md](./docs/CONFIGURAR_POSTGRESQL.md)** - Configuración de PostgreSQL
+- **[docs/POSTGRESQL_MIGRATION_COMPLETE.md](./docs/POSTGRESQL_MIGRATION_COMPLETE.md)** - Estado de migración
+
+**🧪 Testing:**
+- **[docs/README.md](./docs/README.md)** - Documentación completa de testing
+
+**📋 Historial:**
+- **[docs/CHANGELOG.md](./docs/CHANGELOG.md)** - Historial de cambios del proyecto
+
+**🔍 Ver toda la documentación:**
+👉 **[docs/INDEX.md](./docs/INDEX.md)** - Índice organizado por categorías
 
 ---
 

@@ -45,7 +45,7 @@ export default function ReferralsScreen() {
 
       if (data.success) {
         setStats(data.stats);
-        setReferrals(data.referrals);
+        setReferrals(data.referrals || []);
       } else {
         setError(data.message || "Error al cargar estadísticas");
       }
@@ -60,18 +60,6 @@ export default function ReferralsScreen() {
   const copyReferralCode = () => {
     if (stats?.referralCode) {
       navigator.clipboard.writeText(stats.referralCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  const shareUrl = stats?.referralCode
-    ? `${window.location.origin}/register?ref=${stats.referralCode}`
-    : "";
-
-  const copyShareLink = () => {
-    if (shareUrl) {
-      navigator.clipboard.writeText(shareUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -98,7 +86,7 @@ export default function ReferralsScreen() {
             Programa de Referidos
           </h1>
           <p className="text-slate-600 dark:text-slate-400">
-            Invita a tus amigos y gana contratos sin comisión
+            🎉 ¡Los primeros 1000 usuarios obtienen 1 año de membresía gratis! Además, invita a tus amigos y gana beneficios.
           </p>
         </div>
 
@@ -115,7 +103,7 @@ export default function ReferralsScreen() {
             <h2 className="text-2xl font-bold">Tu Código de Referido</h2>
           </div>
 
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6 mb-6">
+          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6">
             <div className="flex items-center justify-between gap-4 flex-wrap">
               <div>
                 <p className="text-sm text-white/80 mb-2">Comparte este código:</p>
@@ -136,24 +124,6 @@ export default function ReferralsScreen() {
                     Copiar código
                   </>
                 )}
-              </button>
-            </div>
-          </div>
-
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl p-6">
-            <p className="text-sm text-white/80 mb-2">O comparte este enlace:</p>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={shareUrl}
-                readOnly
-                className="flex-1 px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/50"
-              />
-              <button
-                onClick={copyShareLink}
-                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
-              >
-                <Copy className="h-5 w-5" />
               </button>
             </div>
           </div>
@@ -238,14 +208,14 @@ export default function ReferralsScreen() {
                 Ganas un contrato gratis
               </h4>
               <p className="text-sm text-slate-600 dark:text-slate-400">
-                Cuando completen su primer contrato, recibes uno sin comisión (5%)
+                Cuando completen su primer contrato, recibes uno sin comisión!
               </p>
             </div>
           </div>
         </div>
 
         {/* Referrals List */}
-        {referrals.length > 0 && (
+        {referrals && referrals.length > 0 && (
           <div className="bg-white dark:bg-slate-800 rounded-2xl p-8 shadow-md">
             <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-6">
               Tus Referidos ({referrals.length})

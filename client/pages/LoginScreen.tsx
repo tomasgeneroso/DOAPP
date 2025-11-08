@@ -1,4 +1,4 @@
-import { useState, FormEvent, ChangeEvent } from "react";
+import { useState, useEffect, FormEvent, ChangeEvent } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useFacebookLogin } from "../hooks/useFacebookLogin";
@@ -7,12 +7,21 @@ import { AnimatedButton } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input"; // Asegúrate que este componente se esté usando
 import { Chrome, Facebook, Twitter, Eye, EyeOff, Home } from "lucide-react";
 import TokenExpiredNotice from "../components/TokenExpiredNotice";
+import MembershipOfferModal from "../components/MembershipOfferModal";
 
 type FormMode = "login" | "register";
 
 export default function LoginScreen() {
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Get redirect path from URL query params or location state
+  const searchParams = new URLSearchParams(location.search);
+  const redirectParam = searchParams.get("redirect");
+  const from = redirectParam ||
+    (typeof location.state?.from === "string"
+      ? location.state.from
+      : location.state?.from?.pathname) || "/";
 
   // Automatically set mode to register if coming from /register route
   const initialMode: FormMode = location.pathname === '/register' ? 'register' : 'login';
@@ -29,16 +38,31 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const { login, register } = useAuth();
+  const [showMembershipOffer, setShowMembershipOffer] = useState(false);
+  const [justRegistered, setJustRegistered] = useState(false);
+  const { login, register, user } = useAuth();
   const { loginWithFacebook, isLoading: fbLoading, error: fbError, fbStatus } = useFacebookLogin();
 
-  // Get redirect path from URL query params or location state
-  const searchParams = new URLSearchParams(location.search);
-  const redirectParam = searchParams.get("redirect");
-  const from = redirectParam ||
-    (typeof location.state?.from === "string"
-      ? location.state.from
-      : location.state?.from?.pathname) || "/";
+  // Check membership status after registration
+  useEffect(() => {
+    if (justRegistered && user) {
+      console.log('🔍 Verificando estado de membresía después del registro:', user.email);
+      console.log('📊 Membresía del usuario:', { hasMembership: user.hasMembership, membershipTier: user.membershipTier });
+
+      const hasPremiumMembership = user.hasMembership && (user.membershipTier === 'pro' || user.membershipTier === 'super_pro');
+
+      if (!hasPremiumMembership) {
+        console.log('👤 Usuario no tiene membresía premium, mostrando modal de oferta');
+        setShowMembershipOffer(true);
+      } else {
+        console.log('👑 Usuario ya es PRO/SUPER PRO, redirigiendo sin mostrar modal');
+        navigate(from, { replace: true });
+      }
+
+      // Reset the flag
+      setJustRegistered(false);
+    }
+  }, [justRegistered, user, navigate, from]);
 
   const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -56,6 +80,7 @@ export default function LoginScreen() {
     try {
       if (mode === "login") {
         await login(formData.email, formData.password);
+        navigate(from, { replace: true }); // Redirect to original page or home
       } else {
         if (!formData.termsAccepted) {
           setError("Debes aceptar los términos y condiciones.");
@@ -70,13 +95,47 @@ export default function LoginScreen() {
           referralCode: formData.referralCode || undefined,
           termsAccepted: formData.termsAccepted,
         });
+
+        // Mark that user just registered to trigger membership check
+        setJustRegistered(true);
       }
-      navigate(from, { replace: true }); // Redirect to original page or home
     } catch (err: any) {
-      setError(err.message || "Ocurrió un error. Por favor, intenta de nuevo.");
+      const errorMessage = err.message || "Ocurrió un error. Por favor, intenta de nuevo.";
+
+      // Check if error is about existing user
+      const errorLower = errorMessage.toLowerCase();
+      if (errorLower.includes('ya existe') ||
+          errorLower.includes('ya está registrado') ||
+          errorLower.includes('already exists') ||
+          errorLower.includes('already registered')) {
+        setError('user_exists');
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleMembershipOfferClose = () => {
+    console.log('❌ Usuario cerró modal de membresía (Más tarde)');
+    setShowMembershipOffer(false);
+    // Solo navegar a home si el usuario cierra el modal sin seleccionar plan
+    setTimeout(() => {
+      navigate(from, { replace: true });
+    }, 100);
+  };
+
+  const handleUpgradeClick = (plan: 'monthly' | 'quarterly' | 'super_pro') => {
+    console.log('🚀 Usuario seleccionó plan:', plan);
+    console.log('👤 Usuario actual:', user?.email);
+    setShowMembershipOffer(false);
+
+    // Navegar a checkout (el usuario está autenticado después del registro)
+    setTimeout(() => {
+      console.log('✅ Navegando a /membership/checkout?plan=' + plan);
+      navigate(`/membership/checkout?plan=${plan}`, { replace: true });
+    }, 100);
   };
 
   const isRegister = mode === "register";
@@ -84,13 +143,13 @@ export default function LoginScreen() {
   return (
     <>
       <Helmet>
-        <title>{isRegister ? "Registro" : "Iniciar Sesión"} - Doers</title>
+        <title>{isRegister ? "Registrarme" : "Iniciar Sesión"} - DOAPP</title>
         <meta
           name="description"
           content={
             isRegister
-              ? "Crea tu cuenta en Doers."
-              : "Inicia sesión en tu cuenta de Doers."
+              ? "Crea tu cuenta en DOAPP."
+              : "Inicia sesión en tu cuenta de DOAPP."
           }
         />
       </Helmet>
@@ -148,7 +207,7 @@ export default function LoginScreen() {
                   role="tab"
                   aria-selected={mode === "register"}
                 >
-                  Registro
+                  Registrarme
                 </button>
               </li>
             </ul>
@@ -173,7 +232,7 @@ export default function LoginScreen() {
                     onChange={handleInputChange}
                     value={formData.name}
                     placeholder="Juan Pérez"
-                    className="h-12"
+                    className="block w-full h-12 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                   />
                 </div>
               </div>
@@ -196,7 +255,7 @@ export default function LoginScreen() {
                   onChange={handleInputChange}
                   value={formData.email}
                   placeholder="tucorreo@email.com"
-                  className="h-12"
+                  className="block w-full h-12 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -232,7 +291,7 @@ export default function LoginScreen() {
                   onChange={handleInputChange}
                   value={formData.password}
                   placeholder="••••••••"
-                  className="h-12 pr-10"
+                  className="block w-full h-12 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 pr-10 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                 />
                 <button
                   type="button"
@@ -268,7 +327,7 @@ export default function LoginScreen() {
                       onChange={handleInputChange}
                       value={formData.phone}
                       placeholder="+54 11 1234-5678"
-                      className="h-12"
+                      className="block w-full h-12 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                     />
                   </div>
                 </div>
@@ -287,7 +346,7 @@ export default function LoginScreen() {
                       onChange={handleInputChange}
                       value={formData.referralCode}
                       placeholder="ABC12345"
-                      className="h-12 uppercase"
+                      className="block w-full h-12 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent uppercase"
                       maxLength={8}
                     />
                   </div>
@@ -322,7 +381,48 @@ export default function LoginScreen() {
               </>
             )}
 
-            {error && <p className="text-sm text-red-600">{error}</p>}
+            {error && (
+              <div className={`rounded-lg p-4 ${
+                error === 'user_exists'
+                  ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'
+                  : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800'
+              }`}>
+                {error === 'user_exists' ? (
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-start gap-2">
+                      <svg className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                      </svg>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
+                          Este email ya está registrado
+                        </p>
+                        <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
+                          ¿Ya tienes una cuenta? Inicia sesión para acceder.
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode('login');
+                        setError(null);
+                      }}
+                      className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                    >
+                      Ir a Iniciar Sesión
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-2">
+                    <svg className="w-5 h-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div>
               <AnimatedButton
@@ -382,6 +482,13 @@ export default function LoginScreen() {
           {fbError && <p className="mt-4 text-sm text-center text-red-600">{fbError}</p>}
         </div>
       </div>
+
+      {/* Membership Offer Modal */}
+      <MembershipOfferModal
+        isOpen={showMembershipOffer}
+        onClose={handleMembershipOfferClose}
+        onUpgrade={handleUpgradeClick}
+      />
     </>
   );
 }

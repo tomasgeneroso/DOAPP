@@ -8,7 +8,9 @@ import {
   BarChart3,
   Settings,
   Shield,
+  Lock,
   LogOut,
+  DollarSign,
 } from "lucide-react";
 
 export default function AdminLayout() {
@@ -27,31 +29,35 @@ export default function AdminLayout() {
   };
 
   const navItems = [
-    { path: "/admin", icon: LayoutDashboard, label: "Dashboard", roles: ["owner", "super_admin", "admin", "support", "marketing"] },
+    { path: "/admin", icon: LayoutDashboard, label: "Dashboard", roles: ["owner", "super_admin", "admin", "support", "marketing", "dpo"] },
+    { path: "/admin/analytics", icon: BarChart3, label: "Analytics", roles: ["owner", "super_admin", "admin", "marketing"] },
     { path: "/admin/users", icon: Users, label: "Usuarios", roles: ["owner", "super_admin", "admin"] },
+    { path: "/admin/roles", icon: Shield, label: "Asignar Roles", roles: ["owner", "super_admin", "admin"] },
+    { path: "/admin/role-permissions", icon: Lock, label: "Permisos de Roles", roles: ["owner", "super_admin"] },
     { path: "/admin/contracts", icon: FileText, label: "Contratos", roles: ["owner", "super_admin", "admin"] },
+    { path: "/admin/financial-transactions", icon: DollarSign, label: "Movimientos Financieros", roles: ["owner", "super_admin", "admin"] },
+    { path: "/admin/disputes", icon: Shield, label: "Disputas", roles: ["owner", "super_admin", "admin", "support"] },
     { path: "/admin/tickets", icon: TicketIcon, label: "Tickets", roles: ["owner", "super_admin", "admin", "support"] },
-    { path: "/admin/analytics", icon: BarChart3, label: "Analíticas", roles: ["owner", "super_admin", "admin", "marketing"] },
     { path: "/admin/settings", icon: Settings, label: "Configuración", roles: ["owner", "super_admin"] },
   ];
 
   const visibleItems = navItems.filter((item) => item.roles.includes(user.adminRole!));
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-slate-50 dark:bg-slate-900">
       {/* Sidebar */}
-      <aside className="w-64 bg-white shadow-md">
+      <aside className="w-64 bg-white dark:bg-slate-800 shadow-md border-r border-slate-200 dark:border-slate-700">
         <div className="p-6">
           <div className="flex items-center gap-2 mb-8">
             <Shield className="h-8 w-8 text-sky-600" />
-            <h1 className="text-xl font-bold text-gray-900">Panel Admin</h1>
+            <h1 className="text-xl font-bold text-slate-900 dark:text-white">Panel Admin</h1>
           </div>
 
           {/* User Info */}
-          <div className="mb-6 p-3 bg-gray-50 rounded-lg">
-            <p className="text-sm font-medium text-gray-900">{user.name}</p>
-            <p className="text-xs text-gray-500">{user.email}</p>
-            <span className="inline-block mt-2 px-2 py-1 text-xs font-semibold text-sky-700 bg-sky-100 rounded">
+          <div className="mb-6 p-3 bg-slate-50 dark:bg-slate-700 rounded-lg">
+            <p className="text-sm font-medium text-slate-900 dark:text-white">{user.name}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">{user.email}</p>
+            <span className="inline-block mt-2 px-2 py-1 text-xs font-semibold text-sky-700 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/30 rounded">
               {user.adminRole?.replace("_", " ").toUpperCase()}
             </span>
           </div>
@@ -62,7 +68,7 @@ export default function AdminLayout() {
               <Link
                 key={item.path}
                 to={item.path}
-                className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-lg hover:bg-sky-50 hover:text-sky-700 transition"
+                className="flex items-center gap-3 px-3 py-2 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-sky-50 dark:hover:bg-sky-900/20 hover:text-sky-700 dark:hover:text-sky-400 transition"
               >
                 <item.icon className="h-5 w-5" />
                 <span className="text-sm font-medium">{item.label}</span>
@@ -70,10 +76,18 @@ export default function AdminLayout() {
             ))}
           </nav>
 
+          {/* Back to App */}
+          <Link
+            to="/"
+            className="flex items-center justify-center gap-2 px-3 py-2 mt-6 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition w-full border border-slate-200 dark:border-slate-600"
+          >
+            <span className="text-sm font-medium">Volver a la app</span>
+          </Link>
+
           {/* Logout */}
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2 mt-6 text-red-600 rounded-lg hover:bg-red-50 transition w-full"
+            className="flex items-center gap-3 px-3 py-2 mt-3 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition w-full"
           >
             <LogOut className="h-5 w-5" />
             <span className="text-sm font-medium">Cerrar Sesión</span>

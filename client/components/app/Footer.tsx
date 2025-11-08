@@ -1,8 +1,27 @@
 import { Link } from "react-router-dom";
-import { Mail, MapPin, Phone, Facebook, Twitter, Instagram, Linkedin } from "lucide-react";
+import { Mail, MapPin, Phone, Facebook, Twitter, Instagram, Linkedin, Globe } from "lucide-react";
+import { useState, useEffect } from "react";
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
+  const [currentLanguage, setCurrentLanguage] = useState<string>("es");
+
+  useEffect(() => {
+    // Get saved language or detect from browser
+    const savedLang = localStorage.getItem("language") || navigator.language.split("-")[0];
+    setCurrentLanguage(savedLang === "en" ? "en" : "es");
+  }, []);
+
+  const handleLanguageChange = (lang: string) => {
+    localStorage.setItem("language", lang);
+    setCurrentLanguage(lang);
+
+    // Set cookie for backend i18n
+    document.cookie = `i18next=${lang}; path=/; max-age=31536000; SameSite=Strict`;
+
+    // Reload page to apply language change
+    window.location.reload();
+  };
 
   return (
     <footer className="bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 mt-auto">
@@ -60,7 +79,7 @@ export default function Footer() {
             <ul className="space-y-2">
               <li>
                 <Link
-                  to="/jobs"
+                  to="/"
                   className="text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 transition text-sm"
                 >
                   Buscar Trabajos
@@ -174,19 +193,50 @@ export default function Footer() {
             <p className="text-gray-600 dark:text-gray-400 text-sm text-center md:text-left">
               © {currentYear} DOAPP. Todos los derechos reservados.
             </p>
-            <div className="flex gap-6 text-sm">
-              <Link
-                to="/sitemap"
-                className="text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 transition"
-              >
-                Mapa del Sitio
-              </Link>
-              <Link
-                to="/accessibility"
-                className="text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 transition"
-              >
-                Accesibilidad
-              </Link>
+
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              {/* Language Selector */}
+              <div className="flex items-center gap-2">
+                <Globe className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleLanguageChange("es")}
+                    className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                      currentLanguage === "es"
+                        ? "bg-sky-600 text-white font-medium"
+                        : "text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400"
+                    }`}
+                  >
+                    ES
+                  </button>
+                  <button
+                    onClick={() => handleLanguageChange("en")}
+                    className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                      currentLanguage === "en"
+                        ? "bg-sky-600 text-white font-medium"
+                        : "text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400"
+                    }`}
+                  >
+                    EN
+                  </button>
+                </div>
+              </div>
+
+              {/* Other Links */}
+              <div className="flex gap-6 text-sm">
+                <Link
+                  to="/sitemap"
+                  className="text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 transition"
+                >
+                  Mapa del Sitio
+                </Link>
+                <Link
+                  to="/accessibility"
+                  className="text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 transition"
+                >
+                  Accesibilidad
+                </Link>
+              </div>
             </div>
           </div>
         </div>

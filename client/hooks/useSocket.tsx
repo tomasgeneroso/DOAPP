@@ -2,7 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { io, Socket } from "socket.io-client";
 import { useAuth } from "./useAuth";
 
-const SOCKET_URL = import.meta.env.VITE_API_URL || "http://localhost:5000";
+// Configuración de URL para Socket.io
+// En desarrollo, usar el mismo host (proxy de Vite lo redirigirá a :5000)
+// En producción, usar la URL del API
+const SOCKET_URL = import.meta.env.DEV
+  ? "" // Empty string = same host (uses Vite proxy)
+  : (import.meta.env.VITE_API_URL || "http://localhost:5000");
 
 interface Message {
   _id: string;
@@ -43,6 +48,14 @@ export function useSocket() {
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const socketRef = useRef<Socket | null>(null);
 
+  // Callbacks for real-time events
+  const [onContractUpdate, setOnContractUpdate] = useState<((data: any) => void) | null>(null);
+  const [onJobUpdate, setOnJobUpdate] = useState<((data: any) => void) | null>(null);
+  const [onProposalUpdate, setOnProposalUpdate] = useState<((data: any) => void) | null>(null);
+  const [onDashboardRefresh, setOnDashboardRefresh] = useState<(() => void) | null>(null);
+  const [onJobsRefresh, setOnJobsRefresh] = useState<(() => void) | null>(null);
+  const [onUnreadUpdate, setOnUnreadUpdate] = useState<((count: number) => void) | null>(null);
+
   useEffect(() => {
     if (!user) {
       // Disconnect socket if user logs out
@@ -67,7 +80,11 @@ export function useSocket() {
       auth: {
         token,
       },
-      transports: ["websocket", "polling"],
+      path: "/socket.io",
+      transports: ["polling", "websocket"], // Try polling first, then upgrade to websocket
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionAttempts: 5,
     });
 
     socketRef.current = newSocket;
@@ -92,6 +109,10 @@ export function useSocket() {
     // Message handlers
     newSocket.on("message:new", (message: Message) => {
       setMessages((prev) => [...prev, message]);
+    });
+
+    newSocket.on("conversation:history", ({ messages: historyMessages }) => {
+      setMessages(historyMessages);
     });
 
     newSocket.on("message:read", ({ messageId, readBy, readAt }) => {
@@ -138,16 +159,61 @@ export function useSocket() {
       console.error("Socket error:", error);
     });
 
+    // Global real-time event handlers
+    newSocket.on("contract:updated", (data: any) => {
+      console.log("📝 Contract updated:", data);
+      if (onContractUpdate) {
+        onContractUpdate(data);
+      }
+    });
+
+    newSocket.on("job:updated", (data: any) => {
+      console.log("💼 Job updated:", data);
+      if (onJobUpdate) {
+        onJobUpdate(data);
+      }
+    });
+
+    newSocket.on("jobs:refresh", (data: any) => {
+      console.log("🔄 Jobs refresh:", data);
+      if (onJobsRefresh) {
+        onJobsRefresh();
+      }
+    });
+
+    newSocket.on("proposal:updated", (data: any) => {
+      console.log("📄 Proposal updated:", data);
+      if (onProposalUpdate) {
+        onProposalUpdate(data);
+      }
+    });
+
+    newSocket.on("dashboard:refresh", () => {
+      console.log("📊 Dashboard refresh");
+      if (onDashboardRefresh) {
+        onDashboardRefresh();
+      }
+    });
+
+    newSocket.on("unread:updated", (data: { unreadCount: number }) => {
+      console.log("💬 Unread messages updated:", data.unreadCount);
+      if (onUnreadUpdate) {
+        onUnreadUpdate(data.unreadCount);
+      }
+    });
+
     // Cleanup
     return () => {
       newSocket.disconnect();
       socketRef.current = null;
     };
-  }, [user]);
+  }, [user, onContractUpdate, onJobUpdate, onProposalUpdate, onDashboardRefresh, onJobsRefresh, onUnreadUpdate]);
 
   // Join conversation
   const joinConversation = (conversationId: string) => {
     if (socket) {
+      // Reset messages when joining new conversation
+      setMessages([]);
       socket.emit("join:conversation", conversationId);
     }
   };
@@ -156,6 +222,8 @@ export function useSocket() {
   const leaveConversation = (conversationId: string) => {
     if (socket) {
       socket.emit("leave:conversation", conversationId);
+      // Clear messages when leaving
+      setMessages([]);
     }
   };
 
@@ -217,6 +285,31 @@ export function useSocket() {
     return typing;
   };
 
+  // Register callbacks
+  const registerContractUpdateHandler = (handler: (data: any) => void) => {
+    setOnContractUpdate(() => handler);
+  };
+
+  const registerJobUpdateHandler = (handler: (data: any) => void) => {
+    setOnJobUpdate(() => handler);
+  };
+
+  const registerProposalUpdateHandler = (handler: (data: any) => void) => {
+    setOnProposalUpdate(() => handler);
+  };
+
+  const registerDashboardRefreshHandler = (handler: () => void) => {
+    setOnDashboardRefresh(() => handler);
+  };
+
+  const registerJobsRefreshHandler = (handler: () => void) => {
+    setOnJobsRefresh(() => handler);
+  };
+
+  const registerUnreadUpdateHandler = (handler: (count: number) => void) => {
+    setOnUnreadUpdate(() => handler);
+  };
+
   return {
     socket,
     isConnected,
@@ -230,5 +323,11 @@ export function useSocket() {
     markConversationAsRead,
     isUserOnline,
     getTypingUsers,
+    registerContractUpdateHandler,
+    registerJobUpdateHandler,
+    registerProposalUpdateHandler,
+    registerDashboardRefreshHandler,
+    registerJobsRefreshHandler,
+    registerUnreadUpdateHandler,
   };
 }

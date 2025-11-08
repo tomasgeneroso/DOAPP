@@ -31,11 +31,19 @@ export const config = {
   facebookAppId: process.env.FACEBOOK_APP_ID || "",
   facebookAppSecret: process.env.FACEBOOK_APP_SECRET || "",
 
-  // PayPal
+  // PayPal - Usa credenciales de sandbox en desarrollo, producción en producción
   paypalMode: process.env.PAYPAL_MODE || "sandbox",
-  paypalClientId: process.env.PAYPAL_CLIENT_ID || "",
-  paypalClientSecret: process.env.PAYPAL_CLIENT_SECRET || "",
+  paypalClientId: process.env.PAYPAL_MODE === "sandbox"
+    ? (process.env.PAYPAL_SANDBOX_CLIENT_ID || process.env.PAYPAL_CLIENT_ID || "")
+    : (process.env.PAYPAL_CLIENT_ID || ""),
+  paypalClientSecret: process.env.PAYPAL_MODE === "sandbox"
+    ? (process.env.PAYPAL_SANDBOX_SECRET || process.env.PAYPAL_CLIENT_SECRET || "")
+    : (process.env.PAYPAL_CLIENT_SECRET || ""),
   paypalPlatformFeePercentage: parseFloat(process.env.PAYPAL_PLATFORM_FEE_PERCENTAGE || "5"),
+
+  // PayPal Sandbox Accounts
+  sandboxBusinessAccount: process.env.SANDBOX_BUSINESS_ACCOUNT || "",
+  sandboxPersonalAccount: process.env.SANDBOX_PERSONAL_ACCOUNT || "",
 
   // Firebase (for push notifications)
   firebaseServiceAccountKey: process.env.FIREBASE_SERVICE_ACCOUNT_KEY || "",
@@ -66,8 +74,9 @@ console.log("MONGODB_URI exists:", !!config.mongodbUri);
 console.log("JWT_SECRET exists:", !!config.jwtSecret && config.jwtSecret !== "tu-secreto-super-seguro-cambialo");
 console.log("PAYPAL_CLIENT_ID exists:", !!config.paypalClientId);
 
-if (!config.mongodbUri) {
-  throw new Error("MONGODB_URI es requerida. Configúrala en Railway Variables.");
+// MongoDB is optional during PostgreSQL migration
+if (!config.mongodbUri && config.nodeEnv === 'production') {
+  console.warn("⚠️  ADVERTENCIA: MONGODB_URI no configurada. Asumiendo migración a PostgreSQL.");
 }
 
 if (!config.jwtSecret || config.jwtSecret === "tu-secreto-super-seguro-cambialo") {

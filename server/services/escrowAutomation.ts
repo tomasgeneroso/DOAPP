@@ -1,7 +1,8 @@
 import cron from "node-cron";
-import Contract from "../models/Contract";
+import { Contract } from "../models/sql/Contract.model.js";
 import fcmService from "./fcm";
 import emailService from "./email";
+import { Op } from 'sequelize';
 
 class EscrowAutomationService {
   /**
@@ -34,7 +35,7 @@ class EscrowAutomationService {
         status: "waiting_approval",
         workCompletedAt: {
           $exists: true,
-          $lte: new Date(now.getTime() - autoReleaseDelay),
+          [Op.lte]: new Date(now.getTime() - autoReleaseDelay),
         },
         escrowReleased: false,
       })
@@ -120,8 +121,8 @@ class EscrowAutomationService {
         status: "waiting_approval",
         workCompletedAt: {
           $exists: true,
-          $gte: new Date(now.getTime() - autoReleaseDelay),
-          $lte: new Date(now.getTime() - reminderThreshold),
+          [Op.gte]: new Date(now.getTime() - autoReleaseDelay),
+          [Op.lte]: new Date(now.getTime() - reminderThreshold),
         },
         escrowReleased: false,
       })
@@ -171,7 +172,7 @@ class EscrowAutomationService {
 
       const overdueContracts = await Contract.find({
         status: "in_progress",
-        endDate: { $lt: now },
+        endDate: { [Op.lt]: now },
       })
         .populate("client", "name email")
         .populate("doer", "name email");

@@ -1,7 +1,8 @@
 import express, { Request, Response } from "express";
-import BlogPost from "../models/BlogPost.js";
+import { BlogPost } from "../models/sql/BlogPost.model.js";
 import { protect } from "../middleware/auth.js";
 import type { AuthRequest } from "../types/index.js";
+import { Op } from 'sequelize';
 
 const router = express.Router();
 
@@ -24,9 +25,9 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
 
     if (search) {
       query.$or = [
-        { title: { $regex: search, $options: "i" } },
-        { subtitle: { $regex: search, $options: "i" } },
-        { content: { $regex: search, $options: "i" } },
+        { title: { [Op.regexp]: search, $options: "i" } },
+        { subtitle: { [Op.regexp]: search, $options: "i" } },
+        { content: { [Op.regexp]: search, $options: "i" } },
       ];
     }
 
@@ -180,11 +181,11 @@ router.get("/:slug/related", async (req: Request, res: Response): Promise<void> 
 
     // Find related posts by same category or tags
     const relatedPosts = await BlogPost.find({
-      _id: { $ne: currentPost._id },
+      _id: { [Op.ne]: currentPost._id },
       status: "published",
-      $or: [
+      [Op.or]: [
         { category: currentPost.category },
-        { tags: { $in: currentPost.tags } },
+        { tags: { [Op.in]: currentPost.tags } },
       ],
     })
       .select("title subtitle slug excerpt author coverImage category publishedAt")

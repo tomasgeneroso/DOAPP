@@ -1,10 +1,8 @@
 const API_URL = import.meta.env.VITE_API_URL || "/api";
 
 const getAuthHeaders = () => {
-  const token = localStorage.getItem("token");
   return {
     "Content-Type": "application/json",
-    ...(token && { Authorization: `Bearer ${token}` }),
   };
 };
 
@@ -23,6 +21,7 @@ export const apiClient = {
 
     const res = await fetch(url.toString(), {
       headers: getAuthHeaders(),
+      credentials: 'include', // Importante: envía las cookies automáticamente
     });
 
     if (!res.ok) {
@@ -37,6 +36,7 @@ export const apiClient = {
     const res = await fetch(`${API_URL}${endpoint}`, {
       method: "POST",
       headers: getAuthHeaders(),
+      credentials: 'include', // Importante: envía las cookies automáticamente
       body: data ? JSON.stringify(data) : undefined,
     });
 
@@ -52,6 +52,7 @@ export const apiClient = {
     const res = await fetch(`${API_URL}${endpoint}`, {
       method: "PUT",
       headers: getAuthHeaders(),
+      credentials: 'include', // Importante: envía las cookies automáticamente
       body: data ? JSON.stringify(data) : undefined,
     });
 
@@ -67,6 +68,7 @@ export const apiClient = {
     const res = await fetch(`${API_URL}${endpoint}`, {
       method: "DELETE",
       headers: getAuthHeaders(),
+      credentials: 'include', // Importante: envía las cookies automáticamente
     });
 
     if (!res.ok) {

@@ -1,8 +1,8 @@
 import express, { Request, Response } from "express";
 import { body, validationResult } from "express-validator";
 import jwt, { Secret, SignOptions } from "jsonwebtoken";
-import User, { IUser } from "../models/User.js";
-import Referral from "../models/Referral.js";
+import { User } from "../models/sql/User.model.js";
+import { Referral } from "../models/sql/Referral.model.js";
 import { config } from "../config/env.js";
 import { protect } from "../middleware/auth.js";
 import type { AuthRequest } from "../types/index.js";
@@ -15,11 +15,11 @@ import {
   revokeAllUserTokens,
 } from "../utils/tokens.js";
 import { authLimiter } from "../middleware/security.js";
-import { PasswordResetToken } from "../models/PasswordResetToken.js";
-import { LoginDevice } from "../models/LoginDevice.js";
+import { PasswordResetToken } from "../models/sql/PasswordResetToken.model.js";
 import emailService from "../services/email.js";
 import anomalyDetection from "../services/anomalyDetection.js";
 import { createAuditLog, getClientIp, getUserAgent } from "../utils/auditLogger.js";
+import { uploadAvatar, uploadCover } from "../middleware/upload.js";
 
 const router = express.Router();
 
@@ -71,7 +71,7 @@ router.post(
       const { name, email, password, phone, termsAccepted, referralCode } = req.body;
 
       // Verificar si el usuario ya existe
-      const existingUser = await User.findOne({ email });
+      const existingUser = await User.findOne({ where: { email } });
       if (existingUser) {
         res.status(400).json({
           success: false,
@@ -83,7 +83,7 @@ router.post(
       // Verificar código de referido si se proporcionó
       let referrer = null;
       if (referralCode) {
-        referrer = await User.findOne({ referralCode: referralCode.toUpperCase() });
+        referrer = await User.findOne({ where: { referralCode: referralCode.toUpperCase() } });
         if (!referrer) {
           res.status(400).json({
             success: false,
@@ -101,16 +101,18 @@ router.post(
         phone,
         termsAccepted,
         termsAcceptedAt: termsAccepted ? new Date() : undefined,
-        referredBy: referrer?._id,
+        referredBy: referrer?.id,
       });
 
       // Crear registro de referido si existe
       if (referrer) {
         await Referral.create({
-          referrer: referrer._id,
-          referred: user._id,
+          referrerId: referrer.id,
+          referredUserId: user.id,
           referralCode: referralCode.toUpperCase(),
-          status: "pending",
+          usedCode: referralCode.toUpperCase(),
+          status: "registered",
+          registeredAt: new Date(),
           metadata: {
             ipAddress: getClientIp(req),
             userAgent: req.headers["user-agent"],
@@ -123,13 +125,22 @@ router.post(
       }
 
       // Generar token
-      const token = generateToken((user as any)._id.toString());
+      const token = generateToken(user.id.toString());
+
+      // Set token in httpOnly cookie
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', // Protección CSRF (lax en desarrollo para Vite proxy)
+        maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
+      });
 
       res.status(201).json({
         success: true,
-        token,
+        token, // Mantener para compatibilidad temporal
         user: {
-          id: (user as any)._id,
+          _id: user.id,
+          id: user.id, // Alias for compatibility
           name: user.name,
           email: user.email,
           phone: user.phone,
@@ -138,6 +149,11 @@ router.post(
           reviewsCount: user.reviewsCount,
           completedJobs: user.completedJobs,
           role: user.role,
+          adminRole: user.adminRole,
+          permissions: user.permissions,
+          membershipTier: user.membershipTier,
+          hasMembership: user.hasMembership,
+          balance: user.balance,
         },
       });
     } catch (error: any) {
@@ -173,7 +189,10 @@ router.post(
       const { email, password, deviceFingerprint } = req.body;
 
       // Buscar usuario con password
-      const user = await User.findOne({ email }).select("+password");
+      const user = await User.findOne({
+        where: { email },
+        attributes: { include: ['password'] }
+      });
       if (!user) {
         res.status(401).json({
           success: false,
@@ -183,7 +202,9 @@ router.post(
       }
 
       // Verificar contraseña
-      const isMatch = await user.comparePassword(password);
+      const bcrypt = await import('bcryptjs');
+      const isMatch = await bcrypt.compare(password, user.password);
+
       if (!isMatch) {
         res.status(401).json({
           success: false,
@@ -196,9 +217,11 @@ router.post(
       const clientIp = getClientIp(req);
       const userAgent = req.headers["user-agent"] || "unknown";
 
+      // TODO: Temporarily disabled LoginDevice and anomalyDetection during debugging
+      /*
       if (deviceFingerprint) {
         await (LoginDevice as any).recordLogin(
-          user._id,
+          user.id,
           deviceFingerprint,
           clientIp,
           userAgent
@@ -207,7 +230,7 @@ router.post(
 
       // Detectar login anómalo
       const anomalyResult = await anomalyDetection.detectAnomalousLogin({
-        userId: user._id as any,
+        userId: user.id as any,
         ipAddress: clientIp,
         userAgent,
         deviceFingerprint,
@@ -224,6 +247,7 @@ router.post(
         });
         return;
       }
+      */
 
       // Actualizar último login
       user.lastLogin = new Date();
@@ -231,31 +255,53 @@ router.post(
       await user.save();
 
       // Generar token
-      const token = generateToken((user as any)._id.toString());
+      const token = generateToken(user.id.toString());
+
+      // Set token in httpOnly cookie (más seguro que localStorage)
+      res.cookie('token', token, {
+        httpOnly: true, // No accesible desde JavaScript del cliente
+        secure: process.env.NODE_ENV === 'production', // Solo HTTPS en producción
+        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', // Protección CSRF (lax en desarrollo para Vite proxy)
+        maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
+      });
+
+      const userData = {
+        _id: user.id,
+        id: user.id, // Alias for compatibility
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        avatar: user.avatar,
+        rating: user.rating,
+        reviewsCount: user.reviewsCount,
+        completedJobs: user.completedJobs,
+        role: user.role,
+        adminRole: user.adminRole,
+        permissions: user.permissions,
+        membershipTier: user.membershipTier,
+        hasMembership: user.hasMembership,
+        isPremiumVerified: user.isPremiumVerified,
+        monthlyContractsUsed: user.monthlyContractsUsed,
+        monthlyFreeContractsLimit: user.monthlyFreeContractsLimit,
+        balance: user.balance,
+      };
 
       const response: any = {
         success: true,
-        token,
-        user: {
-          id: (user as any)._id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          avatar: user.avatar,
-          rating: user.rating,
-          reviewsCount: user.reviewsCount,
-          completedJobs: user.completedJobs,
-          role: user.role,
-        },
+        token, // Mantener para compatibilidad temporal
+        user: userData,
       };
 
       // Añadir advertencia si hay anomalía
+      // TODO: Temporarily disabled during debugging
+      /*
       if (anomalyResult.isAnomalous) {
         response.warning = {
           message: "Hemos detectado actividad inusual en este login",
           riskLevel: anomalyResult.riskLevel,
         };
       }
+      */
 
       res.json(response);
     } catch (error: any) {
@@ -272,12 +318,21 @@ router.post(
 // @access  Private
 router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const user = await User.findById(req.user._id as string);
+    const user = await User.findByPk(req.user.id as string);
+
+    // Generar nuevo token JWT para Socket.io (válido por 7 días)
+    const token = jwt.sign(
+      { id: user?.id },
+      config.jwtSecret,
+      { expiresIn: "7d" }
+    );
 
     res.json({
       success: true,
+      token, // Token para Socket.io
       user: {
-        id: (user?._id as unknown as string),
+        _id: (user?.id as unknown as string),
+        id: (user?.id as unknown as string), // Alias for compatibility
         name: user?.name,
         email: user?.email,
         phone: user?.phone,
@@ -287,6 +342,8 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         reviewsCount: user?.reviewsCount,
         completedJobs: user?.completedJobs,
         role: user?.role,
+        adminRole: user?.adminRole,
+        permissions: user?.permissions,
         isVerified: user?.isVerified,
         interests: user?.interests,
         onboardingCompleted: user?.onboardingCompleted,
@@ -296,6 +353,12 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         referralCode: user?.referralCode,
         freeContractsRemaining: user?.freeContractsRemaining,
         totalReferrals: user?.totalReferrals,
+        membershipTier: user?.membershipTier,
+        hasMembership: user?.hasMembership,
+        isPremiumVerified: user?.isPremiumVerified,
+        monthlyContractsUsed: user?.monthlyContractsUsed,
+        monthlyFreeContractsLimit: user?.monthlyFreeContractsLimit,
+        balance: user?.balance,
       },
     });
   } catch (error: any) {
@@ -313,16 +376,16 @@ router.put("/update", protect, async (req: AuthRequest, res: Response): Promise<
   try {
     const { name, phone, bio, avatar } = req.body;
 
-    const user = await User.findByIdAndUpdate(
-      req.user._id as string,
-      { name, phone, bio, avatar },
-      { new: true, runValidators: true }
-    );
+    const user = await User.findByPk(req.user.id as string);
+    if (user) {
+      await user.update({ name, phone, bio, avatar });
+    }
 
     res.json({
       success: true,
       user: {
-        id: (user?._id as unknown as string),
+        _id: (user?.id as unknown as string),
+        id: (user?.id as unknown as string), // Alias for compatibility
         name: user?.name,
         email: user?.email,
         phone: user?.phone,
@@ -349,19 +412,19 @@ router.post("/onboarding", protect, async (req: AuthRequest, res: Response): Pro
   try {
     const { interests, onboardingCompleted } = req.body;
 
-    const user = await User.findByIdAndUpdate(
-      req.user._id as string,
-      {
+    const user = await User.findByPk(req.user.id as string);
+    if (user) {
+      await user.update({
         interests: interests || [],
         onboardingCompleted: onboardingCompleted || true
-      },
-      { new: true, runValidators: true }
-    );
+      });
+    }
 
     res.json({
       success: true,
       user: {
-        id: (user?._id as unknown as string),
+        _id: (user?.id as unknown as string),
+        id: (user?.id as unknown as string), // Alias for compatibility
         name: user?.name,
         email: user?.email,
         interests: user?.interests,
@@ -393,7 +456,9 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
     } = req.body;
 
     // Obtener usuario actual para comparar cambios
-    const oldUser = await User.findById(req.user._id as string).select('+bankingInfo');
+    const oldUser = await User.findByPk(req.user.id as string, {
+      attributes: { include: ['bankingInfo'] }
+    });
 
     if (!oldUser) {
       res.status(404).json({
@@ -458,19 +523,18 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
     if (interests) updateData.interests = interests;
     if (notificationPreferences) updateData.notificationPreferences = notificationPreferences;
 
-    const user = await User.findByIdAndUpdate(
-      req.user._id as string,
-      updateData,
-      { new: true, runValidators: true }
-    );
+    const user = await User.findByPk(req.user.id as string);
+    if (user) {
+      await user.update(updateData);
+    }
 
     // Crear audit log si hubo cambios
     if (changes.length > 0) {
       await createAuditLog({
-        userId: req.user._id,
+        userId: req.user.id,
         action: "user.settings_updated",
         entity: "user",
-        entityId: (req.user._id as any).toString(),
+        entityId: (req.user.id as any).toString(),
         description: `User updated their settings (${changes.length} changes)`,
         ipAddress: getClientIp(req),
         userAgent: getUserAgent(req),
@@ -484,7 +548,8 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
     res.json({
       success: true,
       user: {
-        id: (user?._id as unknown as string),
+        _id: (user?.id as unknown as string),
+        id: (user?.id as unknown as string), // Alias for compatibility
         name: user?.name,
         email: user?.email,
         phone: user?.phone,
@@ -524,7 +589,7 @@ router.get(
   }),
   (req: Request, res: Response) => {
     const user = req.user as IUser;
-    const token = generateToken((user._id as unknown as string));
+    const token = generateToken((user.id as unknown as string));
     // Aquí podrías guardar el token en una cookie o redirigir con el token
     res.redirect(`${config.clientUrl}/auth/callback?token=${token}`);
   }
@@ -544,7 +609,7 @@ router.get(
   }),
   (req: Request, res: Response) => {
     const user = req.user as IUser;
-    const token = generateToken((user._id as unknown as string));
+    const token = generateToken((user.id as unknown as string));
     res.redirect(`${config.clientUrl}/auth/callback?token=${token}`);
   }
 );
@@ -578,7 +643,7 @@ router.post("/facebook/token", async (req: Request, res: Response): Promise<void
     }
 
     // Check if user exists
-    let user = await User.findOne({ facebookId: fbUser.id });
+    let user = await User.findOne({ where: { facebookId: fbUser.id } });
 
     if (!user) {
       // Create new user
@@ -599,9 +664,9 @@ router.post("/facebook/token", async (req: Request, res: Response): Promise<void
     await user.save();
 
     // Generate tokens
-    const token = generateAccessToken((user._id as unknown as string));
+    const token = generateAccessToken((user.id as unknown as string));
     const refreshToken = await generateRefreshToken(
-      (user._id as unknown as string),
+      (user.id as unknown as string),
       getClientIp(req),
       req.headers["user-agent"]
     );
@@ -611,7 +676,8 @@ router.post("/facebook/token", async (req: Request, res: Response): Promise<void
       token,
       refreshToken,
       user: {
-        id: (user as any)._id,
+        _id: (user as any)._id,
+        id: (user as any)._id, // Alias for compatibility
         name: user.name,
         email: user.email,
         phone: user.phone,
@@ -679,6 +745,13 @@ router.post("/logout", protect, async (req: AuthRequest, res: Response): Promise
       await revokeRefreshToken(token, getClientIp(req), "Logged out");
     }
 
+    // Clear httpOnly cookie
+    res.clearCookie('token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict'
+    });
+
     res.json({
       success: true,
       message: "Sesión cerrada correctamente",
@@ -696,7 +769,7 @@ router.post("/logout", protect, async (req: AuthRequest, res: Response): Promise
 // @access  Private
 router.post("/logout-all", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    await revokeAllUserTokens(req.user._id, "Logged out from all devices");
+    await revokeAllUserTokens(req.user.id, "Logged out from all devices");
 
     res.json({
       success: true,
@@ -733,7 +806,7 @@ router.post(
       const { email } = req.body;
 
       // Buscar usuario
-      const user = await User.findOne({ email });
+      const user = await User.findOne({ where: { email } });
       if (!user) {
         // Por seguridad, no revelamos si el email existe o no
         res.json({
@@ -745,7 +818,7 @@ router.post(
 
       // Generar token de reset
       const resetData = await (PasswordResetToken as any).generateToken(
-        user._id,
+        user.id,
         getClientIp(req),
         req.headers["user-agent"]
       );
@@ -804,7 +877,7 @@ router.post(
       if (!resetToken) {
         console.log('Token verification failed - token not found or expired');
         // Log for debugging - check if token exists at all
-        const anyToken = await PasswordResetToken.findOne({ token });
+        const anyToken = await PasswordResetToken.findOne({ where: { token } });
         if (anyToken) {
           console.log('Token found but:', {
             used: anyToken.used,
@@ -824,7 +897,7 @@ router.post(
       }
 
       // Obtener usuario
-      const user = await User.findById(resetToken.userId);
+      const user = await User.findByPk(resetToken.userId);
       if (!user) {
         res.status(404).json({
           success: false,
@@ -843,7 +916,7 @@ router.post(
       await resetToken.save();
 
       // Revocar todas las sesiones activas por seguridad
-      await revokeAllUserTokens(user._id as any, "Password reset");
+      await revokeAllUserTokens(user.id as any, "Password reset");
 
       // Enviar email de confirmación
       await emailService.sendPasswordChangedEmail(user.email, user.name);
@@ -867,12 +940,12 @@ router.post(
 // @access  Private
 router.get("/devices", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const devices = await (LoginDevice as any).getUserDevices(req.user._id);
+    const devices = await (LoginDevice as any).getUserDevices(req.user.id);
 
     res.json({
       success: true,
       devices: devices.map((device: any) => ({
-        id: device._id,
+        id: device.id,
         deviceType: device.deviceType,
         browser: device.browser,
         os: device.os,
@@ -899,8 +972,10 @@ router.get("/devices", protect, async (req: AuthRequest, res: Response): Promise
 router.post("/devices/:id/trust", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const device = await LoginDevice.findOne({
-      _id: req.params.id,
-      userId: req.user._id,
+      where: {
+        id: req.params.id,
+        userId: req.user.id,
+      }
     });
 
     if (!device) {
@@ -918,7 +993,7 @@ router.post("/devices/:id/trust", protect, async (req: AuthRequest, res: Respons
       success: true,
       message: device.isTrusted ? "Dispositivo marcado como confiable" : "Dispositivo desmarcado como confiable",
       device: {
-        id: device._id,
+        id: device.id,
         isTrusted: device.isTrusted,
       },
     });
@@ -929,5 +1004,83 @@ router.post("/devices/:id/trust", protect, async (req: AuthRequest, res: Respons
     });
   }
 });
+
+// @route   POST /api/auth/upload-avatar
+// @desc    Upload user avatar
+// @access  Private
+router.post(
+  "/upload-avatar",
+  protect,
+  uploadAvatar,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      if (!req.file) {
+        res.status(400).json({
+          success: false,
+          message: "No se proporcionó ninguna imagen",
+        });
+        return;
+      }
+
+      const avatarUrl = `/uploads/avatars/${req.file.filename}`;
+
+      // Update user avatar
+      const user = await User.findByPk(req.user.id);
+      if (user) {
+        await user.update({ avatar: avatarUrl });
+      }
+
+      res.json({
+        success: true,
+        avatar: avatarUrl,
+        message: "Avatar actualizado exitosamente",
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error al subir avatar",
+      });
+    }
+  }
+);
+
+// @route   POST /api/auth/upload-cover
+// @desc    Upload user cover image
+// @access  Private
+router.post(
+  "/upload-cover",
+  protect,
+  uploadCover,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      if (!req.file) {
+        res.status(400).json({
+          success: false,
+          message: "No se proporcionó ninguna imagen",
+        });
+        return;
+      }
+
+      const coverUrl = `/uploads/avatars/${req.file.filename}`;
+
+      // Update user cover image
+      const user = await User.findByPk(req.user.id);
+      if (user) {
+        await user.update({ coverImage: coverUrl });
+      }
+
+      res.json({
+        success: true,
+        coverImage: coverUrl,
+        message: "Imagen de portada actualizada exitosamente",
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error al subir imagen de portada",
+      });
+    }
+  }
+);
 
 export default router;

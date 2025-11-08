@@ -1,9 +1,10 @@
-import User from "../models/User.js";
-import Job from "../models/Job.js";
-import Contract from "../models/Contract.js";
-import Payment from "../models/Payment.js";
-import Ticket from "../models/Ticket.js";
+import { User } from "../models/sql/User.model.js";
+import { Job } from "../models/sql/Job.model.js";
+import { Contract } from "../models/sql/Contract.model.js";
+import { Payment } from "../models/sql/Payment.model.js";
+import { Ticket } from "../models/sql/Ticket.model.js";
 import cache from "./cache.js";
+import { Op } from 'sequelize';
 
 /**
  * Analytics Service
@@ -35,10 +36,10 @@ class AnalyticsService {
       Job.countDocuments(),
       Contract.countDocuments(),
       Payment.countDocuments(),
-      User.countDocuments({ lastLogin: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } }),
-      Job.countDocuments({ status: "open" }),
-      Contract.countDocuments({ status: { $in: ["pending", "accepted", "in_progress"] } }),
-      Contract.countDocuments({ status: "completed" }),
+      User.countDocuments({ lastLogin: { [Op.gte]: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } }),
+      Job.count({ where: { status: "open" } }),
+      Contract.countDocuments({ status: { [Op.in]: ["pending", "accepted", "in_progress"] } }),
+      Contract.count({ where: { status: "completed" } }),
       Payment.aggregate([
         { $match: { status: "completed" } },
         { $group: { _id: null, total: { $sum: "$platformFee" } } },
@@ -86,7 +87,7 @@ class AnalyticsService {
     const growth = await User.aggregate([
       {
         $match: {
-          createdAt: { $gte: startDate },
+          createdAt: { [Op.gte]: startDate },
         },
       },
       {
@@ -200,7 +201,7 @@ class AnalyticsService {
       Contract.aggregate([
         {
           $match: {
-            createdAt: { $gte: startDate },
+            createdAt: { [Op.gte]: startDate },
           },
         },
         {
@@ -244,7 +245,7 @@ class AnalyticsService {
       Payment.aggregate([
         {
           $match: {
-            createdAt: { $gte: startDate },
+            createdAt: { [Op.gte]: startDate },
             status: "completed",
           },
         },
@@ -265,7 +266,7 @@ class AnalyticsService {
       Payment.aggregate([
         {
           $match: {
-            createdAt: { $gte: startDate },
+            createdAt: { [Op.gte]: startDate },
             status: "completed",
           },
         },
@@ -279,7 +280,7 @@ class AnalyticsService {
       Payment.aggregate([
         {
           $match: {
-            createdAt: { $gte: startDate },
+            createdAt: { [Op.gte]: startDate },
             status: "completed",
           },
         },

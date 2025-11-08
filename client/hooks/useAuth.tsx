@@ -26,37 +26,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for stored token on mount and validate it
+    // Check for cookie token on mount and validate it
     const validateToken = async () => {
-      const storedToken = localStorage.getItem("token");
-      const storedUser = localStorage.getItem("user");
+      console.log('🔐 Validating cookie token...');
 
-      if (storedToken && storedUser) {
-        try {
-          // Validate token by fetching user data
-          const response = await fetch("/api/auth/me", {
-            headers: {
-              Authorization: `Bearer ${storedToken}`,
-            },
-          });
+      try {
+        // El token está en la cookie httpOnly, solo necesitamos validarlo
+        const response = await fetch("/api/auth/me", {
+          credentials: 'include', // Envía automáticamente las cookies
+        });
 
-          if (response.ok) {
-            const data = await response.json();
-            setToken(storedToken);
-            setUser(data.user);
-            localStorage.setItem("user", JSON.stringify(data.user));
-          } else {
-            // Token inválido o expirado, limpiar
-            localStorage.removeItem("token");
-            localStorage.removeItem("user");
+        console.log('📡 /api/auth/me response:', response.status);
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('✅ User validated from cookie:', data.user?._id, data.user?.name);
+          // Guardar token en localStorage para Socket.io
+          if (data.token) {
+            localStorage.setItem("token", data.token);
           }
-        } catch (error) {
-          console.error("Error validating token:", error);
+          setUser(data.user);
+          setToken(data.token || 'cookie'); // Indicador de que usamos cookies
+        } else {
+          console.warn('⚠️ No valid session cookie found');
           localStorage.removeItem("token");
-          localStorage.removeItem("user");
+          setUser(null);
+          setToken(null);
         }
+      } catch (error) {
+        console.error("❌ Error validating session:", error);
+        setUser(null);
+        setToken(null);
       }
+
       setIsLoading(false);
+      console.log('✅ Auth loading complete');
     };
 
     validateToken();
@@ -69,6 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: 'include', // Importante: permite enviar y recibir cookies
         body: JSON.stringify({ email, password }),
       });
 
@@ -83,10 +88,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(data.message || "Error al iniciar sesión");
       }
 
+      // El token ahora está en la cookie httpOnly
+      // Guardamos el token en localStorage para Socket.io
+      localStorage.setItem("token", data.token);
       setToken(data.token);
       setUser(data.user);
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
+      console.log('✅ Login exitoso, usuario:', data.user.name);
     } catch (error) {
       console.error("Login error:", error);
       throw error;
@@ -100,6 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: {
           "Content-Type": "application/json",
         },
+        credentials: 'include', // Permite enviar y recibir cookies
         body: JSON.stringify(data),
       });
 
@@ -114,39 +122,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(responseData.message || "Error al registrarse");
       }
 
+      // El token ahora está en la cookie httpOnly
+      // Guardamos el token en localStorage para Socket.io
+      localStorage.setItem("token", responseData.token);
       setToken(responseData.token);
       setUser(responseData.user);
-      localStorage.setItem("token", responseData.token);
-      localStorage.setItem("user", JSON.stringify(responseData.user));
+      console.log('✅ Registro exitoso, usuario:', responseData.user.name);
     } catch (error) {
       console.error("Register error:", error);
       throw error;
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    setToken(null);
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+  const logout = async () => {
+    try {
+      // Llamar al endpoint de logout para limpiar la cookie en el servidor
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: 'include',
+      });
+    } catch (error) {
+      console.error("Error during logout:", error);
+    } finally {
+      // Limpiar estado local y localStorage
+      localStorage.removeItem("token");
+      setUser(null);
+      setToken(null);
+      console.log('✅ Logout exitoso');
+    }
   };
 
   const refreshUser = async () => {
     try {
-      const storedToken = localStorage.getItem("token");
-      if (!storedToken) return;
-
       const response = await fetch("/api/auth/me", {
-        headers: {
-          Authorization: `Bearer ${storedToken}`,
-        },
+        credentials: 'include', // Usa la cookie automáticamente
       });
 
       const data = await response.json();
 
       if (response.ok && data.success) {
+        // Guardar token en localStorage para Socket.io
+        if (data.token) {
+          localStorage.setItem("token", data.token);
+        }
         setUser(data.user);
-        localStorage.setItem("user", JSON.stringify(data.user));
+        console.log('✅ User refreshed:', data.user.name);
       }
     } catch (error) {
       console.error("Error refreshing user:", error);

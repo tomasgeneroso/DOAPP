@@ -1,15 +1,15 @@
-import mongoose from "mongoose";
 import dotenv from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
-import User from "../models/User.js";
-import Job from "../models/Job.js";
-import Contract from "../models/Contract.js";
-import Proposal from "../models/Proposal.js";
-import Conversation from "../models/Conversation.js";
-import ChatMessage from "../models/ChatMessage.js";
-import Review from "../models/Review.js";
-import Payment from "../models/Payment.js";
+import { User } from "../models/sql/User.model.js";
+import { Job } from "../models/sql/Job.model.js";
+import { Contract } from "../models/sql/Contract.model.js";
+import { Proposal } from "../models/sql/Proposal.model.js";
+import { Conversation        } from "../models/sql/Conversation.model.js";
+import { ChatMessage } from "../models/sql/ChatMessage.model.js";
+import { Review } from "../models/sql/Review.model.js";
+import { Payment } from "../models/sql/Payment.model.js";
+import { initDatabase, sequelize } from "../config/database.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,21 +17,14 @@ const __dirname = path.dirname(__filename);
 // Load environment variables
 dotenv.config({ path: path.join(__dirname, "../../.env") });
 
-const MONGODB_URI = process.env.MONGODB_URI;
-
-if (!MONGODB_URI) {
-  console.error("❌ MONGODB_URI no está definida en las variables de entorno");
-  process.exit(1);
-}
-
 // Datos de usuarios de prueba
 const mockUsers = [
   {
-    name: "Juan Pérez",
+    name: "Juan        Pérez",
     email: "juan@test.com",
     password: "123456",
     phone: "+54 9 11 1234-5678",
-    bio: "Plomero con 10 años de experiencia. Especializado en reparaciones e instalaciones.",
+    bio: "Plomero con        10 años de experiencia. Especializado en        reparaciones e instalaciones.",
     rating: 4.8,
     reviewsCount: 45,
     completedJobs: 52,
@@ -59,7 +52,7 @@ const mockUsers = [
     email: "carlos@test.com",
     password: "123456",
     phone: "+54 9 11 3456-7890",
-    bio: "Pintor profesional. Interiores y exteriores con acabados de alta calidad.",
+    bio: "Pintor profesional. Interiores y exteriores con        acabados de alta calidad.",
     rating: 4.7,
     reviewsCount: 38,
     completedJobs: 41,
@@ -87,7 +80,7 @@ const mockUsers = [
     email: "luis@test.com",
     password: "123456",
     phone: "+54 9 11 5678-9012",
-    bio: "Carpintero con experiencia en muebles a medida y reparaciones.",
+    bio: "Carpintero con        experiencia en        muebles a medida y reparaciones.",
     rating: 4.6,
     reviewsCount: 32,
     completedJobs: 35,
@@ -111,7 +104,7 @@ const mockUsers = [
     interests: ["Hogar", "Mantenimiento", "Reparaciones"],
   },
   {
-    name: "Admin Demo",
+    name: "Admin        Demo",
     email: "admin@test.com",
     password: "123456",
     phone: "+54 9 11 7890-1234",
@@ -138,7 +131,7 @@ const categories = [
   "Aire Acondicionado",
   "Mudanza",
   "Cerrajería",
-  "Reparación de Electrodomésticos",
+  "Reparación        de Electrodomésticos",
 ];
 
 // Ubicaciones
@@ -149,7 +142,7 @@ const locations = [
   "Caballito, CABA",
   "Villa Crespo, CABA",
   "Nuñez, CABA",
-  "San Telmo, CABA",
+  "San        Telmo, CABA",
   "Puerto Madero, CABA",
   "Flores, CABA",
   "Almagro, CABA",
@@ -158,20 +151,20 @@ const locations = [
 // Trabajos de muestra
 const jobTemplates = [
   {
-    title: "Reparación de canilla que gotea",
-    description: "Necesito que reparen una canilla de la cocina que está goteando constantemente. Es urgente ya que está desperdiciando mucha agua.",
+    title: "Reparación        de canilla que gotea",
+    description: "Necesito que reparen        una canilla de la cocina que está goteando constantemente. Es urgente ya que está desperdiciando mucha agua.",
     category: "Plomería",
     budget: 3500,
   },
   {
-    title: "Instalación de lámpara en techo alto",
-    description: "Requiero instalación de una lámpara colgante en un techo de 4 metros de altura. Tengo la lámpara, solo necesito la mano de obra.",
+    title: "Instalación        de lámpara en        techo alto",
+    description: "Requiero instalación        de una lámpara colgante en        un        techo de 4 metros de altura. Tengo la lámpara, solo necesito la mano de obra.",
     category: "Electricidad",
     budget: 5000,
   },
   {
-    title: "Pintura de habitación (15m²)",
-    description: "Necesito pintar una habitación de aproximadamente 15m². Las paredes ya están preparadas. Preferentemente pintura blanca mate.",
+    title: "Pintura de habitación        (15m²)",
+    description: "Necesito pintar una habitación        de aproximadamente 15m². Las paredes ya están        preparadas. Preferentemente pintura blanca mate.",
     category: "Pintura",
     budget: 12000,
   },
@@ -182,14 +175,14 @@ const jobTemplates = [
     budget: 8000,
   },
   {
-    title: "Reparación de puerta de placard",
-    description: "Una de las puertas del placard se salió de la guía y necesita reparación. También ajustar bisagras.",
+    title: "Reparación        de puerta de placard",
+    description: "Una de las puertas del placard se salió de la guía y necesita reparación. También        ajustar bisagras.",
     category: "Carpintería",
     budget: 4500,
   },
   {
-    title: "Instalación de aire acondicionado",
-    description: "Instalación de split de 3500 frigorías en dormitorio. Tengo el equipo, necesito instalación profesional con garantía.",
+    title: "Instalación        de aire acondicionado",
+    description: "Instalación        de split de 3500 frigorías en        dormitorio. Tengo el equipo, necesito instalación        profesional con        garantía.",
     category: "Aire Acondicionado",
     budget: 15000,
   },
@@ -200,14 +193,14 @@ const jobTemplates = [
     budget: 8500,
   },
   {
-    title: "Reparación de heladera que no enfría",
+    title: "Reparación        de heladera que no enfría",
     description: "La heladera dejó de enfriar correctamente. Marca Whirlpool, modelo 2018. Necesito diagnóstico y reparación.",
-    category: "Reparación de Electrodomésticos",
+    category: "Reparación        de Electrodomésticos",
     budget: 6000,
   },
   {
-    title: "Poda de árbol en jardín",
-    description: "Tengo un árbol que necesita poda urgente ya que las ramas están tocando cables. Jardín de fácil acceso.",
+    title: "Poda de árbol en        jardín",
+    description: "Tengo un        árbol que necesita poda urgente ya que las ramas están        tocando cables. Jardín        de fácil acceso.",
     category: "Jardinería",
     budget: 7000,
   },
@@ -219,27 +212,30 @@ const jobTemplates = [
   },
 ];
 
-async function seedDatabase() {
+async function        seedDatabase() {
   try {
-    console.log("🚀 Conectando a MongoDB...");
-    await mongoose.connect(MONGODB_URI);
-    console.log("✅ Conectado a MongoDB\n");
+    console.log("🚀 Conectando a PostgreSQL...");
+    await initDatabase();
+    console.log("✅ Conectado a PostgreSQL y modelos registrados\n");
 
     // Limpiar colecciones
     console.log("🧹 Limpiando base de datos...");
-    await User.deleteMany({});
-    await Job.deleteMany({});
-    await Contract.deleteMany({});
-    await Proposal.deleteMany({});
-    await Conversation.deleteMany({});
-    await ChatMessage.deleteMany({});
-    await Review.deleteMany({});
-    await Payment.deleteMany({});
+    await User.destroy({ where: {}, truncate: true, cascade: true });
+    await Job.destroy({ where: {}, truncate: true, cascade: true });
+    await Contract.destroy({ where: {}, truncate: true, cascade: true });
+    await Proposal.destroy({ where: {}, truncate: true, cascade: true });
+    await Conversation.destroy({ where: {}, truncate: true, cascade: true });
+    await ChatMessage.destroy({ where: {}, truncate: true, cascade: true });
+    await Review.destroy({ where: {}, truncate: true, cascade: true });
+    await Payment.destroy({ where: {}, truncate: true, cascade: true });
     console.log("✅ Base de datos limpiada\n");
 
     // Crear usuarios
     console.log("👥 Creando usuarios de prueba...");
-    const users = await User.create(mockUsers);
+    // Use Promise.all with individual User.create to ensure hooks fire
+    const users = await Promise.all(
+      mockUsers.map(userData => User.create(userData))
+    );
     console.log(`✅ ${users.length} usuarios creados\n`);
 
     const [juan, maria, carlos, ana, luis, cliente, admin] = users;
@@ -267,8 +263,7 @@ async function seedDatabase() {
         startDate,
         endDate,
         status: "open",
-        postedBy: cliente._id,
-        client: cliente._id,
+        clientId: cliente.id,
       });
       openJobs.push(job);
     }
@@ -285,24 +280,24 @@ async function seedDatabase() {
       const statuses = ["pending", "pending", "approved", "rejected"];
       const status = statuses[Math.floor(Math.random() * statuses.length)];
 
-      const proposedPrice = job.price + (Math.random() > 0.5 ? 1 : -1) * Math.floor(Math.random() * 2000);
+      const proposedPrice = Number(job.price) + (Math.random() > 0.5 ? 1 : -1) * Math.floor(Math.random() * 2000);
 
       const proposal = await Proposal.create({
-        job: job._id,
-        freelancer: freelancer._id,
-        client: cliente._id,
+        jobId: job.id,
+        freelancerId: freelancer.id,
+        clientId: cliente.id,
         proposedPrice,
         estimatedDuration: Math.floor(Math.random() * 5) + 1,
-        coverLetter: `Hola, soy ${freelancer.name} y tengo experiencia en ${job.category}. Me gustaría trabajar en este proyecto. Propongo un precio de $${proposedPrice} y puedo completarlo en tiempo estimado.`,
+        coverLetter: `Hola, soy ${freelancer.name} y tengo experiencia en        ${job.category}. Me gustaría trabajar en        este proyecto. Propongo un        precio de $${proposedPrice} y puedo completarlo en        tiempo estimado.`,
         status,
-        rejectionReason: status === "rejected" ? "Se eligió otra propuesta con mejor precio" : undefined,
+        rejectionReason: status === "rejected" ? "Se eligió otra propuesta con        mejor precio" : undefined,
       });
       proposals.push(proposal);
 
       // Si está aprobada, actualizar el trabajo
       if (status === "approved") {
         job.status = "in_progress";
-        job.doer = freelancer._id;
+        job.doerId = freelancer.id;
         await job.save();
       }
     }
@@ -340,19 +335,18 @@ async function seedDatabase() {
         startDate,
         endDate,
         status: "completed",
-        postedBy: cliente._id,
-        client: cliente._id,
-        doer: freelancer._id,
+        clientId: cliente.id,
+        doer: freelancer.id,
       });
 
       const price = template.budget;
-      const commission = Math.floor(price * 0.1);
+      const commission        = Math.floor(price * 0.1);
       const totalPrice = price + commission;
 
       const contract = await Contract.create({
-        job: job._id,
-        client: cliente._id,
-        doer: freelancer._id,
+        jobId: job.id,
+        clientId: cliente.id,
+        doerId: freelancer.id,
         type: "trabajo",
         price,
         commission,
@@ -370,11 +364,11 @@ async function seedDatabase() {
 
       // Crear review
       await Review.create({
-        contractId: contract._id,
-        reviewerId: cliente._id,
-        reviewedId: freelancer._id,
+        contractId: contract.id,
+        reviewerId: cliente.id,
+        reviewedId: freelancer.id,
         rating: Math.floor(Math.random() * 2) + 4, // 4 o 5 estrellas
-        comment: "Excelente trabajo, muy profesional y cumplió con los tiempos.",
+        comment: "Excelente trabajo, muy profesional y cumplió con        los tiempos.",
         createdAt: completedAt,
       });
     }
@@ -402,7 +396,7 @@ async function seedDatabase() {
 
       // Crear job activo
       const job = await Job.create({
-        title: template.title + " (En Curso)",
+        title: template.title + " (En        Curso)",
         description: template.description,
         summary: template.description.substring(0, 100) + "...",
         category: template.category,
@@ -412,19 +406,18 @@ async function seedDatabase() {
         startDate,
         endDate,
         status: status === "pending" ? "open" : "in_progress",
-        postedBy: cliente._id,
-        client: cliente._id,
-        doer: freelancer._id,
+        clientId: cliente.id,
+        doer: freelancer.id,
       });
 
       const price = template.budget;
-      const commission = Math.floor(price * 0.1);
+      const commission        = Math.floor(price * 0.1);
       const totalPrice = price + commission;
 
       const contract = await Contract.create({
-        job: job._id,
-        client: cliente._id,
-        doer: freelancer._id,
+        jobId: job.id,
+        clientId: cliente.id,
+        doerId: freelancer.id,
         type: "trabajo",
         price,
         commission,
@@ -448,10 +441,10 @@ async function seedDatabase() {
     for (let i = 0; i < 6; i++) {
       const freelancer = freelancers[i % freelancers.length];
 
-      const conversation = await Conversation.create({
-        participants: [cliente._id, freelancer._id],
+      const conversation        = await Conversation.create({
+        participants: [cliente.id, freelancer.id],
         type: "direct",
-        lastMessage: `Último mensaje con ${freelancer.name}`,
+        lastMessage: `Último mensaje con        ${freelancer.name}`,
         lastMessageAt: new Date(),
       });
       conversations.push(conversation);
@@ -459,24 +452,24 @@ async function seedDatabase() {
       // Crear algunos mensajes
       const messages = [
         {
-          conversationId: conversation._id,
-          sender: cliente._id,
+          conversationId: conversation.id,
+          senderId: cliente.id,
           message: `Hola ${freelancer.name}, me interesa tu servicio.`,
           type: "text",
           read: true,
           createdAt: new Date(Date.now() - 3600000 * 2),
         },
         {
-          conversationId: conversation._id,
-          sender: freelancer._id,
+          conversationId: conversation.id,
+          senderId: freelancer.id,
           message: "¡Hola! Con gusto te ayudo. ¿Cuándo necesitas el servicio?",
           type: "text",
           read: true,
           createdAt: new Date(Date.now() - 3600000),
         },
         {
-          conversationId: conversation._id,
-          sender: cliente._id,
+          conversationId: conversation.id,
+          senderId: cliente.id,
           message: "Lo necesito para la próxima semana. ¿Tienes disponibilidad?",
           type: "text",
           read: false,
@@ -484,12 +477,11 @@ async function seedDatabase() {
         },
       ];
 
-      await ChatMessage.create(messages);
+      await ChatMessage.bulkCreate(messages);
     }
     console.log(`✅ ${conversations.length} conversaciones creadas\n`);
 
-    // Resumen
-    console.log("\n📊 RESUMEN DE DATOS CREADOS:");
+    // Resumen        console.log("\n📊 RESUMEn        DE DATOS CREADOS:");
     console.log("================================");
     console.log(`👥 Usuarios: ${users.length}`);
     console.log(`   - Freelancers: ${freelancers.length}`);
@@ -498,7 +490,7 @@ async function seedDatabase() {
     console.log(`\n💼 Trabajos: ${openJobs.length + completedContracts.length + activeContracts.length}`);
     console.log(`   - Abiertos: ${openJobs.length}`);
     console.log(`   - Completados: ${completedContracts.length}`);
-    console.log(`   - En Curso: ${activeContracts.length}`);
+    console.log(`   - En        Curso: ${activeContracts.length}`);
     console.log(`\n📝 Propuestas: ${proposals.length}`);
     console.log(`   - Pendientes: ${proposals.filter(p => p.status === "pending").length}`);
     console.log(`   - Aprobadas: ${proposals.filter(p => p.status === "approved").length}`);
@@ -524,10 +516,12 @@ async function seedDatabase() {
     console.error("❌ Error al crear mockup:", error);
     process.exit(1);
   } finally {
-    await mongoose.connection.close();
-    console.log("🔌 Conexión cerrada");
+    await sequelize.close();
+    console.log("🔌 Conexión        cerrada");
     process.exit(0);
   }
 }
 
 seedDatabase();
+
+

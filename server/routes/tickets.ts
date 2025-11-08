@@ -1,7 +1,11 @@
 import { Router, Response } from "express";
 import { body, validationResult } from "express-validator";
-import Ticket from "../models/Ticket";
+import { Ticket } from "../models/sql/Ticket.model.js";
+import { User } from "../models/sql/User.model.js";
+import { Contract } from "../models/sql/Contract.model.js";
 import { protect, AuthRequest } from "../middleware/auth";
+import { checkPermission } from "../middleware/checkPermission.js";
+import { PERMISSIONS } from "../config/permissions.js";
 
 const router = Router();
 console.log("🎫 Tickets router created successfully");
@@ -19,13 +23,14 @@ router.get("/test", (req, res) => {
 router.post(
   "/",
   protect,
+  checkPermission(PERMISSIONS.TICKET_CREATE),
   [
     body("subject").notEmpty().withMessage("El asunto es requerido").trim(),
     body("category").isIn(["bug", "feature", "support", "report_user", "report_contract", "dispute", "payment", "other"]).withMessage("Categoría inválida"),
     body("priority").optional().isIn(["low", "medium", "high", "urgent"]),
     body("message").notEmpty().withMessage("El mensaje es requerido").trim(),
-    body("relatedUser").optional().isMongoId(),
-    body("relatedContract").optional().isMongoId(),
+    body("relatedUser").optional().isUUID(),
+    body("relatedContract").optional().isUUID(),
   ],
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -44,20 +49,28 @@ router.post(
         subject,
         category,
         priority: priority || "medium",
-        createdBy: req.user._id,
+        createdBy: req.user.id,
         relatedUser,
         relatedContract,
         tags: tags || [],
         messages: [
           {
-            author: req.user._id,
+            author: req.user.id,
             message,
             isInternal: false,
           },
         ],
       });
 
-      await ticket.populate("createdBy", "name email");
+      await ticket.reload({
+        include: [
+          {
+            model: User,
+            as: 'creator',
+            attributes: ['id', 'name', 'email'],
+          },
+        ],
+      });
 
       res.status(201).json({
         success: true,
@@ -82,16 +95,31 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
     const { status, category, priority } = req.query;
     const isAdmin = req.user.adminRole && ["owner", "super_admin", "admin", "support"].includes(req.user.adminRole);
 
-    const query: any = isAdmin ? {} : { createdBy: req.user._id };
+    const where: any = isAdmin ? {} : { createdBy: req.user.id };
 
-    if (status) query.status = status;
-    if (category) query.category = category;
-    if (priority) query.priority = priority;
+    if (status) where.status = status;
+    if (category) where.category = category;
+    if (priority) where.priority = priority;
 
-    const tickets = await Ticket.find(query)
-      .populate("createdBy", "name email")
-      .populate("assignedTo", "name email")
-      .sort({ priority: -1, createdAt: -1 });
+    const tickets = await Ticket.findAll({
+      where,
+      include: [
+        {
+          model: User,
+          as: 'creator',
+          attributes: ['id', 'name', 'email'],
+        },
+        {
+          model: User,
+          as: 'assignee',
+          attributes: ['id', 'name', 'email'],
+        },
+      ],
+      order: [
+        ['priority', 'DESC'],
+        ['createdAt', 'DESC'],
+      ],
+    });
 
     res.json({
       success: true,
@@ -113,12 +141,30 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
  */
 router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const ticket = await Ticket.findById(req.params.id)
-      .populate("createdBy", "name email avatar")
-      .populate("assignedTo", "name email avatar")
-      .populate("messages.author", "name email avatar")
-      .populate("relatedUser", "name email")
-      .populate("relatedContract", "job");
+    const ticket = await Ticket.findByPk(req.params.id, {
+      include: [
+        {
+          model: User,
+          as: 'creator',
+          attributes: ['id', 'name', 'email', 'avatar'],
+        },
+        {
+          model: User,
+          as: 'assignee',
+          attributes: ['id', 'name', 'email', 'avatar'],
+        },
+        {
+          model: User,
+          as: 'related',
+          attributes: ['id', 'name', 'email'],
+        },
+        {
+          model: Contract,
+          as: 'contract',
+          attributes: ['id', 'job'],
+        },
+      ],
+    });
 
     if (!ticket) {
       res.status(404).json({
@@ -130,7 +176,7 @@ router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
 
     // Check permissions
     const isAdmin = req.user.adminRole && ["owner", "super_admin", "admin", "support"].includes(req.user.adminRole);
-    const isOwner = ticket.createdBy._id.toString() === req.user._id.toString();
+    const isOwner = ticket.createdBy === req.user.id;
 
     if (!isAdmin && !isOwner) {
       res.status(403).json({
@@ -172,7 +218,7 @@ router.post(
         return;
       }
 
-      const ticket = await Ticket.findById(req.params.id);
+      const ticket = await Ticket.findByPk(req.params.id);
 
       if (!ticket) {
         res.status(404).json({
@@ -184,7 +230,7 @@ router.post(
 
       // Check permissions
       const isAdmin = req.user.adminRole && ["owner", "super_admin", "admin", "support"].includes(req.user.adminRole);
-      const isOwner = ticket.createdBy.toString() === req.user._id.toString();
+      const isOwner = ticket.createdBy === req.user.id;
 
       if (!isAdmin && !isOwner) {
         res.status(403).json({
@@ -197,7 +243,7 @@ router.post(
       const { message, isInternal } = req.body;
 
       ticket.messages.push({
-        author: req.user._id,
+        author: req.user.id,
         message,
         isInternal: isInternal && isAdmin ? true : false, // Only admins can create internal messages
         createdAt: new Date(),
@@ -209,7 +255,17 @@ router.post(
       }
 
       await ticket.save();
-      await ticket.populate("messages.author", "name email avatar");
+
+      // Reload ticket with associations
+      await ticket.reload({
+        include: [
+          {
+            model: User,
+            as: 'creator',
+            attributes: ['id', 'name', 'email', 'avatar'],
+          },
+        ],
+      });
 
       res.json({
         success: true,
@@ -233,7 +289,7 @@ router.put("/:id/close", protect, async (req: AuthRequest, res: Response): Promi
   try {
     const { resolution } = req.body;
 
-    const ticket = await Ticket.findById(req.params.id);
+    const ticket = await Ticket.findByPk(req.params.id);
 
     if (!ticket) {
       res.status(404).json({
@@ -245,7 +301,7 @@ router.put("/:id/close", protect, async (req: AuthRequest, res: Response): Promi
 
     // Check permissions
     const isAdmin = req.user.adminRole && ["owner", "super_admin", "admin", "support"].includes(req.user.adminRole);
-    const isOwner = ticket.createdBy.toString() === req.user._id.toString();
+    const isOwner = ticket.createdBy === req.user.id;
 
     if (!isAdmin && !isOwner) {
       res.status(403).json({
@@ -258,7 +314,7 @@ router.put("/:id/close", protect, async (req: AuthRequest, res: Response): Promi
     ticket.status = "closed";
     ticket.resolution = resolution;
     ticket.closedAt = new Date();
-    ticket.closedBy = req.user._id;
+    ticket.closedBy = req.user.id;
 
     await ticket.save();
 

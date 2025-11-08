@@ -16,6 +16,8 @@
     "noEmit": true,
     "incremental": true,
     "disableSourceOfProjectReferenceRedirect": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
     /* ✅ Alias moderno sin baseUrl */
     "paths": {
       "@/*": ["./client/*"]

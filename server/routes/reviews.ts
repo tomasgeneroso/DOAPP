@@ -1,10 +1,12 @@
 import { Router, Response } from "express";
 import { protect, AuthRequest } from "../middleware/auth";
-import Review from "../models/Review";
-import Contract from "../models/Contract";
-import User from "../models/User";
-import Notification from "../models/Notification";
+import { Review } from "../models/sql/Review.model.js";
+import { Contract } from "../models/sql/Contract.model.js";
+import { User } from "../models/sql/User.model.js";
+import { Notification } from "../models/sql/Notification.model.js";
 import { body, validationResult } from "express-validator";
+import { Op } from "sequelize";
+import sequelize from "../config/database.js";
 
 const router = Router();
 
@@ -36,10 +38,10 @@ router.post(
       }
 
       const { contractId, rating, comment, communication, professionalism, quality, timeliness } = req.body;
-      const reviewerId = req.user._id;
+      const reviewerId = req.user.id;
 
       // Get contract
-      const contract = await Contract.findById(contractId);
+      const contract = await Contract.findByPk(contractId);
       if (!contract) {
         res.status(404).json({
           success: false,
@@ -77,8 +79,10 @@ router.post(
 
       // Check if review already exists
       const existingReview = await Review.findOne({
-        contractId,
-        reviewerId,
+        where: {
+          contractId,
+          reviewerId,
+        },
       });
 
       if (existingReview) {
@@ -111,7 +115,7 @@ router.post(
         type: "review_received",
         title: "Nueva reseña recibida",
         message: `Has recibido una nueva reseña con ${rating} estrellas`,
-        metadata: { reviewId: review._id, contractId },
+        metadata: { reviewId: review.id, contractId },
       });
 
       res.status(201).json({
@@ -137,47 +141,65 @@ router.get("/user/:userId", async (req, res): Promise<void> => {
     const { userId } = req.params;
     const { page = 1, limit = 10 } = req.query;
 
-    const reviews = await Review.find({
-      reviewedId: userId,
-      isVisible: true,
-    })
-      .populate("reviewerId", "name avatar")
-      .populate("contractId", "type")
-      .sort({ createdAt: -1 })
-      .limit(Number(limit))
-      .skip((Number(page) - 1) * Number(limit));
-
-    const total = await Review.countDocuments({
-      reviewedId: userId,
-      isVisible: true,
+    const reviews = await Review.findAll({
+      where: {
+        reviewedId: userId,
+        isVisible: true,
+      },
+      include: [
+        {
+          model: User,
+          as: "reviewer",
+          attributes: ["name", "avatar"],
+        },
+        {
+          model: Contract,
+          as: "contract",
+          attributes: ["type"],
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+      limit: Number(limit),
+      offset: (Number(page) - 1) * Number(limit),
     });
 
-    // Calculate stats
-    const stats = await Review.aggregate([
-      { $match: { reviewedId: userId, isVisible: true } },
-      {
-        $group: {
-          _id: null,
-          avgRating: { $avg: "$rating" },
-          avgCommunication: { $avg: "$communication" },
-          avgProfessionalism: { $avg: "$professionalism" },
-          avgQuality: { $avg: "$quality" },
-          avgTimeliness: { $avg: "$timeliness" },
-          count: { $sum: 1 },
-          ratingDistribution: {
-            $push: "$rating",
-          },
-        },
+    const total = await Review.count({
+      where: {
+        reviewedId: userId,
+        isVisible: true,
       },
-    ]);
+    });
+
+    // Calculate stats using Sequelize aggregation
+    const statsResult = await Review.findAll({
+      where: {
+        reviewedId: userId,
+        isVisible: true,
+      },
+      attributes: [
+        [sequelize.fn("AVG", sequelize.col("rating")), "avgRating"],
+        [sequelize.fn("AVG", sequelize.col("communication")), "avgCommunication"],
+        [sequelize.fn("AVG", sequelize.col("professionalism")), "avgProfessionalism"],
+        [sequelize.fn("AVG", sequelize.col("quality")), "avgQuality"],
+        [sequelize.fn("AVG", sequelize.col("timeliness")), "avgTimeliness"],
+        [sequelize.fn("COUNT", sequelize.col("id")), "count"],
+      ],
+      raw: true,
+    });
+
+    const stats = statsResult[0] || {
+      avgRating: 0,
+      avgCommunication: 0,
+      avgProfessionalism: 0,
+      avgQuality: 0,
+      avgTimeliness: 0,
+      count: 0,
+    };
 
     res.json({
       success: true,
       data: reviews,
-      stats: stats[0] || {
-        avgRating: 0,
-        count: 0,
-      },
+      stats,
       pagination: {
         page: Number(page),
         limit: Number(limit),
@@ -215,9 +237,9 @@ router.post(
 
       const { id } = req.params;
       const { response } = req.body;
-      const userId = req.user._id;
+      const userId = req.user.id;
 
-      const review = await Review.findById(id);
+      const review = await Review.findByPk(id);
       if (!review) {
         res.status(404).json({
           success: false,
@@ -275,7 +297,7 @@ router.post(
       const { id } = req.params;
       const { reason } = req.body;
 
-      const review = await Review.findById(id);
+      const review = await Review.findByPk(id);
       if (!review) {
         res.status(404).json({
           success: false,
@@ -306,9 +328,11 @@ router.post(
  * Helper function to update user's overall rating
  */
 async function updateUserRating(userId: any) {
-  const reviews = await Review.find({
-    reviewedId: userId,
-    isVisible: true,
+  const reviews = await Review.findAll({
+    where: {
+      reviewedId: userId,
+      isVisible: true,
+    },
   });
 
   if (reviews.length === 0) return;
@@ -316,10 +340,15 @@ async function updateUserRating(userId: any) {
   const avgRating =
     reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length;
 
-  await User.findByIdAndUpdate(userId, {
-    rating: Math.round(avgRating * 10) / 10, // Round to 1 decimal
-    reviewsCount: reviews.length,
-  });
+  await User.update(
+    {
+      rating: Math.round(avgRating * 10) / 10, // Round to 1 decimal
+      reviewsCount: reviews.length,
+    },
+    {
+      where: { id: userId },
+    }
+  );
 }
 
 export default router;

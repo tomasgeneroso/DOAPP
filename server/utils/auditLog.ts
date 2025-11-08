@@ -1,4 +1,4 @@
-import AuditLog from "../models/AuditLog.js";
+import { AuditLog } from "../models/sql/AuditLog.model.js";
 import type { AuthRequest } from "../types/index.js";
 
 interface LogAuditParams {

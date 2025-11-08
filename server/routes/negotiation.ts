@@ -1,8 +1,8 @@
 import { Router, Response } from "express";
 import { protect, AuthRequest } from "../middleware/auth";
-import ContractNegotiation from "../models/ContractNegotiation";
-import Contract from "../models/Contract";
-import Notification from "../models/Notification";
+import { ContractNegotiation } from "../models/sql/ContractNegotiation.model.js";
+import { Contract } from "../models/sql/Contract.model.js";
+import { Notification } from "../models/sql/Notification.model.js";
 import { body, validationResult } from "express-validator";
 
 const router = Router();
@@ -33,10 +33,10 @@ router.post(
       }
 
       const { contractId, message, proposedPrice, proposedStartDate, proposedEndDate, proposedTerms } = req.body;
-      const userId = req.user._id;
+      const userId = req.user.id;
 
       // Get contract
-      const contract = await Contract.findById(contractId);
+      const contract = await Contract.findByPk(contractId);
       if (!contract) {
         res.status(404).json({
           success: false,
@@ -47,8 +47,8 @@ router.post(
 
       // Verify user is part of contract
       if (
-        contract.clientId.toString() !== userId.toString() &&
-        contract.doerId.toString() !== userId.toString()
+        contract.clientId !== userId &&
+        contract.doerId !== userId
       ) {
         res.status(403).json({
           success: false,
@@ -58,21 +58,24 @@ router.post(
       }
 
       // Check if negotiation already exists
-      let negotiation = await ContractNegotiation.findOne({ contractId });
+      let negotiation = await ContractNegotiation.findOne({ where: { contractId } });
 
       if (negotiation) {
         // Add message to existing negotiation
-        negotiation.messages.push({
-          userId,
-          message,
-          proposedPrice,
-          proposedStartDate: proposedStartDate ? new Date(proposedStartDate) : undefined,
-          proposedEndDate: proposedEndDate ? new Date(proposedEndDate) : undefined,
-          proposedTerms,
-          status: "pending",
-        } as any);
+        const updatedMessages = [
+          ...negotiation.messages,
+          {
+            userId,
+            message,
+            proposedPrice,
+            proposedStartDate: proposedStartDate ? new Date(proposedStartDate) : undefined,
+            proposedEndDate: proposedEndDate ? new Date(proposedEndDate) : undefined,
+            proposedTerms,
+            status: "pending",
+          }
+        ];
 
-        negotiation.currentProposal = {
+        const updatedProposal = {
           price: proposedPrice,
           startDate: proposedStartDate ? new Date(proposedStartDate) : undefined,
           endDate: proposedEndDate ? new Date(proposedEndDate) : undefined,
@@ -80,7 +83,10 @@ router.post(
           proposedBy: userId,
         };
 
-        await negotiation.save();
+        await negotiation.update({
+          messages: updatedMessages,
+          currentProposal: updatedProposal,
+        });
       } else {
         // Create new negotiation
         negotiation = await ContractNegotiation.create({
@@ -107,7 +113,7 @@ router.post(
       }
 
       // Notify other party
-      const otherParty = contract.clientId.toString() === userId.toString()
+      const otherParty = contract.clientId === userId
         ? contract.doerId
         : contract.clientId;
 
@@ -116,7 +122,7 @@ router.post(
         type: "negotiation_message",
         title: "Nueva propuesta de negociación",
         message: `Has recibido una nueva propuesta en la negociación del contrato`,
-        metadata: { contractId, negotiationId: negotiation._id },
+        metadata: { contractId, negotiationId: negotiation.id },
       });
 
       res.json({
@@ -143,9 +149,9 @@ router.post(
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { id } = req.params;
-      const userId = req.user._id;
+      const userId = req.user.id;
 
-      const negotiation = await ContractNegotiation.findById(id);
+      const negotiation = await ContractNegotiation.findByPk(id);
       if (!negotiation) {
         res.status(404).json({
           success: false,
@@ -156,8 +162,8 @@ router.post(
 
       // Verify user is part of negotiation
       if (
-        negotiation.clientId.toString() !== userId.toString() &&
-        negotiation.doerId.toString() !== userId.toString()
+        negotiation.clientId !== userId &&
+        negotiation.doerId !== userId
       ) {
         res.status(403).json({
           success: false,
@@ -167,7 +173,7 @@ router.post(
       }
 
       // Verify user is not the one who proposed
-      if (negotiation.currentProposal?.proposedBy?.toString() === userId.toString()) {
+      if (negotiation.currentProposal?.proposedBy === userId) {
         res.status(400).json({
           success: false,
           message: "No puedes aceptar tu propia propuesta",
@@ -176,33 +182,35 @@ router.post(
       }
 
       // Update negotiation
-      negotiation.status = "agreed";
-      negotiation.agreedAt = new Date();
-      await negotiation.save();
+      await negotiation.update({
+        status: "agreed",
+        agreedAt: new Date(),
+      });
 
       // Update contract with agreed terms
-      const contract = await Contract.findById(negotiation.contractId);
+      const contract = await Contract.findByPk(negotiation.contractId);
       if (contract && negotiation.currentProposal) {
+        const updateData: any = { status: "accepted" };
+
         if (negotiation.currentProposal.price) {
-          contract.price = negotiation.currentProposal.price;
-          contract.totalPrice = contract.price + contract.commission;
+          updateData.price = negotiation.currentProposal.price;
+          updateData.totalPrice = negotiation.currentProposal.price + contract.commission;
         }
         if (negotiation.currentProposal.startDate) {
-          contract.startDate = negotiation.currentProposal.startDate;
+          updateData.startDate = negotiation.currentProposal.startDate;
         }
         if (negotiation.currentProposal.endDate) {
-          contract.endDate = negotiation.currentProposal.endDate;
+          updateData.endDate = negotiation.currentProposal.endDate;
         }
         if (negotiation.currentProposal.terms) {
-          contract.notes = negotiation.currentProposal.terms;
+          updateData.notes = negotiation.currentProposal.terms;
         }
 
-        contract.status = "accepted";
-        await contract.save();
+        await contract.update(updateData);
       }
 
       // Notify other party
-      const otherParty = negotiation.clientId.toString() === userId.toString()
+      const otherParty = negotiation.clientId === userId
         ? negotiation.doerId
         : negotiation.clientId;
 
@@ -211,7 +219,7 @@ router.post(
         type: "negotiation_accepted",
         title: "Propuesta aceptada",
         message: "Tu propuesta de negociación ha sido aceptada",
-        metadata: { contractId: negotiation.contractId, negotiationId: negotiation._id },
+        metadata: { contractId: negotiation.contractId, negotiationId: negotiation.id },
       });
 
       res.json({
@@ -240,9 +248,9 @@ router.post(
     try {
       const { id } = req.params;
       const { message } = req.body;
-      const userId = req.user._id;
+      const userId = req.user.id;
 
-      const negotiation = await ContractNegotiation.findById(id);
+      const negotiation = await ContractNegotiation.findByPk(id);
       if (!negotiation) {
         res.status(404).json({
           success: false,
@@ -253,8 +261,8 @@ router.post(
 
       // Verify user is part of negotiation
       if (
-        negotiation.clientId.toString() !== userId.toString() &&
-        negotiation.doerId.toString() !== userId.toString()
+        negotiation.clientId !== userId &&
+        negotiation.doerId !== userId
       ) {
         res.status(403).json({
           success: false,
@@ -265,17 +273,19 @@ router.post(
 
       // Add rejection message
       if (message) {
-        negotiation.messages.push({
-          userId,
-          message,
-          status: "rejected",
-        } as any);
+        const updatedMessages = [
+          ...negotiation.messages,
+          {
+            userId,
+            message,
+            status: "rejected",
+          }
+        ];
+        await negotiation.update({ messages: updatedMessages });
       }
 
-      await negotiation.save();
-
       // Notify other party
-      const otherParty = negotiation.clientId.toString() === userId.toString()
+      const otherParty = negotiation.clientId === userId
         ? negotiation.doerId
         : negotiation.clientId;
 
@@ -284,7 +294,7 @@ router.post(
         type: "negotiation_rejected",
         title: "Propuesta rechazada",
         message: "Tu propuesta de negociación ha sido rechazada",
-        metadata: { contractId: negotiation.contractId, negotiationId: negotiation._id },
+        metadata: { contractId: negotiation.contractId, negotiationId: negotiation.id },
       });
 
       res.json({
@@ -311,9 +321,9 @@ router.get(
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { contractId } = req.params;
-      const userId = req.user._id;
+      const userId = req.user.id;
 
-      const contract = await Contract.findById(contractId);
+      const contract = await Contract.findByPk(contractId);
       if (!contract) {
         res.status(404).json({
           success: false,
@@ -324,8 +334,8 @@ router.get(
 
       // Verify user is part of contract
       if (
-        contract.clientId.toString() !== userId.toString() &&
-        contract.doerId.toString() !== userId.toString()
+        contract.clientId !== userId &&
+        contract.doerId !== userId
       ) {
         res.status(403).json({
           success: false,
@@ -334,10 +344,19 @@ router.get(
         return;
       }
 
-      const negotiation = await ContractNegotiation.findOne({ contractId })
-        .populate("clientId", "name avatar")
-        .populate("doerId", "name avatar")
-        .populate("messages.userId", "name avatar");
+      const negotiation = await ContractNegotiation.findOne({
+        where: { contractId },
+        include: [
+          {
+            association: "client",
+            attributes: ["name", "avatar"],
+          },
+          {
+            association: "doer",
+            attributes: ["name", "avatar"],
+          },
+        ],
+      });
 
       res.json({
         success: true,

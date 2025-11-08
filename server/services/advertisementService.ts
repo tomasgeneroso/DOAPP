@@ -1,4 +1,5 @@
-import Advertisement, { IAdvertisement } from '../models/Advertisement.js';
+import { Advertisement } from "../models/sql/Advertisement.model.js";
+import { Op } from 'sequelize';
 import cache from './cache.js';
 
 interface AdPlacementConfig {
@@ -22,31 +23,34 @@ class AdvertisementService {
   async getActiveAds(
     placement: string = 'jobs_list',
     config?: AdPlacementConfig
-  ): Promise<IAdvertisement[]> {
+  ): Promise<any[]> {
     const cacheKey = `ads:active:${placement}`;
-    const cached = await cache.get<IAdvertisement[]>(cacheKey);
+    const cached = await cache.get<any[]>(cacheKey);
 
     if (cached) {
       return cached;
     }
 
     const now = new Date();
-    const query: any = {
+    const where: any = {
       status: 'active',
       paymentStatus: 'paid',
       isApproved: true,
-      startDate: { $lte: now },
-      endDate: { $gte: now },
+      startDate: { [Op.lte]: now },
+      endDate: { [Op.gte]: now },
     };
 
     if (placement && placement !== 'all') {
-      query.placement = { $in: [placement, 'all'] };
+      where.placement = { [Op.in]: [placement, 'all'] };
     }
 
-    let ads = await Advertisement.find(query)
-      .sort({ priority: -1, createdAt: -1 })
-      .populate('advertiser', 'name email')
-      .lean();
+    let ads = await Advertisement.findAll({
+      where,
+      order: [
+        ['priority', 'DESC'],
+        ['createdAt', 'DESC']
+      ],
+    });
 
     // If config is provided, balance the mix of ad types
     if (config) {
@@ -151,7 +155,7 @@ class AdvertisementService {
    */
   async recordImpression(adId: string): Promise<void> {
     try {
-      const ad = await Advertisement.findById(adId);
+      const ad = await Advertisement.findByPk(adId);
       if (ad) {
         await ad.recordImpression();
         // Invalidate cache
@@ -167,7 +171,7 @@ class AdvertisementService {
    */
   async recordClick(adId: string): Promise<void> {
     try {
-      const ad = await Advertisement.findById(adId);
+      const ad = await Advertisement.findByPk(adId);
       if (ad) {
         await ad.recordClick();
         // Invalidate cache
@@ -189,7 +193,7 @@ class AdvertisementService {
       return cached;
     }
 
-    const ads = await Advertisement.find({ advertiser: advertiserId });
+    const ads = await Advertisement.findAll({ where: { advertiser: advertiserId } });
 
     const stats = {
       totalAds: ads.length,
@@ -221,30 +225,27 @@ class AdvertisementService {
    */
   async expireAds(): Promise<number> {
     const now = new Date();
-    const result = await Advertisement.updateMany(
+    const [affectedCount] = await Advertisement.update(
+      { status: 'expired' },
       {
-        status: 'active',
-        endDate: { $lt: now },
-      },
-      {
-        $set: { status: 'expired' },
+        where: {
+          status: 'active',
+          endDate: { [Op.lt]: now },
+        },
       }
     );
 
     // Invalidate cache
     await cache.delPattern('ads:*');
 
-    return result.modifiedCount;
+    return affectedCount;
   }
 
   /**
    * Get ad performance report
    */
   async getPerformanceReport(adId: string): Promise<any> {
-    const ad = await Advertisement.findById(adId).populate(
-      'advertiser',
-      'name email'
-    );
+    const ad = await Advertisement.findByPk(adId);
 
     if (!ad) {
       throw new Error('Advertisement not found');

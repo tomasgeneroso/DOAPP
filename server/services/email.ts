@@ -3,7 +3,7 @@ import formData from "form-data";
 import Mailgun from "mailgun.js";
 import nodemailer from "nodemailer";
 import { config } from "../config/env";
-import User from "../models/User";
+import { User } from "../models/sql/User.model.js";
 
 interface EmailOptions {
   to: string;
@@ -95,9 +95,25 @@ class EmailService {
             user: smtpUser,
             pass: smtpPass,
           },
+          // Configuración adicional para Hostinger
+          tls: {
+            rejectUnauthorized: false, // Útil para certificados auto-firmados
+          },
+          debug: process.env.NODE_ENV === 'development', // Debug en desarrollo
+          logger: process.env.NODE_ENV === 'development', // Logger en desarrollo
         });
+
+        // Verificar conexión
+        this.smtpTransporter.verify((error: any, success: any) => {
+          if (error) {
+            console.error("❌ SMTP connection verification failed:", error);
+          } else {
+            console.log("✅ SMTP server is ready to send emails");
+          }
+        });
+
         this.smtpInitialized = true;
-        console.log("✅ SMTP initialized with host:", smtpHost);
+        console.log("✅ SMTP initialized with host:", smtpHost, "port:", smtpPort);
       } else {
         console.warn("⚠️  SMTP configuration incomplete.");
       }
@@ -181,7 +197,9 @@ class EmailService {
    */
   private async sendViaSMTP(options: EmailOptions): Promise<boolean> {
     try {
-      const smtpFrom = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
+      const smtpFromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
+      const smtpFromName = process.env.SMTP_FROM_NAME || 'DOAPP';
+      const smtpFrom = `"${smtpFromName}" <${smtpFromEmail}>`;
 
       const mailOptions = {
         from: options.from || smtpFrom,
@@ -192,8 +210,9 @@ class EmailService {
         replyTo: options.replyTo,
       };
 
-      await this.smtpTransporter.sendMail(mailOptions);
+      const info = await this.smtpTransporter.sendMail(mailOptions);
       console.log(`✅ Email sent via SMTP to ${options.to}`);
+      console.log(`📧 Message ID: ${info.messageId}`);
       return true;
     } catch (error) {
       console.error("SMTP error:", error);
@@ -211,7 +230,7 @@ class EmailService {
     text?: string
   ): Promise<boolean> {
     try {
-      const user = await User.findById(userId);
+      const user = await User.findByPk(userId);
 
       if (!user) {
         console.error(`User ${userId} not found`);
@@ -585,7 +604,7 @@ class EmailService {
     messagePreview: string,
     conversationId: string
   ): Promise<void> {
-    const user = await User.findById(userId);
+    const user = await User.findByPk(userId);
     if (!user?.notificationPreferences?.newMessage) {
       return;
     }
@@ -635,7 +654,7 @@ class EmailService {
     updateType: string,
     jobId: string
   ): Promise<void> {
-    const user = await User.findById(userId);
+    const user = await User.findByPk(userId);
     if (!user?.notificationPreferences?.jobUpdate) {
       return;
     }
@@ -682,7 +701,7 @@ class EmailService {
     updateType: string,
     contractId: string
   ): Promise<void> {
-    const user = await User.findById(userId);
+    const user = await User.findByPk(userId);
     if (!user?.notificationPreferences?.contractUpdate) {
       return;
     }
@@ -729,7 +748,7 @@ class EmailService {
     updateType: string,
     paymentId: string
   ): Promise<void> {
-    const user = await User.findById(userId);
+    const user = await User.findByPk(userId);
     if (!user?.notificationPreferences?.paymentUpdate) {
       return;
     }
@@ -769,12 +788,837 @@ class EmailService {
   }
 
   /**
+   * Send contract created notification (Argentina)
+   */
+  async sendContractCreatedEmail(
+    clientId: string,
+    doerId: string,
+    contractId: string,
+    jobTitle: string,
+    price: number,
+    currency: string = "ARS"
+  ): Promise<void> {
+    const contractUrl = `${config.clientUrl}/contracts/${contractId}`;
+
+    const htmlClient = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+            .button { display: inline-block; padding: 12px 30px; background: #10b981; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+            .amount { font-size: 28px; color: #10b981; font-weight: bold; margin: 15px 0; }
+            .info-box { background: white; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>✅ Contrato Creado</h1>
+            </div>
+            <div class="content">
+              <p>Hola,</p>
+              <p>Has creado un nuevo contrato exitosamente.</p>
+              <div class="info-box">
+                <p><strong>Trabajo:</strong> ${jobTitle}</p>
+                <p class="amount">${currency} $${price.toFixed(2)}</p>
+              </div>
+              <p><strong>Próximos pasos:</strong></p>
+              <ul>
+                <li>El doer debe aceptar el contrato</li>
+                <li>Deberás realizar el pago que se mantendrá en escrow</li>
+                <li>Una vez completado el trabajo, ambas partes deberán confirmar</li>
+              </ul>
+              <a href="${contractUrl}" class="button">Ver Contrato</a>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const htmlDoer = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+            .button { display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+            .amount { font-size: 28px; color: #667eea; font-weight: bold; margin: 15px 0; }
+            .info-box { background: white; border-left: 4px solid #667eea; padding: 15px; margin: 20px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>🎉 Nuevo Contrato</h1>
+            </div>
+            <div class="content">
+              <p>Hola,</p>
+              <p>Has recibido un nuevo contrato de trabajo.</p>
+              <div class="info-box">
+                <p><strong>Trabajo:</strong> ${jobTitle}</p>
+                <p class="amount">${currency} $${price.toFixed(2)}</p>
+              </div>
+              <p><strong>¿Qué sigue?</strong></p>
+              <ul>
+                <li>Revisa los detalles del contrato</li>
+                <li>Acepta el contrato si estás de acuerdo</li>
+                <li>El pago se mantendrá en escrow hasta completar el trabajo</li>
+              </ul>
+              <a href="${contractUrl}" class="button">Revisar y Aceptar</a>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    await Promise.all([
+      this.sendToUser(clientId, `Contrato creado: ${jobTitle}`, htmlClient),
+      this.sendToUser(doerId, `Nuevo contrato: ${jobTitle}`, htmlDoer),
+    ]);
+  }
+
+  /**
+   * Send contract accepted notification (Argentina)
+   */
+  async sendContractAcceptedEmail(
+    clientId: string,
+    doerId: string,
+    contractId: string,
+    jobTitle: string
+  ): Promise<void> {
+    const contractUrl = `${config.clientUrl}/contracts/${contractId}`;
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+            .button { display: inline-block; padding: 12px 30px; background: #10b981; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+            .info-box { background: white; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>✅ Contrato Aceptado</h1>
+            </div>
+            <div class="content">
+              <p>Hola,</p>
+              <p>El contrato ha sido aceptado por el doer.</p>
+              <div class="info-box">
+                <p><strong>Trabajo:</strong> ${jobTitle}</p>
+              </div>
+              <p><strong>Próximo paso:</strong></p>
+              <p>Realiza el pago para que el doer pueda comenzar a trabajar. El pago se mantendrá en escrow hasta que ambas partes confirmen la finalización del trabajo.</p>
+              <a href="${contractUrl}" class="button">Realizar Pago</a>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    await this.sendToUser(clientId, `Contrato aceptado: ${jobTitle}`, html);
+  }
+
+  /**
+   * Send payment in escrow notification (Argentina)
+   */
+  async sendPaymentEscrowEmail(
+    clientId: string,
+    doerId: string,
+    contractId: string,
+    jobTitle: string,
+    amount: number,
+    currency: string = "ARS"
+  ): Promise<void> {
+    const contractUrl = `${config.clientUrl}/contracts/${contractId}`;
+
+    const htmlClient = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+            .amount { font-size: 32px; color: #10b981; font-weight: bold; text-align: center; margin: 20px 0; }
+            .info-box { background: #ecfdf5; border: 1px solid #10b981; padding: 20px; margin: 20px 0; border-radius: 8px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>🔒 Pago en Escrow</h1>
+            </div>
+            <div class="content">
+              <p>Hola,</p>
+              <p>Tu pago ha sido recibido y se encuentra en escrow (custodia segura).</p>
+              <div class="amount">${currency} $${amount.toFixed(2)}</div>
+              <div class="info-box">
+                <p><strong>Trabajo:</strong> ${jobTitle}</p>
+                <p><strong>¿Qué es el escrow?</strong></p>
+                <p>Tu dinero está protegido y solo se liberará cuando ambas partes (tú y el doer) confirmen que el trabajo fue completado satisfactoriamente.</p>
+              </div>
+              <p>El doer ya puede comenzar a trabajar. Una vez finalizado, ambos deberán confirmar la entrega del servicio.</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const htmlDoer = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+            .button { display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+            .amount { font-size: 32px; color: #667eea; font-weight: bold; text-align: center; margin: 20px 0; }
+            .info-box { background: #ede9fe; border: 1px solid #667eea; padding: 20px; margin: 20px 0; border-radius: 8px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>🚀 Puedes Comenzar</h1>
+            </div>
+            <div class="content">
+              <p>Hola,</p>
+              <p>¡Buenas noticias! El pago está asegurado y ya puedes comenzar a trabajar.</p>
+              <div class="amount">${currency} $${amount.toFixed(2)}</div>
+              <div class="info-box">
+                <p><strong>Trabajo:</strong> ${jobTitle}</p>
+                <p><strong>Pago protegido:</strong></p>
+                <p>El dinero está en escrow y se te liberará cuando ambas partes confirmen que completaste el trabajo satisfactoriamente.</p>
+              </div>
+              <a href="${contractUrl}" class="button">Ver Detalles del Contrato</a>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    await Promise.all([
+      this.sendToUser(clientId, `Pago en escrow: ${jobTitle}`, htmlClient),
+      this.sendToUser(doerId, `Pago asegurado: ${jobTitle}`, htmlDoer),
+    ]);
+  }
+
+  /**
+   * Send contract awaiting confirmation notification (Argentina)
+   */
+  async sendContractAwaitingConfirmationEmail(
+    userId: string,
+    otherPartyName: string,
+    contractId: string,
+    jobTitle: string,
+    isClient: boolean
+  ): Promise<void> {
+    const contractUrl = `${config.clientUrl}/contracts/${contractId}`;
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+            .button { display: inline-block; padding: 12px 30px; background: #f59e0b; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+            .info-box { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>⏳ Confirmación Pendiente</h1>
+            </div>
+            <div class="content">
+              <p>Hola,</p>
+              <p><strong>${otherPartyName}</strong> ha confirmado que el trabajo está completo.</p>
+              <div class="info-box">
+                <p><strong>Trabajo:</strong> ${jobTitle}</p>
+                <p>${isClient ? '¿El trabajo fue completado satisfactoriamente?' : '¿Confirmaste que entregaste el trabajo?'}</p>
+              </div>
+              <p><strong>Acción requerida:</strong></p>
+              <p>Por favor, revisa el trabajo y confirma si está completado. Una vez que ambos confirmen, ${isClient ? 'el pago será liberado al doer' : 'recibirás tu pago'}.</p>
+              <p>Si hay algún problema, puedes abrir una disputa.</p>
+              <a href="${contractUrl}" class="button">Revisar y Confirmar</a>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    await this.sendToUser(userId, `Confirmación requerida: ${jobTitle}`, html);
+  }
+
+  /**
+   * Send contract completed notification (Argentina)
+   */
+  async sendContractCompletedEmail(
+    clientId: string,
+    doerId: string,
+    contractId: string,
+    jobTitle: string,
+    amount: number,
+    currency: string = "ARS"
+  ): Promise<void> {
+    const contractUrl = `${config.clientUrl}/contracts/${contractId}`;
+
+    const htmlClient = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+            .button { display: inline-block; padding: 12px 30px; background: #10b981; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+            .success-box { background: #ecfdf5; border: 1px solid #10b981; padding: 20px; margin: 20px 0; border-radius: 8px; text-align: center; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>🎉 Contrato Completado</h1>
+            </div>
+            <div class="content">
+              <p>Hola,</p>
+              <p>¡Felicidades! El contrato ha sido completado exitosamente.</p>
+              <div class="success-box">
+                <h3 style="color: #10b981; margin-top: 0;">✅ ${jobTitle}</h3>
+                <p>El pago de <strong>${currency} $${amount.toFixed(2)}</strong> ha sido liberado al doer.</p>
+              </div>
+              <p><strong>¿Qué sigue?</strong></p>
+              <p>Deja una reseña para ayudar a otros usuarios a conocer tu experiencia trabajando con este doer.</p>
+              <a href="${contractUrl}" class="button">Dejar Reseña</a>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const htmlDoer = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+            .button { display: inline-block; padding: 12px 30px; background: #10b981; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+            .amount { font-size: 36px; color: #10b981; font-weight: bold; text-align: center; margin: 20px 0; }
+            .success-box { background: #ecfdf5; border: 1px solid #10b981; padding: 20px; margin: 20px 0; border-radius: 8px; text-align: center; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>💰 Pago Recibido</h1>
+            </div>
+            <div class="content">
+              <p>Hola,</p>
+              <p>¡Excelente trabajo! El pago ha sido liberado.</p>
+              <div class="success-box">
+                <h3 style="color: #10b981; margin-top: 0;">✅ ${jobTitle}</h3>
+                <div class="amount">${currency} $${amount.toFixed(2)}</div>
+                <p>El dinero ha sido transferido a tu cuenta.</p>
+              </div>
+              <p>Invita al cliente a dejar una reseña para aumentar tu reputación en la plataforma.</p>
+              <a href="${contractUrl}" class="button">Ver Detalles</a>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    await Promise.all([
+      this.sendToUser(clientId, `Contrato completado: ${jobTitle}`, htmlClient),
+      this.sendToUser(doerId, `Pago recibido: ${jobTitle}`, htmlDoer),
+    ]);
+  }
+
+  /**
+   * Send dispute created notification (Argentina)
+   */
+  async sendDisputeCreatedEmail(
+    disputeId: string,
+    initiatorId: string,
+    respondentId: string,
+    contractId: string,
+    jobTitle: string,
+    reason: string
+  ): Promise<void> {
+    const disputeUrl = `${config.clientUrl}/disputes/${disputeId}`;
+    const contractUrl = `${config.clientUrl}/contracts/${contractId}`;
+
+    const htmlRespondent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+            .button { display: inline-block; padding: 12px 30px; background: #ef4444; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+            .warning-box { background: #fee2e2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>⚠️ Disputa Abierta</h1>
+            </div>
+            <div class="content">
+              <p>Hola,</p>
+              <p>Se ha abierto una disputa sobre un contrato.</p>
+              <div class="warning-box">
+                <p><strong>Trabajo:</strong> ${jobTitle}</p>
+                <p><strong>Motivo:</strong> ${reason}</p>
+              </div>
+              <p><strong>¿Qué significa esto?</strong></p>
+              <ul>
+                <li>El pago está pausado en escrow</li>
+                <li>Un administrador revisará el caso</li>
+                <li>Ambas partes pueden aportar evidencia</li>
+              </ul>
+              <p><strong>Próximos pasos:</strong></p>
+              <p>Revisa los detalles de la disputa y proporciona tu versión de los hechos. Puedes adjuntar fotos, videos o documentos como evidencia.</p>
+              <a href="${disputeUrl}" class="button">Ver Disputa</a>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const htmlInitiator = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+            .button { display: inline-block; padding: 12px 30px; background: #f59e0b; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+            .info-box { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>📋 Disputa Registrada</h1>
+            </div>
+            <div class="content">
+              <p>Hola,</p>
+              <p>Tu disputa ha sido registrada correctamente.</p>
+              <div class="info-box">
+                <p><strong>Trabajo:</strong> ${jobTitle}</p>
+                <p><strong>Motivo:</strong> ${reason}</p>
+              </div>
+              <p><strong>¿Qué sigue?</strong></p>
+              <ul>
+                <li>El pago permanecerá en escrow hasta resolver</li>
+                <li>Un administrador revisará el caso</li>
+                <li>Ambas partes serán contactadas</li>
+                <li>Se resolverá en un plazo de 3-5 días hábiles</li>
+              </ul>
+              <p>Puedes agregar más evidencia (fotos, videos, documentos) para respaldar tu caso.</p>
+              <a href="${disputeUrl}" class="button">Ver Mi Disputa</a>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    await Promise.all([
+      this.sendToUser(respondentId, `Disputa abierta: ${jobTitle}`, htmlRespondent),
+      this.sendToUser(initiatorId, `Disputa registrada: ${jobTitle}`, htmlInitiator),
+    ]);
+  }
+
+  /**
+   * Send dispute resolved notification (Argentina)
+   */
+  async sendDisputeResolvedEmail(
+    disputeId: string,
+    clientId: string,
+    doerId: string,
+    jobTitle: string,
+    resolution: string,
+    resolutionType: "full_release" | "full_refund" | "partial_refund" | "no_action"
+  ): Promise<void> {
+    const disputeUrl = `${config.clientUrl}/disputes/${disputeId}`;
+
+    let outcome = "";
+    let headerColor = "#10b981";
+
+    switch (resolutionType) {
+      case "full_release":
+        outcome = "El pago completo ha sido liberado al doer.";
+        break;
+      case "full_refund":
+        outcome = "El pago completo ha sido reembolsado al cliente.";
+        break;
+      case "partial_refund":
+        outcome = "Se ha realizado un reembolso parcial.";
+        headerColor = "#f59e0b";
+        break;
+      case "no_action":
+        outcome = "No se realizarán cambios al pago.";
+        headerColor = "#6b7280";
+        break;
+    }
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, ${headerColor} 0%, ${headerColor}dd 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+            .button { display: inline-block; padding: 12px 30px; background: ${headerColor}; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+            .resolution-box { background: white; border-left: 4px solid ${headerColor}; padding: 20px; margin: 20px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>✅ Disputa Resuelta</h1>
+            </div>
+            <div class="content">
+              <p>Hola,</p>
+              <p>La disputa ha sido resuelta por nuestro equipo de administración.</p>
+              <div class="resolution-box">
+                <p><strong>Trabajo:</strong> ${jobTitle}</p>
+                <p><strong>Resolución:</strong></p>
+                <p>${resolution}</p>
+                <p><strong>Resultado:</strong> ${outcome}</p>
+              </div>
+              <p>Si tienes preguntas sobre esta resolución, puedes contactar a nuestro equipo de soporte.</p>
+              <a href="${disputeUrl}" class="button">Ver Detalles</a>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    await Promise.all([
+      this.sendToUser(clientId, `Disputa resuelta: ${jobTitle}`, html),
+      this.sendToUser(doerId, `Disputa resuelta: ${jobTitle}`, html),
+    ]);
+  }
+
+  /**
    * Strip HTML tags from text
    */
   private stripHtml(html: string): string {
     return html.replace(/<[^>]*>/g, "");
   }
+
+  /**
+   * Send withdrawal requested notification
+   */
+  async sendWithdrawalRequested(to: string, userName: string, amount: number): Promise<void> {
+    const subject = "Solicitud de Retiro Recibida - Doers";
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+          .button { display: inline-block; padding: 12px 30px; background: #0EA5E9; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
+          .amount { font-size: 32px; font-weight: bold; color: #0EA5E9; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>💰 Solicitud de Retiro Recibida</h1>
+          </div>
+          <div class="content">
+            <p>Hola ${userName},</p>
+            <p>Hemos recibido tu solicitud de retiro:</p>
+            <div class="amount">$${amount.toLocaleString("es-AR")} ARS</div>
+            <p><strong>Estado:</strong> Pendiente de aprobación</p>
+            <p><strong>Tiempo estimado:</strong> 24-48 horas hábiles</p>
+            <p>Te notificaremos cuando tu retiro sea procesado y transferido a tu cuenta bancaria.</p>
+            <a href="${config.clientUrl}/balance" class="button">Ver Mis Retiros</a>
+            <p>Si no solicitaste este retiro, contacta a soporte inmediatamente.</p>
+          </div>
+          <div class="footer">
+            <p>© ${new Date().getFullYear()} Doers. Todos los derechos reservados.</p>
+            <p>Este es un correo automático, por favor no respondas.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail({ to, subject, html });
+  }
+
+  /**
+   * Send withdrawal approved notification
+   */
+  async sendWithdrawalApproved(to: string, userName: string, amount: number): Promise<void> {
+    const subject = "Retiro Aprobado - Doers";
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+          .button { display: inline-block; padding: 12px 30px; background: #10B981; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
+          .amount { font-size: 32px; font-weight: bold; color: #10B981; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>✅ Retiro Aprobado</h1>
+          </div>
+          <div class="content">
+            <p>Hola ${userName},</p>
+            <p>¡Buenas noticias! Tu solicitud de retiro ha sido aprobada:</p>
+            <div class="amount">$${amount.toLocaleString("es-AR")} ARS</div>
+            <p><strong>Estado:</strong> Aprobado - En proceso de transferencia</p>
+            <p>Estamos procesando tu retiro y será transferido a tu cuenta bancaria en las próximas horas.</p>
+            <a href="${config.clientUrl}/balance" class="button">Ver Estado</a>
+          </div>
+          <div class="footer">
+            <p>© ${new Date().getFullYear()} Doers. Todos los derechos reservados.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail({ to, subject, html });
+  }
+
+  /**
+   * Send withdrawal completed notification
+   */
+  async sendWithdrawalCompleted(to: string, userName: string, amount: number, newBalance: number): Promise<void> {
+    const subject = "Retiro Completado - Doers";
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+          .button { display: inline-block; padding: 12px 30px; background: #10B981; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
+          .amount { font-size: 32px; font-weight: bold; color: #10B981; margin: 20px 0; }
+          .balance { background: #e0f2fe; padding: 15px; border-radius: 8px; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>✨ Retiro Completado</h1>
+          </div>
+          <div class="content">
+            <p>Hola ${userName},</p>
+            <p>¡Tu retiro ha sido completado exitosamente!</p>
+            <div class="amount">$${amount.toLocaleString("es-AR")} ARS</div>
+            <p><strong>Estado:</strong> Transferido</p>
+            <p>El dinero ha sido transferido a tu cuenta bancaria. Puede tardar de 24 a 72 horas en reflejarse según tu banco.</p>
+            <div class="balance">
+              <p><strong>Tu nuevo saldo disponible:</strong></p>
+              <p style="font-size: 24px; font-weight: bold; color: #0EA5E9;">$${newBalance.toLocaleString("es-AR")} ARS</p>
+            </div>
+            <a href="${config.clientUrl}/balance" class="button">Ver Historial</a>
+          </div>
+          <div class="footer">
+            <p>© ${new Date().getFullYear()} Doers. Todos los derechos reservados.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail({ to, subject, html });
+  }
+
+  /**
+   * Send withdrawal rejected notification
+   */
+  async sendWithdrawalRejected(to: string, userName: string, amount: number, reason: string): Promise<void> {
+    const subject = "Solicitud de Retiro Rechazada - Doers";
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+          .button { display: inline-block; padding: 12px 30px; background: #0EA5E9; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
+          .reason { background: #fee2e2; padding: 15px; border-left: 4px solid #EF4444; border-radius: 4px; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>❌ Solicitud Rechazada</h1>
+          </div>
+          <div class="content">
+            <p>Hola ${userName},</p>
+            <p>Lamentamos informarte que tu solicitud de retiro por <strong>$${amount.toLocaleString("es-AR")} ARS</strong> ha sido rechazada.</p>
+            <div class="reason">
+              <p><strong>Motivo:</strong></p>
+              <p>${reason}</p>
+            </div>
+            <p>Tu saldo no ha sido afectado y permanece disponible en tu cuenta.</p>
+            <p>Si tienes preguntas, por favor contacta a nuestro equipo de soporte.</p>
+            <a href="${config.clientUrl}/contact?subject=withdrawal" class="button">Contactar Soporte</a>
+          </div>
+          <div class="footer">
+            <p>© ${new Date().getFullYear()} Doers. Todos los derechos reservados.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail({ to, subject, html });
+  }
+
+  /**
+   * Send price modification notification
+   */
+  async sendPriceModificationEmail(to: string, userName: string, contractId: string, previousPrice: number, newPrice: number, isIncrease: boolean, balanceChange: number): Promise<void> {
+    const subject = isIncrease ? "Precio de Contrato Aumentado - Doers" : "Precio de Contrato Reducido - Doers";
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+          .button { display: inline-block; padding: 12px 30px; background: #0EA5E9; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
+          .price-change { background: ${isIncrease ? '#fee2e2' : '#d1fae5'}; padding: 20px; border-radius: 8px; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>💰 Precio de Contrato Modificado</h1>
+          </div>
+          <div class="content">
+            <p>Hola ${userName},</p>
+            <p>El precio de tu contrato ha sido modificado:</p>
+            <div class="price-change">
+              <p><strong>Precio anterior:</strong> $${previousPrice.toLocaleString("es-AR")} ARS</p>
+              <p><strong>Nuevo precio:</strong> $${newPrice.toLocaleString("es-AR")} ARS</p>
+              <p><strong>Diferencia:</strong> ${isIncrease ? '+' : '-'}$${Math.abs(balanceChange).toLocaleString("es-AR")} ARS</p>
+            </div>
+            <p>${isIncrease
+              ? `Se ha descontado $${Math.abs(balanceChange).toLocaleString("es-AR")} de tu saldo disponible.`
+              : `Se ha acreditado $${Math.abs(balanceChange).toLocaleString("es-AR")} a tu saldo disponible.`
+            }</p>
+            <a href="${config.clientUrl}/contracts/${contractId}" class="button">Ver Contrato</a>
+          </div>
+          <div class="footer">
+            <p>© ${new Date().getFullYear()} Doers. Todos los derechos reservados.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail({ to, subject, html });
+  }
+
+  /**
+   * Send balance refund notification
+   */
+  async sendBalanceRefundEmail(to: string, userName: string, amount: number, reason: string, newBalance: number): Promise<void> {
+    const subject = "Reembolso Acreditado - Doers";
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+          .button { display: inline-block; padding: 12px 30px; background: #10B981; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
+          .amount { font-size: 32px; font-weight: bold; color: #10B981; margin: 20px 0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>💵 Reembolso Acreditado</h1>
+          </div>
+          <div class="content">
+            <p>Hola ${userName},</p>
+            <p>Se ha acreditado un reembolso a tu saldo:</p>
+            <div class="amount">+$${amount.toLocaleString("es-AR")} ARS</div>
+            <p><strong>Motivo:</strong> ${reason}</p>
+            <p><strong>Tu nuevo saldo:</strong> $${newBalance.toLocaleString("es-AR")} ARS</p>
+            <p>Puedes usar este saldo para futuros contratos en la plataforma.</p>
+            <a href="${config.clientUrl}/balance" class="button">Ver Mi Saldo</a>
+          </div>
+          <div class="footer">
+            <p>© ${new Date().getFullYear()} Doers. Todos los derechos reservados.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail({ to, subject, html });
+  }
 }
 
-// Export singleton instance
 export default new EmailService();

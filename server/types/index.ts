@@ -1,5 +1,5 @@
 import { Request } from "express";
-import type { IUser } from "../models/User.js";
+import type { User } from "../models/sql/User.model.js";
 
 // Auth Request type
 export interface AuthRequest extends Request {

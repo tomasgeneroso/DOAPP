@@ -1,11 +1,13 @@
 import express, { Request, Response } from 'express';
 import { body, param, query, validationResult } from 'express-validator';
-import Advertisement from '../models/Advertisement.js';
+import { Advertisement } from "../models/sql/Advertisement.model.js";
+import { User } from "../models/sql/User.model.js";
 import advertisementService from '../services/advertisementService.js';
 import { protect } from '../middleware/auth.js';
 import type { AuthRequest } from '../middleware/auth.js';
 import sanitizer from '../utils/sanitizer.js';
 import cache from '../services/cache.js';
+import { Op } from 'sequelize';
 
 const router = express.Router();
 
@@ -118,15 +120,13 @@ router.post(
         advertisementService.calculatePrice(sanitizedData.adType, 1, 0);
 
       // Create advertisement
-      const advertisement = new Advertisement({
+      const advertisement = await Advertisement.create({
         ...sanitizedData,
-        advertiser: req.user!.id,
+        advertiserId: req.user!.id,
         pricePerDay,
         totalPrice,
         status: 'pending', // Requires payment and approval
       });
-
-      await advertisement.save();
 
       res.status(201).json({
         success: true,
@@ -149,21 +149,26 @@ router.get('/', protect, async (req: AuthRequest, res: Response) => {
   try {
     const { status, page = 1, limit = 10 } = req.query;
 
-    const query: any = { advertiser: req.user!.id };
+    const where: any = { advertiserId: req.user!.id };
     if (status) {
-      query.status = status;
+      where.status = status;
     }
 
-    const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
+    const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
 
-    const [advertisements, total] = await Promise.all([
-      Advertisement.find(query)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(parseInt(limit as string))
-        .populate('advertiser', 'name email'),
-      Advertisement.countDocuments(query),
-    ]);
+    const { rows: advertisements, count: total } = await Advertisement.findAndCountAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      offset,
+      limit: parseInt(limit as string),
+      include: [
+        {
+          model: User,
+          as: 'advertiser',
+          attributes: ['name', 'email'],
+        },
+      ],
+    });
 
     res.json({
       success: true,
@@ -209,7 +214,7 @@ router.get('/active', async (req: Request, res: Response) => {
  */
 router.get(
   '/:id',
-  [param('id').isMongoId()],
+  [param('id').isUUID()],
   async (req: Request, res: Response) => {
     try {
       const errors = validationResult(req);
@@ -217,10 +222,15 @@ router.get(
         return res.status(400).json({ success: false, errors: errors.array() });
       }
 
-      const advertisement = await Advertisement.findById(req.params.id).populate(
-        'advertiser',
-        'name email'
-      );
+      const advertisement = await Advertisement.findByPk(req.params.id, {
+        include: [
+          {
+            model: User,
+            as: 'advertiser',
+            attributes: ['name', 'email'],
+          },
+        ],
+      });
 
       if (!advertisement) {
         return res
@@ -246,7 +256,7 @@ router.get(
 router.put(
   '/:id',
   protect,
-  [param('id').isMongoId()],
+  [param('id').isUUID()],
   async (req: AuthRequest, res: Response) => {
     try {
       const errors = validationResult(req);
@@ -255,8 +265,10 @@ router.put(
       }
 
       const advertisement = await Advertisement.findOne({
-        _id: req.params.id,
-        advertiser: req.user!.id,
+        where: {
+          id: req.params.id,
+          advertiserId: req.user!.id,
+        },
       });
 
       if (!advertisement) {
@@ -320,12 +332,14 @@ router.put(
 router.post(
   '/:id/pause',
   protect,
-  [param('id').isMongoId()],
+  [param('id').isUUID()],
   async (req: AuthRequest, res: Response) => {
     try {
       const advertisement = await Advertisement.findOne({
-        _id: req.params.id,
-        advertiser: req.user!.id,
+        where: {
+          id: req.params.id,
+          advertiserId: req.user!.id,
+        },
       });
 
       if (!advertisement) {
@@ -366,12 +380,14 @@ router.post(
 router.post(
   '/:id/resume',
   protect,
-  [param('id').isMongoId()],
+  [param('id').isUUID()],
   async (req: AuthRequest, res: Response) => {
     try {
       const advertisement = await Advertisement.findOne({
-        _id: req.params.id,
-        advertiser: req.user!.id,
+        where: {
+          id: req.params.id,
+          advertiserId: req.user!.id,
+        },
       });
 
       if (!advertisement) {
@@ -411,7 +427,7 @@ router.post(
  */
 router.post(
   '/:id/impression',
-  [param('id').isMongoId()],
+  [param('id').isUUID()],
   async (req: Request, res: Response) => {
     try {
       await advertisementService.recordImpression(req.params.id);
@@ -429,7 +445,7 @@ router.post(
  */
 router.post(
   '/:id/click',
-  [param('id').isMongoId()],
+  [param('id').isUUID()],
   async (req: Request, res: Response) => {
     try {
       await advertisementService.recordClick(req.params.id);
@@ -448,12 +464,14 @@ router.post(
 router.get(
   '/:id/performance',
   protect,
-  [param('id').isMongoId()],
+  [param('id').isUUID()],
   async (req: AuthRequest, res: Response) => {
     try {
       const advertisement = await Advertisement.findOne({
-        _id: req.params.id,
-        advertiser: req.user!.id,
+        where: {
+          id: req.params.id,
+          advertiserId: req.user!.id,
+        },
       });
 
       if (!advertisement) {
@@ -506,12 +524,14 @@ router.get(
 router.delete(
   '/:id',
   protect,
-  [param('id').isMongoId()],
+  [param('id').isUUID()],
   async (req: AuthRequest, res: Response) => {
     try {
       const advertisement = await Advertisement.findOne({
-        _id: req.params.id,
-        advertiser: req.user!.id,
+        where: {
+          id: req.params.id,
+          advertiserId: req.user!.id,
+        },
       });
 
       if (!advertisement) {
@@ -528,7 +548,7 @@ router.delete(
         });
       }
 
-      await advertisement.deleteOne();
+      await advertisement.destroy();
 
       // Invalidate cache
       await cache.delPattern('ads:*');

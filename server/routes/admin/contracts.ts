@@ -1,10 +1,12 @@
 import express, { Request, Response } from "express";
-import Contract from "../../models/Contract.js";
+import { Contract } from "../../models/sql/Contract.model.js";
+import { User } from "../../models/sql/User.model.js";
 import { protect } from "../../middleware/auth.js";
 import { requirePermission, requireRole } from "../../middleware/permissions.js";
 import { verifyOwnerPassword } from "../../middleware/ownerVerification.js";
 import { logAudit, getSeverityForAction, detectChanges } from "../../utils/auditLog.js";
 import type { AuthRequest } from "../../types/index.js";
+import { Op } from "sequelize";
 
 const router = express.Router();
 
@@ -22,31 +24,42 @@ router.get(
         page = "1",
         limit = "20",
         status,
+        paymentStatus,
         isDeleted,
         isHidden,
+        userId,
         sortBy = "createdAt",
         sortOrder = "desc",
       } = req.query;
 
-      const query: any = {};
+      const where: any = {};
 
-      if (status) query.status = status;
-      if (isDeleted !== undefined) query.isDeleted = isDeleted === "true";
-      if (isHidden !== undefined) query.isHidden = isHidden === "true";
+      if (status) where.status = status;
+      if (paymentStatus) where.paymentStatus = paymentStatus;
+      if (isDeleted !== undefined) where.isDeleted = isDeleted === "true";
+      if (isHidden !== undefined) where.isHidden = isHidden === "true";
+      if (userId) {
+        where[Op.or] = [
+          { client: userId },
+          { doer: userId },
+        ];
+      }
 
-      const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
-      const sortOptions: any = {};
-      sortOptions[sortBy as string] = sortOrder === "desc" ? -1 : 1;
+      const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
+      const order: any = [[sortBy as string, sortOrder === "desc" ? "DESC" : "ASC"]];
 
       const [contracts, total] = await Promise.all([
-        Contract.find(query)
-          .populate("client", "name email")
-          .populate("doer", "name email")
-          .populate("job", "title")
-          .sort(sortOptions)
-          .skip(skip)
-          .limit(parseInt(limit as string)),
-        Contract.countDocuments(query),
+        Contract.findAll({
+          where,
+          include: [
+            { model: User, as: "clientUser", attributes: ["name", "email"] },
+            { model: User, as: "doerUser", attributes: ["name", "email"] },
+          ],
+          order,
+          offset,
+          limit: parseInt(limit as string),
+        }),
+        Contract.count({ where }),
       ]);
 
       res.json({
@@ -68,6 +81,131 @@ router.get(
   }
 );
 
+// @route   POST /api/admin/contracts/create
+// @desc    Crear contrato (Admin)
+// @access  Admin+
+router.post(
+  "/create",
+  requirePermission("contract:create"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const {
+        clientId,
+        doerId,
+        jobId,
+        title,
+        description,
+        price,
+        startDate,
+        endDate,
+        milestones,
+      } = req.body;
+
+      // Validate required fields
+      if (!clientId || !doerId || !title || !price || !startDate || !endDate) {
+        res.status(400).json({
+          success: false,
+          message: "Faltan campos requeridos",
+        });
+        return;
+      }
+
+      // Validate that client and doer exist
+      const [client, doer] = await Promise.all([
+        User.findByPk(clientId),
+        User.findByPk(doerId),
+      ]);
+
+      if (!client) {
+        res.status(404).json({
+          success: false,
+          message: "Cliente no encontrado",
+        });
+        return;
+      }
+
+      if (!doer) {
+        res.status(404).json({
+          success: false,
+          message: "Doer no encontrado",
+        });
+        return;
+      }
+
+      // Validate job if provided
+      let job = null;
+      if (jobId) {
+        const Job = (await import("../../models/Job.js")).default;
+        job = await Job.findByPk(jobId);
+        if (!job) {
+          res.status(404).json({
+            success: false,
+            message: "Trabajo no encontrado",
+          });
+          return;
+        }
+      }
+
+      // Calculate commission (5% standard)
+      const commissionRate = 0.05;
+      const commission = price * commissionRate;
+      const totalPrice = price + commission;
+
+      // Create contract
+      const contract = await Contract.create({
+        client: clientId,
+        doer: doerId,
+        job: jobId || undefined,
+        title,
+        description,
+        price,
+        commission,
+        totalPrice,
+        status: "accepted", // Admin-created contracts start as accepted
+        paymentStatus: "pending",
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        milestones: milestones || [],
+        createdBy: req.user.id,
+      });
+
+      await contract.reload({
+        include: [
+          { model: User, as: "clientUser", attributes: ["name", "email", "avatar"] },
+          { model: User, as: "doerUser", attributes: ["name", "email", "avatar"] },
+        ],
+      });
+
+      // Create audit log
+      await logAudit({
+        req,
+        action: "contract_created_by_admin",
+        category: "contract",
+        severity: "medium",
+        description: `Admin ${req.user.name} created contract: ${title}`,
+        metadata: {
+          contractId: contract.id,
+          clientId,
+          doerId,
+          price,
+        },
+      });
+
+      res.status(201).json({
+        success: true,
+        data: contract,
+        message: "Contrato creado exitosamente",
+      });
+    } catch (error: any) {
+      console.error("Error creating contract:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor",
+      });
+    }
+  }
+);
+
 // @route   GET /api/admin/contracts/:id
 // @desc    Obtener detalles de contrato
 // @access  Admin+
@@ -76,11 +214,13 @@ router.get(
   requirePermission("contracts:read"),
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const contract = await Contract.findById(req.params.id)
-        .populate("client", "name email phone avatar")
-        .populate("doer", "name email phone avatar")
-        .populate("job")
-        .populate("deletedBy", "name email");
+      const contract = await Contract.findByPk(req.params.id, {
+        include: [
+          { model: User, as: "clientUser", attributes: ["name", "email", "phone", "avatar"] },
+          { model: User, as: "doerUser", attributes: ["name", "email", "phone", "avatar"] },
+          { model: User, as: "deletedByUser", attributes: ["name", "email"] },
+        ],
+      });
 
       if (!contract) {
         res.status(404).json({
@@ -114,7 +254,7 @@ router.put(
     try {
       const { status, price, notes } = req.body;
 
-      const oldContract = await Contract.findById(req.params.id);
+      const oldContract = await Contract.findByPk(req.params.id);
 
       if (!oldContract) {
         res.status(404).json({
@@ -129,14 +269,11 @@ router.put(
       if (price !== undefined) updateData.price = price;
       if (notes) updateData.notes = notes;
 
-      const contract = await Contract.findByIdAndUpdate(req.params.id, updateData, {
-        new: true,
-        runValidators: true,
-      });
+      await oldContract.update(updateData);
 
       const changes = detectChanges(
-        oldContract.toObject(),
-        contract!.toObject(),
+        oldContract.get({ plain: true }),
+        (await Contract.findByPk(req.params.id))!.get({ plain: true }),
         Object.keys(updateData)
       );
 
@@ -145,16 +282,16 @@ router.put(
         action: "update_contract",
         category: "contract",
         severity: getSeverityForAction("update_contract"),
-        description: `Contrato ${contract!._id} actualizado`,
+        description: `Contrato ${oldContract.id} actualizado`,
         targetModel: "Contract",
-        targetId: contract!._id.toString(),
+        targetId: oldContract.id.toString(),
         changes,
       });
 
       res.json({
         success: true,
         message: "Contrato actualizado correctamente",
-        data: contract,
+        data: oldContract,
       });
     } catch (error: any) {
       res.status(500).json({
@@ -183,7 +320,7 @@ router.post(
         return;
       }
 
-      const contract = await Contract.findById(req.params.id);
+      const contract = await Contract.findByPk(req.params.id);
 
       if (!contract) {
         res.status(404).json({
@@ -193,22 +330,24 @@ router.post(
         return;
       }
 
-      contract.isHidden = true;
-      contract.deletionReason = reason;
-      contract.deletedBy = req.user._id;
-      contract.infractions = (contract.infractions || 0) + 1;
+      const newInfractions = (contract.infractions || 0) + 1;
 
-      await contract.save();
+      await contract.update({
+        isHidden: true,
+        deletionReason: reason,
+        deletedBy: req.user.id,
+        infractions: newInfractions,
+      });
 
       await logAudit({
         req,
         action: "ban_contract",
         category: "contract",
         severity: getSeverityForAction("ban_contract"),
-        description: `Contrato ${contract._id} ocultado. Razón: ${reason}`,
+        description: `Contrato ${contract.id} ocultado. Razón: ${reason}`,
         targetModel: "Contract",
-        targetId: contract._id.toString(),
-        metadata: { reason, infractions: contract.infractions },
+        targetId: contract.id.toString(),
+        metadata: { reason, infractions: newInfractions },
       });
 
       res.json({
@@ -232,7 +371,7 @@ router.post(
   requirePermission("contracts:unban"),
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const contract = await Contract.findById(req.params.id);
+      const contract = await Contract.findByPk(req.params.id);
 
       if (!contract) {
         res.status(404).json({
@@ -242,19 +381,19 @@ router.post(
         return;
       }
 
-      contract.isHidden = false;
-      contract.deletionReason = undefined;
-
-      await contract.save();
+      await contract.update({
+        isHidden: false,
+        deletionReason: null,
+      });
 
       await logAudit({
         req,
         action: "unban_contract",
         category: "contract",
         severity: getSeverityForAction("unban_contract"),
-        description: `Contrato ${contract._id} visible nuevamente`,
+        description: `Contrato ${contract.id} visible nuevamente`,
         targetModel: "Contract",
-        targetId: contract._id.toString(),
+        targetId: contract.id.toString(),
       });
 
       res.json({
@@ -279,7 +418,7 @@ router.delete(
   verifyOwnerPassword,
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const contract = await Contract.findById(req.params.id);
+      const contract = await Contract.findByPk(req.params.id);
 
       if (!contract) {
         res.status(404).json({
@@ -299,20 +438,20 @@ router.delete(
         return;
       }
 
-      contract.isDeleted = true;
-      contract.deletedAt = new Date();
-      contract.deletedBy = req.user._id;
-
-      await contract.save();
+      await contract.update({
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedBy: req.user.id,
+      });
 
       await logAudit({
         req,
         action: "delete_contract",
         category: "contract",
         severity: getSeverityForAction("delete_contract"),
-        description: `Contrato ${contract._id} eliminado permanentemente`,
+        description: `Contrato ${contract.id} eliminado permanentemente`,
         targetModel: "Contract",
-        targetId: contract._id.toString(),
+        targetId: contract.id.toString(),
         metadata: { infractions: contract.infractions },
       });
 

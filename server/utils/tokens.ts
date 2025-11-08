@@ -1,7 +1,8 @@
 import jwt, { Secret, SignOptions } from "jsonwebtoken";
 import crypto from "crypto";
-import RefreshToken from "../models/RefreshToken.js";
+import { RefreshToken } from "../models/sql/RefreshToken.model.js";
 import { config } from "../config/env.js";
+import { Op } from 'sequelize';
 
 // Generar access token (JWT corto)
 export const generateAccessToken = (userId: string): string => {
@@ -110,7 +111,7 @@ export const refreshAccessToken = async (
 // Limpiar tokens expirados (llamar periódicamente)
 export const cleanupExpiredTokens = async (): Promise<number> => {
   const result = await RefreshToken.deleteMany({
-    expiresAt: { $lt: new Date() },
+    expiresAt: { [Op.lt]: new Date() },
     isRevoked: true,
   });
 

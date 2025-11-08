@@ -1,11 +1,51 @@
 import { Router, Response } from "express";
 import { protect, AuthRequest } from "../middleware/auth";
-import Conversation from "../models/Conversation";
-import ChatMessage from "../models/ChatMessage";
-import Contract from "../models/Contract";
+import { Conversation } from "../models/sql/Conversation.model.js";
+import { ChatMessage } from "../models/sql/ChatMessage.model.js";
+import { Contract } from "../models/sql/Contract.model.js";
+import { User } from "../models/sql/User.model.js";
+import { Job } from "../models/sql/Job.model.js";
 import { body, validationResult } from "express-validator";
+import { Op } from 'sequelize';
 
 const router = Router();
+
+/**
+ * Get unread messages count
+ * GET /api/chat/unread-count
+ */
+router.get("/unread-count", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user.id;
+
+    const conversations = await Conversation.findAll({
+      where: {
+        participants: {
+          [Op.contains]: [userId],
+        },
+        archived: false,
+      },
+    });
+
+    let totalUnread = 0;
+    conversations.forEach((conversation) => {
+      const unreadCount = conversation.unreadCount as Record<string, number> | null;
+      const count = unreadCount?.[userId.toString()] || 0;
+      totalUnread += count;
+    });
+
+    res.json({
+      success: true,
+      unreadCount: totalUnread,
+    });
+  } catch (error: any) {
+    console.error("Get unread count error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error al obtener mensajes no leídos",
+    });
+  }
+});
 
 /**
  * Get all conversations for the authenticated user
@@ -13,26 +53,49 @@ const router = Router();
  */
 router.get("/conversations", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
     const { type, page = 1, limit = 20 } = req.query;
 
-    const query: any = {
-      participants: userId,
+    const where: any = {
+      participants: {
+        [Op.contains]: [userId],
+      },
       archived: false,
     };
 
     if (type) {
-      query.type = type;
+      where.type = type;
     }
 
-    const conversations = await Conversation.find(query)
-      .populate("participants", "name avatar lastLogin")
-      .populate("contractId", "title status")
-      .sort({ lastMessageAt: -1 })
-      .limit(Number(limit))
-      .skip((Number(page) - 1) * Number(limit));
+    // Only show conversations that have at least one message
+    const conversationsWithMessages = await ChatMessage.findAll({
+      attributes: [[ChatMessage.sequelize!.fn('DISTINCT', ChatMessage.sequelize!.col('conversation_id')), 'conversationId']],
+      raw: true,
+    });
 
-    const total = await Conversation.countDocuments(query);
+    const conversationIds = conversationsWithMessages.map((c: any) => c.conversationId);
+    where.id = { [Op.in]: conversationIds };
+
+    const conversations = await Conversation.findAll({
+      where,
+      include: [
+        {
+          model: Contract,
+          as: 'contract',
+          attributes: ['title', 'status'],
+        },
+        {
+          model: Job,
+          as: 'job',
+          attributes: ['title'],
+        },
+      ],
+      order: [['lastMessageAt', 'DESC']],
+      limit: Number(limit),
+      offset: (Number(page) - 1) * Number(limit),
+    });
+
+    const total = await Conversation.count({ where });
 
     res.json({
       success: true,
@@ -60,11 +123,22 @@ router.get("/conversations", protect, async (req: AuthRequest, res: Response): P
 router.get("/conversations/:id", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const userId = req.user._id;
+    const userId = req.user.id;
 
-    const conversation = await Conversation.findById(id)
-      .populate("participants", "name avatar lastLogin")
-      .populate("contractId", "title status");
+    const conversation = await Conversation.findByPk(id, {
+      include: [
+        {
+          model: Contract,
+          as: 'contract',
+          attributes: ['title', 'status'],
+        },
+        {
+          model: Job,
+          as: 'job',
+          attributes: ['title'],
+        },
+      ],
+    });
 
     if (!conversation) {
       res.status(404).json({
@@ -75,9 +149,7 @@ router.get("/conversations/:id", protect, async (req: AuthRequest, res: Response
     }
 
     // Verify user is a participant
-    const isParticipant = conversation.participants.some(
-      (p: any) => p._id.toString() === userId.toString()
-    );
+    const isParticipant = conversation.participants.includes(userId);
 
     if (!isParticipant) {
       res.status(403).json({
@@ -107,7 +179,7 @@ router.get("/conversations/:id", protect, async (req: AuthRequest, res: Response
 router.post(
   "/conversations",
   protect,
-  [body("participantId").isMongoId().withMessage("ID de participante inválido")],
+  [body("participantId").isUUID().withMessage("ID de participante inválido")],
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const errors = validationResult(req);
@@ -119,13 +191,17 @@ router.post(
         return;
       }
 
-      const userId = req.user._id;
+      const userId = req.user.id;
       const { participantId, message } = req.body;
 
       // Check if conversation already exists
       const existingConversation = await Conversation.findOne({
-        participants: { $all: [userId, participantId] },
-        type: "direct",
+        where: {
+          participants: {
+            [Op.contains]: [userId, participantId],
+          },
+          type: "direct",
+        },
       });
 
       if (existingConversation) {
@@ -146,22 +222,25 @@ router.post(
       // Create initial message if provided
       if (message) {
         const chatMessage = await ChatMessage.create({
-          conversationId: conversation._id,
-          sender: userId,
+          conversationId: conversation.id,
+          senderId: userId,
           message,
         });
 
         conversation.lastMessage = message.substring(0, 200);
         conversation.lastMessageAt = new Date();
-        conversation.unreadCount.set(participantId.toString(), 1);
+        if (!conversation.unreadCount) {
+          conversation.unreadCount = {};
+        }
+        conversation.unreadCount[participantId.toString()] = 1;
         await conversation.save();
       }
 
-      await conversation.populate("participants", "name avatar lastLogin");
+      const populatedConversation = await Conversation.findByPk(conversation.id);
 
       res.status(201).json({
         success: true,
-        data: conversation,
+        data: populatedConversation,
       });
     } catch (error: any) {
       console.error("Create conversation error:", error);
@@ -180,10 +259,10 @@ router.post(
 router.get("/contract/:contractId", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { contractId } = req.params;
-    const userId = req.user._id;
+    const userId = req.user.id;
 
     // Verify user is part of the contract
-    const contract = await Contract.findById(contractId);
+    const contract = await Contract.findByPk(contractId);
 
     if (!contract) {
       res.status(404).json({
@@ -194,8 +273,8 @@ router.get("/contract/:contractId", protect, async (req: AuthRequest, res: Respo
     }
 
     const isParticipant =
-      contract.client.toString() === userId.toString() ||
-      contract.doer.toString() === userId.toString();
+      contract.clientId === userId ||
+      contract.doerId === userId;
 
     if (!isParticipant) {
       res.status(403).json({
@@ -206,20 +285,34 @@ router.get("/contract/:contractId", protect, async (req: AuthRequest, res: Respo
     }
 
     // Find or create conversation for this contract
-    let conversation = await Conversation.findOne({ contractId })
-      .populate("participants", "name avatar lastLogin")
-      .populate("contractId", "title status");
+    let conversation = await Conversation.findOne({
+      where: { contractId },
+      include: [
+        {
+          model: Contract,
+          as: 'contract',
+          attributes: ['title', 'status'],
+        },
+      ],
+    });
 
     if (!conversation) {
       // Create conversation for this contract
       conversation = await Conversation.create({
-        participants: [contract.client, contract.doer],
+        participants: [contract.clientId, contract.doerId],
         contractId,
         type: "contract",
       });
 
-      await conversation.populate("participants", "name avatar lastLogin");
-      await conversation.populate("contractId", "title status");
+      conversation = await Conversation.findByPk(conversation.id, {
+        include: [
+          {
+            model: Contract,
+            as: 'contract',
+            attributes: ['title', 'status'],
+          },
+        ],
+      });
     }
 
     res.json({
@@ -242,11 +335,11 @@ router.get("/contract/:contractId", protect, async (req: AuthRequest, res: Respo
 router.get("/conversations/:id/messages", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const userId = req.user._id;
+    const userId = req.user.id;
     const { page = 1, limit = 50, before } = req.query;
 
     // Verify user is participant
-    const conversation = await Conversation.findById(id);
+    const conversation = await Conversation.findByPk(id);
 
     if (!conversation) {
       res.status(404).json({
@@ -256,9 +349,7 @@ router.get("/conversations/:id/messages", protect, async (req: AuthRequest, res:
       return;
     }
 
-    const isParticipant = conversation.participants.some(
-      (p) => p.toString() === userId.toString()
-    );
+    const isParticipant = conversation.participants.includes(userId);
 
     if (!isParticipant) {
       res.status(403).json({
@@ -269,22 +360,30 @@ router.get("/conversations/:id/messages", protect, async (req: AuthRequest, res:
     }
 
     // Build query
-    const query: any = {
+    const where: any = {
       conversationId: id,
       deleted: false,
     };
 
     if (before) {
-      query.createdAt = { $lt: new Date(before as string) };
+      where.createdAt = { [Op.lt]: new Date(before as string) };
     }
 
-    const messages = await ChatMessage.find(query)
-      .populate("sender", "name avatar")
-      .sort({ createdAt: -1 })
-      .limit(Number(limit))
-      .skip((Number(page) - 1) * Number(limit));
+    const messages = await ChatMessage.findAll({
+      where,
+      include: [
+        {
+          model: User,
+          as: 'sender',
+          attributes: ['name', 'avatar'],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+      limit: Number(limit),
+      offset: (Number(page) - 1) * Number(limit),
+    });
 
-    const total = await ChatMessage.countDocuments(query);
+    const total = await ChatMessage.count({ where });
 
     res.json({
       success: true,
@@ -306,15 +405,97 @@ router.get("/conversations/:id/messages", protect, async (req: AuthRequest, res:
 });
 
 /**
+ * Send a message in a conversation
+ * POST /api/chat/conversations/:id/messages
+ */
+router.post(
+  "/conversations/:id/messages",
+  protect,
+  [body("content").notEmpty().withMessage("El contenido del mensaje es requerido")],
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          errors: errors.array(),
+        });
+        return;
+      }
+
+      const { id: conversationId } = req.params;
+      const userId = req.user.id;
+      const { content } = req.body;
+
+      // Verify conversation exists
+      const conversation = await Conversation.findByPk(conversationId);
+
+      if (!conversation) {
+        res.status(404).json({
+          success: false,
+          message: "Conversación no encontrada",
+        });
+        return;
+      }
+
+      // Verify user is participant
+      const isParticipant = conversation.participants.includes(userId);
+
+      if (!isParticipant) {
+        res.status(403).json({
+          success: false,
+          message: "No tienes permiso para enviar mensajes en esta conversación",
+        });
+        return;
+      }
+
+      // Create message
+      const message = await ChatMessage.create({
+        conversationId,
+        senderId: userId,
+        message: content,
+      });
+
+      // Update conversation last message
+      conversation.lastMessage = content.substring(0, 100);
+      conversation.lastMessageAt = new Date();
+      await conversation.save();
+
+      // Populate sender info
+      const populatedMessage = await ChatMessage.findByPk(message.id, {
+        include: [
+          {
+            model: User,
+            as: 'sender',
+            attributes: ['name', 'avatar'],
+          },
+        ],
+      });
+
+      res.status(201).json({
+        success: true,
+        message: populatedMessage,
+      });
+    } catch (error: any) {
+      console.error("Send message error:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor",
+      });
+    }
+  }
+);
+
+/**
  * Delete a message
  * DELETE /api/chat/messages/:id
  */
 router.delete("/messages/:id", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const userId = req.user._id;
+    const userId = req.user.id;
 
-    const message = await ChatMessage.findById(id);
+    const message = await ChatMessage.findByPk(id);
 
     if (!message) {
       res.status(404).json({
@@ -325,7 +506,7 @@ router.delete("/messages/:id", protect, async (req: AuthRequest, res: Response):
     }
 
     // Only sender can delete their message
-    if (message.sender.toString() !== userId.toString()) {
+    if (message.senderId !== userId) {
       res.status(403).json({
         success: false,
         message: "Solo puedes eliminar tus propios mensajes",
@@ -358,9 +539,9 @@ router.delete("/messages/:id", protect, async (req: AuthRequest, res: Response):
 router.put("/conversations/:id/archive", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const userId = req.user._id;
+    const userId = req.user.id;
 
-    const conversation = await Conversation.findById(id);
+    const conversation = await Conversation.findByPk(id);
 
     if (!conversation) {
       res.status(404).json({
@@ -370,9 +551,7 @@ router.put("/conversations/:id/archive", protect, async (req: AuthRequest, res: 
       return;
     }
 
-    const isParticipant = conversation.participants.some(
-      (p) => p.toString() === userId.toString()
-    );
+    const isParticipant = conversation.participants.includes(userId);
 
     if (!isParticipant) {
       res.status(403).json({
@@ -383,6 +562,9 @@ router.put("/conversations/:id/archive", protect, async (req: AuthRequest, res: 
     }
 
     // Add user to archivedBy array
+    if (!conversation.archivedBy) {
+      conversation.archivedBy = [];
+    }
     if (!conversation.archivedBy.includes(userId)) {
       conversation.archivedBy.push(userId);
     }
@@ -408,21 +590,26 @@ router.put("/conversations/:id/archive", protect, async (req: AuthRequest, res: 
 });
 
 /**
- * Get unread message count
+ * Get unread message count (duplicate endpoint - same as first one)
  * GET /api/chat/unread-count
  */
-router.get("/unread-count", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/unread-count-duplicate", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
 
-    const conversations = await Conversation.find({
-      participants: userId,
-      archived: false,
+    const conversations = await Conversation.findAll({
+      where: {
+        participants: {
+          [Op.contains]: [userId],
+        },
+        archived: false,
+      },
     });
 
     let totalUnread = 0;
     conversations.forEach((conversation) => {
-      const count = conversation.unreadCount.get(userId.toString()) || 0;
+      const unreadCount = conversation.unreadCount as Record<string, number> | null;
+      const count = unreadCount?.[userId.toString()] || 0;
       totalUnread += count;
     });
 

@@ -12,10 +12,45 @@ import AdPlaceholder from "../components/AdPlaceholder";
 export default function Index() {
   const { user, isLoading } = useAuth();
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [myJobs, setMyJobs] = useState<Job[]>([]);
   const [jobsLoading, setJobsLoading] = useState(true);
   const { ads, recordImpression, recordClick } = useAdvertisements({
-    placement: 'jobs_list',
+    placement: "jobs_list",
   });
+
+  const fetchMyJobs = async () => {
+    if (!user?.id) {
+      console.log('❌ No user ID available for fetchMyJobs');
+      return;
+    }
+
+    try {
+      console.log('🔍 Fetching my jobs for user:', user.id);
+      const response = await fetch(`/api/jobs`);
+      const data = await response.json();
+
+      if (data.success) {
+        console.log('📥 All jobs from API:', data.jobs.length);
+
+        // Filter my jobs (all statuses)
+        const myJobsList = data.jobs.filter((job: Job) => {
+          const clientId = typeof job.client === 'string' ? job.client : job.client?.id;
+          const isMyJob = clientId === user.id;
+
+          if (isMyJob) {
+            console.log('✅ Found my job:', job.title, 'status:', job.status);
+          }
+
+          return isMyJob;
+        });
+
+        console.log('📊 My jobs filtered:', myJobsList.length);
+        setMyJobs(myJobsList);
+      }
+    } catch (error) {
+      console.error("Error al cargar mis trabajos:", error);
+    }
+  };
 
   const fetchJobs = async (filters?: SearchFilters) => {
     try {
@@ -31,8 +66,10 @@ export default function Index() {
         if (filters.category) params.append("category", filters.category);
         if (filters.tags.length > 0)
           params.append("tags", filters.tags.join(","));
-        if (filters.minBudget) params.append("minPrice", filters.minBudget.toString());
-        if (filters.maxBudget) params.append("maxPrice", filters.maxBudget.toString());
+        if (filters.minBudget)
+          params.append("minPrice", filters.minBudget.toString());
+        if (filters.maxBudget)
+          params.append("maxPrice", filters.maxBudget.toString());
         if (filters.sortBy) params.append("sortBy", filters.sortBy);
       }
 
@@ -52,6 +89,13 @@ export default function Index() {
     fetchJobs();
   }, []);
 
+  // Fetch my jobs only when user is loaded
+  useEffect(() => {
+    if (user && !isLoading) {
+      fetchMyJobs();
+    }
+  }, [user, isLoading]);
+
   const handleSearch = (filters: SearchFilters) => {
     fetchJobs(filters);
   };
@@ -61,50 +105,54 @@ export default function Index() {
     fetchJobs(filters);
   };
 
-  // Mix jobs and ads together
+  // Mix jobs and ads together - one ad every 2 rows (6 jobs), never consecutive ads
   const getMixedContent = () => {
-    const mixed: Array<{ type: 'job' | 'ad' | 'ad-placeholder'; data: any; adType?: string }> = [];
+    const mixed: Array<{
+      type: "job" | "ad" | "ad-placeholder";
+      data: any;
+      adType?: string;
+    }> = [];
     let jobIndex = 0;
     let adIndex = 0;
 
-    // Find if we have a model1 ad
-    const model1Ads = ads.filter(ad => ad.adType === 'model1');
-    const otherAds = ads.filter(ad => ad.adType !== 'model1');
+    const JOBS_PER_ROW = 3; // Grid has 3 columns on desktop
+    const ROWS_BETWEEN_ADS = 2; // Show ad every 2 rows
+    const JOBS_BETWEEN_ADS = JOBS_PER_ROW * ROWS_BETWEEN_ADS; // 6 jobs minimum between ads
 
-    // Strategy: Show a model1 banner after first 6 jobs
-    const jobsBeforeBanner = Math.min(6, jobs.length);
-    for (let i = 0; i < jobsBeforeBanner; i++) {
-      mixed.push({ type: 'job', data: jobs[jobIndex] });
-      jobIndex++;
-    }
-
-    // Add a model1 banner (ad or placeholder) if we have jobs
-    if (jobs.length > 0) {
-      if (model1Ads.length > 0) {
-        mixed.push({ type: 'ad', data: model1Ads[0] });
-        adIndex++;
-      } else {
-        mixed.push({ type: 'ad-placeholder', data: null, adType: 'model1' });
-      }
-    }
-
-    // Continue with remaining jobs and other ads
     while (jobIndex < jobs.length) {
-      // Add 3 more jobs
-      for (let i = 0; i < 3 && jobIndex < jobs.length; i++) {
-        mixed.push({ type: 'job', data: jobs[jobIndex] });
+      // Add at least 3 jobs before any ad
+      const minJobsBeforeAd = 3;
+      for (let i = 0; i < minJobsBeforeAd && jobIndex < jobs.length; i++) {
+        mixed.push({ type: "job", data: jobs[jobIndex] });
         jobIndex++;
       }
 
-      // Add other ads if available, or placeholders
-      if (jobIndex < jobs.length) {
+      // Add ad only if we have enough jobs left (at least 3 more jobs to show after)
+      const hasEnoughJobsForAd = jobs.length - jobIndex >= 3;
+
+      if (hasEnoughJobsForAd && jobIndex >= JOBS_BETWEEN_ADS * (adIndex + 1)) {
         if (adIndex < ads.length) {
-          mixed.push({ type: 'ad', data: ads[adIndex] });
+          mixed.push({ type: "ad", data: ads[adIndex] });
           adIndex++;
         } else {
-          mixed.push({ type: 'ad-placeholder', data: null, adType: 'model3' });
+          // Random ad type for placeholder
+          const adTypes: Array<'model1' | 'model2' | 'model3'> = ['model1', 'model2', 'model3'];
+          const randomAdType = adTypes[Math.floor(Math.random() * adTypes.length)];
+          mixed.push({ type: "ad-placeholder", data: null, adType: randomAdType });
+        }
+
+        // Add at least 3 more jobs after the ad
+        for (let i = 0; i < minJobsBeforeAd && jobIndex < jobs.length; i++) {
+          mixed.push({ type: "job", data: jobs[jobIndex] });
+          jobIndex++;
         }
       }
+    }
+
+    // Add remaining jobs if any
+    while (jobIndex < jobs.length) {
+      mixed.push({ type: "job", data: jobs[jobIndex] });
+      jobIndex++;
     }
 
     return mixed;
@@ -116,7 +164,7 @@ export default function Index() {
         <title>Doers - La forma segura de contratar y trabajar</title>
         <meta
           name="description"
-          content="Doers – La forma segura de contratar y trabajar. La plataforma argentina que asegura que cada acuerdo se cumpla con garantía de dinero."
+          content="Do – La forma segura de contratar y trabajar. La plataforma argentina que asegura que cada acuerdo se cumpla con garantía de dinero."
         />
       </Helmet>
       <div className="container mx-auto px-4 py-12">
@@ -202,10 +250,73 @@ export default function Index() {
           )}
         </div>
 
+        {/* Mis Trabajos Publicados */}
+        {user && myJobs.length > 0 && (
+          <div className="mt-16">
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
+                Mis Trabajos Publicados
+              </h2>
+              <Link
+                to="/contracts"
+                className="text-sm text-sky-600 hover:text-sky-700 font-semibold"
+              >
+                Ver todos ({myJobs.length})
+              </Link>
+            </div>
+            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+              {myJobs.slice(0, 3).map((job) => (
+                <Link
+                  key={`my-job-${job.id}`}
+                  to={`/jobs/${job.id}`}
+                  className="group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border-2 border-orange-400 dark:border-orange-500 bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 p-6 shadow-md transition-all hover:shadow-xl"
+                >
+                  {/* Badge de estado */}
+                  <div className="absolute top-4 left-4 z-10">
+                    <span className="px-3 py-1 text-xs font-bold bg-orange-500 text-white rounded-full">
+                      TU TRABAJO
+                    </span>
+                  </div>
+
+                  {/* Precio */}
+                  <div className="absolute right-4 top-4 rounded-full bg-gradient-to-r from-orange-500 to-orange-600 px-3 py-1 text-sm font-bold text-white shadow-lg">
+                    ${job.price.toLocaleString("es-AR")}
+                  </div>
+
+                  {/* Título */}
+                  <h3 className="mb-2 mt-8 pr-20 text-lg font-bold text-orange-900 dark:text-orange-100 group-hover:text-orange-700">
+                    {job.title}
+                  </h3>
+
+                  {/* Resumen */}
+                  <p className="mb-4 line-clamp-2 text-sm text-orange-800 dark:text-orange-200">
+                    {job.summary}
+                  </p>
+
+                  {/* Estado */}
+                  <div className="mt-auto pt-4 border-t border-orange-200 dark:border-orange-700">
+                    <span className={`inline-block px-3 py-1 text-xs font-semibold rounded-full ${
+                      job.status === 'open' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
+                      job.status === 'draft' ? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' :
+                      job.status === 'pending_payment' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
+                      'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                    }`}>
+                      {job.status === 'open' ? '✓ Publicado' :
+                       job.status === 'draft' ? '📝 Borrador' :
+                       job.status === 'pending_payment' ? '⏳ Pendiente de pago' :
+                       job.status}
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Lista de trabajos disponibles */}
         <div className="mt-16">
           <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-bold text-gray-900">
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
               Trabajos Disponibles
             </h2>
           </div>
@@ -221,12 +332,12 @@ export default function Index() {
               </p>
             </div>
           ) : (
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 auto-rows-[minmax(200px,auto)] grid-flow-dense">
               {getMixedContent().map((item, index) => {
-                if (item.type === 'ad') {
+                if (item.type === "ad") {
                   return (
                     <Advertisement
-                      key={`ad-${item.data._id}`}
+                      key={`ad-${item.data.id}`}
                       ad={item.data}
                       onImpression={recordImpression}
                       onClick={recordClick}
@@ -234,15 +345,20 @@ export default function Index() {
                   );
                 }
 
-                if (item.type === 'ad-placeholder') {
-                  return <AdPlaceholder key={`ad-placeholder-${index}`} adType={item.adType as any} />;
+                if (item.type === "ad-placeholder") {
+                  return (
+                    <AdPlaceholder
+                      key={`ad-placeholder-${index}`}
+                      adType={item.adType as any}
+                    />
+                  );
                 }
 
                 const job = item.data;
                 return (
                   <Link
-                    key={`job-${job._id}`}
-                    to={`/jobs/${job._id}`}
+                    key={`job-${job.id}`}
+                    to={`/jobs/${job.id}`}
                     className="group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm transition-all hover:border-sky-300 hover:shadow-lg"
                   >
                     {/* Precio */}
@@ -260,7 +376,8 @@ export default function Index() {
                       <div className="mb-3 flex items-center gap-1 text-amber-500">
                         <Star className="h-4 w-4 fill-current" />
                         <span className="ml-1 text-xs text-slate-600 dark:text-slate-400">
-                          {job.client.rating.toFixed(1)} ({job.client.reviewsCount})
+                          {job.client.rating.toFixed(1)} (
+                          {job.client.reviewsCount})
                         </span>
                       </div>
                     )}
@@ -280,16 +397,21 @@ export default function Index() {
                         <div className="flex items-center gap-1">
                           <Calendar className="h-4 w-4 text-slate-400" />
                           <span>
-                            {new Date(job.startDate).toLocaleDateString("es-AR")}
+                            {new Date(job.startDate).toLocaleDateString(
+                              "es-AR",
+                            )}
                           </span>
                         </div>
                         <div className="flex items-center gap-1">
                           <Clock className="h-4 w-4 text-slate-400" />
                           <span>
-                            {new Date(job.startDate).toLocaleTimeString("es-AR", {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
+                            {new Date(job.startDate).toLocaleTimeString(
+                              "es-AR",
+                              {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              },
+                            )}
                           </span>
                         </div>
                       </div>

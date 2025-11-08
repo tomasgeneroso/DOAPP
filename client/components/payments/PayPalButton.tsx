@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { paymentApi } from "@/lib/paymentApi";
+import { Loader2, CreditCard } from "lucide-react";
 
 interface PayPalButtonProps {
   contractId: string;
@@ -9,12 +10,6 @@ interface PayPalButtonProps {
   onError?: (error: string) => void;
   onCancel?: () => void;
   disabled?: boolean;
-}
-
-declare global {
-  interface Window {
-    paypal?: any;
-  }
 }
 
 export function PayPalButton({
@@ -27,131 +22,90 @@ export function PayPalButton({
   disabled = false,
 }: PayPalButtonProps) {
   const [loading, setLoading] = useState(false);
-  const [scriptLoaded, setScriptLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load PayPal SDK script
-  useEffect(() => {
-    if (window.paypal) {
-      setScriptLoaded(true);
-      return;
+  const handlePayPalRedirect = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Create PayPal order
+      const result = await paymentApi.createOrder({
+        contractId,
+        amount,
+        description,
+      });
+
+      console.log("✅ PayPal order created:", result);
+      console.log("🔗 Approval URL:", result.approvalUrl);
+
+      // Redirect to PayPal approval URL
+      if (result.approvalUrl) {
+        window.location.href = result.approvalUrl;
+      } else {
+        throw new Error("No se recibió URL de aprobación de PayPal");
+      }
+    } catch (err: any) {
+      const errorMessage = err.message || "Error al crear orden de PayPal";
+      console.error("❌ PayPal error:", err);
+      setError(errorMessage);
+      onError?.(errorMessage);
+      setLoading(false);
     }
-
-    const script = document.createElement("script");
-    script.src = `https://www.paypal.com/sdk/js?client-id=${import.meta.env.VITE_PAYPAL_CLIENT_ID}&currency=USD`;
-    script.async = true;
-
-    script.onload = () => {
-      setScriptLoaded(true);
-    };
-
-    script.onerror = () => {
-      setError("Failed to load PayPal SDK");
-    };
-
-    document.body.appendChild(script);
-
-    return () => {
-      // Cleanup if needed
-    };
-  }, []);
-
-  // Render PayPal button when SDK is loaded
-  useEffect(() => {
-    if (!scriptLoaded || !window.paypal || disabled) return;
-
-    const buttonContainer = document.getElementById("paypal-button-container");
-    if (!buttonContainer) return;
-
-    // Clear previous buttons
-    buttonContainer.innerHTML = "";
-
-    window.paypal
-      .Buttons({
-        style: {
-          layout: "vertical",
-          color: "blue",
-          shape: "rect",
-          label: "paypal",
-        },
-        createOrder: async () => {
-          try {
-            setLoading(true);
-            setError(null);
-
-            const result = await paymentApi.createOrder({
-              contractId,
-              amount,
-              description,
-            });
-
-            return result.orderId;
-          } catch (err: any) {
-            const errorMessage = err.message || "Failed to create order";
-            setError(errorMessage);
-            onError?.(errorMessage);
-            throw err;
-          } finally {
-            setLoading(false);
-          }
-        },
-        onApprove: async (data: any) => {
-          try {
-            setLoading(true);
-            setError(null);
-
-            const result = await paymentApi.captureOrder({
-              orderId: data.orderID,
-            });
-
-            onSuccess?.(result.captureId);
-          } catch (err: any) {
-            const errorMessage = err.message || "Failed to capture payment";
-            setError(errorMessage);
-            onError?.(errorMessage);
-          } finally {
-            setLoading(false);
-          }
-        },
-        onCancel: () => {
-          setLoading(false);
-          onCancel?.();
-        },
-        onError: (err: any) => {
-          const errorMessage = err.message || "PayPal error occurred";
-          setError(errorMessage);
-          onError?.(errorMessage);
-          setLoading(false);
-        },
-      })
-      .render("#paypal-button-container");
-  }, [scriptLoaded, contractId, amount, description, disabled]);
+  };
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <p className="text-red-800 text-sm">{error}</p>
-      </div>
-    );
-  }
-
-  if (!scriptLoaded) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-600"></div>
+      <div className="space-y-4">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-800 text-sm font-medium">Error al procesar el pago</p>
+          <p className="text-red-700 text-sm mt-1">{error}</p>
+        </div>
+        <button
+          onClick={handlePayPalRedirect}
+          disabled={loading}
+          className="w-full bg-sky-600 hover:bg-sky-700 disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2"
+        >
+          Reintentar
+        </button>
       </div>
     );
   }
 
   return (
     <div>
+      <button
+        onClick={handlePayPalRedirect}
+        disabled={disabled || loading}
+        className="w-full bg-[#0070ba] hover:bg-[#005ea6] disabled:bg-slate-400 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:cursor-not-allowed"
+      >
+        {loading ? (
+          <>
+            <Loader2 className="h-5 w-5 animate-spin" />
+            Redirigiendo a PayPal...
+          </>
+        ) : (
+          <>
+            <CreditCard className="h-5 w-5" />
+            Pagar con PayPal
+          </>
+        )}
+      </button>
+
       {loading && (
-        <div className="mb-4 text-center">
-          <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-sky-600"></div>
-          <p className="text-sm text-gray-600 mt-2">Procesando pago...</p>
+        <div className="mt-3 text-center">
+          <p className="text-sm text-gray-600">
+            Serás redirigido a PayPal Sandbox para completar el pago...
+          </p>
         </div>
       )}
-      <div id="paypal-button-container"></div>
+
+      <div className="mt-2 text-xs text-gray-500 text-center">
+        <p>🔒 Pago seguro procesado por PayPal Sandbox</p>
+        <p className="mt-1">
+          Ambiente de pruebas - Utiliza credenciales de sandbox
+        </p>
+      </div>
     </div>
   );
 }

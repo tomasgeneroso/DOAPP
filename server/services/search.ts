@@ -1,5 +1,6 @@
-import Job from "../models/Job";
+import { Job } from "../models/sql/Job.model.js";
 import cache from "./cache.js";
+import { Op } from 'sequelize';
 
 // Normalize location string: remove punctuation and convert to lowercase
 const normalizeLocation = (location: string): string => {
@@ -85,7 +86,7 @@ class SearchService {
 
     // Tags filter (match any tag)
     if (tags && tags.length > 0) {
-      searchQuery.tags = { $in: tags };
+      searchQuery.tags = { [Op.in]: tags };
     }
 
     // Price range filter
@@ -279,10 +280,10 @@ class SearchService {
 
     const jobs = await Job.find({
       status: "open",
-      $or: [
-        { title: { $regex: query, $options: "i" } },
-        { tags: { $regex: query, $options: "i" } },
-        { category: { $regex: query, $options: "i" } },
+      [Op.or]: [
+        { title: { [Op.regexp]: query, $options: "i" } },
+        { tags: { [Op.regexp]: query, $options: "i" } },
+        { category: { [Op.regexp]: query, $options: "i" } },
       ],
     })
       .select("title category tags")

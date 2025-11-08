@@ -12,11 +12,11 @@ const AdPlaceholder: React.FC<AdPlaceholderProps> = ({ adType = 'model3' }) => {
     navigate('/contact?subject=advertising');
   };
 
-  // Ad type specific classes - usando altura en lugar de aspect ratio para layout vertical
+  // Ad type specific classes - matching Advertisement component
   const typeClasses = {
-    model1: 'w-full h-32', // 3x1 - Wide banner (altura reducida)
-    model2: 'w-full h-64', // 1x2 - Tall sidebar (altura mayor)
-    model3: 'w-full h-48', // 1x1 - Square card (altura media)
+    model1: 'col-span-1 sm:col-span-2 lg:col-span-3 aspect-[3/1]', // Banner 3x1 - Wide banner (full width)
+    model2: 'col-span-1 row-span-2 h-full', // Sidebar 1x2 - Tall sidebar (1 col, 2 rows height)
+    model3: 'col-span-1 aspect-[1/1]', // Card 1x1 - Square card (same as job cards)
   };
 
   return (

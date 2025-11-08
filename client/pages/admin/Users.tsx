@@ -147,11 +147,23 @@ export default function AdminUsers() {
                   <div className="text-sm text-gray-900">{user.trustScore}/100</div>
                   <div className="text-xs text-gray-500">{user.infractions} infracciones</div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-6 py-4">
                   {user.isBanned ? (
-                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                      Baneado
-                    </span>
+                    <div>
+                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                        Baneado
+                      </span>
+                      {user.banReason && (
+                        <p className="text-xs text-gray-600 mt-1 max-w-xs">
+                          <span className="font-medium">Razón:</span> {user.banReason}
+                        </p>
+                      )}
+                      {user.bannedAt && (
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {new Date(user.bannedAt).toLocaleDateString('es-AR')}
+                        </p>
+                      )}
+                    </div>
                   ) : (
                     <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
                       Activo

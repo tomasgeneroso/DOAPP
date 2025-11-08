@@ -41,6 +41,7 @@ Thumbs.db
 # Claude Code
 .claude
 claude
+CLAUDE.md
 
 # Uploads and temp files
 uploads/*
@@ -115,3 +116,27 @@ nul
 # package-lock.json
 # yarn.lock
 # pnpm-lock.yaml
+
+# Documentation - exclude internal/sensitive docs
+docs/
+*.md
+!README.md
+!CLAUDE.md
+!client/components/**/*.md
+!client/pages/**/*.md
+
+# Migration and setup scripts (one-time use)
+migrate-*.cjs
+migrate-*.js
+setup-*.ps1
+
+# Cookies files
+cookies.txt
+test-cookies.txt
+
+# Empty client folders
+client/src/
+client/styles/
+
+# TypeScript build info
+tsconfig.tsbuildinfo

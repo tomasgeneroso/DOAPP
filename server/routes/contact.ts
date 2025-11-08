@@ -1,10 +1,11 @@
 import express, { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
-import ContactMessage from '../models/ContactMessage.js';
+import { ContactMessage } from '../models/sql/ContactMessage.model.js';
 import { protect } from '../middleware/auth.js';
 import type { AuthRequest } from '../middleware/auth.js';
 import sanitizer from '../utils/sanitizer.js';
 import cache from '../services/cache.js';
+import { Op } from 'sequelize';
 
 const router = express.Router();
 
@@ -59,14 +60,12 @@ router.post(
       const userAgent = req.headers['user-agent'];
 
       // Create contact message
-      const contactMessage = new ContactMessage({
+      const contactMessage = await ContactMessage.create({
         ...sanitizedData,
-        user: userId,
+        userId: userId,
         ipAddress,
         userAgent,
       });
-
-      await contactMessage.save();
 
       // TODO: Send email notification to admin
       // TODO: Send confirmation email to user
@@ -76,7 +75,7 @@ router.post(
         message:
           'Mensaje enviado correctamente. Nos pondremos en contacto contigo pronto.',
         data: {
-          id: contactMessage._id,
+          id: contactMessage.id,
           subject: contactMessage.subject,
         },
       });
@@ -93,11 +92,13 @@ router.post(
  */
 router.get('/my-messages', protect, async (req: AuthRequest, res: Response) => {
   try {
-    const messages = await ContactMessage.find({
-      $or: [{ user: req.user!.id }, { email: req.user!.email }],
-    })
-      .sort({ createdAt: -1 })
-      .select('-ipAddress -userAgent');
+    const messages = await ContactMessage.findAll({
+      where: {
+        [Op.or]: [{ userId: req.user!.id }, { email: req.user!.email }],
+      },
+      order: [['createdAt', 'DESC']],
+      attributes: { exclude: ['ipAddress', 'userAgent'] },
+    });
 
     res.json({
       success: true,
@@ -116,11 +117,16 @@ router.get('/my-messages', protect, async (req: AuthRequest, res: Response) => {
 router.get('/:id', protect, async (req: AuthRequest, res: Response) => {
   try {
     const message = await ContactMessage.findOne({
-      _id: req.params.id,
-      $or: [{ user: req.user!.id }, { email: req.user!.email }],
-    })
-      .populate('respondedBy', 'name email')
-      .select('-ipAddress -userAgent');
+      where: {
+        id: req.params.id,
+        [Op.or]: [{ userId: req.user!.id }, { email: req.user!.email }],
+      },
+      include: [{
+        association: 'respondedBy',
+        attributes: ['name', 'email'],
+      }],
+      attributes: { exclude: ['ipAddress', 'userAgent'] },
+    });
 
     if (!message) {
       return res

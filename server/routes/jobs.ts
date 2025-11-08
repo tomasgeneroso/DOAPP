@@ -1,8 +1,11 @@
 import express, { Request, Response } from "express";
 import { body, validationResult } from "express-validator";
-import Job from "../models/Job.js";
+import { Job } from "../models/sql/Job.model.js";
+import { User } from "../models/sql/User.model.js";
 import { protect } from "../middleware/auth.js";
 import type { AuthRequest } from "../types/index.js";
+import { socketService } from "../index.js";
+import { Op } from 'sequelize';
 
 const router = express.Router();
 
@@ -65,27 +68,39 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
     if (tags) {
       const tagsArray = typeof tags === 'string' ? tags.split(',') : tags;
       if (Array.isArray(tagsArray) && tagsArray.length > 0) {
-        query.tags = { $in: tagsArray };
+        query.tags = { [Op.in]: tagsArray };
       }
     }
 
     // Determine sort order based on sortBy parameter
-    let sortCriteria: any = { createdAt: -1 }; // default
+    let sortOrder: any = [['createdAt', 'DESC']]; // default
 
     if (sortBy === 'budget-asc') {
-      sortCriteria = { price: 1 };
+      sortOrder = [['price', 'ASC']];
     } else if (sortBy === 'budget-desc') {
-      sortCriteria = { price: -1 };
+      sortOrder = [['price', 'DESC']];
     } else if (sortBy === 'proximity') {
       // For proximity, we'll need to sort after filtering by location
-      sortCriteria = { createdAt: -1 }; // fallback to date for now
+      sortOrder = [['createdAt', 'DESC']]; // fallback to date for now
     }
 
-    let jobs = await Job.find(query)
-      .populate("client", "name avatar rating reviewsCount")
-      .populate("doer", "name avatar rating reviewsCount")
-      .sort(sortCriteria)
-      .lean();
+    let jobs = await Job.findAll({
+      where: query,
+      include: [
+        {
+          model: User,
+          as: 'client',
+          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount']
+        },
+        {
+          model: User,
+          as: 'doer',
+          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount'],
+          required: false // LEFT JOIN (doer can be null)
+        }
+      ],
+      order: sortOrder
+    });
 
     // Apply location filter with normalization if provided
     if (location && typeof location === 'string') {
@@ -98,12 +113,28 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
     }
 
     // Apply limit after filtering
-    jobs = jobs.slice(0, Number(limit));
+    const limitNum = Number(limit);
+    jobs = jobs.slice(0, limitNum);
+
+    // Convert to plain objects (like .lean() in MongoDB)
+    const plainJobs = jobs.map(job => {
+      const jobData = job.toJSON();
+      // Ensure clientId is included at root level for filtering
+      if (!jobData.clientId && job.clientId) {
+        jobData.clientId = job.clientId;
+      }
+      // Convert numeric strings to numbers for frontend compatibility
+      if (jobData.price) jobData.price = parseFloat(jobData.price);
+      if (jobData.publicationAmount) jobData.publicationAmount = parseFloat(jobData.publicationAmount);
+      if (jobData.client?.rating) jobData.client.rating = parseFloat(jobData.client.rating);
+      if (jobData.doer?.rating) jobData.doer.rating = parseFloat(jobData.doer.rating);
+      return jobData;
+    });
 
     res.json({
       success: true,
-      count: jobs.length,
-      jobs,
+      count: plainJobs.length,
+      jobs: plainJobs,
     });
   } catch (error: any) {
     res.status(500).json({
@@ -118,9 +149,21 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
 // @access  Public
 router.get("/:id", async (req: Request, res: Response): Promise<void> => {
   try {
-    const job = await Job.findById(req.params.id)
-      .populate("client", "name avatar rating reviewsCount phone email")
-      .populate("doer", "name avatar rating reviewsCount phone");
+    const job = await Job.findByPk(req.params.id, {
+      include: [
+        {
+          model: User,
+          as: 'client',
+          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount', 'phone', 'email']
+        },
+        {
+          model: User,
+          as: 'doer',
+          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount', 'phone'],
+          required: false
+        }
+      ]
+    });
 
     if (!job) {
       res.status(404).json({
@@ -130,9 +173,16 @@ router.get("/:id", async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    const jobData = job.toJSON();
+    // Convert numeric strings to numbers for frontend compatibility
+    if (jobData.price) jobData.price = parseFloat(jobData.price);
+    if (jobData.publicationAmount) jobData.publicationAmount = parseFloat(jobData.publicationAmount);
+    if (jobData.client?.rating) jobData.client.rating = parseFloat(jobData.client.rating);
+    if (jobData.doer?.rating) jobData.doer.rating = parseFloat(jobData.doer.rating);
+
     res.json({
       success: true,
-      job,
+      job: jobData,
     });
   } catch (error: any) {
     res.status(500).json({
@@ -168,17 +218,86 @@ router.post(
         return;
       }
 
+      // Get full user data to check free contracts
+      const user = await User.findByPk(req.user.id);
+      if (!user) {
+        res.status(404).json({ success: false, message: "User not found" });
+        return;
+      }
+
+      // Check if user has free contracts (initial or monthly PRO/SUPER PRO)
+      const hasFreeInitialContracts = user.freeContractsRemaining > 0;
+
+      let monthlyFreeLimit = 0;
+      if (user.membershipTier === 'super_pro') monthlyFreeLimit = 2;
+      else if (user.membershipTier === 'pro') monthlyFreeLimit = 1;
+
+      const proContractsUsed = user.proContractsUsedThisMonth || 0;
+      const hasMonthlyFreeContracts = proContractsUsed < monthlyFreeLimit;
+
+      const canPublishForFree = hasFreeInitialContracts || hasMonthlyFreeContracts;
+
       const jobData = {
         ...req.body,
-        client: req.user._id,
+        clientId: req.user.id, // Sequelize uses camelCase foreign keys
+        status: canPublishForFree ? "open" : "draft", // Free contracts auto-publish, others need payment
+        publicationPaid: canPublishForFree, // Free contracts don't need payment
+        publicationAmount: 0, // Will be calculated if payment needed
       };
 
       const job = await Job.create(jobData);
 
-      res.status(201).json({
-        success: true,
-        job,
+      // If can publish for free, decrement the appropriate counter
+      if (canPublishForFree) {
+        if (hasFreeInitialContracts) {
+          user.freeContractsRemaining = user.freeContractsRemaining - 1;
+          console.log(`✅ User ${user.id} used initial free contract. Remaining: ${user.freeContractsRemaining}`);
+        } else if (hasMonthlyFreeContracts) {
+          user.proContractsUsedThisMonth = proContractsUsed + 1;
+          console.log(`✅ User ${user.id} used monthly ${user.membershipTier} contract. Used: ${user.proContractsUsedThisMonth}/${monthlyFreeLimit}`);
+        }
+        await user.save();
+      }
+
+      // Populate job for response and notifications
+      const populatedJob = await Job.findByPk(job.id, {
+        include: [
+          {
+            model: User,
+            as: 'client',
+            attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount']
+          }
+        ]
       });
+
+      // Send real-time notifications via Socket.io
+      socketService.notifyJobUpdate(
+        job.id,
+        req.user.id,
+        {
+          action: 'created',
+          job: populatedJob?.toJSON()
+        }
+      );
+
+      // Different responses based on whether payment is needed
+      if (canPublishForFree) {
+        res.status(201).json({
+          success: true,
+          message: hasFreeInitialContracts
+            ? "Trabajo publicado exitosamente (contrato inicial gratuito)"
+            : `Trabajo publicado exitosamente (contrato mensual ${user.membershipTier.toUpperCase()})`,
+          job: populatedJob?.toJSON(),
+          requiresPayment: false,
+        });
+      } else {
+        res.status(201).json({
+          success: true,
+          message: "Job creado. Procede al pago para publicarlo",
+          job: populatedJob?.toJSON(),
+          requiresPayment: true,
+        });
+      }
     } catch (error: any) {
       res.status(500).json({
         success: false,
@@ -193,7 +312,7 @@ router.post(
 // @access  Private
 router.put("/:id", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    let job = await Job.findById(req.params.id);
+    let job = await Job.findByPk(req.params.id);
 
     if (!job) {
       res.status(404).json({
@@ -204,7 +323,7 @@ router.put("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
     }
 
     // Verificar que el usuario sea el dueño del trabajo
-    if (job.client.toString() !== req.user._id.toString()) {
+    if (job.clientId !== req.user.id) {
       res.status(403).json({
         success: false,
         message: "No tienes permiso para actualizar este trabajo",
@@ -212,14 +331,39 @@ router.put("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
-    job = await Job.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
+    // Update the job
+    await job.update(req.body);
+
+    // Fetch updated job with associations
+    const updatedJob = await Job.findByPk(req.params.id, {
+      include: [
+        {
+          model: User,
+          as: 'client',
+          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount']
+        },
+        {
+          model: User,
+          as: 'doer',
+          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount'],
+          required: false
+        }
+      ]
     });
+
+    // Send real-time notifications via Socket.io
+    socketService.notifyJobUpdate(
+      job.id,
+      req.user.id,
+      {
+        action: 'updated',
+        job: updatedJob?.toJSON()
+      }
+    );
 
     res.json({
       success: true,
-      job,
+      job: updatedJob?.toJSON(),
     });
   } catch (error: any) {
     res.status(500).json({
@@ -234,7 +378,7 @@ router.put("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
 // @access  Private
 router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const job = await Job.findById(req.params.id);
+    const job = await Job.findByPk(req.params.id);
 
     if (!job) {
       res.status(404).json({
@@ -245,7 +389,7 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
     }
 
     // Verificar que el usuario sea el dueño del trabajo
-    if (job.client.toString() !== req.user._id.toString()) {
+    if (job.clientId !== req.user.id) {
       res.status(403).json({
         success: false,
         message: "No tienes permiso para eliminar este trabajo",
@@ -253,7 +397,18 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
       return;
     }
 
-    await job.deleteOne();
+    const jobId = job.id;
+    await job.destroy();
+
+    // Send real-time notifications via Socket.io
+    socketService.notifyJobUpdate(
+      jobId,
+      req.user.id,
+      {
+        action: 'deleted',
+        jobId
+      }
+    );
 
     res.json({
       success: true,
@@ -272,7 +427,7 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
 // @access  Private
 router.put("/:id/apply", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const job = await Job.findById(req.params.id);
+    const job = await Job.findByPk(req.params.id);
 
     if (!job) {
       res.status(404).json({
@@ -290,7 +445,7 @@ router.put("/:id/apply", protect, async (req: AuthRequest, res: Response): Promi
       return;
     }
 
-    if (job.doer) {
+    if (job.doerId) {
       res.status(400).json({
         success: false,
         message: "Este trabajo ya tiene un doer asignado",
@@ -298,12 +453,205 @@ router.put("/:id/apply", protect, async (req: AuthRequest, res: Response): Promi
       return;
     }
 
-    job.doer = req.user._id;
+    job.doerId = req.user.id;
     job.status = "in_progress";
+    await job.save();
+
+    // Populate for response
+    const populatedJob = await Job.findByPk(job.id, {
+      include: [
+        {
+          model: User,
+          as: 'client',
+          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount']
+        },
+        {
+          model: User,
+          as: 'doer',
+          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount'],
+          required: false
+        }
+      ]
+    });
+
+    // Send real-time notifications via Socket.io
+    socketService.notifyJobUpdate(
+      job.id,
+      job.clientId,
+      {
+        action: 'applied',
+        job: populatedJob?.toJSON(),
+        doer: req.user.id
+      }
+    );
+
+    res.json({
+      success: true,
+      job: populatedJob?.toJSON(),
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   POST /api/jobs/:id/initiate-payment
+// @desc    Iniciar pago para publicar trabajo
+// @access  Private
+router.post("/:id/initiate-payment", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const job = await Job.findByPk(req.params.id);
+
+    if (!job) {
+      res.status(404).json({
+        success: false,
+        message: "Trabajo no encontrado",
+      });
+      return;
+    }
+
+    // Verificar que el usuario sea el dueño del trabajo
+    if (job.clientId !== req.user.id) {
+      res.status(403).json({
+        success: false,
+        message: "No tienes permiso para publicar este trabajo",
+      });
+      return;
+    }
+
+    // Verificar que el job esté en estado draft
+    if (job.status !== "draft") {
+      res.status(400).json({
+        success: false,
+        message: "Este trabajo ya ha sido publicado o procesado",
+      });
+      return;
+    }
+
+    // Verificar si ya pagó
+    if (job.publicationPaid) {
+      res.status(400).json({
+        success: false,
+        message: "Este trabajo ya fue pagado",
+      });
+      return;
+    }
+
+    // TODO: Definir el costo de publicación (puede ser fijo o basado en duración/categoría)
+    const PUBLICATION_FEE = 10; // $10 USD por publicar un trabajo
+
+    // Guardar el jobId en la sesión para usarlo después del pago
+    job.status = "pending_payment";
+    job.publicationAmount = PUBLICATION_FEE;
     await job.save();
 
     res.json({
       success: true,
+      message: "Procede al pago para publicar tu trabajo",
+      jobId: job.id,
+      publicationFee: PUBLICATION_FEE,
+      paymentUrl: `/payment/job-publication?jobId=${job.id}&amount=${PUBLICATION_FEE}`,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   PATCH /api/jobs/:id/pause
+// @desc    Pausar una publicación de trabajo
+// @access  Private (only job owner)
+router.patch("/:id/pause", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const job = await Job.findByPk(req.params.id);
+
+    if (!job) {
+      res.status(404).json({
+        success: false,
+        message: "Trabajo no encontrado",
+      });
+      return;
+    }
+
+    // Verificar que el usuario sea el dueño del trabajo
+    if (job.clientId !== req.user.id) {
+      res.status(403).json({
+        success: false,
+        message: "No tienes permiso para pausar este trabajo",
+      });
+      return;
+    }
+
+    // Verificar que el job esté publicado (open)
+    if (job.status !== "open") {
+      res.status(400).json({
+        success: false,
+        message: "Solo puedes pausar trabajos publicados",
+      });
+      return;
+    }
+
+    // Pausar el trabajo
+    job.status = "paused";
+    await job.save();
+
+    res.json({
+      success: true,
+      message: "Publicación pausada exitosamente",
+      job,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   PATCH /api/jobs/:id/cancel
+// @desc    Cancelar una publicación de trabajo (pierde la comisión)
+// @access  Private (only job owner)
+router.patch("/:id/cancel", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const job = await Job.findByPk(req.params.id);
+
+    if (!job) {
+      res.status(404).json({
+        success: false,
+        message: "Trabajo no encontrado",
+      });
+      return;
+    }
+
+    // Verificar que el usuario sea el dueño del trabajo
+    if (job.clientId !== req.user.id) {
+      res.status(403).json({
+        success: false,
+        message: "No tienes permiso para cancelar este trabajo",
+      });
+      return;
+    }
+
+    // Verificar que el job esté publicado o pausado
+    if (job.status !== "open" && job.status !== "paused") {
+      res.status(400).json({
+        success: false,
+        message: "Solo puedes cancelar trabajos publicados o pausados",
+      });
+      return;
+    }
+
+    // Cancelar el trabajo (no se reembolsa la comisión)
+    job.status = "cancelled";
+    await job.save();
+
+    res.json({
+      success: true,
+      message: "Publicación cancelada. La comisión pagada no será reembolsada.",
       job,
     });
   } catch (error: any) {

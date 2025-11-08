@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useSocket } from "../hooks/useSocket";
+import { SkeletonProposalCard } from "../components/ui/Skeleton";
 import { FileText, Calendar, DollarSign, Clock, CheckCircle, XCircle } from "lucide-react";
 
 interface Proposal {
@@ -20,14 +22,18 @@ interface Proposal {
     name: string;
     avatar: string;
   };
-  price: number;
+  proposedPrice: number;
+  price?: number; // legacy field
   coverLetter: string;
   status: string;
+  isCounterOffer: boolean;
+  originalJobPrice?: number;
   createdAt: string;
 }
 
 export default function ProposalsScreen() {
   const { user } = useAuth();
+  const { registerProposalUpdateHandler } = useSocket();
   const [searchParams] = useSearchParams();
   const type = searchParams.get("type") || "sent";
   const [proposals, setProposals] = useState<Proposal[]>([]);
@@ -36,6 +42,12 @@ export default function ProposalsScreen() {
 
   useEffect(() => {
     fetchProposals();
+
+    // Register real-time event handler
+    registerProposalUpdateHandler((data: any) => {
+      console.log("📄 Proposal update detected:", data);
+      fetchProposals();
+    });
   }, []);
 
   const fetchProposals = async () => {
@@ -108,12 +120,33 @@ export default function ProposalsScreen() {
     return proposal.status === filter;
   });
 
+  // Separar aplicaciones directas y contraofertas
+  const directApplications = filteredProposals.filter((p) => !p.isCounterOffer);
+  const counterOffers = filteredProposals.filter((p) => p.isCounterOffer);
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-500 mx-auto"></div>
-          <p className="mt-4 text-slate-600 dark:text-slate-400">Cargando propuestas...</p>
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 p-6">
+        <div className="mx-auto max-w-7xl space-y-6">
+          {/* Header Skeleton */}
+          <div className="space-y-2">
+            <div className="h-8 w-48 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
+            <div className="h-4 w-64 bg-slate-200 dark:bg-slate-700 rounded animate-pulse"></div>
+          </div>
+
+          {/* Filter Buttons Skeleton */}
+          <div className="flex gap-2">
+            {[...Array(4)].map((_, i) => (
+              <div key={i} className="h-10 w-24 bg-slate-200 dark:bg-slate-700 rounded-lg animate-pulse"></div>
+            ))}
+          </div>
+
+          {/* Proposals Grid Skeleton */}
+          <div className="grid gap-6 md:grid-cols-2">
+            {[...Array(6)].map((_, i) => (
+              <SkeletonProposalCard key={i} />
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -213,76 +246,166 @@ export default function ProposalsScreen() {
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
-            {filteredProposals.map((proposal) => {
-              const otherParty = type === "sent" ? proposal.client : proposal.freelancer;
+          <div className="space-y-8">
+            {/* Counter Offers Section */}
+            {counterOffers.length > 0 && (
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                  <DollarSign className="h-6 w-6 text-sky-600" />
+                  Contraofertas ({counterOffers.length})
+                </h2>
+                <div className="space-y-4">
+                  {counterOffers.map((proposal) => {
+                    const otherParty = type === "sent" ? proposal.client : proposal.freelancer;
+                    const price = proposal.proposedPrice || proposal.price || 0;
 
-              return (
-                <div
-                  key={proposal._id}
-                  className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 hover:shadow-lg transition-shadow"
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex-1">
+                    return (
                       <Link
-                        to={`/jobs/${proposal.job._id}`}
-                        className="text-lg font-bold text-slate-900 dark:text-white hover:text-sky-600 dark:hover:text-sky-400"
+                        key={proposal._id}
+                        to={`/proposals/${proposal._id}`}
+                        className="block bg-white dark:bg-slate-800 rounded-xl border-2 border-sky-200 dark:border-sky-800 p-6 hover:shadow-lg transition-shadow"
                       >
-                        {proposal.job.title}
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex-1">
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white hover:text-sky-600 dark:hover:text-sky-400">
+                              {proposal.job.title}
+                            </h3>
+                            <div className="flex items-center gap-2 mt-2">
+                              <span className="px-2 py-1 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 text-xs font-semibold rounded">
+                                CONTRAOFERTA
+                              </span>
+                              <span
+                                className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${getStatusColor(
+                                  proposal.status
+                                )}`}
+                              >
+                                {getStatusIcon(proposal.status)}
+                                {getStatusLabel(proposal.status)}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-2xl font-bold text-sky-600">
+                              ${price.toLocaleString()}
+                            </p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              Tu oferta
+                            </p>
+                            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                              Original: ${proposal.job.price.toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Cover Letter */}
+                        <div className="mb-4 p-4 bg-sky-50 dark:bg-sky-900/20 rounded-lg border border-sky-200 dark:border-sky-800">
+                          <p className="text-sm text-slate-700 dark:text-slate-300 line-clamp-2">
+                            {proposal.coverLetter}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-6 text-sm text-slate-600 dark:text-slate-400">
+                          <div className="flex items-center gap-2">
+                            <img
+                              src={otherParty.avatar}
+                              alt={otherParty.name}
+                              className="h-8 w-8 rounded-full object-cover"
+                            />
+                            <span>
+                              {type === "sent" ? "Cliente: " : "Freelancer: "}
+                              {otherParty.name}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-4 w-4" />
+                            <span>
+                              {new Date(proposal.createdAt).toLocaleDateString("es-AR")}
+                            </span>
+                          </div>
+                        </div>
                       </Link>
-                      <div className="flex items-center gap-2 mt-2">
-                        <span
-                          className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${getStatusColor(
-                            proposal.status
-                          )}`}
-                        >
-                          {getStatusIcon(proposal.status)}
-                          {getStatusLabel(proposal.status)}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-bold text-violet-600">
-                        ${proposal.price.toLocaleString()}
-                      </p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Precio propuesto
-                      </p>
-                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                        Original: ${proposal.job.price.toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Cover Letter */}
-                  <div className="mb-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg">
-                    <p className="text-sm text-slate-700 dark:text-slate-300">
-                      {proposal.coverLetter}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-6 text-sm text-slate-600 dark:text-slate-400">
-                    <div className="flex items-center gap-2">
-                      <img
-                        src={otherParty.avatar}
-                        alt={otherParty.name}
-                        className="h-8 w-8 rounded-full object-cover"
-                      />
-                      <span>
-                        {type === "sent" ? "Cliente: " : "Freelancer: "}
-                        {otherParty.name}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-4 w-4" />
-                      <span>
-                        {new Date(proposal.createdAt).toLocaleDateString("es-AR")}
-                      </span>
-                    </div>
-                  </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
+              </div>
+            )}
+
+            {/* Direct Applications Section */}
+            {directApplications.length > 0 && (
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                  <FileText className="h-6 w-6 text-violet-600" />
+                  Aplicaciones Directas ({directApplications.length})
+                </h2>
+                <div className="space-y-4">
+                  {directApplications.map((proposal) => {
+                    const otherParty = type === "sent" ? proposal.client : proposal.freelancer;
+                    const price = proposal.proposedPrice || proposal.price || 0;
+
+                    return (
+                      <Link
+                        key={proposal._id}
+                        to={`/proposals/${proposal._id}`}
+                        className="block bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 hover:shadow-lg transition-shadow"
+                      >
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex-1">
+                            <h3 className="text-lg font-bold text-slate-900 dark:text-white hover:text-sky-600 dark:hover:text-sky-400">
+                              {proposal.job.title}
+                            </h3>
+                            <div className="flex items-center gap-2 mt-2">
+                              <span
+                                className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${getStatusColor(
+                                  proposal.status
+                                )}`}
+                              >
+                                {getStatusIcon(proposal.status)}
+                                {getStatusLabel(proposal.status)}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-2xl font-bold text-violet-600">
+                              ${price.toLocaleString()}
+                            </p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                              Precio del trabajo
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Cover Letter */}
+                        <div className="mb-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg">
+                          <p className="text-sm text-slate-700 dark:text-slate-300 line-clamp-2">
+                            {proposal.coverLetter}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-6 text-sm text-slate-600 dark:text-slate-400">
+                          <div className="flex items-center gap-2">
+                            <img
+                              src={otherParty.avatar}
+                              alt={otherParty.name}
+                              className="h-8 w-8 rounded-full object-cover"
+                            />
+                            <span>
+                              {type === "sent" ? "Cliente: " : "Freelancer: "}
+                              {otherParty.name}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-4 w-4" />
+                            <span>
+                              {new Date(proposal.createdAt).toLocaleDateString("es-AR")}
+                            </span>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
