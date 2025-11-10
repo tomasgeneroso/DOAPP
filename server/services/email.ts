@@ -99,8 +99,6 @@ class EmailService {
           tls: {
             rejectUnauthorized: false, // Útil para certificados auto-firmados
           },
-          debug: process.env.NODE_ENV === 'development', // Debug en desarrollo
-          logger: process.env.NODE_ENV === 'development', // Logger en desarrollo
         });
 
         // Verificar conexión

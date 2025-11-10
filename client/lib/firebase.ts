@@ -72,6 +72,8 @@ export const requestNotificationPermission = async (): Promise<string | null> =>
       }
     } else if (permission === 'denied') {
       console.log('❌ Notification permission denied');
+      // Save permanent denial
+      localStorage.setItem('fcm_permission_denied', 'true');
       return null;
     } else {
       console.log('⏸️ Notification permission dismissed');
@@ -147,22 +149,62 @@ export const setupForegroundMessageHandler = () => {
 };
 
 /**
- * Initialize Firebase notifications
- * Call this when user logs in
+ * Check if we should show notification permission modal
+ * @returns true if we should show the modal
  */
-export const initializeNotifications = async (): Promise<void> => {
+export const shouldShowNotificationModal = (): boolean => {
+  // Check if browser supports notifications
+  if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+    return false;
+  }
+
+  // Check if already granted
+  if (Notification.permission === 'granted') {
+    return false;
+  }
+
+  // Check if permanently denied
+  if (localStorage.getItem('fcm_permission_denied') === 'true') {
+    return false;
+  }
+
+  // Check if already asked recently
+  const lastAsked = localStorage.getItem('fcm_last_asked');
+  if (lastAsked) {
+    const timeSinceLastAsk = Date.now() - parseInt(lastAsked, 10);
+    // Don't ask again if less than 24 hours have passed
+    if (timeSinceLastAsk < 24 * 60 * 60 * 1000) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+/**
+ * Mark that we asked for permission
+ */
+export const markNotificationAsked = (): void => {
+  localStorage.setItem('fcm_last_asked', Date.now().toString());
+};
+
+/**
+ * Initialize Firebase notifications with modal flow
+ * This should be triggered by the modal accept button
+ */
+export const initializeNotifications = async (): Promise<boolean> => {
   console.log('🔔 Initializing push notifications...');
 
   // Check if browser supports notifications
   if (!('Notification' in window)) {
     console.warn('⚠️ This browser does not support notifications');
-    return;
+    return false;
   }
 
   // Check if service workers are supported
   if (!('serviceWorker' in navigator)) {
     console.warn('⚠️ This browser does not support service workers');
-    return;
+    return false;
   }
 
   try {
@@ -177,9 +219,13 @@ export const initializeNotifications = async (): Promise<void> => {
       setupForegroundMessageHandler();
 
       console.log('✅ Push notifications initialized successfully');
+      return true;
     }
+
+    return false;
   } catch (error) {
     console.error('❌ Error initializing notifications:', error);
+    return false;
   }
 };
 

@@ -6,7 +6,8 @@ import {
   ReactNode,
 } from "react";
 import type { User, RegisterData } from "@/types";
-import { initializeNotifications } from "@/lib/firebase";
+import { initializeNotifications, shouldShowNotificationModal, markNotificationAsked } from "@/lib/firebase";
+import NotificationPermissionModal from "@/components/NotificationPermissionModal";
 
 interface AuthContextType {
   user: User | null;
@@ -25,6 +26,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const [isRetryPrompt, setIsRetryPrompt] = useState(false);
+  const [retryTimeoutId, setRetryTimeoutId] = useState<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // Check for cookie token on mount and validate it
@@ -49,11 +53,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(data.user);
           setToken(data.token || 'cookie'); // Indicador de que usamos cookies
 
-          // Inicializar notificaciones push si el usuario ya está logueado
+          // Mostrar modal de notificaciones si es necesario
           setTimeout(() => {
-            initializeNotifications().catch(err => {
-              console.error('Error initializing push notifications:', err);
-            });
+            if (shouldShowNotificationModal()) {
+              setShowNotificationModal(true);
+              setIsRetryPrompt(false);
+            }
           }, 2000); // Delay para que el usuario vea la UI primero
         } else {
           console.warn('⚠️ No valid session cookie found');
@@ -103,11 +108,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(data.user);
       console.log('✅ Login exitoso, usuario:', data.user.name);
 
-      // Inicializar notificaciones push después del login
+      // Mostrar modal de notificaciones si es necesario
       setTimeout(() => {
-        initializeNotifications().catch(err => {
-          console.error('Error initializing push notifications:', err);
-        });
+        if (shouldShowNotificationModal()) {
+          setShowNotificationModal(true);
+          setIsRetryPrompt(false);
+        }
       }, 1000); // Pequeño delay para que el usuario vea la UI primero
     } catch (error) {
       console.error("Login error:", error);
@@ -188,6 +194,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Handle notification modal accept
+  const handleNotificationAccept = async () => {
+    // Clear any pending retry
+    if (retryTimeoutId) {
+      clearTimeout(retryTimeoutId);
+      setRetryTimeoutId(null);
+    }
+
+    setShowNotificationModal(false);
+    markNotificationAsked();
+
+    // Initialize notifications
+    const success = await initializeNotifications();
+
+    if (success) {
+      console.log('✅ Notifications enabled successfully');
+    } else {
+      console.log('⚠️ Failed to enable notifications');
+    }
+  };
+
+  // Handle notification modal decline
+  const handleNotificationDecline = () => {
+    setShowNotificationModal(false);
+    markNotificationAsked();
+
+    // If this is the first time (not retry), schedule a retry in 1 minute
+    if (!isRetryPrompt) {
+      console.log('⏰ Scheduling notification retry in 1 minute...');
+      const timeoutId = setTimeout(() => {
+        if (shouldShowNotificationModal()) {
+          console.log('🔔 Showing notification modal again (retry)');
+          setShowNotificationModal(true);
+          setIsRetryPrompt(true);
+        }
+      }, 60000); // 1 minute
+
+      setRetryTimeoutId(timeoutId);
+    } else {
+      // Second decline, don't ask again for 24 hours
+      console.log('⏸️ User declined notifications twice, will ask again in 24 hours');
+    }
+  };
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (retryTimeoutId) {
+        clearTimeout(retryTimeoutId);
+      }
+    };
+  }, [retryTimeoutId]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -202,6 +261,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }}
     >
       {children}
+      <NotificationPermissionModal
+        isOpen={showNotificationModal}
+        onAccept={handleNotificationAccept}
+        onDecline={handleNotificationDecline}
+        isRetry={isRetryPrompt}
+      />
     </AuthContext.Provider>
   );
 }
