@@ -1,0 +1,22 @@
+# GitGuardian configuration
+# https://docs.gitguardian.com/internal-repositories-monitoring/integrations/git_hooks/pre_commit
+
+version: 2
+
+# Paths to ignore
+paths-ignore:
+  - "**/.env.example"
+  - "**/env.example"
+  - "**/*.example"
+  - "**/README.md"
+  - "**/SETUP_GUIDE.md"
+  - "**/docs/**"
+
+# Specific patterns to ignore (placeholders)
+matches-ignore:
+  - name: SMTP placeholder passwords
+    match: "your-email-password|CHANGE_ME"
+  - name: Generic placeholders
+    match: "your-.*-(key|secret|password|token|id)"
+  - name: Example domains
+    match: "@yourdomain\\.com|@example\\.com"
