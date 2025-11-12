@@ -90,6 +90,7 @@ coverage
 *.p12
 *.pfx
 firebase-adminsdk*.json
+doapp-firebase-adminsdk.json
 serviceAccountKey.json
 
 # Package manager
