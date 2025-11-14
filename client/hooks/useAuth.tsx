@@ -50,7 +50,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (data.token) {
             localStorage.setItem("token", data.token);
           }
-          setUser(data.user);
+          setUser({ ...data.user });
           setToken(data.token || 'cookie'); // Indicador de que usamos cookies
 
           // Mostrar modal de notificaciones si es necesario
@@ -105,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Guardamos el token en localStorage para Socket.io
       localStorage.setItem("token", data.token);
       setToken(data.token);
-      setUser(data.user);
+      setUser({ ...data.user });
       console.log('✅ Login exitoso, usuario:', data.user.name);
 
       // Mostrar modal de notificaciones si es necesario
@@ -147,7 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Guardamos el token en localStorage para Socket.io
       localStorage.setItem("token", responseData.token);
       setToken(responseData.token);
-      setUser(responseData.user);
+      setUser({ ...responseData.user });
       console.log('✅ Registro exitoso, usuario:', responseData.user.name);
     } catch (error) {
       console.error("Register error:", error);
@@ -186,8 +186,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (data.token) {
           localStorage.setItem("token", data.token);
         }
-        setUser(data.user);
+        // Create a new object to force re-render
+        setUser({ ...data.user });
         console.log('✅ User refreshed:', data.user.name);
+        console.log('📊 Free contracts remaining:', data.user.freeContractsRemaining);
+        console.log('📊 PRO contracts used this month:', data.user.proContractsUsedThisMonth);
       }
     } catch (error) {
       console.error("Error refreshing user:", error);

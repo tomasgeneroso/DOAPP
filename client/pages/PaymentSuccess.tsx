@@ -26,16 +26,30 @@ export default function PaymentSuccess() {
     status: "processing",
   });
   const [countdown, setCountdown] = useState(15);
+  const [isMounted, setIsMounted] = useState(false);
+
+  // Log on mount to verify component is rendering
+  useEffect(() => {
+    console.log("🎬 PaymentSuccess component mounted");
+    console.log("🌐 Current URL:", window.location.href);
+    console.log("📍 Pathname:", window.location.pathname);
+    console.log("🔗 Search:", window.location.search);
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     const token = searchParams.get("token");
     const payerId = searchParams.get("PayerID");
 
-    console.log("🔍 Payment Success - URL params:", { token, payerId });
+    console.log("🔍 Payment Success - URL params:", { token, payerId, type: paymentType, plan: membershipPlan });
+    console.log("🔍 All search params:", Object.fromEntries(searchParams));
+    console.log("🔍 URL keys:", Array.from(searchParams.keys()));
 
     if (!token || !payerId) {
       console.error("❌ Missing payment parameters");
-      setConfirmation(prev => ({ ...prev, status: "error", message: "Parámetros de pago faltantes" }));
+      console.error("❌ Token:", token);
+      console.error("❌ PayerID:", payerId);
+      setConfirmation(prev => ({ ...prev, status: "error", message: "Parámetros de pago faltantes. Token: " + (token ? "✓" : "✗") + ", PayerID: " + (payerId ? "✗" : "✗") }));
       return;
     }
 
@@ -81,7 +95,7 @@ export default function PaymentSuccess() {
           status: "confirmed",
           contractId: data.data?.contractId,
           jobId: data.data?.jobId,
-          amount: data.data?.amount || 105,
+          amount: data.data?.amount || data.amount || data.data?.payment?.amount || 0,
         });
       } catch (error: any) {
         console.error("❌❌❌ Payment capture error:", error);
@@ -113,6 +127,22 @@ export default function PaymentSuccess() {
       navigate("/");
     }
   }, [confirmation.status, countdown, navigate]);
+
+  // Emergency fallback - always visible
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-4" style={{ backgroundColor: '#1e293b' }}>
+        <div className="max-w-2xl w-full rounded-2xl shadow-2xl p-8 md:p-12" style={{ backgroundColor: '#334155', border: '2px solid #60a5fa' }}>
+          <div className="text-center">
+            <h1 className="text-3xl font-bold mb-4" style={{ color: '#ffffff' }}>
+              Cargando página de pago...
+            </h1>
+            <div className="animate-spin rounded-full h-10 w-10 mx-auto" style={{ border: '4px solid #60a5fa', borderTopColor: 'transparent' }}></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (confirmation.status === "error") {
     return (
@@ -171,18 +201,29 @@ export default function PaymentSuccess() {
 
   if (confirmation.status === "processing") {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
-        <div className="max-w-2xl w-full bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 md:p-12">
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-900 dark:to-indigo-900 flex items-center justify-center p-4">
+        <div className="max-w-2xl w-full bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 md:p-12 border-2 border-blue-500 dark:border-blue-400">
           <div className="text-center">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-blue-100 dark:bg-blue-900 rounded-full mb-6">
-              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 dark:border-blue-400"></div>
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-blue-100 dark:bg-blue-900 rounded-full mb-6 border-4 border-blue-200 dark:border-blue-700">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-4 border-t-4 border-blue-600 dark:border-blue-400"></div>
             </div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
               Procesando Pago...
             </h1>
-            <p className="text-gray-600 dark:text-gray-300">
+            <p className="text-gray-600 dark:text-gray-300 text-lg">
               Estamos confirmando tu pago con PayPal. Por favor espera.
             </p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mt-4">
+              Esto puede tomar unos segundos
+            </p>
+
+            {/* Debug info */}
+            <div className="mt-6 p-4 bg-gray-100 dark:bg-gray-700 rounded-lg text-left text-xs">
+              <p className="font-semibold text-gray-900 dark:text-white mb-2">Debug Info:</p>
+              <p className="text-gray-700 dark:text-gray-300">Token: {confirmation.token || 'No token'}</p>
+              <p className="text-gray-700 dark:text-gray-300">PayerID: {confirmation.payerId || 'No PayerID'}</p>
+              <p className="text-gray-700 dark:text-gray-300">Status: {confirmation.status}</p>
+            </div>
           </div>
         </div>
       </div>

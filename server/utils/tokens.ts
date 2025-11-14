@@ -7,7 +7,7 @@ import { Op } from 'sequelize';
 // Generar access token (JWT corto)
 export const generateAccessToken = (userId: string): string => {
   const options: SignOptions = {
-    expiresIn: "15m", // 15 minutos
+    expiresIn: config.jwtExpire || "7d", // 7 días por defecto, configurable desde .env
   };
 
   return jwt.sign({ id: userId }, config.jwtSecret as Secret, options);

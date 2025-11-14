@@ -110,6 +110,7 @@ export interface RegisterData {
   email: string;
   password: string;
   phone?: string;
+  dni: string;
   termsAccepted: boolean;
   referralCode?: string;
 }

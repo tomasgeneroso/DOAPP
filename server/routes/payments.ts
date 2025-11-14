@@ -393,6 +393,7 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
           paymentId: payment.id,
           captureId: captureResult.captureId,
           status: payment.status,
+          amount: payment.amount,
           membershipId: membership.id,
           membershipActivated: true,
           plan,
@@ -430,6 +431,7 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
             paymentId: payment.id,
             captureId: captureResult.captureId,
             status: payment.status,
+            amount: payment.amount,
             jobId: job.id,
             jobPublished: true,
           },
@@ -489,6 +491,8 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
         paymentId: payment.id,
         captureId: captureResult.captureId,
         status: payment.status,
+        amount: payment.amount,
+        contractId: payment.contractId,
       },
     });
   } catch (error: any) {

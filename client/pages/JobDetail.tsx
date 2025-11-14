@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import type { Job } from "@/types";
 import MultipleRatings from "../components/user/MultipleRatings";
+import LocationCircleMap from "../components/map/LocationCircleMap";
 
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
@@ -316,6 +317,11 @@ export default function JobDetail() {
               <p className="whitespace-pre-line leading-relaxed text-slate-300">
                 {job.description}
               </p>
+            </div>
+
+            {/* Location Map */}
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-800 p-6 shadow-sm">
+              <LocationCircleMap location={job.location} />
             </div>
           </div>
 

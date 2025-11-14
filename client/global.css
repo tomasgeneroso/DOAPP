@@ -6,10 +6,39 @@
   * {
     @apply border-gray-200 dark:border-gray-700;
   }
-  
+
+  html {
+    /* Prevenir zoom en inputs en móviles */
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* Prevenir overflow horizontal */
+    overflow-x: hidden;
+  }
+
   body {
     @apply bg-[#F5F5F5] dark:bg-[#121212] text-[#212121] dark:text-white;
     transition: background-color 0.3s ease, color 0.3s ease;
+    /* Prevenir overflow horizontal */
+    overflow-x: hidden;
+    width: 100%;
+    /* Asegurar altura mínima en móviles */
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+  }
+
+  /* Prevenir zoom en inputs en iOS */
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="url"],
+  input[type="search"],
+  textarea,
+  select {
+    font-size: 16px !important;
   }
 }
 

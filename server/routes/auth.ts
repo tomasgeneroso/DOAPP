@@ -32,15 +32,6 @@ const generateToken = (id: string): string => {
   return jwt.sign({ id }, config.jwtSecret as Secret, options);
 };
 
-// Helper para obtener IP
-const getClientIp = (req: Request): string => {
-  return (
-    (req.headers["x-forwarded-for"] as string)?.split(",")[0] ||
-    req.socket.remoteAddress ||
-    "unknown"
-  );
-};
-
 // @route   POST /api/auth/register
 // @desc    Registrar nuevo usuario
 // @access  Public
@@ -53,6 +44,14 @@ router.post(
     body("password")
       .isLength({ min: 6 })
       .withMessage("La contraseña debe tener al menos 6 caracteres"),
+    body("dni")
+      .trim()
+      .notEmpty()
+      .withMessage("El DNI es requerido")
+      .isLength({ min: 7, max: 9 })
+      .withMessage("El DNI debe tener entre 7 y 9 dígitos")
+      .isNumeric()
+      .withMessage("El DNI debe contener solo números"),
     body("termsAccepted", "Debes aceptar los términos y condiciones")
       .custom((value) => value === true)
       .withMessage("Debes aceptar los términos y condiciones"),
@@ -68,7 +67,7 @@ router.post(
         return;
       }
 
-      const { name, email, password, phone, termsAccepted, referralCode } = req.body;
+      const { name, email, password, phone, dni, termsAccepted, referralCode } = req.body;
 
       // Verificar si el usuario ya existe
       const existingUser = await User.findOne({ where: { email } });
@@ -99,6 +98,7 @@ router.post(
         email,
         password,
         phone,
+        dni,
         termsAccepted,
         termsAcceptedAt: termsAccepted ? new Date() : undefined,
         referredBy: referrer?.id,
@@ -130,8 +130,8 @@ router.post(
       // Set token in httpOnly cookie
       res.cookie('token', token, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', // Protección CSRF (lax en desarrollo para Vite proxy)
+        secure: false, // Temporalmente false hasta instalar SSL
+        sameSite: 'lax', // Protección CSRF
         maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
       });
 
@@ -202,6 +202,14 @@ router.post(
       }
 
       // Verificar contraseña
+      if (!user.password) {
+        res.status(401).json({
+          success: false,
+          message: "Credenciales inválidas",
+        });
+        return;
+      }
+
       const bcrypt = await import('bcryptjs');
       const isMatch = await bcrypt.compare(password, user.password);
 
@@ -260,8 +268,8 @@ router.post(
       // Set token in httpOnly cookie (más seguro que localStorage)
       res.cookie('token', token, {
         httpOnly: true, // No accesible desde JavaScript del cliente
-        secure: process.env.NODE_ENV === 'production', // Solo HTTPS en producción
-        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax', // Protección CSRF (lax en desarrollo para Vite proxy)
+        secure: false, // Temporalmente false hasta instalar SSL
+        sameSite: 'lax', // Protección CSRF
         maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
       });
 
@@ -748,8 +756,8 @@ router.post("/logout", protect, async (req: AuthRequest, res: Response): Promise
     // Clear httpOnly cookie
     res.clearCookie('token', {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict'
+      secure: false,
+      sameSite: 'lax'
     });
 
     res.json({

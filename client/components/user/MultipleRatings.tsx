@@ -71,8 +71,8 @@ export default function MultipleRatings({ user, showAll = true }: MultipleRating
                   {item.label}
                 </span>
                 {/* Tooltip */}
-                <div className="absolute left-0 top-full mt-2 w-64 bg-gray-900 dark:bg-gray-700 backdrop-blur-sm text-white text-xs rounded-lg p-3 shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none">
-                  <div className="absolute -top-1 left-4 w-2 h-2 bg-gray-900 dark:bg-gray-700 transform rotate-45"></div>
+                <div className="absolute left-0 top-full mt-2 w-64 bg-gray-900 dark:bg-gray-800 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none">
+                  <div className="absolute -top-1 left-4 w-2 h-2 bg-gray-900 dark:bg-gray-800 transform rotate-45"></div>
                   {item.description}
                 </div>
               </div>
@@ -119,8 +119,8 @@ export default function MultipleRatings({ user, showAll = true }: MultipleRating
                 Puntuación General
               </span>
               {/* Tooltip */}
-              <div className="absolute left-0 top-full mt-2 w-64 bg-gray-900 dark:bg-gray-700 backdrop-blur-sm text-white text-xs rounded-lg p-3 shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none">
-                <div className="absolute -top-1 left-4 w-2 h-2 bg-gray-900 dark:bg-gray-700 transform rotate-45"></div>
+              <div className="absolute left-0 top-full mt-2 w-64 bg-gray-900 dark:bg-gray-800 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none">
+                <div className="absolute -top-1 left-4 w-2 h-2 bg-gray-900 dark:bg-gray-800 transform rotate-45"></div>
                 Promedio de todas las calificaciones recibidas en la plataforma
               </div>
             </div>

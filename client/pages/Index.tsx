@@ -167,9 +167,9 @@ export default function Index() {
           content="Do – La forma segura de contratar y trabajar. La plataforma argentina que asegura que cada acuerdo se cumpla con garantía de dinero."
         />
       </Helmet>
-      <div className="container mx-auto px-4 py-12">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-5xl md:text-6xl">
+      <div className="w-full max-w-[100vw] mx-auto px-3 sm:px-4 py-8 sm:py-12 overflow-x-hidden">
+        <div className="text-center mb-8 sm:mb-12">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-gray-900 dark:text-white px-2">
             {user ? (
               `¡Hola de nuevo, ${user.name}!`
             ) : (
@@ -179,7 +179,7 @@ export default function Index() {
               </>
             )}
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-gray-600 dark:text-slate-400">
+          <p className="mx-auto mt-4 sm:mt-6 max-w-2xl text-base sm:text-lg leading-7 sm:leading-8 text-gray-600 dark:text-slate-400 px-2">
             {isLoading
               ? "Cargando..."
               : user
@@ -187,23 +187,23 @@ export default function Index() {
               : "En Doers, conectamos personas que necesitan servicios con quienes saben hacerlos. \n Garantizamos que el trabajo se complete o te devolvemos el dinero. Rápido, fácil y 100% seguro."}
           </p>
           {!user && !isLoading && (
-            <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-gray-500 dark:text-slate-500">
+            <p className="mx-auto mt-3 sm:mt-4 max-w-2xl text-sm sm:text-base leading-6 sm:leading-7 text-gray-500 dark:text-slate-500 px-2">
               La plataforma argentina que asegura que cada acuerdo se cumpla.
               Publicá un trabajo, negociá directamente con el profesional y pagá
               solo cuando todo esté verificado.
             </p>
           )}
           {!user && !isLoading && (
-            <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <div className="mt-6 sm:mt-10 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 px-4">
               <Link
                 to="/register"
-                className="w-full sm:w-auto rounded-lg bg-sky-600 px-6 py-3 text-base font-semibold text-white shadow-lg hover:bg-sky-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 transition-all"
+                className="w-full max-w-xs sm:w-auto rounded-lg bg-sky-600 px-5 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-semibold text-white shadow-lg hover:bg-sky-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 transition-all"
               >
                 Registrate gratis
               </Link>
               <Link
                 to="/login"
-                className="w-full sm:w-auto rounded-lg bg-orange-500 px-6 py-3 text-base font-semibold text-white shadow-lg hover:bg-orange-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 transition-all"
+                className="w-full max-w-xs sm:w-auto rounded-lg bg-orange-500 px-5 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-semibold text-white shadow-lg hover:bg-orange-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 transition-all"
               >
                 Publicá tu primer trabajo
               </Link>
@@ -212,7 +212,7 @@ export default function Index() {
         </div>
 
         {/* Search Bar */}
-        <div className="mt-12 max-w-4xl mx-auto">
+        <div className="mt-8 sm:mt-12 max-w-4xl mx-auto px-2">
           <SearchBar
             onSearch={handleSearch}
             onSearchChange={handleSearchChange}
@@ -220,10 +220,10 @@ export default function Index() {
 
           {/* Texto de apoyo - Visible siempre */}
           {!isLoading && (
-            <div className="mt-8 text-center">
-              <div className="inline-flex items-center justify-center gap-2 px-6 py-4 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg">
+            <div className="mt-6 sm:mt-8 text-center px-2">
+              <div className="inline-flex items-start sm:items-center justify-center gap-2 px-4 sm:px-6 py-3 sm:py-4 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg max-w-full">
                 <svg
-                  className="w-6 h-6 text-sky-600 dark:text-sky-400 flex-shrink-0"
+                  className="w-5 h-5 sm:w-6 sm:h-6 text-sky-600 dark:text-sky-400 flex-shrink-0 mt-0.5 sm:mt-0"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -236,10 +236,10 @@ export default function Index() {
                   />
                 </svg>
                 <div className="text-left">
-                  <p className="text-sm font-semibold text-sky-900 dark:text-sky-300">
+                  <p className="text-xs sm:text-sm font-semibold text-sky-900 dark:text-sky-300">
                     En Doers, cada contrato queda protegido:
                   </p>
-                  <p className="text-xs text-sky-700 dark:text-sky-400 mt-1">
+                  <p className="text-[11px] sm:text-xs text-sky-700 dark:text-sky-400 mt-1">
                     el dinero se mantiene en garantía hasta que ambas partes
                     confirman que el trabajo fue entregado. Así, vos y el
                     profesional están seguros en todo momento.
@@ -252,14 +252,14 @@ export default function Index() {
 
         {/* Mis Trabajos Publicados */}
         {user && myJobs.length > 0 && (
-          <div className="mt-16">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
+          <div className="mt-10 sm:mt-16 px-2">
+            <div className="flex items-center justify-between mb-6 sm:mb-8">
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
                 Mis Trabajos Publicados
               </h2>
               <Link
                 to="/contracts"
-                className="text-sm text-sky-600 hover:text-sky-700 font-semibold"
+                className="text-xs sm:text-sm text-sky-600 hover:text-sky-700 font-semibold whitespace-nowrap"
               >
                 Ver todos ({myJobs.length})
               </Link>
@@ -314,9 +314,9 @@ export default function Index() {
         )}
 
         {/* Lista de trabajos disponibles */}
-        <div className="mt-16">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
+        <div className="mt-10 sm:mt-16 px-2">
+          <div className="flex items-center justify-between mb-6 sm:mb-8">
+            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
               Trabajos Disponibles
             </h2>
           </div>

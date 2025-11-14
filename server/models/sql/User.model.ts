@@ -107,6 +107,10 @@ export class User extends Model {
   @Column(DataType.STRING)
   phone?: string;
 
+  @Index
+  @Column(DataType.STRING(20))
+  dni?: string;
+
   @Column(DataType.TEXT)
   avatar?: string;
 

@@ -267,7 +267,7 @@ export default function JobPayment() {
               <div className="pt-2 border-t border-gray-200 dark:border-gray-700">
                 <span className="text-sm text-gray-600 dark:text-gray-400">Presupuesto:</span>
                 <p className="font-bold text-gray-900 dark:text-white text-lg mt-1">
-                  ${jobPrice?.toLocaleString('es-AR')} ARS
+                  ${jobPrice.toLocaleString('es-AR')} ARS
                 </p>
               </div>
             </div>
@@ -328,13 +328,18 @@ export default function JobPayment() {
             )}
 
             <div className="space-y-3">
-              <div className="flex justify-between text-gray-600 dark:text-gray-400">
-                <span>Presupuesto del trabajo</span>
-                <span>${jobPrice?.toLocaleString('es-AR') || 0} ARS</span>
-              </div>
-              <div className="flex justify-between text-gray-600 dark:text-gray-400">
+              <div className="flex justify-between text-gray-600 dark:text-gray-400 text-sm">
                 <div className="flex flex-col">
-                  <span>Comisión de publicación {!isFreeContract && `(${commissionRate}%)`}</span>
+                  <span>Presupuesto del trabajo</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                    (Se pagará al freelancer al completar)
+                  </span>
+                </div>
+                <span>${jobPrice.toLocaleString('es-AR')} ARS</span>
+              </div>
+              <div className="flex justify-between text-gray-900 dark:text-white pt-2 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex flex-col">
+                  <span className="font-medium">Comisión de publicación {!isFreeContract && `(${commissionRate}%)`}</span>
                   {isFreeContract && (
                     <span className="text-xs text-green-600 dark:text-green-400 mt-1">
                       ✨ Gratis - {freeContractsRemaining > 0 ? `${freeContractsRemaining} restantes` : `${proContractsUsed + 1} de ${monthlyFreeLimit} este mes`}
@@ -346,13 +351,15 @@ export default function JobPayment() {
                     </span>
                   )}
                 </div>
-                <span className={isFreeContract ? "text-green-600 dark:text-green-400 font-semibold" : ""}>
+                <span className={isFreeContract ? "text-green-600 dark:text-green-400 font-semibold" : "font-semibold"}>
                   ${publicationCost.toLocaleString('es-AR')} ARS
                 </span>
               </div>
-              <div className="flex justify-between text-lg font-bold text-gray-900 dark:text-white pt-3 border-t border-gray-200 dark:border-gray-700">
-                <span>Total</span>
-                <span>${totalAmount.toLocaleString('es-AR')} ARS</span>
+              <div className="flex justify-between text-xl font-bold text-gray-900 dark:text-white pt-3 border-t-2 border-gray-300 dark:border-gray-600">
+                <span>Total a pagar ahora</span>
+                <span className={totalAmount === 0 ? "text-green-600 dark:text-green-400" : ""}>
+                  ${totalAmount.toLocaleString('es-AR')} ARS
+                </span>
               </div>
             </div>
           </div>
