@@ -196,7 +196,8 @@ router.post(
       if (!user) {
         res.status(401).json({
           success: false,
-          message: "Credenciales inválidas",
+          message: "No existe una cuenta con este email",
+          field: "email"
         });
         return;
       }
@@ -205,7 +206,8 @@ router.post(
       if (!user.password) {
         res.status(401).json({
           success: false,
-          message: "Credenciales inválidas",
+          message: "Contraseña incorrecta",
+          field: "password"
         });
         return;
       }
@@ -216,7 +218,8 @@ router.post(
       if (!isMatch) {
         res.status(401).json({
           success: false,
-          message: "Credenciales inválidas",
+          message: "Contraseña incorrecta",
+          field: "password"
         });
         return;
       }

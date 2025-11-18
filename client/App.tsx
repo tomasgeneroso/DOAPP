@@ -14,6 +14,7 @@ import ContractDetail from "./pages/ContractDetail";
 import ContractSummary from "./pages/ContractSummary";
 import ContractChangeRequestDetail from "./pages/ContractChangeRequestDetail";
 import ContractsScreen from "./pages/ContractsScreen";
+import MyJobsScreen from "./pages/MyJobsScreen";
 import PaymentsScreen from "./pages/PaymentsScreen";
 import JobPayment from "./pages/JobPayment";
 import Dashboard from "./pages/Dashboard";
@@ -103,6 +104,14 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <JobPayment />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/my-jobs"
+                element={
+                  <ProtectedRoute>
+                    <MyJobsScreen />
                   </ProtectedRoute>
                 }
               />
@@ -205,6 +214,23 @@ export default function App() {
               />
               <Route path="/payment/success" element={<PaymentSuccess />} />
               <Route path="/payment/cancel" element={<PaymentCancel />} />
+              <Route
+                path="/membership/pricing"
+                element={
+                  <ProtectedRoute>
+                    <MembershipCheckout />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/membership/checkout"
+                element={
+                  <ProtectedRoute>
+                    <MembershipCheckout />
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/membership/payment-success" element={<MembershipPaymentSuccess />} />
               <Route path="/membership/payment/success" element={<MembershipPaymentSuccess />} />
               <Route
                 path="/dashboard"

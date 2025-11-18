@@ -38,25 +38,68 @@ export default function PaymentSuccess() {
   }, []);
 
   useEffect(() => {
-    const token = searchParams.get("token");
-    const payerId = searchParams.get("PayerID");
+    // MercadoPago parameters: collection_id, collection_status, payment_id, status, preference_id
+    // PayPal parameters (legacy): token, PayerID
+    const collection_id = searchParams.get("collection_id");
+    const payment_id = searchParams.get("payment_id");
+    const preference_id = searchParams.get("preference_id");
+    const status = searchParams.get("status");
+    const collection_status = searchParams.get("collection_status");
 
-    console.log("🔍 Payment Success - URL params:", { token, payerId, type: paymentType, plan: membershipPlan });
+    // Legacy PayPal (commented)
+    // const token = searchParams.get("token");
+    // const payerId = searchParams.get("PayerID");
+
+    console.log("🔍 Payment Success - MercadoPago params:", {
+      collection_id,
+      payment_id,
+      preference_id,
+      status,
+      collection_status,
+      type: paymentType,
+      plan: membershipPlan
+    });
     console.log("🔍 All search params:", Object.fromEntries(searchParams));
     console.log("🔍 URL keys:", Array.from(searchParams.keys()));
 
-    if (!token || !payerId) {
-      console.error("❌ Missing payment parameters");
-      console.error("❌ Token:", token);
-      console.error("❌ PayerID:", payerId);
-      setConfirmation(prev => ({ ...prev, status: "error", message: "Parámetros de pago faltantes. Token: " + (token ? "✓" : "✗") + ", PayerID: " + (payerId ? "✗" : "✗") }));
+    // Check for required MercadoPago parameters
+    if (!collection_id && !payment_id && !preference_id) {
+      console.error("❌ Missing MercadoPago payment parameters");
+      console.error("❌ collection_id:", collection_id);
+      console.error("❌ payment_id:", payment_id);
+      console.error("❌ preference_id:", preference_id);
+      console.error("❌ Full URL:", window.location.href);
+      console.error("❌ Search params:", window.location.search);
+
+      setConfirmation(prev => ({
+        ...prev,
+        status: "error",
+        message: `No se encontraron parámetros de pago en la URL.
+
+Esta página debe ser accedida desde MercadoPago después de completar un pago.
+
+URL actual: ${window.location.href}
+
+Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
+      }));
       return;
     }
 
-    // Capturar el pago automáticamente
+    // Check payment status from MercadoPago
+    if (status === "null" || status === "failure" || collection_status === "null") {
+      console.error("❌ Payment failed or was cancelled");
+      setConfirmation(prev => ({
+        ...prev,
+        status: "error",
+        message: "El pago fue rechazado o cancelado."
+      }));
+      return;
+    }
+
+    // Capture/Verify the MercadoPago payment
     const confirmPayment = async () => {
       try {
-        console.log("📡 Capturing PayPal order:", token);
+        console.log("📡 Verifying MercadoPago payment:", payment_id || collection_id);
 
         const authToken = localStorage.getItem("token");
         console.log("🔑 Auth token exists:", !!authToken);
@@ -68,7 +111,11 @@ export default function PaymentSuccess() {
             "Authorization": `Bearer ${authToken || ""}`
           },
           credentials: "include",
-          body: JSON.stringify({ orderId: token }),
+          body: JSON.stringify({
+            paymentId: payment_id || collection_id,
+            collection_id,
+            preference_id,
+          }),
         });
 
         console.log("📥 Capture response status:", response.status);
@@ -90,8 +137,8 @@ export default function PaymentSuccess() {
         }
 
         setConfirmation({
-          token,
-          payerId,
+          token: payment_id || collection_id || "",
+          payerId: preference_id || "",
           status: "confirmed",
           contractId: data.data?.contractId,
           jobId: data.data?.jobId,
@@ -107,8 +154,8 @@ export default function PaymentSuccess() {
 
         // Set error state instead of pretending it succeeded
         setConfirmation({
-          token,
-          payerId,
+          token: payment_id || collection_id || "",
+          payerId: preference_id || "",
           status: "error",
           message: error.response?.data?.message || error.message || "Error al capturar el pago",
         });
@@ -155,43 +202,50 @@ export default function PaymentSuccess() {
               </svg>
             </div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
-              Error al Capturar el Pago
+              {confirmation.message?.includes('No se encontraron parámetros')
+                ? 'Acceso Incorrecto a Página de Pago'
+                : 'Error al Capturar el Pago'}
             </h1>
             <p className="text-gray-600 dark:text-gray-300 mb-4">
-              PayPal aprobó tu pago, pero hubo un problema al procesarlo en nuestra plataforma.
+              {confirmation.message?.includes('No se encontraron parámetros')
+                ? 'Esta página debe ser accedida desde MercadoPago después de completar un pago.'
+                : 'MercadoPago aprobó tu pago, pero hubo un problema al procesarlo en nuestra plataforma.'}
             </p>
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6 text-left">
-              <p className="text-sm text-red-800 dark:text-red-300 font-mono">
+              <p className="text-sm text-red-800 dark:text-red-300 whitespace-pre-line">
                 {confirmation.message}
               </p>
             </div>
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6 text-left">
-              <h3 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">
-                Información para debugging:
-              </h3>
-              <p className="text-sm text-blue-800 dark:text-blue-300">
-                <strong>Token:</strong> {confirmation.token}
-              </p>
-              <p className="text-sm text-blue-800 dark:text-blue-300">
-                <strong>PayerID:</strong> {confirmation.payerId}
-              </p>
-              <p className="text-sm text-blue-800 dark:text-blue-300 mt-2">
-                Por favor, guarda esta información y contacta al soporte.
-              </p>
-            </div>
+            {!confirmation.message?.includes('No se encontraron parámetros') && (
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-6 text-left">
+                <h3 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">
+                  Información para debugging:
+                </h3>
+                <p className="text-sm text-blue-800 dark:text-blue-300">
+                  <strong>Token:</strong> {confirmation.token}
+                </p>
+                <p className="text-sm text-blue-800 dark:text-blue-300">
+                  <strong>PayerID:</strong> {confirmation.payerId}
+                </p>
+                <p className="text-sm text-blue-800 dark:text-blue-300 mt-2">
+                  Por favor, guarda esta información y contacta al soporte.
+                </p>
+              </div>
+            )}
             <div className="space-y-3">
               <button
-                onClick={() => window.location.href = "/dashboard"}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold px-8 py-3 rounded-lg transition-colors"
+                onClick={() => navigate("/")}
+                className="w-full bg-sky-600 hover:bg-sky-700 text-white font-semibold px-8 py-3 rounded-lg transition-colors"
               >
-                Ir al Dashboard
+                Volver al Inicio
               </button>
-              <button
-                onClick={() => window.location.href = "/"}
-                className="w-full bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-white font-semibold px-8 py-3 rounded-lg transition-colors"
-              >
-                Volver a trabajos
-              </button>
+              {confirmation.message?.includes('No se encontraron parámetros') && (
+                <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                  <p className="text-sm text-yellow-800 dark:text-yellow-300">
+                    <strong>Tip:</strong> Para realizar un pago, debes crear un contrato, publicar un trabajo o comprar una membresía desde la plataforma.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -211,7 +265,7 @@ export default function PaymentSuccess() {
               Procesando Pago...
             </h1>
             <p className="text-gray-600 dark:text-gray-300 text-lg">
-              Estamos confirmando tu pago con PayPal. Por favor espera.
+              Estamos confirmando tu pago con MercadoPago. Por favor espera.
             </p>
             <p className="text-gray-500 dark:text-gray-400 text-sm mt-4">
               Esto puede tomar unos segundos

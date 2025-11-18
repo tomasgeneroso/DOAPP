@@ -1,5 +1,7 @@
 import express, { Express } from "express";
 import { createServer } from "http";
+import { createServer as createHttpsServer } from "https";
+import fs from "fs";
 import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
@@ -268,8 +270,33 @@ app.use(errorHandler);
 // Puerto
 const PORT = config.port;
 
-// Crear servidor HTTP
-const httpServer = createServer(app);
+// Crear servidor HTTP o HTTPS según configuración
+let httpServer;
+let isHttps = false;
+
+// En desarrollo, intentar usar HTTPS si existen los certificados SSL
+if (config.nodeEnv === 'development') {
+  const sslKeyPath = path.join(process.cwd(), 'ssl', 'key.pem');
+  const sslCertPath = path.join(process.cwd(), 'ssl', 'cert.pem');
+
+  if (fs.existsSync(sslKeyPath) && fs.existsSync(sslCertPath)) {
+    const httpsOptions = {
+      key: fs.readFileSync(sslKeyPath),
+      cert: fs.readFileSync(sslCertPath),
+    };
+    httpServer = createHttpsServer(httpsOptions, app);
+    isHttps = true;
+    console.log('🔒 HTTPS enabled with self-signed certificate');
+  } else {
+    httpServer = createServer(app);
+    isHttps = false;
+    console.log('⚠️  Running on HTTP (SSL certificates not found)');
+  }
+} else {
+  // En producción, usar HTTP (el proxy/load balancer manejará HTTPS)
+  httpServer = createServer(app);
+  isHttps = false;
+}
 
 // Inicializar Socket.io
 const socketService = new SocketService(httpServer);
@@ -311,11 +338,15 @@ httpServer.on('error', (error: NodeJS.ErrnoException) => {
 
 // Iniciar servidor
 httpServer.listen(PORT, () => {
+  const protocol = isHttps ? 'https' : 'http';
+  const wsProtocol = isHttps ? 'wss' : 'ws';
+  const serverUrl = `${protocol}://localhost:${PORT}`;
+
   console.log(`\n🚀 Servidor corriendo en modo ${config.nodeEnv}`);
-  console.log(`📍 URL: ${config.serverUrl}`);
-  console.log(`📡 API: ${config.serverUrl}/api`);
-  console.log(`💬 WebSocket: ${config.serverUrl.replace('http', 'ws')}`);
-  console.log(`📄 Legal: ${config.serverUrl}/legal`);
+  console.log(`📍 URL: ${serverUrl}`);
+  console.log(`📡 API: ${serverUrl}/api`);
+  console.log(`💬 WebSocket: ${wsProtocol}://localhost:${PORT}`);
+  console.log(`📄 Legal: ${serverUrl}/legal`);
 
   // Mostrar credenciales de desarrollo
   if (config.nodeEnv === 'development') {

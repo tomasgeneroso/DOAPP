@@ -37,6 +37,7 @@ export default function LoginScreen() {
     termsAccepted: false,
   });
   const [error, setError] = useState<string | null>(null);
+  const [errorField, setErrorField] = useState<'email' | 'password' | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showMembershipOffer, setShowMembershipOffer] = useState(false);
@@ -77,6 +78,7 @@ export default function LoginScreen() {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
+    setErrorField(null);
 
     try {
       if (mode === "login") {
@@ -103,6 +105,11 @@ export default function LoginScreen() {
       }
     } catch (err: any) {
       const errorMessage = err.message || "Ocurrió un error. Por favor, intenta de nuevo.";
+
+      // Capturar el campo específico del error si está disponible
+      if (err.field) {
+        setErrorField(err.field);
+      }
 
       // Check if error is about existing user
       const errorLower = errorMessage.toLowerCase();
@@ -156,7 +163,7 @@ export default function LoginScreen() {
         />
       </Helmet>
       <div className="flex min-h-full flex-col justify-center bg-slate-50 dark:bg-slate-900 px-6 py-12 lg:px-8">
-        <div className="mx-auto w-full max-w-md rounded-2xl bg-white dark:bg-slate-800 p-8 shadow-lg sm:p-12">
+        <div className="sm:mx-auto sm:w-full sm:max-w-md rounded-2xl bg-white dark:bg-slate-800 p-8 shadow-lg sm:p-12">
           <Link
             to="/"
             className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white mb-6"
@@ -257,8 +264,17 @@ export default function LoginScreen() {
                   onChange={handleInputChange}
                   value={formData.email}
                   placeholder="tucorreo@email.com"
-                  className="block w-full h-12 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                  className={`block w-full h-12 rounded-lg border ${
+                    errorField === 'email'
+                      ? 'border-red-500 dark:border-red-500 focus:ring-red-500'
+                      : 'border-slate-300 dark:border-slate-600 focus:ring-sky-500'
+                  } bg-white dark:bg-slate-700 px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:border-transparent`}
                 />
+                {errorField === 'email' && (
+                  <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                    {error}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -293,7 +309,11 @@ export default function LoginScreen() {
                   onChange={handleInputChange}
                   value={formData.password}
                   placeholder="••••••••"
-                  className="block w-full h-12 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 pr-10 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                  className={`block w-full h-12 rounded-lg border ${
+                    errorField === 'password'
+                      ? 'border-red-500 dark:border-red-500 focus:ring-red-500'
+                      : 'border-slate-300 dark:border-slate-600 focus:ring-sky-500'
+                  } bg-white dark:bg-slate-700 px-3 py-2 pr-10 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:border-transparent`}
                 />
                 <button
                   type="button"
@@ -308,6 +328,11 @@ export default function LoginScreen() {
                   )}
                 </button>
               </div>
+              {errorField === 'password' && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                  {error}
+                </p>
+              )}
             </div>
 
             {isRegister && (
@@ -408,7 +433,7 @@ export default function LoginScreen() {
               </>
             )}
 
-            {error && (
+            {error && !errorField && (
               <div className={`rounded-lg p-4 ${
                 error === 'user_exists'
                   ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800'

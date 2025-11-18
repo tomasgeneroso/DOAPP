@@ -1,6 +1,6 @@
 import { Membership } from "../models/sql/Membership.model.js";
 import { User } from "../models/sql/User.model.js";
-import mercadopago from './mercadopago.js';
+import vexorService from './vexor.js';
 import currencyExchange from './currencyExchange.js';
 import { Op } from 'sequelize';
 

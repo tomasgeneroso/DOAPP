@@ -105,8 +105,8 @@ export default function MembershipCheckout() {
       console.log('📥 Respuesta del servidor:', data);
 
       if (data.success && data.initPoint) {
-        console.log('✅ Redirigiendo a PayPal:', data.initPoint);
-        // Redirigir a PayPal
+        console.log('✅ Redirigiendo a MercadoPago:', data.initPoint);
+        // Redirigir a MercadoPago
         window.location.href = data.initPoint;
       } else {
         console.error('❌ Error en respuesta:', data.message);

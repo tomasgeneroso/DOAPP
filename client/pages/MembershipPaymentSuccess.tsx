@@ -18,10 +18,65 @@ export default function MembershipPaymentSuccess() {
   const [countdown, setCountdown] = useState(10);
 
   useEffect(() => {
+    // ========================================
+    // NUEVO: Parámetros de MercadoPago
+    // ========================================
+    const paymentId = searchParams.get("payment_id");
+    const status = searchParams.get("status");
+    const preferenceId = searchParams.get("preference_id");
+    const plan = searchParams.get("plan");
+
+    console.log("🔍 Membership Payment Success - MercadoPago params:", {
+      paymentId,
+      status,
+      preferenceId,
+      plan
+    });
+
+    // Si es aprobado, activar la membresía automáticamente
+    if (status === "approved" && paymentId) {
+      const confirmPayment = async () => {
+        try {
+          console.log("📡 Activating membership with MercadoPago payment:", paymentId);
+
+          const authToken = localStorage.getItem("token");
+          console.log("🔑 Auth token exists:", !!authToken);
+
+          // Refrescar usuario para obtener la membresía actualizada
+          // La membresía se activa automáticamente desde el webhook de MercadoPago
+          console.log("🔄 Refrescando datos del usuario para actualizar membresía...");
+          await refreshUser();
+          console.log("✅ Usuario refrescado con nueva membresía");
+
+          setConfirmation({ status: "confirmed" });
+        } catch (error: any) {
+          console.error("❌ Error activating membership:", error);
+          setConfirmation({ status: "error", message: error.message || "Error al activar la membresía" });
+        }
+      };
+
+      confirmPayment();
+    } else if (status === "pending") {
+      // Pago pendiente
+      setConfirmation({
+        status: "processing",
+        message: "Tu pago está siendo procesado. Te notificaremos cuando se complete."
+      });
+    } else {
+      // Error o parámetros faltantes
+      console.error("❌ Invalid payment status or missing parameters");
+      setConfirmation({
+        status: "error",
+        message: "No se pudo confirmar el pago. Por favor contacta a soporte si ya realizaste el pago."
+      });
+    }
+
+    // ========================================
+    // LEGACY: Código PayPal (comentado)
+    // ========================================
+    /*
     const token = searchParams.get("token");
     const payerId = searchParams.get("PayerID");
-
-    console.log("🔍 Membership Payment Success - URL params:", { token, payerId });
 
     if (!token || !payerId) {
       console.error("❌ Missing payment parameters");
@@ -29,13 +84,10 @@ export default function MembershipPaymentSuccess() {
       return;
     }
 
-    // Capturar el pago automáticamente
     const confirmPayment = async () => {
       try {
         console.log("📡 Capturing PayPal order:", token);
-
         const authToken = localStorage.getItem("token");
-        console.log("🔑 Auth token exists:", !!authToken);
 
         const response = await fetch(`${import.meta.env.VITE_API_URL}/api/payments/capture-order`, {
           method: "POST",
@@ -47,32 +99,25 @@ export default function MembershipPaymentSuccess() {
           body: JSON.stringify({ orderId: token }),
         });
 
-        console.log("📥 Capture response status:", response.status);
-
         if (!response.ok) {
           const errorData = await response.json();
-          console.error("❌ Capture failed:", errorData);
           throw new Error(errorData.message || "Error al capturar el pago");
         }
 
         const data = await response.json();
-        console.log("✅ Payment captured successfully:", data);
 
-        // Refrescar usuario para obtener la membresía actualizada
         if (data.data?.membershipActivated) {
-          console.log("🔄 Refrescando datos del usuario para actualizar membresía...");
           await refreshUser();
-          console.log("✅ Usuario refrescado con nueva membresía");
         }
 
         setConfirmation({ status: "confirmed" });
       } catch (error: any) {
-        console.error("❌ Error capturing payment:", error);
         setConfirmation({ status: "error", message: error.message || "Error al procesar el pago" });
       }
     };
 
     confirmPayment();
+    */
   }, [searchParams, refreshUser]);
 
   // Countdown for auto-redirect

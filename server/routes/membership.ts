@@ -135,12 +135,19 @@ router.post(
 
 /**
  * GET /api/membership/pricing
- * Obtener precio de las membresías en USD (PayPal)
+ * Obtener precio de las membresías con MercadoPago (ARS)
  */
 router.get("/pricing", async (req, res) => {
   try {
-    const proPriceUSD = 5.99;
-    const superProPriceUSD = 8.99;
+    // Importar servicio de conversión de moneda para calcular ARS desde EUR
+    const currencyExchange = (await import('../services/currencyExchange.js')).default;
+
+    const proPriceEUR = 5.99;
+    const superProPriceEUR = 8.99;
+
+    // Convertir EUR a ARS usando el servicio de conversión
+    const proPriceARS = await currencyExchange.convertEURtoARS(proPriceEUR);
+    const superProPriceARS = await currencyExchange.convertEURtoARS(superProPriceEUR);
 
     res.json({
       success: true,
@@ -148,36 +155,39 @@ router.get("/pricing", async (req, res) => {
         free: {
           name: 'Free',
           price: 0,
-          currency: 'USD',
+          currency: 'ARS',
           benefits: [
             '3 contratos gratis (primeros 1000 usuarios)',
-            'Comisión: 6%',
+            'Comisión: 8%',
             '3 códigos de invitación',
           ],
         },
         pro: {
           name: 'PRO Mensual',
-          price: proPriceUSD,
-          priceARS: 0, // No usamos ARS con PayPal
-          currency: 'USD',
+          price: proPriceEUR, // Precio en EUR para referencia
+          priceARS: Math.round(proPriceARS), // Precio en ARS para MercadoPago
+          currency: 'ARS',
           benefits: [
-            '3 contratos mensuales con 2% de comisión',
+            '1 contrato mensual sin comisión (0%)',
+            '2 contratos gratis iniciales únicos',
+            'Contratos adicionales: 3% de comisión',
             'Prioridad en búsquedas',
             'KYC Premium - Verificación completa',
             'Badge verificado PRO',
             'Estadísticas avanzadas',
-            'Bonificación: 1 contrato gratis al completar 3 en el mes',
             'Renovación automática mensual',
             'Cancela en cualquier momento',
           ],
         },
         superPro: {
           name: 'SUPER PRO',
-          price: superProPriceUSD,
-          priceARS: 0,
-          currency: 'USD',
+          price: superProPriceEUR,
+          priceARS: Math.round(superProPriceARS),
+          currency: 'ARS',
           benefits: [
             'Todos los beneficios de PRO',
+            '2 contratos mensuales sin comisión (0%)',
+            'Contratos adicionales: 2% de comisión',
             'Estadísticas avanzadas de perfil',
             'Analytics de visitas y conversaciones',
             'Insights de contratos completados',
@@ -200,12 +210,14 @@ router.get("/pricing", async (req, res) => {
 
 /**
  * POST /api/membership/upgrade-to-pro
- * Actualizar a membresía PRO
+ * Actualizar a membresía PRO (usando MercadoPago)
+ * LEGACY: Este endpoint redirige al nuevo flujo de /create-payment
  */
 router.post("/upgrade-to-pro", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user.id || req.user._id?.toString();
     const { User } = await import('../models/sql/User.model.js');
+    const currencyExchange = (await import('../services/currencyExchange.js')).default;
 
     const user = await User.findByPk(userId);
     if (!user) {
@@ -225,7 +237,64 @@ router.post("/upgrade-to-pro", protect, async (req: AuthRequest, res: Response):
       return;
     }
 
-    // Crear la membresía PRO
+    // ========================================
+    // Crear preferencia de pago con MercadoPago
+    // ========================================
+    const proPriceEUR = 5.99;
+    const proPriceARS = await currencyExchange.convertEURtoARS(proPriceEUR);
+    const finalPrice = Math.round(proPriceARS);
+
+    const mercadopagoService = (await import('../services/mercadopago.js')).default;
+
+    const mpPayment = await mercadopagoService.createPayment({
+      amount: finalPrice,
+      currency: 'ARS',
+      description: 'Membresía DOAPP PRO - Mensual',
+      provider: 'mercadopago',
+      metadata: {
+        userId: userId,
+        paymentType: 'membership',
+        plan: 'monthly',
+        tier: 'pro',
+      },
+      customerEmail: user.email,
+      successUrl: `${process.env.CLIENT_URL}/membership/payment-success?plan=monthly`,
+      cancelUrl: `${process.env.CLIENT_URL}/membership/checkout?plan=monthly&error=payment_failed`,
+    });
+
+    // Crear registro de pago
+    const { Payment } = await import('../models/sql/Payment.model.js');
+    const payment = await Payment.create({
+      payerId: userId,
+      recipientId: null,
+      contractId: null,
+      amount: finalPrice,
+      currency: 'ARS',
+      status: 'pending',
+      paymentType: 'membership',
+      mercadopagoPreferenceId: mpPayment.paymentId,
+      description: 'Membresía DOAPP PRO - Mensual',
+      platformFee: 0,
+      platformFeePercentage: 0,
+      isEscrow: false,
+    });
+
+    console.log('✅ Preferencia MercadoPago creada para upgrade a PRO:', mpPayment.paymentId);
+
+    res.status(201).json({
+      success: true,
+      message: "Actualización a PRO iniciada. Completa el pago para activarla.",
+      data: {
+        paymentUrl: mpPayment.checkoutUrl,
+        preferenceId: mpPayment.paymentId,
+        paymentId: payment.id,
+      },
+    });
+
+    // ========================================
+    // LEGACY: Código usando membershipService (comentado)
+    // ========================================
+    /*
     const result = await membershipService.createMembership(userId);
 
     res.status(201).json({
@@ -237,6 +306,7 @@ router.post("/upgrade-to-pro", protect, async (req: AuthRequest, res: Response):
         preferenceId: result.paymentPreference.preferenceId,
       },
     });
+    */
   } catch (error: any) {
     console.error('Error upgrading to PRO:', error);
     res.status(500).json({
@@ -297,15 +367,23 @@ router.post("/create-payment", protect, async (req: AuthRequest, res: Response):
       return;
     }
 
-    // Calcular precio según el plan (usando USD para PayPal)
-    const proPriceUSD = 5.99;
-    const superProPriceUSD = 8.99;
-    let finalPrice = proPriceUSD;
+    // ========================================
+    // NUEVO: Calcular precio usando EUR -> ARS (MercadoPago)
+    // ========================================
+    const currencyExchange = (await import('../services/currencyExchange.js')).default;
+    const proPriceEUR = 5.99;
+    const superProPriceEUR = 8.99;
+
+    // Convertir EUR a ARS
+    const proPriceARS = await currencyExchange.convertEURtoARS(proPriceEUR);
+    const superProPriceARS = await currencyExchange.convertEURtoARS(superProPriceEUR);
+
+    let finalPrice = Math.round(proPriceARS);
     let description = 'Membresía DOAPP PRO - Mensual';
     let membershipPlan = 'PRO'; // 'PRO' or 'SUPER_PRO'
 
     if (plan === 'quarterly') {
-      finalPrice = parseFloat((proPriceUSD * 3 * 0.89).toFixed(2)); // 11% descuento
+      finalPrice = Math.round(proPriceARS * 3 * 0.89); // 11% descuento
       description = 'Membresía DOAPP PRO - Trimestral (ahorra 11%)';
       membershipPlan = 'PRO';
     } else if (plan === 'super_pro') {
@@ -322,17 +400,17 @@ router.post("/create-payment", protect, async (req: AuthRequest, res: Response):
 
           if (daysRemaining > 0) {
             // Calcular valor proporcional del plan PRO restante
-            const proDailyRate = proPriceUSD / 30;
+            const proDailyRate = proPriceARS / 30;
             const proValueRemaining = proDailyRate * daysRemaining;
 
             // Calcular valor proporcional del plan SUPER PRO por los días restantes
-            const superProDailyRate = superProPriceUSD / 30;
+            const superProDailyRate = superProPriceARS / 30;
             const superProValueForRemainingDays = superProDailyRate * daysRemaining;
 
             // Diferencia a pagar
             const priceDifference = superProValueForRemainingDays - proValueRemaining;
 
-            finalPrice = parseFloat(Math.max(priceDifference, 0.50).toFixed(2)); // Mínimo $0.50
+            finalPrice = Math.round(Math.max(priceDifference, 100)); // Mínimo 100 ARS
             description = `Upgrade a SUPER PRO (${daysRemaining} días restantes - diferencia prorrateada)`;
 
             console.log('💰 Cálculo de upgrade:', {
@@ -346,27 +424,94 @@ router.post("/create-payment", protect, async (req: AuthRequest, res: Response):
             });
           } else {
             // Membresía ya expiró, cobrar precio completo
-            finalPrice = superProPriceUSD;
+            finalPrice = Math.round(superProPriceARS);
             description = 'Membresía DOAPP SUPER PRO - Mensual';
           }
         } else {
           // No se encontró membresía activa, cobrar precio completo
-          finalPrice = superProPriceUSD;
+          finalPrice = Math.round(superProPriceARS);
           description = 'Membresía DOAPP SUPER PRO - Mensual';
         }
       } else {
         // No es upgrade, cobrar precio completo
-        finalPrice = superProPriceUSD;
+        finalPrice = Math.round(superProPriceARS);
         description = 'Membresía DOAPP SUPER PRO - Mensual';
       }
       membershipPlan = 'SUPER_PRO';
     }
 
-    console.log('💳 Creando orden de pago PayPal:', { plan, finalPrice, description });
+    console.log('💳 Creando preferencia de pago MercadoPago:', { plan, finalPrice, description });
 
-    // Crear orden de pago con PayPal
+    // ========================================
+    // Crear preferencia de pago con MercadoPago
+    // ========================================
+    const mercadopagoService = (await import('../services/mercadopago.js')).default;
+
+    console.log('📦 Creando pago MercadoPago:', { plan, finalPrice, description });
+
+    const mpPayment = await mercadopagoService.createPayment({
+      amount: finalPrice,
+      currency: 'ARS',
+      description: description,
+      provider: 'mercadopago',
+      metadata: {
+        userId: userId,
+        paymentType: 'membership',
+        plan: plan,
+        tier: tier,
+      },
+      customerEmail: user.email,
+      successUrl: `${process.env.CLIENT_URL}/membership/payment-success?plan=${plan}`,
+      cancelUrl: `${process.env.CLIENT_URL}/membership/checkout?plan=${plan}&error=payment_failed`,
+    });
+
+    console.log('📥 MercadoPago response:', mpPayment);
+
+    if (!mpPayment.checkoutUrl) {
+      console.error('❌ No se encontró checkoutUrl en la respuesta de MercadoPago');
+      throw new Error('No se pudo obtener el link de pago de MercadoPago');
+    }
+
+    console.log('✅ Preferencia MercadoPago creada:', { paymentId: mpPayment.paymentId, checkoutUrl: mpPayment.checkoutUrl });
+
+    // Crear registro de pago
+    const { Payment } = await import('../models/sql/Payment.model.js');
+    const payment = await Payment.create({
+      payerId: userId,
+      recipientId: null, // No hay recipiente en pagos de membresía
+      contractId: null,
+      amount: finalPrice,
+      currency: 'ARS',
+      status: 'pending',
+      paymentType: 'membership',
+      mercadopagoPreferenceId: mpPayment.paymentId,
+      description: description,
+      platformFee: 0,
+      platformFeePercentage: 0,
+      isEscrow: false,
+    });
+
+    console.log('✅ Registro de pago creado:', payment.id);
+
+    res.json({
+      success: true,
+      message: "Preferencia de pago creada",
+      initPoint: mpPayment.checkoutUrl,
+      preferenceId: mpPayment.paymentId,
+      paymentId: payment.id,
+    });
+
+    // ========================================
+    // LEGACY: Código PayPal (comentado para referencia)
+    // ========================================
+    /*
+    const proPriceUSD = 5.99;
+    const superProPriceUSD = 8.99;
+    let finalPrice = proPriceUSD;
+
+    // ... código de cálculo de precios PayPal ...
+
     const paypalService = (await import('../services/paypal.js')).default;
-
     const orderData = {
       amount: finalPrice.toString(),
       currency: 'USD',
@@ -376,27 +521,12 @@ router.post("/create-payment", protect, async (req: AuthRequest, res: Response):
       cancelUrl: `${process.env.CLIENT_URL}/payment/cancel`,
     };
 
-    console.log('📦 Order data preparado:', orderData);
-
     const order = await paypalService.createOrder(orderData);
-
-    console.log('📥 PayPal response:', order);
-
-    // Obtener el link de aprobación
     const approvalLink = order.links.find((link: any) => link.rel === 'approve')?.href;
 
-    if (!approvalLink) {
-      console.error('❌ No se encontró approve link en:', order.links);
-      throw new Error('No se pudo obtener el link de pago de PayPal');
-    }
-
-    console.log('✅ Orden PayPal creada:', { orderId: order.orderId, approvalLink });
-
-    // Crear registro de pago
-    const { Payment } = await import('../models/sql/Payment.model.js');
     const payment = await Payment.create({
       payerId: userId,
-      recipientId: null, // No hay recipiente en pagos de membresía
+      recipientId: null,
       contractId: null,
       amount: finalPrice,
       currency: 'USD',
@@ -409,8 +539,6 @@ router.post("/create-payment", protect, async (req: AuthRequest, res: Response):
       isEscrow: false,
     });
 
-    console.log('✅ Registro de pago creado:', payment.id);
-
     res.json({
       success: true,
       message: "Orden de pago creada",
@@ -418,6 +546,7 @@ router.post("/create-payment", protect, async (req: AuthRequest, res: Response):
       orderId: order.orderId,
       paymentId: payment.id,
     });
+    */
   } catch (error: any) {
     console.error('Error creating payment preference:', error);
     res.status(500).json({

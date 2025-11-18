@@ -5,20 +5,62 @@ import { Contract } from "../models/sql/Contract.model.js";
 import { Job } from "../models/sql/Job.model.js";
 import { User } from "../models/sql/User.model.js";
 import { Notification } from "../models/sql/Notification.model.js";
-import paypalService from "../services/paypal";
+import { PaymentProof } from "../models/sql/PaymentProof.model.js";
+import mercadopagoService from "../services/mercadopago.js";
+import currencyExchange from "../services/currencyExchange.js";
 import { config } from "../config/env";
 import { Op } from 'sequelize';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
+
+// Ensure upload directory exists
+const PAYMENT_PROOFS_DIR = path.join(process.cwd(), 'uploads', 'payment-proofs');
+if (!fs.existsSync(PAYMENT_PROOFS_DIR)) {
+  fs.mkdirSync(PAYMENT_PROOFS_DIR, { recursive: true });
+}
+
+// Configure multer for payment proof uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, PAYMENT_PROOFS_DIR);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'proof-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png|pdf/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Solo se permiten archivos de imagen (JPEG, PNG) o PDF'));
+    }
+  }
+});
 
 const router = Router();
 
 /**
- * Create a payment order
+ * Create a payment order (supports multiple payment methods)
  * POST /api/payments/create-order
+ * Supports: FormData with optional file upload
  */
 router.post("/create-order", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { contractId, jobId, paymentType, amount, description } = req.body;
+    const { contractId, jobId, paymentType, amount, description, paymentMethod } = req.body;
     const userId = req.user.id;
+    const selectedPaymentMethod = paymentMethod || 'mercadopago'; // Default to MercadoPago
 
     // Handle job publication payment
     if (paymentType === "job_publication" && jobId) {
@@ -105,41 +147,88 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
         publicationCost = jobPrice * (commissionRate / 100);
       }
 
-      const totalAmountARS = publicationCost;
+      // Total amount = job price + publication commission
+      const totalAmountARS = jobPrice + publicationCost;
 
-      // Convert ARS to USD (PayPal only accepts USD)
-      const currencyService = (await import('../services/currencyExchange.js')).default;
-      const exchangeRate = await currencyService.getUSDtoARSRate();
-      const totalAmountUSD = totalAmountARS / exchangeRate;
+      console.log(`💵 Job publication payment: ${totalAmountARS.toFixed(2)} ARS (job: ${jobPrice.toFixed(2)}, commission: ${publicationCost.toFixed(2)}) - ${selectedPaymentMethod}`);
 
-      console.log(`💵 Job publication payment: ${totalAmountARS} ARS = ${totalAmountUSD.toFixed(2)} USD (rate: ${exchangeRate})`);
+      // Handle different payment methods
+      if (selectedPaymentMethod === 'bank_transfer') {
+        // Bank Transfer - requires manual verification
+        const payment = await Payment.create({
+          contractId: null,
+          payerId: userId,
+          recipientId: null,
+          amount: totalAmountARS,
+          currency: "ARS",
+          status: "pending_verification", // Special status for bank transfers
+          paymentType: "job_publication",
+          paymentMethod: "bank_transfer",
+          description: `Publicación: ${job.title}`,
+          platformFee: 0,
+          platformFeePercentage: 0,
+          isEscrow: false,
+        });
 
-      // Create PayPal order in USD
-      const paypalOrder = await paypalService.createOrder({
-        amount: totalAmountUSD.toFixed(2),
-        currency: "USD",
-        description: `Publicación: ${job.title} (${totalAmountARS.toFixed(2)} ARS)`,
-        jobId: jobId,
-        paymentType: "job_publication",
+        // Update job with publication amount and payment reference
+        job.publicationAmount = totalAmountARS;
+        job.publicationPaymentId = payment.id;
+        job.status = 'pending_payment'; // Job won't be published until payment is verified
+        await job.save();
+
+        res.json({
+          success: true,
+          message: "Transferencia bancaria iniciada. Sube el comprobante para verificación.",
+          requiresPayment: true,
+          paymentId: payment.id,
+          amount: totalAmountARS,
+          bankDetails: {
+            accountHolder: process.env.BANK_ACCOUNT_HOLDER || 'DOAPP S.R.L.',
+            cuit: process.env.BANK_CUIT || '30-12345678-9',
+            bank: process.env.BANK_NAME || 'Banco Galicia',
+            cbu: process.env.BANK_CBU || '0070099920000123456789',
+            alias: process.env.BANK_ALIAS || 'DOAPP.PAGOS',
+          }
+        });
+        return;
+      }
+
+      // Default: MercadoPago direct integration
+      const mpPayment = await mercadopagoService.createPayment({
+        amount: totalAmountARS,
+        currency: 'ARS',
+        description: `Publicación: ${job.title}`,
+        provider: 'mercadopago',
+        metadata: {
+          jobId: jobId,
+          userId: userId,
+          paymentType: 'job_publication',
+        },
+        customerEmail: req.user.email,
+        successUrl: `${process.env.CLIENT_URL}/payment/success?type=job_publication&jobId=${jobId}`,
+        cancelUrl: `${process.env.CLIENT_URL}/payment/failure?type=job_publication&jobId=${jobId}`,
       });
 
-      // Extract approval URL from PayPal links
-      const approvalLink = paypalOrder.links?.find((link: any) => link.rel === 'approve')?.href;
-      if (!approvalLink) {
-        throw new Error('No se pudo obtener el link de aprobación de PayPal');
+      console.log('🔍 [DEBUG] MercadoPago payment response:', JSON.stringify(mpPayment, null, 2));
+
+      if (!mpPayment.checkoutUrl) {
+        throw new Error('No se pudo obtener el link de pago de MercadoPago');
       }
+
+      console.log('🌐 [DEBUG] Checkout URL:', mpPayment.checkoutUrl);
 
       // Create payment record in database
       const payment = await Payment.create({
         contractId: null,
         payerId: userId,
         recipientId: null,
-        amount: totalAmountUSD,
-        currency: "USD",
+        amount: totalAmountARS,
+        currency: "ARS",
         status: "pending",
         paymentType: "job_publication",
-        paypalOrderId: paypalOrder.orderId,
-        description: `Publicación: ${job.title} (${totalAmountARS.toFixed(2)} ARS)`,
+        paymentMethod: "mercadopago",
+        mercadopagoPreferenceId: mpPayment.paymentId,
+        description: `Publicación: ${job.title}`,
         platformFee: 0,
         platformFeePercentage: 0,
         isEscrow: false,
@@ -152,9 +241,10 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
 
       res.json({
         success: true,
-        orderId: paypalOrder.orderId,
-        approvalUrl: approvalLink,
+        preferenceId: mpPayment.paymentId,
+        approvalUrl: mpPayment.checkoutUrl,
         paymentId: payment.id,
+        amount: totalAmountARS,
       });
       return;
     }
@@ -229,24 +319,37 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
 });
 
 /**
- * Capture a payment after approval
+ * Capture/Verify a payment after approval
  * POST /api/payments/capture-order
+ *
+ * For MercadoPago: payment_id from URL params or webhook
+ * For PayPal (commented): orderId
  */
 router.post("/capture-order", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { orderId } = req.body;
+    const { paymentId, collection_id, preference_id } = req.body;
     const userId = req.user.id;
 
-    console.log("🔍 [CAPTURE] Step 1 - Starting capture process");
-    console.log("🔍 [CAPTURE] OrderId:", orderId);
+    console.log("🔍 [CAPTURE] Step 1 - Starting MercadoPago capture process");
+    console.log("🔍 [CAPTURE] PaymentId:", paymentId);
+    console.log("🔍 [CAPTURE] Collection ID:", collection_id);
+    console.log("🔍 [CAPTURE] Preference ID:", preference_id);
     console.log("🔍 [CAPTURE] UserId:", userId);
 
-    // Find payment by order ID
-    const payment = await Payment.findOne({ where: { paypalOrderId: orderId } });
+    // MercadoPago: Find payment by preference ID or payment ID
+    let payment = null;
+
+    if (preference_id) {
+      payment = await Payment.findOne({ where: { mercadopagoPreferenceId: preference_id } });
+    } else if (paymentId || collection_id) {
+      const mpPaymentId = paymentId || collection_id;
+      payment = await Payment.findOne({ where: { mercadopagoPaymentId: mpPaymentId } });
+    }
+
     console.log("🔍 [CAPTURE] Step 2 - Payment found:", payment ? "YES" : "NO");
 
     if (!payment) {
-      console.error("❌ [CAPTURE] Payment not found for orderId:", orderId);
+      console.error("❌ [CAPTURE] Payment not found");
       res.status(404).json({ success: false, message: "Payment not found" });
       return;
     }
@@ -265,17 +368,35 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
 
     console.log("🔍 [CAPTURE] Step 3 - Authorization verified");
 
-    // Capture the PayPal order
-    console.log("🔍 [CAPTURE] Step 4 - Calling PayPal captureOrder...");
-    const captureResult = await paypalService.captureOrder(orderId);
-    console.log("✅ [CAPTURE] PayPal capture result:", JSON.stringify(captureResult, null, 2));
+    // Vexor/MercadoPago: Get payment info
+    console.log("🔍 [CAPTURE] Step 4 - Getting MercadoPago payment info via Vexor...");
+    const mpPaymentId = paymentId || collection_id;
+    let captureResult: any = { status: "approved" };
+
+    if (mpPaymentId) {
+      try {
+        const mpPaymentData = await mercadopagoService.getPayment(mpPaymentId, 'mercadopago');
+        console.log("✅ [CAPTURE] MercadoPago payment result:", JSON.stringify(mpPaymentData, null, 2));
+
+        // Update payment record with MercadoPago data
+        payment.mercadopagoPaymentId = mpPaymentId;
+        payment.mercadopagoStatus = mpPaymentData.status;
+        payment.mercadopagoStatusDetail = mpPaymentData.status;
+
+        captureResult = {
+          status: mpPaymentData.status === 'succeeded' ? 'COMPLETED' : 'PENDING',
+          captureId: mpPaymentId,
+          payerId: mpPaymentData.metadata?.payerId,
+          payerEmail: mpPaymentData.metadata?.payerEmail,
+        };
+      } catch (error) {
+        console.error("⚠️ [CAPTURE] Could not get MercadoPago payment, assuming approved");
+      }
+    }
 
     // Update payment record
     console.log("🔍 [CAPTURE] Step 5 - Updating payment record...");
-    payment.status = captureResult.status === "COMPLETED" ? "completed" : "processing";
-    payment.paypalCaptureId = captureResult.captureId;
-    payment.paypalPayerId = captureResult.payerId;
-    payment.paypalPayerEmail = captureResult.payerEmail;
+    payment.status = captureResult.status === "COMPLETED" || captureResult.status === "approved" ? "completed" : "processing";
 
     if (payment.isEscrow) {
       console.log("🔍 [CAPTURE] Setting status to 'held_escrow'");
@@ -284,6 +405,32 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
 
     await payment.save();
     console.log("✅ [CAPTURE] Step 6 - Payment record updated. New status:", payment.status);
+
+    /* ===== PAYPAL CODE (COMMENTED) =====
+    // Find payment by order ID
+    const payment = await Payment.findOne({ where: { paypalOrderId: orderId } });
+
+    if (!payment) {
+      console.error("❌ [CAPTURE] Payment not found for orderId:", orderId);
+      res.status(404).json({ success: false, message: "Payment not found" });
+      return;
+    }
+
+    // Capture the PayPal order
+    const captureResult = await paypalService.captureOrder(orderId);
+
+    // Update payment record
+    payment.status = captureResult.status === "COMPLETED" ? "completed" : "processing";
+    payment.paypalCaptureId = captureResult.captureId;
+    payment.paypalPayerId = captureResult.payerId;
+    payment.paypalPayerEmail = captureResult.payerEmail;
+
+    if (payment.isEscrow) {
+      payment.status = "held_escrow";
+    }
+
+    await payment.save();
+    ===== END PAYPAL CODE ===== */
 
     // Handle membership payment
     if (payment.paymentType === "membership" || payment.description?.includes("Membresía")) {
@@ -993,6 +1140,225 @@ router.post("/contract/:contractId", protect, async (req: AuthRequest, res: Resp
   } catch (error: any) {
     console.error("Create contract payment error:", error);
     res.status(500).json({ success: false, message: error.message || "Error creating payment" });
+  }
+});
+
+/**
+ * Upload payment proof (for bank transfer and Binance payments)
+ * POST /api/payments/:paymentId/upload-proof
+ */
+router.post("/:paymentId/upload-proof", protect, upload.single('proof'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { paymentId } = req.params;
+    const userId = req.user.id;
+    const { binanceNickname, transferAmount, transferCurrency } = req.body;
+
+    if (!req.file) {
+      res.status(400).json({ success: false, message: "No se subió ningún archivo" });
+      return;
+    }
+
+    // Find the payment
+    const payment = await Payment.findByPk(paymentId);
+    if (!payment) {
+      res.status(404).json({ success: false, message: "Pago no encontrado" });
+      return;
+    }
+
+    // Verify user is the payer
+    if (payment.payerId !== userId) {
+      res.status(403).json({ success: false, message: "No autorizado" });
+      return;
+    }
+
+    // Deactivate previous proofs for this payment
+    await PaymentProof.update(
+      { isActive: false },
+      { where: { paymentId, isActive: true } }
+    );
+
+    // Create new payment proof
+    const proof = await PaymentProof.create({
+      paymentId,
+      userId,
+      fileUrl: `/uploads/payment-proofs/${req.file.filename}`,
+      fileType: path.extname(req.file.originalname).slice(1).toLowerCase() as any,
+      fileName: req.file.originalname,
+      fileSize: req.file.size,
+      binanceNickname: binanceNickname || null,
+      transferAmount: transferAmount || null,
+      transferCurrency: transferCurrency || null,
+      status: 'pending',
+      uploadedAt: new Date(),
+      isActive: true,
+    });
+
+    // Update payment status to pending verification
+    payment.status = 'pending';
+    await payment.save();
+
+    // Notify admins about new payment proof
+    const adminUsers = await User.findAll({
+      where: {
+        [Op.or]: [
+          { role: 'admin' },
+          { role: 'super_admin' },
+          { role: 'owner' }
+        ]
+      }
+    });
+
+    for (const admin of adminUsers) {
+      await Notification.create({
+        userId: admin.id,
+        title: 'Nuevo comprobante de pago',
+        message: `Usuario ${req.user.username} subió un comprobante para el pago ${paymentId}`,
+        type: 'payment',
+        relatedId: paymentId,
+        relatedType: 'Payment',
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "Comprobante subido exitosamente. Será verificado por un administrador.",
+      proof: {
+        id: proof.id,
+        fileUrl: proof.fileUrl,
+        fileName: proof.fileName,
+        status: proof.status,
+        uploadedAt: proof.uploadedAt,
+      }
+    });
+  } catch (error: any) {
+    console.error("Upload payment proof error:", error);
+    res.status(500).json({ success: false, message: error.message || "Error subiendo comprobante" });
+  }
+});
+
+/**
+ * Get payment proofs for a payment
+ * GET /api/payments/:paymentId/proofs
+ */
+router.get("/:paymentId/proofs", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { paymentId } = req.params;
+    const userId = req.user.id;
+
+    // Find the payment
+    const payment = await Payment.findByPk(paymentId);
+    if (!payment) {
+      res.status(404).json({ success: false, message: "Pago no encontrado" });
+      return;
+    }
+
+    // Verify user is involved in the payment or is admin
+    const isAdmin = ['admin', 'super_admin', 'owner'].includes(req.user.role);
+    if (payment.payerId !== userId && payment.recipientId !== userId && !isAdmin) {
+      res.status(403).json({ success: false, message: "No autorizado" });
+      return;
+    }
+
+    // Get all proofs for this payment
+    const proofs = await PaymentProof.findAll({
+      where: { paymentId },
+      order: [['uploadedAt', 'DESC']],
+      include: [
+        { model: User, as: 'user', attributes: ['id', 'username', 'email'] },
+        { model: User, as: 'verifier', attributes: ['id', 'username', 'email'] }
+      ]
+    });
+
+    res.json({
+      success: true,
+      proofs
+    });
+  } catch (error: any) {
+    console.error("Get payment proofs error:", error);
+    res.status(500).json({ success: false, message: error.message || "Error obteniendo comprobantes" });
+  }
+});
+
+/**
+ * Get currency conversion rates (ARS to USDT)
+ * GET /api/payments/conversion/usdt
+ */
+router.get("/conversion/usdt", async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { amount } = req.query;
+
+    if (!amount || isNaN(Number(amount))) {
+      res.status(400).json({ success: false, message: "Debe proporcionar un monto válido" });
+      return;
+    }
+
+    const amountARS = Number(amount);
+    const rate = await currencyExchange.getARStoUSDTRate();
+    const amountUSDT = await currencyExchange.convertARStoUSDT(amountARS);
+
+    res.json({
+      success: true,
+      conversion: {
+        amountARS,
+        amountUSDT,
+        rate,
+        timestamp: new Date(),
+      },
+      binanceInfo: {
+        binanceId: process.env.BINANCE_ID || null,
+        binanceNickname: process.env.BINANCE_NICKNAME || null,
+      }
+    });
+  } catch (error: any) {
+    console.error("Get conversion error:", error);
+    res.status(500).json({ success: false, message: error.message || "Error obteniendo conversión" });
+  }
+});
+
+/**
+ * Get latest active payment proof for a payment
+ * GET /api/payments/:paymentId/proof
+ */
+router.get("/:paymentId/proof", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { paymentId } = req.params;
+    const userId = req.user.id;
+
+    // Find the payment
+    const payment = await Payment.findByPk(paymentId);
+    if (!payment) {
+      res.status(404).json({ success: false, message: "Pago no encontrado" });
+      return;
+    }
+
+    // Verify user is involved in the payment or is admin
+    const isAdmin = ['admin', 'super_admin', 'owner'].includes(req.user.role);
+    if (payment.payerId !== userId && payment.recipientId !== userId && !isAdmin) {
+      res.status(403).json({ success: false, message: "No autorizado" });
+      return;
+    }
+
+    // Get latest active proof
+    const proof = await PaymentProof.findOne({
+      where: { paymentId, isActive: true },
+      include: [
+        { model: User, as: 'user', attributes: ['id', 'username', 'email'] },
+        { model: User, as: 'verifier', attributes: ['id', 'username', 'email'] }
+      ]
+    });
+
+    if (!proof) {
+      res.status(404).json({ success: false, message: "No se encontró comprobante" });
+      return;
+    }
+
+    res.json({
+      success: true,
+      proof
+    });
+  } catch (error: any) {
+    console.error("Get payment proof error:", error);
+    res.status(500).json({ success: false, message: error.message || "Error obteniendo comprobante" });
   }
 });
 

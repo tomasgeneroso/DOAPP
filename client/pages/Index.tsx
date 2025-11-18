@@ -188,9 +188,9 @@ export default function Index() {
           </p>
           {!user && !isLoading && (
             <p className="mx-auto mt-3 sm:mt-4 max-w-2xl text-sm sm:text-base leading-6 sm:leading-7 text-gray-500 dark:text-slate-500 px-2">
-              La plataforma argentina que asegura que cada acuerdo se cumpla.
+              Nos aseguramos que cada acuerdo se cumpla por ambas partes.
               Publicá un trabajo, negociá directamente con el profesional y pagá
-              solo cuando todo esté verificado.
+              automaticamente solo cuando todo esté verificado.
             </p>
           )}
           {!user && !isLoading && (
@@ -209,6 +209,123 @@ export default function Index() {
               </Link>
             </div>
           )}
+        </div>
+
+        {/* How it works - Process Flow */}
+        <div className="mt-8 sm:mt-12 max-w-6xl mx-auto px-2">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6 sm:p-8 border border-slate-200 dark:border-slate-700">
+            <h2 className="text-xl sm:text-2xl font-bold text-center text-gray-900 dark:text-white mb-8">
+              ¿Cómo funciona?
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 md:gap-4">
+              {/* Step 1 */}
+              <div className="flex flex-col items-center text-center relative">
+                <div className="w-16 h-16 bg-gradient-to-br from-sky-500 to-sky-600 rounded-full flex items-center justify-center shadow-lg mb-4">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                </div>
+                <div className="absolute -top-2 -left-2 w-8 h-8 bg-sky-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md">
+                  1
+                </div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                  Publicá o Buscá
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Creá un trabajo que necesites o buscá oportunidades para ofrecer tus servicios
+                </p>
+                {/* Arrow - Desktop only */}
+                <div className="hidden md:block absolute top-8 -right-4 text-sky-400">
+                  <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Step 2 */}
+              <div className="flex flex-col items-center text-center relative">
+                <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center shadow-lg mb-4">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                </div>
+                <div className="absolute -top-2 -left-2 w-8 h-8 bg-orange-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md">
+                  2
+                </div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                  Conectá y Negociá
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Hablá directamente, acordá detalles y precio. Sin intermediarios
+                </p>
+                {/* Arrow - Desktop only */}
+                <div className="hidden md:block absolute top-8 -right-4 text-orange-400">
+                  <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Step 3 */}
+              <div className="flex flex-col items-center text-center relative">
+                <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg mb-4">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                </div>
+                <div className="absolute -top-2 -left-2 w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md">
+                  3
+                </div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                  Pago Seguro
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  El dinero queda en garantía hasta que ambos confirmen el trabajo completado
+                </p>
+                {/* Arrow - Desktop only */}
+                <div className="hidden md:block absolute top-8 -right-4 text-purple-400">
+                  <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Step 4 */}
+              <div className="flex flex-col items-center text-center relative">
+                <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center shadow-lg mb-4">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="absolute -top-2 -left-2 w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md">
+                  4
+                </div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                  ¡Listo!
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Trabajo completado, pago liberado automáticamente
+                </p>
+              </div>
+            </div>
+
+            {/* MercadoPago Badge */}
+            <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700">
+              <div className="flex flex-col items-center justify-center gap-3">
+                <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">
+                  Pagos procesados de forma segura con:
+                </span>
+                <div className="bg-white px-6 py-3 rounded-lg border-2 border-sky-200 dark:border-sky-800 shadow-md">
+                  <img
+                    src="/MP_RGB_HANDSHAKE_color_horizontal.svg"
+                    alt="MercadoPago - Pagos Seguros"
+                    className="h-8 sm:h-10 w-auto"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Search Bar */}
@@ -258,7 +375,7 @@ export default function Index() {
                 Mis Trabajos Publicados
               </h2>
               <Link
-                to="/contracts"
+                to="/my-jobs"
                 className="text-xs sm:text-sm text-sky-600 hover:text-sky-700 font-semibold whitespace-nowrap"
               >
                 Ver todos ({myJobs.length})

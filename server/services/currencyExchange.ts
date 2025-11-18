@@ -11,14 +11,62 @@ interface ExchangeRate {
  */
 class CurrencyExchangeService {
   private readonly CACHE_KEY = 'currency:usd_ars_rate';
+  private readonly USDT_CACHE_KEY = 'currency:usdt_rate';
   private readonly CACHE_TTL = 3600; // 1 hora
+  private readonly DOLAR_HOY_URL = 'https://dolarhoy.com/';
   private readonly APIS = [
     'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json',
     'https://api.exchangerate-api.com/v4/latest/USD'
   ];
+  private readonly BINANCE_API = 'https://api.binance.com/api/v3/ticker/price?symbol=USDTARS';
 
   /**
-   * Obtiene la tasa de cambio USD a ARS
+   * Obtiene el dólar blue (venta) desde dolarhoy.com
+   * @private
+   */
+  private async fetchDolarBlueFromDolarHoy(): Promise<number> {
+    try {
+      console.log('📊 Fetching dólar blue from dolarhoy.com...');
+      const response = await fetch(this.DOLAR_HOY_URL);
+
+      if (!response.ok) {
+        throw new Error(`DolarHoy returned status ${response.status}`);
+      }
+
+      const html = await response.text();
+
+      // Buscar el valor de venta del dólar blue
+      // El HTML tiene estructura: <div class="val">$1430</div>
+      // Buscamos específicamente la sección del dólar blue
+      const dolarBlueMatch = html.match(/DOLAR BLUE[\s\S]*?Venta[\s\S]*?\$(\d+)/i);
+
+      if (dolarBlueMatch && dolarBlueMatch[1]) {
+        const rate = parseInt(dolarBlueMatch[1], 10);
+        console.log(`✅ Dólar Blue (Venta) obtenido de dolarhoy.com: $${rate}`);
+        return rate;
+      }
+
+      // Método alternativo: buscar directamente por clases
+      const ventaMatch = html.match(/<div[^>]*class="val"[^>]*>\$(\d+)<\/div>/g);
+      if (ventaMatch && ventaMatch.length >= 2) {
+        // El segundo valor suele ser la venta
+        const secondMatch = ventaMatch[1].match(/\$(\d+)/);
+        if (secondMatch && secondMatch[1]) {
+          const rate = parseInt(secondMatch[1], 10);
+          console.log(`✅ Dólar Blue (Venta) obtenido de dolarhoy.com (método alt): $${rate}`);
+          return rate;
+        }
+      }
+
+      throw new Error('No se pudo extraer el dólar blue de dolarhoy.com');
+    } catch (error) {
+      console.error('❌ Error fetching from dolarhoy.com:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Obtiene la tasa de cambio USD a ARS usando dólar blue
    * @returns Tasa de cambio actual
    */
   async getUSDtoARSRate(): Promise<number> {
@@ -26,11 +74,26 @@ class CurrencyExchangeService {
       // Intentar obtener de caché
       const cached = await cache.get<ExchangeRate>(this.CACHE_KEY);
       if (cached?.rate) {
-        console.log('Using cached USD/ARS rate:', cached.rate);
+        console.log('💰 Using cached USD/ARS rate (Dólar Blue):', cached.rate);
         return cached.rate;
       }
 
-      // Obtener tasa actual de las APIs
+      // Primero intentar obtener dólar blue de dolarhoy.com
+      try {
+        const dolarBlueRate = await this.fetchDolarBlueFromDolarHoy();
+
+        // Guardar en caché
+        await cache.set(this.CACHE_KEY, {
+          rate: dolarBlueRate,
+          timestamp: new Date()
+        }, this.CACHE_TTL);
+
+        return dolarBlueRate;
+      } catch (dolarHoyError) {
+        console.warn('⚠️ DolarHoy failed, falling back to international APIs');
+      }
+
+      // Fallback: Obtener tasa de APIs internacionales
       const rate = await this.fetchRateFromAPIs();
 
       // Guardar en caché
@@ -41,9 +104,10 @@ class CurrencyExchangeService {
 
       return rate;
     } catch (error) {
-      console.error('Error getting USD/ARS rate:', error);
+      console.error('❌ Error getting USD/ARS rate:', error);
       // Fallback a una tasa predeterminada en caso de error
-      return 1000; // Tasa de respaldo conservadora
+      console.warn('⚠️ Using fallback rate: 1430 ARS/USD');
+      return 1430; // Tasa de respaldo (dólar blue aproximado)
     }
   }
 
@@ -158,11 +222,64 @@ class CurrencyExchangeService {
   }
 
   /**
+   * Obtiene la tasa de cambio ARS a USDT desde Binance
+   * @returns Tasa de cambio actual (1 USDT = X ARS)
+   */
+  async getARStoUSDTRate(): Promise<number> {
+    try {
+      // Intentar obtener de caché
+      const cached = await cache.get<ExchangeRate>(this.USDT_CACHE_KEY);
+      if (cached?.rate) {
+        console.log('💰 Using cached ARS/USDT rate:', cached.rate);
+        return cached.rate;
+      }
+
+      // USDT es prácticamente 1:1 con USD, así que usamos la misma tasa
+      const usdToArsRate = await this.getUSDtoARSRate();
+
+      // Guardar en caché
+      await cache.set(this.USDT_CACHE_KEY, {
+        rate: usdToArsRate,
+        timestamp: new Date()
+      }, this.CACHE_TTL);
+
+      console.log(`✅ ARS/USDT rate: ${usdToArsRate} ARS per USDT`);
+      return usdToArsRate;
+    } catch (error) {
+      console.error('❌ Error getting ARS/USDT rate:', error);
+      // Fallback a una tasa predeterminada
+      console.warn('⚠️ Using fallback rate: 1430 ARS/USDT');
+      return 1430;
+    }
+  }
+
+  /**
+   * Convierte una cantidad en ARS a USDT
+   * @param amountARS Cantidad en pesos argentinos
+   * @returns Cantidad convertida en USDT
+   */
+  async convertARStoUSDT(amountARS: number): Promise<number> {
+    const rate = await this.getARStoUSDTRate();
+    return Math.round((amountARS / rate) * 100) / 100; // Redondear a 2 decimales
+  }
+
+  /**
+   * Convierte una cantidad en USDT a ARS
+   * @param amountUSDT Cantidad en USDT
+   * @returns Cantidad convertida en pesos argentinos
+   */
+  async convertUSDTtoARS(amountUSDT: number): Promise<number> {
+    const rate = await this.getARStoUSDTRate();
+    return Math.round(amountUSDT * rate * 100) / 100; // Redondear a 2 decimales
+  }
+
+  /**
    * Invalida el caché de tasas de cambio
    * Útil para forzar una actualización
    */
   async invalidateCache(): Promise<void> {
     await cache.del(this.CACHE_KEY);
+    await cache.del(this.USDT_CACHE_KEY);
   }
 
   /**

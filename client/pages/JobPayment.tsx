@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "@/hooks/useAuth";
-import { CreditCard, ArrowLeft, Loader2, Calendar, FileText } from "lucide-react";
+import { CreditCard, ArrowLeft, Loader2, Calendar, FileText, Upload, Eye } from "lucide-react";
+import PaymentMethodSelector, { PaymentMethod } from "@/components/payment/PaymentMethodSelector";
 
 export default function JobPayment() {
   const { id } = useParams<{ id: string }>();
@@ -12,6 +13,12 @@ export default function JobPayment() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Payment method selection
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('mercadopago');
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofPreview, setProofPreview] = useState<string | null>(null);
+  const [uploadingProof, setUploadingProof] = useState(false);
 
   // Calculate commission based on user tier
   const getCommissionRate = () => {
@@ -69,7 +76,8 @@ export default function JobPayment() {
 
   // Calculate costs - for free contracts, no commission or payment required
   const publicationCost = calculateCommission();
-  const totalAmount = isFreeContract ? 0 : publicationCost;
+  // Total amount includes job price + commission
+  const totalAmount = isFreeContract ? 0 : jobPrice + publicationCost;
 
   useEffect(() => {
     loadJob();
@@ -98,24 +106,66 @@ export default function JobPayment() {
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const validTypes = ['application/pdf', 'image/png', 'image/jpeg'];
+    if (!validTypes.includes(file.type)) {
+      setError('Solo se permiten archivos PDF, PNG o JPG');
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setError('El archivo no debe superar los 5MB');
+      return;
+    }
+
+    setProofFile(file);
+    setError(null);
+
+    // Create preview for images
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setProofPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setProofPreview(null);
+    }
+  };
+
   const handlePayment = async () => {
     try {
       setProcessing(true);
       setError(null);
 
-      // Create payment order for job publication
+      // Validate bank transfer has proof
+      if (paymentMethod === 'bank_transfer' && !isFreeContract && !proofFile) {
+        setError('Debes subir el comprobante de transferencia');
+        setProcessing(false);
+        return;
+      }
+
+      // Create payment order for job publication (JSON for non-file methods)
+      const createOrderPayload = {
+        jobId: id,
+        paymentType: 'job_publication',
+        paymentMethod: paymentMethod,
+        returnUrl: `${window.location.origin}/payment/success`,
+        cancelUrl: `${window.location.origin}/payment/cancel`,
+      };
+
       const response = await fetch("/api/payments/create-order", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        credentials: 'include', // Importante: envía las cookies automáticamente
-        body: JSON.stringify({
-          jobId: id,
-          paymentType: "job_publication",
-          returnUrl: `${window.location.origin}/payment/success`,
-          cancelUrl: `${window.location.origin}/payment/cancel`,
-        }),
+        credentials: 'include',
+        body: JSON.stringify(createOrderPayload),
       });
 
       const data = await response.json();
@@ -126,10 +176,7 @@ export default function JobPayment() {
 
       // Check if payment was not required (free contract)
       if (data.requiresPayment === false) {
-        // Refresh user data to update contract counts
         await refreshUser();
-
-        // Job was published successfully without payment
         navigate("/", {
           state: {
             message: "¡Trabajo publicado exitosamente! (Contrato gratuito)",
@@ -139,7 +186,34 @@ export default function JobPayment() {
         return;
       }
 
-      // Redirect to PayPal or MercadoPago for paid contracts
+      // Handle bank transfer - upload proof separately
+      if (paymentMethod === 'bank_transfer' && proofFile && data.paymentId) {
+        // Upload proof file
+        const proofFormData = new FormData();
+        proofFormData.append('paymentProof', proofFile);
+
+        const proofResponse = await fetch(`/api/payments/${data.paymentId}/upload-proof`, {
+          method: "POST",
+          credentials: 'include',
+          body: proofFormData,
+        });
+
+        const proofData = await proofResponse.json();
+
+        if (!proofResponse.ok) {
+          throw new Error(proofData.message || "Error al subir comprobante");
+        }
+
+        navigate("/", {
+          state: {
+            message: "Comprobante recibido. Tu pago será verificado en 24-48hs hábiles.",
+            type: "info"
+          }
+        });
+        return;
+      }
+
+      // Redirect to MercadoPago for paid contracts
       if (data.approvalUrl) {
         window.location.href = data.approvalUrl;
       } else {
@@ -394,6 +468,146 @@ export default function JobPayment() {
               )}
             </div>
           </div>
+
+          {/* Payment Method Selector - Only show if not free contract */}
+          {!isFreeContract && (
+            <div className="p-6 border-t border-gray-200 dark:border-gray-700">
+              <PaymentMethodSelector
+                selectedMethod={paymentMethod}
+                onMethodChange={setPaymentMethod}
+                amount={totalAmount}
+                currency="ARS"
+              />
+
+              {/* Bank Transfer Details */}
+              {paymentMethod === 'bank_transfer' && (
+                <div className="mt-6 space-y-4">
+                  {/* DOAPP Bank Account Info */}
+                  <div className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                      🏦 Datos para Transferencia
+                    </h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="grid grid-cols-3 gap-2">
+                        <span className="text-gray-600 dark:text-gray-400">Titular:</span>
+                        <span className="col-span-2 font-medium text-gray-900 dark:text-white">DOAPP S.R.L.</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <span className="text-gray-600 dark:text-gray-400">CUIT:</span>
+                        <span className="col-span-2 font-medium text-gray-900 dark:text-white">30-12345678-9</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <span className="text-gray-600 dark:text-gray-400">Banco:</span>
+                        <span className="col-span-2 font-medium text-gray-900 dark:text-white">Banco Galicia</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <span className="text-gray-600 dark:text-gray-400">CBU:</span>
+                        <div className="col-span-2">
+                          <span className="font-mono font-medium text-gray-900 dark:text-white">0070-0999-2000-0123-4567-8</span>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText('00700999200001234567');
+                              alert('CBU copiado al portapapeles');
+                            }}
+                            className="ml-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
+                          >
+                            Copiar
+                          </button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <span className="text-gray-600 dark:text-gray-400">Alias:</span>
+                        <span className="col-span-2 font-medium text-gray-900 dark:text-white">DOAPP.PAGOS</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
+                        <span className="text-gray-600 dark:text-gray-400">Monto:</span>
+                        <span className="col-span-2 font-bold text-lg text-gray-900 dark:text-white">
+                          ${totalAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })} ARS
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Upload Proof */}
+                  <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                    <h4 className="font-semibold text-yellow-900 dark:text-yellow-100 mb-3 flex items-center gap-2">
+                      <Upload className="w-5 h-5" />
+                      Subir Comprobante de Transferencia
+                    </h4>
+                    <p className="text-sm text-yellow-800 dark:text-yellow-200 mb-3">
+                      Una vez realizada la transferencia, sube el comprobante en formato PDF o imagen (PNG/JPG).
+                    </p>
+                    <div className="space-y-2 mb-4">
+                      <p className="text-xs text-yellow-700 dark:text-yellow-300 flex items-start gap-2">
+                        <span className="font-semibold">⏰</span>
+                        <span>Tienes <strong>24 horas</strong> para subir el comprobante.</span>
+                      </p>
+                      <p className="text-xs text-yellow-700 dark:text-yellow-300 flex items-start gap-2">
+                        <span className="font-semibold">📄</span>
+                        <span>También puedes subirlo desde la vista del trabajo.</span>
+                      </p>
+                      <p className="text-xs text-yellow-700 dark:text-yellow-300 flex items-start gap-2">
+                        <span className="font-semibold">✅</span>
+                        <span>El trabajo se publicará una vez que se apruebe el pago.</span>
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="block">
+                        <input
+                          type="file"
+                          accept=".pdf,.png,.jpg,.jpeg"
+                          onChange={handleFileChange}
+                          className="block w-full text-sm text-gray-900 dark:text-gray-100
+                            file:mr-4 file:py-2 file:px-4
+                            file:rounded-lg file:border-0
+                            file:text-sm file:font-semibold
+                            file:bg-yellow-600 file:text-white
+                            hover:file:bg-yellow-700
+                            file:cursor-pointer cursor-pointer"
+                        />
+                      </label>
+
+                      {proofFile && (
+                        <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <FileText className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                {proofFile.name}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                ({(proofFile.size / 1024).toFixed(1)} KB)
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setProofFile(null);
+                                setProofPreview(null);
+                              }}
+                              className="text-red-600 hover:text-red-700 text-sm"
+                            >
+                              Eliminar
+                            </button>
+                          </div>
+
+                          {proofPreview && (
+                            <div className="mt-3">
+                              <img
+                                src={proofPreview}
+                                alt="Vista previa"
+                                className="max-h-40 rounded border border-gray-300 dark:border-gray-600"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Error Message */}
           {error && (

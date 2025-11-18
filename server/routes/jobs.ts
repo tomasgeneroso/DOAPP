@@ -144,6 +144,40 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
   }
 });
 
+// @route   GET /api/jobs/my-jobs
+// @desc    Get all jobs posted by the authenticated user
+// @access  Private
+router.get("/my-jobs", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    console.log('🔍 /my-jobs called by user:', req.user?.id, req.user?.email);
+
+    const jobs = await Job.findAll({
+      where: { clientId: req.user.id },
+      order: [['createdAt', 'DESC']]
+    });
+
+    console.log(`✅ Found ${jobs.length} jobs for user ${req.user.email}`);
+
+    // Simple response without complex processing for now
+    const jobsSimple = jobs.map(job => ({
+      ...job.toJSON(),
+      proposalCount: 0,
+      payment: null
+    }));
+
+    res.json({
+      success: true,
+      jobs: jobsSimple,
+    });
+  } catch (error: any) {
+    console.error('❌ Error fetching my jobs:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
 // @route   GET /api/jobs/:id
 // @desc    Obtener trabajo por ID
 // @access  Public
@@ -663,3 +697,4 @@ router.patch("/:id/cancel", protect, async (req: AuthRequest, res: Response): Pr
 });
 
 export default router;
+ 

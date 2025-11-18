@@ -1,0 +1,190 @@
+import 'reflect-metadata';
+import {
+  Table,
+  Column,
+  Model,
+  DataType,
+  ForeignKey,
+  BelongsTo,
+  Default,
+  Index,
+} from 'sequelize-typescript';
+import { User } from './User.model.js';
+import { Payment } from './Payment.model.js';
+
+/**
+ * PaymentProof Model - PostgreSQL/Sequelize
+ *
+ * Modelo para comprobantes de pago (transferencias bancarias, efectivo, etc.)
+ * Permite a los usuarios subir evidencia de pagos realizados fuera de la plataforma
+ */
+
+export type PaymentProofFileType = 'pdf' | 'png' | 'jpeg' | 'jpg';
+export type PaymentProofStatus = 'pending' | 'approved' | 'rejected';
+
+@Table({
+  tableName: 'payment_proofs',
+  timestamps: true,
+  underscored: true,
+  indexes: [
+    { fields: ['payment_id'] },
+    { fields: ['user_id'] },
+    { fields: ['status'] },
+    { fields: ['is_active'] },
+    { fields: ['payment_id', 'is_active'], name: 'payment_active_proof_index' },
+  ],
+})
+export class PaymentProof extends Model {
+  @Column({
+    type: DataType.UUID,
+    defaultValue: DataType.UUIDV4,
+    primaryKey: true,
+  })
+  id!: string;
+
+  // ============================================
+  // RELATIONSHIPS
+  // ============================================
+
+  @ForeignKey(() => Payment)
+  @Index
+  @Column({
+    type: DataType.UUID,
+    allowNull: false,
+  })
+  paymentId!: string;
+
+  @BelongsTo(() => Payment, { onDelete: 'CASCADE' })
+  payment?: Payment;
+
+  @ForeignKey(() => User)
+  @Index
+  @Column({
+    type: DataType.UUID,
+    allowNull: false,
+  })
+  userId!: string;
+
+  @BelongsTo(() => User, 'userId')
+  user?: User;
+
+  @ForeignKey(() => User)
+  @Index
+  @Column({
+    type: DataType.UUID,
+    allowNull: true,
+  })
+  verifiedBy?: string;
+
+  @BelongsTo(() => User, 'verifiedBy')
+  verifier?: User;
+
+  // ============================================
+  // FILE INFORMATION
+  // ============================================
+
+  @Column({
+    type: DataType.STRING(500),
+    allowNull: false,
+  })
+  fileUrl!: string;
+
+  @Column({
+    type: DataType.ENUM('pdf', 'png', 'jpeg', 'jpg'),
+    allowNull: false,
+  })
+  fileType!: PaymentProofFileType;
+
+  @Column({
+    type: DataType.STRING(255),
+    allowNull: false,
+  })
+  fileName!: string;
+
+  @Column({
+    type: DataType.INTEGER,
+    allowNull: false,
+    comment: 'File size in bytes',
+  })
+  fileSize!: number;
+
+  // ============================================
+  // PAYMENT DETAILS (for manual transfers)
+  // ============================================
+
+  @Column({
+    type: DataType.STRING(255),
+    allowNull: true,
+    comment: 'Binance nickname for crypto transfers',
+  })
+  binanceNickname?: string;
+
+  @Column({
+    type: DataType.DECIMAL(20, 8),
+    allowNull: true,
+    comment: 'Amount transferred (e.g., USDT amount for Binance)',
+  })
+  transferAmount?: number;
+
+  @Column({
+    type: DataType.STRING(10),
+    allowNull: true,
+    comment: 'Currency of the transfer (e.g., USDT, ARS)',
+  })
+  transferCurrency?: string;
+
+  // ============================================
+  // STATUS AND VERIFICATION
+  // ============================================
+
+  @Default('pending')
+  @Column({
+    type: DataType.ENUM('pending', 'approved', 'rejected'),
+    allowNull: false,
+  })
+  status!: PaymentProofStatus;
+
+  @Column({
+    type: DataType.TEXT,
+    allowNull: true,
+  })
+  rejectionReason?: string;
+
+  @Column({
+    type: DataType.TEXT,
+    allowNull: true,
+    comment: 'Admin notes about the verification',
+  })
+  notes?: string;
+
+  // ============================================
+  // TIMESTAMPS
+  // ============================================
+
+  @Default(DataType.NOW)
+  @Column({
+    type: DataType.DATE,
+    allowNull: false,
+  })
+  uploadedAt!: Date;
+
+  @Column({
+    type: DataType.DATE,
+    allowNull: true,
+  })
+  verifiedAt?: Date;
+
+  // ============================================
+  // FLAGS
+  // ============================================
+
+  @Default(true)
+  @Column({
+    type: DataType.BOOLEAN,
+    allowNull: false,
+    comment: 'Only the latest proof for a payment should be active',
+  })
+  isActive!: boolean;
+}
+
+export default PaymentProof;

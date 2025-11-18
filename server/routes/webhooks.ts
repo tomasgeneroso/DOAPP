@@ -3,7 +3,7 @@ import { Payment } from "../models/sql/Payment.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
 import { Membership } from "../models/sql/Membership.model.js";
 import { User } from "../models/sql/User.model.js";
-import mercadopago from '../services/mercadopago.js';
+import mercadopagoService from '../services/mercadopago.js';
 import membershipService from '../services/membershipService.js';
 import { Op } from 'sequelize';
 
@@ -38,69 +38,115 @@ router.post('/mercadopago', async (req, res) => {
 async function handlePaymentWebhook(data: any) {
   try {
     const paymentId = data.id;
-    const payment = await mercadopago.getPayment(paymentId);
+    const mpPaymentData = await mercadopagoService.getPayment(paymentId, 'mercadopago');
 
-    const { status, status_detail, external_reference, metadata } = payment;
+    const { status, metadata } = mpPaymentData;
+    const external_reference = metadata?.external_reference;
+    const status_detail = status;
 
-    // Buscar el pago en nuestra base de datos
+    // Buscar el pago en nuestra base de datos por external_reference (job_id) o payment_id
     const dbPayment = await Payment.findOne({
-      [Op.or]: [
-        { mercadopagoPaymentId: paymentId },
-        { contractId: external_reference },
-      ],
+      where: {
+        [Op.or]: [
+          { mercadopagoPaymentId: paymentId },
+          { contractId: external_reference },
+        ],
+      },
     });
 
-    if (!dbPayment) {
+    // Si no se encuentra por contractId, buscar por metadata.job_id (para job publications)
+    let foundPayment = dbPayment;
+    if (!foundPayment && metadata?.job_id) {
+      const { Job } = await import('../models/sql/Job.model.js');
+      const job = await Job.findByPk(metadata.job_id);
+      if (job && job.publicationPaymentId) {
+        foundPayment = await Payment.findByPk(job.publicationPaymentId);
+      }
+    }
+
+    if (!foundPayment) {
       console.log('Payment not found in database:', paymentId);
       return;
     }
 
     // Actualizar estado del pago
-    dbPayment.mercadopagoPaymentId = paymentId;
-    dbPayment.mercadopagoStatus = status;
-    dbPayment.mercadopagoStatusDetail = status_detail;
+    foundPayment.mercadopagoPaymentId = paymentId;
+    foundPayment.mercadopagoStatus = status;
+    foundPayment.mercadopagoStatusDetail = status_detail;
 
-    if (status === 'approved') {
-      dbPayment.status = 'held_escrow'; // Pago aprobado, en escrow
-      dbPayment.paymentType = 'escrow_deposit';
+    if (status === 'succeeded' || status === 'approved') {
+      // Check if it's a job publication payment
+      if (metadata?.type === 'job_publication' || foundPayment.paymentType === 'job_publication') {
+        foundPayment.status = 'completed';
 
-      // Actualizar contrato
-      const contract = await Contract.findByPk(dbPayment.contractId);
-      if (contract) {
-        contract.paymentStatus = 'escrow';
-        contract.paymentDate = new Date();
-        contract.status = 'in_progress';
-        await contract.save();
+        // Find and publish the job
+        const { Job } = await import('../models/sql/Job.model.js');
+        const { Notification } = await import('../models/sql/Notification.model.js');
 
-        // Send escrow email notification
-        const emailService = (await import('../services/email.js')).default;
-        const Job = (await import('../models/Job.js')).default;
-        const job = await Job.findByPk(contract.job);
+        const job = await Job.findOne({ where: { publicationPaymentId: foundPayment.id } });
+        if (job) {
+          job.status = 'open';
+          job.publicationPaid = true;
+          job.publicationPaidAt = new Date();
+          await job.save();
 
-        await emailService.sendPaymentEscrowEmail(
-          contract.client.toString(),
-          contract.doer.toString(),
-          contract._id.toString(),
-          job?.title || 'Contrato',
-          dbPayment.amountARS || 0,
-          'ARS'
-        );
+          // Notify user
+          await Notification.create({
+            recipientId: foundPayment.payerId,
+            type: "success",
+            category: "payment",
+            title: "Trabajo publicado",
+            message: `Tu trabajo "${job.title}" ha sido publicado exitosamente.`,
+            relatedModel: "Job",
+            relatedId: job.id,
+            sentVia: ["in_app"],
+          });
+
+          console.log(`✅ Job published via webhook: ${job.id}`);
+        }
+      } else {
+        // Contract escrow payment
+        foundPayment.status = 'held_escrow';
+
+        const contract = await Contract.findByPk(foundPayment.contractId);
+        if (contract) {
+          contract.paymentStatus = 'escrow';
+          contract.paymentDate = new Date();
+          contract.status = 'in_progress';
+          await contract.save();
+
+          // Send escrow email notification
+          const emailService = (await import('../services/email.js')).default;
+          const { Job } = await import('../models/sql/Job.model.js');
+          const job = await Job.findByPk(contract.jobId);
+
+          if (job) {
+            await emailService.sendPaymentEscrowEmail(
+              contract.clientId.toString(),
+              contract.doerId.toString(),
+              contract.id.toString(),
+              job.title || 'Contrato',
+              foundPayment.amount || 0,
+              'ARS'
+            );
+          }
+        }
       }
     } else if (status === 'rejected' || status === 'cancelled') {
-      dbPayment.status = 'failed';
+      foundPayment.status = 'failed';
 
-      const contract = await Contract.findByPk(dbPayment.contractId);
+      const contract = await Contract.findByPk(foundPayment.contractId);
       if (contract) {
         contract.paymentStatus = 'pending';
         contract.status = 'cancelled';
         await contract.save();
       }
     } else if (status === 'refunded') {
-      dbPayment.status = 'refunded';
-      dbPayment.refundedAt = new Date();
+      foundPayment.status = 'refunded';
+      foundPayment.refundedAt = new Date();
     }
 
-    await dbPayment.save();
+    await foundPayment.save();
 
     // Si es un pago de membresía
     if (metadata?.type === 'membership') {

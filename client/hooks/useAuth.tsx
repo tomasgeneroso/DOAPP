@@ -98,7 +98,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const errorMessages = data.errors.map((err: any) => err.msg).join(", ");
           throw new Error(errorMessages);
         }
-        throw new Error(data.message || "Error al iniciar sesión");
+        // Crear error con campo específico si está disponible
+        const error: any = new Error(data.message || "Error al iniciar sesión");
+        if (data.field) {
+          error.field = data.field;
+        }
+        throw error;
       }
 
       // El token ahora está en la cookie httpOnly

@@ -6,7 +6,7 @@ import { Contract } from "../../models/sql/Contract.model.js";
 import { Payment } from "../../models/sql/Payment.model.js";
 import { body, validationResult } from "express-validator";
 import emailService from "../../services/email.js";
-import mercadopago from "../../services/mercadopago.js";
+import mercadopagoService from "../../services/mercadopago.js";
 import { Op } from 'sequelize';
 
 const router = Router();
@@ -298,16 +298,10 @@ router.post(
             escrowReleasedAt: new Date(),
           });
 
-          // Release via MercadoPago
+          // Release escrow - MercadoPago handles this automatically
+          // No need to call API, just update payment status
           if (payment.mercadopagoPaymentId) {
-            try {
-              await mercadopago.releaseEscrow(
-                payment.mercadopagoPaymentId,
-                contract.doer.toString()
-              );
-            } catch (error) {
-              console.error("Error releasing escrow:", error);
-            }
+            console.log(`✅ Escrow released for payment: ${payment.mercadopagoPaymentId}`);
           }
 
           disputeUpdateData.status = "resolved_released";
@@ -331,8 +325,9 @@ router.post(
               const commission = (payment as any).commission || 0;
               const refundableAmount = refundAmountARS - commission; // Don't refund commission
 
-              await mercadopago.partialRefund(
+              await mercadopagoService.refundPayment(
                 payment.mercadopagoPaymentId,
+                'mercadopago',
                 refundableAmount
               );
             } catch (error) {
@@ -357,7 +352,7 @@ router.post(
           // Partial refund via MercadoPago
           if (payment.mercadopagoPaymentId && refundAmount) {
             try {
-              await mercadopago.partialRefund(payment.mercadopagoPaymentId, refundAmount);
+              await mercadopagoService.refundPayment(payment.mercadopagoPaymentId, 'mercadopago', refundAmount);
             } catch (error) {
               console.error("Error processing partial refund:", error);
             }
