@@ -25,7 +25,7 @@ import { User } from './User.model.js';
  * - Sistema de ratings y reviews
  */
 
-export type JobStatus = 'draft' | 'pending_payment' | 'open' | 'in_progress' | 'completed' | 'cancelled';
+export type JobStatus = 'draft' | 'pending_payment' | 'pending_approval' | 'open' | 'in_progress' | 'completed' | 'cancelled';
 export type JobUrgency = 'low' | 'medium' | 'high';
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'expert';
 

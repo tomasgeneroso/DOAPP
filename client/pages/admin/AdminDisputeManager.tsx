@@ -8,16 +8,38 @@ type SortField = 'reason' | 'category' | 'priority' | 'status' | 'date' | 'initi
 type SortDirection = 'asc' | 'desc' | null;
 
 interface Dispute {
-  _id: string;
+  id: string;
+  _id?: string;
   reason: string;
   status: string;
   priority: string;
   category: string;
-  createdAt: Date;
+  createdAt: Date | string;
   initiatedBy: {
+    id?: string;
+    _id?: string;
     name: string;
+    email?: string;
   };
   against: {
+    id?: string;
+    _id?: string;
+    name: string;
+    email?: string;
+  };
+  contract?: {
+    id?: string;
+    _id?: string;
+    title?: string;
+    price?: number;
+  };
+  resolution?: string;
+  resolutionType?: string;
+  resolutionAmount?: number;
+  resolvedAt?: string;
+  resolvedBy?: {
+    id?: string;
+    _id?: string;
     name: string;
   };
 }
@@ -436,7 +458,7 @@ const AdminDisputeManager: React.FC = () => {
                 </thead>
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {getSortedDisputes().map((dispute) => (
-                    <tr key={dispute._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <tr key={dispute.id || dispute._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                       <td className="px-6 py-4 whitespace-nowrap">
                         {getPriorityIcon(dispute.priority)}
                       </td>
@@ -462,7 +484,7 @@ const AdminDisputeManager: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <button
-                          onClick={() => navigate(`/admin/disputes/${dispute._id}`)}
+                          onClick={() => navigate(`/admin/disputes/${dispute.id || dispute._id}`)}
                           className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
                         >
                           Ver Detalle

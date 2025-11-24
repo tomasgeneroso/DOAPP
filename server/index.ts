@@ -19,7 +19,6 @@ import {
   securityHeaders,
   apiLimiter,
 } from "./middleware/security.js";
-import { initSentry, sentryErrorHandler } from "./config/sentry.js";
 // TEMPORARILY DISABLED - DEBUGGING
 // import { startEscalateExpiredChangeRequestsJob } from "./jobs/escalateExpiredChangeRequests.js";
 import { startResetProMembershipCountersJob } from "./jobs/resetProMembershipCounters.js";
@@ -127,9 +126,6 @@ const __dirname = path.dirname(__filename);
 // Inicializar Express
 const app: Express = express();
 
-// Initialize Sentry (must be before other middleware)
-initSentry(app);
-
 // Conectar a PostgreSQL
 await initDatabase();
 
@@ -236,6 +232,7 @@ app.use("/api/admin/advertisements", adminAdvertisementsRoutes);
 app.use("/api/admin/contact", adminContactRoutes);
 app.use("/api/admin/blogs", adminBlogsRoutes);
 app.use("/api/admin/withdrawals", (await import('./routes/admin/withdrawals.js')).default);
+app.use("/api/admin/payments", (await import('./routes/admin/payments.js')).default);
 app.use("/api/admin/blog-articles", blogArticleRoutes);
 app.use("/api/admin/company-balance", companyBalanceRoutes);
 app.use("/api/admin/marketing", marketingRoutes);
@@ -260,9 +257,6 @@ app.get("/api/legal/terms-app", (req, res) => {
 app.get("/api/legal/terms-contract", (req, res) => {
   res.sendFile(path.join(__dirname, "../public/legal/terminos-condiciones-contrato.txt"));
 });
-
-// Sentry error handler (must be before other error handlers)
-app.use(sentryErrorHandler());
 
 // Error handler (debe ser el último middleware)
 app.use(errorHandler);

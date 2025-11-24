@@ -241,6 +241,7 @@ export default function Header() {
                     >
                       <UserIcon className="h-4 w-4" />
                       Mi Perfil
+                    </Link>
                     <Link
                       to="/my-jobs"
                       onClick={() => setIsMenuOpen(false)}
@@ -248,7 +249,6 @@ export default function Header() {
                     >
                       <Briefcase className="h-4 w-4" />
                       Mis Trabajos
-                    </Link>
                     </Link>
                     <Link
                       to="/messages"

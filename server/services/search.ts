@@ -1,6 +1,25 @@
 import { Job } from "../models/sql/Job.model.js";
-import cache from "./cache.js";
 import { Op } from 'sequelize';
+
+// Simple in-memory cache
+const memoryCache = new Map<string, { data: any; expiresAt: number }>();
+
+const cacheGet = async <T>(key: string): Promise<T | null> => {
+  const cached = memoryCache.get(key);
+  if (!cached) return null;
+  if (Date.now() > cached.expiresAt) {
+    memoryCache.delete(key);
+    return null;
+  }
+  return cached.data as T;
+};
+
+const cacheSet = async (key: string, data: any, ttl: number): Promise<void> => {
+  memoryCache.set(key, {
+    data,
+    expiresAt: Date.now() + (ttl * 1000)
+  });
+};
 
 // Normalize location string: remove punctuation and convert to lowercase
 const normalizeLocation = (location: string): string => {
@@ -64,7 +83,7 @@ class SearchService {
     const cacheKey = `search:jobs:${JSON.stringify(filters)}`;
 
     // Try to get from cache
-    const cached = await cache.get(cacheKey);
+    const cached = await cacheGet(cacheKey);
     if (cached) {
       return cached;
     }
@@ -178,7 +197,7 @@ class SearchService {
       };
 
       // Cache for 5 minutes
-      await cache.set(cacheKey, result, 300);
+      await cacheSet(cacheKey, result, 300);
       return result;
     }
 
@@ -220,7 +239,7 @@ class SearchService {
     };
 
     // Cache for 5 minutes
-    await cache.set(cacheKey, result, 300);
+    await cacheSet(cacheKey, result, 300);
     return result;
   }
 
@@ -231,7 +250,7 @@ class SearchService {
     const cacheKey = `search:tags:${limit}`;
 
     // Try cache first
-    const cached = await cache.get(cacheKey);
+    const cached = await cacheGet(cacheKey);
     if (cached) return cached;
 
     const result = await Job.aggregate([
@@ -244,7 +263,7 @@ class SearchService {
     ]);
 
     // Cache for 15 minutes
-    await cache.set(cacheKey, result, 900);
+    await cacheSet(cacheKey, result, 900);
     return result;
   }
 
@@ -255,7 +274,7 @@ class SearchService {
     const cacheKey = "search:categories";
 
     // Try cache first
-    const cached = await cache.get(cacheKey);
+    const cached = await cacheGet(cacheKey);
     if (cached) return cached;
 
     const result = await Job.aggregate([
@@ -266,7 +285,7 @@ class SearchService {
     ]);
 
     // Cache for 15 minutes
-    await cache.set(cacheKey, result, 900);
+    await cacheSet(cacheKey, result, 900);
     return result;
   }
 

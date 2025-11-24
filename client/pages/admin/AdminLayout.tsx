@@ -44,10 +44,10 @@ export default function AdminLayout() {
   const visibleItems = navItems.filter((item) => item.roles.includes(user.adminRole!));
 
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-slate-900">
+    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-900">
       {/* Sidebar */}
-      <aside className="w-64 bg-white dark:bg-slate-800 shadow-md border-r border-slate-200 dark:border-slate-700">
-        <div className="p-6">
+      <aside className="w-64 min-h-screen bg-white dark:bg-slate-800 shadow-md border-r border-slate-200 dark:border-slate-700 flex-shrink-0">
+        <div className="p-6 sticky top-0">
           <div className="flex items-center gap-2 mb-8">
             <Shield className="h-8 w-8 text-sky-600" />
             <h1 className="text-xl font-bold text-slate-900 dark:text-white">Panel Admin</h1>
@@ -96,8 +96,8 @@ export default function AdminLayout() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto">
-        <div className="p-8">
+      <main className="flex-1 overflow-auto bg-slate-50 dark:bg-slate-900 min-h-screen">
+        <div className="p-8 min-h-full">
           <Outlet />
         </div>
       </main>

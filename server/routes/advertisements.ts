@@ -6,7 +6,6 @@ import advertisementService from '../services/advertisementService.js';
 import { protect } from '../middleware/auth.js';
 import type { AuthRequest } from '../middleware/auth.js';
 import sanitizer from '../utils/sanitizer.js';
-import cache from '../services/cache.js';
 import { Op } from 'sequelize';
 
 const router = express.Router();
@@ -31,16 +30,16 @@ const createAdValidation = [
 
 /**
  * GET /api/advertisements/pricing
- * Get pricing information for advertisements
+ * Get pricing information for advertisements (in ARS)
  */
-router.get('/pricing', (req: Request, res: Response) => {
+router.get('/pricing', async (req: Request, res: Response) => {
   try {
-    const { adType, durationDays, priority } = req.query;
+    const { adType, durationMonths, priority } = req.query;
 
-    if (adType && durationDays) {
-      const price = advertisementService.calculatePrice(
+    if (adType && durationMonths) {
+      const price = await advertisementService.calculatePrice(
         adType as 'model1' | 'model2' | 'model3',
-        parseInt(durationDays as string),
+        parseInt(durationMonths as string),
         priority ? parseInt(priority as string) : 0
       );
 
@@ -48,26 +47,33 @@ router.get('/pricing', (req: Request, res: Response) => {
         success: true,
         data: {
           adType,
-          durationDays: parseInt(durationDays as string),
+          durationMonths: parseInt(durationMonths as string),
           priority: priority ? parseInt(priority as string) : 0,
           totalPrice: price,
+          currency: 'ARS',
         },
       });
     }
 
-    // Return base pricing
+    // Return base pricing in ARS
+    const pricingInfo = await advertisementService.getPricingInfo();
+
     res.json({
       success: true,
       data: {
         basePricing: {
-          model1: { pricePerDay: 50, description: 'Banner 3x1 (Premium)' },
-          model2: { pricePerDay: 35, description: 'Sidebar 1x2' },
-          model3: { pricePerDay: 20, description: 'Card 1x1' },
+          model1: { pricePerMonth: pricingInfo.model1, description: 'Banner 3x1 (Premium)' },
+          model2: { pricePerMonth: pricingInfo.model2, description: 'Sidebar 1x2' },
+          model3: { pricePerMonth: pricingInfo.model3, description: 'Card 1x1' },
         },
+        currency: pricingInfo.currency,
+        usdRate: pricingInfo.usdRate,
         priorityPricing: 'Each priority level adds 10% to the total price',
+        note: 'All prices are in Argentine Pesos (ARS) and updated daily based on the USD exchange rate.'
       },
     });
   } catch (error) {
+    console.error('Error getting pricing:', error);
     res.status(500).json({ success: false, message: 'Server error' });
   }
 });
@@ -103,21 +109,28 @@ router.post(
         targetLocations: req.body.targetLocations || [],
       };
 
-      // Calculate duration and price
+      // Calculate duration in months and price in ARS
       const durationDays = Math.ceil(
         (new Date(sanitizedData.endDate).getTime() -
           new Date(sanitizedData.startDate).getTime()) /
           (1000 * 60 * 60 * 24)
       );
 
-      const totalPrice = advertisementService.calculatePrice(
+      const durationMonths = Math.ceil(durationDays / 30); // Convert days to months
+
+      const totalPrice = await advertisementService.calculatePrice(
         sanitizedData.adType,
-        durationDays,
+        durationMonths,
         sanitizedData.priority
       );
 
-      const pricePerDay =
-        advertisementService.calculatePrice(sanitizedData.adType, 1, 0);
+      const pricePerMonth = await advertisementService.calculatePrice(
+        sanitizedData.adType,
+        1,
+        0
+      );
+
+      const pricePerDay = Math.round(pricePerMonth / 30);
 
       // Create advertisement
       const advertisement = await Advertisement.create({
@@ -310,8 +323,6 @@ router.put(
 
       await advertisement.save();
 
-      // Invalidate cache
-      await cache.delPattern('ads:*');
 
       res.json({
         success: true,
@@ -358,8 +369,6 @@ router.post(
       advertisement.status = 'paused';
       await advertisement.save();
 
-      // Invalidate cache
-      await cache.delPattern('ads:*');
 
       res.json({
         success: true,
@@ -406,8 +415,6 @@ router.post(
       advertisement.status = 'active';
       await advertisement.save();
 
-      // Invalidate cache
-      await cache.delPattern('ads:*');
 
       res.json({
         success: true,
@@ -550,8 +557,6 @@ router.delete(
 
       await advertisement.destroy();
 
-      // Invalidate cache
-      await cache.delPattern('ads:*');
 
       res.json({
         success: true,

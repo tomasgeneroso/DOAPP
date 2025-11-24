@@ -19,7 +19,7 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
     const userId = req.user.id;
 
     const user = await User.findByPk(userId, {
-      attributes: ['balance']
+      attributes: ['balanceArs']
     });
 
     if (!user) {
@@ -29,7 +29,7 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
 
     res.status(200).json({
       success: true,
-      balance: user.balance || 0
+      balance: user.balanceArs || 0
     });
   } catch (error: any) {
     console.error("Error fetching balance:", error);

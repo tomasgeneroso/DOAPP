@@ -6,6 +6,9 @@ const IV_LENGTH = 16;
 const AUTH_TAG_LENGTH = 16;
 const SALT_LENGTH = 64;
 
+// Prefijo para identificar datos encriptados
+const ENCRYPTED_PREFIX = 'ENC:';
+
 /**
  * Obtiene la clave de encriptación desde las variables de entorno
  * Si no existe, genera una clave segura (solo para desarrollo)
@@ -21,6 +24,30 @@ function getEncryptionKey(): Buffer {
 
   // Deriva una clave de 32 bytes desde la clave de entorno
   return crypto.scryptSync(key, 'doapp-salt', 32);
+}
+
+/**
+ * Verifica si un string ya está encriptado
+ * @param text - El texto a verificar
+ * @returns true si ya está encriptado
+ */
+export function isEncrypted(text: string): boolean {
+  if (!text) return false;
+
+  // Verificar si tiene el prefijo de encriptación
+  if (text.startsWith(ENCRYPTED_PREFIX)) return true;
+
+  // También verificar el formato antiguo (iv:authTag:data)
+  const parts = text.split(':');
+  if (parts.length === 3) {
+    const [iv, authTag, data] = parts;
+    // Verificar que iv y authTag tengan la longitud correcta en hex
+    if (iv.length === IV_LENGTH * 2 && authTag.length === AUTH_TAG_LENGTH * 2) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
@@ -144,3 +171,182 @@ export function maskCBU(cbu: string): string {
 
   return '*'.repeat(18) + cbu.slice(-4);
 }
+
+/**
+ * Encripta un número de teléfono
+ * @param phone - El teléfono a encriptar
+ * @returns El teléfono encriptado
+ */
+export function encryptPhone(phone: string): string {
+  if (!phone) return phone;
+
+  // Si ya está encriptado, no volver a encriptar
+  if (isEncrypted(phone)) {
+    return phone;
+  }
+
+  // Limpiar el teléfono (solo números y +)
+  const cleanPhone = phone.replace(/[^0-9+]/g, '');
+
+  if (!cleanPhone) {
+    throw new Error('Invalid phone number');
+  }
+
+  return encrypt(cleanPhone);
+}
+
+/**
+ * Desencripta un número de teléfono
+ * @param encryptedPhone - El teléfono encriptado
+ * @returns El teléfono desencriptado
+ */
+export function decryptPhone(encryptedPhone: string): string {
+  if (!encryptedPhone) return encryptedPhone;
+
+  // Si no está encriptado, devolver tal cual
+  if (!isEncrypted(encryptedPhone)) {
+    return encryptedPhone;
+  }
+
+  return decrypt(encryptedPhone);
+}
+
+/**
+ * Máscara para mostrar teléfono de forma segura
+ * @param phone - El teléfono a enmascarar
+ * @returns Teléfono enmascarado (ej: ******1234)
+ */
+export function maskPhone(phone: string): string {
+  if (!phone || phone.length < 4) {
+    return '**********';
+  }
+
+  return '*'.repeat(Math.max(phone.length - 4, 0)) + phone.slice(-4);
+}
+
+/**
+ * Encripta un ID de Binance
+ * @param binanceId - El Binance ID a encriptar
+ * @returns El Binance ID encriptado
+ */
+export function encryptBinanceId(binanceId: string): string {
+  if (!binanceId) return binanceId;
+
+  // Si ya está encriptado, no volver a encriptar
+  if (isEncrypted(binanceId)) {
+    return binanceId;
+  }
+
+  return encrypt(binanceId);
+}
+
+/**
+ * Desencripta un ID de Binance
+ * @param encryptedBinanceId - El Binance ID encriptado
+ * @returns El Binance ID desencriptado
+ */
+export function decryptBinanceId(encryptedBinanceId: string): string {
+  if (!encryptedBinanceId) return encryptedBinanceId;
+
+  // Si no está encriptado, devolver tal cual
+  if (!isEncrypted(encryptedBinanceId)) {
+    return encryptedBinanceId;
+  }
+
+  return decrypt(encryptedBinanceId);
+}
+
+/**
+ * Máscara para mostrar Binance ID de forma segura
+ * @param binanceId - El Binance ID a enmascarar
+ * @returns Binance ID enmascarado (ej: ****1234)
+ */
+export function maskBinanceId(binanceId: string): string {
+  if (!binanceId || binanceId.length < 4) {
+    return '********';
+  }
+
+  return '*'.repeat(Math.max(binanceId.length - 4, 0)) + binanceId.slice(-4);
+}
+
+/**
+ * Encripta datos sensibles genéricos
+ * @param data - El dato a encriptar
+ * @returns El dato encriptado
+ */
+export function encryptSensitive(data: string): string {
+  if (!data) return data;
+
+  // Si ya está encriptado, no volver a encriptar
+  if (isEncrypted(data)) {
+    return data;
+  }
+
+  return encrypt(data);
+}
+
+/**
+ * Desencripta datos sensibles genéricos
+ * @param encryptedData - El dato encriptado
+ * @returns El dato desencriptado
+ */
+export function decryptSensitive(encryptedData: string): string {
+  if (!encryptedData) return encryptedData;
+
+  // Si no está encriptado, devolver tal cual
+  if (!isEncrypted(encryptedData)) {
+    return encryptedData;
+  }
+
+  return decrypt(encryptedData);
+}
+
+/**
+ * Encripta campos sensibles de un objeto
+ * @param obj - El objeto con datos
+ * @param fields - Los campos a encriptar
+ * @returns El objeto con campos encriptados
+ */
+export function encryptFields<T extends Record<string, any>>(obj: T, fields: string[]): T {
+  const result = { ...obj };
+
+  for (const field of fields) {
+    if (result[field] && typeof result[field] === 'string' && !isEncrypted(result[field])) {
+      (result as any)[field] = encrypt(result[field]);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Desencripta campos sensibles de un objeto
+ * @param obj - El objeto con datos encriptados
+ * @param fields - Los campos a desencriptar
+ * @returns El objeto con campos desencriptados
+ */
+export function decryptFields<T extends Record<string, any>>(obj: T, fields: string[]): T {
+  const result = { ...obj };
+
+  for (const field of fields) {
+    if (result[field] && typeof result[field] === 'string' && isEncrypted(result[field])) {
+      try {
+        (result as any)[field] = decrypt(result[field]);
+      } catch (error) {
+        console.error(`Error decrypting field ${field}:`, error);
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Campos sensibles por modelo
+ */
+export const SENSITIVE_FIELDS = {
+  User: ['phone', 'dni'],
+  PaymentProof: ['binanceTransactionId', 'binanceNickname'],
+  WithdrawalRequest: ['cbu', 'bankAlias'],
+  BankingInfo: ['cbu', 'accountNumber'],
+};

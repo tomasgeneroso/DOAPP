@@ -1,6 +1,4 @@
 import { Dispute } from "../models/sql/Dispute.model.js";
-import cache from './cache.js';
-import { addBreadcrumb, captureException } from '../config/sentry.js';
 import { Op } from 'sequelize';
 
 interface DisputeMetrics {
@@ -39,19 +37,15 @@ export async function getDisputeMetrics(
   endDate?: Date
 ): Promise<DisputeMetrics> {
   try {
-    const cacheKey = `dispute_metrics:${startDate?.toISOString() || 'all'}:${endDate?.toISOString() || 'all'}`;
-    const cached = await cache.get<DisputeMetrics>(cacheKey);
-    if (cached) return cached;
-
     const query: any = {};
     if (startDate || endDate) {
       query.createdAt = {};
-      if (startDate) query.createdAt.$gte = startDate;
-      if (endDate) query.createdAt.$lte = endDate;
+      if (startDate) query.createdAt[Op.gte] = startDate;
+      if (endDate) query.createdAt[Op.lte] = endDate;
     }
 
     // Get all disputes
-    const disputes = await Dispute.find(query);
+    const disputes = await Dispute.findAll({ where: query });
 
     // Calculate metrics
     const totalDisputes = disputes.length;
@@ -117,17 +111,9 @@ export async function getDisputeMetrics(
       trendData,
     };
 
-    // Cache for 30 minutes
-    await cache.set(cacheKey, metrics, 1800);
-
-    addBreadcrumb('Dispute metrics calculated', 'analytics', 'info', {
-      totalDisputes,
-      resolvedDisputes,
-    });
-
     return metrics;
   } catch (error) {
-    captureException(error as Error, { function: 'getDisputeMetrics' });
+    console.error('Error calculating dispute metrics:', error);
     throw error;
   }
 }
@@ -137,13 +123,11 @@ export async function getDisputeMetrics(
  */
 export async function getDisputePerformance(): Promise<DisputePerformance> {
   try {
-    const cacheKey = 'dispute_performance';
-    const cached = await cache.get<DisputePerformance>(cacheKey);
-    if (cached) return cached;
-
-    const disputes = await Dispute.find({
-      status: { [Op.in]: ['resolved_released', 'resolved_refunded', 'resolved_partial'] },
-      resolvedAt: { $exists: true },
+    const disputes = await Dispute.findAll({
+      where: {
+        status: { [Op.in]: ['resolved_released', 'resolved_refunded', 'resolved_partial'] },
+        resolvedAt: { [Op.not]: null },
+      },
     });
 
     // Calculate resolution times
@@ -194,12 +178,9 @@ export async function getDisputePerformance(): Promise<DisputePerformance> {
       topCategories,
     };
 
-    // Cache for 1 hour
-    await cache.set(cacheKey, performance, 3600);
-
     return performance;
   } catch (error) {
-    captureException(error as Error, { function: 'getDisputePerformance' });
+    console.error('Error calculating dispute performance:', error);
     throw error;
   }
 }
@@ -213,19 +194,8 @@ export async function trackDisputeEvent(
   metadata?: Record<string, any>
 ): Promise<void> {
   try {
-    addBreadcrumb(`Dispute ${event}`, 'dispute', 'info', {
-      disputeId,
-      ...metadata,
-    });
-
-    // Increment counter in cache
-    const dateKey = new Date().toISOString().split('T')[0];
-    const counterKey = `dispute_events:${event}:${dateKey}`;
-    await cache.increment(counterKey);
-
-    // Set expiration for 90 days
-    const TTL_90_DAYS = 90 * 24 * 60 * 60;
-    // Note: Would need to implement TTL in cache.increment or set separately
+    // Log dispute event for analytics
+    console.log(`Dispute ${event}:`, { disputeId, ...metadata });
   } catch (error) {
     console.error('Error tracking dispute event:', error);
     // Don't throw - tracking errors shouldn't break the flow
@@ -305,7 +275,7 @@ export async function getDisputeHealthScore(): Promise<number> {
 
     return Math.min(100, Math.max(0, healthScore));
   } catch (error) {
-    captureException(error as Error, { function: 'getDisputeHealthScore' });
+    console.error('Error calculating dispute health score:', error);
     return 0;
   }
 }

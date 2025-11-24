@@ -6,6 +6,7 @@ import { viteStaticCopy } from 'vite-plugin-static-copy';
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  envPrefix: ['VITE_', 'FACEBOOK_', 'GOOGLE_'],
   server: {
     host: "::",
     port: 5173,

@@ -1,6 +1,7 @@
 import express, { Request, Response } from "express";
 import { Contract } from "../../models/sql/Contract.model.js";
 import { User } from "../../models/sql/User.model.js";
+import { Job } from "../../models/sql/Job.model.js";
 import { protect } from "../../middleware/auth.js";
 import { requirePermission, requireRole } from "../../middleware/permissions.js";
 import { verifyOwnerPassword } from "../../middleware/ownerVerification.js";
@@ -52,8 +53,9 @@ router.get(
         Contract.findAll({
           where,
           include: [
-            { model: User, as: "clientUser", attributes: ["name", "email"] },
-            { model: User, as: "doerUser", attributes: ["name", "email"] },
+            { model: User, as: "client", attributes: ["id", "name", "email"] },
+            { model: User, as: "doer", attributes: ["id", "name", "email"] },
+            { model: Job, as: "job", attributes: ["id", "title"] },
           ],
           order,
           offset,

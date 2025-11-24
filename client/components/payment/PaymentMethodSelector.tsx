@@ -2,6 +2,11 @@ import { useState, useEffect } from 'react';
 
 export type PaymentMethod = 'mercadopago' | 'binance' | 'bank_transfer';
 
+export interface BinancePaymentData {
+  transactionId: string;
+  senderUserId: string;
+}
+
 interface PaymentMethodOption {
   id: PaymentMethod;
   name: string;
@@ -16,6 +21,7 @@ interface PaymentMethodSelectorProps {
   onMethodChange: (method: PaymentMethod) => void;
   amount: number;
   currency?: string;
+  onBinanceDataChange?: (data: BinancePaymentData) => void;
 }
 
 const PAYMENT_METHODS: PaymentMethodOption[] = [
@@ -49,11 +55,26 @@ export default function PaymentMethodSelector({
   onMethodChange,
   amount,
   currency = 'ARS',
+  onBinanceDataChange,
 }: PaymentMethodSelectorProps) {
   const [usdtAmount, setUsdtAmount] = useState<number | null>(null);
   const [usdtRate, setUsdtRate] = useState<number | null>(null);
   const [binanceInfo, setBinanceInfo] = useState<{ binanceId: string | null; binanceNickname: string | null }>({ binanceId: null, binanceNickname: null });
   const [loadingConversion, setLoadingConversion] = useState(false);
+
+  // Binance payment data
+  const [binanceTransactionId, setBinanceTransactionId] = useState('');
+  const [binanceSenderUserId, setBinanceSenderUserId] = useState('');
+
+  // Update parent component when Binance data changes
+  useEffect(() => {
+    if (selectedMethod === 'binance' && onBinanceDataChange) {
+      onBinanceDataChange({
+        transactionId: binanceTransactionId,
+        senderUserId: binanceSenderUserId,
+      });
+    }
+  }, [binanceTransactionId, binanceSenderUserId, selectedMethod, onBinanceDataChange]);
 
   // Fetch USDT conversion when Binance is selected
   useEffect(() => {
@@ -206,9 +227,12 @@ export default function PaymentMethodSelector({
                       </code>
                       <button
                         onClick={() => navigator.clipboard.writeText(binanceInfo.binanceId || '')}
-                        className="px-2 py-1 bg-yellow-600 hover:bg-yellow-700 text-white rounded text-xs"
+                        className="p-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded transition-colors"
+                        title="Copiar Binance ID"
                       >
-                        Copiar
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
                       </button>
                     </div>
                   </div>
@@ -216,9 +240,20 @@ export default function PaymentMethodSelector({
                 {binanceInfo.binanceNickname && (
                   <div className="mb-2">
                     <p className="text-xs text-yellow-800 dark:text-yellow-200 mb-1">Nickname:</p>
-                    <code className="block px-2 py-1 bg-yellow-100 dark:bg-yellow-900 text-yellow-900 dark:text-yellow-100 rounded text-sm font-mono">
-                      @{binanceInfo.binanceNickname}
-                    </code>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 px-2 py-1 bg-yellow-100 dark:bg-yellow-900 text-yellow-900 dark:text-yellow-100 rounded text-sm font-mono">
+                        @{binanceInfo.binanceNickname}
+                      </code>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(binanceInfo.binanceNickname || '')}
+                        className="p-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded transition-colors"
+                        title="Copiar Nickname"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 )}
                 <div className="mt-2">
@@ -230,15 +265,54 @@ export default function PaymentMethodSelector({
               </div>
 
               {/* Additional info */}
-              <div className="text-xs text-yellow-800 dark:text-yellow-200 space-y-1 bg-white dark:bg-yellow-950 rounded-lg p-3">
+              <div className="text-xs text-yellow-800 dark:text-yellow-200 space-y-1 bg-white dark:bg-yellow-950 rounded-lg p-3 mb-3">
                 <p className="font-semibold mb-2">ℹ️ Información importante:</p>
                 <ul className="space-y-1 list-disc list-inside">
                   <li>Envía el monto exacto en USDT (o su equivalente en pesos argentinos)</li>
                   <li>Criptomonedas aceptadas: USDT, BTC, ETH, BNB, BUSD</li>
                   <li>Red recomendada: BSC (BEP20) para menores comisiones</li>
-                  <li>Después de transferir, deberás subir el comprobante</li>
+                  <li>Después de transferir, completa los campos abajo con los datos de la transacción</li>
                   <li>El pago será verificado en 5-15 minutos</li>
                 </ul>
+              </div>
+
+              {/* Transaction Details Input */}
+              <div className="bg-white dark:bg-yellow-950 rounded-lg p-3 space-y-3">
+                <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-100 mb-2">
+                  📝 Datos de tu transferencia:
+                </p>
+
+                <div>
+                  <label className="block text-xs font-medium text-yellow-800 dark:text-yellow-200 mb-1">
+                    Tu Binance ID / Nickname <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={binanceSenderUserId}
+                    onChange={(e) => setBinanceSenderUserId(e.target.value)}
+                    placeholder="Ej: 123456789 o @tunombre"
+                    className="w-full px-3 py-2 bg-yellow-50 dark:bg-yellow-900/40 border border-yellow-300 dark:border-yellow-700 rounded-lg text-yellow-900 dark:text-yellow-100 placeholder-yellow-600 dark:placeholder-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm"
+                  />
+                  <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
+                    Tu ID o nickname de Binance desde donde enviaste los fondos
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-yellow-800 dark:text-yellow-200 mb-1">
+                    Transaction ID / Hash <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={binanceTransactionId}
+                    onChange={(e) => setBinanceTransactionId(e.target.value)}
+                    placeholder="Ej: 0x1234abcd... o TxID de Binance"
+                    className="w-full px-3 py-2 bg-yellow-50 dark:bg-yellow-900/40 border border-yellow-300 dark:border-yellow-700 rounded-lg text-yellow-900 dark:text-yellow-100 placeholder-yellow-600 dark:placeholder-yellow-400 focus:outline-none focus:ring-2 focus:ring-yellow-500 text-sm font-mono"
+                  />
+                  <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
+                    El ID o hash de la transacción de blockchain (puedes encontrarlo en tu historial de Binance)
+                  </p>
+                </div>
               </div>
             </>
           )}

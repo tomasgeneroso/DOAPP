@@ -380,8 +380,8 @@ router.post(
       await dispute.update(disputeUpdateData);
 
       // Send email notifications
-      const Job = (await import("../../models/Job.js")).default;
-      const job = await Job.findByPk(contract.job);
+      const { Job } = await import("../../models/sql/Job.model.js");
+      const job = await Job.findByPk(contract.jobId);
 
       await emailService.sendDisputeResolvedEmail(
         dispute.id.toString(),
@@ -676,8 +676,8 @@ router.post(
       });
 
       // Send notification emails
-      const Job = (await import("../../models/Job.js")).default;
-      const job = await Job.findByPk(contract.job);
+      const { Job } = await import("../../models/sql/Job.model.js");
+      const job = await Job.findByPk(contract.jobId);
 
       await emailService.sendDisputeCreatedEmail(
         dispute.id.toString(),

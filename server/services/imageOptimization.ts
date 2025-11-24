@@ -1,16 +1,113 @@
 import sharp from "sharp";
 import path from "path";
 import fs from "fs/promises";
+import fsSync from "fs";
 
 /**
  * Image Optimization Service
  * Uses Sharp library for image processing
+ * Provides automatic compression and format optimization
  */
 class ImageOptimizationService {
   private readonly maxWidth = 1920;
   private readonly maxHeight = 1080;
   private readonly quality = 85;
   private readonly thumbnailSize = 300;
+  private readonly avatarSize = 400;
+
+  // Size limits for different types
+  private readonly MAX_AVATAR_SIZE = 200 * 1024; // 200KB after optimization
+  private readonly MAX_PORTFOLIO_SIZE = 500 * 1024; // 500KB after optimization
+  private readonly MAX_DOCUMENT_SIZE = 2 * 1024 * 1024; // 2MB
+
+  /**
+   * Get total storage used by uploads
+   */
+  async getStorageStats(): Promise<{
+    totalSize: number;
+    fileCount: number;
+    byDirectory: Record<string, { size: number; count: number }>;
+  }> {
+    const uploadDir = path.join(process.cwd(), 'uploads');
+    const stats: Record<string, { size: number; count: number }> = {};
+    let totalSize = 0;
+    let fileCount = 0;
+
+    try {
+      const directories = await fs.readdir(uploadDir);
+
+      for (const dir of directories) {
+        const dirPath = path.join(uploadDir, dir);
+        const stat = await fs.stat(dirPath);
+
+        if (stat.isDirectory()) {
+          const files = await fs.readdir(dirPath);
+          let dirSize = 0;
+
+          for (const file of files) {
+            const filePath = path.join(dirPath, file);
+            const fileStat = await fs.stat(filePath);
+            if (fileStat.isFile()) {
+              dirSize += fileStat.size;
+              fileCount++;
+            }
+          }
+
+          stats[dir] = { size: dirSize, count: files.length };
+          totalSize += dirSize;
+        }
+      }
+
+      return { totalSize, fileCount, byDirectory: stats };
+    } catch (error) {
+      console.error('Error getting storage stats:', error);
+      return { totalSize: 0, fileCount: 0, byDirectory: {} };
+    }
+  }
+
+  /**
+   * Format bytes to human readable
+   */
+  formatBytes(bytes: number): string {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+  /**
+   * Clean up temporary and orphaned files
+   */
+  async cleanupOrphanedFiles(maxAgeDays: number = 7): Promise<{ deleted: number; freedSpace: number }> {
+    const uploadDir = path.join(process.cwd(), 'uploads');
+    const tempDir = path.join(uploadDir, 'temp');
+    let deleted = 0;
+    let freedSpace = 0;
+    const maxAge = maxAgeDays * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+
+    try {
+      // Clean temp directory
+      if (fsSync.existsSync(tempDir)) {
+        const files = await fs.readdir(tempDir);
+        for (const file of files) {
+          const filePath = path.join(tempDir, file);
+          const stat = await fs.stat(filePath);
+          if (now - stat.mtimeMs > maxAge) {
+            freedSpace += stat.size;
+            await fs.unlink(filePath);
+            deleted++;
+          }
+        }
+      }
+
+      return { deleted, freedSpace };
+    } catch (error) {
+      console.error('Error cleaning up orphaned files:', error);
+      return { deleted: 0, freedSpace: 0 };
+    }
+  }
 
   /**
    * Optimize an image file

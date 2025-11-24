@@ -53,13 +53,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser({ ...data.user });
           setToken(data.token || 'cookie'); // Indicador de que usamos cookies
 
-          // Mostrar modal de notificaciones si es necesario
+          // Mostrar modal de notificaciones si es necesario (después de 30 segundos)
           setTimeout(() => {
             if (shouldShowNotificationModal()) {
               setShowNotificationModal(true);
               setIsRetryPrompt(false);
             }
-          }, 2000); // Delay para que el usuario vea la UI primero
+          }, 30000); // 30 segundos de delay para que el usuario explore la app primero
         } else {
           console.warn('⚠️ No valid session cookie found');
           localStorage.removeItem("token");
@@ -113,13 +113,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser({ ...data.user });
       console.log('✅ Login exitoso, usuario:', data.user.name);
 
-      // Mostrar modal de notificaciones si es necesario
+      // Mostrar modal de notificaciones si es necesario (después de 30 segundos)
       setTimeout(() => {
         if (shouldShowNotificationModal()) {
           setShowNotificationModal(true);
           setIsRetryPrompt(false);
         }
-      }, 1000); // Pequeño delay para que el usuario vea la UI primero
+      }, 30000); // 30 segundos de delay para que el usuario explore la app primero
     } catch (error) {
       console.error("Login error:", error);
       throw error;

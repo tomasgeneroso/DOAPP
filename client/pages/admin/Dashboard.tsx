@@ -158,59 +158,80 @@ export default function AdminDashboard() {
             </div>
           </div>
 
-          {/* Revenue Breakdown */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Comisiones */}
+          {/* Revenue Breakdown - Full Width */}
+          <div className="grid grid-cols-1 gap-6">
+            {/* Comisiones de Contratos */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Comisiones de Contratos</h3>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Total ARS</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-white">
-                    ${companyBalance.revenue?.commissions?.totalARS?.toLocaleString('es-AR') || '0'}
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-green-600" />
+                Comisiones de Contratos
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total ARS</p>
+                  <p className="text-2xl font-bold text-green-700 dark:text-green-400">
+                    ${Number(companyBalance.revenue?.commissions?.totalARS || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Total USD</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-white">
-                    ${companyBalance.revenue?.commissions?.totalUSD?.toLocaleString('en-US') || '0'}
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Este Mes (ARS)</p>
+                  <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">
+                    ${Number(companyBalance.revenue?.commissions?.monthlyARS || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Membresías */}
+            {/* Ingresos por Membresías */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Ingresos por Membresías</h3>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Total ARS</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-white">
-                    ${companyBalance.revenue?.memberships?.totalARS?.toLocaleString('es-AR') || '0'}
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <CreditCard className="h-5 w-5 text-purple-600" />
+                Ingresos por Membresías
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total ARS</p>
+                  <p className="text-2xl font-bold text-purple-700 dark:text-purple-400">
+                    ${Number(companyBalance.revenue?.memberships?.totalARS || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Total USD</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-white">
-                    ${companyBalance.revenue?.memberships?.totalUSD?.toLocaleString('en-US') || '0'}
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total USD</p>
+                  <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">
+                    ${Number(companyBalance.revenue?.memberships?.totalUSD || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div className="bg-sky-50 dark:bg-sky-900/20 rounded-lg p-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Este Mes (ARS)</p>
+                  <p className="text-2xl font-bold text-sky-700 dark:text-sky-400">
+                    ${Number(companyBalance.revenue?.memberships?.monthlyARS || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Publicidad */}
+            {/* Ingresos por Publicidad */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Ingresos por Publicidad</h3>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Total ARS</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-white">
-                    ${companyBalance.revenue?.advertisements?.totalARS?.toLocaleString('es-AR') || '0'}
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-orange-600" />
+                Ingresos por Publicidad
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total ARS</p>
+                  <p className="text-2xl font-bold text-orange-700 dark:text-orange-400">
+                    ${Number(companyBalance.revenue?.advertisements?.totalARS || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Promotores Activos</p>
-                  <p className="text-xl font-bold text-gray-900 dark:text-white">
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total USD</p>
+                  <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">
+                    ${Number(companyBalance.revenue?.advertisements?.totalUSD || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Promotores Activos</p>
+                  <p className="text-2xl font-bold text-amber-700 dark:text-amber-400">
                     {companyBalance.revenue?.advertisements?.activePromotersCount || 0}
                   </p>
                 </div>
@@ -322,6 +343,13 @@ export default function AdminDashboard() {
               >
                 <h3 className="font-semibold text-gray-900 dark:text-white">Gestionar Retiros</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Aprobar y procesar retiros</p>
+              </Link>
+              <Link
+                to="/admin/pending-payments"
+                className="p-4 border-2 border-gray-200 dark:border-gray-700 rounded-lg hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition"
+              >
+                <h3 className="font-semibold text-gray-900 dark:text-white">Pagos Pendientes</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Verificar y aprobar comprobantes de pago</p>
               </Link>
               <Link
                 to="/admin/financial-transactions"

@@ -114,7 +114,7 @@ router.post(
           averageCPM: 0,
           averageCPC: 0,
         },
-        createdBy: req.user._id,
+        createdBy: req.user.id,
       });
 
       await promoter.reload({

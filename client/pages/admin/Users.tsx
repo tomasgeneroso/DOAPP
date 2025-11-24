@@ -115,7 +115,7 @@ export default function AdminUsers() {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {users.map((user) => (
-              <tr key={user._id} className="hover:bg-gray-50">
+              <tr key={user.id || user._id} className="hover:bg-gray-50">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
                     <div className="h-10 w-10 flex-shrink-0">
@@ -174,7 +174,7 @@ export default function AdminUsers() {
                   <div className="flex gap-2">
                     {user.isBanned ? (
                       <button
-                        onClick={() => handleUnban(user._id)}
+                        onClick={() => handleUnban(user.id || user._id!)}
                         className="text-green-600 hover:text-green-900"
                         title="Desbanear"
                       >
@@ -182,7 +182,7 @@ export default function AdminUsers() {
                       </button>
                     ) : (
                       <button
-                        onClick={() => handleBan(user._id, user.name)}
+                        onClick={() => handleBan(user.id || user._id!, user.name)}
                         className="text-red-600 hover:text-red-900"
                         title="Banear"
                       >

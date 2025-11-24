@@ -1,85 +1,47 @@
 import { Request, Response, NextFunction } from "express";
-import { RateLimiterRedis, RateLimiterMemory } from "rate-limiter-flexible";
-import cache from "../services/cache.js";
+import { RateLimiterMemory } from "rate-limiter-flexible";
 
 /**
- * Advanced Rate Limiting with Redis
+ * Advanced Rate Limiting with Memory
  * Provides per-user, per-endpoint rate limiting
  */
 
 // Rate limiter instances
-let authLimiter: RateLimiterRedis | RateLimiterMemory;
-let apiLimiter: RateLimiterRedis | RateLimiterMemory;
-let strictLimiter: RateLimiterRedis | RateLimiterMemory;
-let perUserLimiter: RateLimiterRedis | RateLimiterMemory;
+let authLimiter: RateLimiterMemory;
+let apiLimiter: RateLimiterMemory;
+let strictLimiter: RateLimiterMemory;
+let perUserLimiter: RateLimiterMemory;
 
 // Initialize rate limiters
 function initializeRateLimiters() {
-  const redisClient = cache.getClient();
+  // Memory-based rate limiters
+  authLimiter = new RateLimiterMemory({
+    keyPrefix: "rl:auth",
+    points: 5,
+    duration: 15 * 60,
+    blockDuration: 15 * 60,
+  });
 
-  if (redisClient && cache.isReady()) {
-    // Redis-based rate limiters
-    authLimiter = new RateLimiterRedis({
-      storeClient: redisClient,
-      keyPrefix: "rl:auth",
-      points: 5, // Number of requests
-      duration: 15 * 60, // Per 15 minutes
-      blockDuration: 15 * 60, // Block for 15 minutes
-    });
+  apiLimiter = new RateLimiterMemory({
+    keyPrefix: "rl:api",
+    points: 100,
+    duration: 15 * 60,
+  });
 
-    apiLimiter = new RateLimiterRedis({
-      storeClient: redisClient,
-      keyPrefix: "rl:api",
-      points: 100,
-      duration: 15 * 60,
-    });
+  strictLimiter = new RateLimiterMemory({
+    keyPrefix: "rl:strict",
+    points: 3,
+    duration: 60 * 60,
+    blockDuration: 60 * 60,
+  });
 
-    strictLimiter = new RateLimiterRedis({
-      storeClient: redisClient,
-      keyPrefix: "rl:strict",
-      points: 3,
-      duration: 60 * 60, // 1 hour
-      blockDuration: 60 * 60,
-    });
+  perUserLimiter = new RateLimiterMemory({
+    keyPrefix: "rl:user",
+    points: 200,
+    duration: 60 * 60,
+  });
 
-    perUserLimiter = new RateLimiterRedis({
-      storeClient: redisClient,
-      keyPrefix: "rl:user",
-      points: 200,
-      duration: 60 * 60, // Per hour per user
-    });
-
-    console.log("✅ Redis-based rate limiters initialized");
-  } else {
-    // Fallback to memory-based rate limiters
-    authLimiter = new RateLimiterMemory({
-      keyPrefix: "rl:auth",
-      points: 5,
-      duration: 15 * 60,
-      blockDuration: 15 * 60,
-    });
-
-    apiLimiter = new RateLimiterMemory({
-      keyPrefix: "rl:api",
-      points: 100,
-      duration: 15 * 60,
-    });
-
-    strictLimiter = new RateLimiterMemory({
-      keyPrefix: "rl:strict",
-      points: 3,
-      duration: 60 * 60,
-      blockDuration: 60 * 60,
-    });
-
-    perUserLimiter = new RateLimiterMemory({
-      keyPrefix: "rl:user",
-      points: 200,
-      duration: 60 * 60,
-    });
-
-    console.log("⚠️  Using memory-based rate limiters (Redis not available)");
-  }
+  console.log("✅ Memory-based rate limiters initialized");
 }
 
 // Initialize on module load
@@ -89,7 +51,7 @@ initializeRateLimiters();
  * Create rate limit middleware
  */
 function createRateLimitMiddleware(
-  limiter: RateLimiterRedis | RateLimiterMemory,
+  limiter: RateLimiterMemory,
   keyGenerator?: (req: Request) => string
 ) {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -153,23 +115,12 @@ export function customRateLimit(options: {
   keyPrefix?: string;
   keyGenerator?: (req: Request) => string;
 }) {
-  const redisClient = cache.getClient();
-
-  const limiter =
-    redisClient && cache.isReady()
-      ? new RateLimiterRedis({
-          storeClient: redisClient,
-          keyPrefix: options.keyPrefix || "rl:custom",
-          points: options.points,
-          duration: options.duration,
-          blockDuration: options.blockDuration,
-        })
-      : new RateLimiterMemory({
-          keyPrefix: options.keyPrefix || "rl:custom",
-          points: options.points,
-          duration: options.duration,
-          blockDuration: options.blockDuration,
-        });
+  const limiter = new RateLimiterMemory({
+    keyPrefix: options.keyPrefix || "rl:custom",
+    points: options.points,
+    duration: options.duration,
+    blockDuration: options.blockDuration,
+  });
 
   return createRateLimitMiddleware(limiter, options.keyGenerator);
 }

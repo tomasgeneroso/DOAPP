@@ -20,7 +20,7 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
 
     const filter: any = { isPublished: true };
     if (type) filter.type = type;
-    if (userId) filter.authorId = userId;
+    if (userId) filter.author = userId;
 
     const posts = await Post.findAll({
       where: filter,
@@ -28,8 +28,8 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       offset: skip,
       limit: limit,
       include: [{
-        association: 'author',
-        attributes: ['name', 'avatar', 'membershipTier', 'hasMembership', 'isPremiumVerified'],
+        association: 'authorUser',
+        attributes: ['name', 'avatar', 'membershipTier', 'hasMembership'],
       }],
       raw: true,
       nest: true,
@@ -63,11 +63,11 @@ router.get("/:id", async (req: Request, res: Response): Promise<void> => {
     const post = await Post.findByPk(req.params.id, {
       include: [
         {
-          association: 'author',
-          attributes: ['name', 'avatar', 'bio', 'membershipTier', 'hasMembership', 'isPremiumVerified', 'rating', 'completedJobs'],
+          association: 'authorUser',
+          attributes: ['name', 'avatar', 'bio', 'membershipTier', 'hasMembership', 'rating', 'completedJobs'],
         },
         {
-          association: 'linkedContract',
+          association: 'contract',
           attributes: ['title', 'status'],
         },
       ],
@@ -122,22 +122,37 @@ router.post(
         };
       }) || [];
 
+      // Parse tags - handle both JSON string and array formats
+      let parsedTags: string[] = [];
+      if (tags) {
+        if (Array.isArray(tags)) {
+          parsedTags = tags;
+        } else if (typeof tags === 'string') {
+          try {
+            parsedTags = JSON.parse(tags);
+          } catch {
+            // If it's not valid JSON, split by comma
+            parsedTags = tags.split(',').map((t: string) => t.trim()).filter(Boolean);
+          }
+        }
+      }
+
       const post = await Post.create({
-        authorId: req.user.id,
+        author: req.user.id,
         title,
         description,
         gallery,
         price: price ? parseFloat(price) : undefined,
         currency: currency || "ARS",
         type: type || "post",
-        tags: tags ? JSON.parse(tags) : [],
-        linkedContractId: linkedContract || undefined,
+        tags: parsedTags,
+        linkedContract: linkedContract || undefined,
       });
 
       const populatedPost = await Post.findByPk(post.id, {
         include: [{
-          association: 'author',
-          attributes: ['name', 'avatar', 'membershipTier', 'hasMembership', 'isPremiumVerified'],
+          association: 'authorUser',
+          attributes: ['name', 'avatar', 'membershipTier', 'hasMembership'],
         }],
       });
 
@@ -175,7 +190,7 @@ router.put(
       }
 
       // Check if user is the author
-      if (post.authorId !== req.user.id) {
+      if (post.author !== req.user.id) {
         res.status(403).json({
           success: false,
           message: "No autorizado para editar esta publicación",
@@ -191,8 +206,18 @@ router.put(
       if (price !== undefined) post.price = parseFloat(price);
       if (currency) post.currency = currency;
       if (type) post.type = type;
-      if (tags) post.tags = JSON.parse(tags);
-      if (linkedContract !== undefined) post.linkedContractId = linkedContract || undefined;
+      if (tags) {
+        if (Array.isArray(tags)) {
+          post.tags = tags;
+        } else if (typeof tags === 'string') {
+          try {
+            post.tags = JSON.parse(tags);
+          } catch {
+            post.tags = tags.split(',').map((t: string) => t.trim()).filter(Boolean);
+          }
+        }
+      }
+      if (linkedContract !== undefined) post.linkedContract = linkedContract || undefined;
       if (isPublished !== undefined) post.isPublished = isPublished;
 
       // Add new gallery items if uploaded
@@ -201,7 +226,7 @@ router.put(
           const isVideo = file.mimetype.startsWith("video/");
           return {
             url: `/uploads/disputes/${file.filename}`,
-            type: isVideo ? "video" : "image",
+            type: (isVideo ? "video" : "image") as "video" | "image",
             thumbnail: isVideo ? `/uploads/disputes/${file.filename}` : undefined,
           };
         });
@@ -212,8 +237,8 @@ router.put(
 
       const populatedPost = await Post.findByPk(post.id, {
         include: [{
-          association: 'author',
-          attributes: ['name', 'avatar', 'membershipTier', 'hasMembership', 'isPremiumVerified'],
+          association: 'authorUser',
+          attributes: ['name', 'avatar', 'membershipTier', 'hasMembership'],
         }],
       });
 
@@ -247,7 +272,7 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
     }
 
     // Check if user is the author
-    if (post.authorId !== req.user.id) {
+    if (post.author !== req.user.id) {
       res.status(403).json({
         success: false,
         message: "No autorizado para eliminar esta publicación",
@@ -256,7 +281,7 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
     }
 
     // Delete all comments associated with this post
-    await PostComment.destroy({ where: { postId: post.id } });
+    await PostComment.destroy({ where: { post: post.id } });
 
     await post.destroy();
 
@@ -326,15 +351,15 @@ router.get("/:id/comments", async (req: Request, res: Response): Promise<void> =
 
     const comments = await PostComment.findAll({
       where: {
-        postId: req.params.id,
-        parentCommentId: null,
+        post: req.params.id,
+        parentComment: null,
       },
       order: [['createdAt', 'DESC']],
       offset: skip,
       limit: limit,
       include: [{
-        association: 'author',
-        attributes: ['name', 'avatar', 'membershipTier', 'hasMembership', 'isPremiumVerified'],
+        association: 'authorUser',
+        attributes: ['name', 'avatar', 'membershipTier', 'hasMembership'],
       }],
       raw: true,
       nest: true,
@@ -342,8 +367,8 @@ router.get("/:id/comments", async (req: Request, res: Response): Promise<void> =
 
     const total = await PostComment.count({
       where: {
-        postId: req.params.id,
-        parentCommentId: null,
+        post: req.params.id,
+        parentComment: null,
       },
     });
 
@@ -383,10 +408,10 @@ router.post("/:id/comments", protect, async (req: AuthRequest, res: Response): P
     }
 
     const comment = await PostComment.create({
-      postId: post.id,
-      authorId: req.user.id,
+      post: post.id,
+      author: req.user.id,
       content,
-      parentCommentId: parentComment || undefined,
+      parentComment: parentComment || undefined,
     });
 
     // Update post comments count
@@ -395,8 +420,8 @@ router.post("/:id/comments", protect, async (req: AuthRequest, res: Response): P
 
     const populatedComment = await PostComment.findByPk(comment.id, {
       include: [{
-        association: 'author',
-        attributes: ['name', 'avatar', 'membershipTier', 'hasMembership', 'isPremiumVerified'],
+        association: 'authorUser',
+        attributes: ['name', 'avatar', 'membershipTier', 'hasMembership'],
       }],
     });
 
@@ -429,7 +454,7 @@ router.delete("/:postId/comments/:commentId", protect, async (req: AuthRequest, 
     }
 
     // Check if user is the author
-    if (comment.authorId !== req.user.id) {
+    if (comment.author !== req.user.id) {
       res.status(403).json({
         success: false,
         message: "No autorizado para eliminar este comentario",

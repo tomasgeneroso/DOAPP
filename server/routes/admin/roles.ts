@@ -167,22 +167,21 @@ router.get("/users", async (req: AuthRequest, res: Response) => {
 
     // Search by name or email
     if (search) {
-      filter.$or = [
-        { name: { [Op.regexp]: search, $options: "i" } },
-        { email: { [Op.regexp]: search, $options: "i" } },
+      filter[Op.or] = [
+        { name: { [Op.iLike]: `%${search}%` } },
+        { email: { [Op.iLike]: `%${search}%` } },
       ];
     }
 
-    const skip = (Number(page) - 1) * Number(limit);
+    const offset = (Number(page) - 1) * Number(limit);
 
-    const users = await User.find(filter)
-      .select("name email avatar adminRole permissions role isVerified isBanned createdAt lastLogin")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(Number(limit))
-      .lean();
-
-    const total = await User.countDocuments(filter);
+    const { count: total, rows: users } = await User.findAndCountAll({
+      where: filter,
+      attributes: ['id', 'name', 'email', 'avatar', 'adminRole', 'permissions', 'role', 'isVerified', 'isBanned', 'createdAt', 'lastLogin'],
+      order: [['createdAt', 'DESC']],
+      offset,
+      limit: Number(limit),
+    });
 
     res.json({
       success: true,
@@ -239,7 +238,7 @@ router.put(
       }
 
       // Check permissions
-      const adminUser = await User.findByPk(req.user._id);
+      const adminUser = await User.findByPk(req.user.id);
       if (!adminUser) {
         return res.status(404).json({
           success: false,
@@ -296,7 +295,7 @@ router.put(
         severity: "high",
         description: `Rol cambiado de ${previousRole || "ninguno"} a ${adminRole === "none" ? "ninguno" : adminRole} para ${user.email}`,
         metadata: {
-          targetUserId: user._id,
+          targetUserId: user.id,
           previousRole,
           newRole: adminRole === "none" ? null : adminRole,
           permissions: user.permissions,
@@ -308,7 +307,7 @@ router.put(
         message: "Rol actualizado exitosamente",
         data: {
           user: {
-            _id: user._id,
+            _id: user.id,
             name: user.name,
             email: user.email,
             adminRole: user.adminRole,
@@ -351,7 +350,7 @@ router.put(
       const { permissions } = req.body;
 
       // Only owner and super_admin can modify permissions
-      const adminUser = await User.findByPk(req.user._id);
+      const adminUser = await User.findByPk(req.user.id);
       if (
         !adminUser ||
         (adminUser.adminRole !== "owner" && adminUser.adminRole !== "super_admin")
@@ -390,7 +389,7 @@ router.put(
         severity: "high",
         description: `Permisos actualizados para ${user.email}`,
         metadata: {
-          targetUserId: user._id,
+          targetUserId: user.id,
           previousPermissions,
           newPermissions: permissions,
           addedPermissions: permissions.filter((p: string) => !previousPermissions.includes(p)),
@@ -403,7 +402,7 @@ router.put(
         message: "Permisos actualizados exitosamente",
         data: {
           user: {
-            _id: user._id,
+            _id: user.id,
             name: user.name,
             email: user.email,
             adminRole: user.adminRole,
@@ -446,7 +445,7 @@ router.put(
       const { permissions } = req.body;
 
       // Check permissions
-      const adminUser = await User.findByPk(req.user._id);
+      const adminUser = await User.findByPk(req.user.id);
       if (!adminUser) {
         return res.status(404).json({
           success: false,

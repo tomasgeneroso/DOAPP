@@ -43,7 +43,7 @@ export default function LoginScreen() {
   const [showMembershipOffer, setShowMembershipOffer] = useState(false);
   const [justRegistered, setJustRegistered] = useState(false);
   const { login, register, user } = useAuth();
-  const { loginWithFacebook, isLoading: fbLoading, error: fbError, fbStatus } = useFacebookLogin();
+  const { loginWithFacebook, isLoading: fbLoading, error: fbError } = useFacebookLogin();
 
   // Check membership status after registration
   useEffect(() => {

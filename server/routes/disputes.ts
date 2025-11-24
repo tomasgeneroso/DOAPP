@@ -9,7 +9,6 @@ import fcmService from "../services/fcm.js";
 import emailService from "../services/email.js";
 import { uploadDisputeAttachments, getFileUrl } from "../middleware/upload.js";
 import disputeAnalytics from "../services/disputeAnalytics.js";
-import { addBreadcrumb } from "../config/sentry.js";
 import { checkPermission } from "../middleware/checkPermission.js";
 import { PERMISSIONS } from "../config/permissions.js";
 import { Op } from 'sequelize';
@@ -177,12 +176,6 @@ router.post(
         category: category || 'other',
         evidenceCount: evidence.length,
         contractValue: contract.price,
-      });
-
-      addBreadcrumb('Dispute created', 'dispute', 'info', {
-        disputeId: dispute.id.toString(),
-        contractId,
-        category: category || 'other',
       });
 
       res.status(201).json({

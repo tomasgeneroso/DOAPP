@@ -45,6 +45,15 @@ export const requestNotificationPermission = async (): Promise<string | null> =>
     return null;
   }
 
+  // Check if we're on localhost without HTTPS (service worker won't work)
+  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const isHttps = window.location.protocol === 'https:';
+
+  if (isLocalhost && !isHttps) {
+    console.warn('⚠️ Firebase Messaging requires HTTPS. Skipping on localhost HTTP.');
+    return null;
+  }
+
   try {
     // Request notification permission
     const permission = await Notification.requestPermission();

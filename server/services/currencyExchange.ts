@@ -1,5 +1,3 @@
-import cache from './cache.js';
-
 interface ExchangeRate {
   rate: number;
   timestamp: Date;
@@ -7,18 +5,41 @@ interface ExchangeRate {
 
 /**
  * Servicio de conversión de moneda USD/EUR a ARS
- * Utiliza APIs públicas con fallback y caché
+ * Utiliza APIs públicas con fallback y caché en memoria
  */
 class CurrencyExchangeService {
   private readonly CACHE_KEY = 'currency:usd_ars_rate';
   private readonly USDT_CACHE_KEY = 'currency:usdt_rate';
-  private readonly CACHE_TTL = 3600; // 1 hora
+  private readonly CACHE_TTL = 3600; // 1 hora (en segundos)
+  private memoryCache: Map<string, { data: any; expiresAt: number }> = new Map();
   private readonly DOLAR_HOY_URL = 'https://dolarhoy.com/';
   private readonly APIS = [
     'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json',
     'https://api.exchangerate-api.com/v4/latest/USD'
   ];
   private readonly BINANCE_API = 'https://api.binance.com/api/v3/ticker/price?symbol=USDTARS';
+
+  // Simple in-memory cache methods
+  private async cacheGet<T>(key: string): Promise<T | null> {
+    const cached = this.memoryCache.get(key);
+    if (!cached) return null;
+    if (Date.now() > cached.expiresAt) {
+      this.memoryCache.delete(key);
+      return null;
+    }
+    return cached.data as T;
+  }
+
+  private async cacheSet(key: string, data: any, ttl: number = this.CACHE_TTL): Promise<void> {
+    this.memoryCache.set(key, {
+      data,
+      expiresAt: Date.now() + (ttl * 1000)
+    });
+  }
+
+  private async cacheDel(key: string): Promise<void> {
+    this.memoryCache.delete(key);
+  }
 
   /**
    * Obtiene el dólar blue (venta) desde dolarhoy.com
@@ -72,7 +93,7 @@ class CurrencyExchangeService {
   async getUSDtoARSRate(): Promise<number> {
     try {
       // Intentar obtener de caché
-      const cached = await cache.get<ExchangeRate>(this.CACHE_KEY);
+      const cached = await this.cacheGet<ExchangeRate>(this.CACHE_KEY);
       if (cached?.rate) {
         console.log('💰 Using cached USD/ARS rate (Dólar Blue):', cached.rate);
         return cached.rate;
@@ -83,7 +104,7 @@ class CurrencyExchangeService {
         const dolarBlueRate = await this.fetchDolarBlueFromDolarHoy();
 
         // Guardar en caché
-        await cache.set(this.CACHE_KEY, {
+        await this.cacheSet(this.CACHE_KEY, {
           rate: dolarBlueRate,
           timestamp: new Date()
         }, this.CACHE_TTL);
@@ -97,7 +118,7 @@ class CurrencyExchangeService {
       const rate = await this.fetchRateFromAPIs();
 
       // Guardar en caché
-      await cache.set(this.CACHE_KEY, {
+      await this.cacheSet(this.CACHE_KEY, {
         rate,
         timestamp: new Date()
       }, this.CACHE_TTL);
@@ -228,7 +249,7 @@ class CurrencyExchangeService {
   async getARStoUSDTRate(): Promise<number> {
     try {
       // Intentar obtener de caché
-      const cached = await cache.get<ExchangeRate>(this.USDT_CACHE_KEY);
+      const cached = await this.cacheGet<ExchangeRate>(this.USDT_CACHE_KEY);
       if (cached?.rate) {
         console.log('💰 Using cached ARS/USDT rate:', cached.rate);
         return cached.rate;
@@ -238,7 +259,7 @@ class CurrencyExchangeService {
       const usdToArsRate = await this.getUSDtoARSRate();
 
       // Guardar en caché
-      await cache.set(this.USDT_CACHE_KEY, {
+      await this.cacheSet(this.USDT_CACHE_KEY, {
         rate: usdToArsRate,
         timestamp: new Date()
       }, this.CACHE_TTL);
@@ -278,8 +299,8 @@ class CurrencyExchangeService {
    * Útil para forzar una actualización
    */
   async invalidateCache(): Promise<void> {
-    await cache.del(this.CACHE_KEY);
-    await cache.del(this.USDT_CACHE_KEY);
+    await this.cacheDel(this.CACHE_KEY);
+    await this.cacheDel(this.USDT_CACHE_KEY);
   }
 
   /**
@@ -290,7 +311,7 @@ class CurrencyExchangeService {
     timestamp: Date;
     source: 'cache' | 'api';
   }> {
-    const cached = await cache.get<ExchangeRate>(this.CACHE_KEY);
+    const cached = await this.cacheGet<ExchangeRate>(this.CACHE_KEY);
 
     if (cached?.rate) {
       return {
@@ -303,7 +324,7 @@ class CurrencyExchangeService {
     const rate = await this.fetchRateFromAPIs();
     const timestamp = new Date();
 
-    await cache.set(this.CACHE_KEY, { rate, timestamp }, this.CACHE_TTL);
+    await this.cacheSet(this.CACHE_KEY, { rate, timestamp }, this.CACHE_TTL);
 
     return {
       rate,

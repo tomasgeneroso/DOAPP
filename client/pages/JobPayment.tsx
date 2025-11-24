@@ -2,13 +2,15 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/components/ui/Toast";
 import { CreditCard, ArrowLeft, Loader2, Calendar, FileText, Upload, Eye } from "lucide-react";
-import PaymentMethodSelector, { PaymentMethod } from "@/components/payment/PaymentMethodSelector";
+import PaymentMethodSelector, { PaymentMethod, BinancePaymentData } from "@/components/payment/PaymentMethodSelector";
 
 export default function JobPayment() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, refreshUser } = useAuth();
+  const toast = useToast();
   const [job, setJob] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
@@ -19,6 +21,12 @@ export default function JobPayment() {
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [proofPreview, setProofPreview] = useState<string | null>(null);
   const [uploadingProof, setUploadingProof] = useState(false);
+
+  // Binance payment data
+  const [binanceData, setBinanceData] = useState<BinancePaymentData>({
+    transactionId: '',
+    senderUserId: '',
+  });
 
   // Calculate commission based on user tier
   const getCommissionRate = () => {
@@ -110,16 +118,26 @@ export default function JobPayment() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
-    const validTypes = ['application/pdf', 'image/png', 'image/jpeg'];
+    // Validate file type based on payment method
+    let validTypes: string[];
+    let errorMessage: string;
+
+    if (paymentMethod === 'binance') {
+      validTypes = ['image/png', 'image/jpeg'];
+      errorMessage = 'Solo se permiten imágenes PNG o JPG para Binance';
+    } else {
+      validTypes = ['application/pdf', 'image/png', 'image/jpeg'];
+      errorMessage = 'Solo se permiten archivos PDF, PNG o JPG';
+    }
+
     if (!validTypes.includes(file.type)) {
-      setError('Solo se permiten archivos PDF, PNG o JPG');
+      toast.error('Formato inválido', errorMessage);
       return;
     }
 
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      setError('El archivo no debe superar los 5MB');
+      toast.error('Archivo muy grande', 'El archivo no debe superar los 5MB');
       return;
     }
 
@@ -145,9 +163,23 @@ export default function JobPayment() {
 
       // Validate bank transfer has proof
       if (paymentMethod === 'bank_transfer' && !isFreeContract && !proofFile) {
-        setError('Debes subir el comprobante de transferencia');
+        toast.error('Comprobante requerido', 'Debes subir el comprobante de transferencia');
         setProcessing(false);
         return;
+      }
+
+      // Validate Binance payment data
+      if (paymentMethod === 'binance' && !isFreeContract) {
+        if (!binanceData.transactionId || !binanceData.senderUserId) {
+          toast.error('Datos incompletos', 'Debes completar el Transaction ID y tu Binance ID');
+          setProcessing(false);
+          return;
+        }
+        if (!proofFile) {
+          toast.error('Comprobante requerido', 'Debes subir el comprobante de la transferencia de Binance');
+          setProcessing(false);
+          return;
+        }
       }
 
       // Create payment order for job publication (JSON for non-file methods)
@@ -177,20 +209,22 @@ export default function JobPayment() {
       // Check if payment was not required (free contract)
       if (data.requiresPayment === false) {
         await refreshUser();
-        navigate("/", {
-          state: {
-            message: "¡Trabajo publicado exitosamente! (Contrato gratuito)",
-            type: "success"
-          }
-        });
+        toast.success('Trabajo publicado', 'Tu trabajo se ha publicado exitosamente con tu contrato gratuito');
+        navigate("/");
         return;
       }
 
-      // Handle bank transfer - upload proof separately
-      if (paymentMethod === 'bank_transfer' && proofFile && data.paymentId) {
+      // Handle bank transfer or Binance - upload proof separately
+      if ((paymentMethod === 'bank_transfer' || paymentMethod === 'binance') && proofFile && data.paymentId) {
         // Upload proof file
         const proofFormData = new FormData();
-        proofFormData.append('paymentProof', proofFile);
+        proofFormData.append('proof', proofFile);
+
+        // Add Binance specific data if applicable
+        if (paymentMethod === 'binance') {
+          proofFormData.append('binanceTransactionId', binanceData.transactionId);
+          proofFormData.append('binanceSenderUserId', binanceData.senderUserId);
+        }
 
         const proofResponse = await fetch(`/api/payments/${data.paymentId}/upload-proof`, {
           method: "POST",
@@ -204,12 +238,9 @@ export default function JobPayment() {
           throw new Error(proofData.message || "Error al subir comprobante");
         }
 
-        navigate("/", {
-          state: {
-            message: "Comprobante recibido. Tu pago será verificado en 24-48hs hábiles.",
-            type: "info"
-          }
-        });
+        const verificationTime = paymentMethod === 'binance' ? '5-15 minutos' : '24-48hs hábiles';
+        toast.success('Comprobante recibido', `Tu pago será verificado en ${verificationTime}`);
+        navigate("/");
         return;
       }
 
@@ -221,6 +252,7 @@ export default function JobPayment() {
       }
     } catch (err: any) {
       console.error("Payment error:", err);
+      toast.error('Error de pago', err.message || "Error al procesar el pago");
       setError(err.message || "Error al procesar el pago");
       setProcessing(false);
     }
@@ -477,7 +509,86 @@ export default function JobPayment() {
                 onMethodChange={setPaymentMethod}
                 amount={totalAmount}
                 currency="ARS"
+                onBinanceDataChange={setBinanceData}
               />
+
+              {/* Binance Transfer - Upload Proof */}
+              {paymentMethod === 'binance' && (
+                <div className="mt-6 space-y-4">
+                  {/* Upload Proof */}
+                  <div className="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                    <h4 className="font-semibold text-yellow-900 dark:text-yellow-100 mb-3 flex items-center gap-2">
+                      <Upload className="w-5 h-5" />
+                      Subir Comprobante de Transferencia
+                    </h4>
+                    <p className="text-sm text-yellow-800 dark:text-yellow-200 mb-3">
+                      Sube una captura de pantalla del comprobante de Binance en formato PNG o JPG.
+                    </p>
+                    <div className="space-y-2 mb-4">
+                      <p className="text-xs text-yellow-700 dark:text-yellow-300 flex items-start gap-2">
+                        <span className="font-semibold">📸</span>
+                        <span>Asegúrate que se vea claramente el Transaction ID, monto y fecha.</span>
+                      </p>
+                      <p className="text-xs text-yellow-700 dark:text-yellow-300 flex items-start gap-2">
+                        <span className="font-semibold">✅</span>
+                        <span>El trabajo se publicará una vez que se apruebe el pago (5-15 min).</span>
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="block">
+                        <input
+                          type="file"
+                          accept=".png,.jpg,.jpeg"
+                          onChange={handleFileChange}
+                          className="block w-full text-sm text-gray-900 dark:text-gray-100
+                            file:mr-4 file:py-2 file:px-4
+                            file:rounded-lg file:border-0
+                            file:text-sm file:font-semibold
+                            file:bg-yellow-600 file:text-white
+                            hover:file:bg-yellow-700
+                            file:cursor-pointer cursor-pointer"
+                        />
+                      </label>
+
+                      {proofFile && (
+                        <div className="p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <FileText className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                {proofFile.name}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                ({(proofFile.size / 1024).toFixed(1)} KB)
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => {
+                                setProofFile(null);
+                                setProofPreview(null);
+                              }}
+                              className="text-red-600 hover:text-red-700 text-sm"
+                            >
+                              Eliminar
+                            </button>
+                          </div>
+
+                          {proofPreview && (
+                            <div className="mt-3">
+                              <img
+                                src={proofPreview}
+                                alt="Vista previa"
+                                className="max-h-40 rounded border border-gray-300 dark:border-gray-600"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Bank Transfer Details */}
               {paymentMethod === 'bank_transfer' && (

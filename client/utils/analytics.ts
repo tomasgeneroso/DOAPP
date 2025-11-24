@@ -73,7 +73,7 @@ export function trackEvent(
 export function identifyUser(userId: string) {
   if (!window.gtag) return;
 
-  window.gtag("config", import.meta.env.VITE_GOOGLE_ANALYTICS_ID, {
+  window.gtag("config", import.meta.env.GOOGLE_ANALYTICS_ID, {
     user_id: userId,
   });
 }
@@ -106,40 +106,218 @@ export const analytics = {
     trackEvent("sign_up", "auth", method),
 
   // Job events
-  jobView: (jobId: string) =>
-    trackEvent("view_item", "job", jobId),
+  jobView: (jobId: string, jobData?: { category?: string; price?: number; location?: string }) => {
+    trackEvent("view_item", "job", jobId);
+    if (jobData) {
+      window.gtag?.("event", "view_item", {
+        items: [{
+          item_id: jobId,
+          item_name: "Job Posting",
+          item_category: jobData.category,
+          price: jobData.price,
+          item_location: jobData.location,
+        }]
+      });
+    }
+  },
 
-  jobCreate: () =>
-    trackEvent("create_job", "job"),
+  jobCreate: (jobData?: { category?: string; price?: number; urgency?: string }) => {
+    trackEvent("create_job", "job");
+    if (jobData) {
+      window.gtag?.("event", "create_job", {
+        category: jobData.category,
+        value: jobData.price,
+        urgency: jobData.urgency,
+      });
+    }
+  },
 
-  jobSearch: (query: string) =>
-    trackEvent("search", "job", query),
+  jobSearch: (query: string, filters?: { category?: string; location?: string; minPrice?: number; maxPrice?: number }) => {
+    trackEvent("search", "job", query);
+    if (filters) {
+      window.gtag?.("event", "search", {
+        search_term: query,
+        category: filters.category,
+        location: filters.location,
+        price_range: filters.minPrice && filters.maxPrice ? `${filters.minPrice}-${filters.maxPrice}` : undefined,
+      });
+    }
+  },
+
+  jobPublish: (jobId: string, price: number, category: string) => {
+    trackEvent("job_publish", "job", jobId, price);
+    window.gtag?.("event", "job_publish", {
+      job_id: jobId,
+      value: price,
+      category: category,
+    });
+  },
+
+  // Proposal events
+  proposalCreate: (jobId: string, proposalAmount: number) => {
+    trackEvent("create_proposal", "proposal", jobId, proposalAmount);
+    window.gtag?.("event", "add_to_cart", {
+      value: proposalAmount,
+      currency: "ARS",
+      items: [{
+        item_id: jobId,
+        item_name: "Job Proposal",
+        price: proposalAmount,
+      }]
+    });
+  },
+
+  proposalAccept: (proposalId: string, amount: number) => {
+    trackEvent("accept_proposal", "proposal", proposalId, amount);
+    window.gtag?.("event", "accept_proposal", {
+      proposal_id: proposalId,
+      value: amount,
+    });
+  },
 
   // Contract events
-  contractCreate: (contractId: string) =>
-    trackEvent("create_contract", "contract", contractId),
+  contractCreate: (contractId: string, amount: number, category?: string) => {
+    trackEvent("create_contract", "contract", contractId, amount);
+    window.gtag?.("event", "begin_checkout", {
+      value: amount,
+      currency: "ARS",
+      items: [{
+        item_id: contractId,
+        item_name: "Contract",
+        item_category: category,
+        price: amount,
+      }]
+    });
+  },
 
-  contractAccept: (contractId: string) =>
-    trackEvent("accept_contract", "contract", contractId),
+  contractAccept: (contractId: string, amount: number) => {
+    trackEvent("accept_contract", "contract", contractId, amount);
+  },
 
-  contractComplete: (contractId: string) =>
-    trackEvent("complete_contract", "contract", contractId),
+  contractComplete: (contractId: string, amount: number, rating?: number) => {
+    trackEvent("complete_contract", "contract", contractId, amount);
+    window.gtag?.("event", "contract_complete", {
+      contract_id: contractId,
+      value: amount,
+      rating: rating,
+    });
+  },
 
   // Payment events
-  paymentInitiate: (amount: number) =>
-    trackEvent("begin_checkout", "payment", "payment_initiated", amount),
+  paymentInitiate: (amount: number, paymentMethod: string, paymentType: string) => {
+    trackEvent("begin_checkout", "payment", `${paymentMethod}_${paymentType}`, amount);
+    window.gtag?.("event", "begin_checkout", {
+      value: amount,
+      currency: "ARS",
+      payment_method: paymentMethod,
+      payment_type: paymentType,
+    });
+  },
 
-  paymentSuccess: (amount: number, transactionId: string) => {
+  paymentSuccess: (amount: number, transactionId: string, paymentMethod: string, paymentType: string) => {
     trackEvent("purchase", "payment", transactionId, amount);
     trackConversion(transactionId, amount);
+    window.gtag?.("event", "purchase", {
+      transaction_id: transactionId,
+      value: amount,
+      currency: "ARS",
+      payment_method: paymentMethod,
+      payment_type: paymentType,
+    });
+  },
+
+  paymentProofUpload: (paymentId: string, amount: number) => {
+    trackEvent("payment_proof_upload", "payment", paymentId, amount);
+  },
+
+  // Membership events
+  membershipView: (tier: string, price: number) => {
+    trackEvent("view_membership", "membership", tier, price);
+    window.gtag?.("event", "view_item", {
+      items: [{
+        item_id: tier,
+        item_name: `Membership ${tier}`,
+        item_category: "Subscription",
+        price: price,
+      }]
+    });
+  },
+
+  membershipPurchase: (tier: string, price: number, transactionId: string) => {
+    trackEvent("purchase_membership", "membership", tier, price);
+    window.gtag?.("event", "purchase", {
+      transaction_id: transactionId,
+      value: price,
+      currency: "EUR",
+      items: [{
+        item_id: tier,
+        item_name: `Membership ${tier}`,
+        item_category: "Subscription",
+        price: price,
+      }]
+    });
+  },
+
+  membershipCancel: (tier: string) => {
+    trackEvent("cancel_membership", "membership", tier);
+  },
+
+  // Referral events
+  referralCodeGenerate: () => {
+    trackEvent("generate_referral_code", "referral");
+  },
+
+  referralCodeUse: (code: string) => {
+    trackEvent("use_referral_code", "referral", code);
+  },
+
+  referralRewardClaim: (rewardType: string) => {
+    trackEvent("claim_referral_reward", "referral", rewardType);
+  },
+
+  // Balance & Withdrawal events
+  withdrawalRequest: (amount: number, method: string) => {
+    trackEvent("withdrawal_request", "balance", method, amount);
+    window.gtag?.("event", "withdrawal_request", {
+      value: amount,
+      currency: "ARS",
+      method: method,
+    });
+  },
+
+  withdrawalComplete: (amount: number, transactionId: string) => {
+    trackEvent("withdrawal_complete", "balance", transactionId, amount);
   },
 
   // Chat events
-  messageSend: () =>
-    trackEvent("message_send", "chat"),
+  messageSend: (conversationId?: string) =>
+    trackEvent("message_send", "chat", conversationId),
 
-  conversationStart: () =>
-    trackEvent("conversation_start", "chat"),
+  conversationStart: (withUserId?: string) => {
+    trackEvent("conversation_start", "chat", withUserId);
+  },
+
+  // Portfolio events
+  portfolioItemAdd: (itemType: string) => {
+    trackEvent("portfolio_add", "portfolio", itemType);
+  },
+
+  portfolioView: (userId: string) => {
+    trackEvent("portfolio_view", "portfolio", userId);
+  },
+
+  // Dispute events
+  disputeCreate: (contractId: string, category: string) => {
+    trackEvent("dispute_create", "dispute", category);
+    window.gtag?.("event", "dispute_create", {
+      contract_id: contractId,
+      category: category,
+    });
+  },
+
+  disputeResolve: (disputeId: string, resolution: string) => {
+    trackEvent("dispute_resolve", "dispute", resolution);
+  },
 
   // Engagement events
   share: (contentType: string, contentId: string) =>
@@ -151,9 +329,29 @@ export const analytics = {
   follow: (userId: string) =>
     trackEvent("follow", "user", userId),
 
+  // User behavior events
+  profileComplete: (completionPercentage: number) => {
+    trackEvent("profile_complete", "user", "profile", completionPercentage);
+  },
+
+  searchFilter: (filterType: string, filterValue: string) => {
+    trackEvent("search_filter", "search", filterType);
+  },
+
   // Error tracking
-  error: (error: string, page?: string) =>
-    trackEvent("error", "error", error, page ? undefined : undefined),
+  error: (error: string, page?: string, severity?: 'low' | 'medium' | 'high') => {
+    trackEvent("error", "error", error);
+    window.gtag?.("event", "exception", {
+      description: error,
+      fatal: severity === 'high',
+      page: page,
+    });
+  },
+
+  // Conversion funnel tracking
+  funnelStep: (funnelName: string, step: number, stepName: string) => {
+    trackEvent(`funnel_${funnelName}_step_${step}`, "funnel", stepName);
+  },
 };
 
 export default analytics;

@@ -300,6 +300,10 @@ export class User extends Model {
   @Column(DataType.DATE)
   membershipExpiresAt?: Date;
 
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  isPremiumVerified!: boolean;
+
   @Default(8.0)
   @Column(DataType.DECIMAL(5, 2))
   currentCommissionRate!: number;

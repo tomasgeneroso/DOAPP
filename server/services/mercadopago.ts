@@ -45,10 +45,7 @@ class MercadoPagoPaymentService {
         return;
       }
 
-      console.log('🔍 Initializing MercadoPago with:', {
-        hasAccessToken: !!accessToken,
-        tokenPrefix: accessToken?.substring(0, 15) + '...',
-      });
+      // MercadoPago initialized silently
 
       const mpConfig = new MercadoPagoConfig({
         accessToken: accessToken,
@@ -60,7 +57,7 @@ class MercadoPagoPaymentService {
 
       this.client = new Preference(mpConfig);
       this.isInitialized = true;
-      console.log('✅ MercadoPago initialized successfully');
+      // MercadoPago ready
     } catch (error) {
       console.error('❌ Error initializing MercadoPago:', error);
       this.isInitialized = false;

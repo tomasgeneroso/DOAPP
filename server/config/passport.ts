@@ -12,7 +12,7 @@ if (config.googleClientId && config.googleClientSecret) {
       {
         clientID: config.googleClientId,
         clientSecret: config.googleClientSecret,
-        callbackURL: "http://localhost:5000/api/auth/google/callback",
+        callbackURL: `${config.serverUrl}/api/auth/google/callback`,
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
@@ -54,7 +54,7 @@ if (config.facebookAppId && config.facebookAppSecret) {
       {
         clientID: config.facebookAppId,
         clientSecret: config.facebookAppSecret,
-        callbackURL: "http://localhost:5000/api/auth/facebook/callback",
+        callbackURL: `${config.serverUrl}/api/auth/facebook/callback`,
         profileFields: ["id", "displayName", "emails", "photos"],
       },
       async (accessToken, refreshToken, profile, done) => {

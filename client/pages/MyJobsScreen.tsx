@@ -71,6 +71,8 @@ export default function MyJobsScreen() {
         return "bg-slate-100 text-slate-800 dark:bg-slate-900/20 dark:text-slate-400";
       case "pending_payment":
         return "bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400";
+      case "pending_approval":
+        return "bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400";
       case "completed":
         return "bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400";
       case "cancelled":
@@ -85,6 +87,7 @@ export default function MyJobsScreen() {
       published: "Publicado",
       draft: "Borrador",
       pending_payment: "Pendiente de Pago",
+      pending_approval: "Pendiente de Aprobación",
       completed: "Completado",
       cancelled: "Cancelado",
     };

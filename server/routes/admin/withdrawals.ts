@@ -29,7 +29,7 @@ router.get("/", protect, requireRole(['admin', 'super_admin', 'owner']), async (
       offset: Number(offset),
       order: [['createdAt', 'DESC']],
       include: [
-        { model: User, as: 'user', attributes: ['name', 'email', 'avatar', 'balance'] },
+        { model: User, as: 'user', attributes: ['name', 'email', 'avatar', 'balanceArs'] },
         { model: User, as: 'processedBy', attributes: ['name', 'email'] }
       ]
     });
@@ -78,7 +78,7 @@ router.post("/:id/approve", protect, requireRole(['admin', 'super_admin', 'owner
   try {
     const { id } = req.params;
     const { adminNotes } = req.body;
-    const adminId = req.user._id;
+    const adminId = req.user.id;
 
     const withdrawal = await WithdrawalRequest.findByPk(id, {
       include: [{ model: User, as: 'user' }]
@@ -137,7 +137,7 @@ router.post("/:id/approve", protect, requireRole(['admin', 'super_admin', 'owner
 router.post("/:id/processing", protect, requireRole(['admin', 'super_admin', 'owner']), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const adminId = req.user._id;
+    const adminId = req.user.id;
 
     const withdrawal = await WithdrawalRequest.findByPk(id, {
       include: [{ model: User, as: 'user' }]
@@ -183,7 +183,7 @@ router.post("/:id/complete", protect, requireRole(['admin', 'super_admin', 'owne
   try {
     const { id } = req.params;
     const { proofOfTransfer, adminNotes } = req.body;
-    const adminId = req.user._id;
+    const adminId = req.user.id;
 
     const withdrawal = await WithdrawalRequest.findByPk(id, {
       include: [{ model: User, as: 'user' }]
@@ -210,8 +210,8 @@ router.post("/:id/complete", protect, requireRole(['admin', 'super_admin', 'owne
     }
 
     // Deduct balance
-    const balanceBefore = user.balance;
-    const newBalance = user.balance - withdrawal.amount;
+    const balanceBefore = parseFloat(user.balanceArs as any) || 0;
+    const newBalance = balanceBefore - withdrawal.amount;
 
     if (newBalance < 0) {
       res.status(400).json({
@@ -221,7 +221,7 @@ router.post("/:id/complete", protect, requireRole(['admin', 'super_admin', 'owne
       return;
     }
 
-    await user.update({ balance: newBalance });
+    await user.update({ balanceArs: newBalance });
 
     // Create balance transaction
     const transaction = await BalanceTransaction.create({
@@ -284,7 +284,7 @@ router.post("/:id/reject", protect, requireRole(['admin', 'super_admin', 'owner'
   try {
     const { id } = req.params;
     const { rejectionReason } = req.body;
-    const adminId = req.user._id;
+    const adminId = req.user.id;
 
     if (!rejectionReason) {
       res.status(400).json({

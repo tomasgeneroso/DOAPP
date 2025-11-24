@@ -140,9 +140,10 @@ export default function PostCard({ post, onLike, onComment }: PostCardProps) {
         <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
           {post.title}
         </h3>
-        <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap line-clamp-3">
-          {post.description}
-        </p>
+        <div
+          className="text-slate-700 dark:text-slate-300 line-clamp-3 [&_p]:my-1 [&_strong]:font-bold [&_em]:italic [&_h1]:text-xl [&_h1]:font-bold [&_h2]:text-lg [&_h2]:font-bold [&_h3]:text-base [&_h3]:font-semibold [&_ul]:list-disc [&_ul]:ml-4 [&_ol]:list-decimal [&_ol]:ml-4 [&_a]:text-blue-500 [&_a]:underline"
+          dangerouslySetInnerHTML={{ __html: post.description }}
+        />
 
         {post.price && (
           <div className="mt-3 flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-semibold">

@@ -1,5 +1,6 @@
 import { Router, Response } from "express";
-import { protect, AuthRequest } from "../middleware/auth";
+import { protect, AuthRequest } from "../middleware/auth.js";
+import { requireRole } from "../middleware/permissions.js";
 import { Payment } from "../models/sql/Payment.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
 import { Job } from "../models/sql/Job.model.js";
@@ -8,11 +9,12 @@ import { Notification } from "../models/sql/Notification.model.js";
 import { PaymentProof } from "../models/sql/PaymentProof.model.js";
 import mercadopagoService from "../services/mercadopago.js";
 import currencyExchange from "../services/currencyExchange.js";
-import { config } from "../config/env";
+import { config } from "../config/env.js";
 import { Op } from 'sequelize';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import logger from "../services/logger.js";
 
 // Ensure upload directory exists
 const PAYMENT_PROOFS_DIR = path.join(process.cwd(), 'uploads', 'payment-proofs');
@@ -1151,7 +1153,13 @@ router.post("/:paymentId/upload-proof", protect, upload.single('proof'), async (
   try {
     const { paymentId } = req.params;
     const userId = req.user.id;
-    const { binanceNickname, transferAmount, transferCurrency } = req.body;
+    const {
+      binanceNickname,
+      transferAmount,
+      transferCurrency,
+      binanceTransactionId,
+      binanceSenderUserId
+    } = req.body;
 
     if (!req.file) {
       res.status(400).json({ success: false, message: "No se subió ningún archivo" });
@@ -1186,6 +1194,8 @@ router.post("/:paymentId/upload-proof", protect, upload.single('proof'), async (
       fileName: req.file.originalname,
       fileSize: req.file.size,
       binanceNickname: binanceNickname || null,
+      binanceTransactionId: binanceTransactionId || null,
+      binanceSenderUserId: binanceSenderUserId || null,
       transferAmount: transferAmount || null,
       transferCurrency: transferCurrency || null,
       status: 'pending',
@@ -1194,8 +1204,20 @@ router.post("/:paymentId/upload-proof", protect, upload.single('proof'), async (
     });
 
     // Update payment status to pending verification
-    payment.status = 'pending';
+    payment.status = 'pending_verification';
     await payment.save();
+
+    // Update job status if this is a job publication payment
+    if (payment.paymentType === 'job_publication') {
+      const job = await Job.findOne({
+        where: { publicationPaymentId: paymentId }
+      });
+
+      if (job) {
+        job.status = 'pending_approval'; // Waiting for admin to verify payment proof
+        await job.save();
+      }
+    }
 
     // Notify admins about new payment proof
     const adminUsers = await User.findAll({
@@ -1359,6 +1381,231 @@ router.get("/:paymentId/proof", protect, async (req: AuthRequest, res: Response)
   } catch (error: any) {
     console.error("Get payment proof error:", error);
     res.status(500).json({ success: false, message: error.message || "Error obteniendo comprobante" });
+  }
+});
+
+/**
+ * Approve payment proof (admin only)
+ * POST /api/payments/:paymentId/proof/:proofId/approve
+ */
+router.post("/:paymentId/proof/:proofId/approve", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { paymentId, proofId } = req.params;
+    const { notes } = req.body;
+    const adminId = req.user.id;
+
+    // Find the payment proof
+    const proof = await PaymentProof.findOne({
+      where: { id: proofId, paymentId, isActive: true }
+    });
+
+    if (!proof) {
+      res.status(404).json({ success: false, message: "Comprobante no encontrado" });
+      return;
+    }
+
+    if (proof.status !== 'pending') {
+      res.status(400).json({ success: false, message: "Este comprobante ya fue procesado" });
+      return;
+    }
+
+    // Find the payment
+    const payment = await Payment.findByPk(paymentId);
+    if (!payment) {
+      res.status(404).json({ success: false, message: "Pago no encontrado" });
+      return;
+    }
+
+    // Update proof status
+    proof.status = 'approved';
+    proof.verifiedBy = adminId;
+    proof.verifiedAt = new Date();
+    if (notes) proof.notes = notes;
+    await proof.save();
+
+    // Update payment status to approved
+    payment.status = 'approved';
+    await payment.save();
+
+    // If this is a job publication payment, publish the job
+    if (payment.paymentType === 'job_publication') {
+      const job = await Job.findOne({
+        where: { publicationPaymentId: paymentId }
+      });
+
+      if (job) {
+        job.status = 'open';
+        job.publicationPaid = true;
+        await job.save();
+
+        // Notify job owner
+        await Notification.create({
+          userId: job.clientId,
+          title: 'Pago aprobado',
+          message: `Tu pago para publicar "${job.title}" fue aprobado. ¡El trabajo está ahora publicado!`,
+          type: 'payment',
+          relatedId: job.id,
+          relatedType: 'Job',
+        });
+      }
+    }
+
+    // Notify user
+    await Notification.create({
+      userId: payment.payerId,
+      title: 'Comprobante aprobado',
+      message: 'Tu comprobante de pago fue verificado y aprobado.',
+      type: 'payment',
+      relatedId: paymentId,
+      relatedType: 'Payment',
+    });
+
+    res.json({
+      success: true,
+      message: "Comprobante aprobado exitosamente",
+      proof: {
+        id: proof.id,
+        status: proof.status,
+        verifiedAt: proof.verifiedAt,
+      }
+    });
+  } catch (error: any) {
+    console.error("Approve proof error:", error);
+    res.status(500).json({ success: false, message: error.message || "Error aprobando comprobante" });
+  }
+});
+
+/**
+ * Reject payment proof (admin only)
+ * POST /api/payments/:paymentId/proof/:proofId/reject
+ */
+router.post("/:paymentId/proof/:proofId/reject", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { paymentId, proofId } = req.params;
+    const { reason, notes } = req.body;
+    const adminId = req.user.id;
+
+    if (!reason) {
+      res.status(400).json({ success: false, message: "Debe proporcionar un motivo de rechazo" });
+      return;
+    }
+
+    // Find the payment proof
+    const proof = await PaymentProof.findOne({
+      where: { id: proofId, paymentId, isActive: true }
+    });
+
+    if (!proof) {
+      res.status(404).json({ success: false, message: "Comprobante no encontrado" });
+      return;
+    }
+
+    if (proof.status !== 'pending') {
+      res.status(400).json({ success: false, message: "Este comprobante ya fue procesado" });
+      return;
+    }
+
+    // Find the payment
+    const payment = await Payment.findByPk(paymentId);
+    if (!payment) {
+      res.status(404).json({ success: false, message: "Pago no encontrado" });
+      return;
+    }
+
+    // Update proof status
+    proof.status = 'rejected';
+    proof.verifiedBy = adminId;
+    proof.verifiedAt = new Date();
+    proof.rejectionReason = reason;
+    if (notes) proof.notes = notes;
+    await proof.save();
+
+    // Update payment status back to pending_verification so user can upload a new proof
+    payment.status = 'pending_verification';
+    await payment.save();
+
+    // If this is a job publication payment, keep job in pending_payment status
+    if (payment.paymentType === 'job_publication') {
+      const job = await Job.findOne({
+        where: { publicationPaymentId: paymentId }
+      });
+
+      if (job) {
+        job.status = 'pending_payment'; // User needs to upload a new proof
+        await job.save();
+
+        // Notify job owner
+        await Notification.create({
+          userId: job.clientId,
+          title: 'Comprobante rechazado',
+          message: `Tu comprobante de pago para "${job.title}" fue rechazado. Motivo: ${reason}. Por favor, sube un nuevo comprobante.`,
+          type: 'payment',
+          relatedId: job.id,
+          relatedType: 'Job',
+        });
+      }
+    }
+
+    // Notify user
+    await Notification.create({
+      userId: payment.payerId,
+      title: 'Comprobante rechazado',
+      message: `Tu comprobante de pago fue rechazado. Motivo: ${reason}. Por favor, sube un nuevo comprobante.`,
+      type: 'payment',
+      relatedId: paymentId,
+      relatedType: 'Payment',
+    });
+
+    res.json({
+      success: true,
+      message: "Comprobante rechazado",
+      proof: {
+        id: proof.id,
+        status: proof.status,
+        rejectionReason: proof.rejectionReason,
+        verifiedAt: proof.verifiedAt,
+      }
+    });
+  } catch (error: any) {
+    console.error("Reject proof error:", error);
+    res.status(500).json({ success: false, message: error.message || "Error rechazando comprobante" });
+  }
+});
+
+/**
+ * Get all pending payment proofs (admin only)
+ * GET /api/payments/proofs/pending
+ */
+router.get("/proofs/pending", protect, requireRole('admin', 'super_admin', 'owner', 'support'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const proofs = await PaymentProof.findAll({
+      where: {
+        status: 'pending',
+        isActive: true,
+      },
+      include: [
+        {
+          model: Payment,
+          as: 'payment',
+          attributes: ['id', 'amount', 'currency', 'paymentType', 'paymentMethod', 'status', 'createdAt'],
+        },
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'username', 'email', 'firstName', 'lastName'],
+        }
+      ],
+      order: [['uploadedAt', 'ASC']],
+    });
+
+    res.json({
+      success: true,
+      count: proofs.length,
+      proofs
+    });
+  } catch (error: any) {
+    console.error("Get pending proofs error:", error);
+    res.status(500).json({ success: false, message: error.message || "Error obteniendo comprobantes pendientes" });
   }
 });
 

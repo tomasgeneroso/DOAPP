@@ -3,17 +3,22 @@ import { Link } from "react-router-dom";
 import { FileText, Search, Filter, Eye, Ban, CheckCircle, XCircle, Plus, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 
 interface Contract {
-  _id: string;
-  job: {
+  id: string;
+  _id?: string;
+  title?: string;
+  job?: {
+    id?: string;
     title: string;
-  };
+  } | null;
   client: {
-    _id: string;
+    id?: string;
+    _id?: string;
     name: string;
     email: string;
   };
   doer: {
-    _id: string;
+    id?: string;
+    _id?: string;
     name: string;
     email: string;
   };
@@ -92,7 +97,7 @@ export default function AdminContracts() {
 
         switch (sortField) {
           case 'job':
-            comparison = a.job.title.localeCompare(b.job.title, 'es');
+            comparison = (a.job?.title || a.title || '').localeCompare(b.job?.title || b.title || '', 'es');
             break;
           case 'client':
             comparison = a.client.name.localeCompare(b.client.name, 'es');
@@ -169,11 +174,12 @@ export default function AdminContracts() {
   };
 
   const filteredContracts = contracts.filter((contract) => {
+    const jobTitle = contract.job?.title || contract.title || '';
     const matchesSearch =
       searchQuery === "" ||
-      contract.job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contract.client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contract.doer.name.toLowerCase().includes(searchQuery.toLowerCase());
+      jobTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      contract.client?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      contract.doer?.name?.toLowerCase().includes(searchQuery.toLowerCase());
 
     return matchesSearch;
   });
@@ -357,26 +363,26 @@ export default function AdminContracts() {
                 </tr>
               ) : (
                 getSortedAndFilteredContracts().map((contract) => (
-                  <tr key={contract._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                  <tr key={contract.id || contract._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <td className="px-4 py-4">
                       <div className="text-sm font-medium text-gray-900 dark:text-white">
-                        {contract.job.title}
+                        {contract.job?.title || contract.title || 'Sin título'}
                       </div>
                       <div className="text-xs text-gray-500 dark:text-gray-400">
                         {new Date(contract.createdAt).toLocaleDateString("es-AR")}
                       </div>
                     </td>
                     <td className="px-4 py-4">
-                      <div className="text-sm text-gray-900 dark:text-white">{contract.client.name}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">{contract.client.email}</div>
+                      <div className="text-sm text-gray-900 dark:text-white">{contract.client?.name || 'N/A'}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{contract.client?.email || ''}</div>
                     </td>
                     <td className="px-4 py-4">
-                      <div className="text-sm text-gray-900 dark:text-white">{contract.doer.name}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">{contract.doer.email}</div>
+                      <div className="text-sm text-gray-900 dark:text-white">{contract.doer?.name || 'N/A'}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{contract.doer?.email || ''}</div>
                     </td>
                     <td className="px-4 py-4">
                       <div className="text-sm font-medium text-gray-900 dark:text-white">
-                        ${contract.totalPrice.toLocaleString()}
+                        ${(contract.totalPrice || contract.price || 0).toLocaleString()}
                       </div>
                     </td>
                     <td className="px-4 py-4">
@@ -392,7 +398,7 @@ export default function AdminContracts() {
                     <td className="px-4 py-4">
                       <div className="flex gap-2">
                         <Link
-                          to={`/contracts/${contract._id}`}
+                          to={`/contracts/${contract.id || contract._id}`}
                           className="p-1 text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded"
                           title="Ver detalles"
                         >

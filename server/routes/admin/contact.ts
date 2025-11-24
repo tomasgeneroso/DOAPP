@@ -5,7 +5,6 @@ import { User } from '../../models/sql/User.model.js';
 import { protect, authorize } from '../../middleware/auth.js';
 import type { AuthRequest } from '../../middleware/auth.js';
 import sanitizer from '../../utils/sanitizer.js';
-import cache from '../../services/cache.js';
 import { Op } from 'sequelize';
 
 const router = express.Router();
@@ -265,13 +264,6 @@ router.post(
  */
 router.get('/stats/overview', async (req: AuthRequest, res: Response) => {
   try {
-    const cacheKey = 'contact:stats:overview';
-    const cached = await cache.get(cacheKey);
-
-    if (cached) {
-      return res.json({ success: true, data: cached });
-    }
-
     const [
       totalMessages,
       pendingMessages,
@@ -305,9 +297,6 @@ router.get('/stats/overview', async (req: AuthRequest, res: Response) => {
         return acc;
       }, {}),
     };
-
-    // Cache for 10 minutes
-    await cache.set(cacheKey, stats, 600);
 
     res.json({
       success: true,
@@ -344,7 +333,6 @@ router.delete(
       await message.destroy();
 
       // Invalidate cache
-      await cache.delPattern('contact:*');
 
       res.json({
         success: true,

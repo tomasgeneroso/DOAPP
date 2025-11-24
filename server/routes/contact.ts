@@ -4,7 +4,6 @@ import { ContactMessage } from '../models/sql/ContactMessage.model.js';
 import { protect } from '../middleware/auth.js';
 import type { AuthRequest } from '../middleware/auth.js';
 import sanitizer from '../utils/sanitizer.js';
-import cache from '../services/cache.js';
 import { Op } from 'sequelize';
 
 const router = express.Router();

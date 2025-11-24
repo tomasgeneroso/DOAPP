@@ -601,7 +601,16 @@ router.get(
   (req: Request, res: Response) => {
     const user = req.user as IUser;
     const token = generateToken((user.id as unknown as string));
-    // Aquí podrías guardar el token en una cookie o redirigir con el token
+
+    // Set token in httpOnly cookie
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: config.nodeEnv === 'production',
+      sameSite: 'lax',
+      maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
+    });
+
+    // Redirigir con el token en la URL para el frontend
     res.redirect(`${config.clientUrl}/auth/callback?token=${token}`);
   }
 );
@@ -704,6 +713,94 @@ router.post("/facebook/token", async (req: Request, res: Response): Promise<void
       success: false,
       message: error.message || "Error del servidor",
     });
+  }
+});
+
+// ============================================
+// Facebook GDPR Compliance Endpoints
+// ============================================
+
+// @route   POST /api/auth/facebook/data-deletion
+// @desc    Handle Facebook data deletion request (GDPR)
+// @access  Public (called by Facebook)
+router.post("/facebook/data-deletion", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { signed_request } = req.body;
+
+    if (!signed_request) {
+      res.status(400).json({ error: "signed_request is required" });
+      return;
+    }
+
+    // Parse the signed request from Facebook
+    const [encodedSig, payload] = signed_request.split('.');
+    const data = JSON.parse(Buffer.from(payload, 'base64').toString('utf-8'));
+    const userId = data.user_id;
+
+    if (!userId) {
+      res.status(400).json({ error: "user_id not found in request" });
+      return;
+    }
+
+    // Find user by Facebook ID
+    const user = await User.findOne({ where: { facebookId: userId } });
+
+    if (user) {
+      // Clear Facebook-related data (but keep user for audit trail)
+      user.facebookId = undefined;
+      await user.save();
+
+      console.log(`[GDPR] Facebook data deleted for user: ${user.id}`);
+    }
+
+    // Generate confirmation code for Facebook
+    const confirmationCode = `DOAPP_DEL_${Date.now()}_${userId.slice(-6)}`;
+
+    // Facebook expects this specific response format
+    res.json({
+      url: `${config.clientUrl}/data-deletion?code=${confirmationCode}`,
+      confirmation_code: confirmationCode
+    });
+  } catch (error: any) {
+    console.error("[GDPR] Facebook data deletion error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// @route   POST /api/auth/facebook/deauthorize
+// @desc    Handle Facebook deauthorize callback
+// @access  Public (called by Facebook)
+router.post("/facebook/deauthorize", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { signed_request } = req.body;
+
+    if (!signed_request) {
+      res.status(400).json({ error: "signed_request is required" });
+      return;
+    }
+
+    // Parse the signed request from Facebook
+    const [encodedSig, payload] = signed_request.split('.');
+    const data = JSON.parse(Buffer.from(payload, 'base64').toString('utf-8'));
+    const userId = data.user_id;
+
+    if (userId) {
+      // Find user by Facebook ID and clear the connection
+      const user = await User.findOne({ where: { facebookId: userId } });
+
+      if (user) {
+        user.facebookId = undefined;
+        await user.save();
+
+        console.log(`[OAuth] Facebook deauthorized for user: ${user.id}`);
+      }
+    }
+
+    // Facebook just needs a 200 OK response
+    res.status(200).json({ success: true });
+  } catch (error: any) {
+    console.error("[OAuth] Facebook deauthorize error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
@@ -1093,5 +1190,159 @@ router.post(
     }
   }
 );
+
+// ============================================
+// Facebook Data Privacy Callbacks
+// ============================================
+
+// @route   POST /api/auth/facebook/deauthorize
+// @desc    Handle Facebook app deauthorization
+// @access  Public
+router.post("/facebook/deauthorize", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { signed_request } = req.body;
+
+    if (!signed_request) {
+      res.status(400).json({
+        success: false,
+        message: "signed_request is required",
+      });
+      return;
+    }
+
+    // Parse the signed request (Facebook sends user_id in the payload)
+    const [encodedSig, payload] = signed_request.split(".");
+    const data = JSON.parse(Buffer.from(payload, "base64").toString("utf-8"));
+
+    const facebookUserId = data.user_id;
+
+    if (facebookUserId) {
+      // Find user by Facebook ID
+      const user = await User.findOne({ where: { facebookId: facebookUserId } });
+
+      if (user) {
+        // Log the deauthorization
+        await createAuditLog({
+          userId: user.id as string,
+          action: "facebook_deauthorize",
+          resource: "user",
+          resourceId: user.id as string,
+          details: {
+            facebookId: facebookUserId,
+            timestamp: new Date().toISOString(),
+          },
+          ipAddress: getClientIp(req),
+          userAgent: getUserAgent(req),
+        });
+
+        // Optional: Mark user as needing to re-authenticate
+        // user.facebookId = null;
+        // await user.save();
+
+        console.log(`✅ User ${user.id} deauthorized Facebook app`);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: "Deauthorization processed",
+    });
+  } catch (error: any) {
+    console.error("❌ Facebook deauthorization error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error processing deauthorization",
+    });
+  }
+});
+
+// @route   POST /api/auth/facebook/data-deletion
+// @desc    Handle Facebook data deletion request
+// @access  Public
+router.post("/facebook/data-deletion", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { signed_request } = req.body;
+
+    if (!signed_request) {
+      res.status(400).json({
+        success: false,
+        message: "signed_request is required",
+      });
+      return;
+    }
+
+    // Parse the signed request
+    const [encodedSig, payload] = signed_request.split(".");
+    const data = JSON.parse(Buffer.from(payload, "base64").toString("utf-8"));
+
+    const facebookUserId = data.user_id;
+
+    if (facebookUserId) {
+      // Find user by Facebook ID
+      const user = await User.findOne({ where: { facebookId: facebookUserId } });
+
+      if (user) {
+        // Create audit log for data deletion request
+        await createAuditLog({
+          userId: user.id as string,
+          action: "data_deletion_request",
+          resource: "user",
+          resourceId: user.id as string,
+          details: {
+            facebookId: facebookUserId,
+            timestamp: new Date().toISOString(),
+            source: "facebook",
+          },
+          ipAddress: getClientIp(req),
+          userAgent: getUserAgent(req),
+          severity: "high",
+        });
+
+        // Generate a unique confirmation code
+        const confirmationCode = `${facebookUserId}_${Date.now()}`;
+
+        console.log(
+          `📋 Data deletion request for user ${user.id} (Facebook ID: ${facebookUserId})`
+        );
+        console.log(`Confirmation code: ${confirmationCode}`);
+
+        // Send notification email to user
+        try {
+          await emailService.sendEmail({
+            to: user.email || "",
+            subject: "Solicitud de Eliminación de Datos - DOAPP",
+            template: "data-deletion-request",
+            context: {
+              userName: user.name,
+              confirmationCode,
+              requestDate: new Date().toLocaleDateString("es-AR"),
+            },
+          });
+        } catch (emailError) {
+          console.error("Failed to send data deletion email:", emailError);
+        }
+
+        // Return the confirmation response to Facebook
+        res.json({
+          url: `${config.serverUrl}/data-deletion/status?id=${confirmationCode}`,
+          confirmation_code: confirmationCode,
+        });
+        return;
+      }
+    }
+
+    // User not found
+    res.json({
+      url: `${config.serverUrl}/data-deletion/not-found`,
+      confirmation_code: `not_found_${Date.now()}`,
+    });
+  } catch (error: any) {
+    console.error("❌ Facebook data deletion error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error processing data deletion request",
+    });
+  }
+});
 
 export default router;

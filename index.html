@@ -27,14 +27,22 @@
     <!-- Register Firebase Service Worker for Push Notifications -->
     <script>
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker
-          .register('/firebase-messaging-sw.js')
-          .then((registration) => {
-            console.log('✅ Firebase Service Worker registered:', registration.scope);
-          })
-          .catch((error) => {
-            console.error('❌ Firebase Service Worker registration failed:', error);
-          });
+        // Only register service worker in production (not on localhost)
+        // Service workers with self-signed certificates on localhost will fail
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+        if (!isLocalhost) {
+          navigator.serviceWorker
+            .register('/firebase-messaging-sw.js')
+            .then((registration) => {
+              console.log('✅ Firebase Service Worker registered:', registration.scope);
+            })
+            .catch((error) => {
+              console.error('❌ Firebase Service Worker registration failed:', error);
+            });
+        } else {
+          console.log('ℹ️ Firebase Service Worker skipped on localhost (use production for push notifications)');
+        }
       }
     </script>
 

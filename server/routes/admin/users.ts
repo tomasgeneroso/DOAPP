@@ -33,33 +33,31 @@ router.get(
         sortOrder = "desc",
       } = req.query;
 
-      const query: any = {};
+      const where: any = {};
 
       // Filtros
       if (search) {
-        query.$or = [
-          { name: { [Op.regexp]: search, $options: "i" } },
-          { email: { [Op.regexp]: search, $options: "i" } },
+        where[Op.or] = [
+          { name: { [Op.iLike]: `%${search}%` } },
+          { email: { [Op.iLike]: `%${search}%` } },
         ];
       }
 
-      if (role) query.role = role;
-      if (adminRole) query.adminRole = adminRole;
-      if (isBanned !== undefined) query.isBanned = isBanned === "true";
-      if (verificationLevel) query.verificationLevel = verificationLevel;
+      if (role) where.role = role;
+      if (adminRole) where.adminRole = adminRole;
+      if (isBanned !== undefined) where.isBanned = isBanned === "true";
+      if (verificationLevel) where.verificationLevel = verificationLevel;
 
-      const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
-      const sortOptions: any = {};
-      sortOptions[sortBy as string] = sortOrder === "desc" ? -1 : 1;
+      const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
+      const order: any = [[sortBy as string, sortOrder === "desc" ? "DESC" : "ASC"]];
 
-      const [users, total] = await Promise.all([
-        User.find(query)
-          .sort(sortOptions)
-          .skip(skip)
-          .limit(parseInt(limit as string))
-          .select("-password -twoFactorSecret -twoFactorBackupCodes"),
-        User.countDocuments(query),
-      ]);
+      const { count: total, rows: users } = await User.findAndCountAll({
+        where,
+        order,
+        offset,
+        limit: parseInt(limit as string),
+        attributes: { exclude: ['password', 'twoFactorSecret', 'twoFactorBackupCodes'] },
+      });
 
       res.json({
         success: true,
@@ -88,9 +86,9 @@ router.get(
   requirePermission("users:read"),
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const user = await User.findByPk(req.params.id).select(
-        "-password -twoFactorSecret -twoFactorBackupCodes"
-      );
+      const user = await User.findByPk(req.params.id, {
+        attributes: { exclude: ['password', 'twoFactorSecret', 'twoFactorBackupCodes'] },
+      });
 
       if (!user) {
         res.status(404).json({
@@ -125,9 +123,9 @@ router.put(
       const { name, email, phone, bio, avatar, role, adminRole, permissions, verificationLevel } =
         req.body;
 
-      const oldUser = await User.findByPk(req.params.id);
+      const user = await User.findByPk(req.params.id);
 
-      if (!oldUser) {
+      if (!user) {
         res.status(404).json({
           success: false,
           message: "Usuario no encontrado",
@@ -135,45 +133,47 @@ router.put(
         return;
       }
 
-      const updateData: any = {};
-      if (name) updateData.name = name;
-      if (email) updateData.email = email;
-      if (phone) updateData.phone = phone;
-      if (bio) updateData.bio = bio;
-      if (avatar) updateData.avatar = avatar;
-      if (role) updateData.role = role;
-      if (adminRole) updateData.adminRole = adminRole;
-      if (permissions) updateData.permissions = permissions;
-      if (verificationLevel) updateData.verificationLevel = verificationLevel;
+      const oldData = user.toJSON();
 
-      const user = await User.findByIdAndUpdate(req.params.id, updateData, {
-        new: true,
-        runValidators: true,
-      }).select("-password -twoFactorSecret -twoFactorBackupCodes");
+      // Update fields
+      if (name) user.name = name;
+      if (email) user.email = email;
+      if (phone) user.phone = phone;
+      if (bio) user.bio = bio;
+      if (avatar) user.avatar = avatar;
+      if (role) user.role = role;
+      if (adminRole) user.adminRole = adminRole;
+      if (permissions) user.permissions = permissions;
+      if (verificationLevel) user.verificationLevel = verificationLevel;
+
+      await user.save();
 
       // Detectar cambios para audit log
-      const changes = detectChanges(
-        oldUser.toObject(),
-        user!.toObject(),
-        Object.keys(updateData)
-      );
+      const changedFields = Object.keys(req.body).filter(k => k !== 'ownerPassword');
+      const changes = detectChanges(oldData, user.toJSON(), changedFields);
 
       await logAudit({
         req,
         action: "update_user",
         category: "user",
         severity: getSeverityForAction("update_user"),
-        description: `Usuario ${user!.email} actualizado`,
+        description: `Usuario ${user.email} actualizado`,
         targetModel: "User",
-        targetId: user!._id.toString(),
-        targetIdentifier: user!.email,
+        targetId: user.id,
+        targetIdentifier: user.email,
         changes,
       });
+
+      // Return user without sensitive fields
+      const userData = user.toJSON();
+      delete userData.password;
+      delete userData.twoFactorSecret;
+      delete userData.twoFactorBackupCodes;
 
       res.json({
         success: true,
         message: "Usuario actualizado correctamente",
-        data: user,
+        data: userData,
       });
     } catch (error: any) {
       res.status(500).json({
@@ -224,7 +224,7 @@ router.post(
       user.isBanned = true;
       user.banReason = reason;
       user.bannedAt = new Date();
-      user.bannedBy = req.user._id;
+      user.bannedBy = req.user.id;
       user.infractions = (user.infractions || 0) + 1;
 
       if (expiresAt) {
@@ -234,13 +234,13 @@ router.post(
       await user.save();
 
       // Revocar todos los refresh tokens activos
-      await RefreshToken.updateMany(
-        { user: user._id, isRevoked: false },
+      await RefreshToken.update(
         {
           isRevoked: true,
           revokedAt: new Date(),
           revokedReason: "Usuario baneado",
-        }
+        },
+        { where: { userId: user.id, isRevoked: false } }
       );
 
       await logAudit({
@@ -250,7 +250,7 @@ router.post(
         severity: getSeverityForAction("ban_user"),
         description: `Usuario ${user.email} baneado. Razón: ${reason}`,
         targetModel: "User",
-        targetId: user._id.toString(),
+        targetId: user.id,
         targetIdentifier: user.email,
         metadata: { reason, expiresAt, infractions: user.infractions },
       });
@@ -301,7 +301,7 @@ router.post(
         severity: getSeverityForAction("unban_user"),
         description: `Usuario ${user.email} desbaneado`,
         targetModel: "User",
-        targetId: user._id.toString(),
+        targetId: user.id,
         targetIdentifier: user.email,
       });
 
@@ -354,18 +354,22 @@ router.delete(
         return;
       }
 
-      await User.findByIdAndDelete(req.params.id);
+      const userEmail = user.email;
+      const userId = user.id;
+      const infractions = user.infractions;
+
+      await user.destroy();
 
       await logAudit({
         req,
         action: "delete_user",
         category: "user",
         severity: getSeverityForAction("delete_user"),
-        description: `Usuario ${user.email} eliminado permanentemente`,
+        description: `Usuario ${userEmail} eliminado permanentemente`,
         targetModel: "User",
-        targetId: user._id.toString(),
-        targetIdentifier: user.email,
-        metadata: { infractions: user.infractions },
+        targetId: userId,
+        targetIdentifier: userEmail,
+        metadata: { infractions },
       });
 
       res.json({

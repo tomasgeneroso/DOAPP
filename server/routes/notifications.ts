@@ -1,9 +1,10 @@
 import { Router, Response } from "express";
-import { protect, AuthRequest } from "../middleware/auth";
+import { protect, AuthRequest } from "../middleware/auth.js";
 import { User } from "../models/sql/User.model.js";
 import { Notification } from "../models/sql/Notification.model.js";
-import fcmService from "../services/fcm";
+import fcmService from "../services/fcm.js";
 import { body, validationResult } from "express-validator";
+import { Op } from "sequelize";
 
 const router = Router();
 
@@ -26,7 +27,7 @@ router.post(
         return;
       }
 
-      const userId = req.user._id;
+      const userId = req.user.id;
       const { token } = req.body;
 
       const user = await User.findByPk(userId);
@@ -41,7 +42,7 @@ router.post(
 
       // Add token if not already present
       if (!user.fcmTokens.includes(token)) {
-        user.fcmTokens.push(token);
+        user.fcmTokens = [...user.fcmTokens, token];
         await user.save();
       }
 
@@ -78,12 +79,15 @@ router.post(
         return;
       }
 
-      const userId = req.user._id;
+      const userId = req.user.id;
       const { token } = req.body;
 
-      await User.findByIdAndUpdate(userId, {
-        $pull: { fcmTokens: token },
-      });
+      const user = await User.findByPk(userId);
+
+      if (user) {
+        user.fcmTokens = user.fcmTokens.filter((t: string) => t !== token);
+        await user.save();
+      }
 
       res.json({
         success: true,
@@ -105,9 +109,11 @@ router.post(
  */
 router.get("/preferences", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
 
-    const user = await User.findByPk(userId).select("notificationPreferences");
+    const user = await User.findByPk(userId, {
+      attributes: ['notificationPreferences'],
+    });
 
     if (!user) {
       res.status(404).json({
@@ -136,7 +142,7 @@ router.get("/preferences", protect, async (req: AuthRequest, res: Response): Pro
  */
 router.put("/preferences", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
     const preferences = req.body;
 
     const user = await User.findByPk(userId);
@@ -177,35 +183,42 @@ router.put("/preferences", protect, async (req: AuthRequest, res: Response): Pro
  */
 router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
     const { page = 1, limit = 20, unreadOnly = false } = req.query;
 
-    const query: any = { userId };
+    const where: any = { recipientId: userId };
 
     if (unreadOnly === "true") {
-      query.read = false;
+      where.read = false;
     }
 
-    const notifications = await Notification.find(query)
-      .sort({ createdAt: -1 })
-      .limit(Number(limit))
-      .skip((Number(page) - 1) * Number(limit));
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+    const offset = (pageNum - 1) * limitNum;
 
-    const total = await Notification.countDocuments(query);
-    const unreadCount = await Notification.count({ where: {
-      userId,
-      read: false,
-    } });
+    const { count: total, rows: notifications } = await Notification.findAndCountAll({
+      where,
+      order: [['createdAt', 'DESC']],
+      limit: limitNum,
+      offset,
+    });
+
+    const unreadCount = await Notification.count({
+      where: {
+        recipientId: userId,
+        read: false,
+      },
+    });
 
     res.json({
       success: true,
       data: notifications,
       unreadCount,
       pagination: {
-        page: Number(page),
-        limit: Number(limit),
+        page: pageNum,
+        limit: limitNum,
         total,
-        pages: Math.ceil(total / Number(limit)),
+        pages: Math.ceil(total / limitNum),
       },
     });
   } catch (error: any) {
@@ -224,11 +237,13 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
 router.put("/:id/read", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const userId = req.user._id;
+    const userId = req.user.id;
 
     const notification = await Notification.findOne({
-      _id: id,
-      userId,
+      where: {
+        id,
+        recipientId: userId,
+      },
     });
 
     if (!notification) {
@@ -262,11 +277,11 @@ router.put("/:id/read", protect, async (req: AuthRequest, res: Response): Promis
  */
 router.put("/read-all", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
 
-    await Notification.updateMany(
-      { userId, read: false },
-      { read: true, readAt: new Date() }
+    await Notification.update(
+      { read: true, readAt: new Date() },
+      { where: { recipientId: userId, read: false } }
     );
 
     res.json({
@@ -289,14 +304,16 @@ router.put("/read-all", protect, async (req: AuthRequest, res: Response): Promis
 router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const userId = req.user._id;
+    const userId = req.user.id;
 
-    const notification = await Notification.findOneAndDelete({
-      _id: id,
-      userId,
+    const deleted = await Notification.destroy({
+      where: {
+        id,
+        recipientId: userId,
+      },
     });
 
-    if (!notification) {
+    if (!deleted) {
       res.status(404).json({
         success: false,
         message: "Notificación no encontrada",
@@ -323,7 +340,7 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
  */
 router.post("/test", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userId = req.user._id.toString();
+    const userId = req.user.id;
 
     const result = await fcmService.sendToUser({
       userId,

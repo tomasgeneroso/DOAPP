@@ -4,7 +4,6 @@ import { Advertisement } from '../../models/sql/Advertisement.model.js';
 import advertisementService from '../../services/advertisementService.js';
 import { protect, authorize } from '../../middleware/auth.js';
 import type { AuthRequest } from '../../middleware/auth.js';
-import cache from '../../services/cache.js';
 import sanitizer from '../../utils/sanitizer.js';
 
 const router = express.Router();
@@ -151,7 +150,6 @@ router.post(
       await advertisement.save();
 
       // Invalidate cache
-      await cache.delPattern('ads:*');
 
       // TODO: Send notification to advertiser
 
@@ -203,7 +201,6 @@ router.post(
       await advertisement.save();
 
       // Invalidate cache
-      await cache.delPattern('ads:*');
 
       // TODO: Send notification to advertiser with rejection reason
 
@@ -245,7 +242,6 @@ router.put(
       await advertisement.save();
 
       // Invalidate cache
-      await cache.delPattern('ads:*');
 
       res.json({
         success: true,
@@ -284,7 +280,6 @@ router.delete(
       await advertisement.destroy();
 
       // Invalidate cache
-      await cache.delPattern('ads:*');
 
       res.json({
         success: true,
@@ -303,13 +298,6 @@ router.delete(
  */
 router.get('/stats/platform', async (req: AuthRequest, res: Response) => {
   try {
-    const cacheKey = 'ads:stats:platform';
-    const cached = await cache.get(cacheKey);
-
-    if (cached) {
-      return res.json({ success: true, data: cached });
-    }
-
     const [
       totalAds,
       activeAds,
@@ -347,9 +335,6 @@ router.get('/stats/platform', async (req: AuthRequest, res: Response) => {
             : 0,
       },
     };
-
-    // Cache for 15 minutes
-    await cache.set(cacheKey, stats, 900);
 
     res.json({
       success: true,

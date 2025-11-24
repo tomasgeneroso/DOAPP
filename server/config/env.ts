@@ -23,9 +23,13 @@ export const config = {
   // Server URL (para logs y callbacks)
   serverUrl: process.env.SERVER_URL || (process.env.NODE_ENV === "production" ? "https://doapparg.site" : "http://localhost:5000"),
 
-  // OAuth - Google
-  googleClientId: process.env.GOOGLE_CLOUD_AUTH_ID || "",
-  googleClientSecret: process.env.GOOGLE_CLOUD_AUTH_PASS || "",
+  // OAuth - Google (use TEST credentials in development)
+  googleClientId: process.env.NODE_ENV === "development"
+    ? (process.env.GOOGLE_CLOUD_AUTH_ID_TEST || process.env.GOOGLE_CLOUD_AUTH_ID || "")
+    : (process.env.GOOGLE_CLOUD_AUTH_ID || ""),
+  googleClientSecret: process.env.NODE_ENV === "development"
+    ? (process.env.GOOGLE_CLOUD_AUTH_PASS_TEST || process.env.GOOGLE_CLOUD_AUTH_PASS || "")
+    : (process.env.GOOGLE_CLOUD_AUTH_PASS || ""),
 
   // OAuth - Facebook
   facebookAppId: process.env.FACEBOOK_APP_ID || "",
@@ -55,9 +59,6 @@ export const config = {
   mailgunApiKey: process.env.MAILGUN_API_KEY || "",
   mailgunDomain: process.env.MAILGUN_DOMAIN || "",
   mailgunFromEmail: process.env.MAILGUN_FROM_EMAIL || "noreply@doapp.com",
-
-  // Redis (Cache)
-  redisUrl: process.env.REDIS_URL || "",
 
   // Analytics
   googleAnalyticsId: process.env.GOOGLE_ANALYTICS_ID || "",

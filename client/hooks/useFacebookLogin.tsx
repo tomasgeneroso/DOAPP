@@ -1,9 +1,11 @@
 import { useState, useCallback, useEffect } from "react";
+import { FB_SDK_READY_EVENT } from "../components/FacebookSDK";
 
 export function useFacebookLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fbStatus, setFbStatus] = useState<'checking' | 'connected' | 'not_authorized' | 'unknown'>('checking');
+  const [sdkReady, setSdkReady] = useState(window.fbSDKInitialized || false);
 
   // Authenticate with backend using Facebook access token
   const authenticateWithBackend = useCallback((accessToken: string, userID: string) => {
@@ -32,71 +34,75 @@ export function useFacebookLogin() {
       });
   }, []);
 
-  // Handle Facebook login status response
-  const statusChangeCallback = useCallback((response: FBLoginStatus) => {
-    setFbStatus(response.status);
-
-    if (response.status === "connected" && response.authResponse) {
-      // User is logged into Facebook and has authorized your app
-      // Check if they're already logged into your app
-      const existingToken = localStorage.getItem("token");
-
-      if (!existingToken) {
-        // Auto-authenticate if not already logged in
-        setIsLoading(true);
-        authenticateWithBackend(response.authResponse.accessToken, response.authResponse.userID);
-      }
-    } else if (response.status === "not_authorized") {
-      // User is logged into Facebook but hasn't authorized your app
-      setFbStatus("not_authorized");
-    } else {
-      // User isn't logged into Facebook
-      setFbStatus("unknown");
-    }
-
-    if (response.status !== "connected") {
-      setIsLoading(false);
-    }
-  }, [authenticateWithBackend]);
-
-  // Check Facebook login status on mount
+  // Check Facebook SDK ready on mount (without checking login status)
   useEffect(() => {
-    if (typeof window.FB !== "undefined") {
-      window.FB.getLoginStatus(statusChangeCallback);
-    } else {
-      // Wait for SDK to load
-      const checkFB = setInterval(() => {
-        if (typeof window.FB !== "undefined") {
-          clearInterval(checkFB);
-          window.FB.getLoginStatus(statusChangeCallback);
-        }
-      }, 100);
+    const handleSDKReady = () => {
+      console.log('📘 Facebook SDK ready event received');
+      setSdkReady(true);
+      setFbStatus('unknown'); // Don't check login status automatically
+    };
 
-      return () => clearInterval(checkFB);
+    // If already initialized, just mark as ready
+    if (window.fbSDKInitialized && typeof window.FB !== "undefined") {
+      setSdkReady(true);
+      setFbStatus('unknown');
+    } else {
+      // Listen for the SDK ready event
+      window.addEventListener(FB_SDK_READY_EVENT, handleSDKReady);
+
+      // Timeout after 15 seconds
+      const timeout = setTimeout(() => {
+        if (!window.fbSDKInitialized) {
+          console.warn('⚠️ Facebook SDK initialization timeout');
+          setFbStatus('unknown');
+        }
+      }, 15000);
+
+      return () => {
+        window.removeEventListener(FB_SDK_READY_EVENT, handleSDKReady);
+        clearTimeout(timeout);
+      };
     }
-  }, [statusChangeCallback]);
+  }, []); // Remove statusChangeCallback dependency
 
   const loginWithFacebook = useCallback(() => {
     setIsLoading(true);
     setError(null);
 
-    if (typeof window.FB === "undefined") {
-      setError("Facebook SDK no está cargado");
-      setIsLoading(false);
-      return;
-    }
+    // Wait a bit to ensure SDK is ready
+    const attemptLogin = () => {
+      // Check if FB exists and is initialized
+      if (typeof window.FB === "undefined" || !window.fbSDKInitialized) {
+        console.warn('⚠️ Facebook SDK not ready yet, waiting...');
+        // Wait a bit more
+        setTimeout(attemptLogin, 500);
+        return;
+      }
 
-    window.FB.login(
-      (response: FBLoginStatus) => {
-        if (response.status === "connected" && response.authResponse) {
-          authenticateWithBackend(response.authResponse.accessToken, response.authResponse.userID);
-        } else {
-          setError("Autenticación cancelada");
-          setIsLoading(false);
-        }
-      },
-      { scope: "public_profile,email" }
-    );
+      console.log('🔵 Attempting Facebook login...');
+
+      try {
+        window.FB.login(
+          (response: FBLoginStatus) => {
+            console.log('📘 Facebook login response:', response.status);
+            if (response.status === "connected" && response.authResponse) {
+              authenticateWithBackend(response.authResponse.accessToken, response.authResponse.userID);
+            } else {
+              setError("Autenticación cancelada o denegada");
+              setIsLoading(false);
+            }
+          },
+          { scope: "public_profile,email" }
+        );
+      } catch (e) {
+        console.error('Error calling FB.login:', e);
+        setError("Error al iniciar sesión con Facebook");
+        setIsLoading(false);
+      }
+    };
+
+    // Start attempt after a small delay to ensure everything is ready
+    setTimeout(attemptLogin, 100);
   }, [authenticateWithBackend]);
 
   return {
@@ -104,5 +110,6 @@ export function useFacebookLogin() {
     isLoading,
     error,
     fbStatus,
+    sdkReady,
   };
 }

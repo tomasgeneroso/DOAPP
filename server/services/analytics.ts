@@ -3,7 +3,6 @@ import { Job } from "../models/sql/Job.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
 import { Payment } from "../models/sql/Payment.model.js";
 import { Ticket } from "../models/sql/Ticket.model.js";
-import cache from "./cache.js";
 import { Op } from 'sequelize';
 
 /**
@@ -15,12 +14,6 @@ class AnalyticsService {
    * Get platform overview metrics
    */
   async getPlatformOverview(): Promise<any> {
-    const cacheKey = "analytics:platform:overview";
-
-    // Try cache first
-    const cached = await cache.get(cacheKey);
-    if (cached) return cached;
-
     const [
       totalUsers,
       totalJobs,
@@ -67,8 +60,6 @@ class AnalyticsService {
       },
     };
 
-    // Cache for 10 minutes
-    await cache.set(cacheKey, result, 600);
     return result;
   }
 
@@ -76,12 +67,6 @@ class AnalyticsService {
    * Get user growth metrics
    */
   async getUserGrowth(days: number = 30): Promise<any> {
-    const cacheKey = `analytics:user:growth:${days}`;
-
-    // Try cache first
-    const cached = await cache.get(cacheKey);
-    if (cached) return cached;
-
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
     const growth = await User.aggregate([
@@ -103,8 +88,6 @@ class AnalyticsService {
       },
     ]);
 
-    // Cache for 1 hour
-    await cache.set(cacheKey, growth, 3600);
     return growth;
   }
 
@@ -112,12 +95,6 @@ class AnalyticsService {
    * Get job statistics
    */
   async getJobStats(): Promise<any> {
-    const cacheKey = "analytics:jobs:stats";
-
-    // Try cache first
-    const cached = await cache.get(cacheKey);
-    if (cached) return cached;
-
     const [categoryStats, avgPrice, priceRange] = await Promise.all([
       Job.aggregate([
         { $match: { status: "open" } },
@@ -147,8 +124,6 @@ class AnalyticsService {
       priceRange: priceRange[0] || { minPrice: 0, maxPrice: 0 },
     };
 
-    // Cache for 30 minutes
-    await cache.set(cacheKey, result, 1800);
     return result;
   }
 
@@ -156,12 +131,6 @@ class AnalyticsService {
    * Get contract analytics
    */
   async getContractAnalytics(days: number = 30): Promise<any> {
-    const cacheKey = `analytics:contracts:${days}`;
-
-    // Try cache first
-    const cached = await cache.get(cacheKey);
-    if (cached) return cached;
-
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
     const [statusBreakdown, avgDuration, successRate] = await Promise.all([
@@ -224,8 +193,6 @@ class AnalyticsService {
         : 0,
     };
 
-    // Cache for 1 hour
-    await cache.set(cacheKey, result, 3600);
     return result;
   }
 
@@ -233,12 +200,6 @@ class AnalyticsService {
    * Get payment analytics
    */
   async getPaymentAnalytics(days: number = 30): Promise<any> {
-    const cacheKey = `analytics:payments:${days}`;
-
-    // Try cache first
-    const cached = await cache.get(cacheKey);
-    if (cached) return cached;
-
     const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
     const [revenueByDay, totalVolume, avgTransaction] = await Promise.all([
@@ -299,8 +260,6 @@ class AnalyticsService {
       averageTransaction: avgTransaction[0]?.avg || 0,
     };
 
-    // Cache for 1 hour
-    await cache.set(cacheKey, result, 3600);
     return result;
   }
 
@@ -308,12 +267,6 @@ class AnalyticsService {
    * Get user trust score distribution
    */
   async getTrustScoreDistribution(): Promise<any> {
-    const cacheKey = "analytics:trust:distribution";
-
-    // Try cache first
-    const cached = await cache.get(cacheKey);
-    if (cached) return cached;
-
     const distribution = await User.aggregate([
       {
         $bucket: {
@@ -328,8 +281,6 @@ class AnalyticsService {
       },
     ]);
 
-    // Cache for 1 hour
-    await cache.set(cacheKey, distribution, 3600);
     return distribution;
   }
 
@@ -337,12 +288,6 @@ class AnalyticsService {
    * Get ticket statistics
    */
   async getTicketStats(): Promise<any> {
-    const cacheKey = "analytics:tickets:stats";
-
-    // Try cache first
-    const cached = await cache.get(cacheKey);
-    if (cached) return cached;
-
     const [statusBreakdown, categoryBreakdown, avgResolutionTime] = await Promise.all([
       Ticket.aggregate([
         {
@@ -393,8 +338,6 @@ class AnalyticsService {
       avgResolutionTime: avgResolutionTime[0]?.avgTime || 0,
     };
 
-    // Cache for 30 minutes
-    await cache.set(cacheKey, result, 1800);
     return result;
   }
 
@@ -407,19 +350,8 @@ class AnalyticsService {
     eventData?: any;
     metadata?: any;
   }): Promise<void> {
-    // You can store events in a separate collection or send to external analytics
+    // Log analytics event
     console.log("Analytics event:", event);
-
-    // Increment event counter in cache
-    const key = `analytics:event:${event.eventType}`;
-    await cache.increment(key, 24 * 60 * 60); // 24 hour TTL
-  }
-
-  /**
-   * Clear analytics cache
-   */
-  async clearCache(): Promise<boolean> {
-    return await cache.delPattern("analytics:*");
   }
 }
 

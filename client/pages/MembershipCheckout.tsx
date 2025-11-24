@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { useToast } from '../components/ui/Toast';
 import { Crown, Check, TrendingUp, Shield, BarChart3, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
 import Button from '../components/ui/Button';
 
 export default function MembershipCheckout() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const toast = useToast();
   const [searchParams] = useSearchParams();
   const plan = searchParams.get('plan') || 'monthly'; // monthly, quarterly, or super_pro
 
@@ -106,14 +108,17 @@ export default function MembershipCheckout() {
 
       if (data.success && data.initPoint) {
         console.log('✅ Redirigiendo a MercadoPago:', data.initPoint);
+        toast.info('Redirigiendo a MercadoPago', 'Serás redirigido al procesador de pago');
         // Redirigir a MercadoPago
         window.location.href = data.initPoint;
       } else {
         console.error('❌ Error en respuesta:', data.message);
+        toast.error('Error', data.message || 'Error al iniciar el pago');
         setError(data.message || 'Error al iniciar el pago');
       }
     } catch (err: any) {
       console.error('❌ Error procesando pago:', err);
+      toast.error('Error de pago', err.message || 'Error al procesar el pago');
       setError(err.message || 'Error al procesar el pago');
     } finally {
       setLoading(false);
@@ -123,8 +128,8 @@ export default function MembershipCheckout() {
   const planDetails = {
     monthly: {
       name: 'PRO Mensual',
-      price: pricing?.pro?.price || 5.99,
-      priceUSD: pricing?.pro?.price || 5.99,
+      price: pricing?.pro?.priceARS || 0,
+      priceARS: pricing?.pro?.priceARS || 0,
       period: 'por mes',
       benefits: [
         { icon: TrendingUp, title: '1 contrato mensual SIN comisión (0%)', description: 'Publica 1 trabajo al mes completamente gratis' },
@@ -139,8 +144,8 @@ export default function MembershipCheckout() {
     },
     quarterly: {
       name: 'PRO Trimestral',
-      price: pricing?.pro?.price ? pricing.pro.price * 3 * 0.89 : 15.99,
-      priceUSD: pricing?.pro?.price ? pricing.pro.price * 3 * 0.89 : 15.99,
+      price: pricing?.pro?.priceARS ? pricing.pro.priceARS * 3 * 0.89 : 0,
+      priceARS: pricing?.pro?.priceARS ? pricing.pro.priceARS * 3 * 0.89 : 0,
       period: 'cada 3 meses',
       savings: '$1.98',
       benefits: [
@@ -156,8 +161,8 @@ export default function MembershipCheckout() {
     },
     super_pro: {
       name: 'SUPER PRO',
-      price: pricing?.superPro?.price || 8.99,
-      priceUSD: pricing?.superPro?.price || 8.99,
+      price: pricing?.superPro?.priceARS || 0,
+      priceARS: pricing?.superPro?.priceARS || 0,
       period: 'por mes',
       benefits: [
         { icon: Crown, title: 'Todos los beneficios de PRO', description: 'Incluye todos los beneficios del plan PRO: verificación, badge dorado, prioridad en búsquedas' },
@@ -356,7 +361,7 @@ export default function MembershipCheckout() {
                   </div>
                   <div className="text-right">
                     <p className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-sky-600 to-sky-500">
-                      ${selectedPlan.priceUSD.toFixed(2)} USD
+                      ${Math.round(selectedPlan.priceARS).toLocaleString('es-AR')} ARS
                     </p>
                   </div>
                 </div>
@@ -365,7 +370,7 @@ export default function MembershipCheckout() {
                   <div className="flex justify-between items-center">
                     <p className="font-bold text-gray-900 dark:text-white">Total</p>
                     <p className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-sky-600 to-sky-500">
-                      ${selectedPlan.priceUSD.toFixed(2)} USD
+                      ${Math.round(selectedPlan.priceARS).toLocaleString('es-AR')} ARS
                     </p>
                   </div>
                 </div>

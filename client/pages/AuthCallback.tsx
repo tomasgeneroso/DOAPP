@@ -21,22 +21,22 @@ export default function AuthCallback() {
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        credentials: 'include', // Include cookies for httpOnly token
       })
         .then((res) => res.json())
         .then((data) => {
           if (data.success && data.user) {
-            // Save token and user to localStorage
+            // Save token and user to localStorage for client-side access
             localStorage.setItem("token", token);
             localStorage.setItem("user", JSON.stringify(data.user));
-            // Redirect to home
-            navigate("/", { replace: true });
-            // Reload to update auth context
-            window.location.reload();
+            // Redirect to home and reload to update auth context
+            window.location.href = "/";
           } else {
             navigate("/login?error=auth_failed", { replace: true });
           }
         })
-        .catch(() => {
+        .catch((err) => {
+          console.error("Auth callback error:", err);
           navigate("/login?error=auth_failed", { replace: true });
         });
     } else {

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./hooks/useAuth";
 import { HelmetProvider } from "react-helmet-async";
+import { ToastProvider } from "./components/ui/Toast";
 import { FacebookSDK } from "./components/FacebookSDK";
 import { useEffect } from "react";
 import { setupFetchInterceptor } from "./utils/fetchWithAuth";
@@ -75,6 +76,7 @@ import AdminDisputeManager from "./pages/admin/AdminDisputeManager";
 import AdminCreateDispute from "./pages/admin/CreateDispute";
 import AdminWithdrawalManager from "./pages/admin/AdminWithdrawalManager";
 import FinancialTransactions from "./pages/admin/FinancialTransactions";
+import PendingPayments from "./pages/admin/PendingPayments";
 
 export default function App() {
   // Setup fetch interceptor for automatic token handling
@@ -85,8 +87,9 @@ export default function App() {
   return (
     <HelmetProvider>
       <AuthProvider>
-        <FacebookSDK />
-        <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+        <ToastProvider>
+          <FacebookSDK />
+          <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
           <Routes>
             <Route element={<Layout />}>
               <Route path="/" element={<Index />} />
@@ -398,6 +401,7 @@ export default function App() {
               <Route path="disputes" element={<AdminDisputeManager />} />
               <Route path="disputes/create" element={<AdminCreateDispute />} />
               <Route path="withdrawals" element={<AdminWithdrawalManager />} />
+              <Route path="pending-payments" element={<PendingPayments />} />
               <Route path="financial-transactions" element={<FinancialTransactions />} />
               <Route path="tickets" element={<AdminTickets />} />
               <Route path="tickets/create" element={<AdminCreateTicket />} />
@@ -405,6 +409,7 @@ export default function App() {
             </Route>
           </Routes>
         </BrowserRouter>
+        </ToastProvider>
       </AuthProvider>
     </HelmetProvider>
   );
