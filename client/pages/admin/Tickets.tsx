@@ -12,6 +12,8 @@ export default function AdminTickets() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
@@ -106,10 +108,20 @@ export default function AdminTickets() {
     return order[status] || 0;
   };
 
-  const getSortedTickets = () => {
-    if (!sortField || !sortDirection) return tickets;
+  const getFilteredTickets = () => {
+    return tickets.filter((ticket) => {
+      const ticketDate = new Date(ticket.createdAt);
+      const matchesDateFrom = !dateFrom || ticketDate >= new Date(dateFrom);
+      const matchesDateTo = !dateTo || ticketDate <= new Date(dateTo + 'T23:59:59');
+      return matchesDateFrom && matchesDateTo;
+    });
+  };
 
-    return [...tickets].sort((a, b) => {
+  const getSortedTickets = () => {
+    const filtered = getFilteredTickets();
+    if (!sortField || !sortDirection) return filtered;
+
+    return [...filtered].sort((a, b) => {
       let comparison = 0;
 
       switch (sortField) {
@@ -173,8 +185,8 @@ export default function AdminTickets() {
       </div>
 
       {/* Filters */}
-      <div className="mb-6 flex gap-4">
-        <div className="flex-1 relative">
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="relative md:col-span-2">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
@@ -196,6 +208,20 @@ export default function AdminTickets() {
           <option value="resolved">Resueltos</option>
           <option value="closed">Cerrados</option>
         </select>
+        <input
+          type="date"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+          placeholder="Desde"
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+        />
+        <input
+          type="date"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+          placeholder="Hasta"
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+        />
       </div>
 
       {/* Tickets List */}

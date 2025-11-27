@@ -127,6 +127,57 @@ export default function ChatScreen() {
     };
   }, [conversationId, isConnected]);
 
+  // Polling como fallback - actualiza cada 5 segundos si socket no está conectado
+  // o cada 15 segundos como backup incluso si socket está conectado
+  useEffect(() => {
+    if (!conversationId) return;
+
+    const pollInterval = isConnected ? 15000 : 5000; // 15s con socket, 5s sin socket
+
+    const interval = setInterval(() => {
+      fetchMessagesOnly();
+    }, pollInterval);
+
+    return () => clearInterval(interval);
+  }, [conversationId, isConnected]);
+
+  // Fetch solo mensajes (más ligero que fetchConversationData)
+  const fetchMessagesOnly = async () => {
+    if (!conversationId || !token) return;
+    try {
+      const msgResponse = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const msgData = await msgResponse.json();
+      if (msgData.success && msgData.data) {
+        setMessages(prev => {
+          // Merge new messages avoiding duplicates
+          const existingIds = new Set(prev.map(m => m.id || m._id));
+          const newMessages = msgData.data.filter((m: Message) => !existingIds.has(m.id || m._id));
+          if (newMessages.length > 0) {
+            return [...prev, ...newMessages];
+          }
+          // También actualizar si hay cambios en metadata (ej: proposalStatus)
+          const hasMetadataChanges = msgData.data.some((newMsg: Message) => {
+            const existing = prev.find(p => (p.id || p._id) === (newMsg.id || newMsg._id));
+            if (existing && newMsg.metadata && existing.metadata) {
+              return JSON.stringify(newMsg.metadata) !== JSON.stringify(existing.metadata);
+            }
+            return false;
+          });
+          if (hasMetadataChanges) {
+            return msgData.data;
+          }
+          return prev;
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+    }
+  };
+
   // Sync socket messages with local state
   useEffect(() => {
     if (socketMessages.length > 0) {
@@ -577,9 +628,18 @@ export default function ChatScreen() {
                           <Briefcase className="h-6 w-6 text-sky-600 dark:text-sky-400" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          {/* Header */}
+                          {/* Header - modificar según quién es el usuario */}
                           <h4 className="text-lg font-bold text-sky-900 dark:text-sky-100 mb-1">
-                            {header}
+                            {isCurrentUser
+                              ? header.replace(/aplicó|envió una contraoferta/gi, (match) =>
+                                  match.toLowerCase().includes('contraoferta') ? 'Enviaste una contraoferta' : 'Aplicaste al trabajo'
+                                )
+                              : header.replace(/aplicó|envió una contraoferta/gi, (match) =>
+                                  match.toLowerCase().includes('contraoferta')
+                                    ? `${message.sender.name} envió una contraoferta`
+                                    : `${message.sender.name} aplicó al trabajo`
+                                )
+                            }
                           </h4>
 
                           {/* Title */}
@@ -605,29 +665,62 @@ export default function ChatScreen() {
                           {/* Action Buttons */}
                           {message.metadata?.action === 'job_application' && (
                             <div className="flex flex-wrap gap-2 mt-4">
-                              {isCurrentUser ? (
-                                // Si el usuario aplicó, mostrar botón para ver su propuesta
-                                <button
-                                  onClick={() => navigate(`/proposals/${message.metadata?.proposalId}`)}
-                                  className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium rounded-lg transition-colors"
-                                >
-                                  <FileText className="h-4 w-4" />
-                                  Ver Mi {message.metadata?.isCounterOffer ? 'Contraoferta' : 'Aplicación'}
-                                </button>
-                              ) : (
-                                // Si el usuario es el cliente, mostrar botones de gestión
-                                <>
-                                  <button
-                                    onClick={() => navigate(`/jobs/${message.metadata?.jobId}`)}
-                                    className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium rounded-lg transition-colors"
-                                  >
-                                    <Briefcase className="h-4 w-4" />
-                                    Ver Trabajo
-                                  </button>
-                                </>
-                              )}
+                              {/* Botón Ver Trabajo - siempre visible */}
+                              <button
+                                onClick={() => navigate(`/jobs/${message.metadata?.jobId}`)}
+                                className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium rounded-lg transition-colors"
+                              >
+                                <Briefcase className="h-4 w-4" />
+                                Ver Trabajo
+                              </button>
 
-                              {!isCurrentUser && (
+                              {isCurrentUser ? (
+                                // Si YO envié esta aplicación/contraoferta
+                                <>
+                                  {message.metadata?.proposalStatus === 'pending' && (
+                                    <button
+                                      onClick={async () => {
+                                        if (!message.metadata?.proposalId) return;
+                                        if (!confirm('¿Estás seguro de que deseas cancelar tu propuesta?')) return;
+
+                                        try {
+                                          const response = await fetch(
+                                            `/api/proposals/${message.metadata.proposalId}/withdraw`,
+                                            {
+                                              method: 'PUT',
+                                              headers: {
+                                                'Content-Type': 'application/json',
+                                                Authorization: `Bearer ${localStorage.getItem('token')}`,
+                                              },
+                                            }
+                                          );
+                                          const data = await response.json();
+                                          if (data.success) {
+                                            alert('Propuesta cancelada');
+                                            fetchConversationData();
+                                          } else {
+                                            alert(data.message || 'Error al cancelar');
+                                          }
+                                        } catch (error) {
+                                          console.error('Error:', error);
+                                          alert('Error al cancelar la propuesta');
+                                        }
+                                      }}
+                                      className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors"
+                                    >
+                                      <X className="h-4 w-4" />
+                                      Cancelar {message.metadata?.isCounterOffer ? 'Contraoferta' : 'Aplicación'}
+                                    </button>
+                                  )}
+                                  {message.metadata?.proposalStatus === 'pending' && (
+                                    <span className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-100 text-yellow-800 text-sm font-medium rounded-lg">
+                                      <Loader2 className="h-4 w-4" />
+                                      Esperando respuesta...
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                // Si YO soy el dueño del trabajo y RECIBÍ esta propuesta
                                 <>
                                   <button
                                     onClick={() => navigate(`/jobs/${message.metadata?.jobId}/applications`)}
@@ -637,47 +730,48 @@ export default function ChatScreen() {
                                     Ver Postulaciones
                                   </button>
 
-                                  <button
-                                    onClick={async () => {
-                                      if (!message.metadata?.proposalId) {
-                                        alert('No se encontró la propuesta');
-                                        return;
-                                      }
-
-                                      if (!confirm('¿Estás seguro de que deseas aceptar esta propuesta?')) {
-                                        return;
-                                      }
-
-                                      try {
-                                        const response = await fetch(
-                                          `/api/proposals/${message.metadata.proposalId}/approve`,
-                                          {
-                                            method: 'PUT',
-                                            headers: {
-                                              'Content-Type': 'application/json',
-                                              Authorization: `Bearer ${localStorage.getItem('token')}`,
-                                            },
-                                          }
-                                        );
-
-                                        const data = await response.json();
-
-                                        if (data.success && data.contractId) {
-                                          // Redirect to contract summary to review costs and proceed to payment
-                                          navigate(`/contracts/${data.contractId}/summary`);
-                                        } else {
-                                          alert(data.message || 'Error al aceptar la propuesta');
+                                  {message.metadata?.proposalStatus === 'pending' && (
+                                    <button
+                                      onClick={async () => {
+                                        if (!message.metadata?.proposalId) {
+                                          alert('No se encontró la propuesta');
+                                          return;
                                         }
-                                      } catch (error) {
-                                        console.error('Error accepting proposal:', error);
-                                        alert('Error al aceptar la propuesta');
-                                      }
-                                    }}
-                                    className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
-                                  >
-                                    <Check className="h-4 w-4" />
-                                    Aceptar Propuesta
-                                  </button>
+
+                                        if (!confirm('¿Estás seguro de que deseas aceptar esta propuesta?')) {
+                                          return;
+                                        }
+
+                                        try {
+                                          const response = await fetch(
+                                            `/api/proposals/${message.metadata.proposalId}/approve`,
+                                            {
+                                              method: 'PUT',
+                                              headers: {
+                                                'Content-Type': 'application/json',
+                                                Authorization: `Bearer ${localStorage.getItem('token')}`,
+                                              },
+                                            }
+                                          );
+
+                                          const data = await response.json();
+
+                                          if (data.success && data.contractId) {
+                                            navigate(`/contracts/${data.contractId}/summary`);
+                                          } else {
+                                            alert(data.message || 'Error al aceptar la propuesta');
+                                          }
+                                        } catch (error) {
+                                          console.error('Error accepting proposal:', error);
+                                          alert('Error al aceptar la propuesta');
+                                        }
+                                      }}
+                                      className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
+                                    >
+                                      <Check className="h-4 w-4" />
+                                      Aceptar Propuesta
+                                    </button>
+                                  )}
                                 </>
                               )}
                             </div>

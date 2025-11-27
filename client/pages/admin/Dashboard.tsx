@@ -3,7 +3,20 @@ import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { adminApi } from "@/lib/adminApi";
 import type { AnalyticsOverview } from "@/types/admin";
-import { Users, FileText, TicketIcon, TrendingUp, Plus, AlertTriangle, DollarSign, CreditCard, Wallet, BarChart3 } from "lucide-react";
+import { Users, FileText, TicketIcon, TrendingUp, Plus, AlertTriangle, DollarSign, CreditCard, Wallet, BarChart3, Crown, Star } from "lucide-react";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 
 export default function AdminDashboard() {
   const { user } = useAuth();
@@ -160,13 +173,15 @@ export default function AdminDashboard() {
 
           {/* Revenue Breakdown - Full Width */}
           <div className="grid grid-cols-1 gap-6">
-            {/* Comisiones de Contratos */}
+            {/* Comisiones de Contratos - Mejorado con gráficos */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <DollarSign className="h-5 w-5 text-green-600" />
                 Comisiones de Contratos
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+              {/* Stats cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total ARS</p>
                   <p className="text-2xl font-bold text-green-700 dark:text-green-400">
@@ -179,16 +194,61 @@ export default function AdminDashboard() {
                     ${Number(companyBalance.revenue?.commissions?.monthlyARS || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
+                <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Crecimiento</p>
+                  <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
+                    {Number(companyBalance.revenue?.commissions?.totalARS || 0) > 0
+                      ? `${((Number(companyBalance.revenue?.commissions?.monthlyARS || 0) / Number(companyBalance.revenue?.commissions?.totalARS || 1)) * 100).toFixed(1)}%`
+                      : '0%'
+                    }
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500">del mes actual</p>
+                </div>
+              </div>
+
+              {/* Gráfico de tasas de comisión */}
+              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
+                  Estructura de Comisiones por Tipo de Usuario
+                </h4>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart
+                    data={[
+                      { tipo: 'Estándar', comision: 8, color: '#ef4444' },
+                      { tipo: 'PRO', comision: 3, color: '#8b5cf6' },
+                      { tipo: 'SUPER PRO', comision: 2, color: '#f59e0b' },
+                    ]}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis dataKey="tipo" tick={{ fill: '#9ca3af', fontSize: 12 }} />
+                    <YAxis tick={{ fill: '#9ca3af', fontSize: 12 }} domain={[0, 10]} unit="%" />
+                    <Tooltip
+                      formatter={(value: number) => [`${value}%`, 'Comisión']}
+                      contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
+                      labelStyle={{ color: '#f3f4f6' }}
+                    />
+                    <Bar dataKey="comision" radius={[4, 4, 0, 0]}>
+                      <Cell fill="#ef4444" />
+                      <Cell fill="#8b5cf6" />
+                      <Cell fill="#f59e0b" />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
+                  Contratos menores a $8000 ARS tienen comisión mínima de $1000 ARS
+                </p>
               </div>
             </div>
 
-            {/* Ingresos por Membresías */}
+            {/* Ingresos por Membresías - Versión mejorada con gráficos */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <CreditCard className="h-5 w-5 text-purple-600" />
                 Ingresos por Membresías
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+              {/* Stats cards */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total ARS</p>
                   <p className="text-2xl font-bold text-purple-700 dark:text-purple-400">
@@ -207,16 +267,153 @@ export default function AdminDashboard() {
                     ${Number(companyBalance.revenue?.memberships?.monthlyARS || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
+                <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Este Mes (USD)</p>
+                  <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
+                    ${Number(companyBalance.revenue?.memberships?.monthlyUSD || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+              </div>
+
+              {/* Gráficos de membresías */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Distribución por tipo de membresía */}
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
+                    <Crown className="h-4 w-4 text-yellow-500" />
+                    Distribución de Membresías Activas
+                  </h4>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <PieChart>
+                      <Pie
+                        data={[
+                          {
+                            name: 'PRO',
+                            value: companyBalance.revenue?.memberships?.proCount || 0,
+                            color: '#8b5cf6',
+                            price: '€5.99/mes'
+                          },
+                          {
+                            name: 'SUPER PRO',
+                            value: companyBalance.revenue?.memberships?.superProCount || 0,
+                            color: '#f59e0b',
+                            price: '€8.99/mes'
+                          },
+                        ]}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, value, percent }: any) => Number(value) > 0 ? `${name}: ${value} (${(Number(percent) * 100).toFixed(0)}%)` : ''}
+                        outerRadius={70}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        <Cell fill="#8b5cf6" />
+                        <Cell fill="#f59e0b" />
+                      </Pie>
+                      <Tooltip
+                        formatter={(value: number, name: string) => [value, name]}
+                        contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
+                        labelStyle={{ color: '#f3f4f6' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="flex justify-center gap-6 mt-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">PRO ({companyBalance.revenue?.memberships?.proCount || 0})</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">SUPER PRO ({companyBalance.revenue?.memberships?.superProCount || 0})</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Ingresos estimados por tipo */}
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
+                    <Star className="h-4 w-4 text-green-500" />
+                    Ingresos Mensuales Estimados por Tipo
+                  </h4>
+                  <ResponsiveContainer width="100%" height={200}>
+                    <BarChart
+                      data={[
+                        {
+                          name: 'PRO',
+                          ingresos: (companyBalance.revenue?.memberships?.proCount || 0) * 5.99,
+                          cantidad: companyBalance.revenue?.memberships?.proCount || 0
+                        },
+                        {
+                          name: 'SUPER PRO',
+                          ingresos: (companyBalance.revenue?.memberships?.superProCount || 0) * 8.99,
+                          cantidad: companyBalance.revenue?.memberships?.superProCount || 0
+                        },
+                      ]}
+                      layout="vertical"
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis type="number" tick={{ fill: '#9ca3af', fontSize: 12 }} />
+                      <YAxis type="category" dataKey="name" tick={{ fill: '#9ca3af', fontSize: 12 }} width={80} />
+                      <Tooltip
+                        formatter={(value: number, name: string) => {
+                          if (name === 'ingresos') return [`€${value.toFixed(2)}`, 'Ingresos/mes'];
+                          return [value, 'Cantidad'];
+                        }}
+                        contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
+                        labelStyle={{ color: '#f3f4f6' }}
+                      />
+                      <Bar dataKey="ingresos" fill="#10b981" name="ingresos" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                  <div className="mt-4 grid grid-cols-2 gap-4 text-center">
+                    <div className="bg-purple-100 dark:bg-purple-900/30 rounded-lg p-3">
+                      <p className="text-xs text-gray-600 dark:text-gray-400">PRO (€5.99/mes)</p>
+                      <p className="text-lg font-bold text-purple-700 dark:text-purple-400">
+                        €{((companyBalance.revenue?.memberships?.proCount || 0) * 5.99).toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="bg-amber-100 dark:bg-amber-900/30 rounded-lg p-3">
+                      <p className="text-xs text-gray-600 dark:text-gray-400">SUPER PRO (€8.99/mes)</p>
+                      <p className="text-lg font-bold text-amber-700 dark:text-amber-400">
+                        €{((companyBalance.revenue?.memberships?.superProCount || 0) * 8.99).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Resumen total */}
+              <div className="mt-4 bg-gradient-to-r from-purple-500/10 to-amber-500/10 dark:from-purple-900/30 dark:to-amber-900/30 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Ingreso Mensual Estimado Total (EUR)</p>
+                    <p className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-amber-600 bg-clip-text text-transparent">
+                      €{(
+                        ((companyBalance.revenue?.memberships?.proCount || 0) * 5.99) +
+                        ((companyBalance.revenue?.memberships?.superProCount || 0) * 8.99)
+                      ).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Total Membresías Activas</p>
+                    <p className="text-3xl font-bold text-gray-900 dark:text-white">
+                      {companyBalance.revenue?.memberships?.activeCount || 0}
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Ingresos por Publicidad */}
+            {/* Ingresos por Publicidad - Mejorado con gráficos */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <BarChart3 className="h-5 w-5 text-orange-600" />
                 Ingresos por Publicidad
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+              {/* Stats cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4">
                   <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total ARS</p>
                   <p className="text-2xl font-bold text-orange-700 dark:text-orange-400">
@@ -235,6 +432,53 @@ export default function AdminDashboard() {
                     {companyBalance.revenue?.advertisements?.activePromotersCount || 0}
                   </p>
                 </div>
+              </div>
+
+              {/* Gráfico de modelos de publicidad */}
+              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
+                  Modelos de Publicidad Disponibles
+                </h4>
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart
+                    data={[
+                      { modelo: 'Banner 3x1', precio: 50, color: '#f97316' },
+                      { modelo: 'Sidebar 1x2', precio: 35, color: '#3b82f6' },
+                      { modelo: 'Card 1x1', precio: 20, color: '#10b981' },
+                    ]}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis dataKey="modelo" tick={{ fill: '#9ca3af', fontSize: 11 }} />
+                    <YAxis tick={{ fill: '#9ca3af', fontSize: 12 }} unit="$/día" />
+                    <Tooltip
+                      formatter={(value: number) => [`$${value}/día`, 'Precio Base']}
+                      contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
+                      labelStyle={{ color: '#f3f4f6' }}
+                    />
+                    <Bar dataKey="precio" radius={[4, 4, 0, 0]}>
+                      <Cell fill="#f97316" />
+                      <Cell fill="#3b82f6" />
+                      <Cell fill="#10b981" />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                <div className="mt-4 grid grid-cols-3 gap-2 text-center">
+                  <div className="bg-orange-100 dark:bg-orange-900/30 rounded p-2">
+                    <p className="text-xs text-gray-600 dark:text-gray-400">Banner 3x1</p>
+                    <p className="text-sm font-bold text-orange-600">$50/día</p>
+                  </div>
+                  <div className="bg-blue-100 dark:bg-blue-900/30 rounded p-2">
+                    <p className="text-xs text-gray-600 dark:text-gray-400">Sidebar 1x2</p>
+                    <p className="text-sm font-bold text-blue-600">$35/día</p>
+                  </div>
+                  <div className="bg-green-100 dark:bg-green-900/30 rounded p-2">
+                    <p className="text-xs text-gray-600 dark:text-gray-400">Card 1x1</p>
+                    <p className="text-sm font-bold text-green-600">$20/día</p>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-3">
+                  Fórmula: base × días × (1 + prioridad × 0.1)
+                </p>
               </div>
             </div>
           </div>

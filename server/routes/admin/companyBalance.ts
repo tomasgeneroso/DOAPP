@@ -32,7 +32,7 @@ router.get(
       let monthlyRevenueARS = 0;
 
       for (const contract of completedContracts) {
-        const commission = contract.commission || 0;
+        const commission = Number(contract.commission) || 0;
         totalRevenueARS += commission;
         if (contract.updatedAt && contract.updatedAt >= startOfMonth) {
           monthlyRevenueARS += commission;
@@ -59,8 +59,8 @@ router.get(
 
       for (const payment of membershipPayments) {
         // Use amountArs/amountUsd if available, otherwise use amount with currency
-        const arsAmount = payment.amountArs || (payment.currency === 'ARS' ? payment.amount : 0);
-        const usdAmount = payment.amountUsd || (payment.currency === 'USD' ? payment.amount : 0);
+        const arsAmount = Number(payment.amountArs) || (payment.currency === 'ARS' ? Number(payment.amount) || 0 : 0);
+        const usdAmount = Number(payment.amountUsd) || (payment.currency === 'USD' ? Number(payment.amount) || 0 : 0);
 
         totalMembershipRevenueARS += arsAmount;
         totalMembershipRevenueUSD += usdAmount;
@@ -81,10 +81,11 @@ router.get(
       let totalAdRevenueUSD = 0;
 
       for (const promoter of promoters) {
-        if (promoter.pricing.currency === "USD") {
-          totalAdRevenueUSD += promoter.pricing.totalPaid;
+        const totalPaid = Number(promoter.pricing?.totalPaid) || 0;
+        if (promoter.pricing?.currency === "USD") {
+          totalAdRevenueUSD += totalPaid;
         } else {
-          totalAdRevenueARS += promoter.pricing.totalPaid;
+          totalAdRevenueARS += totalPaid;
         }
       }
 
@@ -97,7 +98,7 @@ router.get(
       let pendingWithdrawalsARS = 0;
 
       for (const withdrawal of pendingWithdrawals) {
-        pendingWithdrawalsARS += withdrawal.amount;
+        pendingWithdrawalsARS += Number(withdrawal.amount) || 0;
       }
 
       // Active memberships count

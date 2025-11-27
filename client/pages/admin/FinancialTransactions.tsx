@@ -12,7 +12,10 @@ import {
   Download,
   Search,
   X,
-  BarChart3
+  BarChart3,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from "lucide-react";
 import {
   LineChart,
@@ -59,6 +62,8 @@ interface Transaction {
 }
 
 type ChartType = 'escrow' | 'recent' | 'commissions' | 'total' | null;
+type SortField = 'date' | 'type' | 'description' | 'client' | 'doer' | 'amount' | 'commission' | 'status' | 'released';
+type SortDirection = 'asc' | 'desc' | null;
 
 export default function FinancialTransactions() {
   const { user } = useAuth();
@@ -70,6 +75,8 @@ export default function FinancialTransactions() {
   const [selectedChart, setSelectedChart] = useState<ChartType>(null);
   const [chartData, setChartData] = useState<any>(null);
   const [chartLoading, setChartLoading] = useState(false);
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
 
   // Filters
   const [filters, setFilters] = useState({
@@ -238,6 +245,76 @@ export default function FinancialTransactions() {
   const closeModal = () => {
     setSelectedChart(null);
     setChartData(null);
+  };
+
+  const handleSort = (field: SortField) => {
+    let newDirection: SortDirection = 'asc';
+
+    if (sortField === field) {
+      if (sortDirection === 'asc') {
+        newDirection = 'desc';
+      } else if (sortDirection === 'desc') {
+        newDirection = null;
+      }
+    }
+
+    setSortField(newDirection === null ? null : field);
+    setSortDirection(newDirection);
+  };
+
+  const getSortedTransactions = () => {
+    if (!sortField || !sortDirection) return transactions;
+
+    return [...transactions].sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortField) {
+        case 'date':
+          comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
+          break;
+        case 'type':
+          comparison = a.type.localeCompare(b.type, 'es');
+          break;
+        case 'description':
+          const descA = a.contract?.title || a.description;
+          const descB = b.contract?.title || b.description;
+          comparison = descA.localeCompare(descB, 'es');
+          break;
+        case 'client':
+          const clientA = a.contract?.client?.name || a.payer?.name || '';
+          const clientB = b.contract?.client?.name || b.payer?.name || '';
+          comparison = clientA.localeCompare(clientB, 'es');
+          break;
+        case 'doer':
+          const doerA = a.contract?.doer?.name || a.recipient?.name || '';
+          const doerB = b.contract?.doer?.name || b.recipient?.name || '';
+          comparison = doerA.localeCompare(doerB, 'es');
+          break;
+        case 'amount':
+          comparison = (Number(a.totalAmount) || 0) - (Number(b.totalAmount) || 0);
+          break;
+        case 'commission':
+          comparison = (Number(a.platformFee) || 0) - (Number(b.platformFee) || 0);
+          break;
+        case 'status':
+          comparison = a.status.localeCompare(b.status);
+          break;
+        case 'released':
+          comparison = (a.escrowReleased ? 1 : 0) - (b.escrowReleased ? 1 : 0);
+          break;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  };
+
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="w-4 h-4 opacity-40" />;
+    }
+    return sortDirection === 'asc'
+      ? <ArrowUp className="w-4 h-4" />
+      : <ArrowDown className="w-4 h-4" />;
   };
 
   const getStatusBadge = (status: string) => {
@@ -643,36 +720,90 @@ export default function FinancialTransactions() {
             <thead className="bg-gray-50 dark:bg-gray-900">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Fecha
+                  <button
+                    onClick={() => handleSort('date')}
+                    className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                  >
+                    Fecha
+                    <SortIcon field="date" />
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Tipo
+                  <button
+                    onClick={() => handleSort('type')}
+                    className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                  >
+                    Tipo
+                    <SortIcon field="type" />
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Descripción
+                  <button
+                    onClick={() => handleSort('description')}
+                    className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                  >
+                    Descripción
+                    <SortIcon field="description" />
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Cliente
+                  <button
+                    onClick={() => handleSort('client')}
+                    className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                  >
+                    Cliente
+                    <SortIcon field="client" />
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Doer
+                  <button
+                    onClick={() => handleSort('doer')}
+                    className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                  >
+                    Doer
+                    <SortIcon field="doer" />
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Monto Total
+                  <button
+                    onClick={() => handleSort('amount')}
+                    className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                  >
+                    Monto Total
+                    <SortIcon field="amount" />
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Comisión
+                  <button
+                    onClick={() => handleSort('commission')}
+                    className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                  >
+                    Comisión
+                    <SortIcon field="commission" />
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Estado
+                  <button
+                    onClick={() => handleSort('status')}
+                    className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                  >
+                    Estado
+                    <SortIcon field="status" />
+                  </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Liberado
+                  <button
+                    onClick={() => handleSort('released')}
+                    className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                  >
+                    Liberado
+                    <SortIcon field="released" />
+                  </button>
                 </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {transactions.map((transaction) => (
+              {getSortedTransactions().map((transaction) => (
                 <tr key={transaction.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                     {new Date(transaction.date).toLocaleDateString('es-AR', {
@@ -732,18 +863,18 @@ export default function FinancialTransactions() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                     <div>
                       <p className="font-bold">
-                        {transaction.currency === 'USD' ? '$' : '$'}{transaction.totalAmount.toLocaleString()}
+                        ${(Number(transaction.totalAmount) || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{transaction.currency}</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{transaction.currency || 'ARS'}</p>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm">
                       <p className="font-medium text-green-600 dark:text-green-400">
-                        {transaction.currency === 'USD' ? '$' : '$'}{transaction.platformFee.toLocaleString()}
+                        ${(Number(transaction.platformFee) || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {transaction.platformFeePercentage}%
+                        {(Number(transaction.platformFeePercentage) || 0).toFixed(1)}%
                       </p>
                     </div>
                   </td>

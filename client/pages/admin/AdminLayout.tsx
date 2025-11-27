@@ -11,6 +11,7 @@ import {
   Lock,
   LogOut,
   DollarSign,
+  Briefcase,
 } from "lucide-react";
 
 export default function AdminLayout() {
@@ -32,6 +33,7 @@ export default function AdminLayout() {
     { path: "/admin", icon: LayoutDashboard, label: "Dashboard", roles: ["owner", "super_admin", "admin", "support", "marketing", "dpo"] },
     { path: "/admin/analytics", icon: BarChart3, label: "Analytics", roles: ["owner", "super_admin", "admin", "marketing"] },
     { path: "/admin/users", icon: Users, label: "Usuarios", roles: ["owner", "super_admin", "admin"] },
+    { path: "/admin/jobs", icon: Briefcase, label: "Publicaciones", roles: ["owner", "super_admin", "admin", "marketing"] },
     { path: "/admin/roles", icon: Shield, label: "Asignar Roles", roles: ["owner", "super_admin", "admin"] },
     { path: "/admin/role-permissions", icon: Lock, label: "Permisos de Roles", roles: ["owner", "super_admin"] },
     { path: "/admin/contracts", icon: FileText, label: "Contratos", roles: ["owner", "super_admin", "admin"] },

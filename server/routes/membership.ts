@@ -458,7 +458,7 @@ router.post("/create-payment", protect, async (req: AuthRequest, res: Response):
         userId: userId,
         paymentType: 'membership',
         plan: plan,
-        tier: tier,
+        tier: membershipPlan,
       },
       customerEmail: user.email,
       successUrl: `${process.env.CLIENT_URL}/membership/payment-success?plan=${plan}`,

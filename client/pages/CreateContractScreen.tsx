@@ -7,15 +7,15 @@ import {
   Clock,
   DollarSign,
   FileText,
-  Image as ImageIcon,
+  ImageIcon,
   MapPin,
-  Upload,
   Tag,
   X,
 } from "lucide-react";
 import { JOB_CATEGORIES, JOB_TAGS } from "../../shared/constants/categories";
 import { CustomDateInput } from "@/components/ui/CustomDatePicker";
 import LocationAutocomplete from "@/components/ui/LocationAutocomplete";
+import FileUploadWithPreview from "@/components/ui/FileUploadWithPreview";
 
 interface FormFieldProps {
   label: string;
@@ -55,6 +55,7 @@ export default function CreateContractScreen() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [customTag, setCustomTag] = useState("");
   const [location, setLocation] = useState("");
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   const handleAddTag = (tag: string) => {
     if (tag && !selectedTags.includes(tag) && selectedTags.length < 10) {
@@ -78,29 +79,33 @@ export default function CreateContractScreen() {
     setIsSubmitting(true);
     setError(null);
 
-    const formData = new FormData(event.currentTarget);
+    const formDataFromForm = new FormData(event.currentTarget);
 
-    const jobData = {
-      title: formData.get("title"),
-      summary: formData.get("summary"),
-      description: formData.get("description"),
-      price: Number(formData.get("budget")),
-      category: selectedCategory,
-      tags: selectedTags,
-      location: formData.get("location"),
-      startDate: formData.get("startDate"),
-      endDate: formData.get("endDate"),
-      remoteOk: formData.get("remoteOk") === "on",
-    };
+    // Crear FormData para enviar con archivos
+    const submitData = new FormData();
+
+    // Agregar datos del formulario
+    submitData.append("title", formDataFromForm.get("title") as string);
+    submitData.append("summary", formDataFromForm.get("summary") as string);
+    submitData.append("description", formDataFromForm.get("description") as string);
+    submitData.append("price", formDataFromForm.get("budget") as string);
+    submitData.append("category", selectedCategory);
+    submitData.append("tags", JSON.stringify(selectedTags));
+    submitData.append("location", formDataFromForm.get("location") as string);
+    submitData.append("startDate", formDataFromForm.get("startDate") as string);
+    submitData.append("endDate", formDataFromForm.get("endDate") as string);
+    submitData.append("remoteOk", formDataFromForm.get("remoteOk") === "on" ? "true" : "false");
+
+    // Agregar archivos seleccionados
+    selectedFiles.forEach((file) => {
+      submitData.append("images", file);
+    });
 
     try {
       const response = await fetch("/api/jobs", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
         credentials: 'include', // Importante: envía las cookies automáticamente
-        body: JSON.stringify(jobData),
+        body: submitData, // FormData se envía automáticamente como multipart/form-data
       });
 
       const data = await response.json();
@@ -346,35 +351,16 @@ export default function CreateContractScreen() {
             <FormField
               label="Fotos (opcional)"
               icon={ImageIcon}
-              description="Una imagen vale más que mil palabras. Ayuda a los Doers a entender el trabajo."
             >
-              <div className="mt-2 flex justify-center rounded-lg border border-dashed border-gray-900/25 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/30 px-6 py-10">
-                <div className="text-center">
-                  <Upload
-                    className="mx-auto h-12 w-12 text-gray-300 dark:text-slate-500"
-                    aria-hidden="true"
-                  />
-                  <div className="mt-4 flex text-sm leading-6 text-gray-600 dark:text-slate-400">
-                    <label
-                      htmlFor="file-upload"
-                      className="relative cursor-pointer rounded-md font-semibold text-sky-600 dark:text-sky-400 focus-within:outline-none focus-within:ring-2 focus-within:ring-sky-600 focus-within:ring-offset-2 hover:text-sky-500"
-                    >
-                      <span>Sube un archivo</span>
-                      <input
-                        id="file-upload"
-                        name="file-upload"
-                        type="file"
-                        className="sr-only"
-                        multiple
-                      />
-                    </label>
-                    <p className="pl-1">o arrástralo aquí</p>
-                  </div>
-                  <p className="text-xs leading-5 text-gray-600 dark:text-slate-400">
-                    PNG, JPG, GIF hasta 10MB
-                  </p>
-                </div>
-              </div>
+              <FileUploadWithPreview
+                label=""
+                description="PNG, JPG, GIF hasta 10MB"
+                name="images"
+                maxSizeMB={10}
+                maxFiles={5}
+                accept="image/*"
+                onChange={setSelectedFiles}
+              />
             </FormField>
           </div>
 

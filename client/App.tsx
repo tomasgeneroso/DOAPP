@@ -5,6 +5,7 @@ import { ToastProvider } from "./components/ui/Toast";
 import { FacebookSDK } from "./components/FacebookSDK";
 import { useEffect } from "react";
 import { setupFetchInterceptor } from "./utils/fetchWithAuth";
+import ErrorBoundary from "./components/ErrorBoundary";
 import Index from "./pages/Index";
 import LoginScreen from "./pages/LoginScreen";
 import AuthCallback from "./pages/AuthCallback";
@@ -77,6 +78,7 @@ import AdminCreateDispute from "./pages/admin/CreateDispute";
 import AdminWithdrawalManager from "./pages/admin/AdminWithdrawalManager";
 import FinancialTransactions from "./pages/admin/FinancialTransactions";
 import PendingPayments from "./pages/admin/PendingPayments";
+import AdminJobManager from "./pages/admin/JobManager";
 
 export default function App() {
   // Setup fetch interceptor for automatic token handling
@@ -85,12 +87,13 @@ export default function App() {
   }, []);
 
   return (
-    <HelmetProvider>
-      <AuthProvider>
-        <ToastProvider>
-          <FacebookSDK />
-          <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
-          <Routes>
+    <ErrorBoundary>
+      <HelmetProvider>
+        <AuthProvider>
+          <ToastProvider>
+            <FacebookSDK />
+            <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+            <Routes>
             <Route element={<Layout />}>
               <Route path="/" element={<Index />} />
               <Route path="/jobs/:id" element={<JobDetail />} />
@@ -406,11 +409,13 @@ export default function App() {
               <Route path="tickets" element={<AdminTickets />} />
               <Route path="tickets/create" element={<AdminCreateTicket />} />
               <Route path="tickets/:id" element={<TicketDetail />} />
+              <Route path="jobs" element={<AdminJobManager />} />
             </Route>
-          </Routes>
-        </BrowserRouter>
-        </ToastProvider>
-      </AuthProvider>
-    </HelmetProvider>
+            </Routes>
+          </BrowserRouter>
+          </ToastProvider>
+        </AuthProvider>
+      </HelmetProvider>
+    </ErrorBoundary>
   );
 }

@@ -6,8 +6,46 @@ import { protect } from "../middleware/auth.js";
 import type { AuthRequest } from "../types/index.js";
 import { socketService } from "../index.js";
 import { Op } from 'sequelize';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 const router = express.Router();
+
+// Ensure upload directory exists
+const JOB_IMAGES_DIR = path.join(process.cwd(), 'uploads', 'job-images');
+if (!fs.existsSync(JOB_IMAGES_DIR)) {
+  fs.mkdirSync(JOB_IMAGES_DIR, { recursive: true });
+}
+
+// Configure multer for job image uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, JOB_IMAGES_DIR);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, `job-${uniqueSuffix}${path.extname(file.originalname)}`);
+  }
+});
+
+const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  // Accept only image files
+  if (file.mimetype.startsWith('image/')) {
+    cb(null, true);
+  } else {
+    cb(new Error('Solo se permiten archivos de imagen'));
+  }
+};
+
+const upload = multer({
+  storage,
+  fileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB max
+    files: 5 // Max 5 files
+  }
+});
 
 // Normalize location string: remove punctuation and convert to lowercase
 const normalizeLocation = (location: string): string => {
@@ -232,6 +270,7 @@ router.get("/:id", async (req: Request, res: Response): Promise<void> => {
 router.post(
   "/",
   protect,
+  upload.array('images', 5), // Handle up to 5 image uploads
   [
     body("title").trim().notEmpty().withMessage("El título es requerido"),
     body("summary").trim().notEmpty().withMessage("El resumen es requerido"),
@@ -271,8 +310,32 @@ router.post(
 
       const canPublishForFree = hasFreeInitialContracts || hasMonthlyFreeContracts;
 
+      // Process uploaded images
+      const uploadedFiles = req.files as Express.Multer.File[];
+      const imageUrls = uploadedFiles?.map(file => `/uploads/job-images/${file.filename}`) || [];
+
+      // Parse tags if sent as JSON string
+      let tags = req.body.tags;
+      if (typeof tags === 'string') {
+        try {
+          tags = JSON.parse(tags);
+        } catch (e) {
+          tags = [];
+        }
+      }
+
       const jobData = {
-        ...req.body,
+        title: req.body.title,
+        summary: req.body.summary,
+        description: req.body.description,
+        price: Number(req.body.price),
+        category: req.body.category,
+        tags: tags || [],
+        location: req.body.location,
+        startDate: req.body.startDate,
+        endDate: req.body.endDate,
+        remoteOk: req.body.remoteOk === 'true',
+        images: imageUrls,
         clientId: req.user.id, // Sequelize uses camelCase foreign keys
         status: canPublishForFree ? "open" : "draft", // Free contracts auto-publish, others need payment
         publicationPaid: canPublishForFree, // Free contracts don't need payment
@@ -694,6 +757,35 @@ router.patch("/:id/cancel", protect, async (req: AuthRequest, res: Response): Pr
       message: error.message || "Error del servidor",
     });
   }
+});
+
+// Error handler for multer
+router.use((error: any, req: Request, res: Response, next: any) => {
+  if (error instanceof multer.MulterError) {
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({
+        success: false,
+        message: 'El archivo es demasiado grande. Máximo 10MB por archivo.'
+      });
+    }
+    if (error.code === 'LIMIT_FILE_COUNT') {
+      return res.status(400).json({
+        success: false,
+        message: 'Demasiados archivos. Máximo 5 imágenes.'
+      });
+    }
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+  if (error.message === 'Solo se permiten archivos de imagen') {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+  next(error);
 });
 
 export default router;

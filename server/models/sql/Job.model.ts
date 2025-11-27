@@ -185,6 +185,20 @@ export class Job extends Model {
   experienceLevel!: ExperienceLevel;
 
   // ============================================
+  // ADMIN REVIEW
+  // ============================================
+
+  @Column(DataType.TEXT)
+  rejectedReason?: string;
+
+  @ForeignKey(() => User)
+  @Column(DataType.UUID)
+  reviewedBy?: string;
+
+  @Column(DataType.DATE)
+  reviewedAt?: Date;
+
+  // ============================================
   // RELATIONSHIPS
   // ============================================
 

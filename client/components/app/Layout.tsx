@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import Header from "./Header";
 import Footer from "./Footer";
+import ErrorBoundary from "../ErrorBoundary";
 
 export default function Layout() {
   const { user, isAuthenticated } = useAuth();
@@ -18,11 +19,17 @@ export default function Layout() {
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 dark:bg-slate-900">
-      <Header />
+      <ErrorBoundary>
+        <Header />
+      </ErrorBoundary>
       <main className="flex-1">
-        <Outlet />
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       </main>
-      <Footer />
+      <ErrorBoundary>
+        <Footer />
+      </ErrorBoundary>
     </div>
   );
 }

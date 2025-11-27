@@ -14,6 +14,13 @@ const router = express.Router();
 // Comisión de la plataforma (10%) - DEPRECATED: usar currentCommissionRate del usuario
 const PLATFORM_COMMISSION = 0.1;
 
+/**
+ * Check if user has admin privileges for viewing contracts
+ */
+function isAdminUser(user: any): boolean {
+  return user?.adminRole && ['owner', 'super_admin', 'admin'].includes(user.adminRole);
+}
+
 // Mínimo de contrato en ARS
 const MINIMUM_CONTRACT_AMOUNT = 8000;
 const MINIMUM_COMMISSION = 1000;
@@ -175,11 +182,12 @@ router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
-    // Verificar que el usuario sea parte del contrato
-    if (
-      contract.clientId.toString() !== req.user.id.toString() &&
-      contract.doerId.toString() !== req.user.id.toString()
-    ) {
+    // Verificar que el usuario sea parte del contrato o sea admin
+    const isParticipant =
+      contract.clientId.toString() === req.user.id.toString() ||
+      contract.doerId.toString() === req.user.id.toString();
+
+    if (!isParticipant && !isAdminUser(req.user)) {
       res.status(403).json({
         success: false,
         message: "No tienes permiso para ver este contrato",

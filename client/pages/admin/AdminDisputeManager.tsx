@@ -70,6 +70,8 @@ const AdminDisputeManager: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('');
   const [filterPriority, setFilterPriority] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [sortField, setSortField] = useState<SortField | null>(null);
@@ -194,10 +196,20 @@ const AdminDisputeManager: React.FC = () => {
     return order[status] || 0;
   };
 
-  const getSortedDisputes = () => {
-    if (!sortField || !sortDirection) return disputes;
+  const getFilteredDisputes = () => {
+    return disputes.filter((dispute) => {
+      const disputeDate = new Date(dispute.createdAt);
+      const matchesDateFrom = !dateFrom || disputeDate >= new Date(dateFrom);
+      const matchesDateTo = !dateTo || disputeDate <= new Date(dateTo + 'T23:59:59');
+      return matchesDateFrom && matchesDateTo;
+    });
+  };
 
-    return [...disputes].sort((a, b) => {
+  const getSortedDisputes = () => {
+    const filtered = getFilteredDisputes();
+    if (!sortField || !sortDirection) return filtered;
+
+    return [...filtered].sort((a, b) => {
       let comparison = 0;
 
       switch (sortField) {
@@ -331,7 +343,7 @@ const AdminDisputeManager: React.FC = () => {
 
         {/* Filters */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Estado</label>
               <select
@@ -370,11 +382,39 @@ const AdminDisputeManager: React.FC = () => {
               </select>
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Desde</label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => {
+                  setDateFrom(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Hasta</label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => {
+                  setDateTo(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+
             <div className="flex items-end">
               <button
                 onClick={() => {
                   setFilterStatus('');
                   setFilterPriority('');
+                  setDateFrom('');
+                  setDateTo('');
                   setPage(1);
                 }}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
