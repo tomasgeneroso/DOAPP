@@ -37,6 +37,12 @@ export default defineConfig({
         secure: false,
         ws: true,
       },
+      // Proxy para archivos de uploads (avatars, portfolio, etc.)
+      '/uploads': {
+        target: 'https://localhost:3001',
+        changeOrigin: true,
+        secure: false,
+      },
     },
   },
   build: {

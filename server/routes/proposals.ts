@@ -6,6 +6,7 @@ import { Contract } from "../models/sql/Contract.model.js";
 import { Conversation } from "../models/sql/Conversation.model.js";
 import { ChatMessage } from "../models/sql/ChatMessage.model.js";
 import { User } from "../models/sql/User.model.js";
+import { Notification } from "../models/sql/Notification.model.js";
 import { protect } from "../middleware/auth.js";
 import type { AuthRequest } from "../types/index.js";
 import emailService from "../services/email.js";
@@ -106,7 +107,7 @@ router.get("/job/:jobId", protect, async (req: AuthRequest, res: Response): Prom
         {
           model: User,
           as: 'freelancer',
-          attributes: ['name', 'avatar', 'rating', 'reviewsCount', 'completedJobs']
+          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount', 'completedJobs']
         }
       ],
       order: [['createdAt', 'DESC']]
@@ -348,6 +349,9 @@ router.post(
         }
       );
 
+      // Notify admin panel and job owner of new proposal
+      socketService.notifyNewProposal(populatedProposal?.toJSON(), job.clientId);
+
       // Notify dashboard refresh for both parties
       socketService.notifyDashboardRefresh(req.user.id);
       socketService.notifyDashboardRefresh(job.clientId);
@@ -481,6 +485,30 @@ router.put("/:id/approve", protect, async (req: AuthRequest, res: Response): Pro
     // Notify dashboard refresh for both parties
     socketService.notifyDashboardRefresh(proposal.freelancerId);
     socketService.notifyDashboardRefresh(req.user.id);
+
+    // Create persistent notification for the freelancer
+    await Notification.create({
+      userId: proposal.freelancerId,
+      type: "proposal_approved",
+      title: "¡Has sido seleccionado!",
+      message: `Felicitaciones! Fuiste elegido para el trabajo "${job?.title}". Revisa los detalles del contrato.`,
+      data: {
+        jobId: proposal.jobId,
+        proposalId: proposal.id,
+        contractId: contract.id,
+      },
+      read: false,
+    });
+
+    // Notify admin panel of new contract
+    const populatedContract = await Contract.findByPk(contract.id, {
+      include: [
+        { model: User, as: 'client', attributes: ['id', 'name', 'email'] },
+        { model: User, as: 'doer', attributes: ['id', 'name', 'email'] },
+        { model: Job, as: 'job', attributes: ['id', 'title'] }
+      ]
+    });
+    socketService.notifyNewContract(populatedContract?.toJSON());
 
     res.json({
       success: true,

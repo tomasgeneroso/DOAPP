@@ -29,6 +29,7 @@ export default function LoginScreen() {
   const [mode, setMode] = useState<FormMode>(initialMode);
   const [formData, setFormData] = useState({
     name: "",
+    username: "",
     email: "",
     password: "",
     phone: "",
@@ -36,6 +37,8 @@ export default function LoginScreen() {
     referralCode: "",
     termsAccepted: false,
   });
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [usernameDebounce, setUsernameDebounce] = useState<NodeJS.Timeout | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [errorField, setErrorField] = useState<'email' | 'password' | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -72,6 +75,40 @@ export default function LoginScreen() {
       ...prev,
       [name]: type === "checkbox" ? checked : value,
     }));
+
+    // Check username availability with debounce
+    if (name === 'username') {
+      const usernameValue = value.toLowerCase().trim();
+
+      // Clear previous debounce
+      if (usernameDebounce) {
+        clearTimeout(usernameDebounce);
+      }
+
+      // Validate format first
+      if (usernameValue.length < 3) {
+        setUsernameStatus('idle');
+        return;
+      }
+
+      const usernameRegex = /^[a-z0-9._]{3,30}$/;
+      if (!usernameRegex.test(usernameValue) || /^[._]|[._]$|[._]{2,}/.test(usernameValue)) {
+        setUsernameStatus('idle');
+        return;
+      }
+
+      setUsernameStatus('checking');
+      const timeout = setTimeout(async () => {
+        try {
+          const response = await fetch(`/api/users/check-username/${usernameValue}`);
+          const data = await response.json();
+          setUsernameStatus(data.available ? 'available' : 'taken');
+        } catch {
+          setUsernameStatus('idle');
+        }
+      }, 500);
+      setUsernameDebounce(timeout);
+    }
   };
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
@@ -92,6 +129,7 @@ export default function LoginScreen() {
         }
         await register({
           name: formData.name,
+          username: formData.username.toLowerCase().trim(),
           email: formData.email,
           password: formData.password,
           phone: formData.phone,
@@ -224,27 +262,76 @@ export default function LoginScreen() {
 
           <form className="space-y-6" onSubmit={handleSubmit}>
             {isRegister && (
-              <div>
-                <label
-                  htmlFor="name"
-                  className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
-                >
-                  Nombre completo
-                </label>
-                <div className="mt-2">
-                  <input
-                    id="name"
-                    name="name"
-                    type="text"
-                    autoComplete="name"
-                    required={isRegister}
-                    onChange={handleInputChange}
-                    value={formData.name}
-                    placeholder="Juan Pérez"
-                    className="block w-full h-12 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                  />
+              <>
+                <div>
+                  <label
+                    htmlFor="name"
+                    className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
+                  >
+                    Nombre completo
+                  </label>
+                  <div className="mt-2">
+                    <input
+                      id="name"
+                      name="name"
+                      type="text"
+                      autoComplete="name"
+                      required={isRegister}
+                      onChange={handleInputChange}
+                      value={formData.name}
+                      placeholder="Juan Pérez"
+                      className="block w-full h-12 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                    />
+                  </div>
                 </div>
-              </div>
+                <div>
+                  <label
+                    htmlFor="username"
+                    className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
+                  >
+                    Nombre de usuario
+                  </label>
+                  <div className="mt-2 relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500">@</span>
+                    <input
+                      id="username"
+                      name="username"
+                      type="text"
+                      autoComplete="username"
+                      required={isRegister}
+                      onChange={handleInputChange}
+                      value={formData.username}
+                      placeholder="juanperez"
+                      maxLength={30}
+                      className={`block w-full h-12 rounded-lg border ${
+                        usernameStatus === 'available' ? 'border-green-500 dark:border-green-500' :
+                        usernameStatus === 'taken' ? 'border-red-500 dark:border-red-500' :
+                        'border-slate-300 dark:border-slate-600'
+                      } bg-white dark:bg-slate-700 pl-8 pr-10 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent lowercase`}
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      {usernameStatus === 'checking' && (
+                        <div className="w-5 h-5 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
+                      )}
+                      {usernameStatus === 'available' && (
+                        <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                      {usernameStatus === 'taken' && (
+                        <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </div>
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    {usernameStatus === 'taken'
+                      ? 'Este nombre de usuario ya está en uso'
+                      : 'Este será tu URL pública: doapp.com/u/tuusuario'}
+                  </p>
+                </div>
+              </>
             )}
 
             <div>

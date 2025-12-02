@@ -13,6 +13,9 @@ const router = Router();
 /**
  * Get unread messages count
  * GET /api/chat/unread-count
+ * Returns:
+ * - unreadCount: total number of unread messages
+ * - unreadConversations: number of conversations with unread messages
  */
 router.get("/unread-count", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -28,15 +31,21 @@ router.get("/unread-count", protect, async (req: AuthRequest, res: Response): Pr
     });
 
     let totalUnread = 0;
+    let unreadConversations = 0;
+
     conversations.forEach((conversation) => {
-      const unreadCount = conversation.unreadCount as Record<string, number> | null;
-      const count = unreadCount?.[userId.toString()] || 0;
+      const unreadCountMap = conversation.unreadCount as Record<string, number> | null;
+      const count = unreadCountMap?.[userId.toString()] || 0;
       totalUnread += count;
+      if (count > 0) {
+        unreadConversations++;
+      }
     });
 
     res.json({
       success: true,
       unreadCount: totalUnread,
+      unreadConversations,
     });
   } catch (error: any) {
     console.error("Get unread count error:", error);
@@ -82,7 +91,12 @@ router.get("/conversations", protect, async (req: AuthRequest, res: Response): P
         {
           model: Contract,
           as: 'contract',
-          attributes: ['title', 'status'],
+          attributes: ['id', 'status', 'jobId'],
+          include: [{
+            model: Job,
+            as: 'job',
+            attributes: ['title'],
+          }],
         },
         {
           model: Job,
@@ -95,11 +109,41 @@ router.get("/conversations", protect, async (req: AuthRequest, res: Response): P
       offset: (Number(page) - 1) * Number(limit),
     });
 
+    // Collect all participant IDs
+    const allParticipantIds = new Set<string>();
+    conversations.forEach(conv => {
+      conv.participants.forEach(id => allParticipantIds.add(id));
+    });
+
+    // Load all participant users in one query
+    const participantUsers = await User.findAll({
+      where: { id: { [Op.in]: Array.from(allParticipantIds) } },
+      attributes: ['id', 'name', 'avatar', 'username'],
+    });
+
+    const usersMap = new Map(participantUsers.map(u => [u.id, u]));
+
+    // Transform conversations to include participant objects
+    const conversationsData = conversations.map(conv => {
+      const data = conv.toJSON();
+      data.participants = conv.participants.map(id => {
+        const user = usersMap.get(id);
+        return user ? {
+          id: user.id,
+          _id: user.id,
+          name: user.name,
+          avatar: user.avatar,
+          username: user.username,
+        } : { id, _id: id, name: 'Usuario', avatar: null };
+      });
+      return data;
+    });
+
     const total = await Conversation.count({ where });
 
     res.json({
       success: true,
-      data: conversations,
+      data: conversationsData,
       pagination: {
         page: Number(page),
         limit: Number(limit),
@@ -130,7 +174,12 @@ router.get("/conversations/:id", protect, async (req: AuthRequest, res: Response
         {
           model: Contract,
           as: 'contract',
-          attributes: ['title', 'status'],
+          attributes: ['id', 'status', 'jobId'],
+          include: [{
+            model: Job,
+            as: 'job',
+            attributes: ['title'],
+          }],
         },
         {
           model: Job,
@@ -159,9 +208,25 @@ router.get("/conversations/:id", protect, async (req: AuthRequest, res: Response
       return;
     }
 
+    // Load participant user data
+    const participantUsers = await User.findAll({
+      where: { id: { [Op.in]: conversation.participants } },
+      attributes: ['id', 'name', 'avatar', 'username'],
+    });
+
+    // Transform response to include participant objects
+    const conversationData = conversation.toJSON();
+    conversationData.participants = participantUsers.map(u => ({
+      id: u.id,
+      _id: u.id,
+      name: u.name,
+      avatar: u.avatar,
+      username: u.username,
+    }));
+
     res.json({
       success: true,
-      data: conversation,
+      data: conversationData,
     });
   } catch (error: any) {
     console.error("Get conversation error:", error);
@@ -291,7 +356,12 @@ router.get("/contract/:contractId", protect, async (req: AuthRequest, res: Respo
         {
           model: Contract,
           as: 'contract',
-          attributes: ['title', 'status'],
+          attributes: ['id', 'status', 'jobId'],
+          include: [{
+            model: Job,
+            as: 'job',
+            attributes: ['title'],
+          }],
         },
       ],
     });
@@ -309,15 +379,36 @@ router.get("/contract/:contractId", protect, async (req: AuthRequest, res: Respo
           {
             model: Contract,
             as: 'contract',
-            attributes: ['title', 'status'],
+            attributes: ['id', 'status', 'jobId'],
+            include: [{
+              model: Job,
+              as: 'job',
+              attributes: ['title'],
+            }],
           },
         ],
       });
     }
 
+    // Load participant user data
+    const participantUsers = await User.findAll({
+      where: { id: { [Op.in]: conversation!.participants } },
+      attributes: ['id', 'name', 'avatar', 'username'],
+    });
+
+    // Transform response to include participant objects
+    const conversationData = conversation!.toJSON();
+    conversationData.participants = participantUsers.map(u => ({
+      id: u.id,
+      _id: u.id,
+      name: u.name,
+      avatar: u.avatar,
+      username: u.username,
+    }));
+
     res.json({
       success: true,
-      data: conversation,
+      data: conversationData,
     });
   } catch (error: any) {
     console.error("Get contract conversation error:", error);
@@ -375,7 +466,7 @@ router.get("/conversations/:id/messages", protect, async (req: AuthRequest, res:
         {
           model: User,
           as: 'sender',
-          attributes: ['name', 'avatar'],
+          attributes: ['id', 'name', 'avatar'],
         },
       ],
       order: [['createdAt', 'DESC']],
@@ -461,13 +552,13 @@ router.post(
       conversation.lastMessageAt = new Date();
       await conversation.save();
 
-      // Populate sender info
+      // Populate sender info (include id for message alignment in frontend)
       const populatedMessage = await ChatMessage.findByPk(message.id, {
         include: [
           {
             model: User,
             as: 'sender',
-            attributes: ['name', 'avatar'],
+            attributes: ['id', 'name', 'avatar'],
           },
         ],
       });

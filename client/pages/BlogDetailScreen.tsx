@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import type { BlogPost } from "../types";
+import { getImageUrl } from "../utils/imageUrl";
 import {
   ArrowLeft,
   Calendar,
@@ -12,9 +13,11 @@ import {
   Facebook,
   Twitter,
   Linkedin,
+  Clock,
+  Crown,
+  Users,
+  Star,
 } from "lucide-react";
-
-const API_URL = import.meta.env.VITE_API_URL || "";
 
 export default function BlogDetailScreen() {
   const { slug } = useParams<{ slug: string }>();
@@ -34,7 +37,7 @@ export default function BlogDetailScreen() {
   const fetchPost = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`${API_URL}/api/blogs/${slug}`);
+      const response = await fetch(`/api/blogs/${slug}`);
       const data = await response.json();
 
       if (data.success) {
@@ -52,7 +55,7 @@ export default function BlogDetailScreen() {
 
   const fetchRelatedPosts = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/blogs/${slug}/related`);
+      const response = await fetch(`/api/blogs/${slug}/related`);
       const data = await response.json();
       if (data.success) {
         setRelatedPosts(data.posts);
@@ -124,16 +127,77 @@ export default function BlogDetailScreen() {
     );
   }
 
+  // Build canonical URL
+  const canonicalUrl = post.canonicalUrl || `${window.location.origin}/blog/${post.slug}`;
+  const ogImage = post.ogImage || post.coverImage ? getImageUrl(post.ogImage || post.coverImage) : undefined;
+
   return (
     <>
       <Helmet>
-        <title>{post.title} - Blog Doers</title>
-        <meta name="description" content={post.excerpt} />
+        {/* Basic SEO */}
+        <title>{post.metaTitle || post.title} - Blog Doers</title>
+        <meta name="description" content={post.metaDescription || post.excerpt} />
+        {post.metaKeywords && post.metaKeywords.length > 0 && (
+          <meta name="keywords" content={post.metaKeywords.join(', ')} />
+        )}
+        <link rel="canonical" href={canonicalUrl} />
+
+        {/* Open Graph / Facebook */}
+        <meta property="og:type" content="article" />
+        <meta property="og:title" content={post.metaTitle || post.title} />
+        <meta property="og:description" content={post.metaDescription || post.excerpt} />
+        <meta property="og:url" content={canonicalUrl} />
+        {ogImage && <meta property="og:image" content={ogImage} />}
+        <meta property="article:published_time" content={post.publishedAt || post.createdAt} />
+        <meta property="article:author" content={post.author} />
+        {post.tags.map(tag => (
+          <meta key={tag} property="article:tag" content={tag} />
+        ))}
+
+        {/* Twitter */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={post.metaTitle || post.title} />
+        <meta name="twitter:description" content={post.metaDescription || post.excerpt} />
+        {ogImage && <meta name="twitter:image" content={ogImage} />}
+
+        {/* Indexability */}
+        {post.indexable === false && <meta name="robots" content="noindex, nofollow" />}
+
+        {/* JSON-LD Structured Data */}
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "BlogPosting",
+            "headline": post.title,
+            "description": post.metaDescription || post.excerpt,
+            "image": ogImage,
+            "datePublished": post.publishedAt || post.createdAt,
+            "dateModified": post.updatedAt,
+            "author": {
+              "@type": post.postType === 'official' ? "Organization" : "Person",
+              "name": post.postType === 'official' ? "DOAPP" : post.author,
+            },
+            "publisher": {
+              "@type": "Organization",
+              "name": "DOAPP",
+              "logo": {
+                "@type": "ImageObject",
+                "url": `${window.location.origin}/logo.png`
+              }
+            },
+            "mainEntityOfPage": {
+              "@type": "WebPage",
+              "@id": canonicalUrl
+            },
+            "wordCount": post.content?.split(/\s+/).length || 0,
+            "keywords": post.tags.join(', ')
+          })}
+        </script>
       </Helmet>
 
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
-        {/* Header */}
-        <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+        {/* Header - Back button only visible on mobile */}
+        <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 md:hidden">
           <div className="container mx-auto px-4 py-4">
             <Link
               to="/blog"
@@ -151,18 +215,48 @@ export default function BlogDetailScreen() {
           {post.coverImage && (
             <div className="aspect-video bg-slate-200 dark:bg-slate-700 rounded-2xl overflow-hidden mb-8">
               <img
-                src={post.coverImage}
+                src={getImageUrl(post.coverImage)}
                 alt={post.title}
                 className="w-full h-full object-cover"
               />
             </div>
           )}
 
-          {/* Category Badge */}
-          <div className="mb-4">
-            <span className="inline-block px-4 py-2 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 text-sm font-medium rounded-full">
+          {/* Badges Row */}
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            {/* Post Type Badge */}
+            {post.postType === 'official' ? (
+              <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-sky-600 text-white text-sm font-medium rounded-full">
+                <Crown className="h-4 w-4" />
+                Artículo Oficial
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-full">
+                <Users className="h-4 w-4" />
+                Comunidad
+              </span>
+            )}
+
+            {/* Featured Badge */}
+            {post.featured && (
+              <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-500 text-white text-sm font-bold rounded-full">
+                <Star className="h-4 w-4 fill-current" />
+                Destacado
+              </span>
+            )}
+
+            {/* Category Badge */}
+            <span className="inline-block px-4 py-1.5 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 text-sm font-medium rounded-full">
               {post.category}
             </span>
+
+            {/* Reading Time */}
+            {post.readingTime && (
+              <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm rounded-full">
+                <Clock className="h-4 w-4" />
+                {post.readingTime} min de lectura
+              </span>
+            )}
           </div>
 
           {/* Title */}
@@ -276,7 +370,7 @@ export default function BlogDetailScreen() {
                     {relatedPost.coverImage && (
                       <div className="aspect-video bg-slate-200 dark:bg-slate-600 overflow-hidden">
                         <img
-                          src={relatedPost.coverImage}
+                          src={getImageUrl(relatedPost.coverImage)}
                           alt={relatedPost.title}
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         />

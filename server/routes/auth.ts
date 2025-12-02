@@ -40,6 +40,20 @@ router.post(
   authLimiter,
   [
     body("name").trim().notEmpty().withMessage("El nombre es requerido"),
+    body("username")
+      .trim()
+      .notEmpty()
+      .withMessage("El nombre de usuario es requerido")
+      .isLength({ min: 3, max: 30 })
+      .withMessage("El nombre de usuario debe tener entre 3 y 30 caracteres")
+      .matches(/^[a-zA-Z0-9._]+$/)
+      .withMessage("El nombre de usuario solo puede contener letras, números, puntos y guiones bajos")
+      .not()
+      .matches(/^[._]|[._]$/)
+      .withMessage("El nombre de usuario no puede empezar ni terminar con punto o guión bajo")
+      .not()
+      .matches(/[._]{2,}/)
+      .withMessage("El nombre de usuario no puede tener puntos o guiones bajos consecutivos"),
     body("email").isEmail().withMessage("Email inválido"),
     body("password")
       .isLength({ min: 6 })
@@ -67,14 +81,24 @@ router.post(
         return;
       }
 
-      const { name, email, password, phone, dni, termsAccepted, referralCode } = req.body;
+      const { name, username, email, password, phone, dni, termsAccepted, referralCode } = req.body;
 
-      // Verificar si el usuario ya existe
+      // Verificar si el usuario ya existe por email
       const existingUser = await User.findOne({ where: { email } });
       if (existingUser) {
         res.status(400).json({
           success: false,
           message: "El email ya está registrado",
+        });
+        return;
+      }
+
+      // Verificar si el username ya existe
+      const existingUsername = await User.findOne({ where: { username: username.toLowerCase() } });
+      if (existingUsername) {
+        res.status(400).json({
+          success: false,
+          message: "El nombre de usuario ya está en uso",
         });
         return;
       }
@@ -95,6 +119,7 @@ router.post(
       // Crear usuario
       const user = await User.create({
         name,
+        username: username.toLowerCase(),
         email,
         password,
         phone,
@@ -142,6 +167,7 @@ router.post(
           _id: user.id,
           id: user.id, // Alias for compatibility
           name: user.name,
+          username: user.username,
           email: user.email,
           phone: user.phone,
           avatar: user.avatar,
@@ -280,6 +306,7 @@ router.post(
         _id: user.id,
         id: user.id, // Alias for compatibility
         name: user.name,
+        username: user.username,
         email: user.email,
         phone: user.phone,
         avatar: user.avatar,
@@ -345,6 +372,7 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         _id: (user?.id as unknown as string),
         id: (user?.id as unknown as string), // Alias for compatibility
         name: user?.name,
+        username: user?.username,
         email: user?.email,
         phone: user?.phone,
         avatar: user?.avatar,
@@ -440,6 +468,32 @@ router.post("/onboarding", protect, async (req: AuthRequest, res: Response): Pro
         email: user?.email,
         interests: user?.interests,
         onboardingCompleted: user?.onboardingCompleted,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   POST /api/auth/onboarding-tooltips
+// @desc    Guardar progreso del tutorial de tooltips
+// @access  Private
+router.post("/onboarding-tooltips", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { completed, skipped } = req.body;
+
+    // For now, we just acknowledge - the actual state is stored in localStorage
+    // This endpoint can be extended to save tooltip progress in DB if needed
+
+    res.json({
+      success: true,
+      message: completed ? 'Tutorial completado' : 'Tutorial saltado',
+      data: {
+        completed,
+        skipped,
       },
     });
   } catch (error: any) {

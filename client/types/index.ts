@@ -10,7 +10,7 @@ export interface Job {
   startDate: string;
   endDate: string;
   location: string;
-  status: 'open' | 'in_progress' | 'completed' | 'cancelled' | 'draft' | 'pending_payment';
+  status: 'open' | 'in_progress' | 'completed' | 'cancelled' | 'draft' | 'pending_payment' | 'pending_approval' | 'paused';
   postedBy: string;
   client?: {
     _id?: string;
@@ -29,6 +29,9 @@ export interface Job {
     reviewsCount: number;
     avatar?: string;
   } | string;
+  rejectedReason?: string;
+  cancellationReason?: string;
+  cancelledAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -37,6 +40,7 @@ export interface User {
   _id: string;
   id?: string; // Alias for _id
   name: string;
+  username?: string;
   email: string;
   avatar?: string;
   phone?: string;
@@ -107,6 +111,7 @@ export interface User {
 
 export interface RegisterData {
   name: string;
+  username: string;
   email: string;
   password: string;
   phone?: string;
@@ -131,6 +136,24 @@ export interface BlogPost {
   publishedAt?: string;
   createdAt: string;
   updatedAt: string;
+  // New fields for user posts and SEO
+  postType: "official" | "user";
+  readingTime?: number;
+  featured?: boolean;
+  seoScore?: number;
+  metaTitle?: string;
+  metaDescription?: string;
+  metaKeywords?: string[];
+  canonicalUrl?: string;
+  ogImage?: string;
+  indexable?: boolean;
+  createdBy?: string;
+  creator?: {
+    id: string;
+    name: string;
+    avatar?: string;
+  };
+  seoSuggestions?: string[];
 }
 
 export interface Contract {

@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import type { BlogPost } from "../types";
-import { BookOpen, Calendar, User, Tag, Search, Filter } from "lucide-react";
-
-const API_URL = import.meta.env.VITE_API_URL || "";
+import { getImageUrl } from "../utils/imageUrl";
+import { BookOpen, Calendar, User, Search, Filter, Clock, Star, Crown, Users, PenSquare } from "lucide-react";
+import { useAuth } from "../hooks/useAuth";
 
 export default function BlogsScreen() {
+  const { user } = useAuth();
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [categories, setCategories] = useState<{ name: string; count: number }[]>([]);
   const [tags, setTags] = useState<{ name: string; count: number }[]>([]);
@@ -15,12 +16,13 @@ export default function BlogsScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [selectedTag, setSelectedTag] = useState<string>("");
+  const [selectedType, setSelectedType] = useState<string>(""); // 'official', 'user', or '' for all
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     fetchBlogs();
-  }, [selectedCategory, selectedTag, searchQuery, currentPage]);
+  }, [selectedCategory, selectedTag, selectedType, searchQuery, currentPage]);
 
   useEffect(() => {
     fetchCategories();
@@ -37,9 +39,10 @@ export default function BlogsScreen() {
 
       if (selectedCategory) params.append("category", selectedCategory);
       if (selectedTag) params.append("tag", selectedTag);
+      if (selectedType) params.append("type", selectedType);
       if (searchQuery) params.append("search", searchQuery);
 
-      const response = await fetch(`${API_URL}/api/blogs?${params}`);
+      const response = await fetch(`/api/blogs?${params}`);
       const data = await response.json();
 
       if (data.success) {
@@ -58,7 +61,7 @@ export default function BlogsScreen() {
 
   const fetchCategories = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/blogs/categories`);
+      const response = await fetch(`/api/blogs/categories`);
       const data = await response.json();
       if (data.success) {
         setCategories(data.categories);
@@ -70,7 +73,7 @@ export default function BlogsScreen() {
 
   const fetchTags = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/blogs/tags`);
+      const response = await fetch(`/api/blogs/tags`);
       const data = await response.json();
       if (data.success) {
         setTags(data.tags);
@@ -88,6 +91,7 @@ export default function BlogsScreen() {
   const clearFilters = () => {
     setSelectedCategory("");
     setSelectedTag("");
+    setSelectedType("");
     setSearchQuery("");
     setCurrentPage(1);
   };
@@ -116,9 +120,20 @@ export default function BlogsScreen() {
           <div className="container mx-auto px-4">
             <div className="max-w-3xl mx-auto text-center">
               <h1 className="text-4xl md:text-5xl font-bold mb-4">Blog de Doers</h1>
-              <p className="text-xl text-sky-100 mb-8">
+              <p className="text-xl text-sky-100 mb-6">
                 Tips, guías y consejos para tu hogar
               </p>
+
+              {/* Create Post Button */}
+              {user && (
+                <Link
+                  to="/blog/create"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-white text-sky-600 font-semibold rounded-xl hover:bg-sky-50 transition-colors mb-6"
+                >
+                  <PenSquare className="h-5 w-5" />
+                  Escribir un artículo
+                </Link>
+              )}
 
               {/* Search */}
               <form onSubmit={handleSearch} className="relative max-w-2xl mx-auto">
@@ -151,7 +166,7 @@ export default function BlogsScreen() {
                     <Filter className="h-5 w-5" />
                     Filtros
                   </h3>
-                  {(selectedCategory || selectedTag) && (
+                  {(selectedCategory || selectedTag || selectedType) && (
                     <button
                       onClick={clearFilters}
                       className="text-sm text-sky-600 hover:text-sky-700"
@@ -159,6 +174,57 @@ export default function BlogsScreen() {
                       Limpiar
                     </button>
                   )}
+                </div>
+
+                {/* Post Type Filter */}
+                <div className="mb-8">
+                  <h4 className="font-semibold text-slate-900 dark:text-white mb-3">
+                    Tipo de contenido
+                  </h4>
+                  <div className="flex flex-col gap-2">
+                    <button
+                      onClick={() => {
+                        setSelectedType("");
+                        setCurrentPage(1);
+                      }}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                        selectedType === ""
+                          ? "bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 font-medium"
+                          : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+                      }`}
+                    >
+                      <BookOpen className="h-4 w-4" />
+                      Todos los artículos
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedType("official");
+                        setCurrentPage(1);
+                      }}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                        selectedType === "official"
+                          ? "bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 font-medium"
+                          : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+                      }`}
+                    >
+                      <Crown className="h-4 w-4" />
+                      Oficiales (DOAPP)
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedType("user");
+                        setCurrentPage(1);
+                      }}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                        selectedType === "user"
+                          ? "bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 font-medium"
+                          : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+                      }`}
+                    >
+                      <Users className="h-4 w-4" />
+                      Comunidad
+                    </button>
+                  </div>
                 </div>
 
                 {/* Categories */}
@@ -247,23 +313,58 @@ export default function BlogsScreen() {
                       <Link
                         key={post._id}
                         to={`/blog/${post.slug}`}
-                        className="bg-white dark:bg-slate-800 rounded-2xl shadow-md hover:shadow-xl transition-shadow overflow-hidden group"
+                        className={`bg-white dark:bg-slate-800 rounded-2xl shadow-md hover:shadow-xl transition-shadow overflow-hidden group relative ${
+                          post.featured ? 'ring-2 ring-amber-400 dark:ring-amber-500' : ''
+                        }`}
                       >
-                        {post.coverImage && (
+                        {/* Featured Badge */}
+                        {post.featured && (
+                          <div className="absolute top-3 left-3 z-10 flex items-center gap-1 px-2 py-1 bg-amber-500 text-white text-xs font-bold rounded-full">
+                            <Star className="h-3 w-3 fill-current" />
+                            Destacado
+                          </div>
+                        )}
+
+                        {/* Post Type Badge */}
+                        <div className="absolute top-3 right-3 z-10">
+                          {post.postType === 'official' ? (
+                            <span className="flex items-center gap-1 px-2 py-1 bg-sky-600 text-white text-xs font-medium rounded-full">
+                              <Crown className="h-3 w-3" />
+                              Oficial
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 px-2 py-1 bg-purple-600 text-white text-xs font-medium rounded-full">
+                              <Users className="h-3 w-3" />
+                              Comunidad
+                            </span>
+                          )}
+                        </div>
+
+                        {post.coverImage ? (
                           <div className="aspect-video bg-slate-200 dark:bg-slate-700 overflow-hidden">
                             <img
-                              src={post.coverImage}
+                              src={getImageUrl(post.coverImage)}
                               alt={post.title}
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                             />
                           </div>
+                        ) : (
+                          <div className="aspect-video bg-gradient-to-br from-sky-100 to-blue-100 dark:from-sky-900/30 dark:to-blue-900/30 flex items-center justify-center">
+                            <BookOpen className="h-12 w-12 text-sky-400 dark:text-sky-500" />
+                          </div>
                         )}
 
                         <div className="p-6">
-                          <div className="flex items-center gap-2 mb-3">
+                          <div className="flex items-center gap-2 mb-3 flex-wrap">
                             <span className="px-3 py-1 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 text-xs font-medium rounded-full">
                               {post.category}
                             </span>
+                            {post.readingTime && (
+                              <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                                <Clock className="h-3 w-3" />
+                                {post.readingTime} min
+                              </span>
+                            )}
                           </div>
 
                           <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2 line-clamp-2 group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">
@@ -275,9 +376,18 @@ export default function BlogsScreen() {
                           </p>
 
                           <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
-                            <div className="flex items-center gap-1">
-                              <User className="h-3 w-3" />
-                              <span>{post.author}</span>
+                            {/* Author with avatar */}
+                            <div className="flex items-center gap-2">
+                              {post.creator?.avatar ? (
+                                <img
+                                  src={getImageUrl(post.creator.avatar)}
+                                  alt={post.creator.name}
+                                  className="h-5 w-5 rounded-full object-cover"
+                                />
+                              ) : (
+                                <User className="h-3 w-3" />
+                              )}
+                              <span>{post.creator?.name || post.author}</span>
                             </div>
                             <div className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />

@@ -1,7 +1,7 @@
 import { getImageUrl } from '../../utils/imageUrl';
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Heart, MessageCircle, Eye, DollarSign, Image as ImageIcon, Video } from "lucide-react";
+import { Heart, MessageCircle, Eye, DollarSign, ChevronLeft, ChevronRight, Image as ImageIcon, Play } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 
 interface Author {
@@ -17,6 +17,7 @@ interface GalleryItem {
   url: string;
   type: 'image' | 'video';
   thumbnail?: string;
+  caption?: string;
 }
 
 interface Post {
@@ -49,6 +50,57 @@ export default function PostCard({ post, onLike, onComment }: PostCardProps) {
   );
   const [likesCount, setLikesCount] = useState(post.likesCount);
   const [isLiking, setIsLiking] = useState(false);
+
+  // Carousel state
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const carouselRef = useRef<HTMLDivElement>(null);
+
+  const hasMultipleMedia = post.gallery.length > 1;
+  const totalMedia = post.gallery.length;
+
+  // Swipe handlers
+  const minSwipeDistance = 50;
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+
+    if (isLeftSwipe && currentIndex < totalMedia - 1) {
+      setCurrentIndex(prev => prev + 1);
+    }
+    if (isRightSwipe && currentIndex > 0) {
+      setCurrentIndex(prev => prev - 1);
+    }
+  };
+
+  const goToNext = () => {
+    if (currentIndex < totalMedia - 1) {
+      setCurrentIndex(prev => prev + 1);
+    }
+  };
+
+  const goToPrev = () => {
+    if (currentIndex > 0) {
+      setCurrentIndex(prev => prev - 1);
+    }
+  };
+
+  const goToSlide = (index: number) => {
+    setCurrentIndex(index);
+  };
 
   const handleLike = async () => {
     if (!user || isLiking) return;
@@ -91,8 +143,6 @@ export default function PostCard({ post, onLike, onComment }: PostCardProps) {
       return postDate.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
     }
   };
-
-  const mainMedia = post.gallery[0];
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-md transition-shadow">
@@ -156,45 +206,120 @@ export default function PostCard({ post, onLike, onComment }: PostCardProps) {
         )}
       </div>
 
-      {/* Gallery */}
-      {mainMedia && (
-        <div className="relative bg-slate-100 dark:bg-slate-900">
-          {mainMedia.type === "image" ? (
-            <div className="relative">
-              <img
-                src={getImageUrl(mainMedia.url)}
-                alt={mainMedia.caption || post.title}
-                className="w-full h-96 object-cover"
-              />
-              {mainMedia.caption && (
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4">
-                  <p className="text-white text-sm">{mainMedia.caption}</p>
-                </div>
+      {/* Gallery - Instagram Style Carousel */}
+      {post.gallery.length > 0 && (
+        <div
+          ref={carouselRef}
+          className="relative bg-slate-100 dark:bg-slate-900 overflow-hidden"
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+        >
+          {/* Media Container with transition */}
+          <div
+            className="flex transition-transform duration-300 ease-out"
+            style={{ transform: `translateX(-${currentIndex * 100}%)` }}
+          >
+            {post.gallery.map((media, index) => (
+              <div
+                key={index}
+                className="w-full flex-shrink-0 relative"
+              >
+                {media.type === "image" ? (
+                  <img
+                    src={getImageUrl(media.url)}
+                    alt={media.caption || `${post.title} - ${index + 1}`}
+                    className="w-full h-96 object-cover"
+                    draggable={false}
+                  />
+                ) : (
+                  <div className="relative">
+                    <video
+                      src={getImageUrl(media.url)}
+                      className="w-full h-96 object-cover"
+                      controls
+                      poster={media.thumbnail ? getImageUrl(media.thumbnail) : undefined}
+                    />
+                    {/* Play icon overlay when not playing */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="bg-black/40 rounded-full p-3">
+                        <Play className="h-8 w-8 text-white fill-white" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {media.caption && (
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 pointer-events-none">
+                    <p className="text-white text-sm">{media.caption}</p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Navigation Arrows - Only show if multiple media */}
+          {hasMultipleMedia && (
+            <>
+              {/* Previous Arrow */}
+              {currentIndex > 0 && (
+                <button
+                  onClick={goToPrev}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 dark:bg-slate-800/90 hover:bg-white dark:hover:bg-slate-800 rounded-full p-1.5 shadow-lg transition-all opacity-0 group-hover:opacity-100 hover:scale-110"
+                  style={{ opacity: 1 }}
+                >
+                  <ChevronLeft className="h-5 w-5 text-slate-700 dark:text-slate-200" />
+                </button>
               )}
-            </div>
-          ) : (
-            <div className="relative">
-              <video
-                src={getImageUrl(mainMedia.url)}
-                className="w-full h-96 object-cover"
-                controls
-              />
-              {mainMedia.caption && (
-                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-4 pointer-events-none">
-                  <p className="text-white text-sm">{mainMedia.caption}</p>
-                </div>
+              {/* Next Arrow */}
+              {currentIndex < totalMedia - 1 && (
+                <button
+                  onClick={goToNext}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 dark:bg-slate-800/90 hover:bg-white dark:hover:bg-slate-800 rounded-full p-1.5 shadow-lg transition-all opacity-0 group-hover:opacity-100 hover:scale-110"
+                  style={{ opacity: 1 }}
+                >
+                  <ChevronRight className="h-5 w-5 text-slate-700 dark:text-slate-200" />
+                </button>
               )}
+            </>
+          )}
+
+          {/* Position Indicator - Instagram style "1/4" */}
+          {hasMultipleMedia && (
+            <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm text-white px-3 py-1 rounded-full text-sm font-medium">
+              {currentIndex + 1}/{totalMedia}
             </div>
           )}
-          {post.gallery.length > 1 && (
-            <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm text-white px-3 py-1 rounded-full text-sm flex items-center gap-1">
-              {post.gallery.filter((g) => g.type === "image").length > 0 && (
-                <ImageIcon className="h-4 w-4" />
+
+          {/* Dot Indicators - Instagram style */}
+          {hasMultipleMedia && (
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+              {post.gallery.map((_, index) => (
+                <button
+                  key={index}
+                  onClick={() => goToSlide(index)}
+                  className={`w-2 h-2 rounded-full transition-all ${
+                    index === currentIndex
+                      ? "bg-white w-2.5 h-2.5"
+                      : "bg-white/50 hover:bg-white/70"
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Media type indicators - small icons showing what types are in gallery */}
+          {hasMultipleMedia && (
+            <div className="absolute top-3 left-3 flex items-center gap-1.5">
+              {post.gallery.some(g => g.type === "image") && (
+                <div className="bg-black/60 backdrop-blur-sm text-white p-1.5 rounded-full">
+                  <ImageIcon className="h-3.5 w-3.5" />
+                </div>
               )}
-              {post.gallery.filter((g) => g.type === "video").length > 0 && (
-                <Video className="h-4 w-4" />
+              {post.gallery.some(g => g.type === "video") && (
+                <div className="bg-black/60 backdrop-blur-sm text-white p-1.5 rounded-full">
+                  <Play className="h-3.5 w-3.5" />
+                </div>
               )}
-              <span>{post.gallery.length}</span>
             </div>
           )}
         </div>

@@ -431,6 +431,7 @@ export default function ChatScreen() {
         <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 py-4">
           <div className="container mx-auto max-w-4xl flex items-center justify-between gap-4">
             <div className="flex items-center gap-4">
+              {/* Back button - Only visible on mobile */}
               <Link
                 to={
                   // Priority 1: If conversation has contractId, go to contract detail
@@ -442,7 +443,7 @@ export default function ChatScreen() {
                     : // Priority 3: Default to contracts list
                       "/contracts"
                 }
-                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors md:hidden"
               >
                 <ArrowLeft className="h-5 w-5 text-slate-600 dark:text-slate-400" />
               </Link>

@@ -16,7 +16,7 @@ export default function MultipleRatings({ user, showAll = true }: MultipleRating
       rating: user.workQualityRating,
       count: user.workQualityReviewsCount,
       color: 'text-yellow-500',
-      bgColor: 'bg-yellow-50 dark:bg-yellow-900/20',
+      bgColor: 'bg-yellow-50 dark:bg-yellow-800',
     },
     {
       icon: UserCheck,
@@ -25,7 +25,7 @@ export default function MultipleRatings({ user, showAll = true }: MultipleRating
       rating: user.workerRating,
       count: user.workerReviewsCount,
       color: 'text-blue-500',
-      bgColor: 'bg-blue-50 dark:bg-blue-900/20',
+      bgColor: 'bg-blue-50 dark:bg-blue-800',
     },
     {
       icon: FileText,
@@ -34,7 +34,7 @@ export default function MultipleRatings({ user, showAll = true }: MultipleRating
       rating: user.contractRating,
       count: user.contractReviewsCount,
       color: 'text-green-500',
-      bgColor: 'bg-green-50 dark:bg-green-900/20',
+      bgColor: 'bg-green-50 dark:bg-green-800',
     },
   ];
 
@@ -71,8 +71,8 @@ export default function MultipleRatings({ user, showAll = true }: MultipleRating
                   {item.label}
                 </span>
                 {/* Tooltip */}
-                <div className="absolute left-0 top-full mt-2 w-64 bg-gray-900 dark:bg-gray-800 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none">
-                  <div className="absolute -top-1 left-4 w-2 h-2 bg-gray-900 dark:bg-gray-800 transform rotate-45"></div>
+                <div className="absolute left-0 top-full mt-2 w-64 bg-slate-800 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none border border-slate-700">
+                  <div className="absolute -top-1 left-4 w-2 h-2 bg-slate-800 border-l border-t border-slate-700 transform rotate-45"></div>
                   {item.description}
                 </div>
               </div>
@@ -111,7 +111,7 @@ export default function MultipleRatings({ user, showAll = true }: MultipleRating
 
       {/* Overall Rating */}
       {user.reviewsCount > 0 && (
-        <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/20 dark:to-pink-900/20 rounded-lg p-3 border border-purple-200 dark:border-purple-800">
+        <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-800 dark:to-pink-800 rounded-lg p-3 border border-purple-200 dark:border-purple-700">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 group relative">
               <Briefcase className="w-5 h-5 text-purple-600 dark:text-purple-400" />
@@ -119,8 +119,8 @@ export default function MultipleRatings({ user, showAll = true }: MultipleRating
                 Puntuación General
               </span>
               {/* Tooltip */}
-              <div className="absolute left-0 top-full mt-2 w-64 bg-gray-900 dark:bg-gray-800 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none">
-                <div className="absolute -top-1 left-4 w-2 h-2 bg-gray-900 dark:bg-gray-800 transform rotate-45"></div>
+              <div className="absolute left-0 top-full mt-2 w-64 bg-slate-800 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none border border-slate-700">
+                <div className="absolute -top-1 left-4 w-2 h-2 bg-slate-800 border-l border-t border-slate-700 transform rotate-45"></div>
                 Promedio de todas las calificaciones recibidas en la plataforma
               </div>
             </div>

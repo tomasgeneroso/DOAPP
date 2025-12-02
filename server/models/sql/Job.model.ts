@@ -199,6 +199,16 @@ export class Job extends Model {
   reviewedAt?: Date;
 
   // ============================================
+  // CANCELLATION
+  // ============================================
+
+  @Column(DataType.TEXT)
+  cancellationReason?: string;
+
+  @Column(DataType.DATE)
+  cancelledAt?: Date;
+
+  // ============================================
   // RELATIONSHIPS
   // ============================================
 

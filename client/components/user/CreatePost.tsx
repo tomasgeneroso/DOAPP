@@ -8,6 +8,7 @@ interface CreatePostProps {
   initialType?: 'post' | 'article';
   onClose: () => void;
   onSuccess: () => void;
+  embedded?: boolean; // If true, renders as embedded component instead of modal
 }
 
 interface GalleryFile {
@@ -16,7 +17,7 @@ interface GalleryFile {
   caption: string;
 }
 
-export default function CreatePost({ initialType = 'post', onClose, onSuccess }: CreatePostProps) {
+export default function CreatePost({ initialType = 'post', onClose, onSuccess, embedded = false }: CreatePostProps) {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -176,10 +177,10 @@ export default function CreatePost({ initialType = 'post', onClose, onSuccess }:
 
   const isArticle = formData.type === 'article';
 
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto my-8">
-        {/* Header */}
+  const content = (
+    <>
+      {/* Header - only show in modal mode */}
+      {!embedded && (
         <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800 z-10">
           <h2 className="text-xl font-bold text-slate-900 dark:text-white">
             {isArticle ? 'Nuevo Artículo' : 'Nuevo Post'}
@@ -191,6 +192,7 @@ export default function CreatePost({ initialType = 'post', onClose, onSuccess }:
             <X className="h-5 w-5 text-slate-500" />
           </button>
         </div>
+      )}
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
@@ -410,6 +412,19 @@ export default function CreatePost({ initialType = 'post', onClose, onSuccess }:
             </Button>
           </div>
         </form>
+    </>
+  );
+
+  // If embedded, render without modal wrapper
+  if (embedded) {
+    return content;
+  }
+
+  // Modal wrapper
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto my-8">
+        {content}
       </div>
     </div>
   );

@@ -198,8 +198,33 @@ export default function JobApplicationSummary() {
     );
   }
 
-  // Permitir múltiples aplicaciones al mismo trabajo
-  // Se eliminó la restricción de "ya tiene profesional asignado"
+  // Verificar que el trabajo esté abierto para aplicaciones
+  if (job.status !== 'open') {
+    return (
+      <div className="container mx-auto px-4 py-12">
+        <div className="max-w-2xl mx-auto">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 dark:bg-slate-800 dark:border-slate-700 p-8 text-center">
+            <AlertCircle className="h-12 w-12 text-slate-500 dark:text-slate-400 mx-auto mb-4" />
+            <p className="text-slate-700 dark:text-slate-300 mb-4 text-lg">
+              {job.status === 'pending_approval' && 'Este trabajo está pendiente de aprobación'}
+              {job.status === 'in_progress' && 'Este trabajo ya tiene un profesional asignado'}
+              {job.status === 'completed' && 'Este trabajo ya fue completado'}
+              {job.status === 'cancelled' && 'Este trabajo fue cancelado'}
+              {job.status === 'paused' && 'Este trabajo está pausado'}
+              {!['pending_approval', 'in_progress', 'completed', 'cancelled', 'paused'].includes(job.status) && 'Este trabajo no está disponible para aplicaciones'}
+            </p>
+            <Link
+              to={`/jobs/${job.id || job._id}`}
+              className="inline-flex items-center gap-2 text-sky-600 hover:text-sky-700 font-medium"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Volver al trabajo
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -209,8 +234,8 @@ export default function JobApplicationSummary() {
       </Helmet>
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 py-8">
         <div className="container mx-auto px-4">
-          {/* Back Button */}
-          <div className="mb-6">
+          {/* Back Button - Only visible on mobile */}
+          <div className="mb-6 md:hidden">
             <Link
               to={`/jobs/${job.id || job._id}`}
               className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"

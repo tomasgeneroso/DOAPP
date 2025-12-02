@@ -155,9 +155,10 @@ export default function ProposalsDetail() {
         <div className="container mx-auto px-4 py-8">
           {/* Header */}
           <div className="mb-8">
+            {/* Back button - Only visible on mobile */}
             <Link
               to="/dashboard"
-              className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white mb-4"
+              className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white mb-4 md:hidden"
             >
               <ArrowLeft className="h-4 w-4" />
               Volver al Dashboard

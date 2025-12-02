@@ -169,7 +169,7 @@ export class SocketService {
         include: [{
           model: User,
           as: 'sender',
-          attributes: ['name', 'avatar']
+          attributes: ['id', 'name', 'avatar']
         }]
       });
 
@@ -215,12 +215,12 @@ export class SocketService {
         fileSize,
       });
 
-      // Reload with sender data
+      // Reload with sender data (include id for message alignment in frontend)
       await chatMessage.reload({
         include: [{
           model: User,
           as: 'sender',
-          attributes: ['name', 'avatar']
+          attributes: ['id', 'name', 'avatar']
         }]
       });
 
@@ -232,10 +232,12 @@ export class SocketService {
       conversation.participants.forEach((participantId) => {
         const participantIdStr = participantId.toString();
         if (participantIdStr !== socket.userId) {
-          const currentCount = conversation.unreadCount.get(participantIdStr) || 0;
-          conversation.unreadCount.set(participantIdStr, currentCount + 1);
+          if (!conversation.unreadCount) conversation.unreadCount = {};
+          conversation.unreadCount[participantIdStr] = (conversation.unreadCount[participantIdStr] || 0) + 1;
         }
       });
+      // Mark unreadCount as changed for Sequelize to detect JSONB update
+      conversation.changed('unreadCount', true);
 
       await conversation.save();
 
@@ -257,7 +259,7 @@ export class SocketService {
             participants: participantId,
             archived: false,
           },
-          attributes: ['id']
+          attributes: ['id', 'unreadCount']
         });
 
         const conversationIds = participantConversations.map(c => c.id);
@@ -271,7 +273,18 @@ export class SocketService {
             read: false,
           }
         });
-        this.notifyUnreadMessagesUpdate(participantIdStr, unreadCount);
+
+        // Count conversations with unread messages for this user
+        let unreadConversationsCount = 0;
+        participantConversations.forEach((conv) => {
+          const unreadMap = conv.unreadCount as Record<string, number> | null;
+          const count = unreadMap?.[participantIdStr] || 0;
+          if (count > 0) {
+            unreadConversationsCount++;
+          }
+        });
+
+        this.notifyUnreadMessagesUpdate(participantIdStr, unreadCount, unreadConversationsCount);
 
         if (!isOnline) {
           // Create notification for offline user
@@ -372,7 +385,9 @@ export class SocketService {
       );
 
       // Reset unread count for this user
-      conversation.unreadCount.set(socket.userId!, 0);
+      if (!conversation.unreadCount) conversation.unreadCount = {};
+      conversation.unreadCount[socket.userId!] = 0;
+      conversation.changed('unreadCount', true);
       await conversation.save();
 
       socket.emit("conversation:marked-read", { conversationId });
@@ -452,8 +467,100 @@ export class SocketService {
   }
 
   // Notify unread message count update
-  public notifyUnreadMessagesUpdate(userId: string, unreadCount: number) {
-    this.broadcastToUser(userId, "unread:updated", { unreadCount });
+  public notifyUnreadMessagesUpdate(userId: string, unreadCount: number, unreadConversations?: number) {
+    this.broadcastToUser(userId, "unread:updated", { unreadCount, unreadConversations: unreadConversations ?? 0 });
+  }
+
+  // ============================================
+  // ADMIN REAL-TIME BROADCASTS
+  // ============================================
+
+  // Broadcast new job created (for admin panel)
+  public notifyNewJob(job: any) {
+    this.io.emit("admin:job:created", { job, timestamp: new Date() });
+    // Also notify job listings refresh
+    this.io.emit("jobs:refresh", { action: "created", job });
+  }
+
+  // Broadcast job status changed
+  public notifyJobStatusChanged(job: any, previousStatus: string) {
+    this.io.emit("admin:job:updated", { job, previousStatus, timestamp: new Date() });
+    this.io.emit("jobs:refresh", { action: "updated", job });
+  }
+
+  // Broadcast new proposal (for admin and job owner)
+  public notifyNewProposal(proposal: any, jobOwnerId: string) {
+    this.io.emit("admin:proposal:created", { proposal, timestamp: new Date() });
+    this.broadcastToUser(jobOwnerId, "proposal:new", { proposal });
+  }
+
+  // Broadcast new contract created
+  public notifyNewContract(contract: any) {
+    this.io.emit("admin:contract:created", { contract, timestamp: new Date() });
+  }
+
+  // Broadcast contract status changed
+  public notifyContractStatusChanged(contract: any, previousStatus: string) {
+    this.io.emit("admin:contract:updated", { contract, previousStatus, timestamp: new Date() });
+  }
+
+  // Broadcast new payment (for admin)
+  public notifyNewPayment(payment: any) {
+    this.io.emit("admin:payment:created", { payment, timestamp: new Date() });
+  }
+
+  // Broadcast payment status changed
+  public notifyPaymentStatusChanged(payment: any, previousStatus: string) {
+    this.io.emit("admin:payment:updated", { payment, previousStatus, timestamp: new Date() });
+  }
+
+  // Broadcast new user registered
+  public notifyNewUser(user: any) {
+    this.io.emit("admin:user:created", {
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        createdAt: user.createdAt
+      },
+      timestamp: new Date()
+    });
+  }
+
+  // Broadcast new dispute
+  public notifyNewDispute(dispute: any) {
+    this.io.emit("admin:dispute:created", { dispute, timestamp: new Date() });
+  }
+
+  // Broadcast dispute status changed
+  public notifyDisputeStatusChanged(dispute: any, previousStatus: string) {
+    this.io.emit("admin:dispute:updated", { dispute, previousStatus, timestamp: new Date() });
+  }
+
+  // Broadcast new ticket
+  public notifyNewTicket(ticket: any) {
+    this.io.emit("admin:ticket:created", { ticket, timestamp: new Date() });
+  }
+
+  // Broadcast ticket status changed
+  public notifyTicketStatusChanged(ticket: any, previousStatus: string) {
+    this.io.emit("admin:ticket:updated", { ticket, previousStatus, timestamp: new Date() });
+  }
+
+  // Broadcast new withdrawal request
+  public notifyNewWithdrawal(withdrawal: any) {
+    this.io.emit("admin:withdrawal:created", { withdrawal, timestamp: new Date() });
+  }
+
+  // Broadcast withdrawal status changed
+  public notifyWithdrawalStatusChanged(withdrawal: any, previousStatus: string) {
+    this.io.emit("admin:withdrawal:updated", { withdrawal, previousStatus, timestamp: new Date() });
+  }
+
+  // Generic admin notification
+  public notifyAdminEvent(event: string, data: any) {
+    this.io.emit(`admin:${event}`, { ...data, timestamp: new Date() });
   }
 }
 

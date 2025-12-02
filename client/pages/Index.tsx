@@ -1,22 +1,41 @@
 import { useAuth } from "../hooks/useAuth";
 import { Helmet } from "react-helmet-async";
 import { Link } from "react-router-dom";
-import { useState, useEffect } from "react";
-import { MapPin, Calendar, Clock, Star } from "lucide-react";
-import type { Job } from "@/types";
+import { useState, useEffect, useCallback } from "react";
+import { MapPin, Calendar, Clock, Star, Briefcase, CheckCircle } from "lucide-react";
+import type { Job, User as UserType } from "@/types";
 import SearchBar, { SearchFilters } from "../components/SearchBar";
 import { useAdvertisements } from "../hooks/useAdvertisements";
 import Advertisement from "../components/Advertisement";
 import AdPlaceholder from "../components/AdPlaceholder";
+import { useSocket } from "../hooks/useSocket";
+import { getImageUrl } from "../utils/imageUrl";
 
 export default function Index() {
   const { user, isLoading } = useAuth();
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [users, setUsers] = useState<UserType[]>([]);
   const [myJobs, setMyJobs] = useState<Job[]>([]);
   const [jobsLoading, setJobsLoading] = useState(true);
+  const [searchType, setSearchType] = useState<'jobs' | 'users'>('jobs');
   const { ads, recordImpression, recordClick } = useAdvertisements({
     placement: "jobs_list",
   });
+  const { registerJobsRefreshHandler } = useSocket();
+
+  // Handle real-time jobs refresh
+  const handleJobsRefresh = useCallback(() => {
+    console.log("🔄 Real-time: Refreshing jobs list");
+    fetchJobs();
+    if (user) {
+      fetchMyJobs();
+    }
+  }, [user]);
+
+  // Register socket handler for jobs refresh
+  useEffect(() => {
+    registerJobsRefreshHandler(handleJobsRefresh);
+  }, [registerJobsRefreshHandler, handleJobsRefresh]);
 
   const fetchMyJobs = async () => {
     if (!user?.id) {
@@ -52,8 +71,41 @@ export default function Index() {
     }
   };
 
+  const fetchUsers = async (query: string) => {
+    try {
+      setJobsLoading(true);
+      const params = new URLSearchParams({
+        q: query,
+        limit: "20",
+      });
+
+      const response = await fetch(`/api/users/search?${params.toString()}`);
+      const data = await response.json();
+      if (data.success) {
+        setUsers(data.users);
+      }
+    } catch (error) {
+      console.error("Error al buscar usuarios:", error);
+    } finally {
+      setJobsLoading(false);
+    }
+  };
+
   const fetchJobs = async (filters?: SearchFilters) => {
     try {
+      // Si el tipo de búsqueda es usuarios, buscar usuarios en su lugar
+      if (filters?.searchType === 'users') {
+        setSearchType('users');
+        if (filters.query) {
+          await fetchUsers(filters.query);
+        } else {
+          setUsers([]);
+          setJobsLoading(false);
+        }
+        return;
+      }
+
+      setSearchType('jobs');
       setJobsLoading(true);
       const params = new URLSearchParams({
         status: "open",
@@ -329,7 +381,7 @@ export default function Index() {
         </div>
 
         {/* Search Bar */}
-        <div className="mt-8 sm:mt-12 max-w-4xl mx-auto px-2">
+        <div className="mt-8 sm:mt-12 max-w-4xl mx-auto px-2" data-onboarding="search">
           <SearchBar
             onSearch={handleSearch}
             onSearchChange={handleSearchChange}
@@ -430,120 +482,211 @@ export default function Index() {
           </div>
         )}
 
-        {/* Lista de trabajos disponibles */}
-        <div className="mt-10 sm:mt-16 px-2">
-          <div className="flex items-center justify-between mb-6 sm:mb-8">
-            <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-              Trabajos Disponibles
-            </h2>
-          </div>
-
-          {jobsLoading ? (
-            <div className="flex justify-center py-12">
-              <div className="h-12 w-12 animate-spin rounded-full border-4 border-solid border-sky-500 border-t-transparent"></div>
+        {/* Lista de usuarios (cuando se busca usuarios) */}
+        {searchType === 'users' && (
+          <div className="mt-10 sm:mt-16 px-2">
+            <div className="flex items-center justify-between mb-6 sm:mb-8">
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+                Usuarios
+              </h2>
             </div>
-          ) : jobs.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-500">
-                No hay trabajos disponibles en este momento.
-              </p>
-            </div>
-          ) : (
-            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 auto-rows-[minmax(200px,auto)] grid-flow-dense">
-              {getMixedContent().map((item, index) => {
-                if (item.type === "ad") {
-                  return (
-                    <Advertisement
-                      key={`ad-${item.data.id}`}
-                      ad={item.data}
-                      onImpression={recordImpression}
-                      onClick={recordClick}
-                    />
-                  );
-                }
 
-                if (item.type === "ad-placeholder") {
-                  return (
-                    <AdPlaceholder
-                      key={`ad-placeholder-${index}`}
-                      adType={item.adType as any}
-                    />
-                  );
-                }
-
-                const job = item.data;
-                return (
+            {jobsLoading ? (
+              <div className="flex justify-center py-12">
+                <div className="h-12 w-12 animate-spin rounded-full border-4 border-solid border-sky-500 border-t-transparent"></div>
+              </div>
+            ) : users.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-500 dark:text-slate-400">
+                  Escribí un nombre o @usuario para buscar.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {users.map((userResult) => (
                   <Link
-                    key={`job-${job.id}`}
-                    to={`/jobs/${job.id}`}
+                    key={`user-${userResult.id}`}
+                    to={userResult.username ? `/u/${userResult.username}` : `/profile/${userResult.id}`}
                     className="group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm transition-all hover:border-sky-300 hover:shadow-lg"
                   >
-                    {/* Precio */}
-                    <div className="absolute right-4 top-4 rounded-full bg-gradient-to-r from-sky-500 to-sky-600 px-3 py-1 text-sm font-bold text-white shadow-lg shadow-sky-500/30">
-                      ${job.price.toLocaleString("es-AR")}
+                    {/* Avatar y nombre */}
+                    <div className="flex items-center gap-4">
+                      <img
+                        src={getImageUrl(userResult.avatar)}
+                        alt={userResult.name}
+                        className="w-16 h-16 rounded-full object-cover border-2 border-slate-200 dark:border-slate-600"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-lg font-bold text-slate-900 dark:text-white group-hover:text-sky-600 truncate">
+                            {userResult.name}
+                          </h3>
+                          {userResult.membershipTier === "pro" && userResult.hasMembership && (
+                            <span className="px-1.5 py-0.5 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-bold rounded flex-shrink-0">
+                              PRO
+                            </span>
+                          )}
+                          {userResult.isPremiumVerified && (
+                            <CheckCircle className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                          )}
+                        </div>
+                        {userResult.username && (
+                          <p className="text-sm text-slate-500 dark:text-slate-400">
+                            @{userResult.username}
+                          </p>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Título */}
-                    <h3 className="mb-2 pr-20 text-lg font-bold text-slate-900 dark:text-white group-hover:text-sky-600">
-                      {job.title}
-                    </h3>
-
-                    {/* Rating del cliente */}
-                    {job.client && (
-                      <div className="mb-3 flex items-center gap-1 text-amber-500">
-                        <Star className="h-4 w-4 fill-current" />
-                        <span className="ml-1 text-xs text-slate-600 dark:text-slate-400">
-                          {job.client.rating.toFixed(1)} (
-                          {job.client.reviewsCount})
-                        </span>
-                      </div>
+                    {/* Bio */}
+                    {userResult.bio && (
+                      <p className="mt-4 line-clamp-2 text-sm text-slate-600 dark:text-slate-400">
+                        {userResult.bio}
+                      </p>
                     )}
 
-                    {/* Resumen */}
-                    <p className="mb-4 line-clamp-2 text-sm text-slate-600 dark:text-slate-400">
-                      {job.summary}
-                    </p>
-
-                    {/* Detalles */}
-                    <div className="mt-auto space-y-2 border-t border-slate-100 dark:border-slate-700 pt-4">
-                      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                        <MapPin className="h-4 w-4 text-slate-400" />
-                        <span>{job.location}</span>
+                    {/* Stats */}
+                    <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center gap-4">
+                      <div className="flex items-center gap-1 text-amber-500">
+                        <Star className="h-4 w-4 fill-current" />
+                        <span className="text-sm font-medium">{userResult.rating?.toFixed(1) || '0.0'}</span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          ({userResult.reviewsCount || 0})
+                        </span>
                       </div>
-                      <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-4 w-4 text-slate-400" />
-                          <span>
-                            {new Date(job.startDate).toLocaleDateString(
-                              "es-AR",
-                            )}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-4 w-4 text-slate-400" />
-                          <span>
-                            {new Date(job.startDate).toLocaleTimeString(
-                              "es-AR",
-                              {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              },
-                            )}
-                          </span>
-                        </div>
+                      <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400">
+                        <Briefcase className="h-4 w-4" />
+                        <span className="text-sm">{userResult.completedJobs || 0} trabajos</span>
                       </div>
                     </div>
 
                     {/* Hover Button */}
                     <div className="absolute inset-x-0 bottom-0 translate-y-full bg-gradient-to-r from-sky-500 to-sky-600 py-3 text-center text-sm font-semibold text-white transition-transform group-hover:translate-y-0">
-                      Ver detalles
+                      Ver perfil
                     </div>
                   </Link>
-                );
-              })}
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Lista de trabajos disponibles */}
+        {searchType === 'jobs' && (
+          <div className="mt-10 sm:mt-16 px-2" data-onboarding="jobs-list">
+            <div className="flex items-center justify-between mb-6 sm:mb-8">
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+                Trabajos Disponibles
+              </h2>
             </div>
-          )}
-        </div>
+
+            {jobsLoading ? (
+              <div className="flex justify-center py-12">
+                <div className="h-12 w-12 animate-spin rounded-full border-4 border-solid border-sky-500 border-t-transparent"></div>
+              </div>
+            ) : jobs.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-gray-500">
+                  No hay trabajos disponibles en este momento.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 auto-rows-[minmax(200px,auto)] grid-flow-dense">
+                {getMixedContent().map((item, index) => {
+                  if (item.type === "ad") {
+                    return (
+                      <Advertisement
+                        key={`ad-${item.data.id}`}
+                        ad={item.data}
+                        onImpression={recordImpression}
+                        onClick={recordClick}
+                      />
+                    );
+                  }
+
+                  if (item.type === "ad-placeholder") {
+                    return (
+                      <AdPlaceholder
+                        key={`ad-placeholder-${index}`}
+                        adType={item.adType as any}
+                      />
+                    );
+                  }
+
+                  const job = item.data;
+                  return (
+                    <Link
+                      key={`job-${job.id}`}
+                      to={`/jobs/${job.id}`}
+                      className="group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm transition-all hover:border-sky-300 hover:shadow-lg"
+                    >
+                      {/* Precio */}
+                      <div className="absolute right-4 top-4 rounded-full bg-gradient-to-r from-sky-500 to-sky-600 px-3 py-1 text-sm font-bold text-white shadow-lg shadow-sky-500/30">
+                        ${job.price.toLocaleString("es-AR")}
+                      </div>
+
+                      {/* Título */}
+                      <h3 className="mb-2 pr-20 text-lg font-bold text-slate-900 dark:text-white group-hover:text-sky-600">
+                        {job.title}
+                      </h3>
+
+                      {/* Rating del cliente */}
+                      {job.client && (
+                        <div className="mb-3 flex items-center gap-1 text-amber-500">
+                          <Star className="h-4 w-4 fill-current" />
+                          <span className="ml-1 text-xs text-slate-600 dark:text-slate-400">
+                            {job.client.rating.toFixed(1)} (
+                            {job.client.reviewsCount})
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Resumen */}
+                      <p className="mb-4 line-clamp-2 text-sm text-slate-600 dark:text-slate-400">
+                        {job.summary}
+                      </p>
+
+                      {/* Detalles */}
+                      <div className="mt-auto space-y-2 border-t border-slate-100 dark:border-slate-700 pt-4">
+                        <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                          <MapPin className="h-4 w-4 text-slate-400" />
+                          <span>{job.location}</span>
+                        </div>
+                        <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-4 w-4 text-slate-400" />
+                            <span>
+                              {new Date(job.startDate).toLocaleDateString(
+                                "es-AR",
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Clock className="h-4 w-4 text-slate-400" />
+                            <span>
+                              {new Date(job.startDate).toLocaleTimeString(
+                                "es-AR",
+                                {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                },
+                              )}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Hover Button */}
+                      <div className="absolute inset-x-0 bottom-0 translate-y-full bg-gradient-to-r from-sky-500 to-sky-600 py-3 text-center text-sm font-semibold text-white transition-transform group-hover:translate-y-0">
+                        Ver detalles
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </>
   );

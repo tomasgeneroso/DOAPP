@@ -16,7 +16,8 @@ import { User } from './User.model.js';
  * BlogPost Model
  *
  * Blog articles for content marketing and SEO.
- * Supports drafts, publishing workflow, categories, tags, and view tracking.
+ * Supports posts from both admins (official/SEO optimized) and users.
+ * Includes SEO fields for better search engine visibility.
  */
 @Table({
   tableName: 'blog_posts',
@@ -43,6 +44,14 @@ import { User } from './User.model.js';
     {
       fields: ['createdAt'],
       name: 'idx_blog_created',
+    },
+    {
+      fields: ['postType'],
+      name: 'idx_blog_post_type',
+    },
+    {
+      fields: ['createdBy'],
+      name: 'idx_blog_created_by',
     },
   ],
 })
@@ -138,6 +147,83 @@ export class BlogPost extends Model {
     allowNull: true,
   })
   publishedAt?: Date;
+
+  // Post type: 'official' (admin/platform) or 'user' (community)
+  @Column({
+    type: DataType.ENUM('official', 'user'),
+    allowNull: false,
+    defaultValue: 'user',
+  })
+  postType!: 'official' | 'user';
+
+  // SEO Fields
+  @Column({
+    type: DataType.STRING(70),
+    allowNull: true,
+    comment: 'SEO meta title (max 70 chars for Google)',
+  })
+  metaTitle?: string;
+
+  @Column({
+    type: DataType.STRING(160),
+    allowNull: true,
+    comment: 'SEO meta description (max 160 chars for Google)',
+  })
+  metaDescription?: string;
+
+  @Column({
+    type: DataType.ARRAY(DataType.STRING),
+    allowNull: false,
+    defaultValue: [],
+    comment: 'SEO keywords for search engines',
+  })
+  metaKeywords!: string[];
+
+  @Column({
+    type: DataType.STRING(500),
+    allowNull: true,
+    comment: 'Canonical URL for SEO',
+  })
+  canonicalUrl?: string;
+
+  @Column({
+    type: DataType.STRING(500),
+    allowNull: true,
+    comment: 'Open Graph image for social sharing',
+  })
+  ogImage?: string;
+
+  @Column({
+    type: DataType.BOOLEAN,
+    allowNull: false,
+    defaultValue: true,
+    comment: 'Allow search engines to index this post',
+  })
+  indexable!: boolean;
+
+  @Column({
+    type: DataType.INTEGER,
+    allowNull: true,
+    comment: 'Estimated reading time in minutes',
+  })
+  readingTime?: number;
+
+  // Featured/Highlighted post
+  @Column({
+    type: DataType.BOOLEAN,
+    allowNull: false,
+    defaultValue: false,
+  })
+  featured!: boolean;
+
+  // SEO Score (0-100) - calculated based on SEO best practices
+  @Column({
+    type: DataType.INTEGER,
+    allowNull: false,
+    defaultValue: 0,
+    comment: 'SEO score from 0-100',
+  })
+  seoScore!: number;
 
   @ForeignKey(() => User)
   @Column({
@@ -271,5 +357,127 @@ export class BlogPost extends Model {
    */
   isDraft(): boolean {
     return this.status === 'draft';
+  }
+
+  /**
+   * Calculate reading time based on content length
+   * Average reading speed: 200 words per minute
+   */
+  calculateReadingTime(): number {
+    const wordsPerMinute = 200;
+    const wordCount = this.content.split(/\s+/).length;
+    return Math.ceil(wordCount / wordsPerMinute);
+  }
+
+  /**
+   * Calculate SEO score based on best practices
+   * Returns a score from 0-100
+   */
+  calculateSeoScore(): number {
+    let score = 0;
+    const maxScore = 100;
+
+    // Title checks (25 points max)
+    if (this.title) {
+      score += 5; // Has title
+      if (this.title.length >= 30 && this.title.length <= 60) score += 10; // Optimal length
+      if (this.title.length > 10) score += 5; // Not too short
+      if (/^[A-ZÁÉÍÓÚÑ]/.test(this.title)) score += 5; // Starts with capital
+    }
+
+    // Meta description (20 points max)
+    if (this.metaDescription) {
+      score += 5; // Has meta description
+      if (this.metaDescription.length >= 120 && this.metaDescription.length <= 160) score += 15; // Optimal length
+      else if (this.metaDescription.length >= 50) score += 8; // Acceptable length
+    }
+
+    // Meta title (10 points max)
+    if (this.metaTitle) {
+      score += 5;
+      if (this.metaTitle.length >= 30 && this.metaTitle.length <= 70) score += 5;
+    }
+
+    // Content checks (25 points max)
+    if (this.content) {
+      const wordCount = this.content.split(/\s+/).length;
+      if (wordCount >= 300) score += 5; // Minimum content
+      if (wordCount >= 600) score += 5; // Good content length
+      if (wordCount >= 1000) score += 5; // Great content length
+      if (this.content.includes('<h2') || this.content.includes('<h3')) score += 5; // Has headings
+      if (this.content.includes('<img') || this.coverImage) score += 5; // Has images
+    }
+
+    // Tags and keywords (10 points max)
+    if (this.tags && this.tags.length > 0) score += 5;
+    if (this.metaKeywords && this.metaKeywords.length >= 3) score += 5;
+
+    // Cover image (5 points)
+    if (this.coverImage) score += 5;
+
+    // Slug optimization (5 points)
+    if (this.slug && this.slug.length <= 50 && !this.slug.includes('--')) score += 5;
+
+    return Math.min(score, maxScore);
+  }
+
+  /**
+   * Get SEO suggestions for improvement
+   */
+  getSeoSuggestions(): string[] {
+    const suggestions: string[] = [];
+
+    // Title suggestions
+    if (!this.title || this.title.length < 30) {
+      suggestions.push('📝 El título debería tener al menos 30 caracteres para mejor SEO');
+    }
+    if (this.title && this.title.length > 60) {
+      suggestions.push('📝 El título es muy largo (máx. 60 caracteres). Google lo cortará');
+    }
+
+    // Meta description suggestions
+    if (!this.metaDescription) {
+      suggestions.push('📋 Agrega una meta descripción para mejorar el CTR en Google');
+    } else if (this.metaDescription.length < 120) {
+      suggestions.push('📋 La meta descripción es muy corta. Apunta a 120-160 caracteres');
+    } else if (this.metaDescription.length > 160) {
+      suggestions.push('📋 La meta descripción es muy larga. Google la cortará después de 160 caracteres');
+    }
+
+    // Content suggestions
+    const wordCount = this.content?.split(/\s+/).length || 0;
+    if (wordCount < 300) {
+      suggestions.push('📄 El contenido es muy corto. Apunta a al menos 300 palabras');
+    }
+    if (!this.content?.includes('<h2') && !this.content?.includes('<h3')) {
+      suggestions.push('🔤 Usa subtítulos (H2, H3) para estructurar mejor el contenido');
+    }
+
+    // Image suggestions
+    if (!this.coverImage) {
+      suggestions.push('🖼️ Agrega una imagen de portada para mayor engagement');
+    }
+
+    // Tags suggestions
+    if (!this.tags || this.tags.length < 3) {
+      suggestions.push('🏷️ Agrega al menos 3 etiquetas relevantes');
+    }
+
+    // Keywords suggestions
+    if (!this.metaKeywords || this.metaKeywords.length < 3) {
+      suggestions.push('🔑 Agrega al menos 3 palabras clave para SEO');
+    }
+
+    return suggestions;
+  }
+
+  /**
+   * Update SEO score and reading time before saving
+   */
+  @BeforeCreate
+  @BeforeUpdate
+  static updateSeoMetrics(instance: BlogPost) {
+    instance.readingTime = instance.calculateReadingTime();
+    instance.seoScore = instance.calculateSeoScore();
   }
 }

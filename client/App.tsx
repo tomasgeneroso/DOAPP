@@ -3,6 +3,8 @@ import { AuthProvider } from "./hooks/useAuth";
 import { HelmetProvider } from "react-helmet-async";
 import { ToastProvider } from "./components/ui/Toast";
 import { FacebookSDK } from "./components/FacebookSDK";
+import { OnboardingProvider } from "./hooks/useOnboarding";
+import OnboardingTooltip from "./components/onboarding/OnboardingTooltip";
 import { useEffect } from "react";
 import { setupFetchInterceptor } from "./utils/fetchWithAuth";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -35,6 +37,7 @@ import ContactPage from "./pages/ContactPage";
 import ReferralsScreen from "./pages/ReferralsScreen";
 import BlogsScreen from "./pages/BlogsScreen";
 import BlogDetailScreen from "./pages/BlogDetailScreen";
+import CreateBlogScreen from "./pages/CreateBlogScreen";
 import ChatScreen from "./pages/ChatScreen";
 import CreateTicket from "./pages/CreateTicket";
 import CreateDispute from "./pages/CreateDispute";
@@ -79,6 +82,7 @@ import AdminWithdrawalManager from "./pages/admin/AdminWithdrawalManager";
 import FinancialTransactions from "./pages/admin/FinancialTransactions";
 import PendingPayments from "./pages/admin/PendingPayments";
 import AdminJobManager from "./pages/admin/JobManager";
+import EditJobScreen from "./pages/EditJobScreen";
 
 export default function App() {
   // Setup fetch interceptor for automatic token handling
@@ -90,13 +94,23 @@ export default function App() {
     <ErrorBoundary>
       <HelmetProvider>
         <AuthProvider>
-          <ToastProvider>
-            <FacebookSDK />
-            <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
-            <Routes>
+          <OnboardingProvider>
+            <ToastProvider>
+              <FacebookSDK />
+              <OnboardingTooltip />
+              <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+              <Routes>
             <Route element={<Layout />}>
               <Route path="/" element={<Index />} />
               <Route path="/jobs/:id" element={<JobDetail />} />
+              <Route
+                path="/jobs/:id/edit"
+                element={
+                  <ProtectedRoute>
+                    <EditJobScreen />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/jobs/:id/apply"
                 element={
@@ -193,6 +207,8 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
+              {/* Profile routes - username takes precedence */}
+              <Route path="/u/:username" element={<ProfilePage />} />
               <Route path="/profile/:userId" element={<ProfilePage />} />
               <Route
                 path="/pro/usage"
@@ -326,14 +342,15 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route path="/blog" element={<BlogsScreen />} />
+              <Route path="/blog/create" element={<CreateBlogScreen />} />
+              <Route path="/blog/:slug" element={<BlogDetailScreen />} />
             </Route>
             <Route path="/login" element={<LoginScreen />} />
             <Route path="/register" element={<LoginScreen />} />
             <Route path="/banned" element={<BannedUserScreen />} />
             <Route path="/contact" element={<ContactPage />} />
-            <Route path="/blog" element={<BlogsScreen />} />
-            <Route path="/blog/:slug" element={<BlogDetailScreen />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
+                        <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/legal/terminos-y-condiciones" element={<TermsAndConditions />} />
             <Route path="/legal/privacidad" element={<PrivacyPolicy />} />
@@ -411,9 +428,10 @@ export default function App() {
               <Route path="tickets/:id" element={<TicketDetail />} />
               <Route path="jobs" element={<AdminJobManager />} />
             </Route>
-            </Routes>
-          </BrowserRouter>
-          </ToastProvider>
+              </Routes>
+              </BrowserRouter>
+            </ToastProvider>
+          </OnboardingProvider>
         </AuthProvider>
       </HelmetProvider>
     </ErrorBoundary>

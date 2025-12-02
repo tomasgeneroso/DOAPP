@@ -29,17 +29,32 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       limit: limit,
       include: [{
         association: 'authorUser',
-        attributes: ['name', 'avatar', 'membershipTier', 'hasMembership'],
+        attributes: ['id', 'name', 'avatar', 'membershipTier', 'hasMembership', 'isPremiumVerified'],
       }],
-      raw: true,
-      nest: true,
     });
 
     const total = await Post.count({ where: filter });
 
+    // Transform posts to match frontend expectations
+    const transformedPosts = posts.map(post => {
+      const postData = post.toJSON() as any;
+      return {
+        _id: postData.id,
+        ...postData,
+        author: postData.authorUser ? {
+          _id: postData.authorUser.id,
+          name: postData.authorUser.name,
+          avatar: postData.authorUser.avatar,
+          membershipTier: postData.authorUser.membershipTier,
+          hasMembership: postData.authorUser.hasMembership,
+          isPremiumVerified: postData.authorUser.isPremiumVerified,
+        } : null,
+      };
+    });
+
     res.json({
       success: true,
-      posts,
+      posts: transformedPosts,
       pagination: {
         page,
         limit,
@@ -64,7 +79,7 @@ router.get("/:id", async (req: Request, res: Response): Promise<void> => {
       include: [
         {
           association: 'authorUser',
-          attributes: ['name', 'avatar', 'bio', 'membershipTier', 'hasMembership', 'rating', 'completedJobs'],
+          attributes: ['id', 'name', 'avatar', 'bio', 'membershipTier', 'hasMembership', 'isPremiumVerified', 'rating', 'completedJobs'],
         },
         {
           association: 'contract',
@@ -85,9 +100,27 @@ router.get("/:id", async (req: Request, res: Response): Promise<void> => {
     post.viewsCount += 1;
     await post.save();
 
+    // Transform to match frontend expectations
+    const postData = post.toJSON() as any;
+    const transformedPost = {
+      _id: postData.id,
+      ...postData,
+      author: postData.authorUser ? {
+        _id: postData.authorUser.id,
+        name: postData.authorUser.name,
+        avatar: postData.authorUser.avatar,
+        bio: postData.authorUser.bio,
+        membershipTier: postData.authorUser.membershipTier,
+        hasMembership: postData.authorUser.hasMembership,
+        isPremiumVerified: postData.authorUser.isPremiumVerified,
+        rating: postData.authorUser.rating,
+        completedJobs: postData.authorUser.completedJobs,
+      } : null,
+    };
+
     res.json({
       success: true,
-      post,
+      post: transformedPost,
     });
   } catch (error: any) {
     res.status(500).json({
@@ -359,10 +392,8 @@ router.get("/:id/comments", async (req: Request, res: Response): Promise<void> =
       limit: limit,
       include: [{
         association: 'authorUser',
-        attributes: ['name', 'avatar', 'membershipTier', 'hasMembership'],
+        attributes: ['id', 'name', 'username', 'avatar', 'membershipTier', 'hasMembership', 'isPremiumVerified'],
       }],
-      raw: true,
-      nest: true,
     });
 
     const total = await PostComment.count({
@@ -372,9 +403,27 @@ router.get("/:id/comments", async (req: Request, res: Response): Promise<void> =
       },
     });
 
+    // Transform comments to match frontend expectations
+    const transformedComments = comments.map(comment => {
+      const commentData = comment.toJSON() as any;
+      return {
+        _id: commentData.id,
+        ...commentData,
+        author: commentData.authorUser ? {
+          _id: commentData.authorUser.id,
+          name: commentData.authorUser.name,
+          username: commentData.authorUser.username,
+          avatar: commentData.authorUser.avatar,
+          membershipTier: commentData.authorUser.membershipTier,
+          hasMembership: commentData.authorUser.hasMembership,
+          isPremiumVerified: commentData.authorUser.isPremiumVerified,
+        } : null,
+      };
+    });
+
     res.json({
       success: true,
-      comments,
+      comments: transformedComments,
       pagination: {
         page,
         limit,
@@ -421,14 +470,30 @@ router.post("/:id/comments", protect, async (req: AuthRequest, res: Response): P
     const populatedComment = await PostComment.findByPk(comment.id, {
       include: [{
         association: 'authorUser',
-        attributes: ['name', 'avatar', 'membershipTier', 'hasMembership'],
+        attributes: ['id', 'name', 'username', 'avatar', 'membershipTier', 'hasMembership', 'isPremiumVerified'],
       }],
     });
+
+    // Transform to match frontend expectations
+    const commentData = populatedComment?.toJSON() as any;
+    const transformedComment = commentData ? {
+      _id: commentData.id,
+      ...commentData,
+      author: commentData.authorUser ? {
+        _id: commentData.authorUser.id,
+        name: commentData.authorUser.name,
+        username: commentData.authorUser.username,
+        avatar: commentData.authorUser.avatar,
+        membershipTier: commentData.authorUser.membershipTier,
+        hasMembership: commentData.authorUser.hasMembership,
+        isPremiumVerified: commentData.authorUser.isPremiumVerified,
+      } : null,
+    } : null;
 
     res.status(201).json({
       success: true,
       message: "Comentario agregado exitosamente",
-      comment: populatedComment,
+      comment: transformedComment,
     });
   } catch (error: any) {
     res.status(500).json({

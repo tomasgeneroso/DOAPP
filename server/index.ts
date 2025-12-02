@@ -22,6 +22,7 @@ import {
 // TEMPORARILY DISABLED - DEBUGGING
 // import { startEscalateExpiredChangeRequestsJob } from "./jobs/escalateExpiredChangeRequests.js";
 import { startResetProMembershipCountersJob } from "./jobs/resetProMembershipCounters.js";
+import { startAutoSelectWorkerJob } from "./jobs/autoSelectWorker.js";
 
 // Rutas
 import authRoutes from "./routes/auth.js";
@@ -312,6 +313,9 @@ export { socketService };
 
 // Initialize PRO membership monthly reset job
 startResetProMembershipCountersJob();
+
+// Initialize auto-select worker job (24h before job start)
+startAutoSelectWorkerJob();
 
 // Manejo de errores del servidor
 httpServer.on('error', (error: NodeJS.ErrnoException) => {

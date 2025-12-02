@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
-import { Briefcase, CheckCircle, XCircle, Clock, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Image as ImageIcon, FileText, Download } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Briefcase, CheckCircle, XCircle, Clock, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Image as ImageIcon, FileText, Download, Bell } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useSocket } from "../../hooks/useSocket";
 
 interface PaymentProof {
   id: string;
@@ -31,6 +32,8 @@ interface Job {
   paymentProof?: PaymentProof;
   createdAt: string;
   rejectedReason?: string;
+  cancellationReason?: string;
+  cancelledAt?: string;
   reviewedBy?: string;
   reviewedAt?: string;
 }
@@ -56,6 +59,47 @@ export default function AdminJobManager() {
   const [selectedProof, setSelectedProof] = useState<PaymentProof | null>(null);
   const [rejectModal, setRejectModal] = useState<{ jobId: string; jobTitle: string } | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [newJobAlert, setNewJobAlert] = useState<string | null>(null);
+
+  const { registerAdminJobCreatedHandler, registerAdminJobUpdatedHandler, isConnected } = useSocket();
+
+  // Handle real-time job creation
+  const handleNewJob = useCallback((data: any) => {
+    console.log("🆕 Real-time: New job created", data);
+    setNewJobAlert(`Nuevo trabajo: ${data.job?.title || 'Sin título'}`);
+    // Add job to the list if matching current filter
+    if (data.job) {
+      setJobs(prev => {
+        // Check if job already exists
+        if (prev.some(j => j.id === data.job.id)) return prev;
+        return [data.job, ...prev];
+      });
+      setStats(prev => ({
+        ...prev,
+        total: prev.total + 1,
+        pending: data.job.status === 'pending' || data.job.status === 'pending_approval' ? prev.pending + 1 : prev.pending,
+        approved: data.job.status === 'open' ? prev.approved + 1 : prev.approved
+      }));
+    }
+    // Auto-hide alert after 5 seconds
+    setTimeout(() => setNewJobAlert(null), 5000);
+  }, []);
+
+  // Handle real-time job updates
+  const handleJobUpdated = useCallback((data: any) => {
+    console.log("📝 Real-time: Job updated", data);
+    if (data.job) {
+      setJobs(prev => prev.map(j => j.id === data.job.id ? { ...j, ...data.job } : j));
+      // Refresh stats
+      fetchStats();
+    }
+  }, []);
+
+  // Register socket handlers
+  useEffect(() => {
+    registerAdminJobCreatedHandler(handleNewJob);
+    registerAdminJobUpdatedHandler(handleJobUpdated);
+  }, [registerAdminJobCreatedHandler, registerAdminJobUpdatedHandler, handleNewJob, handleJobUpdated]);
 
   useEffect(() => {
     fetchJobs();
@@ -260,13 +304,35 @@ export default function AdminJobManager() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Publicaciones</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-2">
-          Administra y modera todas las publicaciones de trabajo
-        </p>
+      {/* Real-time connection indicator */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Publicaciones</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">
+            Administra y modera todas las publicaciones de trabajo
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            {isConnected ? 'Tiempo real activo' : 'Desconectado'}
+          </span>
+        </div>
       </div>
+
+      {/* New job alert */}
+      {newJobAlert && (
+        <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg p-4 flex items-center gap-3 animate-pulse">
+          <Bell className="h-5 w-5 text-green-600 dark:text-green-400" />
+          <span className="text-green-800 dark:text-green-200 font-medium">{newJobAlert}</span>
+          <button
+            onClick={() => setNewJobAlert(null)}
+            className="ml-auto text-green-600 dark:text-green-400 hover:text-green-800 dark:hover:text-green-200"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -412,6 +478,9 @@ export default function AdminJobManager() {
                   </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Razón
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   <button
                     onClick={() => handleSort('date')}
                     className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
@@ -428,7 +497,7 @@ export default function AdminJobManager() {
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {getSortedAndFilteredJobs().length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={9} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
                     No se encontraron publicaciones
                   </td>
                 </tr>
@@ -492,9 +561,13 @@ export default function AdminJobManager() {
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(job.status)}`}>
                         {getStatusLabel(job.status)}
                       </span>
-                      {job.rejectedReason && (
-                        <p className="text-xs text-red-600 mt-1">{job.rejectedReason}</p>
-                      )}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400 max-w-xs">
+                      {(job.status === 'cancelled' || job.status === 'rejected') && (job.cancellationReason || job.rejectedReason) ? (
+                        <span className="text-red-600 dark:text-red-400 text-xs">
+                          {job.cancellationReason || job.rejectedReason}
+                        </span>
+                      ) : null}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {new Date(job.createdAt).toLocaleDateString('es-AR')}

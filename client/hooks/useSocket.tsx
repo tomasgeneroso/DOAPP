@@ -56,6 +56,17 @@ export function useSocket() {
   const [onJobsRefresh, setOnJobsRefresh] = useState<(() => void) | null>(null);
   const [onUnreadUpdate, setOnUnreadUpdate] = useState<((count: number) => void) | null>(null);
 
+  // Admin panel callbacks
+  const [onAdminJobCreated, setOnAdminJobCreated] = useState<((data: any) => void) | null>(null);
+  const [onAdminJobUpdated, setOnAdminJobUpdated] = useState<((data: any) => void) | null>(null);
+  const [onAdminProposalCreated, setOnAdminProposalCreated] = useState<((data: any) => void) | null>(null);
+  const [onAdminContractCreated, setOnAdminContractCreated] = useState<((data: any) => void) | null>(null);
+  const [onAdminContractUpdated, setOnAdminContractUpdated] = useState<((data: any) => void) | null>(null);
+  const [onAdminPaymentCreated, setOnAdminPaymentCreated] = useState<((data: any) => void) | null>(null);
+  const [onAdminPaymentUpdated, setOnAdminPaymentUpdated] = useState<((data: any) => void) | null>(null);
+  const [onAdminUserCreated, setOnAdminUserCreated] = useState<((data: any) => void) | null>(null);
+  const [onNewProposal, setOnNewProposal] = useState<((data: any) => void) | null>(null);
+
   useEffect(() => {
     if (!user) {
       // Disconnect socket if user logs out
@@ -195,10 +206,75 @@ export function useSocket() {
       }
     });
 
-    newSocket.on("unread:updated", (data: { unreadCount: number }) => {
-      console.log("💬 Unread messages updated:", data.unreadCount);
+    newSocket.on("unread:updated", (data: { unreadCount: number; unreadConversations?: number }) => {
+      console.log("💬 Unread updated - messages:", data.unreadCount, "conversations:", data.unreadConversations);
       if (onUnreadUpdate) {
-        onUnreadUpdate(data.unreadCount);
+        // Pass unreadConversations (number of chats with unread messages)
+        onUnreadUpdate(data.unreadConversations ?? data.unreadCount);
+      }
+    });
+
+    // Admin panel event handlers
+    newSocket.on("admin:job:created", (data: any) => {
+      console.log("🆕 [Admin] New job created:", data);
+      if (onAdminJobCreated) {
+        onAdminJobCreated(data);
+      }
+    });
+
+    newSocket.on("admin:job:updated", (data: any) => {
+      console.log("📝 [Admin] Job updated:", data);
+      if (onAdminJobUpdated) {
+        onAdminJobUpdated(data);
+      }
+    });
+
+    newSocket.on("admin:proposal:created", (data: any) => {
+      console.log("🆕 [Admin] New proposal:", data);
+      if (onAdminProposalCreated) {
+        onAdminProposalCreated(data);
+      }
+    });
+
+    newSocket.on("admin:contract:created", (data: any) => {
+      console.log("🆕 [Admin] New contract:", data);
+      if (onAdminContractCreated) {
+        onAdminContractCreated(data);
+      }
+    });
+
+    newSocket.on("admin:contract:updated", (data: any) => {
+      console.log("📝 [Admin] Contract updated:", data);
+      if (onAdminContractUpdated) {
+        onAdminContractUpdated(data);
+      }
+    });
+
+    newSocket.on("admin:payment:created", (data: any) => {
+      console.log("💰 [Admin] New payment:", data);
+      if (onAdminPaymentCreated) {
+        onAdminPaymentCreated(data);
+      }
+    });
+
+    newSocket.on("admin:payment:updated", (data: any) => {
+      console.log("💰 [Admin] Payment updated:", data);
+      if (onAdminPaymentUpdated) {
+        onAdminPaymentUpdated(data);
+      }
+    });
+
+    newSocket.on("admin:user:created", (data: any) => {
+      console.log("👤 [Admin] New user:", data);
+      if (onAdminUserCreated) {
+        onAdminUserCreated(data);
+      }
+    });
+
+    newSocket.on("proposal:new", (data: any) => {
+      console.log("📬 New proposal for your job:", data);
+      if (onNewProposal) {
+        onNewProposal(data);
       }
     });
 
@@ -207,7 +283,7 @@ export function useSocket() {
       newSocket.disconnect();
       socketRef.current = null;
     };
-  }, [user, onContractUpdate, onJobUpdate, onProposalUpdate, onDashboardRefresh, onJobsRefresh, onUnreadUpdate]);
+  }, [user, onContractUpdate, onJobUpdate, onProposalUpdate, onDashboardRefresh, onJobsRefresh, onUnreadUpdate, onAdminJobCreated, onAdminJobUpdated, onAdminProposalCreated, onAdminContractCreated, onAdminContractUpdated, onAdminPaymentCreated, onAdminPaymentUpdated, onAdminUserCreated, onNewProposal]);
 
   // Join conversation
   const joinConversation = (conversationId: string) => {
@@ -310,6 +386,43 @@ export function useSocket() {
     setOnUnreadUpdate(() => handler);
   };
 
+  // Admin panel register handlers
+  const registerAdminJobCreatedHandler = (handler: (data: any) => void) => {
+    setOnAdminJobCreated(() => handler);
+  };
+
+  const registerAdminJobUpdatedHandler = (handler: (data: any) => void) => {
+    setOnAdminJobUpdated(() => handler);
+  };
+
+  const registerAdminProposalCreatedHandler = (handler: (data: any) => void) => {
+    setOnAdminProposalCreated(() => handler);
+  };
+
+  const registerAdminContractCreatedHandler = (handler: (data: any) => void) => {
+    setOnAdminContractCreated(() => handler);
+  };
+
+  const registerAdminContractUpdatedHandler = (handler: (data: any) => void) => {
+    setOnAdminContractUpdated(() => handler);
+  };
+
+  const registerAdminPaymentCreatedHandler = (handler: (data: any) => void) => {
+    setOnAdminPaymentCreated(() => handler);
+  };
+
+  const registerAdminPaymentUpdatedHandler = (handler: (data: any) => void) => {
+    setOnAdminPaymentUpdated(() => handler);
+  };
+
+  const registerAdminUserCreatedHandler = (handler: (data: any) => void) => {
+    setOnAdminUserCreated(() => handler);
+  };
+
+  const registerNewProposalHandler = (handler: (data: any) => void) => {
+    setOnNewProposal(() => handler);
+  };
+
   return {
     socket,
     isConnected,
@@ -329,5 +442,15 @@ export function useSocket() {
     registerDashboardRefreshHandler,
     registerJobsRefreshHandler,
     registerUnreadUpdateHandler,
+    // Admin handlers
+    registerAdminJobCreatedHandler,
+    registerAdminJobUpdatedHandler,
+    registerAdminProposalCreatedHandler,
+    registerAdminContractCreatedHandler,
+    registerAdminContractUpdatedHandler,
+    registerAdminPaymentCreatedHandler,
+    registerAdminPaymentUpdatedHandler,
+    registerAdminUserCreatedHandler,
+    registerNewProposalHandler,
   };
 }

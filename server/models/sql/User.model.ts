@@ -71,6 +71,7 @@ interface LegalInfo {
   underscored: true,
   indexes: [
     { fields: ['email'], unique: true },
+    { fields: ['username'], unique: true },
     { fields: ['google_id'] },
     { fields: ['facebook_id'] },
     { fields: ['role'] },
@@ -94,6 +95,12 @@ export class User extends Model {
   @AllowNull(false)
   @Column(DataType.STRING)
   name!: string;
+
+  @AllowNull(false)
+  @Unique
+  @Index
+  @Column(DataType.STRING(30))
+  username!: string;
 
   @AllowNull(false)
   @Unique
@@ -676,6 +683,27 @@ export class User extends Model {
     // Trim name
     if (instance.name) {
       instance.name = instance.name.trim();
+    }
+
+    // Normalize and validate username
+    if (instance.username) {
+      instance.username = instance.username.toLowerCase().trim();
+
+      // Username validation: 3-30 chars, alphanumeric, dots, underscores
+      const usernameRegex = /^[a-z0-9._]{3,30}$/;
+      if (!usernameRegex.test(instance.username)) {
+        throw new Error('El nombre de usuario debe tener entre 3-30 caracteres y solo puede contener letras, números, puntos y guiones bajos');
+      }
+
+      // Cannot start or end with dot/underscore
+      if (/^[._]|[._]$/.test(instance.username)) {
+        throw new Error('El nombre de usuario no puede empezar ni terminar con punto o guión bajo');
+      }
+
+      // Cannot have consecutive dots/underscores
+      if (/[._]{2,}/.test(instance.username)) {
+        throw new Error('El nombre de usuario no puede tener puntos o guiones bajos consecutivos');
+      }
     }
 
     // Validate email format

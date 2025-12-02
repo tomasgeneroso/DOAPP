@@ -33,8 +33,9 @@ import {
 } from 'lucide-react';
 
 export default function ProfilePage() {
-  const { userId } = useParams<{ userId: string }>();
+  const { userId, username } = useParams<{ userId?: string; username?: string }>();
   const { user: currentUser } = useAuth();
+  const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,23 +52,28 @@ export default function ProfilePage() {
   const [referralStats, setReferralStats] = useState<any>(null);
   const [copiedCode, setCopiedCode] = useState(false);
 
+  // Determine which identifier to use
+  const profileIdentifier = username || userId;
+  const isUsernameRoute = !!username;
+
   useEffect(() => {
     fetchUserProfile();
     fetchReferralStats();
-  }, [userId, currentUser]);
+  }, [profileIdentifier, currentUser]);
 
   useEffect(() => {
-    if (userId) {
+    if (user?._id || user?.id) {
       fetchPosts();
     }
-  }, [userId, viewMode]);
+  }, [user?._id, user?.id, viewMode]);
 
   const fetchPosts = async () => {
-    if (!userId) return;
+    const userIdForPosts = user?._id || user?.id;
+    if (!userIdForPosts) return;
 
     try {
       setPostsLoading(true);
-      const response = await fetch(`/api/posts?userId=${userId}&type=${viewMode === 'articles' ? 'article' : 'post'}`, {
+      const response = await fetch(`/api/posts?userId=${userIdForPosts}&type=${viewMode === 'articles' ? 'article' : 'post'}`, {
         credentials: 'include',
       });
       const data = await response.json();
@@ -83,17 +89,29 @@ export default function ProfilePage() {
   };
 
   const fetchUserProfile = async () => {
-    if (!userId) return;
+    if (!profileIdentifier) return;
 
     try {
       setLoading(true);
-      const response = await fetch(`/api/users/${userId}`, {
+      // Use different API endpoint based on route type
+      const endpoint = isUsernameRoute
+        ? `/api/users/u/${profileIdentifier}`
+        : `/api/users/${profileIdentifier}`;
+
+      const response = await fetch(endpoint, {
         credentials: 'include',
       });
       const data = await response.json();
 
       if (data.success) {
         setUser(data.user);
+
+        // If accessed by old ID route and user has username, redirect to username route
+        if (!isUsernameRoute && data.user.username) {
+          navigate(`/u/${data.user.username}`, { replace: true });
+          return;
+        }
+
         // Fetch completed jobs
         fetchCompletedJobs();
       } else {

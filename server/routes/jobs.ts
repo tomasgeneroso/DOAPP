@@ -57,7 +57,7 @@ const normalizeLocation = (location: string): string => {
 };
 
 // @route   GET /api/jobs
-// @desc    Obtener todos los trabajos con búsqueda avanzada
+// @desc    Obtener todos los trabajos con búsqueda avanzada (o usuarios si type=users)
 // @access  Public
 router.get("/", async (req: Request, res: Response): Promise<void> => {
   try {
@@ -70,8 +70,50 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       query: searchQuery,
       location,
       tags,
-      sortBy = 'date'
+      sortBy = 'date',
+      type // 'jobs' (default) or 'users'
     } = req.query;
+
+    // If type is 'users', search users instead of jobs
+    if (type === 'users' && searchQuery && typeof searchQuery === 'string') {
+      const searchPattern = `%${searchQuery}%`;
+      const limitNum = Math.min(Number(limit), 50);
+
+      const { count, rows: users } = await User.findAndCountAll({
+        where: {
+          [Op.or]: [
+            { name: { [Op.iLike]: searchPattern } },
+            { username: { [Op.iLike]: searchPattern } },
+          ],
+          isBanned: false,
+        },
+        attributes: ['id', 'name', 'username', 'avatar', 'bio', 'rating', 'reviewsCount', 'completedJobs', 'membershipTier', 'hasMembership', 'isPremiumVerified'],
+        order: [['completedJobs', 'DESC'], ['rating', 'DESC']],
+        limit: limitNum,
+      });
+
+      res.json({
+        success: true,
+        type: 'users',
+        count: users.length,
+        total: count,
+        users: users.map(user => ({
+          _id: user.id,
+          id: user.id,
+          name: user.name,
+          username: user.username,
+          avatar: user.avatar,
+          bio: user.bio,
+          rating: user.rating,
+          reviewsCount: user.reviewsCount,
+          completedJobs: user.completedJobs,
+          membershipTier: user.membershipTier,
+          hasMembership: user.hasMembership,
+          isPremiumVerified: user.isPremiumVerified,
+        })),
+      });
+      return;
+    }
 
     const query: any = {};
 
@@ -376,6 +418,11 @@ router.post(
           job: populatedJob?.toJSON()
         }
       );
+
+      // Notify admin panel of new job (only if published)
+      if (canPublishForFree) {
+        socketService.notifyNewJob(populatedJob?.toJSON());
+      }
 
       // Different responses based on whether payment is needed
       if (canPublishForFree) {
@@ -692,13 +739,84 @@ router.patch("/:id/pause", protect, async (req: AuthRequest, res: Response): Pro
       return;
     }
 
+    // Verificar que falten más de 24 horas para el inicio del trabajo
+    const now = new Date();
+    const startDate = new Date(job.startDate);
+    const hoursUntilStart = (startDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+    if (hoursUntilStart <= 24) {
+      res.status(400).json({
+        success: false,
+        message: "No puedes pausar el trabajo con menos de 24 horas de anticipación.",
+      });
+      return;
+    }
+
     // Pausar el trabajo
     job.status = "paused";
+    (job as any).pausedAt = new Date();
     await job.save();
+
+    // Notificar actualizacion en tiempo real
+    socketService.notifyJobStatusChanged(job.toJSON(), 'open');
 
     res.json({
       success: true,
-      message: "Publicación pausada exitosamente",
+      message: "Publicación pausada exitosamente. Se reanudará automáticamente si no se cancela.",
+      job,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   PATCH /api/jobs/:id/resume
+// @desc    Reanudar una publicación de trabajo pausada
+// @access  Private (only job owner)
+router.patch("/:id/resume", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const job = await Job.findByPk(req.params.id);
+
+    if (!job) {
+      res.status(404).json({
+        success: false,
+        message: "Trabajo no encontrado",
+      });
+      return;
+    }
+
+    // Verificar que el usuario sea el dueño del trabajo
+    if (job.clientId !== req.user.id) {
+      res.status(403).json({
+        success: false,
+        message: "No tienes permiso para reanudar este trabajo",
+      });
+      return;
+    }
+
+    // Verificar que el job esté pausado
+    if (job.status !== "paused") {
+      res.status(400).json({
+        success: false,
+        message: "Solo puedes reanudar trabajos pausados",
+      });
+      return;
+    }
+
+    // Reanudar el trabajo
+    job.status = "open";
+    (job as any).pausedAt = null;
+    await job.save();
+
+    // Notificar actualizacion en tiempo real
+    socketService.notifyJobStatusChanged(job.toJSON(), 'paused');
+
+    res.json({
+      success: true,
+      message: "Publicación reanudada exitosamente",
       job,
     });
   } catch (error: any) {
@@ -710,7 +828,7 @@ router.patch("/:id/pause", protect, async (req: AuthRequest, res: Response): Pro
 });
 
 // @route   PATCH /api/jobs/:id/cancel
-// @desc    Cancelar una publicación de trabajo (pierde la comisión)
+// @desc    Cancelar una publicación de trabajo
 // @access  Private (only job owner)
 router.patch("/:id/cancel", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -733,22 +851,56 @@ router.patch("/:id/cancel", protect, async (req: AuthRequest, res: Response): Pr
       return;
     }
 
-    // Verificar que el job esté publicado o pausado
-    if (job.status !== "open" && job.status !== "paused") {
+    // Determinar si es cancelacion durante pending_approval (reembolso total)
+    const isPendingApproval = job.status === "pending_approval";
+
+    // Verificar que el job esté en un estado cancelable
+    if (job.status !== "open" && job.status !== "paused" && job.status !== "pending_approval") {
       res.status(400).json({
         success: false,
-        message: "Solo puedes cancelar trabajos publicados o pausados",
+        message: "Solo puedes cancelar trabajos publicados, pausados o pendientes de aprobación",
       });
       return;
     }
 
-    // Cancelar el trabajo (no se reembolsa la comisión)
+    // Para trabajos open o paused, verificar restriccion de 24 horas
+    if (job.status === "open" || job.status === "paused") {
+      const now = new Date();
+      const startDate = new Date(job.startDate);
+      const hoursUntilStart = (startDate.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+      if (hoursUntilStart <= 24) {
+        res.status(400).json({
+          success: false,
+          message: "No puedes cancelar el trabajo con menos de 24 horas de anticipación. Por favor, contacta a soporte si necesitas ayuda.",
+        });
+        return;
+      }
+    }
+
+    // Obtener razon de cancelacion del body
+    const { reason } = req.body;
+    const previousStatus = job.status;
+
+    // Cancelar el trabajo
     job.status = "cancelled";
+    job.cancellationReason = reason || null;
+    job.cancelledAt = new Date();
     await job.save();
+
+    // Notificar actualizacion en tiempo real
+    socketService.notifyJobStatusChanged(job.toJSON(), previousStatus);
+
+    // Si estaba pending_approval, se reembolsa todo (precio + comision)
+    // TODO: Implementar logica de reembolso via MercadoPago si es necesario
+    const refundMessage = isPendingApproval
+      ? "Publicacion cancelada. Se te reembolsará el total pagado (precio + comisión) ya que estaba pendiente de aprobación."
+      : "Publicacion cancelada. La comision pagada no sera reembolsada.";
 
     res.json({
       success: true,
-      message: "Publicación cancelada. La comisión pagada no será reembolsada.",
+      message: refundMessage,
+      refundTotal: isPendingApproval,
       job,
     });
   } catch (error: any) {

@@ -8,6 +8,7 @@ import Button from "../ui/Button";
 interface Author {
   _id: string;
   name: string;
+  username?: string;
   avatar?: string;
   membershipTier?: string;
   hasMembership?: boolean;
@@ -219,9 +220,14 @@ export default function PostComments({ postId }: PostCommentsProps) {
               : false;
             const isAuthor = user?._id === comment.author._id || user?.id === comment.author._id;
 
+            // Generate profile link - prefer username over id
+            const profileLink = comment.author.username
+              ? `/u/${comment.author.username}`
+              : `/profile/${comment.author._id}`;
+
             return (
               <div key={comment._id} className="flex gap-3">
-                <Link to={`/profile/${comment.author._id}`}>
+                <Link to={profileLink}>
                   <img
                     src={getImageUrl(comment.author.avatar)}
                     alt={comment.author.name}
@@ -232,7 +238,7 @@ export default function PostComments({ postId }: PostCommentsProps) {
                   <div className="bg-slate-100 dark:bg-slate-700 rounded-lg p-3">
                     <div className="flex items-center gap-2 mb-1">
                       <Link
-                        to={`/profile/${comment.author._id}`}
+                        to={profileLink}
                         className="font-semibold text-slate-900 dark:text-white hover:underline"
                       >
                         {comment.author.name}

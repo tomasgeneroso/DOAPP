@@ -1,5 +1,6 @@
 import { Outlet, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
+import { useTheme } from "@/hooks/useTheme";
 import {
   LayoutDashboard,
   Users,
@@ -12,11 +13,14 @@ import {
   LogOut,
   DollarSign,
   Briefcase,
+  Sun,
+  Moon,
 } from "lucide-react";
 
 export default function AdminLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { isDark, toggleTheme } = useTheme();
 
   // Redirect if not admin
   if (!user?.adminRole) {
@@ -62,6 +66,32 @@ export default function AdminLayout() {
             <span className="inline-block mt-2 px-2 py-1 text-xs font-semibold text-sky-700 dark:text-sky-400 bg-sky-100 dark:bg-sky-900/30 rounded">
               {user.adminRole?.replace("_", " ").toUpperCase()}
             </span>
+          </div>
+
+          {/* Theme Toggle */}
+          <div className="mb-6 p-3 bg-slate-50 dark:bg-slate-700 rounded-lg">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                {isDark ? "Modo Oscuro" : "Modo Claro"}
+              </span>
+              <button
+                onClick={toggleTheme}
+                className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-800"
+                style={{ backgroundColor: isDark ? '#0ea5e9' : '#cbd5e1' }}
+              >
+                <span
+                  className={`inline-flex h-5 w-5 transform items-center justify-center rounded-full bg-white shadow-md transition-transform ${
+                    isDark ? 'translate-x-5' : 'translate-x-0.5'
+                  }`}
+                >
+                  {isDark ? (
+                    <Moon className="h-3 w-3 text-sky-600" />
+                  ) : (
+                    <Sun className="h-3 w-3 text-amber-500" />
+                  )}
+                </span>
+              </button>
+            </div>
           </div>
 
           {/* Navigation */}

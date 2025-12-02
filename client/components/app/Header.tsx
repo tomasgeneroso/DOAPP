@@ -59,7 +59,8 @@ export default function Header() {
       });
       const data = await response.json();
       if (data.success) {
-        setUnreadCount(data.unreadCount);
+        // Use unreadConversations (number of chats with unread messages)
+        setUnreadCount(data.unreadConversations || 0);
       }
     } catch (error) {
       console.error("Error fetching unread count:", error);
@@ -83,7 +84,7 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg">
       <div className="w-full max-w-[100vw] mx-auto flex h-16 items-center justify-between px-3 sm:px-4">
-        <Link to="/" className="flex items-center gap-2 sm:gap-3 group flex-shrink-0">
+        <Link to="/" className="flex items-center gap-2 sm:gap-3 group flex-shrink-0" data-onboarding="logo">
           {/* Logo Icon */}
           <div className="relative flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-xl sm:rounded-2xl bg-gradient-to-br from-sky-500 via-sky-600 to-blue-600 shadow-lg shadow-sky-500/30 transition-all duration-300 group-hover:shadow-xl group-hover:shadow-sky-500/50 group-hover:scale-105">
             <span className="text-lg sm:text-2xl font-black text-white tracking-tight">
@@ -173,6 +174,7 @@ export default function Header() {
               <Link
                 to="/contracts/create"
                 className="inline-flex items-center justify-center gap-1 sm:gap-2 rounded-lg sm:rounded-xl bg-slate-900 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white transition-colors hover:bg-black focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 whitespace-nowrap"
+                data-onboarding="create-job"
               >
                 <PlusCircle className="h-3 w-3 sm:h-4 sm:w-4" />
                 <span className="hidden sm:inline">Publicar trabajo</span>
@@ -195,7 +197,7 @@ export default function Header() {
           <ThemeToggleCompact />
 
           {user ? (
-            <div className="relative" ref={menuRef}>
+            <div className="relative" ref={menuRef} data-onboarding="profile-menu">
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className="flex items-center gap-2 rounded-full bg-slate-100 dark:bg-slate-800 p-2 text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
@@ -254,6 +256,7 @@ export default function Header() {
                       to="/messages"
                       onClick={() => setIsMenuOpen(false)}
                       className="flex items-center justify-between px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                      data-onboarding="messages"
                     >
                       <div className="flex items-center gap-3">
                         <MessageCircle className="h-4 w-4" />

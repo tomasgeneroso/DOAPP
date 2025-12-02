@@ -263,10 +263,10 @@ export default function ContractDetail() {
 
       <div className="min-h-screen bg-gray-50 py-8">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Back Button */}
+          {/* Back Button - Only visible on mobile */}
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6"
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 md:hidden"
           >
             <ArrowLeft className="h-5 w-5" />
             Volver

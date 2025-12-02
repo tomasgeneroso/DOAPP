@@ -19,29 +19,42 @@ import {
 } from "lucide-react";
 
 interface Conversation {
-  _id: string;
+  id?: string;
+  _id?: string;
   participants: Array<{
-    _id: string;
+    id?: string;
+    _id?: string;
     name: string;
-    avatar: string;
+    avatar?: string;
   }>;
   lastMessage?: string;
   lastMessageAt?: string;
   jobId?: {
-    _id: string;
+    id?: string;
+    _id?: string;
     title: string;
   };
-  contractId?: {
-    _id: string;
+  job?: {
+    title: string;
+  };
+  contractId?: string;
+  contract?: {
+    id: string;
+    status: string;
+    job?: {
+      title: string;
+    };
   };
   type: string;
   unreadCount: Record<string, number>;
 }
 
 interface Message {
-  _id: string;
+  id?: string;
+  _id?: string;
   sender: {
-    _id: string;
+    id?: string;
+    _id?: string;
     name: string;
     avatar?: string;
   };
@@ -54,6 +67,11 @@ interface Message {
   };
   createdAt: string;
 }
+
+// Helper to get ID from object (supports both PostgreSQL and MongoDB format)
+const getId = (obj: { id?: string; _id?: string } | null | undefined): string => {
+  return obj?.id || obj?._id || '';
+};
 
 export default function MessagesScreen() {
   const { id: conversationIdParam } = useParams();
@@ -86,7 +104,7 @@ export default function MessagesScreen() {
 
   useEffect(() => {
     if (conversationIdParam) {
-      const conv = conversations.find((c) => c._id === conversationIdParam);
+      const conv = conversations.find((c) => getId(c) === conversationIdParam);
       if (conv) {
         setActiveConversation(conv);
         if (isConnected) {
@@ -127,7 +145,7 @@ export default function MessagesScreen() {
   };
 
   const handleSelectConversation = (conversation: Conversation) => {
-    navigate(`/messages/${conversation._id}`);
+    navigate(`/messages/${getId(conversation)}`);
   };
 
   const handleSendMessage = (e: React.FormEvent) => {
@@ -137,7 +155,7 @@ export default function MessagesScreen() {
     setSending(true);
     try {
       socketSendMessage({
-        conversationId: activeConversation._id,
+        conversationId: getId(activeConversation),
         message: newMessage,
         type: "text",
       });
@@ -154,7 +172,8 @@ export default function MessagesScreen() {
   };
 
   const getOtherParticipant = (participants: Conversation["participants"]) => {
-    return participants.find((p) => p._id !== user?._id);
+    const userId = user?.id || user?._id;
+    return participants.find((p) => getId(p) !== userId);
   };
 
   const formatTime = (dateString?: string) => {
@@ -189,9 +208,10 @@ export default function MessagesScreen() {
 
   const filteredConversations = conversations.filter((conv) => {
     const other = getOtherParticipant(conv.participants);
+    const jobTitle = conv.job?.title || conv.jobId?.title || conv.contract?.job?.title || '';
     return (
-      other?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      conv.jobId?.title.toLowerCase().includes(searchQuery.toLowerCase())
+      other?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      jobTitle.toLowerCase().includes(searchQuery.toLowerCase())
     );
   });
 
@@ -281,12 +301,14 @@ export default function MessagesScreen() {
             ) : (
               filteredConversations.map((conversation) => {
                 const other = getOtherParticipant(conversation.participants);
-                const unreadCount = conversation.unreadCount?.[user?._id || ""] || 0;
-                const isActive = activeConversation?._id === conversation._id;
+                const userId = user?.id || user?._id || "";
+                const unreadCount = conversation.unreadCount?.[userId] || 0;
+                const isActive = getId(activeConversation) === getId(conversation);
+                const jobTitle = conversation.job?.title || conversation.jobId?.title || conversation.contract?.job?.title;
 
                 return (
                   <button
-                    key={conversation._id}
+                    key={getId(conversation)}
                     onClick={() => handleSelectConversation(conversation)}
                     className={`w-full p-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors ${
                       isActive ? "bg-slate-100 dark:bg-slate-700" : ""
@@ -305,7 +327,7 @@ export default function MessagesScreen() {
                           <UserIcon className="h-6 w-6 text-sky-600 dark:text-sky-400" />
                         </div>
                       )}
-                      {isUserOnline(other?._id || "") && (
+                      {isUserOnline(getId(other)) && (
                         <span className="absolute bottom-0 right-0 h-3 w-3 bg-green-500 border-2 border-white dark:border-slate-800 rounded-full"></span>
                       )}
                     </div>
@@ -323,10 +345,10 @@ export default function MessagesScreen() {
                         )}
                       </div>
 
-                      {conversation.jobId && (
+                      {jobTitle && (
                         <p className="text-xs text-sky-600 dark:text-sky-400 mb-1 truncate flex items-center gap-1">
                           <Briefcase className="h-3 w-3" />
-                          {conversation.jobId.title}
+                          {jobTitle}
                         </p>
                       )}
 
@@ -379,7 +401,7 @@ export default function MessagesScreen() {
                       {otherParticipant.name}
                     </h2>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {isUserOnline(otherParticipant._id) ? "En línea" : "Desconectado"}
+                      {isUserOnline(getId(otherParticipant)) ? "En línea" : "Desconectado"}
                     </p>
                   </div>
                 </div>
@@ -387,7 +409,7 @@ export default function MessagesScreen() {
                 <div className="flex items-center gap-2">
                   {/* Ver Perfil */}
                   <button
-                    onClick={() => navigate(`/profile/${otherParticipant._id}`)}
+                    onClick={() => navigate(`/profile/${getId(otherParticipant)}`)}
                     className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
                     title="Ver perfil"
                   >
@@ -396,7 +418,7 @@ export default function MessagesScreen() {
 
                   {/* Ver Trabajos */}
                   <button
-                    onClick={() => navigate(`/jobs?user=${otherParticipant._id}`)}
+                    onClick={() => navigate(`/jobs?user=${getId(otherParticipant)}`)}
                     className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
                     title="Ver trabajos publicados"
                   >
@@ -416,14 +438,15 @@ export default function MessagesScreen() {
               >
                 <div className="max-w-4xl mx-auto space-y-4">
                   {messages.map((message, index) => {
-                    const isCurrentUser = message.sender._id === user?._id;
+                    const userId = user?.id || user?._id;
+                    const isCurrentUser = getId(message.sender) === userId;
                     const showDate =
                       index === 0 ||
                       formatMessageDate(messages[index - 1].createdAt) !==
                         formatMessageDate(message.createdAt);
 
                     return (
-                      <div key={message._id}>
+                      <div key={getId(message) || index}>
                         {showDate && (
                           <div className="flex justify-center my-4">
                             <span className="px-3 py-1 bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-400 text-xs rounded-lg shadow-sm">

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Search, MapPin, Tag, X, SlidersHorizontal } from "lucide-react";
+import { Search, MapPin, Tag, X, SlidersHorizontal, Briefcase, Users } from "lucide-react";
 import { JOB_CATEGORIES } from "../../shared/constants/categories";
 import { searchLocations } from "../../shared/constants/locations";
 
@@ -16,6 +16,7 @@ export interface SearchFilters {
   minBudget?: number;
   maxBudget?: number;
   sortBy?: 'date' | 'budget-asc' | 'budget-desc' | 'proximity';
+  searchType?: 'jobs' | 'users';
 }
 
 export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) {
@@ -26,6 +27,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
   const [minBudget, setMinBudget] = useState<string>("");
   const [maxBudget, setMaxBudget] = useState<string>("");
   const [sortBy, setSortBy] = useState<SearchFilters['sortBy']>('date');
+  const [searchType, setSearchType] = useState<'jobs' | 'users'>('jobs');
   const [showFilters, setShowFilters] = useState(false);
   const [locationSuggestions, setLocationSuggestions] = useState<ReturnType<typeof searchLocations>>([]);
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
@@ -88,6 +90,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
         minBudget: minBudget ? parseFloat(minBudget) : undefined,
         maxBudget: maxBudget ? parseFloat(maxBudget) : undefined,
         sortBy,
+        searchType,
       });
     }, 500); // 500ms debounce
   };
@@ -176,7 +179,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
   // Trigger search whenever filters change
   useEffect(() => {
     triggerRealTimeSearch();
-  }, [query, location, category, tags, minBudget, maxBudget, sortBy]);
+  }, [query, location, category, tags, minBudget, maxBudget, sortBy, searchType]);
 
   const handleSelectLocation = (locationValue: string) => {
     setLocation(locationValue);
@@ -194,6 +197,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
       minBudget: minBudget ? parseFloat(minBudget) : undefined,
       maxBudget: maxBudget ? parseFloat(maxBudget) : undefined,
       sortBy,
+      searchType,
     });
   };
 
@@ -205,6 +209,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
     setMinBudget("");
     setMaxBudget("");
     setSortBy('date');
+    setSearchType('jobs');
     setLocationSuggestions([]);
     setShowLocationSuggestions(false);
     setQueryLocationSuggestions([]);
@@ -217,6 +222,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
       minBudget: undefined,
       maxBudget: undefined,
       sortBy: 'date',
+      searchType: 'jobs',
     });
   };
 
@@ -233,6 +239,37 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
   return (
     <div className="w-full">
       <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Search Type Toggle */}
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-sm text-slate-600 dark:text-slate-400">Buscar:</span>
+          <div className="flex bg-slate-100 dark:bg-slate-700 rounded-lg p-1">
+            <button
+              type="button"
+              onClick={() => setSearchType('jobs')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                searchType === 'jobs'
+                  ? 'bg-white dark:bg-slate-600 text-sky-600 dark:text-sky-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Briefcase className="h-4 w-4" />
+              Trabajos
+            </button>
+            <button
+              type="button"
+              onClick={() => setSearchType('users')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                searchType === 'users'
+                  ? 'bg-white dark:bg-slate-600 text-sky-600 dark:text-sky-400 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              <Users className="h-4 w-4" />
+              Usuarios
+            </button>
+          </div>
+        </div>
+
         {/* Main Search Bar */}
         <div className="flex flex-col sm:flex-row gap-2">
           <div className="relative flex-1">
@@ -241,28 +278,31 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
               type="text"
               value={query}
               onChange={(e) => handleQueryChange(e.target.value)}
-              placeholder="Buscar por título, descripción, palabras clave..."
+              placeholder={searchType === 'users' ? "Buscar usuarios por nombre o @usuario..." : "Buscar por título, descripción, palabras clave..."}
               className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-transparent"
             />
           </div>
 
-          <button
-            type="button"
-            onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-2 px-4 py-3 rounded-xl border transition-colors ${
-              showFilters || hasActiveFilters
-                ? "border-sky-500 bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-400"
-                : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
-            }`}
-          >
-            <SlidersHorizontal className="h-5 w-5" />
-            <span className="hidden sm:inline">Filtros</span>
-            {hasActiveFilters && (
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-sky-500 text-xs text-white">
-                {(location ? 1 : 0) + (category ? 1 : 0) + tags.length + (minBudget ? 1 : 0) + (maxBudget ? 1 : 0) + (sortBy !== 'date' ? 1 : 0)}
-              </span>
-            )}
-          </button>
+          {/* Only show filters button for jobs search */}
+          {searchType === 'jobs' && (
+            <button
+              type="button"
+              onClick={() => setShowFilters(!showFilters)}
+              className={`flex items-center gap-2 px-4 py-3 rounded-xl border transition-colors ${
+                showFilters || hasActiveFilters
+                  ? "border-sky-500 bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-400"
+                  : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+              }`}
+            >
+              <SlidersHorizontal className="h-5 w-5" />
+              <span className="hidden sm:inline">Filtros</span>
+              {hasActiveFilters && (
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-sky-500 text-xs text-white">
+                  {(location ? 1 : 0) + (category ? 1 : 0) + tags.length + (minBudget ? 1 : 0) + (maxBudget ? 1 : 0) + (sortBy !== 'date' ? 1 : 0)}
+                </span>
+              )}
+            </button>
+          )}
 
           <button
             type="submit"
@@ -272,8 +312,8 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
           </button>
         </div>
 
-        {/* Advanced Filters */}
-        {showFilters && (
+        {/* Advanced Filters - Only for jobs */}
+        {showFilters && searchType === 'jobs' && (
           <div className="p-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 space-y-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
@@ -335,7 +375,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
             </div>
 
             {/* Category */}
-            <div>
+            <div data-onboarding="categories">
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                 <Tag className="inline h-4 w-4 mr-1" />
                 Categoría

@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import {
   Calendar,
@@ -11,8 +11,8 @@ import {
   MapPin,
   Tag,
   X,
-  AlertTriangle,
-  Info,
+  Loader2,
+  ArrowLeft,
 } from "lucide-react";
 import { JOB_CATEGORIES, JOB_TAGS } from "../../shared/constants/categories";
 import { CustomDateInput } from "@/components/ui/CustomDatePicker";
@@ -48,16 +48,80 @@ function FormField({
   );
 }
 
-export default function CreateContractScreen() {
+export default function EditJobScreen() {
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { refreshUser } = useAuth();
+  const { user, token } = useAuth();
+  const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Form fields
+  const [title, setTitle] = useState("");
+  const [summary, setSummary] = useState("");
+  const [description, setDescription] = useState("");
+  const [price, setPrice] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [customTag, setCustomTag] = useState("");
   const [location, setLocation] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [existingImages, setExistingImages] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [jobStatus, setJobStatus] = useState("");
+
+  // Fetch job data
+  useEffect(() => {
+    const fetchJob = async () => {
+      try {
+        const response = await fetch(`/api/jobs/${id}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await response.json();
+
+        if (data.success && data.job) {
+          const job = data.job;
+
+          // Check if user is the owner
+          const clientId = typeof job.client === 'string' ? job.client : (job.client?.id || job.client?._id);
+          const userId = user?.id || user?._id;
+
+          if (clientId !== userId) {
+            setError("No tienes permiso para editar este trabajo");
+            setLoading(false);
+            return;
+          }
+
+          // Populate form fields
+          setTitle(job.title || "");
+          setSummary(job.summary || "");
+          setDescription(job.description || "");
+          setPrice(job.price?.toString() || "");
+          setSelectedCategory(job.category || "");
+          setSelectedTags(job.tags || []);
+          setLocation(job.location || "");
+          setStartDate(job.startDate ? new Date(job.startDate).toISOString().slice(0, 16) : "");
+          setEndDate(job.endDate ? new Date(job.endDate).toISOString().slice(0, 16) : "");
+          setExistingImages(job.images || []);
+          setJobStatus(job.status || "");
+        } else {
+          setError(data.message || "No se pudo cargar el trabajo");
+        }
+      } catch (err) {
+        setError("Error al cargar el trabajo");
+        console.error("Error fetching job:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (id && token) {
+      fetchJob();
+    }
+  }, [id, token, user]);
 
   const handleAddTag = (tag: string) => {
     if (tag && !selectedTags.includes(tag) && selectedTags.length < 10) {
@@ -76,92 +140,113 @@ export default function CreateContractScreen() {
     }
   };
 
+  const handleRemoveExistingImage = (imageUrl: string) => {
+    setExistingImages(existingImages.filter(img => img !== imageUrl));
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setIsSubmitting(true);
     setError(null);
 
-    const formDataFromForm = new FormData(event.currentTarget);
-
-    // Crear FormData para enviar con archivos
     const submitData = new FormData();
 
-    // Agregar datos del formulario
-    submitData.append("title", formDataFromForm.get("title") as string);
-    submitData.append("summary", formDataFromForm.get("summary") as string);
-    submitData.append("description", formDataFromForm.get("description") as string);
-    submitData.append("price", formDataFromForm.get("budget") as string);
+    submitData.append("title", title);
+    submitData.append("summary", summary);
+    submitData.append("description", description);
+    submitData.append("price", price);
     submitData.append("category", selectedCategory);
     submitData.append("tags", JSON.stringify(selectedTags));
-    submitData.append("location", formDataFromForm.get("location") as string);
-    submitData.append("startDate", formDataFromForm.get("startDate") as string);
-    submitData.append("endDate", formDataFromForm.get("endDate") as string);
-    submitData.append("remoteOk", formDataFromForm.get("remoteOk") === "on" ? "true" : "false");
+    submitData.append("location", location);
+    submitData.append("startDate", startDate);
+    submitData.append("endDate", endDate);
+    submitData.append("existingImages", JSON.stringify(existingImages));
 
-    // Agregar archivos seleccionados
+    // Add new files
     selectedFiles.forEach((file) => {
       submitData.append("images", file);
     });
 
     try {
-      const response = await fetch("/api/jobs", {
-        method: "POST",
-        credentials: 'include', // Importante: envía las cookies automáticamente
-        body: submitData, // FormData se envía automáticamente como multipart/form-data
+      const response = await fetch(`/api/jobs/${id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: 'include',
+        body: submitData,
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Error al crear el trabajo");
+        throw new Error(data.message || "Error al actualizar el trabajo");
       }
 
-      // Refresh user data to update contract counts
-      await refreshUser();
-
-      // Check if payment is required (for FREE users)
-      if (data.requiresPayment) {
-        // Redirect to payment page for job publication
-        navigate(`/jobs/${data.job.id || data.job._id}/payment`);
-      } else {
-        // PRO users go directly to home (job is auto-published)
-        navigate("/");
-      }
+      // Redirect back to job detail
+      navigate(`/jobs/${id}`);
     } catch (err: any) {
-      setError(
-        err.message || "No se pudo publicar el trabajo. Inténtalo de nuevo."
-      );
+      setError(err.message || "No se pudo actualizar el trabajo. Inténtalo de nuevo.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-sky-500" />
+      </div>
+    );
+  }
+
+  if (error && !title) {
+    return (
+      <div className="container mx-auto px-4 py-12">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error}</p>
+          <Link
+            to="/"
+            className="text-sky-600 hover:text-sky-700 font-medium"
+          >
+            Volver al inicio
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <Helmet>
-        <title>Crear Nuevo Contrato - Doers</title>
-        <meta
-          name="description"
-          content="Publica un nuevo trabajo o servicio en Doers."
-        />
+        <title>Editar Trabajo - Doers</title>
+        <meta name="description" content="Edita tu publicación de trabajo en Doers." />
       </Helmet>
       <div className="container mx-auto max-w-4xl py-8 px-4">
         <div className="mb-6">
           <Link
-            to="/"
+            to={`/jobs/${id}`}
             className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white"
           >
-            &larr; Volver al inicio
+            <ArrowLeft className="h-4 w-4" />
+            Volver al trabajo
           </Link>
         </div>
 
         <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
-          Publicar un nuevo trabajo
+          Editar trabajo
         </h1>
         <p className="mt-2 text-lg leading-8 text-gray-600 dark:text-slate-400">
-          Describe el servicio que necesitas para que los Doers puedan
-          postularse.
+          Modifica los detalles de tu publicación.
         </p>
+
+        {jobStatus === 'cancelled' && (
+          <div className="mt-4 rounded-xl border border-amber-500/50 bg-amber-900/20 p-4">
+            <p className="text-amber-300 text-sm">
+              Este trabajo fue cancelado. Puedes editarlo y volver a publicarlo.
+            </p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="mt-10 space-y-8">
           <div className="space-y-6 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-6 shadow-sm">
@@ -171,8 +256,9 @@ export default function CreateContractScreen() {
               description="Sé claro y específico."
             >
               <input
-                name="title"
                 type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
                 required
                 placeholder="Ej: Reparación de cañería en cocina"
                 className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
@@ -185,8 +271,9 @@ export default function CreateContractScreen() {
               description="Un resumen corto del trabajo (máximo 200 caracteres)"
             >
               <input
-                name="summary"
                 type="text"
+                value={summary}
+                onChange={(e) => setSummary(e.target.value)}
                 required
                 maxLength={200}
                 placeholder="Ej: Necesito arreglar una pérdida de agua en la cocina"
@@ -200,7 +287,8 @@ export default function CreateContractScreen() {
               description="Incluye todos los detalles importantes del servicio requerido."
             >
               <textarea
-                name="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
                 rows={5}
                 required
                 placeholder="Describe el problema, qué esperas que se haga, si se necesitan materiales especiales, etc."
@@ -234,7 +322,6 @@ export default function CreateContractScreen() {
               description="Agrega etiquetas para ayudar a que tu trabajo sea encontrado (máximo 10)"
             >
               <div className="space-y-3">
-                {/* Selected tags */}
                 {selectedTags.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {selectedTags.map((tag) => (
@@ -255,7 +342,6 @@ export default function CreateContractScreen() {
                   </div>
                 )}
 
-                {/* Quick tags */}
                 <div className="flex flex-wrap gap-2">
                   {JOB_TAGS.slice(0, 20).map((tag) => (
                     <button
@@ -270,7 +356,6 @@ export default function CreateContractScreen() {
                   ))}
                 </div>
 
-                {/* Custom tag input */}
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -297,8 +382,9 @@ export default function CreateContractScreen() {
               <div className="sm:col-span-3">
                 <FormField label="Presupuesto (ARS)" icon={DollarSign}>
                   <input
-                    name="budget"
                     type="number"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
                     required
                     min="0"
                     step="1"
@@ -334,6 +420,7 @@ export default function CreateContractScreen() {
                     required
                     placeholder="Selecciona fecha y hora de inicio"
                     minDate={new Date()}
+                    defaultValue={startDate}
                   />
                 </FormField>
               </div>
@@ -345,13 +432,38 @@ export default function CreateContractScreen() {
                     required
                     placeholder="Selecciona fecha y hora de fin"
                     minDate={new Date()}
+                    defaultValue={endDate}
                   />
                 </FormField>
               </div>
             </div>
 
+            {/* Existing Images */}
+            {existingImages.length > 0 && (
+              <FormField label="Imágenes existentes" icon={ImageIcon}>
+                <div className="flex flex-wrap gap-3">
+                  {existingImages.map((img, index) => (
+                    <div key={index} className="relative group">
+                      <img
+                        src={img}
+                        alt={`Imagen ${index + 1}`}
+                        className="h-24 w-24 object-cover rounded-lg border border-slate-600"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveExistingImage(img)}
+                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </FormField>
+            )}
+
             <FormField
-              label="Fotos (opcional)"
+              label="Agregar nuevas fotos (opcional)"
               icon={ImageIcon}
             >
               <FileUploadWithPreview
@@ -359,50 +471,18 @@ export default function CreateContractScreen() {
                 description="PNG, JPG, GIF hasta 10MB"
                 name="images"
                 maxSizeMB={10}
-                maxFiles={5}
+                maxFiles={5 - existingImages.length}
                 accept="image/*"
                 onChange={setSelectedFiles}
               />
             </FormField>
           </div>
 
-          {/* Aviso de condiciones importantes */}
-          <div className="rounded-xl border border-sky-300 dark:border-sky-500/50 bg-sky-50 dark:bg-sky-900/20 p-5">
-            <div className="flex items-start gap-3">
-              <AlertTriangle className="h-6 w-6 text-sky-500 dark:text-sky-400 shrink-0 mt-0.5" />
-              <div className="space-y-3">
-                <h3 className="font-semibold text-gray-700 dark:text-gray-300">
-                  Condiciones importantes al publicar
-                </h3>
-                <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-2">
-                  <li className="flex items-start gap-2">
-                    <Info className="h-4 w-4 shrink-0 mt-0.5 text-sky-500 dark:text-sky-400" />
-                    <span>
-                      <strong className="text-gray-700 dark:text-gray-300">Selección de trabajador:</strong> Una vez que recibas postulaciones, deberás seleccionar un trabajador antes de las 24 horas previas al inicio del trabajo.
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Info className="h-4 w-4 shrink-0 mt-0.5 text-sky-500 dark:text-sky-400" />
-                    <span>
-                      <strong className="text-gray-700 dark:text-gray-300">Auto-selección:</strong> Si no seleccionas un trabajador a tiempo, se asignará automáticamente al primer postulante.
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <Info className="h-4 w-4 shrink-0 mt-0.5 text-sky-500 dark:text-sky-400" />
-                    <span>
-                      <strong className="text-gray-700 dark:text-gray-300">Cancelación:</strong> Si cancelas el trabajo después de publicarlo, perderás la comisión de publicación pagada.
-                    </span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </div>
-
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
           <div className="flex items-center justify-end gap-x-6">
             <Link
-              to="/"
+              to={`/jobs/${id}`}
               className="text-sm font-semibold leading-6 text-gray-900 dark:text-slate-300 hover:text-gray-700 dark:hover:text-white"
             >
               Cancelar
@@ -412,7 +492,7 @@ export default function CreateContractScreen() {
               disabled={isSubmitting}
               className="rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-sky-500/30 hover:from-sky-600 hover:to-sky-700 hover:shadow-sky-500/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
             >
-              {isSubmitting ? "Publicando..." : "Publicar trabajo"}
+              {isSubmitting ? "Guardando..." : "Guardar cambios"}
             </button>
           </div>
         </form>

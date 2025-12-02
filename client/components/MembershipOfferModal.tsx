@@ -204,26 +204,27 @@ export default function MembershipOfferModal({ isOpen, onClose, onUpgrade }: Mem
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-3">
-            <Button
-              variant="primary"
-              onClick={() => selectedPlan !== 'free' && handleUpgrade(selectedPlan as any)}
-              disabled={selectedPlan === 'free'}
-              className={`flex-1 ${
-                (selectedPlanData as any)?.isSuperPro
-                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
-                  : 'bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-700 hover:to-sky-600'
-              } disabled:opacity-50`}
-            >
-              <Crown className="w-4 h-4 mr-2 inline-block" />
-              {selectedPlan === 'free' ? 'Selecciona un plan PRO' : `Activar ${selectedPlanData?.name}`}
-            </Button>
+          <div className="flex flex-col gap-3">
+            {selectedPlan !== 'free' && (
+              <Button
+                variant="primary"
+                onClick={() => handleUpgrade(selectedPlan as any)}
+                className={`w-full ${
+                  (selectedPlanData as any)?.isSuperPro
+                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
+                    : 'bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-700 hover:to-sky-600'
+                }`}
+              >
+                <Crown className="w-4 h-4 mr-2 inline-block" />
+                Activar {selectedPlanData?.name}
+              </Button>
+            )}
             <Button
               variant="secondary"
               onClick={onClose}
-              className="flex-1"
+              className="w-full border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
             >
-              Más tarde
+              Continuar con plan FREE
             </Button>
           </div>
 

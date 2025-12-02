@@ -15,6 +15,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import logger from "../services/logger.js";
+import { socketService } from "../index.js";
 
 // Ensure upload directory exists
 const PAYMENT_PROOFS_DIR = path.join(process.cwd(), 'uploads', 'payment-proofs');
@@ -555,8 +556,18 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
     if (payment.paymentType === "job_publication") {
       console.log("🔍 [CAPTURE] Step 7 - Detected job publication payment");
       // Find the job and publish it
-      const job = await Job.findOne({ where: { publicationPaymentId: payment.id } });
+      const job = await Job.findOne({
+        where: { publicationPaymentId: payment.id },
+        include: [
+          {
+            model: User,
+            as: 'client',
+            attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount']
+          }
+        ]
+      });
       if (job) {
+        const previousStatus = job.status;
         job.status = "open";
         job.publicationPaid = true;
         job.publicationPaidAt = new Date();
@@ -573,6 +584,10 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
           relatedId: job.id,
           sentVia: ["in_app"],
         });
+
+        // Real-time notification: new job published
+        socketService.notifyNewJob(job.toJSON());
+        socketService.notifyJobStatusChanged(job.toJSON(), previousStatus);
 
         res.json({
           success: true,

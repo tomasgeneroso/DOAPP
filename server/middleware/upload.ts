@@ -44,9 +44,10 @@ const AVATAR_DIR = path.join(UPLOAD_DIR, "avatars");
 const DOCUMENT_DIR = path.join(UPLOAD_DIR, "documents");
 const PORTFOLIO_DIR = path.join(UPLOAD_DIR, "portfolio");
 const DISPUTE_DIR = path.join(UPLOAD_DIR, "disputes");
+const BLOG_DIR = path.join(UPLOAD_DIR, "blogs");
 
 // Ensure directories exist
-[UPLOAD_DIR, AVATAR_DIR, DOCUMENT_DIR, PORTFOLIO_DIR, DISPUTE_DIR].forEach((dir) => {
+[UPLOAD_DIR, AVATAR_DIR, DOCUMENT_DIR, PORTFOLIO_DIR, DISPUTE_DIR, BLOG_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -184,6 +185,19 @@ const portfolioStorage = multer.diskStorage({
 });
 
 /**
+ * Storage configuration for blog images
+ */
+const blogStorage = multer.diskStorage({
+  destination: (req, file, callback) => {
+    callback(null, BLOG_DIR);
+  },
+  filename: (req, file, callback) => {
+    const uniqueName = generateUniqueFilename(sanitizeFilename(file.originalname));
+    callback(null, uniqueName);
+  },
+});
+
+/**
  * Storage configuration for dispute attachments
  */
 const disputeStorage = multer.diskStorage({
@@ -281,6 +295,18 @@ export const uploadPostGallery = multer({
 }).array("gallery", 10);
 
 /**
+ * Upload middleware for blog cover image (single)
+ */
+export const uploadBlogCover = multer({
+  storage: blogStorage,
+  fileFilter: imageFileFilter,
+  limits: {
+    fileSize: MAX_IMAGE_SIZE,
+    files: 1,
+  },
+});
+
+/**
  * Delete uploaded file
  */
 export function deleteFile(filepath: string): void {
@@ -351,6 +377,7 @@ export default {
   uploadPortfolio,
   uploadMixed,
   uploadDisputeAttachments,
+  uploadBlogCover,
   deleteFile,
   getFileUrl,
   verifyFile,
@@ -360,4 +387,5 @@ export default {
   DOCUMENT_DIR,
   PORTFOLIO_DIR,
   DISPUTE_DIR,
+  BLOG_DIR,
 };

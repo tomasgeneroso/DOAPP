@@ -63,6 +63,13 @@ export const config = {
   // Analytics
   googleAnalyticsId: process.env.GOOGLE_ANALYTICS_ID || "",
 
+  // PostgreSQL Database
+  dbHost: process.env.DB_HOST || "localhost",
+  dbPort: parseInt(process.env.DB_PORT || "5432"),
+  dbName: process.env.DB_NAME || "doapp",
+  dbUser: process.env.DB_USER || "postgres",
+  dbPassword: process.env.DB_PASSWORD || "",
+
   // Validaciones
   isProduction: process.env.NODE_ENV === "production",
   isDevelopment: process.env.NODE_ENV === "development",

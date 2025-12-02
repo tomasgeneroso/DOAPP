@@ -161,10 +161,10 @@ export default function ProposalDetail() {
 
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 py-8">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Back Button */}
+          {/* Back Button - Only visible on mobile */}
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white mb-6"
+            className="flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white mb-6 md:hidden"
           >
             <ArrowLeft className="h-5 w-5" />
             Volver

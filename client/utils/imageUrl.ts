@@ -1,6 +1,6 @@
 /**
  * Get full image URL from relative path
- * In development, prepends the API URL
+ * Uses Vite proxy in development (configured in vite.config.ts)
  * In production, uses relative paths
  */
 export function getImageUrl(path: string | undefined): string {
@@ -13,24 +13,14 @@ export function getImageUrl(path: string | undefined): string {
     return path;
   }
 
-  // Get the API base URL from environment or use default
-  const apiBaseUrl = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'https://localhost:3001' : '');
-
-  // If it's a relative path starting with /uploads
+  // If it's a relative path starting with /uploads, return as-is
+  // Vite proxy will handle routing to the backend
   if (path.startsWith('/uploads')) {
-    // In development, use the API server URL
-    if (import.meta.env.DEV) {
-      return `${apiBaseUrl}${path}`;
-    }
-    // In production, use relative path
     return path;
   }
 
   // If it's just a filename, assume it's in uploads
   if (!path.startsWith('/')) {
-    if (import.meta.env.DEV) {
-      return `${apiBaseUrl}/uploads/${path}`;
-    }
     return `/uploads/${path}`;
   }
 
