@@ -706,6 +706,105 @@ router.post("/:id/initiate-payment", protect, async (req: AuthRequest, res: Resp
   }
 });
 
+// @route   PATCH /api/jobs/:id/budget
+// @desc    Cambiar el presupuesto de un trabajo (solo el dueño)
+// @access  Private (only job owner)
+router.patch("/:id/budget", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { newPrice, reason } = req.body;
+
+    // Validaciones
+    if (!newPrice || typeof newPrice !== 'number' || newPrice <= 0) {
+      res.status(400).json({
+        success: false,
+        message: "El nuevo presupuesto debe ser un número mayor a 0",
+      });
+      return;
+    }
+
+    if (!reason || typeof reason !== 'string' || reason.trim().length < 10) {
+      res.status(400).json({
+        success: false,
+        message: "Debes proporcionar una razón de al menos 10 caracteres",
+      });
+      return;
+    }
+
+    const job = await Job.findByPk(req.params.id);
+
+    if (!job) {
+      res.status(404).json({
+        success: false,
+        message: "Trabajo no encontrado",
+      });
+      return;
+    }
+
+    // Verificar que el usuario sea el dueño del trabajo
+    if (job.clientId !== req.user.id) {
+      res.status(403).json({
+        success: false,
+        message: "No tienes permiso para modificar este trabajo",
+      });
+      return;
+    }
+
+    // Solo permitir cambios en trabajos que no estén en progreso o completados
+    if (job.status === 'in_progress' || job.status === 'completed') {
+      res.status(400).json({
+        success: false,
+        message: "No puedes cambiar el presupuesto de un trabajo en progreso o completado",
+      });
+      return;
+    }
+
+    const oldPrice = Number(job.price);
+
+    // Guardar precio original si es el primer cambio
+    if (!job.originalPrice) {
+      job.originalPrice = oldPrice;
+    }
+
+    // Agregar al historial de cambios
+    const priceHistory = job.priceHistory || [];
+    priceHistory.push({
+      oldPrice,
+      newPrice,
+      reason: reason.trim(),
+      changedAt: new Date(),
+    });
+
+    // Actualizar el trabajo
+    await job.update({
+      price: newPrice,
+      priceChangeReason: reason.trim(),
+      priceChangedAt: new Date(),
+      priceHistory,
+    });
+
+    // Notificar actualización en tiempo real
+    socketService.notifyJobStatusChanged(job.toJSON(), job.status);
+
+    res.json({
+      success: true,
+      message: "Presupuesto actualizado exitosamente",
+      job: {
+        id: job.id,
+        title: job.title,
+        oldPrice,
+        newPrice,
+        reason: reason.trim(),
+        priceHistory,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
 // @route   PATCH /api/jobs/:id/pause
 // @desc    Pausar una publicación de trabajo
 // @access  Private (only job owner)

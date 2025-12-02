@@ -43,6 +43,7 @@ export interface User {
   username?: string;
   email: string;
   avatar?: string;
+  coverImage?: string;
   phone?: string;
   bio?: string;
   rating: number;
@@ -107,6 +108,9 @@ export interface User {
   banReason?: string;
   bannedAt?: string;
   banExpiresAt?: string;
+  // Family/Friends plan
+  familyCodeId?: string;
+  hasFamilyPlan?: boolean;
 }
 
 export interface RegisterData {

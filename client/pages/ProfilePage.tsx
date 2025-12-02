@@ -300,15 +300,21 @@ export default function ProfilePage() {
                 </div>
               )}
 
-              {/* Badge PRO si aplica */}
-              {user.membershipTier === 'pro' && user.hasMembership && (
-                <div className="absolute top-4 right-4">
+              {/* Badges de membresía */}
+              <div className="absolute top-4 right-4 flex flex-col gap-2">
+                {user.membershipTier === 'pro' && user.hasMembership && (
                   <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 text-white text-sm font-bold shadow-lg">
                     <Star className="w-4 h-4 fill-current" />
                     MIEMBRO PRO
                   </span>
-                </div>
-              )}
+                )}
+                {user.hasFamilyPlan && (
+                  <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-pink-500 to-rose-500 text-white text-sm font-bold shadow-lg">
+                    <Users className="w-4 h-4" />
+                    PLAN FAMILIA
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Profile Info */}
@@ -367,9 +373,10 @@ export default function ProfilePage() {
                         <Button
                           onClick={handleStartChat}
                           variant="primary"
+                          className="flex items-center gap-2"
                         >
-                          <MessageCircle className="w-4 h-4 mr-2" />
-                          Chatear
+                          <MessageCircle className="w-4 h-4" />
+                          <span>Chatear</span>
                         </Button>
                         <button
                           onClick={() => setShowReportModal(true)}

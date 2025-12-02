@@ -82,6 +82,7 @@ import AdminWithdrawalManager from "./pages/admin/AdminWithdrawalManager";
 import FinancialTransactions from "./pages/admin/FinancialTransactions";
 import PendingPayments from "./pages/admin/PendingPayments";
 import AdminJobManager from "./pages/admin/JobManager";
+import AdminFamilyCodes from "./pages/admin/FamilyCodes";
 import EditJobScreen from "./pages/EditJobScreen";
 
 export default function App() {
@@ -427,6 +428,7 @@ export default function App() {
               <Route path="tickets/create" element={<AdminCreateTicket />} />
               <Route path="tickets/:id" element={<TicketDetail />} />
               <Route path="jobs" element={<AdminJobManager />} />
+              <Route path="family-codes" element={<AdminFamilyCodes />} />
             </Route>
               </Routes>
               </BrowserRouter>

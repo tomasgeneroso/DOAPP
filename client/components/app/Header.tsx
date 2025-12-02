@@ -16,6 +16,7 @@ import {
   Gift,
   FileText,
   Briefcase,
+  Heart,
 } from "lucide-react";
 import { ThemeToggleCompact } from "../ui/ThemeToggle";
 import { useState, useRef, useEffect } from "react";
@@ -149,8 +150,26 @@ export default function Header() {
                 } else {
                   // Usuario sin contratos gratis - mostrar comisión
                   let commissionRate = 8;
-                  if (user.membershipTier === 'super_pro') commissionRate = 2;
+                  if (user.hasFamilyPlan) commissionRate = 0;
+                  else if (user.membershipTier === 'super_pro') commissionRate = 2;
                   else if (user.membershipTier === 'pro') commissionRate = 3;
+
+                  // Si tiene Plan Familia, mostrar badge especial
+                  if (user.hasFamilyPlan) {
+                    return (
+                      <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-pink-50 dark:bg-pink-900/20 border border-pink-200 dark:border-pink-800">
+                        <Heart className="h-4 w-4 text-pink-600 dark:text-pink-400 fill-pink-500" />
+                        <div className="flex flex-col">
+                          <span className="text-xs font-semibold text-pink-700 dark:text-pink-300">
+                            Sin comisión
+                          </span>
+                          <span className="text-[10px] text-pink-600 dark:text-pink-400">
+                            PLAN FAMILIA
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
 
                   return (
                     <Link

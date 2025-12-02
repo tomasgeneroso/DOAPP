@@ -285,12 +285,15 @@ router.post(
       }
 
       // Calcular comisión basada en el tier del usuario
-      // FREE: 8% | PRO: 3% | SUPER PRO: 2%
+      // PLAN FAMILIA: 0% | SUPER PRO: 2% | PRO: 3% | FREE: 8%
       // Mínimo de contrato: $8,000 ARS
       let commissionRate = client?.currentCommissionRate || 8; // 8% por defecto para usuarios FREE
 
       // Asegurar que la tasa sea correcta según el tier
-      if (client?.membershipTier === 'super_pro') {
+      // Plan Familia tiene prioridad (0% comisión)
+      if (client?.hasFamilyPlan) {
+        commissionRate = 0;
+      } else if (client?.membershipTier === 'super_pro') {
         commissionRate = 2;
       } else if (client?.membershipTier === 'pro') {
         commissionRate = 3;
@@ -301,7 +304,9 @@ router.post(
       // Calcular comisión con mínimo de contrato ($8,000 ARS)
       let commission = 0;
 
-      if (!isFreeContract) {
+      // Plan Familia y contratos gratuitos no pagan comisión
+      const hasFamilyPlan = client?.hasFamilyPlan === true;
+      if (!isFreeContract && !hasFamilyPlan) {
         if (price < MINIMUM_CONTRACT_AMOUNT) {
           // Si el contrato es menor a $8,000, cobrar comisión mínima fija de $1,000
           commission = MINIMUM_COMMISSION;

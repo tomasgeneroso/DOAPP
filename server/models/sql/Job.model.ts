@@ -278,6 +278,28 @@ export class Job extends Model {
   views!: number;
 
   // ============================================
+  // BUDGET CHANGE HISTORY
+  // ============================================
+
+  @Column(DataType.DECIMAL(12, 2))
+  originalPrice?: number;
+
+  @Column(DataType.TEXT)
+  priceChangeReason?: string;
+
+  @Column(DataType.DATE)
+  priceChangedAt?: Date;
+
+  @Default([])
+  @Column(DataType.JSONB)
+  priceHistory!: Array<{
+    oldPrice: number;
+    newPrice: number;
+    reason: string;
+    changedAt: Date;
+  }>;
+
+  // ============================================
   // PUBLICATION PAYMENT
   // ============================================
 

@@ -115,6 +115,9 @@ import companyBalanceRoutes from "./routes/admin/companyBalance.js";
 // Marketing routes (owner, super_admin, admin)
 import marketingRoutes from "./routes/admin/marketing.js";
 
+// Family Codes routes (owner only)
+import familyCodesRoutes from "./routes/admin/familyCodes.js";
+
 // Promoter routes
 import promoterRoutes from "./routes/promoter.js";
 
@@ -239,6 +242,7 @@ app.use("/api/admin/payments", (await import('./routes/admin/payments.js')).defa
 app.use("/api/admin/blog-articles", blogArticleRoutes);
 app.use("/api/admin/company-balance", companyBalanceRoutes);
 app.use("/api/admin/marketing", marketingRoutes);
+app.use("/api/admin/family-codes", familyCodesRoutes);
 
 // Analytics Routes
 app.use("/api/analytics/disputes", analyticsDisputesRoutes);

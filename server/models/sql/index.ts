@@ -85,6 +85,9 @@ export { PostComment } from './PostComment.model.js';
 export { BlogPost } from './BlogPost.model.js';
 export { ContactMessage } from './ContactMessage.model.js';
 
+// Family/Friends codes
+export { FamilyCode } from './FamilyCode.model.js';
+
 // ============================================
 // TYPE EXPORTS
 // ============================================

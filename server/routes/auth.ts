@@ -3,6 +3,7 @@ import { body, validationResult } from "express-validator";
 import jwt, { Secret, SignOptions } from "jsonwebtoken";
 import { User } from "../models/sql/User.model.js";
 import { Referral } from "../models/sql/Referral.model.js";
+import { FamilyCode } from "../models/sql/FamilyCode.model.js";
 import { config } from "../config/env.js";
 import { protect } from "../middleware/auth.js";
 import type { AuthRequest } from "../types/index.js";
@@ -398,6 +399,8 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         monthlyContractsUsed: user?.monthlyContractsUsed,
         monthlyFreeContractsLimit: user?.monthlyFreeContractsLimit,
         balance: user?.balance,
+        hasFamilyPlan: user?.hasFamilyPlan,
+        familyCodeId: user?.familyCodeId,
       },
     });
   } catch (error: any) {
@@ -1395,6 +1398,155 @@ router.post("/facebook/data-deletion", async (req: Request, res: Response): Prom
     res.status(500).json({
       success: false,
       message: error.message || "Error processing data deletion request",
+    });
+  }
+});
+
+// @route   POST /api/auth/activate-family-code
+// @desc    Activar un código familia
+// @access  Private
+router.post("/activate-family-code", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { code } = req.body;
+
+    if (!code) {
+      res.status(400).json({
+        success: false,
+        message: "El código es requerido",
+      });
+      return;
+    }
+
+    // Verificar si el usuario ya tiene un plan familia
+    const user = await User.findByPk(req.user.id);
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: "Usuario no encontrado",
+      });
+      return;
+    }
+
+    if (user.hasFamilyPlan) {
+      res.status(400).json({
+        success: false,
+        message: "Ya tienes un plan familia activo",
+      });
+      return;
+    }
+
+    // Buscar el código
+    const familyCode = await FamilyCode.findOne({
+      where: { code: code.toUpperCase().trim() },
+    });
+
+    if (!familyCode) {
+      res.status(404).json({
+        success: false,
+        message: "Código no válido",
+      });
+      return;
+    }
+
+    // Verificar si el código está disponible
+    if (!familyCode.isActive) {
+      res.status(400).json({
+        success: false,
+        message: "Este código ya no está activo",
+      });
+      return;
+    }
+
+    if (familyCode.usedById) {
+      res.status(400).json({
+        success: false,
+        message: "Este código ya fue utilizado",
+      });
+      return;
+    }
+
+    if (familyCode.expiresAt && new Date() > new Date(familyCode.expiresAt)) {
+      res.status(400).json({
+        success: false,
+        message: "Este código ha expirado",
+      });
+      return;
+    }
+
+    // Activar el plan familia para el usuario
+    await user.update({
+      familyCodeId: familyCode.id,
+      hasFamilyPlan: true,
+      currentCommissionRate: 0, // Sin comisión
+    });
+
+    // Marcar el código como usado
+    await familyCode.update({
+      usedById: user.id,
+      usedAt: new Date(),
+    });
+
+    res.json({
+      success: true,
+      message: `¡Plan Familia activado! Ahora disfrutas de 0% comisión en todos tus contratos.`,
+      data: {
+        hasFamilyPlan: true,
+        commissionRate: 0,
+      },
+    });
+  } catch (error: any) {
+    console.error("Error activating family code:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   GET /api/auth/family-plan-status
+// @desc    Obtener estado del plan familia del usuario
+// @access  Private
+router.get("/family-plan-status", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const user = await User.findByPk(req.user.id, {
+      attributes: ['id', 'hasFamilyPlan', 'familyCodeId'],
+    });
+
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: "Usuario no encontrado",
+      });
+      return;
+    }
+
+    let familyCodeInfo = null;
+    if (user.familyCodeId) {
+      const familyCode = await FamilyCode.findByPk(user.familyCodeId, {
+        attributes: ['id', 'firstName', 'lastName', 'code', 'expiresAt', 'usedAt'],
+      });
+      if (familyCode) {
+        familyCodeInfo = {
+          code: familyCode.code,
+          activatedAt: familyCode.usedAt,
+          expiresAt: familyCode.expiresAt,
+          beneficiaryName: `${familyCode.firstName} ${familyCode.lastName}`,
+        };
+      }
+    }
+
+    res.json({
+      success: true,
+      data: {
+        hasFamilyPlan: user.hasFamilyPlan,
+        familyCode: familyCodeInfo,
+      },
+    });
+  } catch (error: any) {
+    console.error("Error fetching family plan status:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
     });
   }
 });

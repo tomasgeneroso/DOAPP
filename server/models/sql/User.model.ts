@@ -392,6 +392,18 @@ export class User extends Model {
   referralBenefitsUsed!: number;
 
   // ============================================
+  // FAMILY/FRIENDS PLAN
+  // ============================================
+
+  @Index
+  @Column(DataType.UUID)
+  familyCodeId?: string;
+
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  hasFamilyPlan!: boolean;
+
+  // ============================================
   // METHODS
   // ============================================
 

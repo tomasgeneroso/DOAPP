@@ -15,6 +15,7 @@ import {
   Briefcase,
   Sun,
   Moon,
+  Gift,
 } from "lucide-react";
 
 export default function AdminLayout() {
@@ -44,6 +45,7 @@ export default function AdminLayout() {
     { path: "/admin/financial-transactions", icon: DollarSign, label: "Movimientos Financieros", roles: ["owner", "super_admin", "admin"] },
     { path: "/admin/disputes", icon: Shield, label: "Disputas", roles: ["owner", "super_admin", "admin", "support"] },
     { path: "/admin/tickets", icon: TicketIcon, label: "Tickets", roles: ["owner", "super_admin", "admin", "support"] },
+    { path: "/admin/family-codes", icon: Gift, label: "Códigos Familia", roles: ["owner"] },
     { path: "/admin/settings", icon: Settings, label: "Configuración", roles: ["owner", "super_admin"] },
   ];
 
