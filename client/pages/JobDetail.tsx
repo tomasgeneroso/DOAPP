@@ -48,6 +48,10 @@ export default function JobDetail() {
   const [selectedProposal, setSelectedProposal] = useState<any>(null);
   const [newProposalAlert, setNewProposalAlert] = useState<string | null>(null);
   const [cancellationReason, setCancellationReason] = useState("");
+  const [showBudgetModal, setShowBudgetModal] = useState(false);
+  const [newBudget, setNewBudget] = useState("");
+  const [budgetReason, setBudgetReason] = useState("");
+  const [changingBudget, setChangingBudget] = useState(false);
 
   const { registerNewProposalHandler, registerJobUpdateHandler } = useSocket();
 
@@ -330,6 +334,59 @@ export default function JobDetail() {
       setShowDeleteModal(false);
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleChangeBudget = async () => {
+    if (!job || !token) return;
+
+    // Validaciones
+    if (!newBudget || Number(newBudget) <= 0) {
+      setError('El presupuesto debe ser mayor a 0');
+      return;
+    }
+
+    if (!budgetReason || budgetReason.trim().length < 10) {
+      setError('La razón debe tener al menos 10 caracteres');
+      return;
+    }
+
+    setChangingBudget(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/jobs/${job.id || job._id}/budget`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          newPrice: Number(newBudget),
+          reason: budgetReason.trim(),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setShowBudgetModal(false);
+        setNewBudget('');
+        setBudgetReason('');
+        // Refresh job data
+        const jobResponse = await fetch(`/api/jobs/${id}`);
+        const jobData = await jobResponse.json();
+        if (jobData.success) {
+          setJob(jobData.job);
+        }
+      } else {
+        setError(data.message || 'Error al cambiar el presupuesto');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Error al cambiar el presupuesto');
+    } finally {
+      setChangingBudget(false);
     }
   };
 
@@ -938,6 +995,14 @@ export default function JobDetail() {
 
                 {/* Action Buttons */}
                 <div className="space-y-3">
+                  <button
+                    onClick={() => setShowBudgetModal(true)}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors"
+                  >
+                    <DollarSign className="h-4 w-4" />
+                    Cambiar presupuesto
+                  </button>
+
                   <div className="flex gap-2">
                     <button
                       onClick={handlePauseJob}
@@ -1234,6 +1299,100 @@ export default function JobDetail() {
                     <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                   ) : (
                     "Sí, eliminar"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Budget Change Modal */}
+        {showBudgetModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="w-full max-w-md rounded-2xl border border-sky-600 bg-slate-900 p-6 shadow-2xl">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-500/20">
+                  <DollarSign className="h-6 w-6 text-sky-500" />
+                </div>
+                <h3 className="text-xl font-bold text-white">
+                  Cambiar Presupuesto
+                </h3>
+              </div>
+
+              <div className="mb-6 space-y-4">
+                <div className="rounded-xl border border-blue-600/50 bg-blue-900/20 p-3">
+                  <p className="text-sm text-blue-300">
+                    Presupuesto actual: <span className="font-bold">${job.price.toLocaleString('es-AR')} ARS</span>
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Nuevo presupuesto (ARS) *
+                  </label>
+                  <input
+                    type="number"
+                    value={newBudget}
+                    onChange={(e) => setNewBudget(e.target.value)}
+                    placeholder="Ej: 25000"
+                    min="1"
+                    step="1"
+                    className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-white placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-slate-300 mb-2">
+                    Razón del cambio * (mínimo 10 caracteres)
+                  </label>
+                  <textarea
+                    value={budgetReason}
+                    onChange={(e) => setBudgetReason(e.target.value)}
+                    placeholder="Ej: Se agregaron tareas adicionales, cambió el alcance del trabajo..."
+                    rows={4}
+                    maxLength={500}
+                    className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-white placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 resize-none"
+                  />
+                  <p className="mt-1 text-xs text-slate-500 text-right">
+                    {budgetReason.length}/500 (mínimo 10)
+                  </p>
+                </div>
+
+                {error && (
+                  <div className="rounded-xl border border-red-600 bg-red-900/30 p-4">
+                    <p className="text-sm font-medium text-red-300">{error}</p>
+                  </div>
+                )}
+
+                <div className="rounded-xl border border-amber-600/50 bg-amber-900/20 p-3">
+                  <p className="text-sm text-amber-300">
+                    <strong>Nota:</strong> Solo puedes cambiar el presupuesto de trabajos que no estén en progreso o completados.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowBudgetModal(false);
+                    setNewBudget('');
+                    setBudgetReason('');
+                    setError(null);
+                  }}
+                  disabled={changingBudget}
+                  className="flex-1 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleChangeBudget}
+                  disabled={changingBudget || !newBudget || !budgetReason || budgetReason.length < 10}
+                  className="flex-1 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:from-sky-600 hover:to-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {changingBudget ? (
+                    <Loader2 className="mx-auto h-5 w-5 animate-spin" />
+                  ) : (
+                    "Confirmar cambio"
                   )}
                 </button>
               </div>
