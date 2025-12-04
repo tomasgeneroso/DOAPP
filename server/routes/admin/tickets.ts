@@ -229,9 +229,9 @@ router.post("/:id/messages", async (req: AuthRequest, res: Response): Promise<vo
 
     // Notificar al creador si el mensaje es de staff
     if (req.user.adminRole && !messageIsInternal) {
-      const recipientId = typeof ticket.createdBy === 'object' ? ticket.createdBy.id : ticket.createdBy;
+      const notifyRecipientId = typeof ticket.createdBy === 'object' ? ticket.createdBy.id : ticket.createdBy;
       await Notification.create({
-        recipient: recipientId,
+        recipientId: notifyRecipientId,
         type: "info",
         category: "ticket",
         title: `Nuevo mensaje en ticket ${ticket.ticketNumber}`,
@@ -423,7 +423,7 @@ router.put(
       // Notificar al creador
       const createdById = typeof ticket.createdBy === 'object' ? ticket.createdBy.id : ticket.createdBy;
       await Notification.create({
-        recipient: createdById,
+        recipientId: createdById,
         type: "success",
         category: "ticket",
         title: `Ticket ${ticket.ticketNumber} cerrado`,

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Briefcase, CheckCircle, XCircle, Clock, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Image as ImageIcon, FileText, Download, Bell } from "lucide-react";
+import { Briefcase, CheckCircle, XCircle, Clock, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Image as ImageIcon, FileText, Download, Bell, Pause, Play, Ban } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useSocket } from "../../hooks/useSocket";
 
@@ -36,6 +36,16 @@ interface Job {
   cancelledAt?: string;
   reviewedBy?: string;
   reviewedAt?: string;
+  permanentlyCancelled?: boolean;
+  reviewer?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  // Budget increase fields
+  pendingNewPrice?: number;
+  pendingPaymentAmount?: number;
+  priceChangeReason?: string;
 }
 
 interface JobStats {
@@ -60,6 +70,10 @@ export default function AdminJobManager() {
   const [rejectModal, setRejectModal] = useState<{ jobId: string; jobTitle: string } | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [newJobAlert, setNewJobAlert] = useState<string | null>(null);
+  const [actionModal, setActionModal] = useState<{ jobId: string; jobTitle: string; action: 'pause' | 'cancel' } | null>(null);
+  const [actionReason, setActionReason] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
+  const [permanentCancel, setPermanentCancel] = useState(false);
 
   const { registerAdminJobCreatedHandler, registerAdminJobUpdatedHandler, isConnected } = useSocket();
 
@@ -89,9 +103,16 @@ export default function AdminJobManager() {
   const handleJobUpdated = useCallback((data: any) => {
     console.log("📝 Real-time: Job updated", data);
     if (data.job) {
-      setJobs(prev => prev.map(j => j.id === data.job.id ? { ...j, ...data.job } : j));
-      // Refresh stats
-      fetchStats();
+      setJobs(prev => {
+        const exists = prev.some(j => j.id === data.job.id);
+        if (exists) {
+          // Update existing job
+          return prev.map(j => j.id === data.job.id ? { ...j, ...data.job } : j);
+        } else {
+          // Add new job if not in list
+          return [data.job, ...prev];
+        }
+      });
     }
   }, []);
 
@@ -195,6 +216,71 @@ export default function AdminJobManager() {
     }
   };
 
+  // Ejecutar acción sobre una publicación (pausar/reanudar/cancelar)
+  const executeJobAction = async (jobId: string, action: 'pause' | 'resume' | 'cancel', reason?: string, permanent?: boolean) => {
+    try {
+      setActionLoading(true);
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/admin/jobs/${jobId}/action`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ action, reason, permanent }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        fetchJobs();
+        fetchStats();
+        alert(data.message);
+      } else {
+        alert(`Error: ${data.message}`);
+      }
+    } catch (error) {
+      console.error("Error executing job action:", error);
+      alert("Error al ejecutar la acción");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handlePause = (jobId: string, jobTitle: string) => {
+    setActionReason("");
+    setActionModal({ jobId, jobTitle, action: 'pause' });
+  };
+
+  const handleResume = async (jobId: string) => {
+    if (confirm("¿Estás seguro de reanudar esta publicación?")) {
+      await executeJobAction(jobId, 'resume');
+    }
+  };
+
+  const handleCancel = (jobId: string, jobTitle: string) => {
+    setActionReason("");
+    setPermanentCancel(false);
+    setActionModal({ jobId, jobTitle, action: 'cancel' });
+  };
+
+  const confirmAction = async () => {
+    if (actionModal) {
+      if (actionModal.action === 'cancel' && !actionReason.trim()) {
+        alert("Debe proporcionar una razón para cancelar");
+        return;
+      }
+      await executeJobAction(
+        actionModal.jobId,
+        actionModal.action,
+        actionReason || undefined,
+        actionModal.action === 'cancel' ? permanentCancel : undefined
+      );
+      setActionModal(null);
+      setActionReason("");
+      setPermanentCancel(false);
+    }
+  };
+
   const handleSort = (field: SortField) => {
     let newDirection: SortDirection = 'asc';
 
@@ -268,6 +354,7 @@ export default function AdminJobManager() {
       pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
       pending_payment: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
       pending_approval: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
+      paused: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
       open: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
       approved: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
       rejected: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
@@ -284,6 +371,7 @@ export default function AdminJobManager() {
       pending: "Pendiente",
       pending_payment: "Pendiente Pago",
       pending_approval: "Pendiente Aprobación",
+      paused: "Pausado",
       open: "Abierto",
       approved: "Aprobado",
       rejected: "Rechazado",
@@ -413,6 +501,8 @@ export default function AdminJobManager() {
             >
               <option value="all">Todos los estados</option>
               <option value="pending_approval">Pendiente Aprobación</option>
+              <option value="pending_payment">Pendiente Pago</option>
+              <option value="paused">Pausado</option>
               <option value="open">Abierto (Aprobado)</option>
               <option value="cancelled">Cancelado (Rechazado)</option>
               <option value="in_progress">En Progreso</option>
@@ -481,6 +571,9 @@ export default function AdminJobManager() {
                   Razón
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Revisado por
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   <button
                     onClick={() => handleSort('date')}
                     className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
@@ -497,7 +590,7 @@ export default function AdminJobManager() {
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {getSortedAndFilteredJobs().length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={10} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
                     No se encontraron publicaciones
                   </td>
                 </tr>
@@ -525,7 +618,14 @@ export default function AdminJobManager() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {job.currency || 'ARS'} ${(job.price || job.budget || 0).toLocaleString()}
+                      <div>
+                        {job.currency || 'ARS'} ${(job.price || job.budget || 0).toLocaleString()}
+                        {job.pendingNewPrice && (
+                          <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                            <span className="animate-pulse">⏳</span> Nuevo: ${job.pendingNewPrice.toLocaleString()}
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       {job.paymentProof ? (
@@ -563,11 +663,36 @@ export default function AdminJobManager() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400 max-w-xs">
-                      {(job.status === 'cancelled' || job.status === 'rejected') && (job.cancellationReason || job.rejectedReason) ? (
+                      {job.pendingNewPrice && job.priceChangeReason ? (
+                        <span className="text-blue-600 dark:text-blue-400 text-xs">
+                          <strong>Aumento:</strong> {job.priceChangeReason}
+                        </span>
+                      ) : (job.status === 'cancelled' || job.status === 'rejected') && (job.cancellationReason || job.rejectedReason) ? (
                         <span className="text-red-600 dark:text-red-400 text-xs">
                           {job.cancellationReason || job.rejectedReason}
+                          {job.permanentlyCancelled && (
+                            <span className="ml-1 text-red-800 dark:text-red-200 font-bold">⛔ DEFINITIVA</span>
+                          )}
                         </span>
                       ) : null}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {job.reviewer ? (
+                        <div className="text-sm">
+                          <p className="font-medium text-gray-900 dark:text-white">{job.reviewer.name}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {job.reviewedAt && new Date(job.reviewedAt).toLocaleDateString('es-AR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-400">-</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                       {new Date(job.createdAt).toLocaleDateString('es-AR')}
@@ -582,23 +707,63 @@ export default function AdminJobManager() {
                         >
                           <Eye className="w-4 h-4" />
                         </Link>
+
+                        {/* Aprobar/Rechazar para pendientes */}
                         {(job.status === 'pending' || job.status === 'pending_approval') && (
                           <>
                             <button
                               onClick={() => handleApprove(job.id)}
-                              className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 transform hover:scale-110 transition-all duration-150 hover:rotate-6"
+                              className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 transform hover:scale-110 transition-all duration-150"
                               title="Aprobar"
+                              disabled={actionLoading}
                             >
                               <CheckCircle className="w-5 h-5" />
                             </button>
                             <button
                               onClick={() => handleReject(job.id, job.title)}
-                              className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transform hover:scale-110 transition-all duration-150 hover:rotate-6"
+                              className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transform hover:scale-110 transition-all duration-150"
                               title="Rechazar"
+                              disabled={actionLoading}
                             >
                               <XCircle className="w-5 h-5" />
                             </button>
                           </>
+                        )}
+
+                        {/* Pausar para publicaciones activas */}
+                        {(job.status === 'open' || job.status === 'in_progress') && (
+                          <button
+                            onClick={() => handlePause(job.id, job.title)}
+                            className="text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 transform hover:scale-110 transition-all duration-150"
+                            title="Pausar"
+                            disabled={actionLoading}
+                          >
+                            <Pause className="w-5 h-5" />
+                          </button>
+                        )}
+
+                        {/* Reanudar para publicaciones pausadas */}
+                        {job.status === 'paused' && !job.pendingNewPrice && (
+                          <button
+                            onClick={() => handleResume(job.id)}
+                            className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 transform hover:scale-110 transition-all duration-150"
+                            title="Reanudar"
+                            disabled={actionLoading}
+                          >
+                            <Play className="w-5 h-5" />
+                          </button>
+                        )}
+
+                        {/* Cancelar para publicaciones no canceladas */}
+                        {job.status !== 'cancelled' && job.status !== 'completed' && (
+                          <button
+                            onClick={() => handleCancel(job.id, job.title)}
+                            className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transform hover:scale-110 transition-all duration-150"
+                            title="Cancelar"
+                            disabled={actionLoading}
+                          >
+                            <Ban className="w-5 h-5" />
+                          </button>
                         )}
                       </div>
                     </td>
@@ -706,6 +871,97 @@ export default function AdminJobManager() {
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
               >
                 Rechazar Publicación
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Action Modal (Pause/Cancel) */}
+      {actionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setActionModal(null)}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              {actionModal.action === 'pause' ? 'Pausar Publicación' : 'Cancelar Publicación'}
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+              {actionModal.jobTitle}
+            </p>
+
+            {actionModal.action === 'pause' && (
+              <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
+                <p className="text-sm text-amber-800 dark:text-amber-300">
+                  <strong>⏸️ Pausar:</strong> La publicación quedará inactiva temporalmente. El usuario será notificado y podrá ver la razón.
+                </p>
+              </div>
+            )}
+
+            {actionModal.action === 'cancel' && (
+              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg">
+                <p className="text-sm text-red-800 dark:text-red-300">
+                  <strong>⚠️ Cancelar:</strong> La publicación se cancelará. El usuario será notificado.
+                </p>
+              </div>
+            )}
+
+            {actionModal.action === 'cancel' && (
+              <div className="mb-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={permanentCancel}
+                    onChange={(e) => setPermanentCancel(e.target.checked)}
+                    className="w-4 h-4 text-red-600 bg-gray-100 border-gray-300 rounded focus:ring-red-500 dark:focus:ring-red-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                  />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Cancelar definitivamente (el usuario no podrá editar ni reenviar)
+                  </span>
+                </label>
+                {permanentCancel && (
+                  <div className="mt-2 p-2 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded text-xs text-red-700 dark:text-red-300">
+                    <strong>⛔ Atención:</strong> Esta acción es irreversible. El usuario no podrá editar ni reenviar esta publicación para aprobación.
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Razón {actionModal.action === 'cancel' ? '(requerida)' : '(opcional)'}
+              </label>
+              <textarea
+                value={actionReason}
+                onChange={(e) => setActionReason(e.target.value.slice(0, 200))}
+                placeholder={actionModal.action === 'pause'
+                  ? "Ej: Contenido pendiente de revisión, información incompleta..."
+                  : "Ej: Viola términos de servicio, información fraudulenta..."}
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 text-gray-900 dark:text-white"
+                rows={3}
+                maxLength={200}
+              />
+              <p className="text-xs text-gray-400 mt-1 text-right">
+                {actionReason.length}/200 caracteres
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setActionModal(null)}
+                disabled={actionLoading}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmAction}
+                disabled={actionLoading || (actionModal.action === 'cancel' && !actionReason.trim())}
+                className={`px-4 py-2 text-white rounded-lg transition-colors disabled:opacity-50 ${
+                  actionModal.action === 'pause'
+                    ? 'bg-amber-600 hover:bg-amber-700'
+                    : 'bg-red-600 hover:bg-red-700'
+                }`}
+              >
+                {actionLoading ? 'Procesando...' : actionModal.action === 'pause' ? 'Pausar Publicación' : 'Cancelar Publicación'}
               </button>
             </div>
           </div>

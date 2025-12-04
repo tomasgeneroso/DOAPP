@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useToast } from "../components/ui/Toast";
 import {
   Calendar,
   Clock,
@@ -52,6 +53,7 @@ export default function EditJobScreen() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, token } = useAuth();
+  const { success: toastSuccess } = useToast();
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -183,6 +185,16 @@ export default function EditJobScreen() {
         throw new Error(data.message || "Error al actualizar el trabajo");
       }
 
+      // Show success message based on whether it needs approval
+      if (data.requiresApproval) {
+        toastSuccess(
+          'Trabajo enviado para aprobación',
+          'Tu trabajo ha sido actualizado y será revisado por nuestro equipo antes de publicarse.'
+        );
+      } else {
+        toastSuccess('Trabajo actualizado', 'Los cambios han sido guardados exitosamente.');
+      }
+
       // Redirect back to job detail
       navigate(`/jobs/${id}`);
     } catch (err: any) {
@@ -240,10 +252,11 @@ export default function EditJobScreen() {
           Modifica los detalles de tu publicación.
         </p>
 
-        {jobStatus === 'cancelled' && (
-          <div className="mt-4 rounded-xl border border-amber-500/50 bg-amber-900/20 p-4">
-            <p className="text-amber-300 text-sm">
-              Este trabajo fue cancelado. Puedes editarlo y volver a publicarlo.
+        {(jobStatus === 'cancelled' || jobStatus === 'rejected') && (
+          <div className="mt-4 rounded-xl border border-amber-500/50 bg-amber-50 dark:bg-amber-900/20 p-4">
+            <p className="text-amber-700 dark:text-amber-300 text-sm">
+              <strong>Nota:</strong> Este trabajo fue {jobStatus === 'cancelled' ? 'cancelado' : 'rechazado'}.
+              Al guardar los cambios, será enviado automáticamente para revisión y aprobación antes de publicarse.
             </p>
           </div>
         )}

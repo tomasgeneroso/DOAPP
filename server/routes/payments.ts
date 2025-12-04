@@ -252,6 +252,124 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
       return;
     }
 
+    // Handle budget increase payment
+    if (paymentType === "budget_increase" && jobId) {
+      const job = await Job.findByPk(jobId);
+      if (!job) {
+        res.status(404).json({ success: false, message: "Job not found" });
+        return;
+      }
+
+      // Verify user owns the job
+      if (job.clientId !== userId) {
+        res.status(403).json({ success: false, message: "Unauthorized - You don't own this job" });
+        return;
+      }
+
+      // Verify the job has pending payment amount
+      const pendingAmount = parseFloat(job.pendingPaymentAmount as any) || 0;
+      if (pendingAmount <= 0) {
+        res.status(400).json({ success: false, message: "No pending payment amount for this job" });
+        return;
+      }
+
+      // Use the amount from the request or the job's pending payment
+      const totalAmountARS = amount ? parseFloat(amount) : pendingAmount;
+
+      console.log(`💵 Budget increase payment: ${totalAmountARS.toFixed(2)} ARS for job ${jobId} - ${selectedPaymentMethod}`);
+
+      // Handle different payment methods
+      if (selectedPaymentMethod === 'bank_transfer' || selectedPaymentMethod === 'binance') {
+        // Bank Transfer or Binance - requires manual verification
+        const payment = await Payment.create({
+          contractId: null,
+          payerId: userId,
+          recipientId: null,
+          amount: totalAmountARS,
+          currency: "ARS",
+          status: "pending_verification",
+          paymentType: "budget_increase",
+          paymentMethod: selectedPaymentMethod,
+          description: `Aumento de presupuesto: ${job.title}`,
+          platformFee: 0,
+          platformFeePercentage: 0,
+          isEscrow: false,
+        });
+
+        // Update job with payment reference
+        job.publicationPaymentId = payment.id;
+        await job.save();
+
+        res.json({
+          success: true,
+          message: selectedPaymentMethod === 'binance'
+            ? "Pago con Binance iniciado. Sube el comprobante para verificación."
+            : "Transferencia bancaria iniciada. Sube el comprobante para verificación.",
+          requiresPayment: true,
+          paymentId: payment.id,
+          amount: totalAmountARS,
+          bankDetails: selectedPaymentMethod === 'bank_transfer' ? {
+            accountHolder: process.env.BANK_ACCOUNT_HOLDER || 'DOAPP S.R.L.',
+            cuit: process.env.BANK_CUIT || '30-12345678-9',
+            bank: process.env.BANK_NAME || 'Banco Galicia',
+            cbu: process.env.BANK_CBU || '0070099920000123456789',
+            alias: process.env.BANK_ALIAS || 'DOAPP.PAGOS',
+          } : undefined
+        });
+        return;
+      }
+
+      // Default: MercadoPago direct integration
+      const mpPayment = await mercadopagoService.createPayment({
+        amount: totalAmountARS,
+        currency: 'ARS',
+        description: `Aumento de presupuesto: ${job.title}`,
+        provider: 'mercadopago',
+        metadata: {
+          jobId: jobId,
+          userId: userId,
+          paymentType: 'budget_increase',
+        },
+        customerEmail: req.user.email,
+        successUrl: `${process.env.CLIENT_URL}/payment/success?type=budget_increase&jobId=${jobId}`,
+        cancelUrl: `${process.env.CLIENT_URL}/payment/failure?type=budget_increase&jobId=${jobId}`,
+      });
+
+      if (!mpPayment.checkoutUrl) {
+        throw new Error('No se pudo obtener el link de pago de MercadoPago');
+      }
+
+      // Create payment record in database
+      const payment = await Payment.create({
+        contractId: null,
+        payerId: userId,
+        recipientId: null,
+        amount: totalAmountARS,
+        currency: "ARS",
+        status: "pending",
+        paymentType: "budget_increase",
+        paymentMethod: "mercadopago",
+        mercadopagoPreferenceId: mpPayment.paymentId,
+        description: `Aumento de presupuesto: ${job.title}`,
+        platformFee: 0,
+        platformFeePercentage: 0,
+        isEscrow: false,
+      });
+
+      // Update job with payment reference
+      job.publicationPaymentId = payment.id;
+      await job.save();
+
+      res.json({
+        success: true,
+        preferenceId: mpPayment.paymentId,
+        approvalUrl: mpPayment.checkoutUrl,
+        paymentId: payment.id,
+        amount: totalAmountARS,
+      });
+      return;
+    }
+
     // Handle contract payment (existing logic)
     if (!contractId) {
       res.status(400).json({ success: false, message: "Contract ID is required" });
@@ -598,6 +716,79 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
             amount: payment.amount,
             jobId: job.id,
             jobPublished: true,
+          },
+        });
+        return;
+      }
+    }
+
+    // Handle budget increase payment
+    if (payment.paymentType === "budget_increase") {
+      console.log("🔍 [CAPTURE] Step 7 - Detected budget increase payment");
+      // Find the job and apply the new price
+      const job = await Job.findOne({
+        where: { publicationPaymentId: payment.id },
+        include: [
+          {
+            model: User,
+            as: 'client',
+            attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount']
+          }
+        ]
+      });
+      if (job && job.pendingNewPrice) {
+        const oldPrice = Number(job.price);
+        const newPrice = Number(job.pendingNewPrice);
+        const previousStatus = job.previousStatus || 'open';
+
+        // Agregar al historial de cambios
+        const priceHistory = job.priceHistory || [];
+        priceHistory.push({
+          oldPrice,
+          newPrice,
+          reason: job.priceChangeReason || 'Aumento de presupuesto',
+          changedAt: new Date(),
+        });
+
+        // Aplicar el nuevo precio y reactivar el trabajo
+        await job.update({
+          price: newPrice,
+          priceChangedAt: new Date(),
+          priceHistory,
+          pendingNewPrice: null,
+          pendingPaymentAmount: 0,
+          previousStatus: null,
+          status: previousStatus, // Restaurar estado anterior (usualmente 'open')
+        });
+
+        console.log(`✅ [CAPTURE] Budget increase applied: $${oldPrice} -> $${newPrice} for job ${job.id}`);
+
+        // Notify user that budget was updated
+        await Notification.create({
+          recipientId: payment.payerId,
+          type: "success",
+          category: "payment",
+          title: "Presupuesto actualizado",
+          message: `El presupuesto de "${job.title}" ha sido actualizado a $${newPrice.toLocaleString('es-AR')} ARS. El trabajo ha sido reactivado.`,
+          relatedModel: "Job",
+          relatedId: job.id,
+          sentVia: ["in_app"],
+        });
+
+        // Real-time notification
+        socketService.notifyJobStatusChanged(job.toJSON(), 'paused');
+
+        res.json({
+          success: true,
+          data: {
+            paymentId: payment.id,
+            captureId: captureResult.captureId,
+            status: payment.status,
+            amount: payment.amount,
+            jobId: job.id,
+            budgetUpdated: true,
+            oldPrice,
+            newPrice,
           },
         });
         return;
@@ -1234,6 +1425,19 @@ router.post("/:paymentId/upload-proof", protect, upload.single('proof'), async (
       }
     }
 
+    // Update job status if this is a budget increase payment
+    if (payment.paymentType === 'budget_increase') {
+      const job = await Job.findOne({
+        where: { publicationPaymentId: paymentId }
+      });
+
+      if (job) {
+        // Keep job paused but mark payment as pending verification
+        // Job will be reactivated when admin approves the payment
+        console.log(`Budget increase payment proof uploaded for job ${job.id}, waiting for admin approval`);
+      }
+    }
+
     // Notify admins about new payment proof
     const adminUsers = await User.findAll({
       where: {
@@ -1462,6 +1666,57 @@ router.post("/:paymentId/proof/:proofId/approve", protect, requireRole('admin', 
           relatedId: job.id,
           relatedType: 'Job',
         });
+
+        // Real-time notification
+        socketService.notifyJobStatusChanged(job.toJSON(), 'pending_payment');
+      }
+    }
+
+    // If this is a budget increase payment, apply the new price and reactivate the job
+    if (payment.paymentType === 'budget_increase') {
+      const job = await Job.findOne({
+        where: { publicationPaymentId: paymentId }
+      });
+
+      if (job && job.pendingNewPrice) {
+        const oldPrice = Number(job.price);
+        const newPrice = Number(job.pendingNewPrice);
+        const previousStatus = job.previousStatus || 'open';
+
+        // Agregar al historial de cambios
+        const priceHistory = job.priceHistory || [];
+        priceHistory.push({
+          oldPrice,
+          newPrice,
+          reason: job.priceChangeReason || 'Aumento de presupuesto',
+          changedAt: new Date(),
+        });
+
+        // Aplicar el nuevo precio y reactivar el trabajo
+        await job.update({
+          price: newPrice,
+          priceChangedAt: new Date(),
+          priceHistory,
+          pendingNewPrice: null,
+          pendingPaymentAmount: 0,
+          previousStatus: null,
+          status: previousStatus,
+        });
+
+        console.log(`✅ [APPROVE] Budget increase applied: $${oldPrice} -> $${newPrice} for job ${job.id}`);
+
+        // Notify job owner
+        await Notification.create({
+          userId: job.clientId,
+          title: 'Presupuesto actualizado',
+          message: `Tu pago fue aprobado. El presupuesto de "${job.title}" ha sido actualizado a $${newPrice.toLocaleString('es-AR')} ARS. El trabajo ha sido reactivado.`,
+          type: 'payment',
+          relatedId: job.id,
+          relatedType: 'Job',
+        });
+
+        // Real-time notification
+        socketService.notifyJobStatusChanged(job.toJSON(), 'paused');
       }
     }
 
@@ -1554,6 +1809,28 @@ router.post("/:paymentId/proof/:proofId/reject", protect, requireRole('admin', '
           userId: job.clientId,
           title: 'Comprobante rechazado',
           message: `Tu comprobante de pago para "${job.title}" fue rechazado. Motivo: ${reason}. Por favor, sube un nuevo comprobante.`,
+          type: 'payment',
+          relatedId: job.id,
+          relatedType: 'Job',
+        });
+      }
+    }
+
+    // If this is a budget increase payment, keep job paused waiting for new proof
+    if (payment.paymentType === 'budget_increase') {
+      const job = await Job.findOne({
+        where: { publicationPaymentId: paymentId }
+      });
+
+      if (job) {
+        // Job stays paused, user needs to upload a new proof
+        // Don't clear pendingNewPrice yet - they might upload a valid proof
+
+        // Notify job owner
+        await Notification.create({
+          userId: job.clientId,
+          title: 'Comprobante rechazado',
+          message: `Tu comprobante de pago para el aumento de presupuesto de "${job.title}" fue rechazado. Motivo: ${reason}. El trabajo permanece pausado. Por favor, sube un nuevo comprobante o cancela el cambio de presupuesto.`,
           type: 'payment',
           relatedId: job.id,
           relatedType: 'Job',

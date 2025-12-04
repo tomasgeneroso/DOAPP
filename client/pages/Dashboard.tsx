@@ -337,36 +337,195 @@ export default function Dashboard() {
           </p>
         </div>
 
-        {/* Content Wrapper - Aplicar blur si es FREE */}
-        <div className={isFreeUser ? "filter blur-md pointer-events-none select-none" : ""}>
-          {/* Balance Card - Arriba de todo */}
-          <div className="mb-8 rounded-xl bg-gradient-to-br from-sky-500 to-sky-600 p-8 text-white shadow-lg">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium opacity-90">Balance Neto</p>
-                <p className="mt-2 text-4xl font-bold">
-                  ${(user?.balance || 0).toLocaleString()}
-                </p>
-                <p className="mt-1 text-xs opacity-70">
-                  Tu saldo disponible en la plataforma
-                </p>
-                <p className="mt-2 text-sm opacity-80">
-                  {(user?.balance || 0) >= 0 ? (
-                    <span className="flex items-center gap-1">
-                      <TrendingUp className="h-4 w-4" />
-                      Ganancia positiva
+        {/* Balance Card - SIEMPRE VISIBLE (sin blur) para todos los usuarios */}
+        <div className={`mb-8 rounded-xl p-8 text-white shadow-lg transition-all ${
+          (user?.balance || 0) >= 0
+            ? "bg-gradient-to-br from-emerald-500 to-emerald-600"
+            : "bg-gradient-to-br from-red-500 to-red-600"
+        }`}>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium opacity-90">
+                {(user?.balance || 0) >= 0 ? "Saldo Disponible" : "Saldo Deudor"}
+              </p>
+              <p className="mt-2 text-4xl font-bold">
+                {(user?.balance || 0) >= 0
+                  ? `$${(user?.balance || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+                  : `-$${Math.abs(user?.balance || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}`
+                } ARS
+              </p>
+              <p className="mt-1 text-xs opacity-70">
+                {(user?.balance || 0) >= 0
+                  ? "Tu saldo disponible en la plataforma"
+                  : "Tienes pagos pendientes por completar"
+                }
+              </p>
+              <p className="mt-2 text-sm opacity-80">
+                {(user?.balance || 0) >= 0 ? (
+                  <span className="flex items-center gap-1">
+                    <TrendingUp className="h-4 w-4" />
+                    Saldo a favor
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1">
+                    <TrendingDown className="h-4 w-4" />
+                    Trabajos pausados hasta completar pago
+                  </span>
+                )}
+              </p>
+              {(user?.balance || 0) < 0 && (
+                <Link
+                  to="/payments"
+                  className="mt-4 inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                >
+                  <DollarSign className="h-4 w-4" />
+                  Completar Pago
+                </Link>
+              )}
+            </div>
+            <DollarSign className="h-16 w-16 opacity-20" />
+          </div>
+        </div>
+
+        {/* Selector de Planes para usuarios FREE - Justo debajo del balance */}
+        {isFreeUser && (
+          <div className="mb-8 relative z-10">
+            <div className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm rounded-xl sm:rounded-2xl shadow-2xl border-2 sm:border-4 border-purple-500 dark:border-purple-600 p-4 sm:p-8 relative overflow-hidden">
+              {/* Decorative background */}
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50 dark:from-purple-900/20 dark:via-blue-900/20 dark:to-pink-900/20 opacity-50"></div>
+
+              {/* Content */}
+              <div className="relative z-10">
+                {/* Header */}
+                <div className="text-center mb-6">
+                  <div className="inline-flex items-center justify-center w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-full mb-4">
+                    <Lock className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
+                    <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-blue-600">
+                      Elige tu Plan
                     </span>
-                  ) : (
-                    <span className="flex items-center gap-1">
-                      <TrendingDown className="h-4 w-4" />
-                      Saldo negativo
-                    </span>
-                  )}
+                  </h2>
+                  <p className="text-slate-600 dark:text-slate-300">
+                    Desbloquea todo el potencial de DOAPP
+                  </p>
+                </div>
+
+                {/* Plans Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  {/* PRO Mensual */}
+                  <div
+                    onClick={() => navigate("/membership/checkout?plan=monthly")}
+                    className="bg-white/80 dark:bg-slate-900/80 rounded-xl p-5 border-2 border-purple-300 dark:border-purple-700 hover:border-purple-500 dark:hover:border-purple-500 transition-all cursor-pointer hover:shadow-lg hover:scale-105"
+                  >
+                    <div className="text-center mb-4">
+                      <Crown className="w-10 h-10 text-purple-600 dark:text-purple-400 mx-auto mb-2" />
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-white">PRO Mensual</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Más popular</p>
+                    </div>
+                    <div className="text-center mb-4">
+                      <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">€5.99</div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">por mes</p>
+                    </div>
+                    <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300 mb-4">
+                      <li className="flex items-start gap-2">
+                        <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                        <span>3 contratos/mes al 3%</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                        <span>Dashboard completo</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                        <span>Badge verificado</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  {/* PRO Trimestral */}
+                  <div
+                    onClick={() => navigate("/membership/checkout?plan=quarterly")}
+                    className="bg-white/80 dark:bg-slate-900/80 rounded-xl p-5 border-2 border-green-300 dark:border-green-700 hover:border-green-500 dark:hover:border-green-500 transition-all cursor-pointer hover:shadow-lg hover:scale-105 relative"
+                  >
+                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                      <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
+                        AHORRA 11%
+                      </span>
+                    </div>
+                    <div className="text-center mb-4">
+                      <Crown className="w-10 h-10 text-green-600 dark:text-green-400 mx-auto mb-2" />
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-white">PRO Trimestral</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Mejor valor</p>
+                    </div>
+                    <div className="text-center mb-4">
+                      <div className="text-3xl font-bold text-green-600 dark:text-green-400">€15.99</div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">cada 3 meses</p>
+                      <p className="text-xs text-green-600 dark:text-green-400 font-semibold mt-1">€5.33/mes</p>
+                    </div>
+                    <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300 mb-4">
+                      <li className="flex items-start gap-2">
+                        <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                        <span>3 contratos/mes al 3%</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                        <span>Dashboard completo</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                        <span>Badge verificado</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  {/* SUPER PRO */}
+                  <div
+                    onClick={() => navigate("/membership/checkout?plan=super_pro")}
+                    className="bg-white/80 dark:bg-slate-900/80 rounded-xl p-5 border-2 border-pink-400 dark:border-pink-600 hover:border-pink-500 dark:hover:border-pink-500 transition-all cursor-pointer hover:shadow-lg hover:scale-105 relative"
+                  >
+                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                      <span className="bg-gradient-to-r from-pink-500 to-purple-500 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
+                        <Sparkles className="w-3 h-3" /> PREMIUM
+                      </span>
+                    </div>
+                    <div className="text-center mb-4">
+                      <Sparkles className="w-10 h-10 text-pink-600 dark:text-pink-400 mx-auto mb-2" />
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-white">SUPER PRO</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Máximo ahorro</p>
+                    </div>
+                    <div className="text-center mb-4">
+                      <div className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-600 to-purple-600">€8.99</div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">por mes</p>
+                    </div>
+                    <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300 mb-4">
+                      <li className="flex items-start gap-2">
+                        <CheckCircle className="w-4 h-4 text-pink-500 flex-shrink-0 mt-0.5" />
+                        <span><strong>2% de comisión</strong></span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <CheckCircle className="w-4 h-4 text-pink-500 flex-shrink-0 mt-0.5" />
+                        <span>Analytics avanzados</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <CheckCircle className="w-4 h-4 text-pink-500 flex-shrink-0 mt-0.5" />
+                        <span>Dashboard exclusivo</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+
+                {/* Footer Note */}
+                <p className="text-center text-xs text-slate-500 dark:text-slate-400">
+                  Todos los planes incluyen cancelación cuando quieras
                 </p>
               </div>
-              <DollarSign className="h-16 w-16 opacity-20" />
             </div>
           </div>
+        )}
+
+        {/* Content Wrapper - Aplicar blur si es FREE, mostrar parcialmente */}
+        <div className={isFreeUser ? "filter blur-sm pointer-events-none select-none opacity-40 max-h-[400px] overflow-hidden" : ""}>
 
           {/* Sección: Finanzas */}
           <div className="mb-8">
@@ -636,146 +795,6 @@ export default function Dashboard() {
             </Link>
           )}
         </div>
-
-        {/* Overlay PRO para usuarios FREE - Selector de Planes */}
-        {isFreeUser && (
-          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-40 p-4 sm:p-6 pt-20 sm:pt-24">
-            <div className="w-full max-w-4xl max-h-[calc(100vh-6rem)] overflow-y-auto">
-              <div className="bg-white dark:bg-slate-800 rounded-xl sm:rounded-2xl shadow-2xl border-2 sm:border-4 border-purple-500 dark:border-purple-600 p-4 sm:p-8 relative overflow-hidden">
-                {/* Decorative background */}
-                <div className="absolute inset-0 bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50 dark:from-purple-900/20 dark:via-blue-900/20 dark:to-pink-900/20 opacity-50"></div>
-
-                {/* Content */}
-                <div className="relative z-10">
-                  {/* Header */}
-                  <div className="text-center mb-6">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-purple-100 dark:bg-purple-900 rounded-full mb-4">
-                      <Lock className="w-8 h-8 text-purple-600 dark:text-purple-400" />
-                    </div>
-                    <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
-                      <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-blue-600">
-                        Elige tu Plan
-                      </span>
-                    </h2>
-                    <p className="text-slate-600 dark:text-slate-300">
-                      Desbloquea todo el potencial de DOAPP
-                    </p>
-                  </div>
-
-                  {/* Plans Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    {/* PRO Mensual */}
-                    <div
-                      onClick={() => navigate("/membership/checkout?plan=monthly")}
-                      className="bg-white/80 dark:bg-slate-900/80 rounded-xl p-5 border-2 border-purple-300 dark:border-purple-700 hover:border-purple-500 dark:hover:border-purple-500 transition-all cursor-pointer hover:shadow-lg hover:scale-105"
-                    >
-                      <div className="text-center mb-4">
-                        <Crown className="w-10 h-10 text-purple-600 dark:text-purple-400 mx-auto mb-2" />
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">PRO Mensual</h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Más popular</p>
-                      </div>
-                      <div className="text-center mb-4">
-                        <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">€5.99</div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">por mes</p>
-                      </div>
-                      <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300 mb-4">
-                        <li className="flex items-start gap-2">
-                          <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                          <span>3 contratos/mes al 3%</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                          <span>Dashboard completo</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                          <span>Badge verificado</span>
-                        </li>
-                      </ul>
-                    </div>
-
-                    {/* PRO Trimestral */}
-                    <div
-                      onClick={() => navigate("/membership/checkout?plan=quarterly")}
-                      className="bg-white/80 dark:bg-slate-900/80 rounded-xl p-5 border-2 border-green-300 dark:border-green-700 hover:border-green-500 dark:hover:border-green-500 transition-all cursor-pointer hover:shadow-lg hover:scale-105 relative"
-                    >
-                      <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                        <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-                          AHORRA 11%
-                        </span>
-                      </div>
-                      <div className="text-center mb-4">
-                        <Crown className="w-10 h-10 text-green-600 dark:text-green-400 mx-auto mb-2" />
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">PRO Trimestral</h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Mejor valor</p>
-                      </div>
-                      <div className="text-center mb-4">
-                        <div className="text-3xl font-bold text-green-600 dark:text-green-400">€15.99</div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">cada 3 meses</p>
-                        <p className="text-xs text-green-600 dark:text-green-400 font-semibold mt-1">€5.33/mes</p>
-                      </div>
-                      <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300 mb-4">
-                        <li className="flex items-start gap-2">
-                          <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                          <span>3 contratos/mes al 3%</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                          <span>Dashboard completo</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                          <span>Badge verificado</span>
-                        </li>
-                      </ul>
-                    </div>
-
-                    {/* SUPER PRO */}
-                    <div
-                      onClick={() => navigate("/membership/checkout?plan=super_pro")}
-                      className="bg-gradient-to-br from-pink-50 to-purple-50 dark:from-pink-900/20 dark:to-purple-900/20 rounded-xl p-5 border-2 border-pink-400 dark:border-pink-600 hover:border-pink-500 dark:hover:border-pink-500 transition-all cursor-pointer hover:shadow-lg hover:scale-105 relative"
-                    >
-                      <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                        <span className="bg-gradient-to-r from-pink-600 to-purple-600 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
-                          <Sparkles className="w-3 h-3" />
-                          PREMIUM
-                        </span>
-                      </div>
-                      <div className="text-center mb-4">
-                        <Sparkles className="w-10 h-10 text-pink-600 dark:text-pink-400 mx-auto mb-2" />
-                        <h3 className="text-lg font-bold text-slate-900 dark:text-white">SUPER PRO</h3>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Máximo ahorro</p>
-                      </div>
-                      <div className="text-center mb-4">
-                        <div className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-600 to-purple-600">€8.99</div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">por mes</p>
-                      </div>
-                      <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300 mb-4">
-                        <li className="flex items-start gap-2">
-                          <CheckCircle className="w-4 h-4 text-pink-500 flex-shrink-0 mt-0.5" />
-                          <span><strong>2% de comisión</strong></span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <CheckCircle className="w-4 h-4 text-pink-500 flex-shrink-0 mt-0.5" />
-                          <span>Analytics avanzados</span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                          <CheckCircle className="w-4 h-4 text-pink-500 flex-shrink-0 mt-0.5" />
-                          <span>Dashboard exclusivo</span>
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
-
-                  {/* Footer Note */}
-                  <p className="text-center text-xs text-slate-500 dark:text-slate-400">
-                    Todos los planes incluyen cancelación cuando quieras
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

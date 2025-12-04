@@ -38,6 +38,10 @@ interface Payment {
     title: string;
     status: string;
     price: number;
+    category?: string;
+    pendingNewPrice?: number;
+    pendingPaymentAmount?: number;
+    priceChangeReason?: string;
   };
   proofs?: PaymentProof[];
 }
@@ -185,6 +189,7 @@ export default function PendingPayments() {
   const getPaymentTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
       job_publication: "Publicación de Trabajo",
+      budget_increase: "Aumento de Presupuesto",
       contract_payment: "Pago de Contrato",
       membership: "Membresía",
     };
@@ -446,12 +451,41 @@ export default function PendingPayments() {
                         {selectedPayment.job.title}
                       </p>
                       <p className="text-sm text-gray-500">
-                        Precio: ${selectedPayment.job.price.toLocaleString()}
+                        Precio actual: ${selectedPayment.job.price.toLocaleString()}
+                      </p>
+                      {selectedPayment.job.pendingNewPrice && (
+                        <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">
+                          Nuevo precio: ${selectedPayment.job.pendingNewPrice.toLocaleString()}
+                        </p>
+                      )}
+                      {selectedPayment.job.priceChangeReason && (
+                        <p className="text-sm text-gray-500">
+                          Razón: {selectedPayment.job.priceChangeReason}
+                        </p>
+                      )}
+                      <p className="text-sm text-gray-500">
+                        Estado: {selectedPayment.job.status}
                       </p>
                     </div>
                   )}
                 </div>
               </div>
+
+              {/* Info banner for budget_increase */}
+              {selectedPayment.paymentType === 'budget_increase' && (
+                <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <h4 className="font-medium text-blue-800 dark:text-blue-300 mb-2">
+                    ℹ️ Aumento de Presupuesto
+                  </h4>
+                  <p className="text-sm text-blue-700 dark:text-blue-400">
+                    Este pago corresponde a un <strong>aumento de presupuesto</strong> de un trabajo existente.
+                  </p>
+                  <ul className="mt-2 text-sm text-blue-700 dark:text-blue-400 list-disc list-inside space-y-1">
+                    <li><strong>Al aprobar:</strong> El nuevo precio se aplicará automáticamente y el trabajo se reactivará.</li>
+                    <li><strong>Al rechazar:</strong> El trabajo permanecerá pausado y el usuario podrá subir un nuevo comprobante.</li>
+                  </ul>
+                </div>
+              )}
 
               {/* Payment Proofs */}
               {selectedPayment.proofs && selectedPayment.proofs.length > 0 && (

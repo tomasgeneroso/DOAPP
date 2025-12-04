@@ -7,6 +7,7 @@ import { User } from '../../models/sql/User.model.js';
 import { Payment } from '../../models/sql/Payment.model.js';
 import { PaymentProof } from '../../models/sql/PaymentProof.model.js';
 import { Op } from 'sequelize';
+import { socketService } from '../../index.js';
 
 const router = express.Router();
 
@@ -47,6 +48,12 @@ router.get(
             model: User,
             as: 'client',
             attributes: ['id', 'name', 'email', 'avatar'],
+          },
+          {
+            model: User,
+            as: 'reviewer',
+            attributes: ['id', 'name', 'email'],
+            required: false,
           },
         ],
         order: [['createdAt', 'DESC']],
@@ -195,6 +202,8 @@ router.put(
         newStatus = 'cancelled'; // Publicación rechazada
       }
 
+      const previousStatus = job.status;
+
       // Actualizar job
       await job.update({
         status: newStatus,
@@ -203,20 +212,211 @@ router.put(
         reviewedAt: new Date(),
       });
 
-      // TODO: Enviar notificación al usuario
-      // Si es aprobado: "Tu publicación ha sido aprobada"
-      // Si es rechazado: "Tu publicación ha sido rechazada: [razón]"
+      // Refetch job with associations for socket notification
+      const updatedJob = await Job.findByPk(id, {
+        include: [
+          { model: User, as: 'client', attributes: ['id', 'name', 'email', 'avatar'] },
+          { model: User, as: 'reviewer', attributes: ['id', 'name', 'email'], required: false },
+        ],
+      });
+
+      // Send real-time notifications
+      if (updatedJob) {
+        // Notify job owner
+        socketService.notifyJobUpdate(job.id, job.clientId, {
+          action: status === 'approved' ? 'approved' : 'rejected',
+          job: updatedJob.toJSON(),
+        });
+
+        // Notify admin panel and all job listings
+        socketService.notifyJobStatusChanged(updatedJob.toJSON(), previousStatus);
+      }
+
+      // Create notification for job owner
+      const { Notification } = await import('../../models/sql/Notification.model.js');
+      await Notification.create({
+        recipientId: job.clientId,
+        title: status === 'approved' ? 'Publicación aprobada' : 'Publicación rechazada',
+        message: status === 'approved'
+          ? `Tu publicación "${job.title}" ha sido aprobada y ya está visible.`
+          : `Tu publicación "${job.title}" ha sido rechazada.${rejectedReason ? ` Razón: ${rejectedReason}` : ''}`,
+        type: status === 'approved' ? 'success' : 'warning',
+        category: 'system',
+        relatedId: job.id,
+        relatedModel: 'Job',
+      });
 
       res.json({
         success: true,
         message: `Publicación ${status === 'approved' ? 'aprobada' : 'rechazada'} exitosamente`,
-        data: job,
+        data: updatedJob,
       });
     } catch (error: any) {
       console.error('Error updating job status:', error);
       res.status(500).json({
         success: false,
         message: error.message || 'Error al actualizar estado',
+      });
+    }
+  }
+);
+
+/**
+ * PUT /api/admin/jobs/:id/action
+ * Ejecutar acción sobre una publicación (pausar/reanudar/cancelar)
+ */
+router.put(
+  '/:id/action',
+  protect,
+  requireAdminRole,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const { action, reason, permanent } = req.body;
+
+      if (!action || !['pause', 'resume', 'cancel'].includes(action)) {
+        res.status(400).json({
+          success: false,
+          message: "Acción inválida. Debe ser 'pause', 'resume' o 'cancel'",
+        });
+        return;
+      }
+
+      const job = await Job.findByPk(id, {
+        include: [
+          {
+            model: User,
+            as: 'client',
+            attributes: ['id', 'name', 'email'],
+          },
+        ],
+      });
+
+      if (!job) {
+        res.status(404).json({
+          success: false,
+          message: 'Publicación no encontrada',
+        });
+        return;
+      }
+
+      let newStatus: string;
+      let message: string;
+      let notificationMessage: string;
+
+      switch (action) {
+        case 'pause':
+          if (job.status === 'paused') {
+            res.status(400).json({ success: false, message: 'La publicación ya está pausada' });
+            return;
+          }
+          newStatus = 'paused';
+          message = 'Publicación pausada exitosamente';
+          notificationMessage = reason
+            ? `Tu publicación "${job.title}" ha sido pausada por el administrador. Razón: ${reason}`
+            : `Tu publicación "${job.title}" ha sido pausada por el administrador.`;
+          // Guardar estado anterior para poder reanudar
+          await job.update({
+            status: newStatus,
+            previousStatus: job.status,
+            rejectedReason: reason || null,
+            reviewedBy: req.user.id,
+            reviewedAt: new Date(),
+          });
+          break;
+
+        case 'resume':
+          if (job.status !== 'paused') {
+            res.status(400).json({ success: false, message: 'Solo se pueden reanudar publicaciones pausadas' });
+            return;
+          }
+          newStatus = job.previousStatus || 'open';
+          message = 'Publicación reanudada exitosamente';
+          notificationMessage = `Tu publicación "${job.title}" ha sido reanudada por el administrador.`;
+          await job.update({
+            status: newStatus,
+            previousStatus: null,
+            rejectedReason: null,
+            reviewedBy: req.user.id,
+            reviewedAt: new Date(),
+          });
+          break;
+
+        case 'cancel':
+          if (job.status === 'cancelled') {
+            res.status(400).json({ success: false, message: 'La publicación ya está cancelada' });
+            return;
+          }
+          if (!reason) {
+            res.status(400).json({ success: false, message: 'Debe proporcionar una razón para cancelar' });
+            return;
+          }
+          newStatus = 'cancelled';
+          message = permanent
+            ? 'Publicación cancelada definitivamente'
+            : 'Publicación cancelada exitosamente';
+          notificationMessage = permanent
+            ? `Tu publicación "${job.title}" ha sido cancelada definitivamente por el administrador y no podrá ser editada. Razón: ${reason}`
+            : `Tu publicación "${job.title}" ha sido cancelada por el administrador. Puedes editarla y reenviarla para aprobación. Razón: ${reason}`;
+          await job.update({
+            status: newStatus,
+            cancellationReason: reason,
+            cancelledAt: new Date(),
+            permanentlyCancelled: permanent === true,
+            reviewedBy: req.user.id,
+            reviewedAt: new Date(),
+          });
+          break;
+
+        default:
+          res.status(400).json({ success: false, message: 'Acción no válida' });
+          return;
+      }
+
+      // Crear notificación para el usuario
+      const { Notification } = await import('../../models/sql/Notification.model.js');
+      await Notification.create({
+        recipientId: job.clientId,
+        title: action === 'cancel' ? 'Publicación cancelada' : action === 'pause' ? 'Publicación pausada' : 'Publicación reanudada',
+        message: notificationMessage,
+        type: action === 'cancel' ? 'warning' : 'info',
+        category: 'system',
+        relatedId: job.id,
+        relatedModel: 'Job',
+      });
+
+      // Refetch job with associations for socket notification
+      const updatedJob = await Job.findByPk(id, {
+        include: [
+          { model: User, as: 'client', attributes: ['id', 'name', 'email', 'avatar'] },
+          { model: User, as: 'reviewer', attributes: ['id', 'name', 'email'], required: false },
+        ],
+      });
+
+      // Send real-time notifications
+      if (updatedJob) {
+        const previousStatus = action === 'resume' ? 'paused' : job.status;
+
+        // Notify job owner
+        socketService.notifyJobUpdate(job.id, job.clientId, {
+          action: action,
+          job: updatedJob.toJSON(),
+        });
+
+        // Notify admin panel and all job listings
+        socketService.notifyJobStatusChanged(updatedJob.toJSON(), previousStatus);
+      }
+
+      res.json({
+        success: true,
+        message,
+        data: updatedJob || job,
+      });
+    } catch (error: any) {
+      console.error('Error executing job action:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Error al ejecutar acción',
       });
     }
   }

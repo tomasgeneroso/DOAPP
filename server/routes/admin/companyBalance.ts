@@ -324,6 +324,19 @@ router.get(
       const transactions = realPayments.map((payment: any) => {
         const contract = payment.contract;
 
+        // Calculate commission details from payment or contract
+        let platformFee = Number(payment.platformFee) || 0;
+        let platformFeePercentage = Number(payment.platformFeePercentage) || 0;
+
+        // If payment doesn't have commission but contract does, calculate it
+        if (platformFee === 0 && contract && contract.commission > 0) {
+          platformFee = Number(contract.commission);
+          const price = Number(contract.price) || Number(payment.amount) || 0;
+          if (price > 0) {
+            platformFeePercentage = (platformFee / price) * 100;
+          }
+        }
+
         return {
           id: payment.id,
           date: payment.createdAt,
@@ -335,8 +348,8 @@ router.get(
           currency: payment.currency || 'ARS',
 
           // Commission details
-          platformFee: payment.platformFee || 0,
-          platformFeePercentage: payment.platformFeePercentage || 0,
+          platformFee,
+          platformFeePercentage,
 
           // Contract details
           contract: contract ? {

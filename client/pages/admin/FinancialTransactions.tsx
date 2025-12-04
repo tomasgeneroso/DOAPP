@@ -77,6 +77,10 @@ export default function FinancialTransactions() {
   const [chartLoading, setChartLoading] = useState(false);
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [rejectModal, setRejectModal] = useState<{ paymentId: string } | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
 
   // Filters
   const [filters, setFilters] = useState({
@@ -130,6 +134,79 @@ export default function FinancialTransactions() {
       }
     } catch (error) {
       console.error("Error loading stats:", error);
+    }
+  };
+
+  // Payment actions
+  const handleApprovePayment = async (paymentId: string) => {
+    if (!confirm("¿Estás seguro de aprobar este pago?")) return;
+
+    try {
+      setActionLoading(true);
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/admin/payments/${paymentId}/approve`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ notes: "" }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert("Pago aprobado exitosamente");
+        loadTransactions();
+        loadStats();
+      } else {
+        alert(`Error: ${data.message}`);
+      }
+    } catch (error) {
+      console.error("Error approving payment:", error);
+      alert("Error al aprobar el pago");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRejectPayment = (paymentId: string) => {
+    setRejectReason("");
+    setRejectModal({ paymentId });
+  };
+
+  const confirmRejectPayment = async () => {
+    if (!rejectModal || !rejectReason.trim()) {
+      alert("Debe proporcionar una razón para rechazar");
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/admin/payments/${rejectModal.paymentId}/reject`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ reason: rejectReason }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert("Pago rechazado");
+        setRejectModal(null);
+        setRejectReason("");
+        loadTransactions();
+        loadStats();
+      } else {
+        alert(`Error: ${data.message}`);
+      }
+    } catch (error) {
+      console.error("Error rejecting payment:", error);
+      alert("Error al rechazar el pago");
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -343,6 +420,7 @@ export default function FinancialTransactions() {
       contract_payment: 'Contrato',
       membership: 'Membresía',
       job_publication: 'Publicación',
+      budget_increase: 'Aumento Presupuesto',
       escrow_deposit: 'Escrow',
       escrow_release: 'Liberación'
     };
@@ -689,6 +767,7 @@ export default function FinancialTransactions() {
               <option value="contract_payment">Contratos</option>
               <option value="membership">Membresías</option>
               <option value="job_publication">Publicaciones</option>
+              <option value="budget_increase">Aumento Presupuesto</option>
               <option value="escrow_deposit">Escrow</option>
             </select>
           </div>
@@ -800,6 +879,9 @@ export default function FinancialTransactions() {
                     <SortIcon field="released" />
                   </button>
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Acciones
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -890,6 +972,37 @@ export default function FinancialTransactions() {
                       )
                     )}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <div className="flex items-center gap-2">
+                      {/* Actions based on status */}
+                      {transaction.status === 'pending_verification' && (
+                        <>
+                          <button
+                            onClick={() => handleApprovePayment(transaction.id)}
+                            className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 transition-colors"
+                            title="Aprobar pago"
+                          >
+                            <CheckCircle className="w-5 h-5" />
+                          </button>
+                          <button
+                            onClick={() => handleRejectPayment(transaction.id)}
+                            className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                            title="Rechazar pago"
+                          >
+                            <XCircle className="w-5 h-5" />
+                          </button>
+                        </>
+                      )}
+                      {/* View details link */}
+                      <button
+                        onClick={() => setSelectedTransaction(transaction)}
+                        className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+                        title="Ver detalles"
+                      >
+                        <ArrowRight className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -924,6 +1037,172 @@ export default function FinancialTransactions() {
           </div>
         )}
       </div>
+
+      {/* Reject Payment Modal */}
+      {rejectModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setRejectModal(null)}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Rechazar Pago</h3>
+
+            <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg">
+              <p className="text-sm text-red-800 dark:text-red-300">
+                <strong>⚠️ Atención:</strong> Al rechazar este pago, el usuario será notificado y podrá subir un nuevo comprobante.
+              </p>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Razón del rechazo (requerida)
+              </label>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value.slice(0, 200))}
+                placeholder="Ej: Comprobante ilegible, monto incorrecto, fecha no coincide..."
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-gray-900 dark:text-white"
+                rows={3}
+                maxLength={200}
+              />
+              <p className="text-xs text-gray-400 mt-1 text-right">
+                {rejectReason.length}/200 caracteres
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setRejectModal(null)}
+                disabled={actionLoading}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmRejectPayment}
+                disabled={actionLoading || !rejectReason.trim()}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {actionLoading ? 'Procesando...' : 'Rechazar Pago'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Transaction Details Modal */}
+      {selectedTransaction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setSelectedTransaction(null)}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Detalles del Pago</h3>
+              <button
+                onClick={() => setSelectedTransaction(null)}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">ID</p>
+                  <p className="font-medium text-gray-900 dark:text-white text-xs">{selectedTransaction.id}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Fecha</p>
+                  <p className="font-medium text-gray-900 dark:text-white">
+                    {new Date(selectedTransaction.date).toLocaleDateString('es-AR')}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Tipo</p>
+                  {getTypeBadge(selectedTransaction.type)}
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Estado</p>
+                  {getStatusBadge(selectedTransaction.status)}
+                </div>
+              </div>
+
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Monto Total</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                  ${Number(selectedTransaction.totalAmount).toLocaleString('es-AR', { minimumFractionDigits: 2 })} {selectedTransaction.currency}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Comisión</p>
+                  <p className="font-medium text-green-600 dark:text-green-400">
+                    ${Number(selectedTransaction.platformFee).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Porcentaje</p>
+                  <p className="font-medium text-gray-900 dark:text-white">
+                    {Number(selectedTransaction.platformFeePercentage).toFixed(1)}%
+                  </p>
+                </div>
+              </div>
+
+              {selectedTransaction.payer && (
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Pagador</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{selectedTransaction.payer.name}</p>
+                  <p className="text-sm text-gray-500">{selectedTransaction.payer.email}</p>
+                </div>
+              )}
+
+              {selectedTransaction.recipient && (
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Destinatario</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{selectedTransaction.recipient.name}</p>
+                  <p className="text-sm text-gray-500">{selectedTransaction.recipient.email}</p>
+                </div>
+              )}
+
+              {selectedTransaction.description && (
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Descripción</p>
+                  <p className="text-gray-900 dark:text-white">{selectedTransaction.description}</p>
+                </div>
+              )}
+
+              {/* Actions for pending_verification payments */}
+              {selectedTransaction.status === 'pending_verification' && (
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Acciones</p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        handleApprovePayment(selectedTransaction.id);
+                        setSelectedTransaction(null);
+                      }}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      Aprobar
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedTransaction(null);
+                        handleRejectPayment(selectedTransaction.id);
+                      }}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                    >
+                      <XCircle className="w-4 h-4" />
+                      Rechazar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -122,7 +122,8 @@ export default function OnboardingTooltip() {
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/50 z-[9998] transition-opacity duration-300"
+        className="fixed inset-0 bg-black z-[9998] transition-opacity duration-300"
+        style={{ opacity: 0.8 }}
         onClick={skipOnboarding}
       />
 
@@ -135,7 +136,7 @@ export default function OnboardingTooltip() {
             left: targetElement.getBoundingClientRect().left - 4,
             width: targetElement.getBoundingClientRect().width + 8,
             height: targetElement.getBoundingClientRect().height + 8,
-            boxShadow: '0 0 0 4px rgba(14, 165, 233, 0.5), 0 0 0 9999px rgba(0, 0, 0, 0.5)',
+            boxShadow: '0 0 0 4px rgb(14, 165, 233), 0 0 0 9999px rgba(0, 0, 0, 0.8)',
             borderRadius: '8px',
           }}
         />

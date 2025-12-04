@@ -195,6 +195,9 @@ export class Job extends Model {
   @Column(DataType.UUID)
   reviewedBy?: string;
 
+  @BelongsTo(() => User, 'reviewedBy')
+  reviewer?: User;
+
   @Column(DataType.DATE)
   reviewedAt?: Date;
 
@@ -207,6 +210,10 @@ export class Job extends Model {
 
   @Column(DataType.DATE)
   cancelledAt?: Date;
+
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  permanentlyCancelled!: boolean; // When true, user cannot edit/resubmit this job
 
   // ============================================
   // RELATIONSHIPS
@@ -317,6 +324,18 @@ export class Job extends Model {
   @Default(0)
   @Column(DataType.DECIMAL(12, 2))
   publicationAmount!: number;
+
+  @Default(0)
+  @Column(DataType.DECIMAL(12, 2))
+  pendingPaymentAmount!: number;
+
+  // Nuevo precio propuesto (solo se aplica después del pago exitoso)
+  @Column(DataType.DECIMAL(12, 2))
+  pendingNewPrice?: number;
+
+  // Estado anterior del job (para restaurar si se cancela el pago)
+  @Column(DataType.STRING(50))
+  previousStatus?: string;
 
   // ============================================
   // METHODS

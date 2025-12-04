@@ -1,0 +1,31 @@
+{
+  "development": {
+    "username": "postgres",
+    "password": "Corchoytomsy99",
+    "database": "doapp_test",
+    "host": "localhost",
+    "port": 5433,
+    "dialect": "postgres",
+    "logging": false
+  },
+  "test": {
+    "username": "postgres",
+    "password": "Corchoytomsy99",
+    "database": "doapp_test",
+    "host": "localhost",
+    "port": 5433,
+    "dialect": "postgres",
+    "logging": false
+  },
+  "production": {
+    "use_env_variable": "DATABASE_URL",
+    "dialect": "postgres",
+    "dialectOptions": {
+      "ssl": {
+        "require": true,
+        "rejectUnauthorized": false
+      }
+    },
+    "logging": false
+  }
+}

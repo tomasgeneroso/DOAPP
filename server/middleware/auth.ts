@@ -106,3 +106,36 @@ export const authorize = (...roles: string[]) => {
     next();
   };
 };
+
+// Middleware específico para verificar roles de administrador
+export const requireAdminRole = (...roles: string[]) => {
+  return (req: AuthRequest, res: Response, next: NextFunction): void => {
+    if (!req.user) {
+      res.status(401).json({
+        success: false,
+        message: "Usuario no autenticado",
+      });
+      return;
+    }
+
+    // Verificar que el usuario tenga un rol de admin
+    if (!req.user.adminRole) {
+      res.status(403).json({
+        success: false,
+        message: "Acceso denegado: se requiere rol de administrador",
+      });
+      return;
+    }
+
+    // Si se especificaron roles, verificar que coincida
+    if (roles.length > 0 && !roles.includes(req.user.adminRole)) {
+      res.status(403).json({
+        success: false,
+        message: `Acceso denegado: se requiere rol ${roles.join(' o ')}`,
+      });
+      return;
+    }
+
+    next();
+  };
+};

@@ -488,6 +488,12 @@ export class SocketService {
     this.io.emit("jobs:refresh", { action: "updated", job });
   }
 
+  // Broadcast job updated (general updates, not just status)
+  public notifyAdminJobUpdated(job: any) {
+    this.io.emit("admin:job:updated", { job, timestamp: new Date() });
+    this.io.emit("jobs:refresh", { action: "updated", job });
+  }
+
   // Broadcast new proposal (for admin and job owner)
   public notifyNewProposal(proposal: any, jobOwnerId: string) {
     this.io.emit("admin:proposal:created", { proposal, timestamp: new Date() });

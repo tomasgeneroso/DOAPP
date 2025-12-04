@@ -1600,4 +1600,350 @@ router.put("/:id/modify-price", protect, async (req: AuthRequest, res: Response)
   }
 });
 
+// @route   POST /api/contracts/:id/request-price-change
+// @desc    Request price change for in_progress contract (requires worker approval)
+// @access  Private (client only)
+router.post("/:id/request-price-change", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { newPrice, reason } = req.body;
+    const userId = req.user.id;
+
+    // Validations
+    if (!newPrice || newPrice < 5000) {
+      res.status(400).json({
+        success: false,
+        message: "El precio mínimo es de $5000 ARS"
+      });
+      return;
+    }
+
+    if (!reason || reason.trim().length < 10) {
+      res.status(400).json({
+        success: false,
+        message: "Debes proporcionar una razón de al menos 10 caracteres"
+      });
+      return;
+    }
+
+    const contract = await Contract.findByPk(id, {
+      include: [
+        { model: User, as: 'client' },
+        { model: User, as: 'doer' },
+        { model: Job, as: 'job' }
+      ]
+    });
+
+    if (!contract) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    // Only client can request price change
+    if (contract.clientId.toString() !== userId.toString()) {
+      res.status(403).json({
+        success: false,
+        message: "Solo el cliente puede solicitar cambio de precio"
+      });
+      return;
+    }
+
+    // Only for in_progress contracts
+    if (contract.status !== 'in_progress') {
+      res.status(400).json({
+        success: false,
+        message: "Solo puedes modificar el precio de contratos en progreso"
+      });
+      return;
+    }
+
+    const previousPrice = Number(contract.price);
+    const priceDifference = newPrice - previousPrice;
+
+    // Check if client has pending modification already
+    if (contract.pendingModification && contract.pendingModification.price) {
+      res.status(400).json({
+        success: false,
+        message: "Ya tienes una solicitud de cambio de precio pendiente"
+      });
+      return;
+    }
+
+    // If increasing price, calculate commission on difference
+    let additionalCommission = 0;
+    if (priceDifference > 0) {
+      const client = await User.findByPk(userId);
+      if (!client) {
+        res.status(404).json({ success: false, message: "Usuario no encontrado" });
+        return;
+      }
+
+      // Calculate commission rate (considering family plan, pro membership, etc.)
+      let commissionRate = 8; // default
+      if (client.hasFamilyPlan) {
+        commissionRate = 0;
+      } else if (client.membershipTier === 'super_pro' && client.hasMembership) {
+        commissionRate = 2;
+      } else if (client.membershipTier === 'pro' && client.hasMembership) {
+        commissionRate = 3;
+      }
+
+      additionalCommission = priceDifference * (commissionRate / 100);
+
+      // Check if client can afford the difference + commission
+      const totalRequired = priceDifference + additionalCommission;
+      if (client.balance < totalRequired) {
+        res.status(402).json({
+          success: false,
+          message: "No tienes suficiente saldo para pagar la diferencia + comisión",
+          requiresPayment: true,
+          amountRequired: totalRequired,
+          priceDifference,
+          additionalCommission,
+          currentBalance: client.balance
+        });
+        return;
+      }
+    }
+
+    // Create pending modification
+    contract.pendingModification = {
+      price: newPrice,
+      notes: reason.trim(),
+      requestedBy: userId,
+      requestedAt: new Date(),
+      clientApproved: true, // Client automatically approves their own request
+      doerApproved: false
+    };
+
+    await contract.save();
+
+    // Notify doer
+    const notificationService = (await import('../services/notification.js')).default;
+    await notificationService.createNotification({
+      userId: contract.doerId,
+      type: 'contract_price_change_request',
+      title: 'Solicitud de cambio de precio',
+      message: `El cliente ha solicitado cambiar el precio del contrato de $${previousPrice.toLocaleString('es-AR')} a $${newPrice.toLocaleString('es-AR')}. Razón: ${reason}`,
+      relatedContractId: contract.id,
+      actionUrl: `/contracts/${contract.id}`
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Solicitud de cambio de precio enviada al trabajador",
+      contract,
+      pendingModification: contract.pendingModification,
+      priceDifference,
+      additionalCommission
+    });
+  } catch (error: any) {
+    console.error("Error requesting price change:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error al solicitar cambio de precio"
+    });
+  }
+});
+
+// @route   POST /api/contracts/:id/approve-price-change
+// @desc    Approve/reject price change request (worker only)
+// @access  Private (doer only)
+router.post("/:id/approve-price-change", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { approved } = req.body;
+    const userId = req.user.id;
+
+    const contract = await Contract.findByPk(id, {
+      include: [
+        { model: User, as: 'client' },
+        { model: User, as: 'doer' },
+        { model: Job, as: 'job' }
+      ]
+    });
+
+    if (!contract) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    // Only doer can approve/reject
+    if (contract.doerId.toString() !== userId.toString()) {
+      res.status(403).json({
+        success: false,
+        message: "Solo el trabajador puede aprobar/rechazar cambios de precio"
+      });
+      return;
+    }
+
+    if (!contract.pendingModification || !contract.pendingModification.price) {
+      res.status(400).json({
+        success: false,
+        message: "No hay solicitud de cambio de precio pendiente"
+      });
+      return;
+    }
+
+    const previousPrice = Number(contract.price);
+    const newPrice = contract.pendingModification.price;
+    const priceDifference = newPrice - previousPrice;
+
+    if (approved) {
+      // Doer approved - process payment and update price
+      const client = await User.findByPk(contract.clientId);
+      if (!client) {
+        res.status(404).json({ success: false, message: "Cliente no encontrado" });
+        return;
+      }
+
+      const BalanceTransaction = (await import('../models/sql/BalanceTransaction.model.js')).default;
+      let transaction;
+
+      if (priceDifference > 0) {
+        // Price increased - deduct from client balance
+        let commissionRate = 8;
+        if (client.hasFamilyPlan) {
+          commissionRate = 0;
+        } else if (client.membershipTier === 'super_pro' && client.hasMembership) {
+          commissionRate = 2;
+        } else if (client.membershipTier === 'pro' && client.hasMembership) {
+          commissionRate = 3;
+        }
+
+        const additionalCommission = priceDifference * (commissionRate / 100);
+        const totalDeduct = priceDifference + additionalCommission;
+
+        const balanceBefore = client.balance;
+        client.balance -= totalDeduct;
+        await client.save();
+
+        transaction = await BalanceTransaction.create({
+          userId: client.id,
+          type: 'payment',
+          amount: -totalDeduct,
+          balanceBefore,
+          balanceAfter: client.balance,
+          description: `Pago de diferencia + comisión por aumento de precio de contrato`,
+          relatedContractId: contract.id,
+          metadata: {
+            previousPrice,
+            newPrice,
+            priceDifference,
+            additionalCommission,
+            reason: contract.pendingModification.notes
+          },
+          status: 'completed'
+        });
+
+        // Update contract commission and total
+        contract.commission = Number(contract.commission) + additionalCommission;
+        contract.totalPrice = newPrice + contract.commission;
+      } else if (priceDifference < 0) {
+        // Price decreased - refund to client
+        const refundAmount = Math.abs(priceDifference);
+        const balanceBefore = client.balance;
+        client.balance += refundAmount;
+        await client.save();
+
+        transaction = await BalanceTransaction.create({
+          userId: client.id,
+          type: 'refund',
+          amount: refundAmount,
+          balanceBefore,
+          balanceAfter: client.balance,
+          description: `Reembolso por reducción de precio de contrato`,
+          relatedContractId: contract.id,
+          metadata: {
+            previousPrice,
+            newPrice,
+            reason: contract.pendingModification.notes
+          },
+          status: 'completed'
+        });
+      }
+
+      // Save original price if first modification
+      if (!contract.originalPrice) {
+        contract.originalPrice = previousPrice;
+      }
+
+      // Update contract price
+      contract.price = newPrice;
+
+      // Add to price modification history
+      if (!contract.priceModificationHistory) {
+        contract.priceModificationHistory = [];
+      }
+
+      contract.priceModificationHistory.push({
+        previousPrice,
+        newPrice,
+        modifiedBy: contract.clientId,
+        modifiedAt: new Date(),
+        reason: contract.pendingModification.notes || '',
+        paymentDifference: priceDifference,
+        transactionId: transaction?.id
+      });
+
+      // Clear pending modification
+      contract.pendingModification = undefined;
+      await contract.save();
+
+      // Update Job price
+      const job = await Job.findByPk(contract.jobId);
+      if (job) {
+        job.price = newPrice;
+        await job.save();
+      }
+
+      // Notify client
+      const notificationService = (await import('../services/notification.js')).default;
+      await notificationService.createNotification({
+        userId: contract.clientId,
+        type: 'contract_price_change_approved',
+        title: 'Cambio de precio aprobado',
+        message: `El trabajador ha aprobado el cambio de precio del contrato a $${newPrice.toLocaleString('es-AR')}`,
+        relatedContractId: contract.id,
+        actionUrl: `/contracts/${contract.id}`
+      });
+
+      res.status(200).json({
+        success: true,
+        message: "Cambio de precio aprobado y aplicado",
+        contract,
+        transaction,
+        newBalance: client.balance
+      });
+    } else {
+      // Doer rejected
+      contract.pendingModification = undefined;
+      await contract.save();
+
+      // Notify client
+      const notificationService = (await import('../services/notification.js')).default;
+      await notificationService.createNotification({
+        userId: contract.clientId,
+        type: 'contract_price_change_rejected',
+        title: 'Cambio de precio rechazado',
+        message: `El trabajador ha rechazado el cambio de precio del contrato`,
+        relatedContractId: contract.id,
+        actionUrl: `/contracts/${contract.id}`
+      });
+
+      res.status(200).json({
+        success: true,
+        message: "Cambio de precio rechazado",
+        contract
+      });
+    }
+  } catch (error: any) {
+    console.error("Error approving price change:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error al procesar aprobación de cambio de precio"
+    });
+  }
+});
+
 export default router;

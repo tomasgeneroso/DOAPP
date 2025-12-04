@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { FileText, Search, Filter, Eye, Ban, CheckCircle, XCircle, Plus, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { FileText, Search, Filter, Eye, Ban, CheckCircle, XCircle, Plus, ArrowUpDown, ArrowUp, ArrowDown, Wifi, WifiOff, Bell } from "lucide-react";
+import { useSocket } from "../../hooks/useSocket";
 
 interface Contract {
   id: string;
@@ -44,12 +45,11 @@ export default function AdminContracts() {
   const [dateTo, setDateTo] = useState("");
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  const [newContractAlert, setNewContractAlert] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchContracts();
-  }, [statusFilter, paymentFilter]);
+  const { registerAdminContractCreatedHandler, registerAdminContractUpdatedHandler, isConnected } = useSocket();
 
-  const fetchContracts = async () => {
+  const fetchContracts = useCallback(async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem("token");
@@ -73,7 +73,50 @@ export default function AdminContracts() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter, paymentFilter]);
+
+  // Handle real-time contract creation
+  const handleNewContract = useCallback((data: any) => {
+    console.log("🆕 Real-time: New contract created", data);
+    setNewContractAlert(`Nuevo contrato: ${data.contract?.job?.title || 'Sin título'}`);
+    // Add contract to the list
+    if (data.contract) {
+      setContracts(prev => {
+        // Check if contract already exists
+        if (prev.some(c => c.id === data.contract.id)) return prev;
+        return [data.contract, ...prev];
+      });
+    }
+    // Auto-hide alert after 5 seconds
+    setTimeout(() => setNewContractAlert(null), 5000);
+  }, []);
+
+  // Handle real-time contract updates
+  const handleContractUpdated = useCallback((data: any) => {
+    console.log("📝 Real-time: Contract updated", data);
+    if (data.contract) {
+      setContracts(prev => {
+        const exists = prev.some(c => c.id === data.contract.id);
+        if (exists) {
+          // Update existing contract
+          return prev.map(c => c.id === data.contract.id ? { ...c, ...data.contract } : c);
+        } else {
+          // Add new contract if not in list
+          return [data.contract, ...prev];
+        }
+      });
+    }
+  }, []);
+
+  // Register socket handlers
+  useEffect(() => {
+    registerAdminContractCreatedHandler(handleNewContract);
+    registerAdminContractUpdatedHandler(handleContractUpdated);
+  }, [registerAdminContractCreatedHandler, registerAdminContractUpdatedHandler, handleNewContract, handleContractUpdated]);
+
+  useEffect(() => {
+    fetchContracts();
+  }, [fetchContracts]);
 
   const handleSort = (field: SortField) => {
     let newDirection: SortDirection = 'asc';
@@ -201,6 +244,14 @@ export default function AdminContracts() {
 
   return (
     <div className="space-y-6">
+      {/* New Contract Alert */}
+      {newContractAlert && (
+        <div className="fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 bg-green-600 text-white rounded-lg shadow-lg animate-pulse">
+          <Bell className="h-5 w-5" />
+          <span className="font-medium">{newContractAlert}</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
@@ -209,13 +260,29 @@ export default function AdminContracts() {
             Administra todos los contratos de la plataforma
           </p>
         </div>
-        <Link
-          to="/admin/contracts/create"
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition shadow-md hover:shadow-lg"
-        >
-          <Plus className="h-5 w-5" />
-          Crear Contrato
-        </Link>
+        <div className="flex items-center gap-4">
+          {/* Connection status */}
+          <div className="flex items-center gap-2 text-sm">
+            {isConnected ? (
+              <>
+                <Wifi className="h-4 w-4 text-green-500" />
+                <span className="text-green-600 dark:text-green-400">Tiempo real</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="h-4 w-4 text-gray-400" />
+                <span className="text-gray-500">Sin conexión</span>
+              </>
+            )}
+          </div>
+          <Link
+            to="/admin/contracts/create"
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition shadow-md hover:shadow-lg"
+          >
+            <Plus className="h-5 w-5" />
+            Crear Contrato
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}

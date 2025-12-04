@@ -2,6 +2,8 @@ import express, { Request, Response } from "express";
 import { body, validationResult } from "express-validator";
 import { Job } from "../models/sql/Job.model.js";
 import { User } from "../models/sql/User.model.js";
+import { Contract } from "../models/sql/Contract.model.js";
+import { BalanceTransaction } from "../models/sql/BalanceTransaction.model.js";
 import { protect } from "../middleware/auth.js";
 import type { AuthRequest } from "../types/index.js";
 import { socketService } from "../index.js";
@@ -475,8 +477,34 @@ router.put("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
+    // Check if job is permanently cancelled
+    if (job.permanentlyCancelled) {
+      res.status(403).json({
+        success: false,
+        message: "Este trabajo ha sido cancelado definitivamente y no puede ser editado",
+      });
+      return;
+    }
+
+    // Store previous status for notification
+    const previousStatus = job.status;
+
+    // If job was rejected or cancelled by admin (not permanently), change to pending_approval when edited
+    const requiresReapproval = ['rejected', 'cancelled'].includes(job.status) && !job.permanentlyCancelled;
+
+    // Prepare update data
+    const updateData = { ...req.body };
+
+    if (requiresReapproval) {
+      updateData.status = 'pending_approval';
+      updateData.rejectedReason = null; // Clear previous rejection reason
+      updateData.reviewedBy = null;
+      updateData.reviewedAt = null;
+      console.log(`📝 Job ${job.id} was ${previousStatus}, changing to pending_approval after edit`);
+    }
+
     // Update the job
-    await job.update(req.body);
+    await job.update(updateData);
 
     // Fetch updated job with associations
     const updatedJob = await Job.findByPk(req.params.id, {
@@ -505,9 +533,22 @@ router.put("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
       }
     );
 
+    // Also notify admin panel
+    socketService.notifyAdminJobUpdated(updatedJob?.toJSON());
+
+    // If job was resubmitted for approval, notify as a new job for admin
+    if (requiresReapproval && updatedJob) {
+      socketService.notifyNewJob(updatedJob.toJSON());
+      console.log(`🔔 Job ${job.id} resubmitted for approval, notified admin panel`);
+    }
+
     res.json({
       success: true,
       job: updatedJob?.toJSON(),
+      message: requiresReapproval
+        ? "Trabajo actualizado y enviado para aprobación"
+        : "Trabajo actualizado exitosamente",
+      requiresApproval: requiresReapproval,
     });
   } catch (error: any) {
     res.status(500).json({
@@ -749,16 +790,100 @@ router.patch("/:id/budget", protect, async (req: AuthRequest, res: Response): Pr
       return;
     }
 
-    // Solo permitir cambios en trabajos que no estén en progreso o completados
-    if (job.status === 'in_progress' || job.status === 'completed') {
+    // Si el trabajo está en progreso con contrato, redirigir al endpoint de contratos
+    if (job.status === 'in_progress') {
+      const contract = await Contract.findOne({ where: { jobId: job.id } });
+      if (contract) {
+        res.status(400).json({
+          success: false,
+          message: "Para cambiar el presupuesto de un trabajo en progreso con contrato, usa el endpoint de modificación de contratos",
+          redirectTo: `/api/contracts/${contract.id}/request-price-change`,
+        });
+        return;
+      }
+    }
+
+    // No permitir cambios en trabajos completados
+    if (job.status === 'completed') {
       res.status(400).json({
         success: false,
-        message: "No puedes cambiar el presupuesto de un trabajo en progreso o completado",
+        message: "No puedes cambiar el presupuesto de un trabajo completado",
       });
       return;
     }
 
     const oldPrice = Number(job.price);
+    const priceDifference = newPrice - oldPrice;
+
+    // Si el precio aumentó, manejar pago de diferencia
+    if (priceDifference > 0) {
+      const client = await User.findByPk(req.user.id);
+      if (!client) {
+        res.status(404).json({
+          success: false,
+          message: "Usuario no encontrado",
+        });
+        return;
+      }
+
+      // Calcular comisión según el tipo de membresía
+      let commissionRate = 8; // FREE: 8%
+
+      if (client.hasFamilyPlan) {
+        commissionRate = 0; // Family Plan: 0%
+      } else if (client.membershipTier === 'super_pro') {
+        commissionRate = 2; // Super Pro: 2%
+      } else if (client.membershipTier === 'pro') {
+        commissionRate = 3; // Pro: 3%
+      }
+
+      const additionalCommission = priceDifference * (commissionRate / 100);
+      const totalRequired = priceDifference + additionalCommission;
+
+      // NO actualizar el precio todavía - solo guardar el precio propuesto
+      // El precio real se actualiza cuando el pago sea exitoso
+
+      // Guardar estado actual para restaurar si cancela
+      const previousStatus = job.status;
+
+      await job.update({
+        // NO cambiar el precio todavía
+        // price: newPrice,  <- Se actualiza después del pago
+        pendingNewPrice: newPrice, // Guardar el nuevo precio propuesto
+        priceChangeReason: req.body.reason.trim(),
+        originalPrice: job.originalPrice || oldPrice,
+        previousStatus: previousStatus, // Guardar estado anterior
+        status: 'paused', // Pausar hasta que pague
+        pendingPaymentAmount: totalRequired,
+      });
+
+      // Notificar actualización
+      socketService.notifyJobStatusChanged(job.toJSON(), 'paused');
+
+      res.status(402).json({
+        success: false,
+        requiresPayment: true,
+        message: "Presupuesto actualizado. Debes completar el pago para reactivar el trabajo.",
+        amountRequired: totalRequired,
+        breakdown: {
+          oldPrice,
+          newPrice,
+          priceDifference,
+          commission: additionalCommission,
+          commissionRate,
+          total: totalRequired,
+        },
+        redirectTo: `/jobs/${job.id}/payment?amount=${totalRequired}&reason=budget_increase&oldPrice=${oldPrice}&newPrice=${newPrice}`,
+        job: {
+          id: job.id,
+          title: job.title,
+          status: 'paused',
+          oldPrice,
+          newPrice,
+        },
+      });
+      return;
+    }
 
     // Guardar precio original si es el primer cambio
     if (!job.originalPrice) {
@@ -795,6 +920,71 @@ router.patch("/:id/budget", protect, async (req: AuthRequest, res: Response): Pr
         newPrice,
         reason: reason.trim(),
         priceHistory,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   PATCH /api/jobs/:id/cancel-budget-change
+// @desc    Cancelar el cambio de presupuesto pendiente y restaurar el estado anterior
+// @access  Private (only job owner)
+router.patch("/:id/cancel-budget-change", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const job = await Job.findByPk(req.params.id);
+
+    if (!job) {
+      res.status(404).json({
+        success: false,
+        message: "Trabajo no encontrado",
+      });
+      return;
+    }
+
+    // Verificar que el usuario sea el dueño del trabajo
+    if (job.clientId !== req.user.id) {
+      res.status(403).json({
+        success: false,
+        message: "No tienes permiso para modificar este trabajo",
+      });
+      return;
+    }
+
+    // Verificar que hay un cambio de presupuesto pendiente
+    if (!job.pendingNewPrice && !job.pendingPaymentAmount) {
+      res.status(400).json({
+        success: false,
+        message: "No hay cambio de presupuesto pendiente",
+      });
+      return;
+    }
+
+    // Restaurar el estado anterior
+    const previousStatus = job.previousStatus || 'open';
+
+    await job.update({
+      pendingNewPrice: null,
+      pendingPaymentAmount: 0,
+      previousStatus: null,
+      priceChangeReason: null,
+      status: previousStatus,
+    });
+
+    // Notificar actualización
+    socketService.notifyJobStatusChanged(job.toJSON(), previousStatus);
+
+    res.json({
+      success: true,
+      message: "Cambio de presupuesto cancelado. El trabajo ha sido restaurado.",
+      job: {
+        id: job.id,
+        title: job.title,
+        price: job.price,
+        status: job.status,
       },
     });
   } catch (error: any) {

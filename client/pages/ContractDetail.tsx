@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "@/hooks/useAuth";
+import { useSocket } from "@/hooks/useSocket";
 import { api } from "@/lib/api";
 import { paymentApi, Payment } from "@/lib/paymentApi";
 import { PaymentModal } from "@/components/payments/PaymentModal";
@@ -19,6 +20,8 @@ import {
   Flag,
   Key,
   Copy,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 
@@ -26,6 +29,7 @@ export default function ContractDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { isConnected, registerContractUpdateHandler } = useSocket();
   const { hasPermission, PERMISSIONS } = usePermissions();
   const [contract, setContract] = useState<any>(null);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -37,14 +41,7 @@ export default function ContractDetail() {
   const [pairingMessage, setPairingMessage] = useState("");
   const [showExtensionForm, setShowExtensionForm] = useState(false);
 
-  useEffect(() => {
-    if (id) {
-      loadContract();
-      loadPayments();
-    }
-  }, [id]);
-
-  const loadContract = async () => {
+  const loadContract = useCallback(async () => {
     try {
       const response = await api.get(`/contracts/${id}`);
       setContract(response.data);
@@ -53,16 +50,36 @@ export default function ContractDetail() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
-  const loadPayments = async () => {
+  const loadPayments = useCallback(async () => {
     try {
       const result = await paymentApi.getContractPayments(id!);
       setPayments(result);
     } catch (error) {
       console.error("Error loading payments:", error);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    if (id) {
+      loadContract();
+      loadPayments();
+    }
+  }, [id, loadContract, loadPayments]);
+
+  // Register socket handler for real-time contract updates
+  useEffect(() => {
+    registerContractUpdateHandler((data: any) => {
+      console.log("📝 ContractDetail: Contract updated via socket:", data);
+      // Only reload if this is the same contract
+      if (data.contractId === id) {
+        console.log("🔄 ContractDetail: Reloading contract data...");
+        loadContract();
+        loadPayments();
+      }
+    });
+  }, [id, loadContract, loadPayments, registerContractUpdateHandler]);
 
   const handleReleaseEscrow = async (paymentId: string) => {
     if (!confirm("¿Estás seguro de liberar el pago del escrow?")) return;
@@ -294,6 +311,17 @@ export default function ContractDetail() {
                   >
                     Pago: {contract.paymentStatus}
                   </span>
+                  {isConnected ? (
+                    <span className="flex items-center gap-1 text-green-600">
+                      <Wifi className="h-4 w-4" />
+                      <span className="text-xs">Tiempo real</span>
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-gray-400">
+                      <WifiOff className="h-4 w-4" />
+                      <span className="text-xs">Offline</span>
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="flex gap-3">

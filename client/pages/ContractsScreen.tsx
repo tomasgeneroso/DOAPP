@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
-import { Briefcase, Calendar, DollarSign, User, Clock, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { useSocket } from "../hooks/useSocket";
+import { Briefcase, Calendar, DollarSign, User, Clock, ArrowUpDown, ArrowUp, ArrowDown, Wifi, WifiOff } from "lucide-react";
 
 interface Contract {
   id: string;
@@ -32,6 +33,7 @@ type SortDirection = 'asc' | 'desc' | null;
 
 export default function ContractsScreen() {
   const { user } = useAuth();
+  const { isConnected, registerContractUpdateHandler, registerContractsRefreshHandler } = useSocket();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -41,12 +43,8 @@ export default function ContractsScreen() {
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
 
-  useEffect(() => {
-    console.log('🔄 ContractsScreen: Componente montado, iniciando carga de contratos...');
-    fetchContracts(1, true);
-  }, []);
-
-  const fetchContracts = async (pageNum: number = 1, reset: boolean = false) => {
+  // Memoize the fetch function
+  const fetchContracts = useCallback(async (pageNum: number = 1, reset: boolean = false) => {
     try {
       if (reset) {
         setLoading(true);
@@ -56,7 +54,7 @@ export default function ContractsScreen() {
 
       console.log('📡 Fetching contracts from API, page:', pageNum);
       const response = await fetch(`/api/contracts?page=${pageNum}&limit=10`, {
-        credentials: 'include', // Importante: envía las cookies automáticamente
+        credentials: 'include',
       });
       const data = await response.json();
       console.log('📦 API Response:', data);
@@ -79,7 +77,32 @@ export default function ContractsScreen() {
       setLoading(false);
       setLoadingMore(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    console.log('🔄 ContractsScreen: Componente montado, iniciando carga de contratos...');
+    fetchContracts(1, true);
+  }, [fetchContracts]);
+
+  // Register socket handlers for real-time updates
+  useEffect(() => {
+    // Handler for individual contract updates
+    registerContractUpdateHandler((data: any) => {
+      console.log("📝 ContractsScreen: Contract updated via socket:", data);
+      // Update the specific contract in the list
+      setContracts(prev => prev.map(contract =>
+        contract.id === data.contractId ? { ...contract, ...data.contract } : contract
+      ));
+      // Also refresh the full list to ensure consistency
+      fetchContracts(1, true);
+    });
+
+    // Handler for general contracts refresh
+    registerContractsRefreshHandler((data: any) => {
+      console.log("🔄 ContractsScreen: Contracts refresh triggered via socket");
+      fetchContracts(1, true);
+    });
+  }, [fetchContracts, registerContractUpdateHandler, registerContractsRefreshHandler]);
 
   const handleLoadMore = () => {
     fetchContracts(page + 1, false);
@@ -202,13 +225,28 @@ export default function ContractsScreen() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-            Mis Contratos
-          </h1>
-          <p className="mt-2 text-slate-600 dark:text-slate-400">
-            Administra todos tus contratos activos y completados
-          </p>
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+              Mis Contratos
+            </h1>
+            <p className="mt-2 text-slate-600 dark:text-slate-400">
+              Administra todos tus contratos activos y completados
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            {isConnected ? (
+              <>
+                <Wifi className="h-4 w-4 text-green-500" />
+                <span className="text-green-600 dark:text-green-400">Tiempo real</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="h-4 w-4 text-slate-400" />
+                <span className="text-slate-500">Sin conexión</span>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Filters */}

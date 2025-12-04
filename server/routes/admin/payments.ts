@@ -68,14 +68,15 @@ router.get("/pending", protect, requireRole('admin', 'super_admin', 'owner'), as
       ]
     });
 
-    // Get related jobs for job publication payments
+    // Get related jobs for job publication and budget increase payments
     const paymentsWithJobs = await Promise.all(payments.map(async (payment) => {
       const paymentObj = payment.toJSON();
 
-      if (payment.paymentType === 'job_publication') {
+      // Handle job_publication and budget_increase payments
+      if (payment.paymentType === 'job_publication' || payment.paymentType === 'budget_increase') {
         const job = await Job.findOne({
           where: { publicationPaymentId: payment.id },
-          attributes: ['id', 'title', 'status', 'price', 'category']
+          attributes: ['id', 'title', 'status', 'price', 'category', 'pendingNewPrice', 'pendingPaymentAmount', 'priceChangeReason']
         });
 
         return {
@@ -169,8 +170,8 @@ router.get("/:paymentId", protect, requireRole('admin', 'super_admin', 'owner'),
 
     const paymentData = payment.toJSON();
 
-    // Get related job if job publication payment
-    if (payment.paymentType === 'job_publication') {
+    // Get related job if job publication or budget increase payment
+    if (payment.paymentType === 'job_publication' || payment.paymentType === 'budget_increase') {
       const job = await Job.findOne({
         where: { publicationPaymentId: paymentId }
       });
@@ -280,8 +281,54 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
         await Notification.create({
           recipientId: job.clientId,
           title: 'Pago aprobado',
-          body: `Tu pago para publicar "${job.title}" fue aprobado. ¡El trabajo está ahora publicado!`,
-          type: 'info',
+          message: `Tu pago para publicar "${job.title}" fue aprobado. ¡El trabajo está ahora publicado!`,
+          type: 'success',
+          category: 'payment',
+          relatedId: job.id,
+          relatedModel: 'Job',
+        });
+      }
+    }
+
+    // Handle budget increase payment
+    if (payment.paymentType === 'budget_increase') {
+      const job = await Job.findOne({
+        where: { publicationPaymentId: paymentId }
+      });
+
+      if (job && job.pendingNewPrice) {
+        const oldPrice = Number(job.price);
+        const newPrice = Number(job.pendingNewPrice);
+        const previousStatus = job.previousStatus || 'open';
+
+        // Agregar al historial de cambios
+        const priceHistory = job.priceHistory || [];
+        priceHistory.push({
+          oldPrice,
+          newPrice,
+          reason: job.priceChangeReason || 'Aumento de presupuesto',
+          changedAt: new Date(),
+        });
+
+        // Aplicar el nuevo precio y reactivar el trabajo
+        await job.update({
+          price: newPrice,
+          priceChangedAt: new Date(),
+          priceHistory,
+          pendingNewPrice: null,
+          pendingPaymentAmount: 0,
+          previousStatus: null,
+          status: previousStatus,
+        });
+
+        console.log(`✅ [ADMIN APPROVE] Budget increase applied: $${oldPrice} -> $${newPrice} for job ${job.id}`);
+
+        // Notify job owner
+        await Notification.create({
+          recipientId: job.clientId,
+          title: 'Presupuesto actualizado',
+          message: `Tu pago fue aprobado. El presupuesto de "${job.title}" ha sido actualizado a $${newPrice.toLocaleString('es-AR')} ARS. El trabajo ha sido reactivado.`,
+          type: 'success',
           category: 'payment',
           relatedId: job.id,
           relatedModel: 'Job',
@@ -293,7 +340,7 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
     await Notification.create({
       recipientId: payment.payerId,
       title: 'Comprobante aprobado',
-      body: 'Tu comprobante de pago fue verificado y aprobado.',
+      message: 'Tu comprobante de pago fue verificado y aprobado.',
       type: 'success',
       category: 'payment',
       relatedId: paymentId,
@@ -383,7 +430,30 @@ router.post("/:paymentId/reject", protect, requireRole('admin', 'super_admin', '
         await Notification.create({
           recipientId: job.clientId,
           title: 'Comprobante rechazado',
-          body: `El comprobante de pago para "${job.title}" fue rechazado. Motivo: ${reason}. Por favor, sube un nuevo comprobante.`,
+          message: `El comprobante de pago para "${job.title}" fue rechazado. Motivo: ${reason}. Por favor, sube un nuevo comprobante.`,
+          type: 'warning',
+          category: 'payment',
+          relatedId: job.id,
+          relatedModel: 'Job',
+        });
+      }
+    }
+
+    // If budget increase payment, keep job paused but allow new proof upload
+    if (payment.paymentType === 'budget_increase') {
+      const job = await Job.findOne({
+        where: { publicationPaymentId: paymentId }
+      });
+
+      if (job) {
+        // Job stays paused, user can upload a new proof
+        console.log(`⚠️ [ADMIN REJECT] Budget increase proof rejected for job ${job.id}, waiting for new proof`);
+
+        // Notify job owner
+        await Notification.create({
+          recipientId: job.clientId,
+          title: 'Comprobante rechazado',
+          message: `El comprobante de pago para el aumento de presupuesto de "${job.title}" fue rechazado. Motivo: ${reason}. Por favor, sube un nuevo comprobante.`,
           type: 'warning',
           category: 'payment',
           relatedId: job.id,
@@ -396,7 +466,7 @@ router.post("/:paymentId/reject", protect, requireRole('admin', 'super_admin', '
     await Notification.create({
       recipientId: payment.payerId,
       title: 'Comprobante rechazado',
-      body: `Tu comprobante de pago fue rechazado. Motivo: ${reason}. Por favor, sube un nuevo comprobante.`,
+      message: `Tu comprobante de pago fue rechazado. Motivo: ${reason}. Por favor, sube un nuevo comprobante.`,
       type: 'warning',
       category: 'payment',
       relatedId: paymentId,

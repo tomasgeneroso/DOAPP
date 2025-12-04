@@ -106,8 +106,6 @@ import balanceRoutes from "./routes/balance.js";
 // Post routes
 import postsRoutes from "./routes/posts.js";
 
-// Blog Article routes (admin)
-import blogArticleRoutes from "./routes/admin/blog.js";
 
 // Company Balance routes (owner only)
 import companyBalanceRoutes from "./routes/admin/companyBalance.js";
@@ -239,7 +237,6 @@ app.use("/api/admin/contact", adminContactRoutes);
 app.use("/api/admin/blogs", adminBlogsRoutes);
 app.use("/api/admin/withdrawals", (await import('./routes/admin/withdrawals.js')).default);
 app.use("/api/admin/payments", (await import('./routes/admin/payments.js')).default);
-app.use("/api/admin/blog-articles", blogArticleRoutes);
 app.use("/api/admin/company-balance", companyBalanceRoutes);
 app.use("/api/admin/marketing", marketingRoutes);
 app.use("/api/admin/family-codes", familyCodesRoutes);

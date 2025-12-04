@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/components/ui/Toast";
 import { CreditCard, ArrowLeft, Loader2, Calendar, FileText, Upload, Eye } from "lucide-react";
-import PaymentMethodSelector, { PaymentMethod, BinancePaymentData } from "@/components/payment/PaymentMethodSelector";
+import PaymentMethodSelector, { PaymentMethod, BinancePaymentData } from "@/components/payments/PaymentMethodSelector";
 
 export default function JobPayment() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user, refreshUser } = useAuth();
   const toast = useToast();
@@ -15,6 +16,13 @@ export default function JobPayment() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Check if this is a budget increase payment
+  const amountParam = searchParams.get('amount');
+  const reasonParam = searchParams.get('reason');
+  const oldPriceParam = searchParams.get('oldPrice');
+  const newPriceParam = searchParams.get('newPrice');
+  const isBudgetIncrease = reasonParam === 'budget_increase' && amountParam;
 
   // Payment method selection
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('mercadopago');
@@ -82,10 +90,13 @@ export default function JobPayment() {
 
   const isFreeContract = freeContractsRemaining > 0 || monthlyFreeRemaining > 0;
 
-  // Calculate costs - for free contracts, no commission or payment required
-  const publicationCost = calculateCommission();
-  // Total amount includes job price + commission
-  const totalAmount = isFreeContract ? 0 : jobPrice + publicationCost;
+  // Calculate costs
+  // For budget increase, use the amount from URL params (already includes commission)
+  // For regular job payment, calculate commission based on job price
+  const publicationCost = isBudgetIncrease ? 0 : calculateCommission();
+  const totalAmount = isBudgetIncrease
+    ? parseFloat(amountParam || '0')
+    : (isFreeContract ? 0 : jobPrice + publicationCost);
 
   useEffect(() => {
     loadJob();
@@ -156,6 +167,33 @@ export default function JobPayment() {
     }
   };
 
+  // Cancelar el cambio de presupuesto pendiente
+  const handleCancelBudgetChange = async () => {
+    if (!isBudgetIncrease || !id) {
+      navigate("/");
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/jobs/${id}/cancel-budget-change`, {
+        method: "PATCH",
+        credentials: 'include',
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        toast.success('Cambio cancelado', 'El cambio de presupuesto ha sido cancelado');
+      }
+      // Navegar independientemente del resultado
+      navigate(`/jobs/${id}`);
+    } catch (error) {
+      console.error("Error canceling budget change:", error);
+      // Navegar de todos modos
+      navigate(`/jobs/${id}`);
+    }
+  };
+
   const handlePayment = async () => {
     try {
       setProcessing(true);
@@ -182,11 +220,12 @@ export default function JobPayment() {
         }
       }
 
-      // Create payment order for job publication (JSON for non-file methods)
+      // Create payment order for job publication or budget increase
       const createOrderPayload = {
         jobId: id,
-        paymentType: 'job_publication',
+        paymentType: isBudgetIncrease ? 'budget_increase' : 'job_publication',
         paymentMethod: paymentMethod,
+        amount: isBudgetIncrease ? totalAmount : undefined,
         returnUrl: `${window.location.origin}/payment/success`,
         cancelUrl: `${window.location.origin}/payment/cancel`,
       };
@@ -239,7 +278,16 @@ export default function JobPayment() {
         }
 
         const verificationTime = paymentMethod === 'binance' ? '5-15 minutos' : '24-48hs hábiles';
-        toast.success('Comprobante recibido', `Tu pago será verificado en ${verificationTime}`);
+
+        // Show appropriate message based on payment type
+        if (isBudgetIncrease) {
+          toast.success(
+            'Comprobante recibido',
+            `Tu pago será verificado en ${verificationTime}. Una vez aprobado, el presupuesto se actualizará y tu trabajo se reactivará automáticamente.`
+          );
+        } else {
+          toast.success('Comprobante recibido', `Tu pago será verificado en ${verificationTime}`);
+        }
         navigate("/");
         return;
       }
@@ -285,12 +333,12 @@ export default function JobPayment() {
   return (
     <>
       <Helmet>
-        <title>Pago de Publicación - Doers</title>
+        <title>{isBudgetIncrease ? 'Pago de Aumento de Presupuesto' : 'Pago de Publicación'} - Doers</title>
       </Helmet>
 
       <div className="container mx-auto max-w-3xl py-12 px-4">
         <button
-          onClick={() => navigate("/")}
+          onClick={isBudgetIncrease ? handleCancelBudgetChange : () => navigate(-1)}
           className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 mb-6"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -302,10 +350,14 @@ export default function JobPayment() {
           <div className="bg-gradient-to-r from-sky-600 to-blue-600 p-6 text-white">
             <div className="flex items-center gap-3 mb-2">
               <CreditCard className="w-8 h-8" />
-              <h1 className="text-2xl font-bold">Pago de Publicación</h1>
+              <h1 className="text-2xl font-bold">
+                {isBudgetIncrease ? 'Pago de Aumento de Presupuesto' : 'Pago de Publicación'}
+              </h1>
             </div>
             <p className="text-sky-100">
-              Completa el pago para publicar tu trabajo en la plataforma
+              {isBudgetIncrease
+                ? 'Completa el pago para confirmar el aumento de presupuesto'
+                : 'Completa el pago para publicar tu trabajo en la plataforma'}
             </p>
           </div>
 
@@ -434,39 +486,94 @@ export default function JobPayment() {
             )}
 
             <div className="space-y-3">
-              <div className="flex justify-between text-gray-600 dark:text-gray-400 text-sm">
-                <div className="flex flex-col">
-                  <span>Presupuesto del trabajo</span>
-                  <span className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                    (Se pagará al freelancer al completar)
-                  </span>
-                </div>
-                <span>${jobPrice.toLocaleString('es-AR')} ARS</span>
-              </div>
-              <div className="flex justify-between text-gray-900 dark:text-white pt-2 border-t border-gray-200 dark:border-gray-700">
-                <div className="flex flex-col">
-                  <span className="font-medium">Comisión de publicación {!isFreeContract && `(${commissionRate}%)`}</span>
-                  {isFreeContract && (
-                    <span className="text-xs text-green-600 dark:text-green-400 mt-1">
-                      ✨ Gratis - {freeContractsRemaining > 0 ? `${freeContractsRemaining} restantes` : `${proContractsUsed + 1} de ${monthlyFreeLimit} este mes`}
+              {isBudgetIncrease ? (
+                // Budget increase payment breakdown - Show full operation details
+                <>
+                  {/* Previous price */}
+                  <div className="flex justify-between text-gray-600 dark:text-gray-400 text-sm">
+                    <span>Presupuesto anterior</span>
+                    <span>${parseFloat(oldPriceParam || '0').toLocaleString('es-AR')} ARS</span>
+                  </div>
+
+                  {/* New price */}
+                  <div className="flex justify-between text-gray-600 dark:text-gray-400 text-sm">
+                    <span>Nuevo presupuesto</span>
+                    <span>${parseFloat(newPriceParam || '0').toLocaleString('es-AR')} ARS</span>
+                  </div>
+
+                  {/* Price difference */}
+                  <div className="flex justify-between text-gray-900 dark:text-white pt-2 border-t border-gray-200 dark:border-gray-700">
+                    <span className="font-medium">Diferencia de presupuesto</span>
+                    <span className="font-semibold text-orange-600 dark:text-orange-400">
+                      +${(parseFloat(newPriceParam || '0') - parseFloat(oldPriceParam || '0')).toLocaleString('es-AR')} ARS
                     </span>
-                  )}
-                  {!isFreeContract && jobPrice < 8000 && (
-                    <span className="text-xs text-orange-600 dark:text-orange-400 mt-1">
-                      * Comisión mínima de $1,000 ARS
+                  </div>
+
+                  {/* Commission on difference */}
+                  <div className="flex justify-between text-gray-600 dark:text-gray-400 text-sm">
+                    <div className="flex flex-col">
+                      <span>Comisión sobre la diferencia ({commissionRate}%)</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                        Según tu membresía: {user?.membershipTier === 'super_pro' ? 'SUPER PRO' : user?.membershipTier === 'pro' ? 'PRO' : 'FREE'}
+                      </span>
+                    </div>
+                    <span>
+                      +${((parseFloat(newPriceParam || '0') - parseFloat(oldPriceParam || '0')) * (commissionRate / 100)).toLocaleString('es-AR', { minimumFractionDigits: 2 })} ARS
                     </span>
-                  )}
-                </div>
-                <span className={isFreeContract ? "text-green-600 dark:text-green-400 font-semibold" : "font-semibold"}>
-                  ${publicationCost.toLocaleString('es-AR')} ARS
-                </span>
-              </div>
-              <div className="flex justify-between text-xl font-bold text-gray-900 dark:text-white pt-3 border-t-2 border-gray-300 dark:border-gray-600">
-                <span>Total a pagar ahora</span>
-                <span className={totalAmount === 0 ? "text-green-600 dark:text-green-400" : ""}>
-                  ${totalAmount.toLocaleString('es-AR')} ARS
-                </span>
-              </div>
+                  </div>
+
+                  {/* Total */}
+                  <div className="flex justify-between text-xl font-bold text-gray-900 dark:text-white pt-3 border-t-2 border-gray-300 dark:border-gray-600">
+                    <span>Total a pagar ahora</span>
+                    <span className="text-sky-600 dark:text-sky-400">${totalAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })} ARS</span>
+                  </div>
+
+                  {/* Info note */}
+                  <div className="mt-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-sm text-blue-800 dark:text-blue-300">
+                    <p>
+                      <strong>Nota:</strong> El trabajo permanecerá pausado hasta que completes este pago.
+                      Una vez procesado, se reactivará automáticamente.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                // Regular job publication payment breakdown
+                <>
+                  <div className="flex justify-between text-gray-600 dark:text-gray-400 text-sm">
+                    <div className="flex flex-col">
+                      <span>Presupuesto del trabajo</span>
+                      <span className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                        (Se pagará al freelancer al completar)
+                      </span>
+                    </div>
+                    <span>${jobPrice.toLocaleString('es-AR')} ARS</span>
+                  </div>
+                  <div className="flex justify-between text-gray-900 dark:text-white pt-2 border-t border-gray-200 dark:border-gray-700">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Comisión de publicación {!isFreeContract && `(${commissionRate}%)`}</span>
+                      {isFreeContract && (
+                        <span className="text-xs text-green-600 dark:text-green-400 mt-1">
+                          ✨ Gratis - {freeContractsRemaining > 0 ? `${freeContractsRemaining} restantes` : `${proContractsUsed + 1} de ${monthlyFreeLimit} este mes`}
+                        </span>
+                      )}
+                      {!isFreeContract && jobPrice < 8000 && (
+                        <span className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                          * Comisión mínima de $1,000 ARS
+                        </span>
+                      )}
+                    </div>
+                    <span className={isFreeContract ? "text-green-600 dark:text-green-400 font-semibold" : "font-semibold"}>
+                      ${publicationCost.toLocaleString('es-AR')} ARS
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xl font-bold text-gray-900 dark:text-white pt-3 border-t-2 border-gray-300 dark:border-gray-600">
+                    <span>Total a pagar ahora</span>
+                    <span className={totalAmount === 0 ? "text-green-600 dark:text-green-400" : ""}>
+                      ${totalAmount.toLocaleString('es-AR')} ARS
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -752,11 +859,11 @@ export default function JobPayment() {
               )}
             </button>
             <button
-              onClick={() => navigate("/")}
+              onClick={isBudgetIncrease ? handleCancelBudgetChange : () => navigate("/")}
               disabled={processing}
               className="w-full mt-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-6 rounded-lg transition-colors disabled:opacity-50"
             >
-              Cancelar
+              {isBudgetIncrease ? "Cancelar Cambio" : "Cancelar"}
             </button>
           </div>
         </div>

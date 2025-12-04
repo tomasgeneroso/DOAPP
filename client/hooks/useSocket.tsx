@@ -53,7 +53,7 @@ export function useSocket() {
   const [onJobUpdate, setOnJobUpdate] = useState<((data: any) => void) | null>(null);
   const [onProposalUpdate, setOnProposalUpdate] = useState<((data: any) => void) | null>(null);
   const [onDashboardRefresh, setOnDashboardRefresh] = useState<(() => void) | null>(null);
-  const [onJobsRefresh, setOnJobsRefresh] = useState<(() => void) | null>(null);
+  const [onJobsRefresh, setOnJobsRefresh] = useState<((data?: any) => void) | null>(null);
   const [onUnreadUpdate, setOnUnreadUpdate] = useState<((count: number) => void) | null>(null);
 
   // Admin panel callbacks
@@ -66,6 +66,8 @@ export function useSocket() {
   const [onAdminPaymentUpdated, setOnAdminPaymentUpdated] = useState<((data: any) => void) | null>(null);
   const [onAdminUserCreated, setOnAdminUserCreated] = useState<((data: any) => void) | null>(null);
   const [onNewProposal, setOnNewProposal] = useState<((data: any) => void) | null>(null);
+  const [onContractsRefresh, setOnContractsRefresh] = useState<((data?: any) => void) | null>(null);
+  const [onMyJobsRefresh, setOnMyJobsRefresh] = useState<((data?: any) => void) | null>(null);
 
   useEffect(() => {
     if (!user) {
@@ -188,7 +190,7 @@ export function useSocket() {
     newSocket.on("jobs:refresh", (data: any) => {
       console.log("🔄 Jobs refresh:", data);
       if (onJobsRefresh) {
-        onJobsRefresh();
+        onJobsRefresh(data);
       }
     });
 
@@ -278,12 +280,26 @@ export function useSocket() {
       }
     });
 
+    newSocket.on("contracts:refresh", (data: any) => {
+      console.log("🔄 Contracts refresh:", data);
+      if (onContractsRefresh) {
+        onContractsRefresh(data);
+      }
+    });
+
+    newSocket.on("myjobs:refresh", (data: any) => {
+      console.log("🔄 My jobs refresh:", data);
+      if (onMyJobsRefresh) {
+        onMyJobsRefresh(data);
+      }
+    });
+
     // Cleanup
     return () => {
       newSocket.disconnect();
       socketRef.current = null;
     };
-  }, [user, onContractUpdate, onJobUpdate, onProposalUpdate, onDashboardRefresh, onJobsRefresh, onUnreadUpdate, onAdminJobCreated, onAdminJobUpdated, onAdminProposalCreated, onAdminContractCreated, onAdminContractUpdated, onAdminPaymentCreated, onAdminPaymentUpdated, onAdminUserCreated, onNewProposal]);
+  }, [user, onContractUpdate, onJobUpdate, onProposalUpdate, onDashboardRefresh, onJobsRefresh, onUnreadUpdate, onAdminJobCreated, onAdminJobUpdated, onAdminProposalCreated, onAdminContractCreated, onAdminContractUpdated, onAdminPaymentCreated, onAdminPaymentUpdated, onAdminUserCreated, onNewProposal, onContractsRefresh, onMyJobsRefresh]);
 
   // Join conversation
   const joinConversation = (conversationId: string) => {
@@ -378,7 +394,7 @@ export function useSocket() {
     setOnDashboardRefresh(() => handler);
   };
 
-  const registerJobsRefreshHandler = (handler: () => void) => {
+  const registerJobsRefreshHandler = (handler: (data?: any) => void) => {
     setOnJobsRefresh(() => handler);
   };
 
@@ -423,6 +439,14 @@ export function useSocket() {
     setOnNewProposal(() => handler);
   };
 
+  const registerContractsRefreshHandler = (handler: (data?: any) => void) => {
+    setOnContractsRefresh(() => handler);
+  };
+
+  const registerMyJobsRefreshHandler = (handler: (data?: any) => void) => {
+    setOnMyJobsRefresh(() => handler);
+  };
+
   return {
     socket,
     isConnected,
@@ -452,5 +476,7 @@ export function useSocket() {
     registerAdminPaymentUpdatedHandler,
     registerAdminUserCreatedHandler,
     registerNewProposalHandler,
+    registerContractsRefreshHandler,
+    registerMyJobsRefreshHandler,
   };
 }

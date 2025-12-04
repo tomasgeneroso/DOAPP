@@ -122,6 +122,18 @@ export class Payment extends Model {
   exchangeRate?: number;
 
   // ============================================
+  // PLATFORM FEE (Commission)
+  // ============================================
+
+  @Default(0)
+  @Column(DataType.DECIMAL(12, 2))
+  platformFee!: number;
+
+  @Default(0)
+  @Column(DataType.DECIMAL(5, 2))
+  platformFeePercentage!: number;
+
+  // ============================================
   // STATUS & TYPE
   // ============================================
 

@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "../hooks/useAuth";
 import { useSocket } from "../hooks/useSocket";
@@ -32,8 +32,11 @@ export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
   const { user, token } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const lastPathRef = useRef(location.pathname);
   const [applying, setApplying] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +56,25 @@ export default function JobDetail() {
   const [budgetReason, setBudgetReason] = useState("");
   const [changingBudget, setChangingBudget] = useState(false);
 
-  const { registerNewProposalHandler, registerJobUpdateHandler } = useSocket();
+  // Modal de confirmación de pago por aumento de presupuesto
+  const [showPaymentConfirmModal, setShowPaymentConfirmModal] = useState(false);
+  const [paymentBreakdown, setPaymentBreakdown] = useState<{
+    message: string;
+    oldPrice: number;
+    newPrice: number;
+    priceDifference: number;
+    commission: number;
+    commissionRate: number;
+    total: number;
+    amountRequired: number;
+  } | null>(null);
+
+  // Modal de redirección a contrato
+  const [showContractRedirectModal, setShowContractRedirectModal] = useState(false);
+  const [contractRedirectUrl, setContractRedirectUrl] = useState<string>("");
+  const [contractRedirectMessage, setContractRedirectMessage] = useState<string>("");
+
+  const { registerNewProposalHandler, registerJobUpdateHandler, registerJobsRefreshHandler } = useSocket();
 
   // Handle new proposal notification
   const handleNewProposal = useCallback((data: any) => {
@@ -80,34 +101,60 @@ export default function JobDetail() {
     }
   }, [id]);
 
+  // Handle jobs refresh (general refresh signal)
+  const handleJobsRefresh = useCallback((data?: any) => {
+    // If the refresh is for this specific job or a general refresh, refetch
+    if (!data || data.jobId === id || data.job?.id === id || data.action === 'updated') {
+      console.log("🔄 Jobs refresh signal received, refetching job:", id);
+      setRefreshKey(prev => prev + 1);
+    }
+  }, [id]);
+
   // Register socket handlers
   useEffect(() => {
     registerNewProposalHandler(handleNewProposal);
     registerJobUpdateHandler(handleJobUpdate);
-  }, [registerNewProposalHandler, registerJobUpdateHandler, handleNewProposal, handleJobUpdate]);
+    registerJobsRefreshHandler(handleJobsRefresh);
+  }, [registerNewProposalHandler, registerJobUpdateHandler, registerJobsRefreshHandler, handleNewProposal, handleJobUpdate, handleJobsRefresh]);
 
-  useEffect(() => {
-    const fetchJob = async () => {
-      try {
-        const response = await fetch(`/api/jobs/${id}`);
-        const data = await response.json();
-        if (data.success) {
-          setJob(data.job);
-        } else {
-          setError(data.message || "No se pudo cargar el trabajo");
-        }
-      } catch (err) {
-        setError("Error al cargar el trabajo");
-        console.error("Error fetching job:", err);
-      } finally {
-        setLoading(false);
+  // Fetch job data
+  const fetchJob = useCallback(async () => {
+    if (!id) return;
+    try {
+      setLoading(true);
+      const response = await fetch(`/api/jobs/${id}`);
+      const data = await response.json();
+      if (data.success) {
+        setJob(data.job);
+      } else {
+        setError(data.message || "No se pudo cargar el trabajo");
       }
-    };
-
-    if (id) {
-      fetchJob();
+    } catch (err) {
+      setError("Error al cargar el trabajo");
+      console.error("Error fetching job:", err);
+    } finally {
+      setLoading(false);
     }
   }, [id]);
+
+  useEffect(() => {
+    fetchJob();
+  }, [fetchJob, refreshKey]);
+
+  // Refetch when navigating back from edit page
+  useEffect(() => {
+    // Check if we navigated back from edit page
+    const currentPath = location.pathname;
+    const wasOnEditPage = lastPathRef.current?.includes('/edit');
+    const isNowOnDetailPage = currentPath === `/jobs/${id}`;
+
+    if (wasOnEditPage && isNowOnDetailPage) {
+      // Force a refetch
+      setRefreshKey(prev => prev + 1);
+    }
+
+    lastPathRef.current = currentPath;
+  }, [location.pathname, id]);
 
   // Fetch proposals if user is the job owner
   useEffect(() => {
@@ -369,6 +416,35 @@ export default function JobDetail() {
       });
 
       const data = await response.json();
+
+      // Si requiere pago (status 402), mostrar modal de confirmación
+      if (response.status === 402 && data.requiresPayment) {
+        const { amountRequired, breakdown } = data;
+
+        // Mostrar modal con detalles del pago requerido
+        setPaymentBreakdown({
+          message: data.message,
+          oldPrice: breakdown.oldPrice,
+          newPrice: breakdown.newPrice,
+          priceDifference: breakdown.priceDifference,
+          commission: breakdown.commission,
+          commissionRate: breakdown.commissionRate,
+          total: breakdown.total,
+          amountRequired,
+        });
+        setShowPaymentConfirmModal(true);
+        setShowBudgetModal(false);
+        return;
+      }
+
+      // Si el trabajo tiene contrato en progreso, mostrar modal de redirección
+      if (response.status === 400 && data.redirectTo && data.redirectTo.includes('contracts')) {
+        setContractRedirectMessage(data.message);
+        setContractRedirectUrl(data.redirectTo);
+        setShowContractRedirectModal(true);
+        setShowBudgetModal(false);
+        return;
+      }
 
       if (data.success) {
         setShowBudgetModal(false);
@@ -798,17 +874,17 @@ export default function JobDetail() {
                 job.status === 'cancelled'
                   ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/30'
                   : job.status === 'paused'
-                  ? 'border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/30'
+                  ? (job.pendingNewPrice ? 'border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30' : 'border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/30')
                   : 'border-green-300 dark:border-green-600 bg-green-50 dark:bg-green-900/30'
               }`}>
                 <p className={`text-sm font-medium ${
                   job.status === 'cancelled' ? 'text-red-700 dark:text-red-300' :
-                  job.status === 'paused' ? 'text-amber-700 dark:text-amber-300' :
+                  job.status === 'paused' ? (job.pendingNewPrice ? 'text-blue-700 dark:text-blue-300' : 'text-amber-700 dark:text-amber-300') :
                   'text-green-700 dark:text-green-300'
                 }`}>
                   {job.status === 'cancelled' && '❌ Esta publicacion fue cancelada'}
                   {job.status === 'completed' && '✅ Este trabajo fue completado'}
-                  {job.status === 'paused' && '⏸️ Este trabajo esta pausado'}
+                  {job.status === 'paused' && (job.pendingNewPrice ? '⏳ Este trabajo está actualizando su presupuesto' : '⏸️ Este trabajo esta pausado')}
                 </p>
                 {job.status === 'cancelled' && job.cancellationReason && (
                   <div className="mt-3 p-3 bg-red-100 dark:bg-red-950/50 rounded-lg border border-red-200 dark:border-red-800">
@@ -1064,41 +1140,67 @@ export default function JobDetail() {
 
             {isOwnJob && !isDraft && job.status === 'paused' && (
               <div className="space-y-4">
-                <div className="rounded-2xl border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/30 p-4">
-                  <p className="text-sm font-medium text-amber-700 dark:text-amber-300 mb-3">
-                    ⏸️ Esta publicación está pausada
-                  </p>
-                  <p className="text-xs text-amber-600 dark:text-amber-400">
-                    Si no la reanuadas o cancelas, se reanudará automáticamente.
-                  </p>
-                </div>
+                {/* Check if paused due to pending budget increase payment */}
+                {job.pendingNewPrice ? (
+                  <div className="rounded-2xl border border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30 p-4">
+                    <p className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-3">
+                      <span className="inline-block animate-pulse">⏳</span> Esperando verificación de pago
+                    </p>
+                    <div className="space-y-2 text-xs text-blue-600 dark:text-blue-400">
+                      <p>
+                        Tu comprobante de pago para el aumento de presupuesto está siendo verificado por nuestro equipo.
+                      </p>
+                      <div className="mt-3 p-3 bg-blue-100 dark:bg-blue-900/50 rounded-lg">
+                        <p className="font-medium">Precio actual: ${Number(job.price).toLocaleString('es-AR')} ARS</p>
+                        <p className="font-medium">Nuevo precio pendiente: ${Number(job.pendingNewPrice).toLocaleString('es-AR')} ARS</p>
+                      </div>
+                      <p className="mt-2">
+                        Una vez aprobado, el presupuesto se actualizará automáticamente y tu trabajo se reactivará.
+                      </p>
+                      <p className="text-blue-500 dark:text-blue-300">
+                        Tiempo estimado: 24-48hs hábiles (transferencia) o 5-15 minutos (Binance)
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="rounded-2xl border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/30 p-4">
+                      <p className="text-sm font-medium text-amber-700 dark:text-amber-300 mb-3">
+                        ⏸️ Esta publicación está pausada
+                      </p>
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        Si no la reanuadas o cancelas, se reanudará automáticamente.
+                      </p>
+                    </div>
 
-                {/* Action Buttons for paused */}
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleResumeJob}
-                    disabled={actionLoading}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-green-600 hover:bg-green-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-50"
-                  >
-                    {actionLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <>
-                        <Play className="h-4 w-4" />
-                        Reanudar
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => setShowCancelModal(true)}
-                    disabled={actionLoading || !canCancelJob()}
-                    title={!canCancelJob() ? "No puedes cancelar con menos de 24h de anticipación" : ""}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-red-600 hover:bg-red-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <XCircle className="h-4 w-4" />
-                    Cancelar
-                  </button>
-                </div>
+                    {/* Action Buttons for paused */}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleResumeJob}
+                        disabled={actionLoading}
+                        className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-green-600 hover:bg-green-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-50"
+                      >
+                        {actionLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <>
+                            <Play className="h-4 w-4" />
+                            Reanudar
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => setShowCancelModal(true)}
+                        disabled={actionLoading || !canCancelJob()}
+                        title={!canCancelJob() ? "No puedes cancelar con menos de 24h de anticipación" : ""}
+                        className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-red-600 hover:bg-red-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <XCircle className="h-4 w-4" />
+                        Cancelar
+                      </button>
+                    </div>
+                  </>
+                )}
 
                 {error && (
                   <div className="rounded-2xl border border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/30 p-4">
@@ -1487,6 +1589,133 @@ export default function JobDetail() {
                   ) : (
                     "Confirmar Selección"
                   )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Payment Confirmation Modal - Budget Increase */}
+        {showPaymentConfirmModal && paymentBreakdown && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="w-full max-w-md rounded-2xl border border-sky-600 bg-slate-900 p-6 shadow-2xl">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-500/20">
+                  <DollarSign className="h-6 w-6 text-sky-500" />
+                </div>
+                <h3 className="text-xl font-bold text-white">
+                  Pago Requerido
+                </h3>
+              </div>
+
+              <div className="mb-6 space-y-4">
+                <p className="text-slate-300">
+                  {paymentBreakdown.message}
+                </p>
+
+                {/* Payment Breakdown */}
+                <div className="rounded-xl border border-slate-700 bg-slate-800 p-4 space-y-3">
+                  <div className="flex justify-between text-sm text-slate-400">
+                    <span>Presupuesto anterior</span>
+                    <span>${paymentBreakdown.oldPrice.toLocaleString('es-AR')} ARS</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-slate-400">
+                    <span>Nuevo presupuesto</span>
+                    <span>${paymentBreakdown.newPrice.toLocaleString('es-AR')} ARS</span>
+                  </div>
+                  <div className="border-t border-slate-700 pt-3 flex justify-between text-slate-200">
+                    <span>Diferencia</span>
+                    <span className="text-orange-400 font-medium">
+                      +${paymentBreakdown.priceDifference.toLocaleString('es-AR')} ARS
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm text-slate-400">
+                    <span>Comisión ({paymentBreakdown.commissionRate}%)</span>
+                    <span>+${paymentBreakdown.commission.toLocaleString('es-AR')} ARS</span>
+                  </div>
+                  <div className="border-t border-slate-600 pt-3 flex justify-between text-white font-bold text-lg">
+                    <span>Total a pagar</span>
+                    <span className="text-sky-400">${paymentBreakdown.total.toLocaleString('es-AR')} ARS</span>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-yellow-600 bg-yellow-900/30 p-4">
+                  <p className="text-sm text-yellow-300">
+                    <strong>Nota:</strong> El trabajo permanecerá pausado hasta que completes el pago.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowPaymentConfirmModal(false);
+                    setPaymentBreakdown(null);
+                  }}
+                  className="flex-1 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    if (job && paymentBreakdown) {
+                      window.location.href = `/jobs/${job.id || (job as any)._id}/payment?amount=${paymentBreakdown.amountRequired}&reason=budget_increase&oldPrice=${paymentBreakdown.oldPrice}&newPrice=${paymentBreakdown.newPrice}`;
+                    }
+                  }}
+                  className="flex-1 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:from-sky-600 hover:to-sky-700"
+                >
+                  Ir al Pago
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Contract Redirect Modal */}
+        {showContractRedirectModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="w-full max-w-md rounded-2xl border border-purple-600 bg-slate-900 p-6 shadow-2xl">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-500/20">
+                  <ExternalLink className="h-6 w-6 text-purple-500" />
+                </div>
+                <h3 className="text-xl font-bold text-white">
+                  Redirigir al Contrato
+                </h3>
+              </div>
+
+              <div className="mb-6 space-y-4">
+                <p className="text-slate-300">
+                  {contractRedirectMessage}
+                </p>
+
+                <div className="rounded-xl border border-purple-600 bg-purple-900/30 p-4">
+                  <p className="text-sm text-purple-300">
+                    <strong>Nota:</strong> Para cambiar el presupuesto de un trabajo en progreso, debes hacerlo desde el contrato activo.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowContractRedirectModal(false);
+                    setContractRedirectUrl("");
+                    setContractRedirectMessage("");
+                  }}
+                  className="flex-1 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    if (contractRedirectUrl) {
+                      window.location.href = contractRedirectUrl;
+                    }
+                  }}
+                  className="flex-1 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:from-purple-600 hover:to-purple-700"
+                >
+                  Ir al Contrato
                 </button>
               </div>
             </div>

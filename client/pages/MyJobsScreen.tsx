@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import { useSocket } from "../hooks/useSocket";
 import {
   Briefcase,
   Calendar,
@@ -13,6 +14,8 @@ import {
   Eye,
   MapPin,
   Tag,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 
 interface Job {
@@ -37,15 +40,12 @@ interface Job {
 
 export default function MyJobsScreen() {
   const { user } = useAuth();
+  const { isConnected, registerJobUpdateHandler, registerMyJobsRefreshHandler, registerJobsRefreshHandler } = useSocket();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "published" | "pending_payment" | "draft">("all");
 
-  useEffect(() => {
-    fetchMyJobs();
-  }, []);
-
-  const fetchMyJobs = async () => {
+  const fetchMyJobs = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch("/api/jobs/my-jobs", {
@@ -61,7 +61,41 @@ export default function MyJobsScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchMyJobs();
+  }, [fetchMyJobs]);
+
+  // Register socket handlers for real-time updates
+  useEffect(() => {
+    // Handler for individual job updates
+    registerJobUpdateHandler((data: any) => {
+      console.log("💼 MyJobsScreen: Job updated via socket:", data);
+      // Check if this job belongs to the current user
+      const jobId = data.jobId || data.job?.id;
+      setJobs(prev => {
+        const jobExists = prev.some(job => job.id === jobId);
+        if (jobExists) {
+          console.log("🔄 MyJobsScreen: Refreshing jobs list...");
+          fetchMyJobs();
+        }
+        return prev;
+      });
+    });
+
+    // Handler for my jobs refresh
+    registerMyJobsRefreshHandler((data: any) => {
+      console.log("🔄 MyJobsScreen: My jobs refresh triggered via socket");
+      fetchMyJobs();
+    });
+
+    // Also listen to general jobs refresh
+    registerJobsRefreshHandler((data: any) => {
+      console.log("🔄 MyJobsScreen: Jobs refresh triggered via socket");
+      fetchMyJobs();
+    });
+  }, [fetchMyJobs, registerJobUpdateHandler, registerMyJobsRefreshHandler, registerJobsRefreshHandler]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -181,13 +215,28 @@ export default function MyJobsScreen() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-            Mis Trabajos Publicados
-          </h1>
-          <p className="mt-2 text-slate-600 dark:text-slate-400">
-            Administra todos los trabajos que has publicado
-          </p>
+        <div className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
+              Mis Trabajos Publicados
+            </h1>
+            <p className="mt-2 text-slate-600 dark:text-slate-400">
+              Administra todos los trabajos que has publicado
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            {isConnected ? (
+              <>
+                <Wifi className="h-4 w-4 text-green-500" />
+                <span className="text-green-600 dark:text-green-400">Tiempo real</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="h-4 w-4 text-slate-400" />
+                <span className="text-slate-500">Sin conexión</span>
+              </>
+            )}
+          </div>
         </div>
 
         {/* Stats Cards */}
