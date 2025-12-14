@@ -83,7 +83,10 @@ import FinancialTransactions from "./pages/admin/FinancialTransactions";
 import PendingPayments from "./pages/admin/PendingPayments";
 import AdminJobManager from "./pages/admin/JobManager";
 import AdminFamilyCodes from "./pages/admin/FamilyCodes";
+import AdminPerformanceMonitor from "./pages/admin/PerformanceMonitor";
 import EditJobScreen from "./pages/EditJobScreen";
+import NotificationsScreen from "./pages/NotificationsScreen";
+import CompleteRegistration from "./pages/CompleteRegistration";
 
 export default function App() {
   // Setup fetch interceptor for automatic token handling
@@ -95,12 +98,12 @@ export default function App() {
     <ErrorBoundary>
       <HelmetProvider>
         <AuthProvider>
-          <OnboardingProvider>
-            <ToastProvider>
-              <FacebookSDK />
-              <OnboardingTooltip />
-              <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
-              <Routes>
+          <ToastProvider>
+            <FacebookSDK />
+            <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+              <OnboardingProvider>
+                <OnboardingTooltip />
+                <Routes>
             <Route element={<Layout />}>
               <Route path="/" element={<Index />} />
               <Route path="/jobs/:id" element={<JobDetail />} />
@@ -304,6 +307,14 @@ export default function App() {
                 }
               />
               <Route
+                path="/notifications"
+                element={
+                  <ProtectedRoute>
+                    <NotificationsScreen />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/referrals"
                 element={
                   <ProtectedRoute>
@@ -358,6 +369,14 @@ export default function App() {
             <Route path="/legal/cookies" element={<CookiesPolicy />} />
             <Route path="/legal/disputas" element={<DisputeResolution />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route
+              path="/complete-registration"
+              element={
+                <ProtectedRoute>
+                  <CompleteRegistration />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/onboarding"
               element={
@@ -429,11 +448,12 @@ export default function App() {
               <Route path="tickets/:id" element={<TicketDetail />} />
               <Route path="jobs" element={<AdminJobManager />} />
               <Route path="family-codes" element={<AdminFamilyCodes />} />
+              <Route path="performance" element={<AdminPerformanceMonitor />} />
             </Route>
-              </Routes>
-              </BrowserRouter>
-            </ToastProvider>
-          </OnboardingProvider>
+                </Routes>
+              </OnboardingProvider>
+            </BrowserRouter>
+          </ToastProvider>
         </AuthProvider>
       </HelmetProvider>
     </ErrorBoundary>

@@ -200,8 +200,8 @@ export default function LoginScreen() {
           }
         />
       </Helmet>
-      <div className="flex min-h-full flex-col justify-center bg-slate-50 dark:bg-slate-900 px-6 py-12 lg:px-8">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md rounded-2xl bg-white dark:bg-slate-800 p-8 shadow-lg sm:p-12">
+      <div className="flex min-h-screen flex-col justify-center bg-slate-50 dark:bg-slate-900 px-4 py-6 sm:px-6 sm:py-12 lg:px-8">
+        <div className="mx-auto w-full max-w-[95%] sm:max-w-md rounded-2xl bg-white dark:bg-slate-800 p-5 shadow-lg sm:p-8 md:p-12">
           <Link
             to="/"
             className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white mb-6"
@@ -209,13 +209,13 @@ export default function LoginScreen() {
             <Home className="h-4 w-4" />
             Volver al inicio
           </Link>
-          <h2 className="mb-8 text-center text-2xl font-bold text-slate-900 dark:text-white">
+          <h2 className="mb-6 sm:mb-8 text-center text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
             {isRegister ? "Crea tu cuenta" : "Inicia sesión en tu cuenta"}
           </h2>
 
           {/* Mensaje de bienvenida para nuevos usuarios */}
-          <div className="mb-6 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 p-4 text-center shadow-md">
-            <p className="text-sm font-semibold text-white">
+          <div className="mb-4 sm:mb-6 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 p-3 sm:p-4 text-center shadow-md">
+            <p className="text-xs sm:text-sm font-semibold text-white">
               ¡Los primeros 1000 usuarios tendrán servicio gratuito por un año! 🎉
             </p>
           </div>
@@ -224,12 +224,12 @@ export default function LoginScreen() {
 
           <div className="mb-4 border-b border-gray-200 dark:border-slate-700">
             <ul
-              className="flex flex-wrap -mb-px text-sm font-medium text-center"
+              className="flex -mb-px text-sm font-medium text-center"
               role="tablist"
             >
-              <li className="me-2" role="presentation">
+              <li className="flex-1" role="presentation">
                 <button
-                  className={`inline-block p-4 border-b-2 rounded-t-lg ${
+                  className={`w-full inline-block p-3 sm:p-4 border-b-2 rounded-t-lg transition-colors ${
                     mode === "login"
                       ? "border-sky-600 text-sky-600"
                       : "border-transparent hover:text-slate-600 dark:hover:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600 text-slate-500 dark:text-slate-400"
@@ -242,9 +242,9 @@ export default function LoginScreen() {
                   Iniciar Sesión
                 </button>
               </li>
-              <li className="me-2" role="presentation">
+              <li className="flex-1" role="presentation">
                 <button
-                  className={`inline-block p-4 border-b-2 rounded-t-lg ${
+                  className={`w-full inline-block p-3 sm:p-4 border-b-2 rounded-t-lg transition-colors ${
                     mode === "register"
                       ? "border-sky-600 text-sky-600"
                       : "border-transparent hover:text-slate-600 dark:hover:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600 text-slate-500 dark:text-slate-400"
@@ -260,7 +260,7 @@ export default function LoginScreen() {
             </ul>
           </div>
 
-          <form className="space-y-6" onSubmit={handleSubmit}>
+          <form className="space-y-4 sm:space-y-6" onSubmit={handleSubmit}>
             {isRegister && (
               <>
                 <div>
@@ -578,26 +578,26 @@ export default function LoginScreen() {
             </div>
           </form>
 
-          <div className="my-6 flex items-center gap-4">
+          <div className="my-4 sm:my-6 flex items-center gap-3 sm:gap-4">
             <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
-            <span className="text-sm text-slate-500 dark:text-slate-400">o continúa con</span>
+            <span className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">o continúa con</span>
             <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
           </div>
 
-          <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center justify-center gap-3 sm:gap-4">
             {/* Social Logins */}
             <button
               type="button"
               onClick={loginWithFacebook}
               disabled={fbLoading || isLoading}
-              className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-xl text-sky-600 transition hover:border-sky-300 hover:bg-slate-50 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-xl text-sky-600 transition hover:border-sky-300 hover:bg-slate-50 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
               aria-label="Ingresar con Facebook"
             >
               <Facebook className="h-5 w-5" />
             </button>
             <a
               href={`${import.meta.env.VITE_API_URL}/auth/google`}
-              className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-xl transition hover:border-sky-300 hover:bg-slate-50 dark:hover:bg-slate-600"
+              className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-xl transition hover:border-sky-300 hover:bg-slate-50 dark:hover:bg-slate-600"
               aria-label="Ingresar con Google"
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -609,7 +609,7 @@ export default function LoginScreen() {
             </a>
             <a
               href={`${import.meta.env.VITE_API_URL}/auth/twitter`}
-              className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-xl text-slate-900 dark:text-white transition hover:border-sky-300 hover:bg-slate-50 dark:hover:bg-slate-600"
+              className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-xl text-slate-900 dark:text-white transition hover:border-sky-300 hover:bg-slate-50 dark:hover:bg-slate-600"
               aria-label="Ingresar con X"
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">

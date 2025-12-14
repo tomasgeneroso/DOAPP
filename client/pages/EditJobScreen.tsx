@@ -14,6 +14,7 @@ import {
   X,
   Loader2,
   ArrowLeft,
+  AlertTriangle,
 } from "lucide-react";
 import { JOB_CATEGORIES, JOB_TAGS } from "../../shared/constants/categories";
 import { CustomDateInput } from "@/components/ui/CustomDatePicker";
@@ -67,11 +68,57 @@ export default function EditJobScreen() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [customTag, setCustomTag] = useState("");
   const [location, setLocation] = useState("");
+  const [neighborhood, setNeighborhood] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [existingImages, setExistingImages] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [jobStatus, setJobStatus] = useState("");
+  const [cancellationReason, setCancellationReason] = useState("");
+  const [hasExpiredDates, setHasExpiredDates] = useState(false);
+  const [originalEndDate, setOriginalEndDate] = useState("");
+  const [endDateFlexible, setEndDateFlexible] = useState(false);
+
+  // Check if user has updated dates to valid future dates
+  const datesAreValid = () => {
+    if (!hasExpiredDates) return true;
+    if (!startDate) return false;
+
+    // If endDateFlexible is true, only startDate is required
+    if (endDateFlexible) {
+      const now = new Date();
+      const newStart = new Date(startDate);
+      if (isNaN(newStart.getTime())) return false;
+      return newStart > now;
+    }
+
+    if (!endDate) return false;
+
+    const now = new Date();
+    const newStart = new Date(startDate);
+    const newEnd = new Date(endDate);
+
+    // Check if dates are valid Date objects
+    if (isNaN(newStart.getTime()) || isNaN(newEnd.getTime())) return false;
+
+    // For rescheduling: only require end date to be in the future
+    // Start date can be in the past if user is editing quickly
+    // End date must be after start date
+    return newEnd > now && newEnd > newStart;
+  };
+
+  // Check if dates have been changed from original expired dates
+  const datesHaveChanged = () => {
+    if (!originalEndDate) return false;
+    const originalEnd = new Date(originalEndDate);
+    const newEnd = new Date(endDate);
+    // Consider changed if end date is different by more than 1 minute
+    return Math.abs(newEnd.getTime() - originalEnd.getTime()) > 60000;
+  };
+
+  // Fields should be disabled if dates are expired and not yet updated to valid future dates
+  // But allow editing if user has changed the dates to valid future dates
+  const fieldsDisabled = hasExpiredDates && !datesAreValid();
 
   // Fetch job data
   useEffect(() => {
@@ -105,10 +152,23 @@ export default function EditJobScreen() {
           setSelectedCategory(job.category || "");
           setSelectedTags(job.tags || []);
           setLocation(job.location || "");
+          setNeighborhood(job.neighborhood || "");
           setStartDate(job.startDate ? new Date(job.startDate).toISOString().slice(0, 16) : "");
           setEndDate(job.endDate ? new Date(job.endDate).toISOString().slice(0, 16) : "");
+          setEndDateFlexible(job.endDateFlexible || false);
           setExistingImages(job.images || []);
           setJobStatus(job.status || "");
+          setCancellationReason(job.cancellationReason || "");
+
+          // Check if job has expired dates (only if endDateFlexible is false)
+          if (!job.endDateFlexible && job.endDate) {
+            const jobEnd = new Date(job.endDate);
+            const now = new Date();
+            if (jobEnd < now) {
+              setHasExpiredDates(true);
+              setOriginalEndDate(job.endDate);
+            }
+          }
         } else {
           setError(data.message || "No se pudo cargar el trabajo");
         }
@@ -160,8 +220,12 @@ export default function EditJobScreen() {
     submitData.append("category", selectedCategory);
     submitData.append("tags", JSON.stringify(selectedTags));
     submitData.append("location", location);
+    if (neighborhood) submitData.append("neighborhood", neighborhood);
     submitData.append("startDate", startDate);
-    submitData.append("endDate", endDate);
+    submitData.append("endDateFlexible", endDateFlexible.toString());
+    if (!endDateFlexible && endDate) {
+      submitData.append("endDate", endDate);
+    }
     submitData.append("existingImages", JSON.stringify(existingImages));
 
     // Add new files
@@ -252,12 +316,41 @@ export default function EditJobScreen() {
           Modifica los detalles de tu publicación.
         </p>
 
-        {(jobStatus === 'cancelled' || jobStatus === 'rejected') && (
-          <div className="mt-4 rounded-xl border border-amber-500/50 bg-amber-50 dark:bg-amber-900/20 p-4">
-            <p className="text-amber-700 dark:text-amber-300 text-sm">
-              <strong>Nota:</strong> Este trabajo fue {jobStatus === 'cancelled' ? 'cancelado' : 'rechazado'}.
-              Al guardar los cambios, será enviado automáticamente para revisión y aprobación antes de publicarse.
+        {(jobStatus === 'cancelled' || jobStatus === 'rejected') && !hasExpiredDates && (
+          cancellationReason?.includes('Ningún trabajador se postuló') ? (
+            <div className="mt-4 rounded-xl border border-blue-400 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/20 p-4">
+              <p className="text-blue-800 dark:text-blue-200 text-sm font-medium mb-2">
+                Reprogramando trabajo sin postulaciones
+              </p>
+              <p className="text-blue-700 dark:text-blue-300 text-sm">
+                Actualiza las fechas y considera ajustar el presupuesto o agregar más detalles para atraer trabajadores.
+                Al guardar, tu trabajo será republicado automáticamente.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-4 rounded-xl border border-amber-500/50 bg-amber-50 dark:bg-amber-900/20 p-4">
+              <p className="text-amber-700 dark:text-amber-300 text-sm">
+                <strong>Nota:</strong> Este trabajo fue {jobStatus === 'cancelled' ? 'cancelado' : 'rechazado'}.
+                Al guardar los cambios, será enviado automáticamente para revisión y aprobación antes de publicarse.
+              </p>
+            </div>
+          )
+        )}
+
+        {hasExpiredDates && (
+          <div className="mt-4 rounded-xl border-2 border-red-500/50 bg-red-50 dark:bg-red-900/20 p-4">
+            <p className="text-red-700 dark:text-red-300 text-sm font-medium mb-2">
+              ⚠️ Este trabajo tiene fechas vencidas
             </p>
+            <p className="text-red-600 dark:text-red-400 text-sm">
+              Las fechas programadas para este trabajo ya pasaron. <strong>Primero debes actualizar las fechas de inicio y fin</strong> a fechas futuras válidas.
+              Una vez que las fechas sean correctas, podrás editar los demás campos.
+            </p>
+            {!fieldsDisabled && (
+              <p className="text-green-600 dark:text-green-400 text-sm mt-2">
+                ✓ Las nuevas fechas son válidas. Ahora puedes editar todos los campos y guardar los cambios.
+              </p>
+            )}
           </div>
         )}
 
@@ -273,8 +366,9 @@ export default function EditJobScreen() {
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
                 required
+                disabled={fieldsDisabled}
                 placeholder="Ej: Reparación de cañería en cocina"
-                className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
+                className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </FormField>
 
@@ -288,9 +382,10 @@ export default function EditJobScreen() {
                 value={summary}
                 onChange={(e) => setSummary(e.target.value)}
                 required
+                disabled={fieldsDisabled}
                 maxLength={200}
                 placeholder="Ej: Necesito arreglar una pérdida de agua en la cocina"
-                className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
+                className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </FormField>
 
@@ -304,8 +399,9 @@ export default function EditJobScreen() {
                 onChange={(e) => setDescription(e.target.value)}
                 rows={5}
                 required
+                disabled={fieldsDisabled}
                 placeholder="Describe el problema, qué esperas que se haga, si se necesitan materiales especiales, etc."
-                className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
+                className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </FormField>
 
@@ -318,7 +414,8 @@ export default function EditJobScreen() {
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value)}
                 required
-                className="block w-full rounded-md border-0 py-2 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
+                disabled={fieldsDisabled}
+                className="block w-full rounded-md border-0 py-2 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <option value="">Seleccionar categoría...</option>
                 {JOB_CATEGORIES.map((cat) => (
@@ -361,7 +458,7 @@ export default function EditJobScreen() {
                       key={tag}
                       type="button"
                       onClick={() => handleAddTag(tag)}
-                      disabled={selectedTags.includes(tag) || selectedTags.length >= 10}
+                      disabled={fieldsDisabled || selectedTags.includes(tag) || selectedTags.length >= 10}
                       className="px-3 py-1 rounded-full border border-gray-300 dark:border-slate-600 text-sm hover:bg-sky-50 dark:hover:bg-sky-900/20 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 dark:text-slate-300"
                     >
                       {tag}
@@ -376,13 +473,13 @@ export default function EditJobScreen() {
                     onChange={(e) => setCustomTag(e.target.value)}
                     onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), handleAddCustomTag())}
                     placeholder="O agrega una etiqueta personalizada"
-                    disabled={selectedTags.length >= 10}
+                    disabled={fieldsDisabled || selectedTags.length >= 10}
                     className="block flex-1 rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50"
                   />
                   <button
                     type="button"
                     onClick={handleAddCustomTag}
-                    disabled={!customTag.trim() || selectedTags.length >= 10}
+                    disabled={fieldsDisabled || !customTag.trim() || selectedTags.length >= 10}
                     className="px-4 py-2 bg-sky-500 text-white rounded-md hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                   >
                     Agregar
@@ -399,6 +496,7 @@ export default function EditJobScreen() {
                     value={price}
                     onChange={(e) => setPrice(e.target.value)}
                     required
+                    disabled={fieldsDisabled}
                     min="0"
                     step="1"
                     placeholder="15000"
@@ -407,24 +505,44 @@ export default function EditJobScreen() {
                         e.preventDefault();
                       }
                     }}
-                    className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
+                    className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                 </FormField>
               </div>
-              <div className="sm:col-span-3">
-                <FormField label="Ubicación" icon={MapPin}>
+              <div className="sm:col-span-2">
+                <FormField label="Ciudad" icon={MapPin}>
                   <LocationAutocomplete
                     value={location}
                     onChange={setLocation}
-                    placeholder="Ej: Palermo, CABA"
+                    placeholder="Ej: Buenos Aires"
                     required
+                    disabled={fieldsDisabled}
                     name="location"
+                  />
+                </FormField>
+              </div>
+              <div className="sm:col-span-2">
+                <FormField label="Barrio (opcional)" icon={MapPin}>
+                  <input
+                    type="text"
+                    value={neighborhood}
+                    onChange={(e) => setNeighborhood(e.target.value)}
+                    placeholder="Ej: Palermo, Belgrano"
+                    disabled={fieldsDisabled}
+                    className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                 </FormField>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
+            <div className={`grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6 ${fieldsDisabled ? 'p-4 rounded-xl border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/20' : ''}`}>
+              {fieldsDisabled && (
+                <div className="sm:col-span-6 mb-2">
+                  <p className="text-amber-700 dark:text-amber-300 text-sm font-medium">
+                    ⚠️ Este trabajo expiró. Selecciona nuevas fechas (la fecha de fin debe ser en el futuro) para poder guardarlo:
+                  </p>
+                </div>
+              )}
               <div className="sm:col-span-3">
                 <FormField label="Fecha de inicio" icon={Calendar}>
                   <CustomDateInput
@@ -434,19 +552,50 @@ export default function EditJobScreen() {
                     placeholder="Selecciona fecha y hora de inicio"
                     minDate={new Date()}
                     defaultValue={startDate}
+                    onDateChange={(date) => {
+                      if (date) {
+                        setStartDate(date.toISOString().slice(0, 16));
+                      }
+                    }}
                   />
                 </FormField>
               </div>
               <div className="sm:col-span-3">
                 <FormField label="Fecha de finalización estimada" icon={Clock}>
-                  <CustomDateInput
-                    name="endDate"
-                    type="datetime"
-                    required
-                    placeholder="Selecciona fecha y hora de fin"
-                    minDate={new Date()}
-                    defaultValue={endDate}
-                  />
+                  {!endDateFlexible && (
+                    <CustomDateInput
+                      name="endDate"
+                      type="datetime"
+                      required
+                      placeholder="Selecciona fecha y hora de fin"
+                      minDate={new Date()}
+                      defaultValue={endDate}
+                      onDateChange={(date) => {
+                        if (date) {
+                          setEndDate(date.toISOString().slice(0, 16));
+                        }
+                      }}
+                    />
+                  )}
+                  <label className="flex items-center gap-2 mt-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={endDateFlexible}
+                      onChange={(e) => setEndDateFlexible(e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-300 dark:border-slate-600 text-sky-600 focus:ring-sky-500 dark:bg-slate-700"
+                    />
+                    <span className="text-sm text-gray-600 dark:text-slate-400">
+                      Todavía no lo sé
+                    </span>
+                  </label>
+                  {endDateFlexible && (
+                    <div className="mt-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+                      <p className="text-sm text-amber-700 dark:text-amber-300">
+                        <AlertTriangle className="inline h-4 w-4 mr-1" />
+                        Deberás definir la fecha de fin antes de las 24 horas previas al inicio del trabajo, de lo contrario el trabajo quedará suspendido.
+                      </p>
+                    </div>
+                  )}
                 </FormField>
               </div>
             </div>
@@ -502,10 +651,10 @@ export default function EditJobScreen() {
             </Link>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || fieldsDisabled}
               className="rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-sky-500/30 hover:from-sky-600 hover:to-sky-700 hover:shadow-sky-500/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
             >
-              {isSubmitting ? "Guardando..." : "Guardar cambios"}
+              {isSubmitting ? "Guardando..." : fieldsDisabled ? "Actualiza las fechas primero" : "Guardar cambios"}
             </button>
           </div>
         </form>

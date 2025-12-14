@@ -1,7 +1,19 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { FileText, Search, Filter, Eye, Ban, CheckCircle, XCircle, Plus, ArrowUpDown, ArrowUp, ArrowDown, Wifi, WifiOff, Bell } from "lucide-react";
+import { FileText, Search, Filter, Eye, Ban, CheckCircle, XCircle, Plus, ArrowUpDown, ArrowUp, ArrowDown, Wifi, WifiOff, Bell, AlertTriangle, X, Calendar, Clock } from "lucide-react";
 import { useSocket } from "../../hooks/useSocket";
+
+interface ContractChange {
+  field: string;
+  oldValue: any;
+  newValue: any;
+  changedAt: string;
+  changedBy?: {
+    id: string;
+    name: string;
+  };
+  reason?: string;
+}
 
 interface Contract {
   id: string;
@@ -25,11 +37,19 @@ interface Contract {
   };
   price: number;
   totalPrice: number;
+  originalPrice?: number;
   status: string;
   paymentStatus: string;
   startDate: string;
   endDate: string;
   createdAt: string;
+  updatedAt?: string;
+  description?: string;
+  originalDescription?: string;
+  changeHistory?: ContractChange[];
+  hasChanges?: boolean;
+  priceModifications?: any[];
+  extensions?: any[];
 }
 
 type SortField = 'job' | 'client' | 'doer' | 'price' | 'date' | 'status' | 'payment';
@@ -46,8 +66,69 @@ export default function AdminContracts() {
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   const [newContractAlert, setNewContractAlert] = useState<string | null>(null);
+  const [selectedContractChanges, setSelectedContractChanges] = useState<Contract | null>(null);
 
   const { registerAdminContractCreatedHandler, registerAdminContractUpdatedHandler, isConnected } = useSocket();
+
+  // Helper to check if contract has changes
+  const contractHasChanges = (contract: Contract): boolean => {
+    return !!(
+      (contract.originalPrice && contract.originalPrice !== contract.totalPrice) ||
+      (contract.priceModifications && contract.priceModifications.length > 0) ||
+      (contract.extensions && contract.extensions.length > 0) ||
+      (contract.changeHistory && contract.changeHistory.length > 0)
+    );
+  };
+
+  // Generate change list from contract data
+  const getContractChanges = (contract: Contract): ContractChange[] => {
+    const changes: ContractChange[] = [];
+
+    // Price changes
+    if (contract.originalPrice && contract.originalPrice !== contract.totalPrice) {
+      changes.push({
+        field: 'Precio',
+        oldValue: `$${contract.originalPrice.toLocaleString()}`,
+        newValue: `$${contract.totalPrice.toLocaleString()}`,
+        changedAt: contract.updatedAt || contract.createdAt,
+      });
+    }
+
+    // Price modifications history
+    if (contract.priceModifications) {
+      contract.priceModifications.forEach((mod: any) => {
+        changes.push({
+          field: 'Modificación de Precio',
+          oldValue: `$${(mod.previousPrice || 0).toLocaleString()}`,
+          newValue: `$${(mod.newPrice || 0).toLocaleString()}`,
+          changedAt: mod.requestedAt || mod.createdAt,
+          reason: mod.reason,
+          changedBy: mod.requestedBy,
+        });
+      });
+    }
+
+    // Extensions
+    if (contract.extensions) {
+      contract.extensions.forEach((ext: any) => {
+        changes.push({
+          field: 'Extensión de Contrato',
+          oldValue: ext.previousEndDate ? new Date(ext.previousEndDate).toLocaleDateString('es-AR') : '-',
+          newValue: ext.newEndDate ? new Date(ext.newEndDate).toLocaleDateString('es-AR') : '-',
+          changedAt: ext.requestedAt || ext.createdAt,
+          reason: ext.reason,
+          changedBy: ext.requestedBy,
+        });
+      });
+    }
+
+    // Change history
+    if (contract.changeHistory) {
+      changes.push(...contract.changeHistory);
+    }
+
+    return changes.sort((a, b) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime());
+  };
 
   const fetchContracts = useCallback(async () => {
     try {
@@ -335,25 +416,20 @@ export default function AdminContracts() {
             </select>
           </div>
 
-          {/* Date From Filter */}
-          <div>
+          {/* Date Range Filter */}
+          <div className="flex items-center gap-2">
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              placeholder="Desde"
-              className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 text-gray-900 dark:text-white"
+              className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 text-gray-900 dark:text-white text-sm"
             />
-          </div>
-
-          {/* Date To Filter */}
-          <div>
+            <span className="text-gray-400">-</span>
             <input
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              placeholder="Hasta"
-              className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 text-gray-900 dark:text-white"
+              className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 text-gray-900 dark:text-white text-sm"
             />
           </div>
         </div>
@@ -446,6 +522,12 @@ export default function AdminContracts() {
                   </button>
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Fechas
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Cambios
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Acciones
                 </th>
               </tr>
@@ -453,7 +535,7 @@ export default function AdminContracts() {
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {getSortedAndFilteredContracts().length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                     No se encontraron contratos
                   </td>
                 </tr>
@@ -465,7 +547,7 @@ export default function AdminContracts() {
                         {contract.job?.title || contract.title || 'Sin título'}
                       </div>
                       <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {new Date(contract.createdAt).toLocaleDateString("es-AR")}
+                        {new Date(contract.createdAt).toLocaleDateString("es-AR")} {new Date(contract.createdAt).toLocaleTimeString("es-AR", { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </td>
                     <td className="px-4 py-4">
@@ -492,6 +574,39 @@ export default function AdminContracts() {
                       </span>
                     </td>
                     <td className="px-4 py-4">
+                      <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3 text-green-500" />
+                          <span>Inicio: {contract.startDate ? new Date(contract.startDate).toLocaleDateString('es-AR') : '-'}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3 text-red-500" />
+                          <span>Fin: {contract.endDate ? new Date(contract.endDate).toLocaleDateString('es-AR') : '-'}</span>
+                        </div>
+                        {contract.startDate && contract.endDate && (
+                          <div className="flex items-center gap-1 text-gray-400">
+                            <Clock className="h-3 w-3" />
+                            <span>
+                              {new Date(contract.startDate).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })} - {new Date(contract.endDate).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 text-center">
+                      {contractHasChanges(contract) ? (
+                        <button
+                          onClick={() => setSelectedContractChanges(contract)}
+                          className="p-1.5 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-full transition-colors"
+                          title="Ver cambios"
+                        >
+                          <AlertTriangle className="h-5 w-5" />
+                        </button>
+                      ) : (
+                        <span className="text-gray-300 dark:text-gray-600">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-4">
                       <div className="flex gap-2">
                         <Link
                           to={`/contracts/${contract.id || contract._id}`}
@@ -509,6 +624,81 @@ export default function AdminContracts() {
           </table>
         </div>
       </div>
+
+      {/* Changes Modal */}
+      {selectedContractChanges && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setSelectedContractChanges(null)}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Historial de Cambios</h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {selectedContractChanges.job?.title || selectedContractChanges.title || 'Contrato'}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedContractChanges(null)}
+                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto max-h-[60vh]">
+              {getContractChanges(selectedContractChanges).length === 0 ? (
+                <p className="text-center text-gray-500 dark:text-gray-400 py-8">No hay cambios registrados</p>
+              ) : (
+                <div className="space-y-4">
+                  {getContractChanges(selectedContractChanges).map((change, index) => (
+                    <div key={index} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="px-2 py-0.5 text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300 rounded">
+                              {change.field}
+                            </span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              {new Date(change.changedAt).toLocaleDateString('es-AR')} {new Date(change.changedAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className="text-gray-500 dark:text-gray-400 block text-xs mb-1">Valor anterior:</span>
+                              <span className="text-red-600 dark:text-red-400 font-medium line-through">{change.oldValue || '-'}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500 dark:text-gray-400 block text-xs mb-1">Valor nuevo:</span>
+                              <span className="text-green-600 dark:text-green-400 font-medium">{change.newValue || '-'}</span>
+                            </div>
+                          </div>
+                          {change.reason && (
+                            <div className="mt-2 text-sm">
+                              <span className="text-gray-500 dark:text-gray-400">Razón: </span>
+                              <span className="text-gray-700 dark:text-gray-300">{change.reason}</span>
+                            </div>
+                          )}
+                          {change.changedBy && (
+                            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                              Por: {change.changedBy.name}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setSelectedContractChanges(null)}
+                className="w-full px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

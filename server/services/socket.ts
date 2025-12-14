@@ -147,10 +147,13 @@ export class SocketService {
         return;
       }
 
-      // Verify user is a participant
-      const isParticipant = conversation.participants.some(
-        (p) => p.toString() === socket.userId
-      );
+      // Verify user is a participant - normalize IDs to strings for comparison
+      const userId = socket.userId?.toString() || '';
+      // Normalize all participant IDs to strings for comparison
+      const participantIds = conversation.participants.map(p => p?.toString() || '');
+      const isParticipant = participantIds.includes(userId);
+
+      console.log(`🔍 Join conversation check: userId=${userId}, participants=${JSON.stringify(participantIds)}, isParticipant=${isParticipant}`);
 
       if (!isParticipant) {
         socket.emit("error", { message: "You are not a participant in this conversation" });
@@ -195,11 +198,13 @@ export class SocketService {
         return;
       }
 
-      const isParticipant = conversation.participants.some(
-        (p) => p.toString() === socket.userId
-      );
+      // Verify user is a participant - normalize IDs to strings for comparison
+      const senderId = socket.userId?.toString() || '';
+      const participantIds = conversation.participants.map(p => p?.toString() || '');
+      const isParticipant = participantIds.includes(senderId);
 
       if (!isParticipant) {
+        console.log(`❌ Message rejected: userId=${senderId}, participants=${JSON.stringify(participantIds)}`);
         socket.emit("error", { message: "You are not a participant in this conversation" });
         return;
       }
@@ -256,7 +261,7 @@ export class SocketService {
         // Notify unread count update to the recipient
         const participantConversations = await Conversation.findAll({
           where: {
-            participants: participantId,
+            participants: { [Op.contains]: [participantIdStr] },
             archived: false,
           },
           attributes: ['id', 'unreadCount']
@@ -289,14 +294,16 @@ export class SocketService {
         if (!isOnline) {
           // Create notification for offline user
           await Notification.create({
-            userId: participantId,
-            type: "new_message",
+            recipientId: participantIdStr,
+            type: "info",
+            category: "chat",
             title: "Nuevo mensaje",
             message: `${socket.user.name}: ${message.substring(0, 100)}`,
-            metadata: {
+            data: {
               conversationId,
               senderId: socket.userId,
             },
+            read: false,
           });
 
           // Send push notification
@@ -453,6 +460,8 @@ export class SocketService {
   public notifyProposalUpdate(proposalId: string, freelancerId: string, clientId: string, data: any) {
     this.broadcastToUser(freelancerId, "proposal:updated", { proposalId, ...data });
     this.broadcastToUser(clientId, "proposal:updated", { proposalId, ...data });
+    // Also refresh the job owner's jobs list
+    this.broadcastToUser(clientId, "myjobs:refresh", { proposalId, ...data });
   }
 
   // Broadcast payment updates
@@ -498,6 +507,8 @@ export class SocketService {
   public notifyNewProposal(proposal: any, jobOwnerId: string) {
     this.io.emit("admin:proposal:created", { proposal, timestamp: new Date() });
     this.broadcastToUser(jobOwnerId, "proposal:new", { proposal });
+    // Also refresh the job owner's jobs list
+    this.broadcastToUser(jobOwnerId, "myjobs:refresh", { proposal });
   }
 
   // Broadcast new contract created
@@ -547,6 +558,15 @@ export class SocketService {
   // Broadcast new ticket
   public notifyNewTicket(ticket: any) {
     this.io.emit("admin:ticket:created", { ticket, timestamp: new Date() });
+  }
+
+  // ============================================
+  // USER NOTIFICATION BROADCASTS
+  // ============================================
+
+  // Send notification to specific user
+  public notifyUser(userId: string, notification: any) {
+    this.broadcastToUser(userId, "notification:new", notification);
   }
 
   // Broadcast ticket status changed

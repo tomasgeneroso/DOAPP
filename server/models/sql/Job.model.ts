@@ -25,7 +25,7 @@ import { User } from './User.model.js';
  * - Sistema de ratings y reviews
  */
 
-export type JobStatus = 'draft' | 'pending_payment' | 'pending_approval' | 'open' | 'in_progress' | 'completed' | 'cancelled';
+export type JobStatus = 'draft' | 'pending_payment' | 'pending_approval' | 'open' | 'in_progress' | 'completed' | 'cancelled' | 'suspended';
 export type JobUrgency = 'low' | 'medium' | 'high';
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'expert';
 
@@ -140,6 +140,20 @@ export class Job extends Model {
   @Column(DataType.STRING(255))
   location!: string;
 
+  // Neighborhood - shown publicly in job listing (e.g., "Palermo", "Belgrano")
+  @Column(DataType.STRING(100))
+  neighborhood?: string;
+
+  // Address fields for precise location - only shown to assigned worker
+  @Column(DataType.STRING(200))
+  addressStreet?: string;
+
+  @Column(DataType.STRING(50))
+  addressNumber?: string;
+
+  @Column(DataType.STRING(255))
+  addressDetails?: string;
+
   @Index
   @Column(DataType.DECIMAL(10, 8))
   latitude?: number;
@@ -161,9 +175,15 @@ export class Job extends Model {
   @Column(DataType.DATE)
   startDate!: Date;
 
-  @AllowNull(false)
+  @AllowNull(true) // Now optional - can be null if endDateFlexible is true
   @Column(DataType.DATE)
-  endDate!: Date;
+  endDate?: Date;
+
+  // If true, end date is not yet determined ("Todavía no lo sé")
+  // Job will be suspended 24h before start if still true
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  endDateFlexible!: boolean;
 
   // ============================================
   // STATUS & PRIORITY
@@ -285,6 +305,62 @@ export class Job extends Model {
   views!: number;
 
   // ============================================
+  // MULTIPLE WORKERS SUPPORT
+  // ============================================
+
+  @Default(1)
+  @Column({
+    type: DataType.INTEGER,
+    validate: {
+      min: 1,
+      max: 5,
+    },
+  })
+  maxWorkers!: number;
+
+  @Default([])
+  @Column(DataType.ARRAY(DataType.UUID))
+  selectedWorkers!: string[];
+
+  @Column(DataType.UUID)
+  groupChatId?: string;
+
+  // Worker payment allocations - stores {workerId, allocatedAmount, percentage} for each worker
+  @Default([])
+  @Column(DataType.JSONB)
+  workerAllocations!: Array<{
+    workerId: string;
+    allocatedAmount: number;
+    percentage: number;
+    allocatedAt: Date;
+  }>;
+
+  // Sum of all allocated amounts
+  @Default(0)
+  @Column(DataType.DECIMAL(12, 2))
+  allocatedTotal!: number;
+
+  // Budget remaining to allocate to workers
+  @Column(DataType.DECIMAL(12, 2))
+  remainingBudget?: number;
+
+  // ============================================
+  // REMINDER NOTIFICATIONS
+  // ============================================
+
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  reminder12hSent!: boolean;
+
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  reminder6hSent!: boolean;
+
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  reminder2hSent!: boolean;
+
+  // ============================================
   // BUDGET CHANGE HISTORY
   // ============================================
 
@@ -352,7 +428,25 @@ export class Job extends Model {
    * Check if job is available for applications
    */
   isAvailable(): boolean {
-    return this.status === 'open' && this.publicationPaid;
+    // Job is available if it's open, paid, and hasn't reached max workers
+    const currentWorkers = this.selectedWorkers?.length || 0;
+    return this.status === 'open' && this.publicationPaid && currentWorkers < this.maxWorkers;
+  }
+
+  /**
+   * Check if job needs more workers
+   */
+  needsMoreWorkers(): boolean {
+    const currentWorkers = this.selectedWorkers?.length || 0;
+    return currentWorkers < this.maxWorkers;
+  }
+
+  /**
+   * Check if all worker positions are filled
+   */
+  isFullyStaffed(): boolean {
+    const currentWorkers = this.selectedWorkers?.length || 0;
+    return currentWorkers >= this.maxWorkers;
   }
 
   /**

@@ -7,6 +7,13 @@ interface MultipleRatingsProps {
   showAll?: boolean;
 }
 
+// Helper to safely convert rating to number
+const toNumber = (value: any): number => {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') return parseFloat(value) || 0;
+  return 0;
+};
+
 export default function MultipleRatings({ user, showAll = true }: MultipleRatingsProps) {
   const ratings = [
     {
@@ -84,7 +91,7 @@ export default function MultipleRatings({ user, showAll = true }: MultipleRating
                         <Star
                           key={star}
                           className={`w-4 h-4 ${
-                            star <= Math.round(item.rating || 0)
+                            star <= Math.round(toNumber(item.rating))
                               ? `${item.color} fill-current`
                               : 'text-gray-300 dark:text-gray-600'
                           }`}
@@ -92,7 +99,7 @@ export default function MultipleRatings({ user, showAll = true }: MultipleRating
                       ))}
                     </div>
                     <span className="text-sm font-bold text-gray-900 dark:text-white">
-                      {item.rating?.toFixed(1)}
+                      {toNumber(item.rating).toFixed(1)}
                     </span>
                     <span className="text-xs text-gray-500 dark:text-gray-400">
                       ({item.count})
@@ -130,7 +137,7 @@ export default function MultipleRatings({ user, showAll = true }: MultipleRating
                   <Star
                     key={star}
                     className={`w-4 h-4 ${
-                      star <= Math.round(user.rating || 0)
+                      star <= Math.round(toNumber(user.rating))
                         ? 'text-purple-600 dark:text-purple-400 fill-current'
                         : 'text-gray-300 dark:text-gray-600'
                     }`}
@@ -138,7 +145,7 @@ export default function MultipleRatings({ user, showAll = true }: MultipleRating
                 ))}
               </div>
               <span className="text-sm font-bold text-gray-900 dark:text-white">
-                {user.rating?.toFixed(1)}
+                {toNumber(user.rating).toFixed(1)}
               </span>
               <span className="text-xs text-gray-500 dark:text-gray-400">
                 ({user.reviewsCount})

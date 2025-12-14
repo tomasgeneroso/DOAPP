@@ -23,6 +23,9 @@ import {
 // import { startEscalateExpiredChangeRequestsJob } from "./jobs/escalateExpiredChangeRequests.js";
 import { startResetProMembershipCountersJob } from "./jobs/resetProMembershipCounters.js";
 import { startAutoSelectWorkerJob } from "./jobs/autoSelectWorker.js";
+import { startAutoCancelExpiredJobsJob } from "./jobs/autoCancelExpiredJobs.js";
+import { startJobReminderJob } from "./jobs/jobReminders.js";
+import { startSuspendFlexibleEndDateJob } from "./jobs/suspendFlexibleEndDateJobs.js";
 
 // Rutas
 import authRoutes from "./routes/auth.js";
@@ -122,6 +125,10 @@ import promoterRoutes from "./routes/promoter.js";
 // User Analytics routes (Super PRO)
 import userAnalyticsRoutes from "./routes/userAnalytics.js";
 
+// Performance monitoring
+import adminPerformanceRoutes from "./routes/admin/performance.js";
+import { performanceMiddleware } from "./services/performanceMonitor.js";
+
 // ESM __dirname equivalent
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -145,6 +152,9 @@ app.use(
     credentials: true,
   })
 );
+
+// Performance monitoring middleware (must be early to capture all requests)
+app.use(performanceMiddleware());
 
 // Body parser
 app.use(express.json({ limit: "10mb" }));
@@ -240,6 +250,7 @@ app.use("/api/admin/payments", (await import('./routes/admin/payments.js')).defa
 app.use("/api/admin/company-balance", companyBalanceRoutes);
 app.use("/api/admin/marketing", marketingRoutes);
 app.use("/api/admin/family-codes", familyCodesRoutes);
+app.use("/api/admin/performance", adminPerformanceRoutes);
 
 // Analytics Routes
 app.use("/api/analytics/disputes", analyticsDisputesRoutes);
@@ -317,6 +328,15 @@ startResetProMembershipCountersJob();
 
 // Initialize auto-select worker job (24h before job start)
 startAutoSelectWorkerJob();
+
+// Initialize auto-cancel expired jobs job (jobs with past dates)
+startAutoCancelExpiredJobsJob();
+
+// Initialize job reminder notifications (12h, 6h, 2h before start)
+startJobReminderJob();
+
+// Initialize suspend jobs with flexible end date (24h before start without end date)
+startSuspendFlexibleEndDateJob();
 
 // Manejo de errores del servidor
 httpServer.on('error', (error: NodeJS.ErrnoException) => {

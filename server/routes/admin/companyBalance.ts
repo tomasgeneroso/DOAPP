@@ -254,26 +254,9 @@ router.get(
     try {
       const { page = 1, limit = 50, type, status, startDate, endDate } = req.query;
 
-      // Build query
-      const query: any = {};
-
-      if (type && type !== 'all') {
-        query.paymentType = type;
-      }
-
-      if (status && status !== 'all') {
-        query.status = status;
-      }
-
-      if (startDate || endDate) {
-        query.createdAt = {};
-        if (startDate) query.createdAt.$gte = new Date(startDate as string);
-        if (endDate) query.createdAt.$lte = new Date(endDate as string);
-      }
-
       const offset = (Number(page) - 1) * Number(limit);
 
-      // Build where clause
+      // Build Sequelize where clause
       const where: any = {};
       if (type && type !== 'all') where.paymentType = type;
       if (status && status !== 'all') where.status = status;

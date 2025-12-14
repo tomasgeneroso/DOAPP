@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Briefcase, CheckCircle, XCircle, Clock, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Image as ImageIcon, FileText, Download, Bell, Pause, Play, Ban } from "lucide-react";
+import { Briefcase, CheckCircle, XCircle, Clock, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Image as ImageIcon, FileText, Download, Bell, Pause, Play, Ban, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useSocket } from "../../hooks/useSocket";
 
@@ -400,11 +400,20 @@ export default function AdminJobManager() {
             Administra y modera todas las publicaciones de trabajo
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            {isConnected ? 'Tiempo real activo' : 'Desconectado'}
-          </span>
+        <div className="flex items-center gap-4">
+          <Link
+            to="/my-jobs"
+            className="flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg transition shadow-md hover:shadow-lg"
+          >
+            <Plus className="h-5 w-5" />
+            Crear Publicación
+          </Link>
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              {isConnected ? 'Tiempo real activo' : 'Desconectado'}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -695,7 +704,8 @@ export default function AdminJobManager() {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {new Date(job.createdAt).toLocaleDateString('es-AR')}
+                      <div>{new Date(job.createdAt).toLocaleDateString('es-AR')}</div>
+                      <div className="text-xs">{new Date(job.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div className="flex items-center gap-2">

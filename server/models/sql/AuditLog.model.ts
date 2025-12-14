@@ -311,7 +311,7 @@ export class AuditLog extends Model {
           [Op.lt]: cutoffDate,
         },
         severity: {
-          $notIn: ['critical', 'high'],
+          [Op.notIn]: ['critical', 'high'],
         },
       },
     });
@@ -336,8 +336,8 @@ export class AuditLog extends Model {
 
     if (options?.startDate || options?.endDate) {
       where.createdAt = {};
-      if (options?.startDate) where.createdAt.$gte = options.startDate;
-      if (options?.endDate) where.createdAt.$lte = options.endDate;
+      if (options?.startDate) where.createdAt[Op.gte] = options.startDate;
+      if (options?.endDate) where.createdAt[Op.lte] = options.endDate;
     }
 
     if (options?.performedBy) {

@@ -109,6 +109,7 @@ async function registerModels() {
   // Import all models
   const { default: User } = await import('../models/sql/User.model.js');
   const { default: Job } = await import('../models/sql/Job.model.js');
+  const { JobTask } = await import('../models/sql/JobTask.model.js');
   const { default: Contract } = await import('../models/sql/Contract.model.js');
   const { default: Payment } = await import('../models/sql/Payment.model.js');
   const { default: Proposal } = await import('../models/sql/Proposal.model.js');
@@ -147,6 +148,7 @@ async function registerModels() {
   sequelize.addModels([
     User,
     Job,
+    JobTask,
     Contract,
     Payment,
     PaymentProof,

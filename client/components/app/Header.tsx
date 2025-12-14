@@ -22,6 +22,7 @@ import { ThemeToggleCompact } from "../ui/ThemeToggle";
 import { useState, useRef, useEffect } from "react";
 import { usePermissions } from "../../hooks/usePermissions";
 import InvitationCodesModal from "../InvitationCodesModal";
+import NotificationDropdown from "../NotificationDropdown";
 
 export default function Header() {
   const { user, logout } = useAuth();
@@ -215,24 +216,36 @@ export default function Header() {
 
           <ThemeToggleCompact />
 
+          {/* Messages Button */}
+          {user && (
+            <Link
+              to="/messages"
+              className="relative flex items-center justify-center w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              aria-label="Mensajes"
+              data-onboarding="messages"
+            >
+              <MessageCircle className="h-5 w-5 text-slate-600 dark:text-slate-300" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white animate-pulse">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </Link>
+          )}
+
+          {user && <NotificationDropdown />}
+
           {user ? (
             <div className="relative" ref={menuRef} data-onboarding="profile-menu">
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
                 className="flex items-center gap-2 rounded-full bg-slate-100 dark:bg-slate-800 p-2 text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
               >
-                <div className="relative">
-                  <img
-                    src={user.avatar}
-                    alt={user.name}
-                    className="h-8 w-8 rounded-full object-cover"
-                  />
-                  {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white">
-                      {unreadCount > 9 ? "9+" : unreadCount}
-                    </span>
-                  )}
-                </div>
+                <img
+                  src={user.avatar}
+                  alt={user.name}
+                  className="h-8 w-8 rounded-full object-cover"
+                />
                 <span className="hidden font-medium text-slate-700 dark:text-slate-300 md:block">
                   {user.name}
                 </span>
@@ -270,22 +283,6 @@ export default function Header() {
                     >
                       <Briefcase className="h-4 w-4" />
                       Mis Trabajos
-                    </Link>
-                    <Link
-                      to="/messages"
-                      onClick={() => setIsMenuOpen(false)}
-                      className="flex items-center justify-between px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                      data-onboarding="messages"
-                    >
-                      <div className="flex items-center gap-3">
-                        <MessageCircle className="h-4 w-4" />
-                        Mensajes
-                      </div>
-                      {unreadCount > 0 && (
-                        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1.5 text-xs font-bold text-white">
-                          {unreadCount > 99 ? "99+" : unreadCount}
-                        </span>
-                      )}
                     </Link>
                     <Link
                       to="/settings"

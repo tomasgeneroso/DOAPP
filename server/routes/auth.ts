@@ -388,6 +388,16 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         interests: user?.interests,
         onboardingCompleted: user?.onboardingCompleted,
         address: user?.address,
+        bankingInfo: user?.bankingInfo ? {
+          accountHolder: user.bankingInfo.accountHolder,
+          bankType: user.bankingInfo.bankType,
+          bankName: user.bankingInfo.bankName,
+          accountType: user.bankingInfo.accountType,
+          // Return masked CBU for security
+          cbu: user.bankingInfo.cbu ? user.getMaskedCBU() : undefined,
+          alias: user.bankingInfo.alias,
+        } : undefined,
+        dontAskBankingInfo: user?.dontAskBankingInfo,
         legalInfo: user?.legalInfo,
         notificationPreferences: user?.notificationPreferences,
         referralCode: user?.referralCode,
@@ -401,6 +411,68 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         balance: user?.balance,
         hasFamilyPlan: user?.hasFamilyPlan,
         familyCodeId: user?.familyCodeId,
+        dni: user?.dni,
+        needsDni: !user?.dni && (!!user?.googleId || !!user?.facebookId), // True if OAuth user without DNI
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   PUT /api/auth/complete-registration
+// @desc    Completar registro con DNI (para usuarios de OAuth)
+// @access  Private
+router.put("/complete-registration", protect, [
+  body("dni").notEmpty().withMessage("DNI es requerido")
+    .isLength({ min: 7, max: 8 }).withMessage("DNI debe tener entre 7 y 8 dígitos")
+    .isNumeric().withMessage("DNI debe contener solo números"),
+], async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({
+        success: false,
+        errors: errors.array(),
+      });
+      return;
+    }
+
+    const { dni } = req.body;
+
+    // Check if DNI is already in use
+    const existingUser = await User.findOne({ where: { dni } });
+    if (existingUser && existingUser.id !== req.user.id) {
+      res.status(400).json({
+        success: false,
+        message: "Este DNI ya está registrado en otra cuenta",
+      });
+      return;
+    }
+
+    const user = await User.findByPk(req.user.id as string);
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: "Usuario no encontrado",
+      });
+      return;
+    }
+
+    await user.update({ dni });
+
+    res.json({
+      success: true,
+      message: "DNI registrado exitosamente",
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        dni: user.dni,
+        needsDni: false,
       },
     });
   } catch (error: any) {
@@ -518,6 +590,7 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
       bio,
       address,
       bankingInfo,
+      dontAskBankingInfo,
       legalInfo,
       interests,
       notificationPreferences,
@@ -586,7 +659,18 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
     if (phone !== undefined) updateData.phone = phone;
     if (bio !== undefined) updateData.bio = bio;
     if (address) updateData.address = address;
-    if (bankingInfo) updateData.bankingInfo = bankingInfo;
+    if (bankingInfo) {
+      // Merge bankingInfo - preserve existing CBU if not provided in update
+      updateData.bankingInfo = {
+        ...(oldUser.bankingInfo || {}), // Keep existing values
+        ...bankingInfo, // Override with new values
+      };
+      // If CBU wasn't provided, keep the existing one
+      if (!bankingInfo.cbu && oldUser.bankingInfo?.cbu) {
+        updateData.bankingInfo.cbu = oldUser.bankingInfo.cbu;
+      }
+    }
+    if (dontAskBankingInfo !== undefined) updateData.dontAskBankingInfo = dontAskBankingInfo;
     if (legalInfo) updateData.legalInfo = legalInfo;
     if (interests) updateData.interests = interests;
     if (notificationPreferences) updateData.notificationPreferences = notificationPreferences;
@@ -613,24 +697,37 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
       });
     }
 
+    // Get fresh user data to return
+    const updatedUser = await User.findByPk(req.user.id as string);
+
     res.json({
       success: true,
       user: {
-        _id: (user?.id as unknown as string),
-        id: (user?.id as unknown as string), // Alias for compatibility
-        name: user?.name,
-        email: user?.email,
-        phone: user?.phone,
-        bio: user?.bio,
-        avatar: user?.avatar,
-        rating: user?.rating,
-        reviewsCount: user?.reviewsCount,
-        completedJobs: user?.completedJobs,
-        role: user?.role,
-        address: user?.address,
-        legalInfo: user?.legalInfo,
-        interests: user?.interests,
-        notificationPreferences: user?.notificationPreferences,
+        _id: (updatedUser?.id as unknown as string),
+        id: (updatedUser?.id as unknown as string), // Alias for compatibility
+        name: updatedUser?.name,
+        email: updatedUser?.email,
+        phone: updatedUser?.phone,
+        bio: updatedUser?.bio,
+        avatar: updatedUser?.avatar,
+        rating: updatedUser?.rating,
+        reviewsCount: updatedUser?.reviewsCount,
+        completedJobs: updatedUser?.completedJobs,
+        role: updatedUser?.role,
+        address: updatedUser?.address,
+        bankingInfo: updatedUser?.bankingInfo ? {
+          accountHolder: updatedUser.bankingInfo.accountHolder,
+          bankType: updatedUser.bankingInfo.bankType,
+          bankName: updatedUser.bankingInfo.bankName,
+          accountType: updatedUser.bankingInfo.accountType,
+          // Return masked CBU for security
+          cbu: updatedUser.bankingInfo.cbu ? updatedUser.getMaskedCBU() : undefined,
+          alias: updatedUser.bankingInfo.alias,
+        } : undefined,
+        dontAskBankingInfo: updatedUser?.dontAskBankingInfo,
+        legalInfo: updatedUser?.legalInfo,
+        interests: updatedUser?.interests,
+        notificationPreferences: updatedUser?.notificationPreferences,
       },
     });
   } catch (error: any) {
@@ -667,8 +764,11 @@ router.get(
       maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
     });
 
+    // Check if user needs to complete registration (no DNI)
+    const needsDni = !user.dni;
+
     // Redirigir con el token en la URL para el frontend
-    res.redirect(`${config.clientUrl}/auth/callback?token=${token}`);
+    res.redirect(`${config.clientUrl}/auth/callback?token=${token}${needsDni ? '&needsDni=true' : ''}`);
   }
 );
 
@@ -687,7 +787,11 @@ router.get(
   (req: Request, res: Response) => {
     const user = req.user as IUser;
     const token = generateToken((user.id as unknown as string));
-    res.redirect(`${config.clientUrl}/auth/callback?token=${token}`);
+
+    // Check if user needs to complete registration (no DNI)
+    const needsDni = !user.dni;
+
+    res.redirect(`${config.clientUrl}/auth/callback?token=${token}${needsDni ? '&needsDni=true' : ''}`);
   }
 );
 

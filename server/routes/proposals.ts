@@ -16,6 +16,81 @@ import { Op } from 'sequelize';
 
 const router = express.Router();
 
+/**
+ * Crear o actualizar chat grupal para trabajos con múltiples trabajadores
+ */
+async function createOrUpdateGroupChat(job: Job, workerIds: string[]): Promise<Conversation | null> {
+  try {
+    // Todos los participantes: cliente + trabajadores
+    const allParticipants = [job.clientId, ...workerIds];
+
+    // Buscar si ya existe un chat grupal para este trabajo
+    let groupChat = job.groupChatId
+      ? await Conversation.findByPk(job.groupChatId)
+      : null;
+
+    if (groupChat) {
+      // Actualizar participantes del chat grupal existente
+      groupChat.participants = allParticipants;
+      await groupChat.save();
+    } else {
+      // Crear nuevo chat grupal
+      groupChat = await Conversation.create({
+        participants: allParticipants,
+        jobId: job.id,
+        type: 'contract' as any, // Tipo especial para chats grupales de trabajo
+        lastMessage: `Chat grupal creado para el trabajo "${job.title}"`,
+        lastMessageAt: new Date(),
+      });
+
+      // Guardar referencia al chat grupal en el trabajo
+      job.groupChatId = groupChat.id;
+      await job.save();
+
+      // Crear mensaje del sistema informando sobre el chat grupal
+      await ChatMessage.create({
+        conversationId: groupChat.id,
+        senderId: job.clientId,
+        message: `📋 Chat grupal del trabajo: ${job.title}||Equipo de trabajo||Este chat incluye al cliente y a todos los trabajadores seleccionados para este trabajo.\n\n👥 Participantes: ${allParticipants.length}\n📍 Ubicación: ${job.location}\n📅 Inicio: ${new Date(job.startDate).toLocaleDateString('es-AR')}`,
+        type: 'system',
+        metadata: {
+          jobId: job.id,
+          action: 'group_chat_created',
+        },
+      });
+    }
+
+    // Notificar a todos los participantes sobre el chat grupal
+    for (const participantId of allParticipants) {
+      const notification = await Notification.create({
+        recipientId: participantId,
+        type: 'group_chat',
+        category: 'chat',
+        title: 'Chat grupal disponible',
+        message: `Se ha creado un chat grupal para el trabajo "${job.title}" con ${allParticipants.length} participantes.`,
+        relatedModel: 'Conversation',
+        relatedId: groupChat.id,
+        actionText: 'Ir al chat',
+        data: {
+          jobId: job.id,
+          conversationId: groupChat.id,
+          participantCount: allParticipants.length,
+        },
+        read: false,
+      });
+
+      // Send real-time notification
+      const { socketService } = await import('../index.js');
+      socketService.notifyUser(participantId, notification.toJSON());
+    }
+
+    return groupChat;
+  } catch (error) {
+    console.error('Error creating/updating group chat:', error);
+    return null;
+  }
+}
+
 // @route   GET /api/proposals
 // @desc    Obtener propuestas del usuario (enviadas o recibidas)
 // @access  Private
@@ -68,6 +143,32 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
       success: true,
       count: proposals.length,
       proposals,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   GET /api/proposals/check/:jobId
+// @desc    Verificar si el usuario ya aplicó a un trabajo
+// @access  Private
+router.get("/check/:jobId", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const proposal = await Proposal.findOne({
+      where: {
+        jobId: req.params.jobId,
+        freelancerId: req.user.id,
+      },
+    });
+
+    res.json({
+      success: true,
+      hasApplied: !!proposal,
+      proposalId: proposal?.id || null,
+      proposalStatus: proposal?.status || null,
     });
   } catch (error: any) {
     res.status(500).json({
@@ -371,15 +472,23 @@ router.post(
 );
 
 // @route   PUT /api/proposals/:id/approve
-// @desc    Aprobar propuesta (por el cliente)
+// @desc    Aprobar propuesta (por el cliente) - soporta múltiples trabajadores con asignación de pago personalizada
 // @access  Private
 router.put("/:id/approve", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    // Extract optional allocated amount from request body
+    const { allocatedAmount } = req.body;
+
     const proposal = await Proposal.findByPk(req.params.id, {
       include: [
         {
           model: Job,
           as: 'job'
+        },
+        {
+          model: User,
+          as: 'freelancer',
+          attributes: ['id', 'name', 'email']
         }
       ]
     });
@@ -404,7 +513,48 @@ router.put("/:id/approve", protect, async (req: AuthRequest, res: Response): Pro
     if (proposal.status !== "pending") {
       res.status(400).json({
         success: false,
-        message: "Esta propuesta no puede ser aprobada",
+        message: `Esta propuesta no puede ser aprobada porque su estado es "${proposal.status}" (debe ser "pending")`,
+      });
+      return;
+    }
+
+    // Obtener el trabajo para verificar maxWorkers
+    const job = await Job.findByPk(proposal.jobId, {
+      include: [
+        {
+          model: User,
+          as: 'client',
+          attributes: ['id', 'name', 'email']
+        }
+      ]
+    });
+
+    if (!job) {
+      res.status(404).json({
+        success: false,
+        message: "Trabajo no encontrado",
+      });
+      return;
+    }
+
+    const maxWorkers = job.maxWorkers || 1;
+    const currentWorkers = job.selectedWorkers || [];
+    const currentWorkerCount = currentWorkers.length;
+
+    // Verificar si ya se alcanzó el máximo de trabajadores
+    if (currentWorkerCount >= maxWorkers) {
+      res.status(400).json({
+        success: false,
+        message: `Este trabajo ya tiene el máximo de ${maxWorkers} trabajador${maxWorkers > 1 ? 'es' : ''} seleccionado${maxWorkers > 1 ? 's' : ''}`,
+      });
+      return;
+    }
+
+    // Verificar si este trabajador ya fue seleccionado
+    if (currentWorkers.includes(proposal.freelancerId)) {
+      res.status(400).json({
+        success: false,
+        message: "Este trabajador ya fue seleccionado para este trabajo",
       });
       return;
     }
@@ -413,32 +563,105 @@ router.put("/:id/approve", protect, async (req: AuthRequest, res: Response): Pro
     proposal.status = "approved";
     await proposal.save();
 
-    // Rechazar todas las demás propuestas del mismo trabajo
-    await Proposal.update(
-      {
-        status: "rejected",
-        rejectionReason: "Se aprobó otra propuesta",
-      },
-      {
-        where: {
-          jobId: proposal.jobId,
-          id: { [Op.ne]: proposal.id },
-          status: "pending",
-        }
-      }
-    );
+    // Agregar trabajador al array de selectedWorkers
+    const updatedWorkers = [...currentWorkers, proposal.freelancerId];
+    job.selectedWorkers = updatedWorkers;
 
-    // Actualizar trabajo
-    const job = await Job.findByPk(proposal.jobId);
-    if (job) {
-      job.status = "in_progress";
+    // Si es el primer trabajador, también asignar a doerId para compatibilidad
+    if (!job.doerId) {
       job.doerId = proposal.freelancerId;
-      await job.save();
     }
 
-    // Validar monto mínimo de $5000 ARS
+    // ============================================
+    // WORKER PAYMENT ALLOCATION LOGIC
+    // ============================================
+    const jobPrice = typeof job.price === 'string' ? parseFloat(job.price) : Number(job.price);
+
+    // Calculate worker's allocated amount
+    let workerAllocation: number;
+
+    if (allocatedAmount !== undefined && allocatedAmount !== null) {
+      // Client specified a custom amount for this worker
+      workerAllocation = parseFloat(allocatedAmount);
+
+      // Validate allocation doesn't exceed remaining budget
+      const currentAllocatedTotal = typeof job.allocatedTotal === 'string'
+        ? parseFloat(job.allocatedTotal)
+        : (job.allocatedTotal || 0);
+      const remainingBudget = jobPrice - currentAllocatedTotal;
+
+      if (workerAllocation > remainingBudget) {
+        res.status(400).json({
+          success: false,
+          message: `El monto asignado ($${workerAllocation.toLocaleString()}) excede el presupuesto restante ($${remainingBudget.toLocaleString()})`,
+        });
+        return;
+      }
+    } else {
+      // Default: use proposed price or equal split
+      if (maxWorkers === 1) {
+        // Single worker: use proposal price
+        workerAllocation = proposal.proposedPrice;
+      } else {
+        // Multiple workers: use proposal price as allocation
+        // The client can later adjust via the allocation endpoint
+        workerAllocation = proposal.proposedPrice;
+      }
+    }
+
+    // Calculate percentage of total budget
+    const percentageOfBudget = (workerAllocation / jobPrice) * 100;
+
+    // Update job's worker allocations
+    const currentAllocations = job.workerAllocations || [];
+    currentAllocations.push({
+      workerId: proposal.freelancerId,
+      allocatedAmount: workerAllocation,
+      percentage: percentageOfBudget,
+      allocatedAt: new Date(),
+    });
+    job.workerAllocations = currentAllocations;
+
+    // Update allocated total and remaining budget
+    const newAllocatedTotal = currentAllocations.reduce((sum, a) => sum + a.allocatedAmount, 0);
+    job.allocatedTotal = newAllocatedTotal;
+    job.remainingBudget = jobPrice - newAllocatedTotal;
+
+    // Si se alcanzó el máximo de trabajadores, rechazar las demás propuestas pendientes
+    if (updatedWorkers.length >= maxWorkers) {
+      await Proposal.update(
+        {
+          status: "rejected",
+          rejectionReason: `Se completaron los ${maxWorkers} puesto${maxWorkers > 1 ? 's' : ''} disponible${maxWorkers > 1 ? 's' : ''}`,
+        },
+        {
+          where: {
+            jobId: proposal.jobId,
+            id: { [Op.ne]: proposal.id },
+            status: "pending",
+          }
+        }
+      );
+
+      // Solo cambiar a in_progress si la fecha de inicio ya pasó
+      const now = new Date();
+      const jobStartDate = job.startDate ? new Date(job.startDate) : now;
+
+      if (jobStartDate <= now) {
+        job.status = "in_progress";
+      }
+    }
+
+    await job.save();
+
+    // Crear o actualizar chat grupal si hay múltiples trabajadores
+    if (updatedWorkers.length > 1 || maxWorkers > 1) {
+      await createOrUpdateGroupChat(job, updatedWorkers);
+    }
+
+    // Validar monto mínimo de $5000 ARS para la asignación del trabajador
     const MINIMUM_CONTRACT_AMOUNT = 5000;
-    if (proposal.proposedPrice < MINIMUM_CONTRACT_AMOUNT) {
+    if (workerAllocation < MINIMUM_CONTRACT_AMOUNT) {
       res.status(400).json({
         success: false,
         message: `El monto mínimo del contrato es de $${MINIMUM_CONTRACT_AMOUNT.toLocaleString()} ARS`,
@@ -446,21 +669,25 @@ router.put("/:id/approve", protect, async (req: AuthRequest, res: Response): Pro
       return;
     }
 
-    // Crear contrato automáticamente
+    // Crear contrato automáticamente con el monto asignado
     const PLATFORM_COMMISSION = 0.1;
-    const commission = proposal.proposedPrice * PLATFORM_COMMISSION;
-    const totalPrice = proposal.proposedPrice + commission;
+    const commission = workerAllocation * PLATFORM_COMMISSION;
+    const totalPrice = workerAllocation + commission;
 
     const startDate = new Date();
     const endDate = new Date();
     endDate.setDate(endDate.getDate() + proposal.estimatedDuration);
+
+    // Generate pairing code (6 digit code)
+    const pairingCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const pairingExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
     const contract = await Contract.create({
       jobId: proposal.jobId,
       clientId: proposal.clientId,
       doerId: proposal.freelancerId,
       type: "trabajo",
-      price: proposal.proposedPrice,
+      price: workerAllocation, // Use allocated amount, not proposal price
       commission,
       totalPrice,
       startDate,
@@ -469,7 +696,32 @@ router.put("/:id/approve", protect, async (req: AuthRequest, res: Response): Pro
       termsAccepted: false,
       termsAcceptedByClient: false,
       termsAcceptedByDoer: false,
+      pairingCode,
+      pairingGeneratedAt: new Date(),
+      pairingExpiry,
+      // New allocation fields
+      allocatedAmount: workerAllocation,
+      percentageOfBudget,
     });
+
+    // Update the chat message metadata to reflect approved status
+    await ChatMessage.update(
+      {
+        metadata: {
+          jobId: proposal.jobId,
+          proposalId: proposal.id,
+          action: 'job_application',
+          proposalStatus: 'approved',
+          contractId: contract.id,
+        }
+      },
+      {
+        where: {
+          type: 'system',
+          'metadata.proposalId': proposal.id,
+        }
+      }
+    );
 
     // Send real-time notifications via Socket.io
     socketService.notifyProposalUpdate(
@@ -478,7 +730,8 @@ router.put("/:id/approve", protect, async (req: AuthRequest, res: Response): Pro
       req.user.id,
       {
         action: 'approved',
-        proposal
+        proposal,
+        proposalStatus: 'approved',
       }
     );
 
@@ -487,11 +740,15 @@ router.put("/:id/approve", protect, async (req: AuthRequest, res: Response): Pro
     socketService.notifyDashboardRefresh(req.user.id);
 
     // Create persistent notification for the freelancer
-    await Notification.create({
-      userId: proposal.freelancerId,
-      type: "proposal_approved",
+    const notification = await Notification.create({
+      recipientId: proposal.freelancerId,
+      type: "success",
+      category: "contract",
       title: "¡Has sido seleccionado!",
       message: `Felicitaciones! Fuiste elegido para el trabajo "${job?.title}". Revisa los detalles del contrato.`,
+      relatedModel: 'Contract',
+      relatedId: contract.id,
+      actionText: 'Ver contrato',
       data: {
         jobId: proposal.jobId,
         proposalId: proposal.id,
@@ -499,6 +756,9 @@ router.put("/:id/approve", protect, async (req: AuthRequest, res: Response): Pro
       },
       read: false,
     });
+
+    // Send real-time notification
+    socketService.notifyUser(proposal.freelancerId, notification.toJSON());
 
     // Notify admin panel of new contract
     const populatedContract = await Contract.findByPk(contract.id, {
@@ -566,6 +826,24 @@ router.put(
       proposal.rejectionReason = rejectionReason;
       await proposal.save();
 
+      // Update the chat message metadata to reflect rejected status
+      await ChatMessage.update(
+        {
+          metadata: {
+            jobId: proposal.jobId,
+            proposalId: proposal.id,
+            action: 'job_application',
+            proposalStatus: 'rejected',
+          }
+        },
+        {
+          where: {
+            type: 'system',
+            'metadata.proposalId': proposal.id,
+          }
+        }
+      );
+
       // Send real-time notifications via Socket.io
       socketService.notifyProposalUpdate(
         proposal.id,
@@ -574,6 +852,7 @@ router.put(
         {
           action: 'rejected',
           proposal,
+          proposalStatus: 'rejected',
           rejectionReason
         }
       );
@@ -637,6 +916,24 @@ router.put(
       proposal.withdrawnReason = withdrawnReason;
       await proposal.save();
 
+      // Update the chat message metadata to reflect withdrawn status
+      await ChatMessage.update(
+        {
+          metadata: {
+            jobId: proposal.jobId,
+            proposalId: proposal.id,
+            action: 'job_application',
+            proposalStatus: 'withdrawn',
+          }
+        },
+        {
+          where: {
+            type: 'system',
+            'metadata.proposalId': proposal.id,
+          }
+        }
+      );
+
       // Send real-time notifications via Socket.io
       socketService.notifyProposalUpdate(
         proposal.id,
@@ -645,6 +942,7 @@ router.put(
         {
           action: 'withdrawn',
           proposal,
+          proposalStatus: 'withdrawn',
           withdrawnReason
         }
       );
@@ -804,7 +1102,14 @@ router.post(
       });
 
       // Actualizar trabajo
-      job.status = "in_progress";
+      // Solo poner in_progress si la fecha de inicio ya pasó
+      const now = new Date();
+      const jobStartDate = job.startDate ? new Date(job.startDate) : now;
+
+      if (jobStartDate <= now) {
+        job.status = "in_progress";
+      }
+      // Si la fecha de inicio es futura, mantener el estado actual pero con doer asignado
       job.doerId = req.user.id;
       await job.save();
 
@@ -828,7 +1133,7 @@ router.post(
       }
 
       // Crear mensaje automático del sistema con nuevo formato
-      const systemMessage = `${req.user.name} aceptó el trabajo||${job.title}||Inicio: ${startDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })} a las ${startDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}\nFinalización estimada: ${endDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })} a las ${endDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}\nPrecio Acordado: $${jobPrice.toLocaleString("es-AR")} ARS\nUbicación: ${job.location}`;
+      const systemMessage = `${req.user.name} se postuló al trabajo||${job.title}||Inicio: ${startDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })} a las ${startDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}\nFinalización estimada: ${endDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })} a las ${endDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}\nPrecio Acordado: $${jobPrice.toLocaleString("es-AR")} ARS\nUbicación: ${job.location}\n\n⏳ Puedes ser seleccionado hasta 48 horas antes del inicio del trabajo.`;
 
       await ChatMessage.create({
         conversationId: conversation.id,
@@ -838,12 +1143,12 @@ router.post(
         metadata: {
           jobId: job.id,
           proposalId: proposal.id,
-          action: "job_accepted",
+          action: "job_application",
         },
       });
 
       // Actualizar conversación
-      conversation.lastMessage = "Trabajo aceptado";
+      conversation.lastMessage = "Nueva postulación recibida";
       conversation.lastMessageAt = new Date();
       await conversation.save();
 
@@ -854,7 +1159,7 @@ router.post(
       // Email al freelancer
       await emailService.sendEmail({
         to: req.user.email,
-        subject: `Has aceptado el trabajo: ${job.title}`,
+        subject: `Te postulaste al trabajo: ${job.title}`,
         html: `
           <!DOCTYPE html>
           <html>
@@ -866,16 +1171,17 @@ router.post(
                 .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
                 .button { display: inline-block; padding: 12px 30px; background: #0ea5e9; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
                 .info-box { background: white; border-left: 4px solid #0ea5e9; padding: 15px; margin: 20px 0; }
+                .warning-box { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; }
               </style>
             </head>
             <body>
               <div class="container">
                 <div class="header">
-                  <h1>✅ Trabajo Aceptado</h1>
+                  <h1>📋 Postulación Enviada</h1>
                 </div>
                 <div class="content">
                   <p>Hola ${req.user.name},</p>
-                  <p>Has aceptado exitosamente el trabajo:</p>
+                  <p>Te has postulado exitosamente al trabajo:</p>
                   <div class="info-box">
                     <h3>${job.title}</h3>
                     <p><strong>Cliente:</strong> ${clientUser.name}</p>
@@ -884,7 +1190,10 @@ router.post(
                     <p><strong>Fin:</strong> ${endDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
                     <p><strong>Pago:</strong> $${jobPrice.toLocaleString("es-AR")}</p>
                   </div>
-                  <p>El cliente ha sido notificado. Pueden comenzar a coordinar los detalles a través del chat.</p>
+                  <div class="warning-box">
+                    <p><strong>⏳ Importante:</strong> Puedes ser seleccionado hasta 48 horas antes del inicio del trabajo. Te notificaremos cuando el cliente tome una decisión.</p>
+                  </div>
+                  <p>El cliente ha sido notificado de tu postulación.</p>
                   <a href="${config.clientUrl}/chat/${conversation.id}" class="button">Ir al Chat</a>
                   <a href="${jobUrl}" class="button" style="background: #64748b;">Ver Trabajo</a>
                 </div>
@@ -897,7 +1206,7 @@ router.post(
       // Email al cliente
       await emailService.sendEmail({
         to: clientUser.email,
-        subject: `${req.user.name} ha aceptado tu trabajo: ${job.title}`,
+        subject: `${req.user.name} se postuló a tu trabajo: ${job.title}`,
         html: `
           <!DOCTYPE html>
           <html>
@@ -905,30 +1214,30 @@ router.post(
               <style>
                 body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
                 .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+                .header { background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
                 .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
                 .button { display: inline-block; padding: 12px 30px; background: #10b981; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-                .info-box { background: white; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0; }
+                .info-box { background: white; border-left: 4px solid #0ea5e9; padding: 15px; margin: 20px 0; }
               </style>
             </head>
             <body>
               <div class="container">
                 <div class="header">
-                  <h1>🎉 ¡Encontraste un profesional!</h1>
+                  <h1>📋 Nueva Postulación</h1>
                 </div>
                 <div class="content">
                   <p>Hola ${clientUser.name},</p>
-                  <p><strong>${req.user.name}</strong> ha aceptado tu trabajo:</p>
+                  <p><strong>${req.user.name}</strong> se ha postulado a tu trabajo:</p>
                   <div class="info-box">
                     <h3>${job.title}</h3>
-                    <p><strong>Profesional:</strong> ${req.user.name}</p>
+                    <p><strong>Candidato:</strong> ${req.user.name}</p>
                     <p><strong>Inicio:</strong> ${startDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
                     <p><strong>Fin:</strong> ${endDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
                     <p><strong>Pago:</strong> $${jobPrice.toLocaleString("es-AR")}</p>
                   </div>
-                  <p>Pueden coordinar los detalles finales a través del chat.</p>
-                  <a href="${config.clientUrl}/chat/${conversation.id}" class="button">Ir al Chat</a>
-                  <a href="${jobUrl}" class="button" style="background: #64748b;">Ver Trabajo</a>
+                  <p>Puedes revisar todas las postulaciones y seleccionar al trabajador ideal.</p>
+                  <a href="${config.clientUrl}/jobs/${job.id}/applications" class="button">Ver Postulaciones</a>
+                  <a href="${config.clientUrl}/chat/${conversation.id}" class="button" style="background: #64748b;">Ir al Chat</a>
                 </div>
               </div>
             </body>
@@ -939,7 +1248,7 @@ router.post(
       res.json({
         success: true,
         conversationId: conversation.id,
-        message: "Trabajo aceptado exitosamente",
+        message: "Postulación enviada exitosamente",
       });
     } catch (error: any) {
       console.error("Error in apply-and-accept:", error);
@@ -998,6 +1307,24 @@ router.post(
         return;
       }
 
+      // Verificar si el trabajo está abierto
+      if (job.status !== 'open') {
+        res.status(400).json({
+          success: false,
+          message: "Este trabajo ya no está disponible para aplicar",
+          jobStatus: job.status,
+        });
+        return;
+      }
+
+      // Verificar si ya existe una propuesta del usuario para este trabajo
+      const existingProposal = await Proposal.findOne({
+        where: {
+          jobId: job.id,
+          freelancerId: req.user.id,
+        }
+      });
+
       // Solo crear o encontrar conversación (NO crear propuesta automáticamente)
       let conversation = await Conversation.findOne({
         where: {
@@ -1026,6 +1353,10 @@ router.post(
         success: true,
         conversationId: conversation.id,
         message: "Conversación iniciada",
+        alreadyApplied: !!existingProposal,
+        proposalId: existingProposal?.id || null,
+        proposalStatus: existingProposal?.status || null,
+        jobStatus: job.status,
       });
     } catch (error: any) {
       console.error("Error in start-negotiation:", error);

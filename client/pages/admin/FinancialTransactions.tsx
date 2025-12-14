@@ -857,7 +857,7 @@ export default function FinancialTransactions() {
                     onClick={() => handleSort('commission')}
                     className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
                   >
-                    Comisión
+                    Suscripción
                     <SortIcon field="commission" />
                   </button>
                 </th>
@@ -875,12 +875,12 @@ export default function FinancialTransactions() {
                     onClick={() => handleSort('released')}
                     className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
                   >
-                    Liberado
+                    Escrow
                     <SortIcon field="released" />
                   </button>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Acciones
+                  Ver
                 </th>
               </tr>
             </thead>
@@ -952,12 +952,32 @@ export default function FinancialTransactions() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm">
-                      <p className="font-medium text-green-600 dark:text-green-400">
-                        ${(Number(transaction.platformFee) || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {(Number(transaction.platformFeePercentage) || 0).toFixed(1)}%
-                      </p>
+                      {transaction.type === 'membership' ? (
+                        <>
+                          <p className="font-medium text-purple-600 dark:text-purple-400">
+                            {(Number(transaction.platformFeePercentage) || 0) >= 3 ? 'PRO' :
+                             (Number(transaction.platformFeePercentage) || 0) >= 2 ? 'SUPER PRO' : 'FREE'}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {(Number(transaction.platformFeePercentage) || 8)}%
+                          </p>
+                        </>
+                      ) : (
+                        <>
+                          <p className="font-medium text-gray-600 dark:text-gray-400">
+                            {(Number(transaction.platformFeePercentage) || 8) <= 2 ? 'SUPER PRO' :
+                             (Number(transaction.platformFeePercentage) || 8) <= 3 ? 'PRO' : 'FREE'}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {(Number(transaction.platformFeePercentage) || 8).toFixed(1)}%
+                          </p>
+                        </>
+                      )}
+                      {(Number(transaction.platformFee) || 0) > 0 && (
+                        <p className="text-xs font-medium text-green-600 dark:text-green-400 mt-1">
+                          ${(Number(transaction.platformFee) || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      )}
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -974,26 +994,7 @@ export default function FinancialTransactions() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
                     <div className="flex items-center gap-2">
-                      {/* Actions based on status */}
-                      {transaction.status === 'pending_verification' && (
-                        <>
-                          <button
-                            onClick={() => handleApprovePayment(transaction.id)}
-                            className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 transition-colors"
-                            title="Aprobar pago"
-                          >
-                            <CheckCircle className="w-5 h-5" />
-                          </button>
-                          <button
-                            onClick={() => handleRejectPayment(transaction.id)}
-                            className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transition-colors"
-                            title="Rechazar pago"
-                          >
-                            <XCircle className="w-5 h-5" />
-                          </button>
-                        </>
-                      )}
-                      {/* View details link */}
+                      {/* View details link only - no approve/reject actions */}
                       <button
                         onClick={() => setSelectedTransaction(transaction)}
                         className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
@@ -1171,32 +1172,12 @@ export default function FinancialTransactions() {
                 </div>
               )}
 
-              {/* Actions for pending_verification payments */}
+              {/* Info: Go to PendingPayments for approvals */}
               {selectedTransaction.status === 'pending_verification' && (
                 <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Acciones</p>
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => {
-                        handleApprovePayment(selectedTransaction.id);
-                        setSelectedTransaction(null);
-                      }}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-                    >
-                      <CheckCircle className="w-4 h-4" />
-                      Aprobar
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSelectedTransaction(null);
-                        handleRejectPayment(selectedTransaction.id);
-                      }}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
-                    >
-                      <XCircle className="w-4 h-4" />
-                      Rechazar
-                    </button>
-                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Para aprobar o rechazar pagos, ve a <span className="font-medium text-sky-600">Pagos Pendientes</span> en el menú lateral.
+                  </p>
                 </div>
               )}
             </div>

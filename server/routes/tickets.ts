@@ -45,7 +45,12 @@ router.post(
 
       const { subject, category, priority, message, relatedUser, relatedContract, tags } = req.body;
 
+      // Generate ticket number
+      const ticketCount = await Ticket.count();
+      const ticketNumber = `TK-${String(ticketCount + 1).padStart(6, '0')}`;
+
       const ticket = await Ticket.create({
+        ticketNumber,
         subject,
         category,
         priority: priority || "medium",

@@ -23,10 +23,16 @@ import {
   ExternalLink,
   AlertTriangle,
   Bell,
+  Key,
+  Copy,
+  Check,
+  ChevronDown,
+  Briefcase,
 } from "lucide-react";
 import type { Job } from "@/types";
 import MultipleRatings from "../components/user/MultipleRatings";
 import LocationCircleMap from "../components/map/LocationCircleMap";
+import JobTasks from "../components/jobs/JobTasks";
 
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
@@ -55,6 +61,7 @@ export default function JobDetail() {
   const [newBudget, setNewBudget] = useState("");
   const [budgetReason, setBudgetReason] = useState("");
   const [changingBudget, setChangingBudget] = useState(false);
+  const [showClientMenu, setShowClientMenu] = useState(false);
 
   // Modal de confirmación de pago por aumento de presupuesto
   const [showPaymentConfirmModal, setShowPaymentConfirmModal] = useState(false);
@@ -73,6 +80,17 @@ export default function JobDetail() {
   const [showContractRedirectModal, setShowContractRedirectModal] = useState(false);
   const [contractRedirectUrl, setContractRedirectUrl] = useState<string>("");
   const [contractRedirectMessage, setContractRedirectMessage] = useState<string>("");
+
+  // Contract data for pairing code (for worker view)
+  const [contractData, setContractData] = useState<{
+    id: string;
+    pairingCode?: string;
+    pairingExpiry?: string;
+    doerId?: string;
+  } | null>(null);
+  const [copiedPairingCode, setCopiedPairingCode] = useState(false);
+  const [hasApplied, setHasApplied] = useState(false);
+  const [checkingApplication, setCheckingApplication] = useState(false);
 
   const { registerNewProposalHandler, registerJobUpdateHandler, registerJobsRefreshHandler } = useSocket();
 
@@ -166,7 +184,8 @@ export default function JobDetail() {
       const userId = user?.id || user?._id;
 
       if (clientId !== userId) return;
-      if (job.status !== 'open') return;
+      // Cargar propuestas si el trabajo está abierto, o si está in_progress pero sin doer asignado (estado inconsistente)
+      if (job.status !== 'open' && !(job.status === 'in_progress' && !job.doerId)) return;
 
       setLoadingProposals(true);
       try {
@@ -188,6 +207,78 @@ export default function JobDetail() {
 
     fetchProposals();
   }, [job, user, token]);
+
+  // Check if current user has already applied to this job
+  useEffect(() => {
+    const checkIfApplied = async () => {
+      if (!job || !user || !token) return;
+
+      // Only check for non-owners
+      const clientId = typeof job.client === 'string' ? job.client : (job.client?.id || job.client?._id);
+      const userId = user?.id || user?._id;
+      if (clientId === userId) return;
+
+      setCheckingApplication(true);
+      try {
+        const response = await fetch(`/api/proposals/check/${job.id || job._id}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await response.json();
+        if (data.success) {
+          setHasApplied(data.hasApplied || false);
+        }
+      } catch (err) {
+        console.error("Error checking application status:", err);
+      } finally {
+        setCheckingApplication(false);
+      }
+    };
+
+    checkIfApplied();
+  }, [job, user, token]);
+
+  // Fetch contract data for selected worker (to show pairing code)
+  useEffect(() => {
+    const fetchContractData = async () => {
+      if (!job || !user || !token) return;
+      // Only fetch if current user is the selected worker (doer)
+      const jobDoerId = job.doerId || (job as any).doer?.id;
+      const userId = user?.id || user?._id;
+      if (!jobDoerId || jobDoerId !== userId) return;
+
+      try {
+        // Fetch contract by job ID
+        const response = await fetch(`/api/contracts/by-job/${job.id || job._id}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await response.json();
+        if (data.success && data.contract) {
+          setContractData({
+            id: data.contract.id || data.contract._id,
+            pairingCode: data.contract.pairingCode,
+            pairingExpiry: data.contract.pairingExpiry,
+            doerId: data.contract.doerId,
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching contract data:", err);
+      }
+    };
+
+    fetchContractData();
+  }, [job, user, token]);
+
+  const handleCopyPairingCode = () => {
+    if (contractData?.pairingCode) {
+      navigator.clipboard.writeText(contractData.pairingCode);
+      setCopiedPairingCode(true);
+      setTimeout(() => setCopiedPairingCode(false), 3000);
+    }
+  };
 
   const handleApply = () => {
     if (!user) {
@@ -600,6 +691,12 @@ export default function JobDetail() {
   const isOwnJob = user && clientId === userId;
   const isDraft = job.status === 'draft' || job.status === 'pending_payment';
 
+  // Check if current user is a worker on this job
+  const isWorkerOnJob = user && (
+    job.doerId === userId ||
+    (job.selectedWorkers && job.selectedWorkers.includes(userId))
+  );
+
   return (
     <>
       <Helmet>
@@ -631,11 +728,11 @@ export default function JobDetail() {
                   <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
                     <div className="flex items-center gap-1">
                       <MapPin className="h-4 w-4" />
-                      <span>{job.location}</span>
+                      <span>{job.location}{job.neighborhood ? `, ${job.neighborhood}` : ''}</span>
                     </div>
                     <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-300">
                       <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-                      {job.client.rating.toFixed(1)}
+                      {(Number(job.client.rating) || 0).toFixed(1)}
                     </span>
                   </div>
                 </div>
@@ -677,36 +774,93 @@ export default function JobDetail() {
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/30 text-sky-600">
-                    <Calendar className="h-5 w-5" />
+                {job.endDateFlexible ? (
+                  <div className="col-span-2 flex items-center gap-3 rounded-xl border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-600">
+                      <AlertTriangle className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                        Fecha de fin
+                      </p>
+                      <p className="mt-0.5 text-sm font-semibold text-amber-700 dark:text-amber-300">
+                        Por definir
+                      </p>
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        El cliente aún no ha definido la fecha de finalización
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                      Fecha de fin
-                    </p>
-                    <p className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white">
-                      {new Date(job.endDate).toLocaleDateString("es-AR")}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/30 text-sky-600">
-                    <Clock className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                      Hora de fin
-                    </p>
-                    <p className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white">
-                      {new Date(job.endDate).toLocaleTimeString("es-AR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
-                  </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/30 text-sky-600">
+                        <Calendar className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                          Fecha de fin
+                        </p>
+                        <p className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white">
+                          {job.endDate ? new Date(job.endDate).toLocaleDateString("es-AR") : 'Por definir'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sky-100 dark:bg-sky-900/30 text-sky-600">
+                        <Clock className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                          Hora de fin
+                        </p>
+                        <p className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white">
+                          {job.endDate ? new Date(job.endDate).toLocaleTimeString("es-AR", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          }) : '--:--'}
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
+
+              {/* Workers Required Info */}
+              {(job.maxWorkers || 1) > 1 && (
+                <div className="mt-4 rounded-xl border border-purple-200 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                      <span className="font-medium text-purple-800 dark:text-purple-300">
+                        Trabajo en equipo
+                      </span>
+                    </div>
+                    <span className="text-sm text-purple-600 dark:text-purple-400">
+                      {(job.selectedWorkers?.length || 0)} / {job.maxWorkers} trabajadores
+                    </span>
+                  </div>
+                  <div className="mt-2">
+                    <div className="h-2 bg-purple-200 dark:bg-purple-800 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-purple-600 dark:bg-purple-400 rounded-full transition-all duration-300"
+                        style={{ width: `${((job.selectedWorkers?.length || 0) / (job.maxWorkers || 1)) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                  {(job.selectedWorkers?.length || 0) < (job.maxWorkers || 1) && (
+                    <p className="mt-2 text-sm text-purple-600 dark:text-purple-400">
+                      Faltan {(job.maxWorkers || 1) - (job.selectedWorkers?.length || 0)} trabajador{(job.maxWorkers || 1) - (job.selectedWorkers?.length || 0) !== 1 ? 'es' : ''} por seleccionar
+                    </p>
+                  )}
+                  {(job.selectedWorkers?.length || 0) >= (job.maxWorkers || 1) && (
+                    <p className="mt-2 text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
+                      <CheckCircle className="h-4 w-4" />
+                      Equipo completo
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Description */}
@@ -718,6 +872,16 @@ export default function JobDetail() {
                 {job.description}
               </p>
             </div>
+
+            {/* Job Tasks - visible to owner and workers */}
+            {(isOwnJob || isWorkerOnJob) && job.status !== 'cancelled' && job.status !== 'draft' && (
+              <JobTasks
+                jobId={job.id || job._id}
+                isOwner={!!isOwnJob}
+                isWorker={!!isWorkerOnJob}
+                jobStatus={job.status}
+              />
+            )}
 
             {/* Location Map */}
             <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
@@ -732,29 +896,57 @@ export default function JobDetail() {
               <h2 className="mb-4 text-lg font-bold text-slate-900 dark:text-white">
                 Publicado por
               </h2>
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 overflow-hidden rounded-full bg-sky-100">
-                  <img
-                    src={
-                      job.client.avatar ||
-                      `https://api.dicebear.com/7.x/avataaars/svg?seed=${job.client.name}`
-                    }
-                    alt={job.client.name}
-                    className="h-full w-full object-cover"
-                  />
-                </div>
-                <div>
-                  <p className="font-semibold text-slate-900 dark:text-white">
-                    {job.client.name}
-                  </p>
-                  <div className="flex items-center gap-1 text-sm text-slate-600 dark:text-slate-300">
-                    <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-                    <span>
-                      {job.client.rating.toFixed(1)} ({job.client.reviewsCount}{" "}
-                      reviews)
-                    </span>
+              <div className="relative">
+                <button
+                  onClick={() => setShowClientMenu(!showClientMenu)}
+                  className="flex items-center gap-3 w-full text-left hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl p-2 -m-2 transition-colors"
+                >
+                  <div className="h-12 w-12 overflow-hidden rounded-full bg-sky-100">
+                    <img
+                      src={
+                        job.client.avatar ||
+                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${job.client.name}`
+                      }
+                      alt={job.client.name}
+                      className="h-full w-full object-cover"
+                    />
                   </div>
-                </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-slate-900 dark:text-white">
+                      {job.client.name}
+                    </p>
+                    <div className="flex items-center gap-1 text-sm text-slate-600 dark:text-slate-300">
+                      <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+                      <span>
+                        {(Number(job.client.rating) || 0).toFixed(1)} ({job.client.reviewsCount || 0}{" "}
+                        reviews)
+                      </span>
+                    </div>
+                  </div>
+                  <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${showClientMenu ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Dropdown Menu */}
+                {showClientMenu && (
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-10 overflow-hidden">
+                    <Link
+                      to={`/profile/${job.client.id || job.client._id}`}
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                      onClick={() => setShowClientMenu(false)}
+                    >
+                      <User className="h-4 w-4 text-slate-500" />
+                      <span className="text-sm text-slate-700 dark:text-slate-200">Ver perfil</span>
+                    </Link>
+                    <Link
+                      to={`/profile/${job.client.id || job.client._id}?tab=jobs`}
+                      className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-t border-slate-100 dark:border-slate-700"
+                      onClick={() => setShowClientMenu(false)}
+                    >
+                      <Briefcase className="h-4 w-4 text-slate-500" />
+                      <span className="text-sm text-slate-700 dark:text-slate-200">Ver trabajos publicados</span>
+                    </Link>
+                  </div>
+                )}
               </div>
               <div className="my-4 h-px bg-slate-200 dark:bg-slate-700"></div>
 
@@ -794,25 +986,37 @@ export default function JobDetail() {
               )}
             </div>
 
-            {/* Action Buttons */}
-            {!isOwnJob && job.status === 'open' && (
+            {/* Action Buttons - Only show if no worker assigned yet */}
+            {!isOwnJob && job.status === 'open' && !job.doerId && (
               <div className="space-y-3">
-                <button
-                  onClick={handleApply}
-                  disabled={applying}
-                  className="w-full gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 px-6 py-3 text-lg font-semibold text-white shadow-lg shadow-sky-500/30 transition-all hover:from-sky-600 hover:to-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {applying ? (
-                    <>
-                      <Loader2 className="inline h-5 w-5 mr-2 animate-spin" />
-                      Aplicando...
-                    </>
-                  ) : user ? (
-                    "Aplicar al trabajo"
-                  ) : (
-                    "Inicia sesión para aplicar"
-                  )}
-                </button>
+                {hasApplied ? (
+                  <div className="w-full rounded-xl bg-gradient-to-r from-green-500 to-green-600 px-6 py-3 text-center shadow-lg shadow-green-500/30">
+                    <div className="flex items-center justify-center gap-2 text-lg font-semibold text-white">
+                      <CheckCircle className="h-5 w-5" />
+                      <span>¡Ya aplicaste a este trabajo!</span>
+                    </div>
+                    <p className="text-sm text-green-100 mt-1">
+                      El cliente revisará tu propuesta pronto
+                    </p>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleApply}
+                    disabled={applying || checkingApplication}
+                    className="w-full gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 px-6 py-3 text-lg font-semibold text-white shadow-lg shadow-sky-500/30 transition-all hover:from-sky-600 hover:to-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {applying || checkingApplication ? (
+                      <>
+                        <Loader2 className="inline h-5 w-5 mr-2 animate-spin" />
+                        {checkingApplication ? "Verificando..." : "Aplicando..."}
+                      </>
+                    ) : user ? (
+                      "Aplicar al trabajo"
+                    ) : (
+                      "Inicia sesión para aplicar"
+                    )}
+                  </button>
+                )}
                 {error && (
                   <p className="text-sm text-red-600 text-center">{error}</p>
                 )}
@@ -861,30 +1065,150 @@ export default function JobDetail() {
               </div>
             )}
 
-            {!isOwnJob && job.status === 'in_progress' && (
-              <div className="rounded-2xl border border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30 p-4">
-                <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                  🔧 Este trabajo ya tiene un profesional asignado
-                </p>
+            {/* Trabajador asignado pero trabajo aún no iniciado (fecha futura) */}
+            {!isOwnJob && job.status === 'open' && job.doerId && (
+              <div className="space-y-4">
+                {/* Check if current user is the selected worker */}
+                {job.doerId === userId ? (
+                  <div className="rounded-2xl border border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30 p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+                        ¡Fuiste seleccionado para este trabajo!
+                      </p>
+                    </div>
+                    <p className="text-sm text-blue-600 dark:text-blue-400 mt-2">
+                      El trabajo iniciará el {new Date(job.startDate).toLocaleDateString('es-AR', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </p>
+                    {contractData && (
+                      <Link
+                        to={`/contracts/${contractData.id}`}
+                        className="mt-3 inline-flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                      >
+                        Ver detalles del contrato <ExternalLink className="h-4 w-4" />
+                      </Link>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30 p-4">
+                    <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                      👤 Este trabajo ya tiene un profesional asignado
+                    </p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                      Iniciará el {new Date(job.startDate).toLocaleDateString('es-AR', {
+                        day: 'numeric',
+                        month: 'long'
+                      })}
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
-            {!isOwnJob && (job.status === 'completed' || job.status === 'cancelled' || job.status === 'paused') && (
+            {!isOwnJob && job.status === 'in_progress' && job.doerId && (
+              <div className="space-y-4">
+                {/* Check if current user is the selected worker */}
+                {contractData?.doerId === userId ? (
+                  <>
+                    {/* Selected Worker Info */}
+                    <div className="rounded-2xl border border-green-300 dark:border-green-600 bg-green-50 dark:bg-green-900/30 p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                        <p className="text-sm font-semibold text-green-700 dark:text-green-300">
+                          ¡Fuiste seleccionado para este trabajo!
+                        </p>
+                      </div>
+                      <Link
+                        to={`/contracts/${contractData.id}`}
+                        className="inline-flex items-center gap-2 text-sm text-green-600 dark:text-green-400 hover:underline"
+                      >
+                        Ver detalles del contrato <ExternalLink className="h-4 w-4" />
+                      </Link>
+                    </div>
+
+                    {/* Pairing Code Display for Worker */}
+                    {contractData.pairingCode && (
+                      <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-2xl p-5 border-2 border-purple-200 dark:border-purple-700 shadow-md">
+                        <div className="flex items-start gap-4">
+                          <div className="p-3 bg-purple-100 dark:bg-purple-900/50 rounded-lg">
+                            <Key className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                          </div>
+                          <div className="flex-1">
+                            <h4 className="font-bold text-purple-900 dark:text-purple-100 text-lg mb-1">
+                              Código de Pareamiento
+                            </h4>
+                            <p className="text-sm text-purple-700 dark:text-purple-300 mb-3">
+                              Muestra este código al cliente cuando llegues al lugar de trabajo
+                            </p>
+                            <div className="flex items-center gap-3">
+                              <div className="flex-1 bg-white dark:bg-slate-800 rounded-lg p-3 border-2 border-purple-300 dark:border-purple-600">
+                                <p className="text-2xl font-mono font-bold text-purple-700 dark:text-purple-300 text-center tracking-widest">
+                                  {contractData.pairingCode}
+                                </p>
+                              </div>
+                              <button
+                                onClick={handleCopyPairingCode}
+                                className="p-3 bg-purple-100 dark:bg-purple-900/50 hover:bg-purple-200 dark:hover:bg-purple-800/50 rounded-lg transition-colors"
+                                title="Copiar código"
+                              >
+                                {copiedPairingCode ? (
+                                  <Check className="h-5 w-5 text-green-600 dark:text-green-400" />
+                                ) : (
+                                  <Copy className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                                )}
+                              </button>
+                            </div>
+                            {copiedPairingCode && (
+                              <p className="text-sm text-green-600 dark:text-green-400 mt-2">
+                                ¡Código copiado!
+                              </p>
+                            )}
+                            {contractData.pairingExpiry && (
+                              <p className="text-xs text-purple-600 dark:text-purple-400 mt-2">
+                                Expira: {new Date(contractData.pairingExpiry).toLocaleString('es-AR')}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="rounded-2xl border border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30 p-4">
+                    <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                      🔧 Este trabajo ya tiene un profesional asignado
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!isOwnJob && (job.status === 'completed' || job.status === 'cancelled' || job.status === 'paused' || job.status === 'suspended') && (
               <div className={`rounded-2xl border p-4 ${
                 job.status === 'cancelled'
                   ? 'border-red-300 dark:border-red-600 bg-red-50 dark:bg-red-900/30'
                   : job.status === 'paused'
                   ? (job.pendingNewPrice ? 'border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30' : 'border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/30')
+                  : job.status === 'suspended'
+                  ? 'border-orange-300 dark:border-orange-600 bg-orange-50 dark:bg-orange-900/30'
                   : 'border-green-300 dark:border-green-600 bg-green-50 dark:bg-green-900/30'
               }`}>
                 <p className={`text-sm font-medium ${
                   job.status === 'cancelled' ? 'text-red-700 dark:text-red-300' :
                   job.status === 'paused' ? (job.pendingNewPrice ? 'text-blue-700 dark:text-blue-300' : 'text-amber-700 dark:text-amber-300') :
+                  job.status === 'suspended' ? 'text-orange-700 dark:text-orange-300' :
                   'text-green-700 dark:text-green-300'
                 }`}>
                   {job.status === 'cancelled' && '❌ Esta publicacion fue cancelada'}
                   {job.status === 'completed' && '✅ Este trabajo fue completado'}
                   {job.status === 'paused' && (job.pendingNewPrice ? '⏳ Este trabajo está actualizando su presupuesto' : '⏸️ Este trabajo esta pausado')}
+                  {job.status === 'suspended' && '⏸️ Este trabajo está suspendido por falta de fecha de finalización'}
                 </p>
                 {job.status === 'cancelled' && job.cancellationReason && (
                   <div className="mt-3 p-3 bg-red-100 dark:bg-red-950/50 rounded-lg border border-red-200 dark:border-red-800">
@@ -936,7 +1260,7 @@ export default function JobDetail() {
               </div>
             )}
 
-            {isOwnJob && !isDraft && job.status === 'open' && (
+            {isOwnJob && !isDraft && (job.status === 'open' || (job.status === 'in_progress' && !job.doerId)) && (
               <div className="space-y-4">
                 {/* New proposal real-time alert */}
                 {newProposalAlert && (
@@ -1026,18 +1350,33 @@ export default function JobDetail() {
                               <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400 mt-1">
                                 <span className="flex items-center gap-1">
                                   <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-                                  {proposal.freelancer?.rating?.toFixed(1) || '0.0'}
+                                  {Number(proposal.freelancer?.rating || 0).toFixed(1)}
                                 </span>
                                 <span>•</span>
                                 <span>{proposal.freelancer?.completedJobs || 0} trabajos</span>
                               </div>
 
-                              {/* Propuesta */}
-                              {proposal.isCounterOffer && (
-                                <div className="mt-2 px-2 py-1 bg-sky-100 dark:bg-sky-900/30 rounded text-xs text-sky-700 dark:text-sky-300 inline-block">
-                                  Contraoferta: ${proposal.proposedPrice?.toLocaleString('es-AR')} ARS
+                              {/* Monto propuesto */}
+                              <div className="mt-2 flex items-center gap-2">
+                                <div className={`px-2.5 py-1 rounded-lg text-sm font-medium ${
+                                  proposal.isCounterOffer
+                                    ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-600'
+                                    : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-300 dark:border-green-600'
+                                }`}>
+                                  <DollarSign className="inline h-3.5 w-3.5 mr-0.5" />
+                                  {(proposal.proposedPrice || job.price)?.toLocaleString('es-AR')} ARS
                                 </div>
-                              )}
+                                {proposal.isCounterOffer && (
+                                  <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                                    (Contraoferta)
+                                  </span>
+                                )}
+                                {!proposal.isCounterOffer && proposal.proposedPrice === job.price && (
+                                  <span className="text-xs text-green-600 dark:text-green-400">
+                                    Aceptó el precio original
+                                  </span>
+                                )}
+                              </div>
                             </div>
 
                             {/* Select Button */}
@@ -1212,46 +1551,145 @@ export default function JobDetail() {
 
             {isOwnJob && !isDraft && job.status === 'cancelled' && (
               <div className="space-y-4">
-                <div className="rounded-2xl border border-red-600 bg-red-900/30 p-4">
-                  <p className="text-sm font-medium text-red-300 mb-2">
-                    ❌ Esta publicación fue cancelada
-                  </p>
-                  {(job.cancellationReason || job.rejectedReason) && (
-                    <div className="mt-3 p-3 bg-red-950/50 rounded-lg border border-red-800">
-                      <p className="text-xs text-red-400 font-medium mb-1">Razón:</p>
-                      <p className="text-sm text-red-200">{job.cancellationReason || job.rejectedReason}</p>
+                {/* Check if cancelled due to no applicants */}
+                {job.cancellationReason?.includes('Ningún trabajador se postuló') ? (
+                  <div className="rounded-2xl border border-blue-400 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30 p-5">
+                    <div className="flex items-start gap-3 mb-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-800">
+                        <Users className="h-5 w-5 text-blue-600 dark:text-blue-300" />
+                      </div>
+                      <div>
+                        <h3 className="font-semibold text-blue-800 dark:text-blue-200">
+                          Lo sentimos, ningún trabajador se postuló
+                        </h3>
+                        <p className="text-sm text-blue-600 dark:text-blue-300 mt-1">
+                          Tu trabajo expiró antes de recibir postulaciones.
+                        </p>
+                      </div>
                     </div>
-                  )}
-                  {job.cancelledAt && (
-                    <p className="text-xs text-red-400 mt-2">
-                      Cancelado el {new Date(job.cancelledAt).toLocaleDateString('es-AR', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
+
+                    <div className="bg-blue-100 dark:bg-blue-950/50 rounded-lg p-4 mb-4">
+                      <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
+                        ¿Te gustaría reprogramarlo?
+                      </p>
+                      <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
+                        <li>• Actualiza las fechas a una más conveniente</li>
+                        <li>• Considera ajustar el presupuesto</li>
+                        <li>• Agrega más detalles a la descripción</li>
+                      </ul>
+                    </div>
+
+                    {job.cancelledAt && (
+                      <p className="text-xs text-blue-500 dark:text-blue-400 mb-4">
+                        Expirado el {new Date(job.cancelledAt).toLocaleDateString('es-AR', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                    )}
+
+                    {/* Action buttons */}
+                    <div className="flex gap-3">
+                      <button
+                        onClick={handleEditJob}
+                        className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-blue-700"
+                      >
+                        <Calendar className="h-4 w-4" />
+                        Reprogramar
+                      </button>
+                      <button
+                        onClick={() => setShowDeleteModal(true)}
+                        className="flex items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-transparent px-4 py-3 font-semibold text-slate-600 dark:text-slate-300 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="rounded-2xl border border-red-600 bg-red-900/30 p-4">
+                      <p className="text-sm font-medium text-red-300 mb-2">
+                        ❌ Esta publicación fue cancelada
+                      </p>
+                      {(job.cancellationReason || job.rejectedReason) && (
+                        <div className="mt-3 p-3 bg-red-950/50 rounded-lg border border-red-800">
+                          <p className="text-xs text-red-400 font-medium mb-1">Razón:</p>
+                          <p className="text-sm text-red-200">{job.cancellationReason || job.rejectedReason}</p>
+                        </div>
+                      )}
+                      {job.cancelledAt && (
+                        <p className="text-xs text-red-400 mt-2">
+                          Cancelado el {new Date(job.cancelledAt).toLocaleDateString('es-AR', {
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Buttons to edit and delete */}
+                    <div className="flex gap-3">
+                      <button
+                        onClick={handleEditJob}
+                        className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-sky-700"
+                      >
+                        <Edit className="h-4 w-4" />
+                        Editar y Resubir
+                      </button>
+                      <button
+                        onClick={() => setShowDeleteModal(true)}
+                        className="flex items-center justify-center gap-2 rounded-xl border border-red-600 bg-transparent px-4 py-3 font-semibold text-red-400 transition-colors hover:bg-red-900/30"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Eliminar
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Suspended job - needs end date */}
+            {isOwnJob && job.status === 'suspended' && (
+              <div className="rounded-2xl border-2 border-orange-400 dark:border-orange-600 bg-orange-50 dark:bg-orange-900/30 p-5">
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-800">
+                    <AlertTriangle className="h-5 w-5 text-orange-600 dark:text-orange-300" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-orange-800 dark:text-orange-200">
+                      Trabajo suspendido
+                    </h3>
+                    <p className="text-sm text-orange-600 dark:text-orange-300 mt-1">
+                      Tu trabajo está suspendido porque no definiste una fecha de finalización antes de las 24 horas previas al inicio.
                     </p>
-                  )}
+                  </div>
                 </div>
 
-                {/* Buttons to edit and delete */}
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleEditJob}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-sky-700"
-                  >
-                    <Edit className="h-4 w-4" />
-                    Editar y Resubir
-                  </button>
-                  <button
-                    onClick={() => setShowDeleteModal(true)}
-                    className="flex items-center justify-center gap-2 rounded-xl border border-red-600 bg-transparent px-4 py-3 font-semibold text-red-400 transition-colors hover:bg-red-900/30"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    Eliminar
-                  </button>
+                <div className="bg-orange-100 dark:bg-orange-950/50 rounded-lg p-4 mb-4">
+                  <p className="text-sm font-medium text-orange-800 dark:text-orange-200 mb-2">
+                    Para reactivar tu trabajo:
+                  </p>
+                  <ul className="text-sm text-orange-700 dark:text-orange-300 space-y-1">
+                    <li>• Edita el trabajo y define una fecha de finalización</li>
+                    <li>• El trabajo se reactivará automáticamente</li>
+                  </ul>
                 </div>
+
+                <button
+                  onClick={handleEditJob}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-orange-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-orange-700"
+                >
+                  <Edit className="h-4 w-4" />
+                  Editar y definir fecha de fin
+                </button>
               </div>
             )}
 
@@ -1535,7 +1973,7 @@ export default function JobDetail() {
                     <div className="flex items-center gap-3 text-sm text-slate-400">
                       <span className="flex items-center gap-1">
                         <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-                        {selectedProposal.freelancer?.rating?.toFixed(1) || '0.0'}
+                        {Number(selectedProposal.freelancer?.rating || 0).toFixed(1)}
                       </span>
                       <span>•</span>
                       <span>{selectedProposal.freelancer?.completedJobs || 0} trabajos</span>
@@ -1547,14 +1985,24 @@ export default function JobDetail() {
                   ¿Estás seguro de que deseas seleccionar a <span className="font-semibold text-white">{selectedProposal.freelancer?.name}</span> para este trabajo?
                 </p>
 
-                {selectedProposal.isCounterOffer && (
-                  <div className="rounded-xl border border-sky-600 bg-sky-900/30 p-4">
-                    <p className="text-sm text-sky-300">
-                      <strong>Nota:</strong> Este trabajador propuso una contraoferta de{' '}
-                      <span className="font-bold">${selectedProposal.proposedPrice?.toLocaleString('es-AR')} ARS</span>
-                    </p>
-                  </div>
-                )}
+                {/* Monto acordado */}
+                <div className={`rounded-xl border p-4 ${
+                  selectedProposal.isCounterOffer
+                    ? 'border-amber-600 bg-amber-900/30'
+                    : 'border-sky-600 bg-sky-900/30'
+                }`}>
+                  <p className={`text-sm ${selectedProposal.isCounterOffer ? 'text-amber-300' : 'text-sky-300'}`}>
+                    <strong>Monto acordado:</strong>{' '}
+                    <span className="font-bold text-lg">
+                      ${(selectedProposal.proposedPrice || job.price)?.toLocaleString('es-AR')} ARS
+                    </span>
+                    {selectedProposal.isCounterOffer && (
+                      <span className="block text-xs mt-1 text-amber-400">
+                        (Contraoferta - diferente al precio original de ${job.price?.toLocaleString('es-AR')} ARS)
+                      </span>
+                    )}
+                  </p>
+                </div>
 
                 <div className="rounded-xl border border-green-600 bg-green-900/30 p-4">
                   <p className="text-sm text-green-300">

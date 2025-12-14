@@ -16,6 +16,7 @@ import {
   Sun,
   Moon,
   Gift,
+  Activity,
 } from "lucide-react";
 
 export default function AdminLayout() {
@@ -46,6 +47,7 @@ export default function AdminLayout() {
     { path: "/admin/disputes", icon: Shield, label: "Disputas", roles: ["owner", "super_admin", "admin", "support"] },
     { path: "/admin/tickets", icon: TicketIcon, label: "Tickets", roles: ["owner", "super_admin", "admin", "support"] },
     { path: "/admin/family-codes", icon: Gift, label: "Códigos Familia", roles: ["owner"] },
+    { path: "/admin/performance", icon: Activity, label: "Rendimiento", roles: ["owner", "super_admin", "admin"] },
     { path: "/admin/settings", icon: Settings, label: "Configuración", roles: ["owner", "super_admin"] },
   ];
 

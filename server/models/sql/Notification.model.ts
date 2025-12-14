@@ -12,8 +12,8 @@ import {
 } from 'sequelize-typescript';
 import { User } from './User.model.js';
 
-export type NotificationType = 'info' | 'success' | 'warning' | 'error' | 'alert';
-export type NotificationCategory = 'ticket' | 'contract' | 'user' | 'payment' | 'system' | 'admin';
+export type NotificationType = 'info' | 'success' | 'warning' | 'error' | 'alert' | 'job_reminder' | 'group_chat' | 'job_auto_cancelled';
+export type NotificationCategory = 'ticket' | 'contract' | 'user' | 'payment' | 'system' | 'admin' | 'jobs' | 'chat' | 'proposal';
 export type NotificationChannel = 'in_app' | 'email' | 'push';
 
 @Table({
@@ -100,6 +100,10 @@ export class Notification extends Model {
   @Default(false)
   @Column(DataType.BOOLEAN)
   pushSent!: boolean;
+
+  @Default({})
+  @Column(DataType.JSONB)
+  data?: any;
 
   async markAsRead(): Promise<void> {
     this.read = true;

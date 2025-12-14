@@ -9,6 +9,7 @@
 // ============================================
 export { User } from './User.model.js';
 export { Job } from './Job.model.js';
+export { JobTask } from './JobTask.model.js';
 export { Contract } from './Contract.model.js';
 export { Payment } from './Payment.model.js';
 export { Proposal } from './Proposal.model.js';
@@ -94,6 +95,7 @@ export { FamilyCode } from './FamilyCode.model.js';
 
 // Job types
 export type { JobStatus, JobUrgency, ExperienceLevel } from './Job.model.js';
+export type { TaskStatus } from './JobTask.model.js';
 
 // Contract types
 export type {
@@ -101,7 +103,8 @@ export type {
   PaymentStatus as ContractPaymentStatus,
   DeliveryStatus,
   PriceModification,
-  Delivery
+  Delivery,
+  ExtensionRecord
 } from './Contract.model.js';
 
 // Payment types

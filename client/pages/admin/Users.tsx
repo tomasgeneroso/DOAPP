@@ -70,8 +70,8 @@ export default function AdminUsers() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Gestión de Usuarios</h1>
-        <p className="text-gray-600 mt-2">Administra y modera usuarios de la plataforma</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Usuarios</h1>
+        <p className="text-gray-600 dark:text-gray-400 mt-2">Administra y modera usuarios de la plataforma</p>
       </div>
 
       {/* Search */}
@@ -83,69 +83,72 @@ export default function AdminUsers() {
             placeholder="Buscar por nombre o email..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-gray-900 dark:text-white placeholder-gray-400"
           />
         </div>
       </div>
 
       {/* Users Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-900">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Usuario
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Email
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Rol
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Trust Score
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Estado
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Fecha Registro
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Acciones
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {users.map((user) => (
-              <tr key={user.id || user._id} className="hover:bg-gray-50">
+              <tr key={user.id || user._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
                     <div className="h-10 w-10 flex-shrink-0">
                       {user.avatar ? (
                         <img className="h-10 w-10 rounded-full" src={user.avatar} alt="" />
                       ) : (
-                        <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
-                          <span className="text-gray-600 font-medium">
+                        <div className="h-10 w-10 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
+                          <span className="text-gray-600 dark:text-gray-200 font-medium">
                             {user.name.charAt(0).toUpperCase()}
                           </span>
                         </div>
                       )}
                     </div>
                     <div className="ml-4">
-                      <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">{user.name}</div>
                       {user.adminRole && (
-                        <div className="text-xs text-sky-600">{user.adminRole}</div>
+                        <div className="text-xs text-sky-600 dark:text-sky-400">{user.adminRole}</div>
                       )}
                     </div>
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                   {user.email}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                   {user.role}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-900">{user.trustScore}/100</div>
-                  <div className="text-xs text-gray-500">{user.infractions} infracciones</div>
+                  <div className="text-sm text-gray-900 dark:text-white">{user.trustScore}/100</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">{user.infractions} infracciones</div>
                 </td>
                 <td className="px-6 py-4">
                   {user.isBanned ? (
@@ -154,13 +157,18 @@ export default function AdminUsers() {
                         Baneado
                       </span>
                       {user.banReason && (
-                        <p className="text-xs text-gray-600 mt-1 max-w-xs">
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 max-w-xs">
                           <span className="font-medium">Razón:</span> {user.banReason}
                         </p>
                       )}
+                      {user.banningAdmin && (
+                        <p className="text-xs text-orange-600 dark:text-orange-400 mt-0.5">
+                          <span className="font-medium">Por:</span> {user.banningAdmin.name}
+                        </p>
+                      )}
                       {user.bannedAt && (
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          {new Date(user.bannedAt).toLocaleDateString('es-AR')}
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                          {new Date(user.bannedAt).toLocaleDateString('es-AR')} {new Date(user.bannedAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
                         </p>
                       )}
                     </div>
@@ -169,6 +177,14 @@ export default function AdminUsers() {
                       Activo
                     </span>
                   )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  {user.createdAt ? (
+                    <>
+                      <div>{new Date(user.createdAt).toLocaleDateString('es-AR')}</div>
+                      <div className="text-xs">{new Date(user.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</div>
+                    </>
+                  ) : '-'}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <div className="flex gap-2">
@@ -203,17 +219,17 @@ export default function AdminUsers() {
           <button
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page === 1}
-            className="px-4 py-2 bg-white border border-gray-300 rounded-lg disabled:opacity-50"
+            className="px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg disabled:opacity-50 text-gray-900 dark:text-white"
           >
             Anterior
           </button>
-          <span className="px-4 py-2">
+          <span className="px-4 py-2 text-gray-900 dark:text-white">
             Página {page} de {totalPages}
           </span>
           <button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page === totalPages}
-            className="px-4 py-2 bg-white border border-gray-300 rounded-lg disabled:opacity-50"
+            className="px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg disabled:opacity-50 text-gray-900 dark:text-white"
           >
             Siguiente
           </button>

@@ -21,15 +21,13 @@ router.get("/overview", async (req: AuthRequest, res: Response): Promise<void> =
   try {
     const { startDate, endDate } = req.query;
 
-    const dateFilter: any = {};
-    if (startDate) dateFilter.$gte = new Date(startDate as string);
-    if (endDate) dateFilter.$lte = new Date(endDate as string);
-
-    const query = Object.keys(dateFilter).length > 0 ? { createdAt: dateFilter } : {};
-
+    // Build Sequelize where clause
     const where: any = {};
-    if (startDate) where.createdAt = { [Op.gte]: new Date(startDate as string) };
-    if (endDate) where.createdAt = { ...where.createdAt, [Op.lte]: new Date(endDate as string) };
+    if (startDate || endDate) {
+      where.createdAt = {};
+      if (startDate) where.createdAt[Op.gte] = new Date(startDate as string);
+      if (endDate) where.createdAt[Op.lte] = new Date(endDate as string);
+    }
 
     const [
       totalUsers,
@@ -249,24 +247,26 @@ router.get(
     try {
       const { type = "users", format = "json", startDate, endDate } = req.query;
 
-      const dateFilter: any = {};
-      if (startDate) dateFilter.$gte = new Date(startDate as string);
-      if (endDate) dateFilter.$lte = new Date(endDate as string);
-
-      const query = Object.keys(dateFilter).length > 0 ? { createdAt: dateFilter } : {};
+      // Build Sequelize where clause
+      const where: any = {};
+      if (startDate || endDate) {
+        where.createdAt = {};
+        if (startDate) where.createdAt[Op.gte] = new Date(startDate as string);
+        if (endDate) where.createdAt[Op.lte] = new Date(endDate as string);
+      }
 
       let data: any[] = [];
 
       switch (type) {
         case "users":
           data = await User.findAll({
-            where: query,
+            where,
             attributes: { exclude: ["password", "twoFactorSecret", "twoFactorBackupCodes"] },
           });
           break;
         case "contracts":
           data = await Contract.findAll({
-            where: query,
+            where,
             include: [
               { association: "client" },
               { association: "doer" },
@@ -276,7 +276,7 @@ router.get(
           break;
         case "tickets":
           data = await Ticket.findAll({
-            where: query,
+            where,
             include: [
               { association: "createdBy" },
               { association: "assignedTo" },

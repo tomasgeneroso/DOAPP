@@ -87,7 +87,7 @@ export const JobCard: React.FC<JobCardProps> = ({ job, index = 0 }) => {
               Fin:
             </p>
             <p className="text-sm font-semibold text-[#212121] dark:text-white">
-              {formatDate(job.endDate)} {formatTime(job.endDate)}
+              {job.endDate ? `${formatDate(job.endDate)} ${formatTime(job.endDate)}` : 'Por definir'}
             </p>
           </div>
         </div>

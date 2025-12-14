@@ -14,30 +14,30 @@ let perUserLimiter: RateLimiterMemory;
 
 // Initialize rate limiters
 function initializeRateLimiters() {
-  // Memory-based rate limiters
+  // Memory-based rate limiters - adjusted for better UX
   authLimiter = new RateLimiterMemory({
     keyPrefix: "rl:auth",
-    points: 5,
+    points: 20, // Aumentado de 5 a 20 - permite más intentos de login
     duration: 15 * 60,
-    blockDuration: 15 * 60,
+    blockDuration: 5 * 60, // Reducido de 15 a 5 minutos
   });
 
   apiLimiter = new RateLimiterMemory({
     keyPrefix: "rl:api",
-    points: 100,
+    points: 500, // Aumentado de 100 a 500 - apps SPA hacen muchas requests
     duration: 15 * 60,
   });
 
   strictLimiter = new RateLimiterMemory({
     keyPrefix: "rl:strict",
-    points: 3,
+    points: 10, // Aumentado de 3 a 10
     duration: 60 * 60,
-    blockDuration: 60 * 60,
+    blockDuration: 30 * 60, // Reducido de 60 a 30 minutos
   });
 
   perUserLimiter = new RateLimiterMemory({
     keyPrefix: "rl:user",
-    points: 200,
+    points: 500, // Aumentado de 200 a 500
     duration: 60 * 60,
   });
 

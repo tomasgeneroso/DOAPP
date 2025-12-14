@@ -73,6 +73,20 @@ interface PriceModification {
   transactionId?: string; // UUID
 }
 
+interface ExtensionRecord {
+  previousEndDate: Date;
+  newEndDate: Date;
+  extensionDays: number;
+  extensionAmount?: number;
+  requestedBy: string; // UUID
+  requestedAt: Date;
+  approvedBy?: string; // UUID
+  approvedAt?: Date;
+  notes?: string;
+}
+
+export type { ExtensionRecord };
+
 @Table({
   tableName: 'contracts',
   timestamps: true,
@@ -379,6 +393,31 @@ export class Contract extends Model {
 
   @Column(DataType.DECIMAL(12, 2))
   originalPrice?: number;
+
+  // ============================================
+  // EXTENSION HISTORY (JSONB Array)
+  // ============================================
+
+  @Default([])
+  @Column(DataType.JSONB)
+  extensionHistory!: ExtensionRecord[];
+
+  // Count of total extensions (for display purposes)
+  @Default(0)
+  @Column(DataType.INTEGER)
+  extensionCount!: number;
+
+  // ============================================
+  // WORKER PAYMENT ALLOCATION (for multi-worker jobs)
+  // ============================================
+
+  // Specific amount allocated to this worker (may differ from equal split)
+  @Column(DataType.DECIMAL(12, 2))
+  allocatedAmount?: number;
+
+  // Percentage of total job budget allocated to this worker
+  @Column(DataType.DECIMAL(5, 2))
+  percentageOfBudget?: number;
 
   // ============================================
   // DISPUTE

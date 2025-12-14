@@ -15,7 +15,13 @@ import {
   Loader2,
   ChevronDown,
   ChevronUp,
-  User as UserIcon
+  User as UserIcon,
+  UserCheck,
+  Users,
+  CheckCircle,
+  Clock,
+  Key,
+  Copy
 } from 'lucide-react';
 
 interface Message {
@@ -46,6 +52,8 @@ interface JobContext {
   accepted?: boolean; // Si ya aceptó el trabajo
   contractId?: string; // ID del contrato si existe
   allowNegotiation?: boolean; // Si permite regatear
+  alreadyApplied?: boolean; // Si ya se postuló
+  jobStatus?: string; // Estado del trabajo
 }
 
 interface Participant {
@@ -85,7 +93,8 @@ export default function ChatScreen() {
     joinConversation,
     leaveConversation,
     messages: socketMessages,
-    isConnected
+    isConnected,
+    registerProposalUpdateHandler
   } = useSocket();
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -103,13 +112,52 @@ export default function ChatScreen() {
   // Conversation data (includes contractId if exists)
   const [conversationData, setConversationData] = useState<ConversationData | null>(null);
 
+  // Contract data for alerts
+  const [contractData, setContractData] = useState<{
+    id: string;
+    status: string;
+    doerId: string;
+    clientId: string;
+    pairingCode?: string;
+    pairingExpiry?: string;
+    job?: {
+      id: string;
+      title: string;
+      startDate: string;
+      endDate: string;
+      status: string;
+    };
+  } | null>(null);
+
   // Job context for contract modals
   const jobContext = location.state?.jobContext as JobContext | undefined;
-  const [showContractModal, setShowContractModal] = useState(!!jobContext);
+
+  // Determinar si se debe mostrar el modal:
+  // - Debe existir jobContext
+  // - No debe estar marcado como accepted (ya aceptó el trabajo)
+  // - No debe haber aplicado ya (alreadyApplied)
+  // - El trabajo debe estar 'open' (no in_progress, completed, etc)
+  const shouldShowModal = () => {
+    if (!jobContext) return false;
+    if (jobContext.accepted) return false;
+    if (jobContext.alreadyApplied) return false;
+    if (jobContext.jobStatus && jobContext.jobStatus !== 'open') return false;
+    return true;
+  };
+
+  const [showContractModal, setShowContractModal] = useState(shouldShowModal());
   const [contractModalType, setContractModalType] = useState<ContractModalType | null>(
     jobContext?.allowNegotiation === false ? 'apply_direct' : 'apply_negotiate'
   );
   const [modalLoading, setModalLoading] = useState(false);
+
+  // Limpiar el location.state después de usarlo para evitar que persista en refresh
+  useEffect(() => {
+    if (location.state?.jobContext) {
+      // Reemplazar el state actual sin el jobContext para evitar que aparezca en refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, []);
 
   useEffect(() => {
     if (conversationId) {
@@ -182,15 +230,66 @@ export default function ChatScreen() {
   useEffect(() => {
     if (socketMessages.length > 0) {
       setMessages(prev => {
-        const existingIds = new Set(prev.map(m => m.id || m._id));
-        const newMessages = socketMessages.filter(m => !existingIds.has((m as any).id || (m as any)._id));
+        // Get IDs of existing messages, excluding temporary optimistic messages
+        const existingIds = new Set(
+          prev
+            .filter(m => !String(m.id || m._id).startsWith('temp-'))
+            .map(m => m.id || m._id)
+        );
+
+        // Filter out messages that already exist
+        const newMessages = socketMessages.filter(m => {
+          const msgId = (m as any).id || (m as any)._id;
+          return !existingIds.has(msgId);
+        });
+
         if (newMessages.length > 0) {
-          return [...prev, ...newMessages as any];
+          // Remove any temp messages that match the content of new messages
+          // and add the real messages from server
+          const filteredPrev = prev.filter(m => {
+            if (!String(m.id || m._id).startsWith('temp-')) return true;
+            // Check if this temp message is now confirmed by server
+            const hasServerVersion = newMessages.some(nm =>
+              (nm as any).message === m.message &&
+              (nm as any).senderId === m.senderId
+            );
+            return !hasServerVersion;
+          });
+          return [...filteredPrev, ...newMessages as any];
         }
         return prev;
       });
     }
   }, [socketMessages]);
+
+  // Listen for proposal updates to update message metadata in real-time
+  useEffect(() => {
+    const handleProposalUpdate = (data: any) => {
+      console.log('📩 Proposal update received:', data);
+      if (data.proposalId && data.proposalStatus) {
+        // Update the message with matching proposalId
+        setMessages(prev => prev.map(msg => {
+          if (msg.metadata?.proposalId === data.proposalId) {
+            return {
+              ...msg,
+              metadata: {
+                ...msg.metadata,
+                proposalStatus: data.proposalStatus,
+                contractId: data.contractId,
+              }
+            };
+          }
+          return msg;
+        }));
+      }
+    };
+
+    registerProposalUpdateHandler(handleProposalUpdate);
+
+    return () => {
+      registerProposalUpdateHandler(() => {});
+    };
+  }, [registerProposalUpdateHandler]);
 
   useEffect(() => {
     scrollToBottom();
@@ -239,6 +338,108 @@ export default function ChatScreen() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  // Fetch contract data when conversationData has contractId
+  useEffect(() => {
+    const fetchContractData = async () => {
+      if (!conversationData?.contractId || !token) return;
+
+      try {
+        const response = await fetch(`/api/contracts/${conversationData.contractId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await response.json();
+        if (data.success && data.contract) {
+          setContractData({
+            id: data.contract.id,
+            status: data.contract.status,
+            doerId: data.contract.doerId,
+            clientId: data.contract.clientId,
+            pairingCode: data.contract.pairingCode,
+            pairingExpiry: data.contract.pairingExpiry,
+            job: data.contract.job ? {
+              id: data.contract.job.id,
+              title: data.contract.job.title,
+              startDate: data.contract.job.startDate,
+              endDate: data.contract.job.endDate,
+              status: data.contract.job.status,
+            } : undefined,
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching contract data:', error);
+      }
+    };
+
+    fetchContractData();
+  }, [conversationData?.contractId, token]);
+
+  // Calculate time until job start for alerts
+  const getTimeUntilJobStart = () => {
+    if (!contractData?.job?.startDate) return null;
+    const startDate = new Date(contractData.job.startDate);
+    const now = new Date();
+    const diffMs = startDate.getTime() - now.getTime();
+    const diffHours = diffMs / (1000 * 60 * 60);
+    return { diffMs, diffHours, startDate };
+  };
+
+  // Check if current user is the selected worker (doer)
+  const isSelectedWorker = contractData?.doerId === user?.id;
+
+  // State for copying pairing code
+  const [copiedCode, setCopiedCode] = useState(false);
+
+  const handleCopyPairingCode = () => {
+    if (contractData?.pairingCode) {
+      navigator.clipboard.writeText(contractData.pairingCode);
+      setCopiedCode(true);
+      setTimeout(() => setCopiedCode(false), 3000);
+    }
+  };
+
+  // Determine which alerts to show
+  const getContractAlerts = () => {
+    if (!contractData || !isSelectedWorker) return [];
+
+    const alerts: { type: 'selected' | 'soon' | 'in_progress'; message: string; color: string }[] = [];
+    const timeInfo = getTimeUntilJobStart();
+
+    // Alert: Selected for the job
+    if (contractData.status === 'pending' || contractData.status === 'active') {
+      alerts.push({
+        type: 'selected',
+        message: `¡Fuiste seleccionado para "${contractData.job?.title || 'este trabajo'}"!`,
+        color: 'green',
+      });
+    }
+
+    // Alert: Less than 6 hours until start
+    if (timeInfo && timeInfo.diffHours > 0 && timeInfo.diffHours <= 6) {
+      const hours = Math.floor(timeInfo.diffHours);
+      const minutes = Math.floor((timeInfo.diffHours - hours) * 60);
+      alerts.push({
+        type: 'soon',
+        message: `⏰ El trabajo comienza en ${hours > 0 ? `${hours}h ` : ''}${minutes}min`,
+        color: 'amber',
+      });
+    }
+
+    // Alert: Job in progress
+    if (contractData.job?.status === 'in_progress' || contractData.status === 'active') {
+      if (timeInfo && timeInfo.diffMs <= 0) {
+        alerts.push({
+          type: 'in_progress',
+          message: '🔧 El trabajo está en progreso',
+          color: 'blue',
+        });
+      }
+    }
+
+    return alerts;
+  };
+
   const handleProfileClick = async () => {
     if (!otherParticipant) return;
 
@@ -272,17 +473,42 @@ export default function ChatScreen() {
     e.preventDefault();
     if (!newMessage.trim() || sending || !conversationId) return;
 
+    const messageText = newMessage.trim();
     setSending(true);
+
+    // Add message optimistically to UI immediately
+    const optimisticMessage: Message = {
+      _id: `temp-${Date.now()}`,
+      id: `temp-${Date.now()}`,
+      conversationId,
+      senderId: user?.id || user?._id || '',
+      sender: {
+        id: user?.id || user?._id || '',
+        _id: user?._id || user?.id || '',
+        name: user?.name || '',
+        avatar: user?.avatar,
+      },
+      message: messageText,
+      type: 'text',
+      read: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    setMessages(prev => [...prev, optimisticMessage]);
+    setNewMessage('');
+
     try {
       // Use Socket.io for real-time messaging
       socketSendMessage({
         conversationId,
-        message: newMessage,
+        message: messageText,
         type: 'text'
       });
-      setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
+      // Remove optimistic message on error
+      setMessages(prev => prev.filter(m => m._id !== optimisticMessage._id));
     } finally {
       setSending(false);
     }
@@ -452,7 +678,7 @@ export default function ChatScreen() {
                   Conversación
                 </h1>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
-                  {jobContext ? `Negociación: ${jobContext.title}` : 'Chat de negociación'}
+                  {jobContext ? jobContext.title : otherParticipant?.name || 'Chat'}
                 </p>
               </div>
             </div>
@@ -553,6 +779,110 @@ export default function ChatScreen() {
         {/* Messages */}
         <div className="flex-1 overflow-y-auto">
           <div className="container mx-auto max-w-4xl px-4 py-6 space-y-4">
+            {/* Contract Alerts for selected worker */}
+            {getContractAlerts().length > 0 && (
+              <div className="space-y-2">
+                {getContractAlerts().map((alert, index) => (
+                  <div
+                    key={index}
+                    className={`rounded-xl p-4 border-2 flex items-center gap-3 ${
+                      alert.color === 'green'
+                        ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-600'
+                        : alert.color === 'amber'
+                        ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-300 dark:border-amber-600'
+                        : 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-600'
+                    }`}
+                  >
+                    <div className={`p-2 rounded-full ${
+                      alert.color === 'green'
+                        ? 'bg-green-100 dark:bg-green-800'
+                        : alert.color === 'amber'
+                        ? 'bg-amber-100 dark:bg-amber-800'
+                        : 'bg-blue-100 dark:bg-blue-800'
+                    }`}>
+                      {alert.type === 'selected' && (
+                        <CheckCircle className={`h-5 w-5 ${
+                          alert.color === 'green' ? 'text-green-600 dark:text-green-400' : ''
+                        }`} />
+                      )}
+                      {alert.type === 'soon' && (
+                        <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                      )}
+                      {alert.type === 'in_progress' && (
+                        <Briefcase className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className={`font-semibold ${
+                        alert.color === 'green'
+                          ? 'text-green-700 dark:text-green-300'
+                          : alert.color === 'amber'
+                          ? 'text-amber-700 dark:text-amber-300'
+                          : 'text-blue-700 dark:text-blue-300'
+                      }`}>
+                        {alert.message}
+                      </p>
+                      {alert.type === 'selected' && contractData && (
+                        <Link
+                          to={`/contracts/${contractData.id}`}
+                          className="text-sm text-green-600 dark:text-green-400 hover:underline mt-1 inline-block"
+                        >
+                          Ver detalles del contrato →
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Pairing Code Display for Worker */}
+            {isSelectedWorker && contractData?.pairingCode && (
+              <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-xl p-5 border-2 border-purple-200 dark:border-purple-700 shadow-md">
+                <div className="flex items-start gap-4">
+                  <div className="p-3 bg-purple-100 dark:bg-purple-900/50 rounded-lg">
+                    <Key className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-bold text-purple-900 dark:text-purple-100 text-lg mb-1">
+                      Código de Pareamiento
+                    </h4>
+                    <p className="text-sm text-purple-700 dark:text-purple-300 mb-3">
+                      Muestra este código al cliente cuando llegues al lugar de trabajo
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <div className="flex-1 bg-white dark:bg-slate-800 rounded-lg p-3 border-2 border-purple-300 dark:border-purple-600">
+                        <p className="text-2xl font-mono font-bold text-purple-700 dark:text-purple-300 text-center tracking-widest">
+                          {contractData.pairingCode}
+                        </p>
+                      </div>
+                      <button
+                        onClick={handleCopyPairingCode}
+                        className="p-3 bg-purple-100 dark:bg-purple-900/50 hover:bg-purple-200 dark:hover:bg-purple-800/50 rounded-lg transition-colors"
+                        title="Copiar código"
+                      >
+                        {copiedCode ? (
+                          <Check className="h-5 w-5 text-green-600 dark:text-green-400" />
+                        ) : (
+                          <Copy className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                        )}
+                      </button>
+                    </div>
+                    {copiedCode && (
+                      <p className="text-sm text-green-600 dark:text-green-400 mt-2">
+                        ¡Código copiado!
+                      </p>
+                    )}
+                    {contractData.pairingExpiry && (
+                      <p className="text-xs text-purple-600 dark:text-purple-400 mt-2">
+                        Expira: {new Date(contractData.pairingExpiry).toLocaleString('es-AR')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Job/Contract reference banner */}
             {jobContext && (
               <div className="bg-gradient-to-br from-sky-50 to-blue-50 dark:from-sky-900/20 dark:to-blue-900/20 border-2 border-sky-200 dark:border-sky-700 rounded-2xl p-6 shadow-lg">
@@ -617,28 +947,73 @@ export default function ChatScreen() {
 
                 // Align based on sender
                 const isCurrentUser = (message.sender.id || message.sender._id) === user?.id;
+                const isPending = message.metadata?.proposalStatus === 'pending';
+
+                // Different styles for sent vs received applications
+                const containerStyles = isCurrentUser
+                  ? 'bg-gradient-to-br from-sky-50 to-blue-50 dark:from-sky-900/20 dark:to-blue-900/20 border-2 border-sky-200 dark:border-sky-800'
+                  : isPending
+                    ? 'bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 dark:from-emerald-900/20 dark:via-green-900/20 dark:to-teal-900/20 border-2 border-emerald-300 dark:border-emerald-700 ring-2 ring-emerald-200/50 dark:ring-emerald-800/50'
+                    : 'bg-gradient-to-br from-slate-50 to-gray-50 dark:from-slate-900/20 dark:to-gray-900/20 border-2 border-slate-200 dark:border-slate-700';
+
+                const iconContainerStyles = isCurrentUser
+                  ? 'bg-sky-100 dark:bg-sky-900/50'
+                  : isPending
+                    ? 'bg-emerald-100 dark:bg-emerald-900/50'
+                    : 'bg-slate-100 dark:bg-slate-800';
+
+                const iconStyles = isCurrentUser
+                  ? 'text-sky-600 dark:text-sky-400'
+                  : isPending
+                    ? 'text-emerald-600 dark:text-emerald-400'
+                    : 'text-slate-600 dark:text-slate-400';
+
+                const headerStyles = isCurrentUser
+                  ? 'text-sky-900 dark:text-sky-100'
+                  : isPending
+                    ? 'text-emerald-900 dark:text-emerald-100'
+                    : 'text-slate-900 dark:text-slate-100';
 
                 return (
                   <div
                     key={message.id || message._id}
                     className={`flex my-6 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div className={`max-w-2xl w-full bg-gradient-to-br from-sky-50 to-blue-50 dark:from-sky-900/20 dark:to-blue-900/20 border-2 border-sky-200 dark:border-sky-800 rounded-2xl p-6 shadow-lg ${isCurrentUser ? 'mr-4' : 'ml-4'}`}>
+                    <div className={`max-w-2xl w-full rounded-2xl p-6 shadow-lg ${containerStyles} ${isCurrentUser ? 'mr-4' : 'ml-4'}`}>
+                      {/* "Nueva Postulación" badge for received pending applications */}
+                      {!isCurrentUser && isPending && (
+                        <div className="flex items-center gap-2 mb-4 pb-3 border-b border-emerald-200 dark:border-emerald-700">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded-full animate-pulse">
+                            <span className="w-2 h-2 bg-white rounded-full" />
+                            Nueva Postulación
+                          </span>
+                          <span className="text-sm text-emerald-700 dark:text-emerald-300 font-medium">
+                            Requiere tu atención
+                          </span>
+                        </div>
+                      )}
+
                       <div className="flex items-start gap-4">
-                        <div className="p-3 bg-sky-100 dark:bg-sky-900/50 rounded-full flex-shrink-0">
-                          <Briefcase className="h-6 w-6 text-sky-600 dark:text-sky-400" />
+                        <div className={`p-3 rounded-full flex-shrink-0 ${iconContainerStyles}`}>
+                          {!isCurrentUser && isPending ? (
+                            <UserCheck className={`h-6 w-6 ${iconStyles}`} />
+                          ) : (
+                            <Briefcase className={`h-6 w-6 ${iconStyles}`} />
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
                           {/* Header - modificar según quién es el usuario */}
-                          <h4 className="text-lg font-bold text-sky-900 dark:text-sky-100 mb-1">
+                          <h4 className={`text-lg font-bold mb-1 ${headerStyles}`}>
                             {isCurrentUser
-                              ? header.replace(/aplicó|envió una contraoferta/gi, (match) =>
-                                  match.toLowerCase().includes('contraoferta') ? 'Enviaste una contraoferta' : 'Aplicaste al trabajo'
+                              ? header.replace(/se postuló al trabajo|aplicó|envió una contraoferta/gi, (match) =>
+                                  match.toLowerCase().includes('contraoferta')
+                                    ? 'Enviaste una contraoferta'
+                                    : 'Te postulaste al trabajo'
                                 )
-                              : header.replace(/aplicó|envió una contraoferta/gi, (match) =>
+                              : header.replace(/se postuló al trabajo|aplicó|envió una contraoferta/gi, (match) =>
                                   match.toLowerCase().includes('contraoferta')
                                     ? `${message.sender.name} envió una contraoferta`
-                                    : `${message.sender.name} aplicó al trabajo`
+                                    : `${message.sender.name} quiere trabajar contigo`
                                 )
                             }
                           </h4>
@@ -723,56 +1098,90 @@ export default function ChatScreen() {
                               ) : (
                                 // Si YO soy el dueño del trabajo y RECIBÍ esta propuesta
                                 <>
+                                  {message.metadata?.proposalStatus === 'pending' && (
+                                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                                      <button
+                                        onClick={async () => {
+                                          if (!message.metadata?.proposalId) {
+                                            alert('No se encontró la propuesta');
+                                            return;
+                                          }
+
+                                          if (!confirm('¿Estás seguro de que deseas seleccionar a este trabajador?')) {
+                                            return;
+                                          }
+
+                                          try {
+                                            const response = await fetch(
+                                              `/api/proposals/${message.metadata.proposalId}/approve`,
+                                              {
+                                                method: 'PUT',
+                                                headers: {
+                                                  'Content-Type': 'application/json',
+                                                  Authorization: `Bearer ${localStorage.getItem('token')}`,
+                                                },
+                                              }
+                                            );
+
+                                            const data = await response.json();
+
+                                            if (data.success && data.contractId) {
+                                              navigate(`/contracts/${data.contractId}/summary`);
+                                            } else {
+                                              alert(data.message || 'Error al seleccionar trabajador');
+                                            }
+                                          } catch (error) {
+                                            console.error('Error accepting proposal:', error);
+                                            alert('Error al seleccionar trabajador');
+                                          }
+                                        }}
+                                        className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+                                      >
+                                        <CheckCircle className="h-5 w-5" />
+                                        Seleccionar Trabajador
+                                      </button>
+                                      <button
+                                        onClick={async () => {
+                                          if (!message.metadata?.proposalId) return;
+                                          if (!confirm('¿Estás seguro de que deseas rechazar esta postulación?')) return;
+
+                                          try {
+                                            const response = await fetch(
+                                              `/api/proposals/${message.metadata.proposalId}/reject`,
+                                              {
+                                                method: 'PUT',
+                                                headers: {
+                                                  'Content-Type': 'application/json',
+                                                  Authorization: `Bearer ${localStorage.getItem('token')}`,
+                                                },
+                                              }
+                                            );
+                                            const data = await response.json();
+                                            if (data.success) {
+                                              fetchConversationData();
+                                            } else {
+                                              alert(data.message || 'Error al rechazar');
+                                            }
+                                          } catch (error) {
+                                            console.error('Error:', error);
+                                            alert('Error al rechazar la postulación');
+                                          }
+                                        }}
+                                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 text-sm font-medium rounded-xl transition-colors border-2 border-red-200 dark:border-red-800 hover:border-red-300 dark:hover:border-red-700"
+                                      >
+                                        <X className="h-4 w-4" />
+                                        Rechazar
+                                      </button>
+                                    </div>
+                                  )}
+
                                   <button
                                     onClick={() => navigate(`/jobs/${message.metadata?.jobId}/applications`)}
-                                    className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-lg transition-colors"
+                                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium rounded-xl transition-colors border-2 border-slate-200 dark:border-slate-600"
                                   >
-                                    <FileText className="h-4 w-4" />
-                                    Ver Postulaciones
+                                    <Users className="h-4 w-4" />
+                                    Ver Todos los Postulados
                                   </button>
-
-                                  {message.metadata?.proposalStatus === 'pending' && (
-                                    <button
-                                      onClick={async () => {
-                                        if (!message.metadata?.proposalId) {
-                                          alert('No se encontró la propuesta');
-                                          return;
-                                        }
-
-                                        if (!confirm('¿Estás seguro de que deseas aceptar esta propuesta?')) {
-                                          return;
-                                        }
-
-                                        try {
-                                          const response = await fetch(
-                                            `/api/proposals/${message.metadata.proposalId}/approve`,
-                                            {
-                                              method: 'PUT',
-                                              headers: {
-                                                'Content-Type': 'application/json',
-                                                Authorization: `Bearer ${localStorage.getItem('token')}`,
-                                              },
-                                            }
-                                          );
-
-                                          const data = await response.json();
-
-                                          if (data.success && data.contractId) {
-                                            navigate(`/contracts/${data.contractId}/summary`);
-                                          } else {
-                                            alert(data.message || 'Error al aceptar la propuesta');
-                                          }
-                                        } catch (error) {
-                                          console.error('Error accepting proposal:', error);
-                                          alert('Error al aceptar la propuesta');
-                                        }
-                                      }}
-                                      className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
-                                    >
-                                      <Check className="h-4 w-4" />
-                                      Aceptar Propuesta
-                                    </button>
-                                  )}
                                 </>
                               )}
                             </div>

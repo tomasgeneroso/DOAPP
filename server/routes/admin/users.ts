@@ -57,6 +57,14 @@ router.get(
         offset,
         limit: parseInt(limit as string),
         attributes: { exclude: ['password', 'twoFactorSecret', 'twoFactorBackupCodes'] },
+        include: [
+          {
+            model: User,
+            as: 'banningAdmin',
+            attributes: ['id', 'name', 'email'],
+            required: false,
+          },
+        ],
       });
 
       res.json({

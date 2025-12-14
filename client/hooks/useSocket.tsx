@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 import { useAuth } from "./useAuth";
 
@@ -8,6 +8,12 @@ import { useAuth } from "./useAuth";
 const SOCKET_URL = import.meta.env.DEV
   ? "" // Empty string = same host (uses Vite proxy)
   : (import.meta.env.VITE_API_URL || "http://localhost:5000");
+
+// Reconnection configuration
+const MAX_RECONNECT_ATTEMPTS = 5;
+const INITIAL_RECONNECT_DELAY = 1000;
+const MAX_RECONNECT_DELAY = 30000;
+const RECONNECT_BACKOFF_MULTIPLIER = 2;
 
 interface Message {
   _id: string;
@@ -39,44 +45,298 @@ interface UserStatus {
   timestamp: Date;
 }
 
+// Singleton para el socket - evita múltiples conexiones
+let globalSocket: Socket | null = null;
+let connectionAttempts = 0;
+let isGlobalConnecting = false;
+let lastConnectionAttempt = 0;
+let connectionGaveUp = false;
+
+// Event handlers stored globally to survive re-renders
+const eventHandlers = {
+  onContractUpdate: null as ((data: any) => void) | null,
+  onJobUpdate: null as ((data: any) => void) | null,
+  onProposalUpdate: null as ((data: any) => void) | null,
+  onDashboardRefresh: null as (() => void) | null,
+  onJobsRefresh: null as ((data?: any) => void) | null,
+  onUnreadUpdate: null as ((count: number) => void) | null,
+  onAdminJobCreated: null as ((data: any) => void) | null,
+  onAdminJobUpdated: null as ((data: any) => void) | null,
+  onAdminProposalCreated: null as ((data: any) => void) | null,
+  onAdminContractCreated: null as ((data: any) => void) | null,
+  onAdminContractUpdated: null as ((data: any) => void) | null,
+  onAdminPaymentCreated: null as ((data: any) => void) | null,
+  onAdminPaymentUpdated: null as ((data: any) => void) | null,
+  onAdminUserCreated: null as ((data: any) => void) | null,
+  onNewProposal: null as ((data: any) => void) | null,
+  onContractsRefresh: null as ((data?: any) => void) | null,
+  onMyJobsRefresh: null as ((data?: any) => void) | null,
+  onNotification: null as ((data: any) => void) | null,
+};
+
 export function useSocket() {
   const { user } = useAuth();
-  const [socket, setSocket] = useState<Socket | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
+  const [socket, setSocket] = useState<Socket | null>(globalSocket);
+  const [isConnected, setIsConnected] = useState(globalSocket?.connected ?? false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [typingUsers, setTypingUsers] = useState<Map<string, TypingStatus>>(new Map());
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
-  const socketRef = useRef<Socket | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const mountedRef = useRef(true);
 
-  // Callbacks for real-time events
-  const [onContractUpdate, setOnContractUpdate] = useState<((data: any) => void) | null>(null);
-  const [onJobUpdate, setOnJobUpdate] = useState<((data: any) => void) | null>(null);
-  const [onProposalUpdate, setOnProposalUpdate] = useState<((data: any) => void) | null>(null);
-  const [onDashboardRefresh, setOnDashboardRefresh] = useState<(() => void) | null>(null);
-  const [onJobsRefresh, setOnJobsRefresh] = useState<((data?: any) => void) | null>(null);
-  const [onUnreadUpdate, setOnUnreadUpdate] = useState<((count: number) => void) | null>(null);
+  // Cleanup on unmount
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+    };
+  }, []);
 
-  // Admin panel callbacks
-  const [onAdminJobCreated, setOnAdminJobCreated] = useState<((data: any) => void) | null>(null);
-  const [onAdminJobUpdated, setOnAdminJobUpdated] = useState<((data: any) => void) | null>(null);
-  const [onAdminProposalCreated, setOnAdminProposalCreated] = useState<((data: any) => void) | null>(null);
-  const [onAdminContractCreated, setOnAdminContractCreated] = useState<((data: any) => void) | null>(null);
-  const [onAdminContractUpdated, setOnAdminContractUpdated] = useState<((data: any) => void) | null>(null);
-  const [onAdminPaymentCreated, setOnAdminPaymentCreated] = useState<((data: any) => void) | null>(null);
-  const [onAdminPaymentUpdated, setOnAdminPaymentUpdated] = useState<((data: any) => void) | null>(null);
-  const [onAdminUserCreated, setOnAdminUserCreated] = useState<((data: any) => void) | null>(null);
-  const [onNewProposal, setOnNewProposal] = useState<((data: any) => void) | null>(null);
-  const [onContractsRefresh, setOnContractsRefresh] = useState<((data?: any) => void) | null>(null);
-  const [onMyJobsRefresh, setOnMyJobsRefresh] = useState<((data?: any) => void) | null>(null);
+  // Calculate reconnect delay with exponential backoff
+  const getReconnectDelay = useCallback(() => {
+    const delay = Math.min(
+      INITIAL_RECONNECT_DELAY * Math.pow(RECONNECT_BACKOFF_MULTIPLIER, connectionAttempts),
+      MAX_RECONNECT_DELAY
+    );
+    return delay;
+  }, []);
 
+  // Setup socket event listeners
+  const setupSocketListeners = useCallback((socketInstance: Socket) => {
+    // Remove existing listeners to avoid duplicates
+    socketInstance.removeAllListeners();
+
+    // Connection handlers
+    socketInstance.on("connect", () => {
+      console.log("✅ Socket connected");
+      connectionAttempts = 0;
+      connectionGaveUp = false;
+      if (mountedRef.current) {
+        setIsConnected(true);
+      }
+    });
+
+    socketInstance.on("disconnect", (reason) => {
+      console.log("❌ Socket disconnected:", reason);
+      if (mountedRef.current) {
+        setIsConnected(false);
+      }
+
+      // Don't reconnect if server intentionally closed or we gave up
+      if (reason === "io server disconnect" || connectionGaveUp) {
+        return;
+      }
+    });
+
+    socketInstance.on("connect_error", (error) => {
+      console.error("Socket connection error:", error.message);
+      if (mountedRef.current) {
+        setIsConnected(false);
+      }
+
+      connectionAttempts++;
+
+      if (connectionAttempts >= MAX_RECONNECT_ATTEMPTS) {
+        console.warn(`⚠️ Socket: Gave up after ${MAX_RECONNECT_ATTEMPTS} failed attempts. Will retry on user action.`);
+        connectionGaveUp = true;
+        socketInstance.disconnect();
+        return;
+      }
+
+      const delay = getReconnectDelay();
+      console.log(`🔄 Socket: Reconnecting in ${delay}ms (attempt ${connectionAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+    });
+
+    // Message handlers
+    socketInstance.on("message:new", (message: Message) => {
+      if (mountedRef.current) {
+        setMessages((prev) => [...prev, message]);
+      }
+    });
+
+    socketInstance.on("conversation:history", ({ messages: historyMessages }) => {
+      if (mountedRef.current) {
+        setMessages(historyMessages);
+      }
+    });
+
+    socketInstance.on("message:read", ({ messageId, readAt }) => {
+      if (mountedRef.current) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg._id === messageId
+              ? { ...msg, read: true, readAt: new Date(readAt) }
+              : msg
+          )
+        );
+      }
+    });
+
+    // Typing handlers
+    socketInstance.on("typing:update", (status: TypingStatus) => {
+      if (mountedRef.current) {
+        setTypingUsers((prev) => {
+          const newMap = new Map(prev);
+          const key = `${status.conversationId}-${status.userId}`;
+
+          if (status.isTyping) {
+            newMap.set(key, status);
+          } else {
+            newMap.delete(key);
+          }
+
+          return newMap;
+        });
+      }
+    });
+
+    // Online status handlers
+    socketInstance.on("user:status", ({ userId, isOnline }: UserStatus) => {
+      if (mountedRef.current) {
+        setOnlineUsers((prev) => {
+          const newSet = new Set(prev);
+          if (isOnline) {
+            newSet.add(userId);
+          } else {
+            newSet.delete(userId);
+          }
+          return newSet;
+        });
+      }
+    });
+
+    // Error handler
+    socketInstance.on("error", (error) => {
+      console.error("Socket error:", error);
+    });
+
+    // Global real-time event handlers - use stored handlers
+    socketInstance.on("contract:updated", (data: any) => {
+      if (eventHandlers.onContractUpdate) {
+        eventHandlers.onContractUpdate(data);
+      }
+    });
+
+    socketInstance.on("job:updated", (data: any) => {
+      if (eventHandlers.onJobUpdate) {
+        eventHandlers.onJobUpdate(data);
+      }
+    });
+
+    socketInstance.on("jobs:refresh", (data: any) => {
+      if (eventHandlers.onJobsRefresh) {
+        eventHandlers.onJobsRefresh(data);
+      }
+    });
+
+    socketInstance.on("proposal:updated", (data: any) => {
+      if (eventHandlers.onProposalUpdate) {
+        eventHandlers.onProposalUpdate(data);
+      }
+    });
+
+    socketInstance.on("dashboard:refresh", () => {
+      if (eventHandlers.onDashboardRefresh) {
+        eventHandlers.onDashboardRefresh();
+      }
+    });
+
+    socketInstance.on("unread:updated", (data: { unreadCount: number; unreadConversations?: number }) => {
+      if (eventHandlers.onUnreadUpdate) {
+        eventHandlers.onUnreadUpdate(data.unreadConversations ?? data.unreadCount);
+      }
+    });
+
+    // Admin panel event handlers
+    socketInstance.on("admin:job:created", (data: any) => {
+      if (eventHandlers.onAdminJobCreated) {
+        eventHandlers.onAdminJobCreated(data);
+      }
+    });
+
+    socketInstance.on("admin:job:updated", (data: any) => {
+      if (eventHandlers.onAdminJobUpdated) {
+        eventHandlers.onAdminJobUpdated(data);
+      }
+    });
+
+    socketInstance.on("admin:proposal:created", (data: any) => {
+      if (eventHandlers.onAdminProposalCreated) {
+        eventHandlers.onAdminProposalCreated(data);
+      }
+    });
+
+    socketInstance.on("admin:contract:created", (data: any) => {
+      if (eventHandlers.onAdminContractCreated) {
+        eventHandlers.onAdminContractCreated(data);
+      }
+    });
+
+    socketInstance.on("admin:contract:updated", (data: any) => {
+      if (eventHandlers.onAdminContractUpdated) {
+        eventHandlers.onAdminContractUpdated(data);
+      }
+    });
+
+    socketInstance.on("admin:payment:created", (data: any) => {
+      if (eventHandlers.onAdminPaymentCreated) {
+        eventHandlers.onAdminPaymentCreated(data);
+      }
+    });
+
+    socketInstance.on("admin:payment:updated", (data: any) => {
+      if (eventHandlers.onAdminPaymentUpdated) {
+        eventHandlers.onAdminPaymentUpdated(data);
+      }
+    });
+
+    socketInstance.on("admin:user:created", (data: any) => {
+      if (eventHandlers.onAdminUserCreated) {
+        eventHandlers.onAdminUserCreated(data);
+      }
+    });
+
+    socketInstance.on("proposal:new", (data: any) => {
+      if (eventHandlers.onNewProposal) {
+        eventHandlers.onNewProposal(data);
+      }
+    });
+
+    socketInstance.on("contracts:refresh", (data: any) => {
+      if (eventHandlers.onContractsRefresh) {
+        eventHandlers.onContractsRefresh(data);
+      }
+    });
+
+    socketInstance.on("myjobs:refresh", (data: any) => {
+      if (eventHandlers.onMyJobsRefresh) {
+        eventHandlers.onMyJobsRefresh(data);
+      }
+    });
+
+    // Notification handler
+    socketInstance.on("notification:new", (data: any) => {
+      if (eventHandlers.onNotification) {
+        eventHandlers.onNotification(data);
+      }
+    });
+  }, [getReconnectDelay]);
+
+  // Main connection effect - only depends on user
   useEffect(() => {
     if (!user) {
       // Disconnect socket if user logs out
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
+      if (globalSocket) {
+        globalSocket.disconnect();
+        globalSocket = null;
         setSocket(null);
         setIsConnected(false);
+        connectionAttempts = 0;
+        connectionGaveUp = false;
+        isGlobalConnecting = false;
       }
       return;
     }
@@ -88,239 +348,94 @@ export function useSocket() {
       return;
     }
 
-    // Create socket connection
+    // Prevent multiple simultaneous connection attempts
+    const now = Date.now();
+    if (isGlobalConnecting && now - lastConnectionAttempt < 5000) {
+      return;
+    }
+
+    // If already connected, just update state
+    if (globalSocket?.connected) {
+      setSocket(globalSocket);
+      setIsConnected(true);
+      return;
+    }
+
+    // If we gave up, don't auto-reconnect (wait for manual retry)
+    if (connectionGaveUp && globalSocket) {
+      setSocket(globalSocket);
+      setIsConnected(false);
+      return;
+    }
+
+    isGlobalConnecting = true;
+    lastConnectionAttempt = now;
+
+    // Create socket connection with conservative settings
     const newSocket = io(SOCKET_URL, {
       auth: {
         token,
       },
       path: "/socket.io",
-      transports: ["polling", "websocket"], // Try polling first, then upgrade to websocket
+      transports: ["websocket", "polling"], // Try websocket first
       reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionAttempts: 5,
+      reconnectionDelay: INITIAL_RECONNECT_DELAY,
+      reconnectionDelayMax: MAX_RECONNECT_DELAY,
+      reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
+      timeout: 10000, // 10 second connection timeout
+      forceNew: false, // Reuse connection if possible
     });
 
-    socketRef.current = newSocket;
+    globalSocket = newSocket;
     setSocket(newSocket);
+    setupSocketListeners(newSocket);
 
-    // Connection handlers
-    newSocket.on("connect", () => {
-      console.log("✅ Socket connected");
-      setIsConnected(true);
-    });
+    isGlobalConnecting = false;
 
-    newSocket.on("disconnect", () => {
-      console.log("❌ Socket disconnected");
-      setIsConnected(false);
-    });
-
-    newSocket.on("connect_error", (error) => {
-      console.error("Socket connection error:", error);
-      setIsConnected(false);
-    });
-
-    // Message handlers
-    newSocket.on("message:new", (message: Message) => {
-      setMessages((prev) => [...prev, message]);
-    });
-
-    newSocket.on("conversation:history", ({ messages: historyMessages }) => {
-      setMessages(historyMessages);
-    });
-
-    newSocket.on("message:read", ({ messageId, readBy, readAt }) => {
-      setMessages((prev) =>
-        prev.map((msg) =>
-          msg._id === messageId
-            ? { ...msg, read: true, readAt: new Date(readAt) }
-            : msg
-        )
-      );
-    });
-
-    // Typing handlers
-    newSocket.on("typing:update", (status: TypingStatus) => {
-      setTypingUsers((prev) => {
-        const newMap = new Map(prev);
-        const key = `${status.conversationId}-${status.userId}`;
-
-        if (status.isTyping) {
-          newMap.set(key, status);
-        } else {
-          newMap.delete(key);
-        }
-
-        return newMap;
-      });
-    });
-
-    // Online status handlers
-    newSocket.on("user:status", ({ userId, isOnline }: UserStatus) => {
-      setOnlineUsers((prev) => {
-        const newSet = new Set(prev);
-        if (isOnline) {
-          newSet.add(userId);
-        } else {
-          newSet.delete(userId);
-        }
-        return newSet;
-      });
-    });
-
-    // Error handler
-    newSocket.on("error", (error) => {
-      console.error("Socket error:", error);
-    });
-
-    // Global real-time event handlers
-    newSocket.on("contract:updated", (data: any) => {
-      console.log("📝 Contract updated:", data);
-      if (onContractUpdate) {
-        onContractUpdate(data);
-      }
-    });
-
-    newSocket.on("job:updated", (data: any) => {
-      console.log("💼 Job updated:", data);
-      if (onJobUpdate) {
-        onJobUpdate(data);
-      }
-    });
-
-    newSocket.on("jobs:refresh", (data: any) => {
-      console.log("🔄 Jobs refresh:", data);
-      if (onJobsRefresh) {
-        onJobsRefresh(data);
-      }
-    });
-
-    newSocket.on("proposal:updated", (data: any) => {
-      console.log("📄 Proposal updated:", data);
-      if (onProposalUpdate) {
-        onProposalUpdate(data);
-      }
-    });
-
-    newSocket.on("dashboard:refresh", () => {
-      console.log("📊 Dashboard refresh");
-      if (onDashboardRefresh) {
-        onDashboardRefresh();
-      }
-    });
-
-    newSocket.on("unread:updated", (data: { unreadCount: number; unreadConversations?: number }) => {
-      console.log("💬 Unread updated - messages:", data.unreadCount, "conversations:", data.unreadConversations);
-      if (onUnreadUpdate) {
-        // Pass unreadConversations (number of chats with unread messages)
-        onUnreadUpdate(data.unreadConversations ?? data.unreadCount);
-      }
-    });
-
-    // Admin panel event handlers
-    newSocket.on("admin:job:created", (data: any) => {
-      console.log("🆕 [Admin] New job created:", data);
-      if (onAdminJobCreated) {
-        onAdminJobCreated(data);
-      }
-    });
-
-    newSocket.on("admin:job:updated", (data: any) => {
-      console.log("📝 [Admin] Job updated:", data);
-      if (onAdminJobUpdated) {
-        onAdminJobUpdated(data);
-      }
-    });
-
-    newSocket.on("admin:proposal:created", (data: any) => {
-      console.log("🆕 [Admin] New proposal:", data);
-      if (onAdminProposalCreated) {
-        onAdminProposalCreated(data);
-      }
-    });
-
-    newSocket.on("admin:contract:created", (data: any) => {
-      console.log("🆕 [Admin] New contract:", data);
-      if (onAdminContractCreated) {
-        onAdminContractCreated(data);
-      }
-    });
-
-    newSocket.on("admin:contract:updated", (data: any) => {
-      console.log("📝 [Admin] Contract updated:", data);
-      if (onAdminContractUpdated) {
-        onAdminContractUpdated(data);
-      }
-    });
-
-    newSocket.on("admin:payment:created", (data: any) => {
-      console.log("💰 [Admin] New payment:", data);
-      if (onAdminPaymentCreated) {
-        onAdminPaymentCreated(data);
-      }
-    });
-
-    newSocket.on("admin:payment:updated", (data: any) => {
-      console.log("💰 [Admin] Payment updated:", data);
-      if (onAdminPaymentUpdated) {
-        onAdminPaymentUpdated(data);
-      }
-    });
-
-    newSocket.on("admin:user:created", (data: any) => {
-      console.log("👤 [Admin] New user:", data);
-      if (onAdminUserCreated) {
-        onAdminUserCreated(data);
-      }
-    });
-
-    newSocket.on("proposal:new", (data: any) => {
-      console.log("📬 New proposal for your job:", data);
-      if (onNewProposal) {
-        onNewProposal(data);
-      }
-    });
-
-    newSocket.on("contracts:refresh", (data: any) => {
-      console.log("🔄 Contracts refresh:", data);
-      if (onContractsRefresh) {
-        onContractsRefresh(data);
-      }
-    });
-
-    newSocket.on("myjobs:refresh", (data: any) => {
-      console.log("🔄 My jobs refresh:", data);
-      if (onMyJobsRefresh) {
-        onMyJobsRefresh(data);
-      }
-    });
-
-    // Cleanup
+    // Cleanup only on user logout, not on re-renders
     return () => {
-      newSocket.disconnect();
-      socketRef.current = null;
+      // Don't disconnect on re-render, only when user is null
     };
-  }, [user, onContractUpdate, onJobUpdate, onProposalUpdate, onDashboardRefresh, onJobsRefresh, onUnreadUpdate, onAdminJobCreated, onAdminJobUpdated, onAdminProposalCreated, onAdminContractCreated, onAdminContractUpdated, onAdminPaymentCreated, onAdminPaymentUpdated, onAdminUserCreated, onNewProposal, onContractsRefresh, onMyJobsRefresh]);
+  }, [user, setupSocketListeners]);
+
+  // Manual reconnect function
+  const reconnect = useCallback(() => {
+    if (!user) return;
+
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    // Reset state
+    connectionAttempts = 0;
+    connectionGaveUp = false;
+
+    if (globalSocket) {
+      globalSocket.connect();
+    } else {
+      // Force new connection
+      isGlobalConnecting = false;
+      lastConnectionAttempt = 0;
+    }
+  }, [user]);
 
   // Join conversation
-  const joinConversation = (conversationId: string) => {
-    if (socket) {
-      // Reset messages when joining new conversation
+  const joinConversation = useCallback((conversationId: string) => {
+    if (globalSocket?.connected) {
       setMessages([]);
-      socket.emit("join:conversation", conversationId);
+      globalSocket.emit("join:conversation", conversationId);
     }
-  };
+  }, []);
 
   // Leave conversation
-  const leaveConversation = (conversationId: string) => {
-    if (socket) {
-      socket.emit("leave:conversation", conversationId);
-      // Clear messages when leaving
+  const leaveConversation = useCallback((conversationId: string) => {
+    if (globalSocket?.connected) {
+      globalSocket.emit("leave:conversation", conversationId);
       setMessages([]);
     }
-  };
+  }, []);
 
   // Send message
-  const sendMessage = (data: {
+  const sendMessage = useCallback((data: {
     conversationId: string;
     message: string;
     type?: "text" | "image" | "file";
@@ -328,124 +443,128 @@ export function useSocket() {
     fileName?: string;
     fileSize?: number;
   }) => {
-    if (socket) {
-      socket.emit("message:send", data);
+    if (globalSocket?.connected) {
+      globalSocket.emit("message:send", data);
     }
-  };
+  }, []);
 
   // Start typing
-  const startTyping = (conversationId: string) => {
-    if (socket) {
-      socket.emit("typing:start", { conversationId, isTyping: true });
+  const startTyping = useCallback((conversationId: string) => {
+    if (globalSocket?.connected) {
+      globalSocket.emit("typing:start", { conversationId, isTyping: true });
     }
-  };
+  }, []);
 
   // Stop typing
-  const stopTyping = (conversationId: string) => {
-    if (socket) {
-      socket.emit("typing:stop", { conversationId, isTyping: false });
+  const stopTyping = useCallback((conversationId: string) => {
+    if (globalSocket?.connected) {
+      globalSocket.emit("typing:stop", { conversationId, isTyping: false });
     }
-  };
+  }, []);
 
   // Mark message as read
-  const markAsRead = (conversationId: string, messageId: string) => {
-    if (socket) {
-      socket.emit("message:read", { conversationId, messageId });
+  const markAsRead = useCallback((conversationId: string, messageId: string) => {
+    if (globalSocket?.connected) {
+      globalSocket.emit("message:read", { conversationId, messageId });
     }
-  };
+  }, []);
 
   // Mark conversation as read
-  const markConversationAsRead = (conversationId: string) => {
-    if (socket) {
-      socket.emit("conversation:mark-read", conversationId);
+  const markConversationAsRead = useCallback((conversationId: string) => {
+    if (globalSocket?.connected) {
+      globalSocket.emit("conversation:mark-read", conversationId);
     }
-  };
+  }, []);
 
   // Check if user is online
-  const isUserOnline = (userId: string) => {
+  const isUserOnline = useCallback((userId: string) => {
     return onlineUsers.has(userId);
-  };
+  }, [onlineUsers]);
 
   // Get typing users for a conversation
-  const getTypingUsers = (conversationId: string) => {
+  const getTypingUsers = useCallback((conversationId: string) => {
     const typing: TypingStatus[] = [];
-    typingUsers.forEach((status, key) => {
+    typingUsers.forEach((status) => {
       if (status.conversationId === conversationId && status.isTyping) {
         typing.push(status);
       }
     });
     return typing;
-  };
+  }, [typingUsers]);
 
-  // Register callbacks
-  const registerContractUpdateHandler = (handler: (data: any) => void) => {
-    setOnContractUpdate(() => handler);
-  };
+  // Register callbacks - these update the global handlers without causing re-renders
+  const registerContractUpdateHandler = useCallback((handler: (data: any) => void) => {
+    eventHandlers.onContractUpdate = handler;
+  }, []);
 
-  const registerJobUpdateHandler = (handler: (data: any) => void) => {
-    setOnJobUpdate(() => handler);
-  };
+  const registerJobUpdateHandler = useCallback((handler: (data: any) => void) => {
+    eventHandlers.onJobUpdate = handler;
+  }, []);
 
-  const registerProposalUpdateHandler = (handler: (data: any) => void) => {
-    setOnProposalUpdate(() => handler);
-  };
+  const registerProposalUpdateHandler = useCallback((handler: (data: any) => void) => {
+    eventHandlers.onProposalUpdate = handler;
+  }, []);
 
-  const registerDashboardRefreshHandler = (handler: () => void) => {
-    setOnDashboardRefresh(() => handler);
-  };
+  const registerDashboardRefreshHandler = useCallback((handler: () => void) => {
+    eventHandlers.onDashboardRefresh = handler;
+  }, []);
 
-  const registerJobsRefreshHandler = (handler: (data?: any) => void) => {
-    setOnJobsRefresh(() => handler);
-  };
+  const registerJobsRefreshHandler = useCallback((handler: (data?: any) => void) => {
+    eventHandlers.onJobsRefresh = handler;
+  }, []);
 
-  const registerUnreadUpdateHandler = (handler: (count: number) => void) => {
-    setOnUnreadUpdate(() => handler);
-  };
+  const registerUnreadUpdateHandler = useCallback((handler: (count: number) => void) => {
+    eventHandlers.onUnreadUpdate = handler;
+  }, []);
 
   // Admin panel register handlers
-  const registerAdminJobCreatedHandler = (handler: (data: any) => void) => {
-    setOnAdminJobCreated(() => handler);
-  };
+  const registerAdminJobCreatedHandler = useCallback((handler: (data: any) => void) => {
+    eventHandlers.onAdminJobCreated = handler;
+  }, []);
 
-  const registerAdminJobUpdatedHandler = (handler: (data: any) => void) => {
-    setOnAdminJobUpdated(() => handler);
-  };
+  const registerAdminJobUpdatedHandler = useCallback((handler: (data: any) => void) => {
+    eventHandlers.onAdminJobUpdated = handler;
+  }, []);
 
-  const registerAdminProposalCreatedHandler = (handler: (data: any) => void) => {
-    setOnAdminProposalCreated(() => handler);
-  };
+  const registerAdminProposalCreatedHandler = useCallback((handler: (data: any) => void) => {
+    eventHandlers.onAdminProposalCreated = handler;
+  }, []);
 
-  const registerAdminContractCreatedHandler = (handler: (data: any) => void) => {
-    setOnAdminContractCreated(() => handler);
-  };
+  const registerAdminContractCreatedHandler = useCallback((handler: (data: any) => void) => {
+    eventHandlers.onAdminContractCreated = handler;
+  }, []);
 
-  const registerAdminContractUpdatedHandler = (handler: (data: any) => void) => {
-    setOnAdminContractUpdated(() => handler);
-  };
+  const registerAdminContractUpdatedHandler = useCallback((handler: (data: any) => void) => {
+    eventHandlers.onAdminContractUpdated = handler;
+  }, []);
 
-  const registerAdminPaymentCreatedHandler = (handler: (data: any) => void) => {
-    setOnAdminPaymentCreated(() => handler);
-  };
+  const registerAdminPaymentCreatedHandler = useCallback((handler: (data: any) => void) => {
+    eventHandlers.onAdminPaymentCreated = handler;
+  }, []);
 
-  const registerAdminPaymentUpdatedHandler = (handler: (data: any) => void) => {
-    setOnAdminPaymentUpdated(() => handler);
-  };
+  const registerAdminPaymentUpdatedHandler = useCallback((handler: (data: any) => void) => {
+    eventHandlers.onAdminPaymentUpdated = handler;
+  }, []);
 
-  const registerAdminUserCreatedHandler = (handler: (data: any) => void) => {
-    setOnAdminUserCreated(() => handler);
-  };
+  const registerAdminUserCreatedHandler = useCallback((handler: (data: any) => void) => {
+    eventHandlers.onAdminUserCreated = handler;
+  }, []);
 
-  const registerNewProposalHandler = (handler: (data: any) => void) => {
-    setOnNewProposal(() => handler);
-  };
+  const registerNewProposalHandler = useCallback((handler: (data: any) => void) => {
+    eventHandlers.onNewProposal = handler;
+  }, []);
 
-  const registerContractsRefreshHandler = (handler: (data?: any) => void) => {
-    setOnContractsRefresh(() => handler);
-  };
+  const registerContractsRefreshHandler = useCallback((handler: (data?: any) => void) => {
+    eventHandlers.onContractsRefresh = handler;
+  }, []);
 
-  const registerMyJobsRefreshHandler = (handler: (data?: any) => void) => {
-    setOnMyJobsRefresh(() => handler);
-  };
+  const registerMyJobsRefreshHandler = useCallback((handler: (data?: any) => void) => {
+    eventHandlers.onMyJobsRefresh = handler;
+  }, []);
+
+  const registerNotificationHandler = useCallback((handler: (data: any) => void) => {
+    eventHandlers.onNotification = handler;
+  }, []);
 
   return {
     socket,
@@ -460,6 +579,8 @@ export function useSocket() {
     markConversationAsRead,
     isUserOnline,
     getTypingUsers,
+    reconnect, // Manual reconnect function
+    connectionGaveUp, // Expose if connection gave up
     registerContractUpdateHandler,
     registerJobUpdateHandler,
     registerProposalUpdateHandler,
@@ -478,5 +599,6 @@ export function useSocket() {
     registerNewProposalHandler,
     registerContractsRefreshHandler,
     registerMyJobsRefreshHandler,
+    registerNotificationHandler,
   };
 }

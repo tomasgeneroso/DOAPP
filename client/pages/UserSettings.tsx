@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "../hooks/useAuth";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   User,
   MapPin,
@@ -21,9 +21,18 @@ type TabType = "basic" | "address" | "banking" | "legal" | "interests" | "notifi
 export default function UserSettings() {
   const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabType>("basic");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Handle tab from URL query parameter
+  useEffect(() => {
+    const tabParam = searchParams.get("tab");
+    if (tabParam && ["basic", "address", "banking", "legal", "interests", "notifications", "contact"].includes(tabParam)) {
+      setActiveTab(tabParam as TabType);
+    }
+  }, [searchParams]);
 
   // Basic info
   const [name, setName] = useState("");
@@ -39,9 +48,11 @@ export default function UserSettings() {
 
   // Banking
   const [accountHolder, setAccountHolder] = useState("");
+  const [bankType, setBankType] = useState<"mercadopago" | "otro">("mercadopago");
   const [bankName, setBankName] = useState("");
   const [accountType, setAccountType] = useState<"savings" | "checking">("savings");
   const [cbu, setCbu] = useState("");
+  const [cbuMasked, setCbuMasked] = useState(""); // Original masked CBU from server
   const [alias, setAlias] = useState("");
 
   // Legal
@@ -76,9 +87,12 @@ export default function UserSettings() {
       setPostalCode(user.address?.postalCode || "");
       setCountry(user.address?.country || "Argentina");
       setAccountHolder(user.bankingInfo?.accountHolder || "");
+      setBankType(user.bankingInfo?.bankType || "mercadopago");
       setBankName(user.bankingInfo?.bankName || "");
       setAccountType(user.bankingInfo?.accountType || "savings");
-      setCbu(user.bankingInfo?.cbu || "");
+      // CBU comes masked from server, store it separately
+      setCbuMasked(user.bankingInfo?.cbu || "");
+      setCbu(""); // Start with empty, user needs to re-enter to change
       setAlias(user.bankingInfo?.alias || "");
       setIdType(user.legalInfo?.idType || "dni");
       setIdNumber(user.legalInfo?.idNumber || "");
@@ -108,7 +122,15 @@ export default function UserSettings() {
           phone,
           bio,
           address: { street, city, state, postalCode, country },
-          bankingInfo: { accountHolder, bankName, accountType, cbu, alias },
+          bankingInfo: {
+            accountHolder,
+            bankType,
+            bankName,
+            accountType,
+            // Only send CBU if user entered a new one (22 digits)
+            ...(cbu && cbu.length === 22 ? { cbu } : {}),
+            alias,
+          },
           legalInfo: { idType, idNumber, taxStatus, taxId },
           interests,
           notificationPreferences: notifPrefs,
@@ -358,16 +380,53 @@ export default function UserSettings() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      Banco
+                      Tipo de cuenta bancaria
                     </label>
-                    <input
-                      type="text"
-                      value={bankName}
-                      onChange={(e) => setBankName(e.target.value)}
-                      placeholder="Ej: Banco Galicia, Santander"
+                    <select
+                      value={bankType}
+                      onChange={(e) => setBankType(e.target.value as "mercadopago" | "otro")}
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
-                    />
+                    >
+                      <option value="mercadopago">Mercado Pago</option>
+                      <option value="otro">Otro banco</option>
+                    </select>
                   </div>
+
+                  {/* Payment timing notes based on bank type */}
+                  {bankType === "mercadopago" ? (
+                    <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
+                      <p className="text-sm text-green-800 dark:text-green-300 flex items-start gap-2">
+                        <CheckCircle2 className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                        <span>
+                          <strong>Pagos rápidos:</strong> Al usar Mercado Pago, los pagos de los trabajos se acreditarán dentro de las <strong>48 horas</strong> posteriores a la finalización del trabajo.
+                        </span>
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                      <p className="text-sm text-blue-800 dark:text-blue-300 flex items-start gap-2">
+                        <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                        <span>
+                          <strong>Transferencia bancaria:</strong> Los pagos a cuentas de otros bancos pueden demorar hasta <strong>fin de mes</strong> y podrían incluir <strong>comisiones bancarias extras</strong> según la entidad.
+                        </span>
+                      </p>
+                    </div>
+                  )}
+
+                  {bankType === "otro" && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                        Nombre del banco
+                      </label>
+                      <input
+                        type="text"
+                        value={bankName}
+                        onChange={(e) => setBankName(e.target.value)}
+                        placeholder="Ej: Banco Galicia, Santander"
+                        className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
+                      />
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                       Tipo de cuenta
@@ -385,14 +444,29 @@ export default function UserSettings() {
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                       CBU
                     </label>
+                    {cbuMasked && !cbu && (
+                      <p className="text-xs text-green-600 dark:text-green-400 mb-1 flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3" />
+                        CBU guardado: {cbuMasked}
+                      </p>
+                    )}
                     <input
                       type="text"
                       value={cbu}
-                      onChange={(e) => setCbu(e.target.value)}
-                      placeholder="22 dígitos"
+                      onChange={(e) => {
+                        // Only allow numbers
+                        const value = e.target.value.replace(/\D/g, '');
+                        setCbu(value);
+                      }}
+                      placeholder={cbuMasked ? "Ingresa nuevo CBU para cambiar" : "22 dígitos"}
                       maxLength={22}
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
                     />
+                    {cbu && cbu.length !== 22 && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                        El CBU debe tener 22 dígitos ({cbu.length}/22)
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">

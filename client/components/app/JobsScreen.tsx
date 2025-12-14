@@ -255,7 +255,7 @@ export const JobsScreen: React.FC = () => {
                             Fin:{" "}
                           </span>
                           <span className="text-gray-900 dark:text-white font-semibold">
-                            {new Date(job.endDate).toLocaleDateString("es-ES")}
+                            {job.endDate ? new Date(job.endDate).toLocaleDateString("es-ES") : 'Por definir'}
                           </span>
                         </div>
                       </div>

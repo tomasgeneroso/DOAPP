@@ -40,7 +40,7 @@ interface Job {
 
 export default function MyJobsScreen() {
   const { user } = useAuth();
-  const { isConnected, registerJobUpdateHandler, registerMyJobsRefreshHandler, registerJobsRefreshHandler } = useSocket();
+  const { isConnected, registerJobUpdateHandler, registerMyJobsRefreshHandler, registerJobsRefreshHandler, registerNewProposalHandler } = useSocket();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "published" | "pending_payment" | "draft">("all");
@@ -95,7 +95,13 @@ export default function MyJobsScreen() {
       console.log("🔄 MyJobsScreen: Jobs refresh triggered via socket");
       fetchMyJobs();
     });
-  }, [fetchMyJobs, registerJobUpdateHandler, registerMyJobsRefreshHandler, registerJobsRefreshHandler]);
+
+    // Handler for new proposals on my jobs
+    registerNewProposalHandler((data: any) => {
+      console.log("📝 MyJobsScreen: New proposal received via socket:", data);
+      fetchMyJobs();
+    });
+  }, [fetchMyJobs, registerJobUpdateHandler, registerMyJobsRefreshHandler, registerJobsRefreshHandler, registerNewProposalHandler]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -429,6 +435,16 @@ export default function MyJobsScreen() {
                     <Eye className="h-4 w-4" />
                     Ver Detalles
                   </Link>
+
+                  {/* Proposal count badge */}
+                  <div className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium ${
+                    job.proposalCount > 0
+                      ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 border border-green-300 dark:border-green-600'
+                      : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                  }`}>
+                    <FileText className="h-4 w-4" />
+                    <span>{job.proposalCount} {job.proposalCount === 1 ? 'postulado' : 'postulados'}</span>
+                  </div>
 
                   {job.payment?.requiresProof && !job.payment?.proofSubmitted && (
                     <Link

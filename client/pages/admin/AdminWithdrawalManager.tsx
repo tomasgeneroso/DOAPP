@@ -410,7 +410,7 @@ export default function AdminWithdrawalManager() {
                         </div>
                         <div className="flex items-center gap-2">
                           <Calendar className="w-4 h-4" />
-                          <span>{new Date(withdrawal.requestedAt).toLocaleDateString('es-AR')}</span>
+                          <span>{new Date(withdrawal.requestedAt).toLocaleDateString('es-AR')} {new Date(withdrawal.requestedAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       </div>
 

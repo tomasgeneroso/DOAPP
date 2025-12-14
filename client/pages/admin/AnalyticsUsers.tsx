@@ -292,7 +292,7 @@ export default function AnalyticsUsers() {
                   <div className="flex items-center gap-1">
                     <Award className="h-4 w-4 text-yellow-500" />
                     <span className="font-bold text-gray-900 dark:text-white">
-                      {user.rating.toFixed(1)}
+                      {(Number(user.rating) || 0).toFixed(1)}
                     </span>
                   </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400">

@@ -51,6 +51,7 @@ interface Address {
 
 interface BankingInfo {
   accountHolder?: string;
+  bankType?: 'mercadopago' | 'otro';
   bankName?: string;
   accountType?: 'savings' | 'checking';
   accountNumber?: string;
@@ -288,6 +289,10 @@ export class User extends Model {
 
   @Column(DataType.JSONB)
   bankingInfo?: BankingInfo;
+
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  dontAskBankingInfo!: boolean;
 
   @Column(DataType.JSONB)
   legalInfo?: LegalInfo;

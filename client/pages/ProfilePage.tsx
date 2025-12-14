@@ -112,8 +112,8 @@ export default function ProfilePage() {
           return;
         }
 
-        // Fetch completed jobs
-        fetchCompletedJobs();
+        // Fetch completed jobs using the user's ID
+        fetchCompletedJobs(data.user.id || data.user._id);
       } else {
         setError(data.message || 'Error al cargar el perfil');
       }
@@ -125,11 +125,12 @@ export default function ProfilePage() {
     }
   };
 
-  const fetchCompletedJobs = async () => {
-    if (!userId) return;
+  const fetchCompletedJobs = async (userIdToFetch?: string) => {
+    const idToUse = userIdToFetch || userId;
+    if (!idToUse) return;
 
     try {
-      const response = await fetch(`/api/contracts?doer=${userId}&status=completed&limit=10`, {
+      const response = await fetch(`/api/contracts?doer=${idToUse}&status=completed&limit=10`, {
         credentials: 'include',
       });
       const data = await response.json();

@@ -93,21 +93,27 @@ export default function OnboardingTooltip() {
 
       setPosition({ top, left, arrowPosition });
 
-      // Scroll target into view if needed
-      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Only scroll into view if element is outside viewport
+      const isInViewport =
+        rect.top >= 0 &&
+        rect.left >= 0 &&
+        rect.bottom <= window.innerHeight &&
+        rect.right <= window.innerWidth;
+
+      if (!isInViewport) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
     };
 
-    // Initial positioning
-    const timer = setTimeout(findAndPositionTooltip, 100);
+    // Initial positioning with delay
+    const timer = setTimeout(findAndPositionTooltip, 150);
 
-    // Reposition on resize/scroll
+    // Reposition on resize only (not on scroll to prevent jitter)
     window.addEventListener('resize', findAndPositionTooltip);
-    window.addEventListener('scroll', findAndPositionTooltip, true);
 
     return () => {
       clearTimeout(timer);
       window.removeEventListener('resize', findAndPositionTooltip);
-      window.removeEventListener('scroll', findAndPositionTooltip, true);
     };
   }, [isActive, currentStepData]);
 

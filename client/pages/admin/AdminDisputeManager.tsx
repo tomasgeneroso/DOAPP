@@ -520,7 +520,8 @@ const AdminDisputeManager: React.FC = () => {
                         {getStatusBadge(dispute.status)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
-                        {new Date(dispute.createdAt).toLocaleDateString()}
+                        <div>{new Date(dispute.createdAt).toLocaleDateString('es-AR')}</div>
+                        <div className="text-xs">{new Date(dispute.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <button

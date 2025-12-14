@@ -85,6 +85,7 @@ export default function MessagesScreen() {
     isConnected,
     getTypingUsers,
     isUserOnline,
+    markAsRead,
   } = useSocket();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -94,9 +95,13 @@ export default function MessagesScreen() {
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [localMessages, setLocalMessages] = useState<Message[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
 
-  // Use socket messages directly instead of maintaining separate state
-  const messages = socketMessages as Message[];
+  // Combine socket messages with local messages (socket messages take priority for new ones)
+  const messages = [...localMessages, ...(socketMessages as Message[]).filter(
+    sm => !localMessages.find(lm => getId(lm) === getId(sm as any))
+  )];
 
   useEffect(() => {
     fetchConversations();
@@ -107,12 +112,30 @@ export default function MessagesScreen() {
       const conv = conversations.find((c) => getId(c) === conversationIdParam);
       if (conv) {
         setActiveConversation(conv);
+        fetchMessages(conversationIdParam);
         if (isConnected) {
           joinConversation(conversationIdParam);
+          // Mark messages as read when opening conversation
+          markAsRead(conversationIdParam, "");
         }
+        // Also update local unread count for this conversation
+        setConversations(prev => prev.map(c => {
+          if (getId(c) === conversationIdParam) {
+            const userId = user?.id || user?._id || "";
+            return {
+              ...c,
+              unreadCount: { ...c.unreadCount, [userId]: 0 }
+            };
+          }
+          return c;
+        }));
+      } else if (conversations.length === 0 && !loading) {
+        // If conversations not loaded yet but we have an ID, fetch messages directly
+        fetchMessages(conversationIdParam);
       }
     } else {
       setActiveConversation(null);
+      setLocalMessages([]);
     }
 
     return () => {
@@ -120,7 +143,7 @@ export default function MessagesScreen() {
         leaveConversation(conversationIdParam);
       }
     };
-  }, [conversationIdParam, conversations, isConnected]);
+  }, [conversationIdParam, conversations, isConnected, loading]);
 
   useEffect(() => {
     scrollToBottom();
@@ -141,6 +164,27 @@ export default function MessagesScreen() {
       console.error("Error fetching conversations:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchMessages = async (convId: string) => {
+    if (!token) return;
+
+    setLoadingMessages(true);
+    try {
+      const response = await fetch(`/api/chat/conversations/${convId}/messages`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (data.success) {
+        setLocalMessages(data.data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+    } finally {
+      setLoadingMessages(false);
     }
   };
 

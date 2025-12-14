@@ -271,7 +271,7 @@ export default function ProposalDetail() {
                       </p>
                       {proposal.freelancer.rating && (
                         <p className="text-sm text-slate-600 dark:text-slate-400">
-                          ⭐ {proposal.freelancer.rating.toFixed(1)} ({proposal.freelancer.reviewsCount} reviews)
+                          ⭐ {(Number(proposal.freelancer.rating) || 0).toFixed(1)} ({proposal.freelancer.reviewsCount || 0} reviews)
                         </p>
                       )}
                     </div>

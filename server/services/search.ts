@@ -1,4 +1,5 @@
 import { Job } from "../models/sql/Job.model.js";
+import { User } from "../models/sql/User.model.js";
 import { Op } from 'sequelize';
 
 // Simple in-memory cache
@@ -88,89 +89,116 @@ class SearchService {
       return cached;
     }
 
-    // Build query
-    const searchQuery: any = {
+    // Build Sequelize where clause
+    const where: any = {
       status: "open", // Only show open jobs
     };
 
-    // Text search
+    // Text search using ILIKE for PostgreSQL
     if (query) {
-      searchQuery.$text = { $search: query };
+      const searchPattern = `%${query}%`;
+      where[Op.or] = [
+        { title: { [Op.iLike]: searchPattern } },
+        { summary: { [Op.iLike]: searchPattern } },
+        { description: { [Op.iLike]: searchPattern } },
+      ];
     }
 
     // Category filter
     if (category) {
-      searchQuery.category = category;
+      where.category = category;
     }
 
-    // Tags filter (match any tag)
+    // Tags filter (match any tag) - use overlap for PostgreSQL arrays
     if (tags && tags.length > 0) {
-      searchQuery.tags = { [Op.in]: tags };
+      where.tags = { [Op.overlap]: tags };
     }
 
     // Price range filter
     if (minPrice !== undefined || maxPrice !== undefined) {
-      searchQuery.price = {};
+      where.price = {};
       if (minPrice !== undefined) {
-        searchQuery.price.$gte = minPrice;
+        where.price[Op.gte] = minPrice;
       }
       if (maxPrice !== undefined) {
-        searchQuery.price.$lte = maxPrice;
+        where.price[Op.lte] = maxPrice;
       }
     }
 
     // Location filter - will be handled in post-processing for normalized matching
-    // We'll keep the regex as a pre-filter to reduce dataset
     if (location) {
-      searchQuery.location = { $exists: true };
+      where.location = { [Op.ne]: null };
     }
 
-    // Geolocation filter (proximity search)
+    // Geolocation filter - will be handled in post-processing
     if (latitude !== undefined && longitude !== undefined && maxDistance) {
-      searchQuery.latitude = { $exists: true };
-      searchQuery.longitude = { $exists: true };
+      where.latitude = { [Op.ne]: null };
+      where.longitude = { [Op.ne]: null };
     }
 
     // Remote work filter
     if (remoteOk !== undefined) {
-      searchQuery.remoteOk = remoteOk;
+      where.remoteOk = remoteOk;
     }
 
     // Urgency filter
     if (urgency) {
-      searchQuery.urgency = urgency;
+      where.urgency = urgency;
     }
 
     // Experience level filter
     if (experienceLevel) {
-      searchQuery.experienceLevel = experienceLevel;
+      where.experienceLevel = experienceLevel;
     }
 
     // Materials provided filter
     if (materialsProvided !== undefined) {
-      searchQuery.materialsProvided = materialsProvided;
+      where.materialsProvided = materialsProvided;
     }
 
     // Start date range filter
     if (startDateFrom || startDateTo) {
-      searchQuery.startDate = {};
+      where.startDate = {};
       if (startDateFrom) {
-        searchQuery.startDate.$gte = new Date(startDateFrom);
+        where.startDate[Op.gte] = new Date(startDateFrom);
       }
       if (startDateTo) {
-        searchQuery.startDate.$lte = new Date(startDateTo);
+        where.startDate[Op.lte] = new Date(startDateTo);
       }
     }
 
+    // Build sort order for Sequelize
+    const order: any[] = [[sortBy, sortOrder === "asc" ? "ASC" : "DESC"]];
+
     // Execute query
-    let jobsQuery = Job.find(searchQuery).populate("client", "name avatar rating reviewsCount");
+    let jobs = await Job.findAll({
+      where,
+      include: [
+        {
+          model: User,
+          as: "client",
+          attributes: ["id", "name", "avatar", "rating", "reviewsCount"],
+        },
+      ],
+      order,
+    });
 
-    // Apply geolocation filtering if coordinates provided
+    // Convert to plain objects
+    let plainJobs = jobs.map(job => job.toJSON());
+
+    // Apply location filter with normalization if provided (post-processing)
+    if (location) {
+      const normalizedSearchLocation = normalizeLocation(location);
+      plainJobs = plainJobs.filter((job: any) => {
+        if (!job.location) return false;
+        const normalizedJobLocation = normalizeLocation(job.location);
+        return normalizedJobLocation.includes(normalizedSearchLocation);
+      });
+    }
+
+    // Apply geolocation filtering if coordinates provided (post-processing)
     if (latitude !== undefined && longitude !== undefined && maxDistance) {
-      const jobs = await jobsQuery.lean();
-
-      // Filter by distance using Haversine formula
-      const filteredJobs = jobs.filter((job: any) => {
+      plainJobs = plainJobs.filter((job: any) => {
         if (!job.latitude || !job.longitude) return false;
 
         const distance = this.calculateDistance(
@@ -182,53 +210,13 @@ class SearchService {
 
         return distance <= maxDistance;
       });
-
-      // Manual sorting and pagination for geo-filtered results
-      const sorted = this.sortJobs(filteredJobs, sortBy, sortOrder);
-      const startIndex = (page - 1) * limit;
-      const paginatedJobs = sorted.slice(startIndex, startIndex + limit);
-
-      const result = {
-        jobs: paginatedJobs,
-        total: filteredJobs.length,
-        page,
-        limit,
-        pages: Math.ceil(filteredJobs.length / limit),
-      };
-
-      // Cache for 5 minutes
-      await cacheSet(cacheKey, result, 300);
-      return result;
-    }
-
-    // Regular search (no geo filtering)
-    // Build sort object
-    const sort: any = {};
-    if (query) {
-      // If text search, include text score
-      sort.score = { $meta: "textScore" };
-    }
-    sort[sortBy] = sortOrder === "asc" ? 1 : -1;
-
-    let jobs = await jobsQuery
-      .sort(sort)
-      .lean();
-
-    // Apply location filter with normalization if provided
-    if (location) {
-      const normalizedSearchLocation = normalizeLocation(location);
-      jobs = jobs.filter((job: any) => {
-        if (!job.location) return false;
-        const normalizedJobLocation = normalizeLocation(job.location);
-        return normalizedJobLocation.includes(normalizedSearchLocation);
-      });
     }
 
     // Count after filtering
-    const total = jobs.length;
+    const total = plainJobs.length;
 
     // Apply pagination after filtering
-    const paginatedJobs = jobs.slice((page - 1) * limit, page * limit);
+    const paginatedJobs = plainJobs.slice((page - 1) * limit, page * limit);
 
     const result = {
       jobs: paginatedJobs,
@@ -253,14 +241,27 @@ class SearchService {
     const cached = await cacheGet(cacheKey);
     if (cached) return cached;
 
-    const result = await Job.aggregate([
-      { $match: { status: "open" } },
-      { $unwind: "$tags" },
-      { $group: { _id: "$tags", count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $limit: limit },
-      { $project: { tag: "$_id", count: 1, _id: 0 } },
-    ]);
+    // Get all open jobs with tags
+    const jobs = await Job.findAll({
+      where: { status: "open" },
+      attributes: ["tags"],
+    });
+
+    // Count tags manually
+    const tagCounts: Record<string, number> = {};
+    jobs.forEach((job: any) => {
+      if (job.tags && Array.isArray(job.tags)) {
+        job.tags.forEach((tag: string) => {
+          tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+        });
+      }
+    });
+
+    // Sort and limit
+    const result = Object.entries(tagCounts)
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, limit);
 
     // Cache for 15 minutes
     await cacheSet(cacheKey, result, 900);
@@ -277,12 +278,24 @@ class SearchService {
     const cached = await cacheGet(cacheKey);
     if (cached) return cached;
 
-    const result = await Job.aggregate([
-      { $match: { status: "open" } },
-      { $group: { _id: "$category", count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-      { $project: { category: "$_id", count: 1, _id: 0 } },
-    ]);
+    // Get all open jobs with categories
+    const jobs = await Job.findAll({
+      where: { status: "open" },
+      attributes: ["category"],
+    });
+
+    // Count categories manually
+    const categoryCounts: Record<string, number> = {};
+    jobs.forEach((job: any) => {
+      if (job.category) {
+        categoryCounts[job.category] = (categoryCounts[job.category] || 0) + 1;
+      }
+    });
+
+    // Sort by count
+    const result = Object.entries(categoryCounts)
+      .map(([category, count]) => ({ category, count }))
+      .sort((a, b) => b.count - a.count);
 
     // Cache for 15 minutes
     await cacheSet(cacheKey, result, 900);
@@ -297,33 +310,37 @@ class SearchService {
       return [];
     }
 
-    const jobs = await Job.find({
-      status: "open",
-      [Op.or]: [
-        { title: { [Op.regexp]: query, $options: "i" } },
-        { tags: { [Op.regexp]: query, $options: "i" } },
-        { category: { [Op.regexp]: query, $options: "i" } },
-      ],
-    })
-      .select("title category tags")
-      .limit(limit)
-      .lean();
+    const searchPattern = `%${query}%`;
+
+    const jobs = await Job.findAll({
+      where: {
+        status: "open",
+        [Op.or]: [
+          { title: { [Op.iLike]: searchPattern } },
+          { category: { [Op.iLike]: searchPattern } },
+        ],
+      },
+      attributes: ["title", "category", "tags"],
+      limit,
+    });
 
     // Extract unique suggestions
     const suggestions = new Set<string>();
 
     jobs.forEach((job: any) => {
-      if (job.title.toLowerCase().includes(query.toLowerCase())) {
+      if (job.title && job.title.toLowerCase().includes(query.toLowerCase())) {
         suggestions.add(job.title);
       }
       if (job.category && job.category.toLowerCase().includes(query.toLowerCase())) {
         suggestions.add(job.category);
       }
-      job.tags?.forEach((tag: string) => {
-        if (tag.toLowerCase().includes(query.toLowerCase())) {
-          suggestions.add(tag);
-        }
-      });
+      if (job.tags && Array.isArray(job.tags)) {
+        job.tags.forEach((tag: string) => {
+          if (tag.toLowerCase().includes(query.toLowerCase())) {
+            suggestions.add(tag);
+          }
+        });
+      }
     });
 
     return Array.from(suggestions).slice(0, limit);

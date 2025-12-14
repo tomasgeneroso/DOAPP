@@ -4,6 +4,8 @@ import { Job } from "../models/sql/Job.model.js";
 import { User } from "../models/sql/User.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
 import { BalanceTransaction } from "../models/sql/BalanceTransaction.model.js";
+import { JobTask } from "../models/sql/JobTask.model.js";
+import { Notification } from "../models/sql/Notification.model.js";
 import { protect } from "../middleware/auth.js";
 import type { AuthRequest } from "../types/index.js";
 import { socketService } from "../index.js";
@@ -11,6 +13,9 @@ import { Op } from 'sequelize';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { cacheService, generateCacheKey } from "../services/cacheService.js";
+import tasksRoutes from "./tasks.js";
+import { checkAndProcessUserExpiredJobs } from "../jobs/autoCancelExpiredJobs.js";
 
 const router = express.Router();
 
@@ -76,6 +81,18 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       type // 'jobs' (default) or 'users'
     } = req.query;
 
+    // Generate cache key for this request
+    const cacheKey = generateCacheKey('jobs:search', {
+      status, category, minPrice, maxPrice, limit, searchQuery, location, tags, sortBy, type
+    });
+
+    // Check cache first (cache for 60 seconds for search results)
+    const cachedResult = cacheService.get(cacheKey);
+    if (cachedResult) {
+      res.json(cachedResult);
+      return;
+    }
+
     // If type is 'users', search users instead of jobs
     if (type === 'users' && searchQuery && typeof searchQuery === 'string') {
       const searchPattern = `%${searchQuery}%`;
@@ -94,7 +111,7 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
         limit: limitNum,
       });
 
-      res.json({
+      const usersResponse = {
         success: true,
         type: 'users',
         count: users.length,
@@ -113,7 +130,12 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
           hasMembership: user.hasMembership,
           isPremiumVerified: user.isPremiumVerified,
         })),
-      });
+      };
+
+      // Cache users search for 120 seconds
+      cacheService.set(cacheKey, usersResponse, 120);
+
+      res.json(usersResponse);
       return;
     }
 
@@ -129,28 +151,34 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       query.category = category;
     }
 
-    // Price range filter
+    // Price range filter (Sequelize syntax)
     if (minPrice || maxPrice) {
       query.price = {};
-      if (minPrice) query.price.$gte = Number(minPrice);
-      if (maxPrice) query.price.$lte = Number(maxPrice);
+      if (minPrice) query.price[Op.gte] = Number(minPrice);
+      if (maxPrice) query.price[Op.lte] = Number(maxPrice);
     }
 
-    // Text search (title, description, summary)
+    // Text search (title, description, summary) - Sequelize ILIKE for PostgreSQL
     if (searchQuery && typeof searchQuery === 'string') {
-      query.$text = { $search: searchQuery };
+      const searchPattern = `%${searchQuery}%`;
+      query[Op.or] = [
+        { title: { [Op.iLike]: searchPattern } },
+        { summary: { [Op.iLike]: searchPattern } },
+        { description: { [Op.iLike]: searchPattern } },
+      ];
     }
 
     // Location - will be handled with post-processing for normalized matching
+    // Just ensure location exists (not null/empty)
     if (location && typeof location === 'string') {
-      query.location = { $exists: true };
+      query.location = { [Op.ne]: null };
     }
 
-    // Tags filter (match any of the provided tags)
+    // Tags filter (match any of the provided tags) - use overlap for PostgreSQL arrays
     if (tags) {
       const tagsArray = typeof tags === 'string' ? tags.split(',') : tags;
       if (Array.isArray(tagsArray) && tagsArray.length > 0) {
-        query.tags = { [Op.in]: tagsArray };
+        query.tags = { [Op.overlap]: tagsArray };
       }
     }
 
@@ -165,6 +193,13 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       // For proximity, we'll need to sort after filtering by location
       sortOrder = [['createdAt', 'DESC']]; // fallback to date for now
     }
+
+    // Debug: Log the query being executed
+    console.log('📝 Jobs query:', JSON.stringify(query, (key, value) => {
+      // Handle Sequelize symbols
+      if (typeof value === 'symbol') return value.toString();
+      return value;
+    }, 2));
 
     let jobs = await Job.findAll({
       where: query,
@@ -213,12 +248,40 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       return jobData;
     });
 
-    res.json({
+    const response = {
       success: true,
       count: plainJobs.length,
       jobs: plainJobs,
+    };
+
+    // Cache the result for 60 seconds
+    cacheService.set(cacheKey, response, 60);
+
+    res.json(response);
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   POST /api/jobs/check-expired
+// @desc    Check and process expired jobs for the current user (triggers notifications)
+// @access  Private
+router.post("/check-expired", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const expiredCount = await checkAndProcessUserExpiredJobs(req.user.id);
+
+    res.json({
+      success: true,
+      expiredJobsProcessed: expiredCount,
+      message: expiredCount > 0
+        ? `Se procesaron ${expiredCount} trabajos expirados`
+        : 'No hay trabajos expirados para procesar'
     });
   } catch (error: any) {
+    console.error('❌ Error checking expired jobs:', error);
     res.status(500).json({
       success: false,
       message: error.message || "Error del servidor",
@@ -232,6 +295,13 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
 router.get("/my-jobs", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     console.log('🔍 /my-jobs called by user:', req.user?.id, req.user?.email);
+
+    // Check for expired jobs and process them immediately (don't wait for cron)
+    // This ensures user sees notifications as soon as they check their jobs
+    const expiredCount = await checkAndProcessUserExpiredJobs(req.user.id);
+    if (expiredCount > 0) {
+      console.log(`⚠️ Processed ${expiredCount} expired jobs for user ${req.user.email}`);
+    }
 
     const jobs = await Job.findAll({
       where: { clientId: req.user.id },
@@ -253,6 +323,198 @@ router.get("/my-jobs", protect, async (req: AuthRequest, res: Response): Promise
     });
   } catch (error: any) {
     console.error('❌ Error fetching my jobs:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// Helper function to get tasks with unlock status
+const getTasksWithStatus = async (jobId: string): Promise<any[]> => {
+  try {
+    // Simple query without includes for reliability
+    const tasks = await JobTask.findAll({
+      where: { jobId },
+      order: [['orderIndex', 'ASC']],
+    });
+
+    // Manually fetch user data if needed
+    const tasksWithData = await Promise.all(tasks.map(async (task) => {
+      const taskData = task.toJSON();
+      taskData.isUnlocked = task.isUnlocked(tasks);
+
+      // Fetch createdBy user if present
+      if (task.createdById) {
+        const createdByUser = await User.findByPk(task.createdById, {
+          attributes: ['id', 'name', 'avatar']
+        });
+        taskData.createdBy = createdByUser?.toJSON() || null;
+      }
+
+      // Fetch completedBy user if present
+      if (task.completedById) {
+        const completedByUser = await User.findByPk(task.completedById, {
+          attributes: ['id', 'name', 'avatar']
+        });
+        taskData.completedBy = completedByUser?.toJSON() || null;
+      }
+
+      return taskData;
+    }));
+
+    return tasksWithData;
+  } catch (error: any) {
+    console.error(`❌ Error getting tasks for job ${jobId}:`, error.message);
+    return [];
+  }
+};
+
+// @route   GET /api/jobs/my-active-tasks
+// @desc    Get all active tasks for jobs where user is a worker (for "Work in Progress" section)
+// @access  Private
+router.get("/my-active-tasks", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user.id;
+
+    // Validate userId
+    if (!userId) {
+      res.json({
+        success: true,
+        jobs: [],
+        totalJobs: 0,
+      });
+      return;
+    }
+
+    // Find all jobs where user is a worker (doer)
+    const jobsAsDoer = await Job.findAll({
+      where: {
+        status: 'in_progress',
+        doerId: userId
+      },
+      include: [
+        {
+          model: User,
+          as: 'client',
+          attributes: ['id', 'name', 'avatar']
+        }
+      ]
+    });
+
+    // For selectedWorkers, we handle it in-memory to avoid JSONB/UUID issues
+    const jobsWithSelectedWorkers = await Job.findAll({
+      where: {
+        status: 'in_progress',
+        [Op.or]: [
+          { doerId: null },
+          { doerId: { [Op.ne]: userId } }
+        ]
+      },
+      include: [
+        {
+          model: User,
+          as: 'client',
+          attributes: ['id', 'name', 'avatar']
+        }
+      ]
+    });
+
+    // Filter jobs where user is in selectedWorkers
+    const jobsFromSelectedWorkers = jobsWithSelectedWorkers.filter(job => {
+      if (!job.selectedWorkers || !Array.isArray(job.selectedWorkers)) return false;
+      return job.selectedWorkers.includes(userId);
+    });
+
+    // Combine without duplicates
+    const jobsAsWorker = [...jobsAsDoer];
+    for (const job of jobsFromSelectedWorkers) {
+      if (!jobsAsWorker.some(j => j.id === job.id)) {
+        jobsAsWorker.push(job);
+      }
+    }
+
+    // Also find jobs through active contracts
+    const activeContracts = await Contract.findAll({
+      where: {
+        doerId: userId,
+        status: { [Op.in]: ['active', 'in_progress'] }
+      },
+      include: [
+        {
+          model: Job,
+          as: 'job',
+          include: [
+            {
+              model: User,
+              as: 'client',
+              attributes: ['id', 'name', 'avatar']
+            }
+          ]
+        }
+      ]
+    });
+
+    // Combine job IDs
+    const jobIds = new Set<string>();
+    jobsAsWorker.forEach(job => jobIds.add(job.id));
+    activeContracts.forEach(contract => {
+      if (contract.jobId) jobIds.add(contract.jobId);
+    });
+
+    if (jobIds.size === 0) {
+      res.json({
+        success: true,
+        jobs: [],
+        totalJobs: 0,
+      });
+      return;
+    }
+
+    // Get all tasks for these jobs
+    const result = [];
+
+    for (const jobId of jobIds) {
+      const job = await Job.findByPk(jobId, {
+        include: [
+          {
+            model: User,
+            as: 'client',
+            attributes: ['id', 'name', 'avatar']
+          }
+        ]
+      });
+
+      if (!job) continue;
+
+      const tasks = await getTasksWithStatus(jobId);
+      const progress = JobTask.getProgressPercentage(tasks);
+
+      if (tasks.length > 0) {
+        result.push({
+          job: {
+            id: job.id,
+            title: job.title,
+            status: job.status,
+            client: job.client,
+          },
+          tasks,
+          progress,
+          totalTasks: tasks.length,
+          completedTasks: tasks.filter((t: any) => t.status === 'completed').length,
+          inProgressTasks: tasks.filter((t: any) => t.status === 'in_progress').length,
+          pendingTasks: tasks.filter((t: any) => t.status === 'pending').length,
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      jobs: result,
+      totalJobs: result.length,
+    });
+  } catch (error: any) {
+    console.error('❌ Error fetching active tasks:', error);
     res.status(500).json({
       success: false,
       message: error.message || "Error del servidor",
@@ -322,7 +584,8 @@ router.post(
     body("price").isNumeric().withMessage("El precio debe ser un número"),
     body("location").trim().notEmpty().withMessage("La ubicación es requerida"),
     body("startDate").isISO8601().withMessage("Fecha de inicio inválida"),
-    body("endDate").isISO8601().withMessage("Fecha de fin inválida"),
+    body("endDate").optional().isISO8601().withMessage("Fecha de fin inválida"),
+    body("endDateFlexible").optional().isBoolean().withMessage("endDateFlexible debe ser booleano"),
   ],
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -368,6 +631,22 @@ router.post(
         }
       }
 
+      // Parse and validate maxWorkers (1-5)
+      let maxWorkers = parseInt(req.body.maxWorkers) || 1;
+      maxWorkers = Math.max(1, Math.min(5, maxWorkers));
+
+      // Parse endDateFlexible - defaults to false
+      const endDateFlexible = req.body.endDateFlexible === 'true' || req.body.endDateFlexible === true;
+
+      // Validate that endDate is provided if endDateFlexible is false
+      if (!endDateFlexible && !req.body.endDate) {
+        res.status(400).json({
+          success: false,
+          message: "La fecha de fin es requerida si no seleccionaste 'Todavía no lo sé'",
+        });
+        return;
+      }
+
       const jobData = {
         title: req.body.title,
         summary: req.body.summary,
@@ -376,17 +655,26 @@ router.post(
         category: req.body.category,
         tags: tags || [],
         location: req.body.location,
+        addressStreet: req.body.addressStreet || null,
+        addressNumber: req.body.addressNumber || null,
+        addressDetails: req.body.addressDetails || null,
         startDate: req.body.startDate,
-        endDate: req.body.endDate,
+        endDate: endDateFlexible ? null : req.body.endDate,
+        endDateFlexible,
         remoteOk: req.body.remoteOk === 'true',
         images: imageUrls,
         clientId: req.user.id, // Sequelize uses camelCase foreign keys
         status: canPublishForFree ? "open" : "draft", // Free contracts auto-publish, others need payment
         publicationPaid: canPublishForFree, // Free contracts don't need payment
         publicationAmount: 0, // Will be calculated if payment needed
+        maxWorkers, // New: support for multiple workers (1-5)
+        selectedWorkers: [], // Initialize empty array
       };
 
       const job = await Job.create(jobData);
+
+      // Invalidate jobs cache so new job appears immediately
+      cacheService.delPattern('jobs:*');
 
       // If can publish for free, decrement the appropriate counter
       if (canPublishForFree) {
@@ -486,6 +774,14 @@ router.put("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
+    // Check if job has past dates (expired) - only if endDateFlexible is false
+    const now = new Date();
+    const jobEndDate = job.endDate ? new Date(job.endDate) : null;
+    const hasExpiredDates = !job.endDateFlexible && jobEndDate && jobEndDate < now;
+
+    // Parse endDateFlexible from request
+    const newEndDateFlexible = req.body.endDateFlexible === 'true' || req.body.endDateFlexible === true;
+
     // Store previous status for notification
     const previousStatus = job.status;
 
@@ -493,7 +789,69 @@ router.put("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
     const requiresReapproval = ['rejected', 'cancelled'].includes(job.status) && !job.permanentlyCancelled;
 
     // Prepare update data
-    const updateData = { ...req.body };
+    let updateData: any = { ...req.body };
+
+    // Handle endDateFlexible
+    if (newEndDateFlexible !== undefined) {
+      updateData.endDateFlexible = newEndDateFlexible;
+      if (newEndDateFlexible) {
+        updateData.endDate = null; // Clear endDate if flexible
+      }
+    }
+
+    // Validate endDate if not flexible
+    if (!newEndDateFlexible && !req.body.endDate && !job.endDateFlexible) {
+      // Only require endDate if job wasn't already flexible
+      res.status(400).json({
+        success: false,
+        message: "La fecha de fin es requerida si no seleccionaste 'Todavía no lo sé'",
+      });
+      return;
+    }
+
+    // If job has expired dates, only allow updating dates first
+    if (hasExpiredDates) {
+      // Check if new dates are being provided
+      const { startDate, endDate } = req.body;
+
+      // If switching to flexible, allow it
+      if (newEndDateFlexible) {
+        console.log(`📅 Job ${job.id} has expired dates, switching to flexible end date`);
+      } else if (!startDate || !endDate) {
+        res.status(400).json({
+          success: false,
+          message: "Este trabajo tiene fechas vencidas. Debes actualizar las fechas de inicio y fin antes de poder editar otros campos.",
+          requiresDateUpdate: true,
+        });
+        return;
+      } else {
+        const newStartDate = new Date(startDate);
+        const newEndDate = new Date(endDate);
+
+        // Validate new dates are in the future
+        if (newStartDate <= now) {
+          res.status(400).json({
+            success: false,
+            message: "La nueva fecha de inicio debe ser posterior a la fecha actual.",
+            requiresDateUpdate: true,
+          });
+          return;
+        }
+
+        if (newEndDate <= newStartDate) {
+          res.status(400).json({
+            success: false,
+            message: "La fecha de fin debe ser posterior a la fecha de inicio.",
+            requiresDateUpdate: true,
+          });
+          return;
+        }
+
+        // Only allow date fields to be updated when dates are expired
+        // (unless new valid dates are provided, then allow all fields)
+        console.log(`📅 Job ${job.id} has expired dates, updating with new dates: ${startDate} - ${endDate}`);
+      }
+    }
 
     if (requiresReapproval) {
       updateData.status = 'pending_approval';
@@ -505,6 +863,9 @@ router.put("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
 
     // Update the job
     await job.update(updateData);
+
+    // Invalidate jobs cache
+    cacheService.delPattern('jobs:*');
 
     // Fetch updated job with associations
     const updatedJob = await Job.findByPk(req.params.id, {
@@ -584,6 +945,9 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
 
     const jobId = job.id;
     await job.destroy();
+
+    // Invalidate jobs cache
+    cacheService.delPattern('jobs:*');
 
     // Send real-time notifications via Socket.io
     socketService.notifyJobUpdate(
@@ -1228,6 +1592,439 @@ router.use((error: any, req: Request, res: Response, next: any) => {
   }
   next(error);
 });
+
+// @route   GET /api/jobs/:id/worker-allocations
+// @desc    Get worker payment allocations for a job
+// @access  Private
+router.get("/:id/worker-allocations", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const job = await Job.findByPk(req.params.id, {
+      include: [
+        {
+          model: User,
+          as: 'client',
+          attributes: ['id', 'name', 'email']
+        }
+      ]
+    });
+
+    if (!job) {
+      res.status(404).json({
+        success: false,
+        message: "Trabajo no encontrado",
+      });
+      return;
+    }
+
+    // Only client can view allocations
+    if (job.clientId !== req.user.id) {
+      res.status(403).json({
+        success: false,
+        message: "Solo el cliente puede ver las asignaciones de pago",
+      });
+      return;
+    }
+
+    const jobPrice = typeof job.price === 'string' ? parseFloat(job.price) : Number(job.price);
+    const allocatedTotal = typeof job.allocatedTotal === 'string'
+      ? parseFloat(job.allocatedTotal)
+      : (job.allocatedTotal || 0);
+
+    // Get worker details for each allocation
+    const allocationsWithDetails = await Promise.all(
+      (job.workerAllocations || []).map(async (allocation) => {
+        const worker = await User.findByPk(allocation.workerId, {
+          attributes: ['id', 'name', 'email', 'avatar']
+        });
+        return {
+          ...allocation,
+          worker: worker?.toJSON() || null
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      job: {
+        id: job.id,
+        title: job.title,
+        totalBudget: jobPrice,
+        allocatedTotal,
+        remainingBudget: jobPrice - allocatedTotal,
+        maxWorkers: job.maxWorkers,
+        currentWorkers: job.selectedWorkers?.length || 0,
+      },
+      allocations: allocationsWithDetails,
+    });
+  } catch (error: any) {
+    console.error('❌ Error getting worker allocations:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   PUT /api/jobs/:id/worker-allocations
+// @desc    Update worker payment allocations for a job
+// @access  Private (Client only)
+router.put("/:id/worker-allocations", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { allocations } = req.body;
+    // allocations: [{ workerId: string, allocatedAmount: number }]
+
+    if (!allocations || !Array.isArray(allocations)) {
+      res.status(400).json({
+        success: false,
+        message: "Se requiere un array de asignaciones",
+      });
+      return;
+    }
+
+    const job = await Job.findByPk(req.params.id);
+
+    if (!job) {
+      res.status(404).json({
+        success: false,
+        message: "Trabajo no encontrado",
+      });
+      return;
+    }
+
+    // Only client can modify allocations
+    if (job.clientId !== req.user.id) {
+      res.status(403).json({
+        success: false,
+        message: "Solo el cliente puede modificar las asignaciones de pago",
+      });
+      return;
+    }
+
+    const jobPrice = typeof job.price === 'string' ? parseFloat(job.price) : Number(job.price);
+    const MINIMUM_CONTRACT_AMOUNT = 5000;
+
+    // Validate all allocations
+    let totalAllocation = 0;
+    for (const allocation of allocations) {
+      if (!allocation.workerId || allocation.allocatedAmount === undefined) {
+        res.status(400).json({
+          success: false,
+          message: "Cada asignación debe tener workerId y allocatedAmount",
+        });
+        return;
+      }
+
+      const amount = parseFloat(allocation.allocatedAmount);
+      if (isNaN(amount) || amount < 0) {
+        res.status(400).json({
+          success: false,
+          message: "Los montos de asignación deben ser números positivos",
+        });
+        return;
+      }
+
+      if (amount < MINIMUM_CONTRACT_AMOUNT) {
+        res.status(400).json({
+          success: false,
+          message: `El monto mínimo por trabajador es de $${MINIMUM_CONTRACT_AMOUNT.toLocaleString()} ARS`,
+        });
+        return;
+      }
+
+      // Verify worker is in selectedWorkers
+      if (!job.selectedWorkers?.includes(allocation.workerId)) {
+        res.status(400).json({
+          success: false,
+          message: `El trabajador ${allocation.workerId} no está seleccionado para este trabajo`,
+        });
+        return;
+      }
+
+      totalAllocation += amount;
+    }
+
+    // Verify total allocation doesn't exceed budget
+    if (totalAllocation > jobPrice) {
+      res.status(400).json({
+        success: false,
+        message: `El total de asignaciones ($${totalAllocation.toLocaleString()}) excede el presupuesto del trabajo ($${jobPrice.toLocaleString()})`,
+      });
+      return;
+    }
+
+    // Update allocations
+    const newAllocations = allocations.map((allocation: any) => ({
+      workerId: allocation.workerId,
+      allocatedAmount: parseFloat(allocation.allocatedAmount),
+      percentage: (parseFloat(allocation.allocatedAmount) / jobPrice) * 100,
+      allocatedAt: new Date(),
+    }));
+
+    job.workerAllocations = newAllocations;
+    job.allocatedTotal = totalAllocation;
+    job.remainingBudget = jobPrice - totalAllocation;
+    await job.save();
+
+    // Update contracts with new allocation amounts
+    for (const allocation of allocations) {
+      const contract = await Contract.findOne({
+        where: {
+          jobId: job.id,
+          doerId: allocation.workerId,
+          status: { [Op.notIn]: ['cancelled', 'rejected'] }
+        }
+      });
+
+      if (contract) {
+        const newAmount = parseFloat(allocation.allocatedAmount);
+        const PLATFORM_COMMISSION = 0.1;
+        const newCommission = newAmount * PLATFORM_COMMISSION;
+
+        // Add to price modification history
+        contract.addPriceModification(
+          Number(contract.price),
+          newAmount,
+          req.user.id,
+          'Reajuste de asignación de presupuesto por el cliente'
+        );
+
+        contract.price = newAmount;
+        contract.allocatedAmount = newAmount;
+        contract.percentageOfBudget = (newAmount / jobPrice) * 100;
+        contract.commission = newCommission;
+        contract.totalPrice = newAmount + newCommission;
+        await contract.save();
+
+        // Notify worker about the change
+        await Notification.create({
+          recipientId: allocation.workerId,
+          type: 'contract_updated',
+          category: 'contract',
+          title: 'Asignación de pago actualizada',
+          message: `Tu asignación de pago para el trabajo "${job.title}" ha sido ajustada a $${newAmount.toLocaleString()} ARS.`,
+          relatedModel: 'Contract',
+          relatedId: contract.id,
+          actionText: 'Ver contrato',
+          data: {
+            jobId: job.id,
+            contractId: contract.id,
+            newAmount,
+            previousAmount: Number(contract.originalPrice || contract.price),
+          },
+          read: false,
+        });
+      }
+    }
+
+    // Invalidate cache
+    cacheService.delPattern('jobs:*');
+
+    res.json({
+      success: true,
+      message: "Asignaciones actualizadas correctamente",
+      job: {
+        id: job.id,
+        totalBudget: jobPrice,
+        allocatedTotal: totalAllocation,
+        remainingBudget: jobPrice - totalAllocation,
+      },
+      allocations: newAllocations,
+    });
+  } catch (error: any) {
+    console.error('❌ Error updating worker allocations:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   DELETE /api/jobs/:id/workers/:workerId
+// @desc    Remove a worker from a job and redistribute payment
+// @access  Private (Client only)
+router.delete("/:id/workers/:workerId", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { redistributeToWorkers } = req.body;
+    // redistributeToWorkers: boolean - if true, redistribute removed worker's allocation to remaining workers
+
+    const job = await Job.findByPk(req.params.id);
+    const workerId = req.params.workerId;
+
+    if (!job) {
+      res.status(404).json({
+        success: false,
+        message: "Trabajo no encontrado",
+      });
+      return;
+    }
+
+    // Only client can remove workers
+    if (job.clientId !== req.user.id) {
+      res.status(403).json({
+        success: false,
+        message: "Solo el cliente puede remover trabajadores",
+      });
+      return;
+    }
+
+    // Check if worker is in the job
+    if (!job.selectedWorkers?.includes(workerId)) {
+      res.status(400).json({
+        success: false,
+        message: "Este trabajador no está asignado a este trabajo",
+      });
+      return;
+    }
+
+    // Get the worker's allocation
+    const workerAllocation = job.workerAllocations?.find(a => a.workerId === workerId);
+    const removedAmount = workerAllocation?.allocatedAmount || 0;
+
+    // Remove worker from selectedWorkers
+    job.selectedWorkers = job.selectedWorkers.filter(id => id !== workerId);
+
+    // Remove worker from allocations
+    job.workerAllocations = (job.workerAllocations || []).filter(a => a.workerId !== workerId);
+
+    // If this was the doer, clear doerId or assign to first remaining worker
+    if (job.doerId === workerId) {
+      job.doerId = job.selectedWorkers.length > 0 ? job.selectedWorkers[0] : undefined;
+    }
+
+    // Calculate new totals
+    const jobPrice = typeof job.price === 'string' ? parseFloat(job.price) : Number(job.price);
+
+    if (redistributeToWorkers && job.selectedWorkers.length > 0) {
+      // Redistribute removed worker's amount to remaining workers equally
+      const redistributePerWorker = removedAmount / job.selectedWorkers.length;
+
+      job.workerAllocations = job.workerAllocations.map(allocation => ({
+        ...allocation,
+        allocatedAmount: allocation.allocatedAmount + redistributePerWorker,
+        percentage: ((allocation.allocatedAmount + redistributePerWorker) / jobPrice) * 100,
+        allocatedAt: new Date(),
+      }));
+
+      // Update contracts for remaining workers
+      for (const allocation of job.workerAllocations) {
+        const contract = await Contract.findOne({
+          where: {
+            jobId: job.id,
+            doerId: allocation.workerId,
+            status: { [Op.notIn]: ['cancelled', 'rejected'] }
+          }
+        });
+
+        if (contract) {
+          const newAmount = allocation.allocatedAmount;
+          const PLATFORM_COMMISSION = 0.1;
+          const newCommission = newAmount * PLATFORM_COMMISSION;
+
+          contract.addPriceModification(
+            Number(contract.price),
+            newAmount,
+            req.user.id,
+            'Redistribución por remoción de trabajador'
+          );
+
+          contract.price = newAmount;
+          contract.allocatedAmount = newAmount;
+          contract.percentageOfBudget = allocation.percentage;
+          contract.commission = newCommission;
+          contract.totalPrice = newAmount + newCommission;
+          await contract.save();
+
+          // Notify worker about the increased payment
+          await Notification.create({
+            recipientId: allocation.workerId,
+            type: 'payment_increased',
+            category: 'contract',
+            title: 'Asignación aumentada',
+            message: `Tu pago para el trabajo "${job.title}" ha aumentado debido a la redistribución del presupuesto.`,
+            relatedModel: 'Contract',
+            relatedId: contract.id,
+            actionText: 'Ver contrato',
+            data: {
+              jobId: job.id,
+              contractId: contract.id,
+              newAmount,
+            },
+            read: false,
+          });
+        }
+      }
+    } else {
+      // Don't redistribute - update remaining budget
+      job.remainingBudget = (job.remainingBudget || 0) + removedAmount;
+    }
+
+    // Recalculate allocated total
+    const newAllocatedTotal = job.workerAllocations.reduce((sum, a) => sum + a.allocatedAmount, 0);
+    job.allocatedTotal = newAllocatedTotal;
+
+    await job.save();
+
+    // Cancel the removed worker's contract
+    const workerContract = await Contract.findOne({
+      where: {
+        jobId: job.id,
+        doerId: workerId,
+        status: { [Op.notIn]: ['cancelled', 'completed'] }
+      }
+    });
+
+    if (workerContract) {
+      workerContract.status = 'cancelled';
+      workerContract.cancellationReason = 'Removido del trabajo por el cliente';
+      workerContract.cancelledBy = req.user.id;
+      await workerContract.save();
+
+      // Notify removed worker
+      await Notification.create({
+        recipientId: workerId,
+        type: 'contract_cancelled',
+        category: 'contract',
+        title: 'Has sido removido del trabajo',
+        message: `Has sido removido del trabajo "${job.title}". Tu contrato ha sido cancelado.`,
+        relatedModel: 'Contract',
+        relatedId: workerContract.id,
+        actionText: 'Ver detalles',
+        data: {
+          jobId: job.id,
+          contractId: workerContract.id,
+          reason: 'removed_by_client',
+        },
+        read: false,
+      });
+    }
+
+    // Invalidate cache
+    cacheService.delPattern('jobs:*');
+
+    res.json({
+      success: true,
+      message: redistributeToWorkers
+        ? "Trabajador removido y presupuesto redistribuido"
+        : "Trabajador removido del trabajo",
+      job: {
+        id: job.id,
+        selectedWorkers: job.selectedWorkers,
+        allocatedTotal: job.allocatedTotal,
+        remainingBudget: job.remainingBudget,
+      },
+      redistributedAmount: redistributeToWorkers ? removedAmount : 0,
+    });
+  } catch (error: any) {
+    console.error('❌ Error removing worker:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// Mount tasks routes - /api/jobs/:jobId/tasks
+router.use("/:jobId/tasks", tasksRoutes);
 
 export default router;
  

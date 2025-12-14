@@ -19,10 +19,11 @@ export const authLimiter = rateLimit({
 
 /**
  * Rate limiter for general API endpoints
+ * Increased limits for SPA apps that make many requests
  */
 export const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per window
+  max: 500, // Aumentado de 100 a 500 para SPAs
   message: {
     success: false,
     message: "Demasiadas solicitudes. Intenta nuevamente más tarde.",
@@ -36,7 +37,7 @@ export const apiLimiter = rateLimit({
  */
 export const strictLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
-  max: 3, // 3 attempts per hour
+  max: 10, // Aumentado de 3 a 10
   message: {
     success: false,
     message: "Límite de intentos excedido. Intenta nuevamente en 1 hora.",

@@ -1,16 +1,94 @@
-import { useEffect, useRef } from 'react';
-import { MapPin } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { MapPin, Loader2 } from 'lucide-react';
 
 interface LocationCircleMapProps {
   location: string;
 }
 
+// Cache para coordenadas geocodificadas
+const geocodeCache: { [key: string]: [number, number] } = {};
+
 export default function LocationCircleMap({ location }: LocationCircleMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
-  const [lat, lng] = getApproximateCoordinates(location);
+  const mapInstanceRef = useRef<any>(null);
+  const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [geocodedAddress, setGeocodedAddress] = useState<string>('');
+
+  // Geocodificar la ubicación usando Nominatim (OpenStreetMap)
+  useEffect(() => {
+    const geocodeLocation = async () => {
+      setLoading(true);
+
+      // Verificar cache primero
+      const cacheKey = location.toLowerCase().trim();
+      if (geocodeCache[cacheKey]) {
+        setCoordinates(geocodeCache[cacheKey]);
+        setLoading(false);
+        return;
+      }
+
+      // Primero intentar con coordenadas predefinidas para Argentina
+      const predefinedCoords = getApproximateCoordinates(location);
+      if (predefinedCoords[0] !== -34.6037 || predefinedCoords[1] !== -58.3816 ||
+          location.toLowerCase().includes('buenos aires') ||
+          location.toLowerCase().includes('caba')) {
+        // Es una ubicación predefinida que encontramos
+        setCoordinates(predefinedCoords);
+        geocodeCache[cacheKey] = predefinedCoords;
+        setLoading(false);
+        return;
+      }
+
+      // Usar Nominatim para geocodificar
+      try {
+        // Agregar ", Argentina" para mejorar resultados
+        const searchQuery = location.includes('Argentina') ? location : `${location}, Argentina`;
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1&countrycodes=ar`,
+          {
+            headers: {
+              'Accept-Language': 'es',
+            },
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.length > 0) {
+            const lat = parseFloat(data[0].lat);
+            const lon = parseFloat(data[0].lon);
+            const coords: [number, number] = [lat, lon];
+            setCoordinates(coords);
+            setGeocodedAddress(data[0].display_name);
+            geocodeCache[cacheKey] = coords;
+            setLoading(false);
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Error geocoding location:', error);
+      }
+
+      // Fallback a coordenadas predefinidas
+      setCoordinates(predefinedCoords);
+      geocodeCache[cacheKey] = predefinedCoords;
+      setLoading(false);
+    };
+
+    geocodeLocation();
+  }, [location]);
 
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapRef.current || !coordinates) return;
+
+    const [lat, lng] = coordinates;
+
+    // Limpiar mapa anterior si existe
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.remove();
+      mapInstanceRef.current = null;
+    }
 
     // Inicializar el mapa con Leaflet (OpenStreetMap)
     const loadMap = async () => {
@@ -40,8 +118,9 @@ export default function LocationCircleMap({ location }: LocationCircleMapProps) 
       // @ts-ignore
       const L = window.L;
 
-      // Crear mapa centrado en las coordenadas aproximadas
+      // Crear mapa centrado en las coordenadas
       const map = L.map(mapRef.current).setView([lat, lng], 13);
+      mapInstanceRef.current = map;
 
       // Añadir capa de mapa (OpenStreetMap)
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -72,7 +151,15 @@ export default function LocationCircleMap({ location }: LocationCircleMapProps) 
     };
 
     loadMap();
-  }, [lat, lng]);
+
+    // Cleanup
+    return () => {
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+    };
+  }, [coordinates]);
 
   return (
     <div className="mt-4">
@@ -81,15 +168,32 @@ export default function LocationCircleMap({ location }: LocationCircleMapProps) 
         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
           Ubicación Aproximada
         </span>
+        {loading && (
+          <Loader2 className="h-4 w-4 animate-spin text-sky-500" />
+        )}
       </div>
       <div
         ref={mapRef}
-        className="w-full h-64 rounded-lg border border-gray-300 dark:border-gray-600"
+        className="w-full h-64 rounded-lg border border-gray-300 dark:border-gray-600 relative"
         style={{ zIndex: 0 }}
-      />
+      >
+        {loading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-100 dark:bg-slate-800">
+            <div className="text-center">
+              <Loader2 className="h-8 w-8 animate-spin text-sky-500 mx-auto" />
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Cargando mapa...</p>
+            </div>
+          </div>
+        )}
+      </div>
       <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
         El círculo muestra un área aproximada de 2km de radio alrededor de {location}
       </p>
+      {geocodedAddress && (
+        <p className="mt-1 text-xs text-sky-600 dark:text-sky-400">
+          Ubicación detectada: {geocodedAddress.split(',').slice(0, 3).join(', ')}
+        </p>
+      )}
     </div>
   );
 }

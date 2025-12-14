@@ -65,13 +65,13 @@ export default function JobPayment() {
     }
 
     const rate = getCommissionRate();
-    const MINIMUM_CONTRACT_AMOUNT = 8000;
     const MINIMUM_COMMISSION = 1000;
 
-    if (jobPrice < MINIMUM_CONTRACT_AMOUNT) {
-      return MINIMUM_COMMISSION;
-    }
-    return jobPrice * (rate / 100);
+    // Calculate commission based on rate
+    const calculatedCommission = jobPrice * (rate / 100);
+
+    // Always apply minimum commission of $1000 ARS
+    return Math.max(calculatedCommission, MINIMUM_COMMISSION);
   };
 
   const jobPrice = job?.price || job?.budget || 0;

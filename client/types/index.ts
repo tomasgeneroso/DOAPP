@@ -8,9 +8,11 @@ export interface Job {
   budget: number;
   price: number; // Alias for budget (some views use price)
   startDate: string;
-  endDate: string;
+  endDate?: string; // Optional if endDateFlexible is true
+  endDateFlexible?: boolean; // "Todavía no lo sé" - end date not yet determined
   location: string;
-  status: 'open' | 'in_progress' | 'completed' | 'cancelled' | 'draft' | 'pending_payment' | 'pending_approval' | 'paused';
+  neighborhood?: string; // Barrio - shown publicly (e.g., "Palermo", "Belgrano")
+  status: 'open' | 'in_progress' | 'completed' | 'cancelled' | 'draft' | 'pending_payment' | 'pending_approval' | 'paused' | 'suspended';
   postedBy: string;
   client?: {
     _id?: string;
@@ -34,6 +36,30 @@ export interface Job {
   cancelledAt?: string;
   createdAt: string;
   updatedAt: string;
+  // Multiple workers support
+  maxWorkers?: number;
+  selectedWorkers?: string[];
+  groupChatId?: string;
+  // Worker payment allocations
+  workerAllocations?: Array<{
+    workerId: string;
+    allocatedAmount: number;
+    percentage: number;
+    allocatedAt: string;
+  }>;
+  allocatedTotal?: number;
+  remainingBudget?: number;
+  // Reminder notifications
+  reminder12hSent?: boolean;
+  reminder6hSent?: boolean;
+  reminder2hSent?: boolean;
+  // Budget change fields
+  pendingNewPrice?: number;
+  pendingPaymentAmount?: number;
+  priceChangeReason?: string;
+  publicationAmount?: number;
+  // doerId for compatibility
+  doerId?: string;
 }
 
 export interface User {
@@ -70,11 +96,14 @@ export interface User {
   };
   bankingInfo?: {
     accountHolder?: string;
+    bankType?: "mercadopago" | "otro";
     bankName?: string;
     accountType?: "savings" | "checking";
     cbu?: string;
     alias?: string;
   };
+  // Preference to not ask about banking data when publishing jobs
+  dontAskBankingInfo?: boolean;
   legalInfo?: {
     idType?: "dni" | "passport" | "cuit" | "cuil";
     idNumber?: string;
@@ -100,6 +129,7 @@ export interface User {
   monthlyContractsUsed?: number;
   monthlyFreeContractsLimit?: number;
   earnedBonusContract?: boolean;
+  proContractsUsedThisMonth?: number;
   invitationCodesRemaining?: number;
   invitationCodesUsed?: number;
   invitedUsers?: string[];

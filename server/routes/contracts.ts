@@ -150,6 +150,64 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
   }
 });
 
+// @route   GET /api/contracts/by-job/:jobId
+// @desc    Obtener contrato por ID del trabajo
+// @access  Private
+router.get("/by-job/:jobId", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const contract = await Contract.findOne({
+      where: { jobId: req.params.jobId },
+      include: [
+        {
+          model: Job,
+          as: 'job'
+        },
+        {
+          model: User,
+          as: 'client',
+          attributes: ['id', 'name', 'email', 'phone', 'avatar', 'rating', 'reviewsCount']
+        },
+        {
+          model: User,
+          as: 'doer',
+          attributes: ['id', 'name', 'email', 'phone', 'avatar', 'rating', 'reviewsCount']
+        }
+      ]
+    });
+
+    if (!contract) {
+      res.status(404).json({
+        success: false,
+        message: "Contrato no encontrado para este trabajo",
+      });
+      return;
+    }
+
+    // Verificar que el usuario sea parte del contrato o sea admin
+    const isParticipant =
+      contract.clientId.toString() === req.user.id.toString() ||
+      contract.doerId.toString() === req.user.id.toString();
+
+    if (!isParticipant && !isAdminUser(req.user)) {
+      res.status(403).json({
+        success: false,
+        message: "No tienes permiso para ver este contrato",
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      contract,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
 // @route   GET /api/contracts/:id
 // @desc    Obtener contrato por ID
 // @access  Private
@@ -301,19 +359,16 @@ router.post(
         commissionRate = 8;
       }
 
-      // Calcular comisión con mínimo de contrato ($8,000 ARS)
+      // Calcular comisión con mínimo de $1,000 ARS
       let commission = 0;
 
       // Plan Familia y contratos gratuitos no pagan comisión
       const hasFamilyPlan = client?.hasFamilyPlan === true;
       if (!isFreeContract && !hasFamilyPlan) {
-        if (price < MINIMUM_CONTRACT_AMOUNT) {
-          // Si el contrato es menor a $8,000, cobrar comisión mínima fija de $1,000
-          commission = MINIMUM_COMMISSION;
-        } else {
-          // Si es mayor o igual, cobrar comisión normal
-          commission = price * (commissionRate / 100);
-        }
+        // Calcular comisión basada en porcentaje
+        const calculatedCommission = price * (commissionRate / 100);
+        // Aplicar mínimo de $1,000 ARS siempre
+        commission = Math.max(calculatedCommission, MINIMUM_COMMISSION);
       }
 
       const totalPrice = price + commission;
@@ -988,7 +1043,7 @@ router.post("/:id/cancel", protect, async (req: AuthRequest, res: Response): Pro
 });
 
 /**
- * Request contract extension (max 1 extension per contract)
+ * Request contract extension (unlimited extensions allowed)
  * POST /api/contracts/:id/request-extension
  */
 router.post("/:id/request-extension", protect, async (req: AuthRequest, res: Response): Promise<void> => {
@@ -1017,11 +1072,11 @@ router.post("/:id/request-extension", protect, async (req: AuthRequest, res: Res
       return;
     }
 
-    // Verificar que no se haya extendido antes (máximo 1 extensión)
-    if (contract.hasBeenExtended) {
+    // Verificar que no haya una solicitud de extensión pendiente
+    if (contract.extensionRequestedBy && !contract.extensionApprovedBy) {
       res.status(400).json({
         success: false,
-        message: "Este contrato ya fue extendido. Solo se permite 1 extensión por contrato. Si necesitas más tiempo, debes crear un nuevo contrato."
+        message: "Ya hay una solicitud de extensión pendiente. Espera a que sea aprobada o rechazada."
       });
       return;
     }
@@ -1046,6 +1101,9 @@ router.post("/:id/request-extension", protect, async (req: AuthRequest, res: Res
     contract.extensionDays = extensionDays;
     contract.extensionAmount = extensionAmount || 0;
     contract.extensionNotes = extensionNotes;
+    // Clear approval fields for new request
+    contract.extensionApprovedBy = undefined;
+    contract.extensionApprovedAt = undefined;
 
     await contract.save();
 
@@ -1062,10 +1120,12 @@ router.post("/:id/request-extension", protect, async (req: AuthRequest, res: Res
       }
     );
 
+    const extensionNumber = (contract.extensionCount || 0) + 1;
     res.json({
       success: true,
-      message: "Solicitud de extensión enviada. Esperando aprobación de la otra parte.",
+      message: `Solicitud de extensión #${extensionNumber} enviada. Esperando aprobación de la otra parte.`,
       contract,
+      extensionNumber,
     });
   } catch (error: any) {
     console.error('Error requesting extension:', error);
@@ -1111,16 +1171,36 @@ router.post("/:id/approve-extension", protect, async (req: AuthRequest, res: Res
       return;
     }
 
+    // Store previous end date for history
+    const previousEndDate = new Date(contract.endDate);
+
+    // Extender la fecha de finalización
+    const newEndDate = new Date(previousEndDate);
+    newEndDate.setDate(newEndDate.getDate() + (contract.extensionDays || 0));
+
+    // Add to extension history
+    const extensionRecord = {
+      previousEndDate: previousEndDate,
+      newEndDate: newEndDate,
+      extensionDays: contract.extensionDays || 0,
+      extensionAmount: contract.extensionAmount || 0,
+      requestedBy: contract.extensionRequestedBy,
+      requestedAt: contract.extensionRequestedAt || new Date(),
+      approvedBy: userId,
+      approvedAt: new Date(),
+      notes: contract.extensionNotes,
+    };
+
+    const extensionHistory = contract.extensionHistory || [];
+    extensionHistory.push(extensionRecord);
+
     // Aplicar la extensión
     contract.hasBeenExtended = true;
     contract.extensionApprovedBy = userId;
     contract.extensionApprovedAt = new Date();
-
-    // Extender la fecha de finalización
-    const currentEndDate = new Date(contract.endDate);
-    const newEndDate = new Date(currentEndDate);
-    newEndDate.setDate(newEndDate.getDate() + (contract.extensionDays || 0));
     contract.endDate = newEndDate;
+    contract.extensionHistory = extensionHistory;
+    contract.extensionCount = (contract.extensionCount || 0) + 1;
 
     // Si hay monto adicional, actualizar el precio
     if (contract.extensionAmount && contract.extensionAmount > 0) {
@@ -1149,8 +1229,9 @@ router.post("/:id/approve-extension", protect, async (req: AuthRequest, res: Res
 
     res.json({
       success: true,
-      message: `Extensión aprobada. El contrato se extendió ${contract.extensionDays} días${contract.extensionAmount ? ` con un monto adicional de $${contract.extensionAmount.toLocaleString()} ARS` : ''}.`,
+      message: `Extensión #${contract.extensionCount} aprobada. El contrato se extendió ${contract.extensionDays} días${contract.extensionAmount ? ` con un monto adicional de $${contract.extensionAmount.toLocaleString()} ARS` : ''}. Nueva fecha de fin: ${newEndDate.toLocaleDateString('es-AR')}.`,
       contract,
+      extensionNumber: contract.extensionCount,
     });
   } catch (error: any) {
     console.error('Error approving extension:', error);

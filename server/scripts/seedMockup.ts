@@ -20,11 +20,12 @@ dotenv.config({ path: path.join(__dirname, "../../.env") });
 // Datos de usuarios de prueba
 const mockUsers = [
   {
-    name: "Juan        Pérez",
+    name: "Juan Pérez",
+    username: "juan.perez",
     email: "juan@test.com",
     password: "123456",
     phone: "+54 9 11 1234-5678",
-    bio: "Plomero con        10 años de experiencia. Especializado en        reparaciones e instalaciones.",
+    bio: "Plomero con 10 años de experiencia. Especializado en reparaciones e instalaciones.",
     rating: 4.8,
     reviewsCount: 45,
     completedJobs: 52,
@@ -35,6 +36,7 @@ const mockUsers = [
   },
   {
     name: "María González",
+    username: "maria.gonzalez",
     email: "maria@test.com",
     password: "123456",
     phone: "+54 9 11 2345-6789",
@@ -49,10 +51,11 @@ const mockUsers = [
   },
   {
     name: "Carlos Rodríguez",
+    username: "carlos.rodriguez",
     email: "carlos@test.com",
     password: "123456",
     phone: "+54 9 11 3456-7890",
-    bio: "Pintor profesional. Interiores y exteriores con        acabados de alta calidad.",
+    bio: "Pintor profesional. Interiores y exteriores con acabados de alta calidad.",
     rating: 4.7,
     reviewsCount: 38,
     completedJobs: 41,
@@ -63,6 +66,7 @@ const mockUsers = [
   },
   {
     name: "Ana Martínez",
+    username: "ana.martinez",
     email: "ana@test.com",
     password: "123456",
     phone: "+54 9 11 4567-8901",
@@ -77,10 +81,11 @@ const mockUsers = [
   },
   {
     name: "Luis Torres",
+    username: "luis.torres",
     email: "luis@test.com",
     password: "123456",
     phone: "+54 9 11 5678-9012",
-    bio: "Carpintero con        experiencia en        muebles a medida y reparaciones.",
+    bio: "Carpintero con experiencia en muebles a medida y reparaciones.",
     rating: 4.6,
     reviewsCount: 32,
     completedJobs: 35,
@@ -91,6 +96,7 @@ const mockUsers = [
   },
   {
     name: "Cliente Demo",
+    username: "cliente.demo",
     email: "cliente@test.com",
     password: "123456",
     phone: "+54 9 11 6789-0123",
@@ -104,7 +110,8 @@ const mockUsers = [
     interests: ["Hogar", "Mantenimiento", "Reparaciones"],
   },
   {
-    name: "Admin        Demo",
+    name: "Admin Demo",
+    username: "admin.demo",
     email: "admin@test.com",
     password: "123456",
     phone: "+54 9 11 7890-1234",
@@ -114,6 +121,54 @@ const mockUsers = [
     completedJobs: 0,
     role: "both",
     adminRole: "owner",
+    isVerified: true,
+    onboardingCompleted: true,
+    interests: [],
+  },
+  {
+    name: "Super Admin Test",
+    username: "superadmin.test",
+    email: "superadmin@test.com",
+    password: "123456",
+    phone: "+54 9 11 8901-2345",
+    bio: "Super Administrador de prueba",
+    rating: 5.0,
+    reviewsCount: 0,
+    completedJobs: 0,
+    role: "both",
+    adminRole: "super_admin",
+    isVerified: true,
+    onboardingCompleted: true,
+    interests: [],
+  },
+  {
+    name: "Admin Support Test",
+    username: "support.test",
+    email: "support@test.com",
+    password: "123456",
+    phone: "+54 9 11 9012-3456",
+    bio: "Soporte de prueba",
+    rating: 5.0,
+    reviewsCount: 0,
+    completedJobs: 0,
+    role: "both",
+    adminRole: "support",
+    isVerified: true,
+    onboardingCompleted: true,
+    interests: [],
+  },
+  {
+    name: "Marketing Test",
+    username: "marketing.test",
+    email: "marketing@test.com",
+    password: "123456",
+    phone: "+54 9 11 0123-4567",
+    bio: "Marketing de prueba",
+    rating: 5.0,
+    reviewsCount: 0,
+    completedJobs: 0,
+    role: "both",
+    adminRole: "marketing",
     isVerified: true,
     onboardingCompleted: true,
     interests: [],
@@ -486,7 +541,7 @@ async function        seedDatabase() {
     console.log(`👥 Usuarios: ${users.length}`);
     console.log(`   - Freelancers: ${freelancers.length}`);
     console.log(`   - Clientes: 1`);
-    console.log(`   - Admins: 1`);
+    console.log(`   - Admins: 4 (owner, super_admin, support, marketing)`);
     console.log(`\n💼 Trabajos: ${openJobs.length + completedContracts.length + activeContracts.length}`);
     console.log(`   - Abiertos: ${openJobs.length}`);
     console.log(`   - Completados: ${completedContracts.length}`);
@@ -507,8 +562,17 @@ async function        seedDatabase() {
     console.log("\nFreelancer (Juan):");
     console.log("  Email: juan@test.com");
     console.log("  Password: 123456");
-    console.log("\nAdmin:");
+    console.log("\n👑 Admin (Owner):");
     console.log("  Email: admin@test.com");
+    console.log("  Password: 123456");
+    console.log("\n🛡️ Super Admin:");
+    console.log("  Email: superadmin@test.com");
+    console.log("  Password: 123456");
+    console.log("\n🎧 Support:");
+    console.log("  Email: support@test.com");
+    console.log("  Password: 123456");
+    console.log("\n📢 Marketing:");
+    console.log("  Email: marketing@test.com");
     console.log("  Password: 123456");
     console.log("\n✅ Mockup completado exitosamente!\n");
 

@@ -16,18 +16,37 @@ if (config.googleClientId && config.googleClientSecret) {
       },
       async (accessToken, refreshToken, profile, done) => {
         try {
+          const email = profile.emails?.[0].value || '';
+
+          // Primero buscar por googleId
           let user = await User.findOne({ where: { googleId: profile.id } });
 
           if (user) {
             return done(null, user);
           }
 
-          // Si no existe, lo creamos
+          // Si no existe por googleId, buscar por email para vincular cuentas
+          if (email) {
+            user = await User.findOne({ where: { email } });
+            if (user) {
+              // Vincular cuenta existente con Google
+              user.googleId = profile.id;
+              if (!user.avatar && profile.photos?.[0].value) {
+                user.avatar = profile.photos[0].value;
+              }
+              user.isVerified = true;
+              await user.save();
+              console.log(`✅ Cuenta Google vinculada con usuario existente: ${email}`);
+              return done(null, user);
+            }
+          }
+
+          // Si no existe, crear nuevo usuario
           user = await User.create({
             googleId: profile.id,
             name: profile.displayName || 'Google User',
-            username: profile.emails?.[0].value.split('@')[0] || `google_${profile.id}`,
-            email: profile.emails?.[0].value || '',
+            username: email.split('@')[0] || `google_${profile.id}`,
+            email,
             passwordHash: '', // No necesario para OAuth
             avatar: profile.photos?.[0].value,
             isVerified: true, // Verificado por Google

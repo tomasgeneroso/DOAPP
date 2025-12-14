@@ -139,16 +139,12 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
       else if (user.membershipTier === 'pro') commissionRate = 3;
 
       // Calculate publication cost with minimum (use price field for PostgreSQL)
-      const MINIMUM_CONTRACT_AMOUNT = 8000;
       const MINIMUM_COMMISSION = 1000;
       const jobPrice = parseFloat(job.price as any) || 0;
-      let publicationCost = 0;
 
-      if (jobPrice < MINIMUM_CONTRACT_AMOUNT) {
-        publicationCost = MINIMUM_COMMISSION;
-      } else {
-        publicationCost = jobPrice * (commissionRate / 100);
-      }
+      // Calculate commission based on rate, then apply minimum
+      const calculatedCommission = jobPrice * (commissionRate / 100);
+      const publicationCost = Math.max(calculatedCommission, MINIMUM_COMMISSION);
 
       // Total amount = job price + publication commission
       const totalAmountARS = jobPrice + publicationCost;

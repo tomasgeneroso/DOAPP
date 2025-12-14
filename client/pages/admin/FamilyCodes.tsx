@@ -432,7 +432,7 @@ export default function FamilyCodes() {
                         <div className="space-y-1">
                           <p className="text-slate-600 dark:text-slate-400">
                             <Calendar className="h-3 w-3 inline mr-1" />
-                            Creado: {new Date(code.createdAt).toLocaleDateString('es-AR')}
+                            Creado: {new Date(code.createdAt).toLocaleDateString('es-AR')} {new Date(code.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
                           </p>
                           {code.expiresAt && (
                             <p className={`${new Date(code.expiresAt) < new Date() ? 'text-red-500' : 'text-slate-600 dark:text-slate-400'}`}>

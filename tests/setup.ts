@@ -1,32 +1,19 @@
-import { MongoMemoryServer } from 'mongodb-memory-server';
-import mongoose from 'mongoose';
+// Test setup for PostgreSQL/Sequelize
+import dotenv from 'dotenv';
 
-let mongoServer: MongoMemoryServer;
+// Load test environment
+dotenv.config({ path: '.env.test' });
 
-beforeAll(async () => {
-  // Create in-memory MongoDB instance for testing
-  mongoServer = await MongoMemoryServer.create();
-  const mongoUri = mongoServer.getUri();
-
-  await mongoose.connect(mongoUri);
-});
-
-afterAll(async () => {
-  await mongoose.disconnect();
-  await mongoServer.stop();
-});
-
-afterEach(async () => {
-  // Clear all collections after each test
-  const collections = mongoose.connection.collections;
-  for (const key in collections) {
-    await collections[key].deleteMany({});
-  }
-});
-
-// Mock environment variables
-process.env.JWT_SECRET = 'test-jwt-secret';
+// Mock environment variables for testing
+process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret-for-testing-only';
 process.env.NODE_ENV = 'test';
 process.env.PORT = '5001';
 process.env.CLIENT_URL = 'http://localhost:5173';
-process.env.REDIS_URL = 'redis://localhost:6379';
+
+// Increase timeout for database operations
+jest.setTimeout(30000);
+
+// Global error handler for unhandled promises
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});

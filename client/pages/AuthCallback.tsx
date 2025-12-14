@@ -8,6 +8,7 @@ export default function AuthCallback() {
   useEffect(() => {
     const token = searchParams.get("token");
     const error = searchParams.get("error");
+    const needsDni = searchParams.get("needsDni") === "true";
 
     if (error) {
       // Redirigir al login con mensaje de error
@@ -29,8 +30,15 @@ export default function AuthCallback() {
             // Save token and user to localStorage for client-side access
             localStorage.setItem("token", token);
             localStorage.setItem("user", JSON.stringify(data.user));
-            // Redirect to home and reload to update auth context
-            window.location.href = "/";
+
+            // Check if user needs to complete registration (DNI)
+            if (needsDni || data.user.needsDni) {
+              // Redirect to complete registration page
+              window.location.href = "/complete-registration";
+            } else {
+              // Redirect to home and reload to update auth context
+              window.location.href = "/";
+            }
           } else {
             navigate("/login?error=auth_failed", { replace: true });
           }

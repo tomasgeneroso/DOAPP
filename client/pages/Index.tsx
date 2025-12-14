@@ -1,7 +1,7 @@
 import { useAuth } from "../hooks/useAuth";
 import { Helmet } from "react-helmet-async";
 import { Link } from "react-router-dom";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { MapPin, Calendar, Clock, Star, Briefcase, CheckCircle } from "lucide-react";
 import type { Job, User as UserType } from "@/types";
 import SearchBar, { SearchFilters } from "../components/SearchBar";
@@ -10,6 +10,8 @@ import Advertisement from "../components/Advertisement";
 import AdPlaceholder from "../components/AdPlaceholder";
 import { useSocket } from "../hooks/useSocket";
 import { getImageUrl } from "../utils/imageUrl";
+import WorkInProgress from "../components/jobs/WorkInProgress";
+import { fetchWithAuth } from "../utils/fetchWithAuth";
 
 export default function Index() {
   const { user, isLoading } = useAuth();
@@ -24,17 +26,34 @@ export default function Index() {
   const { registerJobsRefreshHandler } = useSocket();
 
   // Handle real-time jobs refresh
-  const handleJobsRefresh = useCallback(() => {
-    console.log("🔄 Real-time: Refreshing jobs list");
-    fetchJobs();
-    if (user) {
-      fetchMyJobs();
-    }
-  }, [user]);
+  const handleJobsRefresh = useCallback((data?: any) => {
+    console.log("🔄 Real-time: Refreshing jobs list", data);
+    // Re-fetch jobs without any filters to get latest list
+    (async () => {
+      try {
+        const params = new URLSearchParams({
+          status: "open",
+          limit: "20",
+        });
+        const response = await fetch(`/api/jobs?${params.toString()}`);
+        const responseData = await response.json();
+        if (responseData.success) {
+          setJobs(responseData.jobs);
+          console.log("✅ Jobs list refreshed:", responseData.jobs.length, "jobs");
+        }
+      } catch (error) {
+        console.error("Error refreshing jobs:", error);
+      }
+    })();
+  }, []);
 
   // Register socket handler for jobs refresh
   useEffect(() => {
     registerJobsRefreshHandler(handleJobsRefresh);
+    return () => {
+      // Clear handler on unmount
+      registerJobsRefreshHandler(() => {});
+    };
   }, [registerJobsRefreshHandler, handleJobsRefresh]);
 
   const fetchMyJobs = async () => {
@@ -140,6 +159,37 @@ export default function Index() {
   useEffect(() => {
     fetchJobs();
   }, []);
+
+  // Track if we've already checked for expired jobs this session
+  const expiredJobsChecked = useRef(false);
+
+  // Check for expired jobs when user loads the page (only once per session)
+  useEffect(() => {
+    const checkExpiredJobs = async () => {
+      if (!user || isLoading || expiredJobsChecked.current) return;
+
+      expiredJobsChecked.current = true;
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        const response = await fetchWithAuth('/api/jobs/check-expired', {
+          method: 'POST',
+        });
+        const data = await response.json();
+
+        if (data.success && data.expiredJobsProcessed > 0) {
+          console.log(`⚠️ Processed ${data.expiredJobsProcessed} expired jobs`);
+          // Refresh my jobs list to show updated statuses
+          fetchMyJobs();
+        }
+      } catch (error) {
+        console.error('Error checking expired jobs:', error);
+      }
+    };
+
+    checkExpiredJobs();
+  }, [user, isLoading]);
 
   // Fetch my jobs only when user is loaded
   useEffect(() => {
@@ -419,6 +469,9 @@ export default function Index() {
           )}
         </div>
 
+        {/* Trabajo en Proceso - Only show for authenticated users */}
+        {user && <WorkInProgress />}
+
         {/* Mis Trabajos Publicados */}
         {user && myJobs.length > 0 && (
           <div className="mt-10 sm:mt-16 px-2">
@@ -549,7 +602,7 @@ export default function Index() {
                     <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center gap-4">
                       <div className="flex items-center gap-1 text-amber-500">
                         <Star className="h-4 w-4 fill-current" />
-                        <span className="text-sm font-medium">{userResult.rating?.toFixed(1) || '0.0'}</span>
+                        <span className="text-sm font-medium">{(typeof userResult.rating === 'number' ? userResult.rating : parseFloat(userResult.rating) || 0).toFixed(1)}</span>
                         <span className="text-xs text-slate-500 dark:text-slate-400">
                           ({userResult.reviewsCount || 0})
                         </span>
@@ -635,8 +688,8 @@ export default function Index() {
                         <div className="mb-3 flex items-center gap-1 text-amber-500">
                           <Star className="h-4 w-4 fill-current" />
                           <span className="ml-1 text-xs text-slate-600 dark:text-slate-400">
-                            {job.client.rating.toFixed(1)} (
-                            {job.client.reviewsCount})
+                            {(typeof job.client.rating === 'number' ? job.client.rating : parseFloat(job.client.rating) || 0).toFixed(1)} (
+                            {job.client.reviewsCount || 0})
                           </span>
                         </div>
                       )}

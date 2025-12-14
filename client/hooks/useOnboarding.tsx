@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from './useAuth';
 
 export interface OnboardingStep {
@@ -54,6 +55,14 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
     page: '/',
   },
   {
+    id: 'tasks',
+    title: 'Sistema de Tareas',
+    description: 'Como dueño de un trabajo, puedes agregar tareas secuenciales para guiar al trabajador. Las tareas muestran el progreso hasta un máximo de 90% - el 10% final se completa al cerrar el contrato.',
+    targetSelector: '[data-onboarding="jobs-list"]',
+    position: 'top',
+    page: '/',
+  },
+  {
     id: 'create-job',
     title: 'Publicar un Trabajo',
     description: 'Si necesitas contratar a alguien, publica tu trabajo desde aquí. Recibirás propuestas de profesionales interesados.',
@@ -77,9 +86,11 @@ interface OnboardingProviderProps {
 
 export function OnboardingProvider({ children }: OnboardingProviderProps) {
   const { user, token } = useAuth();
+  const location = useLocation();
   const [isActive, setIsActive] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [hasCheckedOnboarding, setHasCheckedOnboarding] = useState(false);
+  const [shouldShowOnboarding, setShouldShowOnboarding] = useState(false);
 
   // Check if user needs onboarding when they first log in
   useEffect(() => {
@@ -88,12 +99,39 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
       const tooltipOnboardingCompleted = localStorage.getItem(`onboarding_tooltips_${user.id || user._id}`);
 
       if (!tooltipOnboardingCompleted && user.onboardingCompleted) {
-        // User completed interest selection but not tooltips - show tooltips
-        setIsActive(true);
+        // User completed interest selection but not tooltips - mark that we should show tooltips
+        setShouldShowOnboarding(true);
       }
       setHasCheckedOnboarding(true);
     }
   }, [user, hasCheckedOnboarding]);
+
+  // Only activate onboarding when user is on the home page (/)
+  useEffect(() => {
+    if (shouldShowOnboarding && location.pathname === '/') {
+      // Small delay to ensure page is loaded and DOM is ready
+      const timer = setTimeout(() => {
+        setIsActive(true);
+        setShouldShowOnboarding(false); // Don't show again after activating
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [shouldShowOnboarding, location.pathname]);
+
+  // Deactivate onboarding if user navigates away from home page
+  useEffect(() => {
+    if (isActive && location.pathname !== '/') {
+      setIsActive(false);
+    }
+  }, [location.pathname, isActive]);
+
+  // Reset check when user changes (for new registrations)
+  useEffect(() => {
+    if (!user) {
+      setHasCheckedOnboarding(false);
+      setShouldShowOnboarding(false);
+    }
+  }, [user]);
 
   const nextStep = () => {
     if (currentStep < ONBOARDING_STEPS.length - 1) {

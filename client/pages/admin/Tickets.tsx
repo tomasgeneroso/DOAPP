@@ -185,7 +185,7 @@ export default function AdminTickets() {
       </div>
 
       {/* Filters */}
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="relative md:col-span-2">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
@@ -193,13 +193,13 @@ export default function AdminTickets() {
             placeholder="Buscar tickets..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+            className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-gray-900 dark:text-white placeholder-gray-400"
           />
         </div>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+          className="px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-gray-900 dark:text-white"
         >
           <option value="">Todos los estados</option>
           <option value="open">Abiertos</option>
@@ -208,70 +208,71 @@ export default function AdminTickets() {
           <option value="resolved">Resueltos</option>
           <option value="closed">Cerrados</option>
         </select>
-        <input
-          type="date"
-          value={dateFrom}
-          onChange={(e) => setDateFrom(e.target.value)}
-          placeholder="Desde"
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-        />
-        <input
-          type="date"
-          value={dateTo}
-          onChange={(e) => setDateTo(e.target.value)}
-          placeholder="Hasta"
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-        />
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm text-gray-900 dark:text-white"
+          />
+          <span className="text-gray-400">-</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm text-gray-900 dark:text-white"
+          />
+        </div>
       </div>
 
       {/* Tickets List */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-900">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Ticket
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 <button
                   onClick={() => handleSort('subject')}
-                  className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+                  className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
                 >
                   Asunto
                   <SortIcon field="subject" />
                 </button>
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 <button
                   onClick={() => handleSort('category')}
-                  className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+                  className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
                 >
                   Categoría
                   <SortIcon field="category" />
                 </button>
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 <button
                   onClick={() => handleSort('priority')}
-                  className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+                  className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
                 >
                   Prioridad
                   <SortIcon field="priority" />
                 </button>
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 <button
                   onClick={() => handleSort('status')}
-                  className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+                  className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
                 >
                   Estado
                   <SortIcon field="status" />
                 </button>
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 <button
                   onClick={() => handleSort('date')}
-                  className="flex items-center gap-1 hover:text-gray-700 transition-colors"
+                  className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
                 >
                   Creado
                   <SortIcon field="date" />
@@ -279,22 +280,22 @@ export default function AdminTickets() {
               </th>
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {getSortedTickets().map((ticket) => (
-              <tr key={ticket.id || ticket._id} className="hover:bg-gray-50">
+              <tr key={ticket.id || ticket._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                 <td className="px-6 py-4 whitespace-nowrap">
                   <Link
                     to={`/admin/tickets/${ticket.id || ticket._id}`}
-                    className="text-sm font-medium text-sky-600 hover:text-sky-900"
+                    className="text-sm font-medium text-sky-600 hover:text-sky-900 dark:text-sky-400 dark:hover:text-sky-300"
                   >
                     {ticket.ticketNumber}
                   </Link>
                 </td>
                 <td className="px-6 py-4">
-                  <div className="text-sm text-gray-900">{ticket.subject}</div>
-                  <div className="text-xs text-gray-500">Por {ticket.createdBy?.name || ticket.user?.name || 'N/A'}</div>
+                  <div className="text-sm text-gray-900 dark:text-white">{ticket.subject}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">Por {ticket.createdBy?.name || ticket.user?.name || 'N/A'}</div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                   {ticket.category}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -315,8 +316,9 @@ export default function AdminTickets() {
                     {ticket.status}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {new Date(ticket.createdAt).toLocaleDateString()}
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                  <div>{new Date(ticket.createdAt).toLocaleDateString('es-AR')}</div>
+                  <div className="text-xs">{new Date(ticket.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</div>
                 </td>
               </tr>
             ))}
@@ -325,8 +327,8 @@ export default function AdminTickets() {
       </div>
 
       {tickets.length === 0 && (
-        <div className="text-center py-12 bg-white rounded-lg shadow mt-6">
-          <p className="text-gray-500">No hay tickets para mostrar</p>
+        <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg shadow mt-6">
+          <p className="text-gray-500 dark:text-gray-400">No hay tickets para mostrar</p>
         </div>
       )}
     </div>

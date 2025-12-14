@@ -15,7 +15,13 @@ export interface AdminUser {
   isBanned: boolean;
   banReason?: string;
   bannedAt?: string;
+  bannedBy?: string;
   banExpiresAt?: string;
+  banningAdmin?: {
+    id: string;
+    name: string;
+    email: string;
+  };
   infractions: number;
   trustScore: number;
   verificationLevel: "none" | "email" | "phone" | "document" | "full";

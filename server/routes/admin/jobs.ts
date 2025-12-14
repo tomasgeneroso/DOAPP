@@ -234,17 +234,22 @@ router.put(
 
       // Create notification for job owner
       const { Notification } = await import('../../models/sql/Notification.model.js');
-      await Notification.create({
+      const notification = await Notification.create({
         recipientId: job.clientId,
         title: status === 'approved' ? 'Publicación aprobada' : 'Publicación rechazada',
         message: status === 'approved'
           ? `Tu publicación "${job.title}" ha sido aprobada y ya está visible.`
           : `Tu publicación "${job.title}" ha sido rechazada.${rejectedReason ? ` Razón: ${rejectedReason}` : ''}`,
         type: status === 'approved' ? 'success' : 'warning',
-        category: 'system',
+        category: 'jobs',
         relatedId: job.id,
         relatedModel: 'Job',
+        actionText: 'Ver trabajo',
+        data: { jobId: job.id },
       });
+
+      // Send real-time notification
+      socketService.notifyUser(job.clientId, notification.toJSON());
 
       res.json({
         success: true,

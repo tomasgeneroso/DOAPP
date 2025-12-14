@@ -88,11 +88,11 @@ export default function LocationAutocomplete({
         <input
           type="text"
           name={name}
-          value={value}
+          value={value || ''}
           onChange={(e) => handleInputChange(e.target.value)}
           onKeyDown={handleKeyDown}
           onFocus={() => {
-            if (value.length >= 2 && suggestions.length > 0) {
+            if (value && value.length >= 2 && suggestions.length > 0) {
               setShowSuggestions(true);
             }
           }}

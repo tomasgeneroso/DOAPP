@@ -131,6 +131,8 @@ export default function JobApplicationSummary() {
               description: job.description,
               budget: job.price,
               category: job.category,
+              alreadyApplied: data.alreadyApplied || false,
+              jobStatus: data.jobStatus || job.status,
             }
           }
         });
@@ -314,19 +316,27 @@ export default function JobApplicationSummary() {
                     <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                       Fin estimado
                     </p>
-                    <p className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white">
-                      {new Date(job.endDate).toLocaleDateString("es-AR", {
-                        day: "numeric",
-                        month: "long",
-                        year: "numeric",
-                      })}
-                    </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {new Date(job.endDate).toLocaleTimeString("es-AR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
+                    {job.endDate ? (
+                      <>
+                        <p className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white">
+                          {new Date(job.endDate).toLocaleDateString("es-AR", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {new Date(job.endDate).toLocaleTimeString("es-AR", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="mt-0.5 text-sm font-semibold text-amber-600 dark:text-amber-400">
+                        Por definir
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -364,7 +374,7 @@ export default function JobApplicationSummary() {
                     <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
                       <div className="flex items-center gap-1">
                         <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-                        <span>{job.client.rating.toFixed(1)}</span>
+                        <span>{(Number(job.client.rating) || 0).toFixed(1)}</span>
                       </div>
                       <span>•</span>
                       <span>{job.client.completedJobs || 0} trabajos completados</span>

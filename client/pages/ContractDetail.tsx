@@ -70,7 +70,7 @@ export default function ContractDetail() {
 
   // Register socket handler for real-time contract updates
   useEffect(() => {
-    registerContractUpdateHandler((data: any) => {
+    const handler = (data: any) => {
       console.log("📝 ContractDetail: Contract updated via socket:", data);
       // Only reload if this is the same contract
       if (data.contractId === id) {
@@ -78,8 +78,10 @@ export default function ContractDetail() {
         loadContract();
         loadPayments();
       }
-    });
-  }, [id, loadContract, loadPayments, registerContractUpdateHandler]);
+    };
+    registerContractUpdateHandler(handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const handleReleaseEscrow = async (paymentId: string) => {
     if (!confirm("¿Estás seguro de liberar el pago del escrow?")) return;
