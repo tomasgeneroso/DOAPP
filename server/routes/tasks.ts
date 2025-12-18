@@ -138,6 +138,7 @@ router.post(
   [
     body("title").trim().notEmpty().withMessage("El título es requerido").isLength({ max: 200 }),
     body("description").optional().trim(),
+    body("dueDate").optional().isISO8601().withMessage("Fecha de entrega inválida"),
     body("orderIndex").optional().isInt({ min: 0 }),
     body("requiresPreviousCompletion").optional().isBoolean(),
   ],
@@ -150,7 +151,7 @@ router.post(
       }
 
       const { jobId } = req.params;
-      const { title, description, orderIndex, requiresPreviousCompletion = true } = req.body;
+      const { title, description, dueDate, orderIndex, requiresPreviousCompletion = true } = req.body;
 
       const job = await Job.findByPk(jobId);
       if (!job) {
@@ -184,6 +185,7 @@ router.post(
         createdById: req.user.id,
         title,
         description,
+        dueDate: dueDate || null, // Optional due date for the task
         orderIndex: finalOrderIndex,
         requiresPreviousCompletion,
         status: 'pending',
@@ -227,6 +229,7 @@ router.put(
     param("taskId").isUUID(),
     body("title").optional().trim().isLength({ min: 1, max: 200 }),
     body("description").optional().trim(),
+    body("dueDate").optional().isISO8601().withMessage("Fecha de entrega inválida"),
     body("status").optional().isIn(['pending', 'in_progress', 'completed']),
     body("orderIndex").optional().isInt({ min: 0 }),
     body("requiresPreviousCompletion").optional().isBoolean(),
@@ -240,7 +243,7 @@ router.put(
       }
 
       const { jobId, taskId } = req.params;
-      const { title, description, status, orderIndex, requiresPreviousCompletion } = req.body;
+      const { title, description, dueDate, status, orderIndex, requiresPreviousCompletion } = req.body;
 
       const job = await Job.findByPk(jobId);
       if (!job) {
@@ -277,7 +280,7 @@ router.put(
       // Workers can only change status if task is unlocked
       if (!isOwner && isWorker) {
         // Workers can only update status
-        if (title || description || orderIndex !== undefined || requiresPreviousCompletion !== undefined) {
+        if (title || description || dueDate || orderIndex !== undefined || requiresPreviousCompletion !== undefined) {
           res.status(403).json({
             success: false,
             message: "Solo puedes cambiar el estado de las tareas"
@@ -319,6 +322,7 @@ router.put(
       if (isOwner) {
         if (title !== undefined) updateData.title = title;
         if (description !== undefined) updateData.description = description;
+        if (dueDate !== undefined) updateData.dueDate = dueDate || null;
         if (orderIndex !== undefined) updateData.orderIndex = orderIndex;
         if (requiresPreviousCompletion !== undefined) updateData.requiresPreviousCompletion = requiresPreviousCompletion;
       }

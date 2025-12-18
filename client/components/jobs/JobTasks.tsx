@@ -14,6 +14,7 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronUp,
+  Calendar,
 } from "lucide-react";
 
 interface JobTask {
@@ -25,6 +26,7 @@ interface JobTask {
   isUnlocked: boolean;
   startedAt?: string;
   completedAt?: string;
+  dueDate?: string; // Optional due date for the task (only used when singleDelivery is false)
   completedBy?: {
     id: string;
     name: string;
@@ -42,9 +44,11 @@ interface JobTasksProps {
   isOwner: boolean;
   isWorker: boolean;
   jobStatus: string;
+  singleDelivery?: boolean; // If false, allow per-task due dates
+  jobEndDate?: string; // End date of the job (for validation)
 }
 
-export default function JobTasks({ jobId, isOwner, isWorker, jobStatus }: JobTasksProps) {
+export default function JobTasks({ jobId, isOwner, isWorker, jobStatus, singleDelivery = true, jobEndDate }: JobTasksProps) {
   const { token } = useAuth();
   const { registerJobUpdateHandler } = useSocket();
   const [tasks, setTasks] = useState<JobTask[]>([]);
@@ -58,6 +62,7 @@ export default function JobTasks({ jobId, isOwner, isWorker, jobStatus }: JobTas
   const [editingTask, setEditingTask] = useState<JobTask | null>(null);
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
+  const [taskDueDate, setTaskDueDate] = useState("");
   const [saving, setSaving] = useState(false);
 
   // Updating task status
@@ -128,6 +133,7 @@ export default function JobTasks({ jobId, isOwner, isWorker, jobStatus }: JobTas
         body: JSON.stringify({
           title: taskTitle.trim(),
           description: taskDescription.trim() || undefined,
+          dueDate: !singleDelivery && taskDueDate ? taskDueDate : undefined,
         }),
       });
 
@@ -209,12 +215,14 @@ export default function JobTasks({ jobId, isOwner, isWorker, jobStatus }: JobTas
     setEditingTask(null);
     setTaskTitle("");
     setTaskDescription("");
+    setTaskDueDate("");
   };
 
   const startEdit = (task: JobTask) => {
     setEditingTask(task);
     setTaskTitle(task.title);
     setTaskDescription(task.description || "");
+    setTaskDueDate(task.dueDate ? new Date(task.dueDate).toISOString().slice(0, 16) : "");
     setShowAddForm(true);
   };
 
@@ -417,6 +425,17 @@ export default function JobTasks({ jobId, isOwner, isWorker, jobStatus }: JobTas
                           {task.description}
                         </p>
                       )}
+                      {/* Due date display (when singleDelivery is false) */}
+                      {!singleDelivery && task.dueDate && task.status !== "completed" && (
+                        <p className="mt-1 text-xs text-sky-600 dark:text-sky-400 flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          Entrega estimada: {new Date(task.dueDate).toLocaleDateString("es-AR", {
+                            weekday: 'short',
+                            day: 'numeric',
+                            month: 'short'
+                          })}
+                        </p>
+                      )}
                       {task.completedAt && (
                         <p className="mt-1 text-xs text-emerald-600">
                           Completada el {new Date(task.completedAt).toLocaleDateString("es-AR")}
@@ -485,6 +504,25 @@ export default function JobTasks({ jobId, isOwner, isWorker, jobStatus }: JobTas
                     rows={2}
                     className="mt-2 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500 dark:text-white resize-none"
                   />
+                  {/* Due date field - only shown when singleDelivery is false */}
+                  {!singleDelivery && (
+                    <div className="mt-2">
+                      <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                        <Calendar className="inline h-3 w-3 mr-1" />
+                        Fecha de entrega estimada (opcional)
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={taskDueDate}
+                        onChange={(e) => setTaskDueDate(e.target.value)}
+                        max={jobEndDate ? new Date(jobEndDate).toISOString().slice(0, 16) : undefined}
+                        className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500 dark:text-white"
+                      />
+                      <p className="mt-1 text-xs text-slate-400">
+                        Esta fecha es solo una guía. La fecha de entrega final del trabajo sigue siendo la importante.
+                      </p>
+                    </div>
+                  )}
                   <div className="mt-3 flex items-center justify-end gap-2">
                     <button
                       onClick={resetForm}

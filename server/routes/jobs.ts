@@ -588,6 +588,7 @@ router.post(
     body("startDate").isISO8601().withMessage("Fecha de inicio inválida"),
     body("endDate").optional().isISO8601().withMessage("Fecha de fin inválida"),
     body("endDateFlexible").optional().isBoolean().withMessage("endDateFlexible debe ser booleano"),
+    body("singleDelivery").optional().isBoolean().withMessage("singleDelivery debe ser booleano"),
   ],
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -640,6 +641,9 @@ router.post(
       // Parse endDateFlexible - defaults to false
       const endDateFlexible = req.body.endDateFlexible === 'true' || req.body.endDateFlexible === true;
 
+      // Parse singleDelivery - defaults to true
+      const singleDelivery = req.body.singleDelivery !== 'false' && req.body.singleDelivery !== false;
+
       // Validate that endDate is provided if endDateFlexible is false
       if (!endDateFlexible && !req.body.endDate) {
         res.status(400).json({
@@ -671,6 +675,7 @@ router.post(
         publicationAmount: 0, // Will be calculated if payment needed
         maxWorkers, // New: support for multiple workers (1-5)
         selectedWorkers: [], // Initialize empty array
+        singleDelivery, // If true, single final delivery; if false, per-task due dates
       };
 
       const job = await Job.create(jobData);

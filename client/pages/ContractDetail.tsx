@@ -334,7 +334,7 @@ export default function ContractDetail() {
                   <MessageCircle className="h-5 w-5" />
                   {loadingChat ? "Cargando..." : "Chat"}
                 </button>
-                {hasPermission(PERMISSIONS.DISPUTE_CREATE) && contract?.status === 'in_progress' && (
+                {hasPermission(PERMISSIONS.DISPUTE_CREATE) && ['in_progress', 'completed', 'awaiting_confirmation'].includes(contract?.status || '') && (
                   <button
                     onClick={() => navigate(`/disputes/new?contractId=${id}`)}
                     className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-orange-600 text-orange-600 rounded-lg hover:bg-orange-50 transition font-semibold"

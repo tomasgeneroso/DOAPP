@@ -46,6 +46,13 @@ export default function ProfilePage() {
   const [selectedPostForComments, setSelectedPostForComments] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'posts' | 'articles'>('posts');
   const [completedJobs, setCompletedJobs] = useState<any[]>([]);
+  const [completedByCategory, setCompletedByCategory] = useState<Array<{
+    id: string;
+    label: string;
+    icon: string;
+    count: number;
+    averageRating: number | null;
+  }>>([]);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showAvatarUpload, setShowAvatarUpload] = useState(false);
   const [showCoverUpload, setShowCoverUpload] = useState(false);
@@ -130,6 +137,17 @@ export default function ProfilePage() {
     if (!idToUse) return;
 
     try {
+      // Fetch completed jobs by category (new endpoint)
+      const categoryResponse = await fetch(`/api/users/${idToUse}/completed-by-category`, {
+        credentials: 'include',
+      });
+      const categoryData = await categoryResponse.json();
+
+      if (categoryData.success) {
+        setCompletedByCategory(categoryData.categories || []);
+      }
+
+      // Also fetch individual contracts for legacy compatibility
       const response = await fetch(`/api/contracts?doer=${idToUse}&status=completed&limit=10`, {
         credentials: 'include',
       });
@@ -492,41 +510,52 @@ export default function ProfilePage() {
                 </div>
               )}
 
-              {/* Completed Jobs Section */}
+              {/* Completed Jobs by Category Section */}
               <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">
-                  Trabajos Completados ({completedJobs.length})
+                  Trabajos Completados por Categoría
                 </h2>
-                {completedJobs.length === 0 ? (
+                {completedByCategory.length === 0 ? (
                   <p className="text-center text-slate-500 dark:text-slate-400 py-8">
                     No hay trabajos completados aún.
                   </p>
                 ) : (
                   <div className="space-y-3">
-                    {completedJobs.slice(0, 5).map((job: any) => (
-                      <a
-                        key={job._id}
-                        href={`/contracts/${job._id}`}
-                        className="block p-4 rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                    {completedByCategory.map((category) => (
+                      <div
+                        key={category.id}
+                        className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-700/50"
                       >
-                        <h3 className="font-semibold text-slate-900 dark:text-white mb-1">
-                          {job.title}
-                        </h3>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-slate-600 dark:text-slate-400">
-                            ${job.amount.toLocaleString('es-AR')} {job.currency}
-                          </span>
-                          <span className="text-emerald-600 dark:text-emerald-400 font-medium">
-                            Completado
-                          </span>
+                        <div className="flex items-center gap-3">
+                          <span className="text-2xl">{category.icon}</span>
+                          <div>
+                            <span className="font-semibold text-slate-900 dark:text-white">
+                              {category.label}
+                            </span>
+                            <span className="ml-2 text-sm text-sky-600 dark:text-sky-400 font-medium">
+                              ({category.count})
+                            </span>
+                          </div>
                         </div>
-                      </a>
+                        {category.averageRating !== null && (
+                          <div className="flex items-center gap-1">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Star
+                                key={star}
+                                className={`w-4 h-4 ${
+                                  star <= Math.round(category.averageRating!)
+                                    ? 'text-amber-400 fill-current'
+                                    : 'text-slate-300 dark:text-slate-600'
+                                }`}
+                              />
+                            ))}
+                            <span className="ml-1 text-sm text-slate-600 dark:text-slate-400">
+                              {category.averageRating.toFixed(1)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     ))}
-                    {completedJobs.length > 5 && (
-                      <button className="w-full py-2 text-sm text-blue-600 dark:text-blue-400 hover:underline">
-                        Ver todos ({completedJobs.length})
-                      </button>
-                    )}
                   </div>
                 )}
               </div>

@@ -88,6 +88,10 @@ export class JobTask extends Model {
   @Column(DataType.INTEGER)
   orderIndex!: number;
 
+  // Optional due date for this task (only used as guide when job.singleDelivery is false)
+  @Column(DataType.DATE)
+  dueDate?: Date;
+
   // ============================================
   // STATUS
   // ============================================

@@ -185,6 +185,12 @@ export class Job extends Model {
   @Column(DataType.BOOLEAN)
   endDateFlexible!: boolean;
 
+  // If true, the job has a single delivery (no per-task deadlines)
+  // If false, each task can have its own due date as a guide
+  @Default(true)
+  @Column(DataType.BOOLEAN)
+  singleDelivery!: boolean;
+
   // ============================================
   // STATUS & PRIORITY
   // ============================================

@@ -1,6 +1,10 @@
 import express, { Request, Response } from "express";
-import { Op } from "sequelize";
+import { Op, fn, col, literal } from "sequelize";
 import { User } from "../models/sql/User.model.js";
+import { Contract } from "../models/sql/Contract.model.js";
+import { Job } from "../models/sql/Job.model.js";
+import { Review } from "../models/sql/Review.model.js";
+import { JOB_CATEGORIES } from "../../shared/constants/categories.js";
 
 const router = express.Router();
 
@@ -157,6 +161,110 @@ router.get("/u/:username", async (req: Request, res: Response): Promise<void> =>
       },
     });
   } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   GET /api/users/:id/completed-by-category
+// @desc    Get user's completed jobs grouped by category with average ratings
+// @access  Public
+router.get("/:id/completed-by-category", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.params.id;
+
+    // Verify user exists
+    const user = await User.findByPk(userId);
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: "Usuario no encontrado",
+      });
+      return;
+    }
+
+    // Get all completed contracts for this user as doer
+    const completedContracts = await Contract.findAll({
+      where: {
+        doerId: userId,
+        status: 'completed',
+      },
+      include: [
+        {
+          model: Job,
+          as: 'job',
+          attributes: ['id', 'category'],
+        },
+      ],
+    });
+
+    // Get reviews for the completed contracts
+    const contractIds = completedContracts.map(c => c.id);
+    const reviews = await Review.findAll({
+      where: {
+        contractId: { [Op.in]: contractIds },
+        toUserId: userId,
+      },
+      attributes: ['contractId', 'rating', 'workQualityRating'],
+    });
+
+    // Create a map of contract reviews
+    const reviewsByContract: Record<string, { rating: number; workQualityRating?: number }> = {};
+    reviews.forEach(review => {
+      reviewsByContract[review.contractId] = {
+        rating: review.rating,
+        workQualityRating: review.workQualityRating,
+      };
+    });
+
+    // Group by category and calculate stats
+    const categoryStats: Record<string, { count: number; totalRating: number; ratingCount: number }> = {};
+
+    completedContracts.forEach(contract => {
+      const category = (contract as any).job?.category || 'otros';
+
+      if (!categoryStats[category]) {
+        categoryStats[category] = { count: 0, totalRating: 0, ratingCount: 0 };
+      }
+
+      categoryStats[category].count++;
+
+      // Add rating if available
+      const review = reviewsByContract[contract.id];
+      if (review) {
+        const ratingToUse = review.workQualityRating || review.rating;
+        if (ratingToUse) {
+          categoryStats[category].totalRating += ratingToUse;
+          categoryStats[category].ratingCount++;
+        }
+      }
+    });
+
+    // Transform to array with category labels and average ratings
+    const categoriesWithStats = Object.entries(categoryStats)
+      .map(([categoryId, stats]) => {
+        const categoryInfo = JOB_CATEGORIES.find(c => c.id === categoryId);
+        return {
+          id: categoryId,
+          label: categoryInfo?.label || categoryId,
+          icon: categoryInfo?.icon || '📋',
+          count: stats.count,
+          averageRating: stats.ratingCount > 0
+            ? Math.round((stats.totalRating / stats.ratingCount) * 10) / 10
+            : null,
+        };
+      })
+      .sort((a, b) => b.count - a.count); // Sort by count descending
+
+    res.json({
+      success: true,
+      categories: categoriesWithStats,
+      totalCompleted: completedContracts.length,
+    });
+  } catch (error: any) {
+    console.error("Error fetching completed jobs by category:", error);
     res.status(500).json({
       success: false,
       message: error.message || "Error del servidor",

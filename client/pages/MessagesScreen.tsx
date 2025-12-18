@@ -107,43 +107,50 @@ export default function MessagesScreen() {
     fetchConversations();
   }, []);
 
+  // Handle conversation selection when ID param changes
   useEffect(() => {
-    if (conversationIdParam) {
+    if (conversationIdParam && conversations.length > 0) {
       const conv = conversations.find((c) => getId(c) === conversationIdParam);
       if (conv) {
         setActiveConversation(conv);
-        fetchMessages(conversationIdParam);
-        if (isConnected) {
-          joinConversation(conversationIdParam);
-          // Mark messages as read when opening conversation
-          markAsRead(conversationIdParam, "");
-        }
-        // Also update local unread count for this conversation
-        setConversations(prev => prev.map(c => {
-          if (getId(c) === conversationIdParam) {
-            const userId = user?.id || user?._id || "";
-            return {
-              ...c,
-              unreadCount: { ...c.unreadCount, [userId]: 0 }
-            };
-          }
-          return c;
-        }));
-      } else if (conversations.length === 0 && !loading) {
-        // If conversations not loaded yet but we have an ID, fetch messages directly
-        fetchMessages(conversationIdParam);
       }
-    } else {
+    } else if (!conversationIdParam) {
       setActiveConversation(null);
       setLocalMessages([]);
     }
+  }, [conversationIdParam, conversations]);
+
+  // Handle fetching messages and socket connection when conversation changes
+  useEffect(() => {
+    if (!conversationIdParam) return;
+
+    // Fetch messages for this conversation
+    fetchMessages(conversationIdParam);
+
+    // Join socket room and mark as read
+    if (isConnected) {
+      joinConversation(conversationIdParam);
+      markAsRead(conversationIdParam, "");
+    }
+
+    // Update local unread count (using functional update to avoid dependency)
+    const userId = user?.id || user?._id || "";
+    if (userId) {
+      setConversations(prev => prev.map(c => {
+        if (getId(c) === conversationIdParam && c.unreadCount?.[userId] > 0) {
+          return {
+            ...c,
+            unreadCount: { ...c.unreadCount, [userId]: 0 }
+          };
+        }
+        return c;
+      }));
+    }
 
     return () => {
-      if (conversationIdParam) {
-        leaveConversation(conversationIdParam);
-      }
+      leaveConversation(conversationIdParam);
     };
-  }, [conversationIdParam, conversations, isConnected, loading]);
+  }, [conversationIdParam, isConnected]);
 
   useEffect(() => {
     scrollToBottom();

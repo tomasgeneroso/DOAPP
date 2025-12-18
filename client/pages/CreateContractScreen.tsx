@@ -14,6 +14,8 @@ import {
   AlertTriangle,
   Info,
   Users,
+  CheckCircle,
+  ListTodo,
   Home,
   Hash,
   CreditCard,
@@ -67,6 +69,7 @@ export default function CreateContractScreen() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [maxWorkers, setMaxWorkers] = useState(1);
   const [endDateFlexible, setEndDateFlexible] = useState(false);
+  const [singleDelivery, setSingleDelivery] = useState(true);
   const [addressStreet, setAddressStreet] = useState("");
   const [addressNumber, setAddressNumber] = useState("");
   const [addressDetails, setAddressDetails] = useState("");
@@ -122,6 +125,7 @@ export default function CreateContractScreen() {
     }
     submitData.append("remoteOk", formDataFromForm.get("remoteOk") === "on" ? "true" : "false");
     submitData.append("maxWorkers", maxWorkers.toString());
+    submitData.append("singleDelivery", singleDelivery.toString());
 
     selectedFiles.forEach((file) => {
       submitData.append("images", file);
@@ -487,6 +491,62 @@ export default function CreateContractScreen() {
                 </FormField>
               </div>
             </div>
+
+            {/* Single Delivery Option */}
+            <FormField
+              label="Tipo de entrega"
+              icon={ListTodo}
+              description="Define cómo se entregarán las tareas del trabajo"
+            >
+              <div className="space-y-3">
+                <label className="flex items-start gap-3 p-4 rounded-lg border border-gray-300 dark:border-slate-600 hover:border-sky-500 dark:hover:border-sky-500 cursor-pointer transition-colors">
+                  <input
+                    type="radio"
+                    name="deliveryType"
+                    checked={singleDelivery}
+                    onChange={() => setSingleDelivery(true)}
+                    className="mt-1 w-4 h-4 text-sky-600 focus:ring-sky-500 dark:bg-slate-700"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                      <span className="font-medium text-gray-900 dark:text-white">Entrega única</span>
+                    </div>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
+                      Todo el trabajo se entrega al final, en la fecha de finalización estimada.
+                    </p>
+                  </div>
+                </label>
+
+                <label className="flex items-start gap-3 p-4 rounded-lg border border-gray-300 dark:border-slate-600 hover:border-sky-500 dark:hover:border-sky-500 cursor-pointer transition-colors">
+                  <input
+                    type="radio"
+                    name="deliveryType"
+                    checked={!singleDelivery}
+                    onChange={() => setSingleDelivery(false)}
+                    className="mt-1 w-4 h-4 text-sky-600 focus:ring-sky-500 dark:bg-slate-700"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <ListTodo className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                      <span className="font-medium text-gray-900 dark:text-white">Entregas por tarea</span>
+                    </div>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
+                      Cada tarea puede tener su propia fecha de entrega estimada como guía. La fecha final sigue siendo la importante.
+                    </p>
+                  </div>
+                </label>
+
+                {!singleDelivery && (
+                  <div className="p-3 rounded-lg bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800">
+                    <p className="text-sm text-sky-700 dark:text-sky-300">
+                      <Info className="inline h-4 w-4 mr-1" />
+                      Podrás agregar tareas con fechas de entrega individuales después de publicar el trabajo.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </FormField>
 
             <FormField
               label="Cantidad de trabajadores"

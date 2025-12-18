@@ -273,6 +273,22 @@ export class Dispute extends Model {
   emailSentToParties!: boolean;
 
   // ============================================
+  // RESPONSE TIME & ESCALATION
+  // ============================================
+
+  // Deadline for response based on priority
+  @Column(DataType.DATE)
+  responseDeadline?: Date;
+
+  // When the dispute was escalated due to no response
+  @Column(DataType.DATE)
+  escalatedAt?: Date;
+
+  // Reason for automatic priority assignment
+  @Column(DataType.STRING(255))
+  autoPriorityReason?: string;
+
+  // ============================================
   // AUDIT
   // ============================================
 
@@ -503,6 +519,96 @@ export class Dispute extends Model {
       this.importanceLevel === 'critical' ||
       this.isOverdue()
     );
+  }
+
+  /**
+   * Get response time in hours based on priority
+   */
+  static getResponseTimeHours(priority: DisputePriority): number {
+    const responseTimeMap: Record<DisputePriority, number> = {
+      'low': 168, // 7 days
+      'medium': 72, // 3 days
+      'high': 24, // 24 hours
+      'urgent': 4, // 4 hours
+    };
+    return responseTimeMap[priority] || 72;
+  }
+
+  /**
+   * Calculate response deadline based on priority
+   */
+  static calculateResponseDeadline(priority: DisputePriority, fromDate: Date = new Date()): Date {
+    const hours = Dispute.getResponseTimeHours(priority);
+    const deadline = new Date(fromDate);
+    deadline.setHours(deadline.getHours() + hours);
+    return deadline;
+  }
+
+  /**
+   * Check if response deadline has passed
+   */
+  isResponseOverdue(): boolean {
+    if (this.isResolved()) return false;
+    if (!this.responseDeadline) return false;
+    return new Date() > new Date(this.responseDeadline);
+  }
+
+  /**
+   * Get time remaining until response deadline (in hours)
+   */
+  getTimeRemainingHours(): number | null {
+    if (!this.responseDeadline) return null;
+    const now = new Date();
+    const deadline = new Date(this.responseDeadline);
+    const diffMs = deadline.getTime() - now.getTime();
+    return Math.max(0, Math.round(diffMs / (1000 * 60 * 60)));
+  }
+
+  /**
+   * Determine automatic priority based on contract value and category
+   */
+  static determineAutoPriority(
+    contractAmount: number,
+    category: DisputeCategory,
+    userIsPro: boolean = false
+  ): { priority: DisputePriority; reason: string } {
+    // Urgent: payment issues or very high value contracts
+    if (category === 'payment_issues') {
+      return { priority: 'urgent', reason: 'Problema de pago - requiere atención inmediata' };
+    }
+
+    if (contractAmount >= 100000) { // >= $100,000 ARS
+      return { priority: 'urgent', reason: `Contrato de alto valor: $${contractAmount.toLocaleString()} ARS` };
+    }
+
+    // High: PRO users, breach of contract, or high value
+    if (userIsPro) {
+      return { priority: 'high', reason: 'Usuario PRO - prioridad elevada' };
+    }
+
+    if (category === 'breach_of_contract') {
+      return { priority: 'high', reason: 'Incumplimiento de contrato' };
+    }
+
+    if (contractAmount >= 50000) { // >= $50,000 ARS
+      return { priority: 'high', reason: `Contrato de valor significativo: $${contractAmount.toLocaleString()} ARS` };
+    }
+
+    // Medium: service issues or moderate value
+    if (category === 'service_not_delivered' || category === 'incomplete_work') {
+      return { priority: 'medium', reason: 'Problema de entrega de servicio' };
+    }
+
+    if (contractAmount >= 20000) { // >= $20,000 ARS
+      return { priority: 'medium', reason: `Contrato de valor moderado: $${contractAmount.toLocaleString()} ARS` };
+    }
+
+    // Low: quality issues or low value
+    if (category === 'quality_issues' || category === 'other') {
+      return { priority: 'low', reason: 'Problema de calidad o general' };
+    }
+
+    return { priority: 'low', reason: 'Valor bajo del contrato' };
   }
 }
 

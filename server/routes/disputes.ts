@@ -113,24 +113,47 @@ router.post(
       const againstUserId =
         contract.clientId === userId ? contract.doerId : contract.clientId;
 
+      // Check if initiating user is PRO
+      const initiatingUser = await User.findByPk(userId);
+      const userIsPro = initiatingUser?.membershipTier === 'pro' || initiatingUser?.membershipTier === 'super_pro';
+
+      // Calculate automatic priority based on contract value and category
+      const disputeCategory = category || 'other';
+      const { priority: autoPriority, reason: autoPriorityReason } = Dispute.determineAutoPriority(
+        Number(contract.price),
+        disputeCategory,
+        userIsPro
+      );
+
+      // Calculate response deadline based on priority
+      const responseDeadline = Dispute.calculateResponseDeadline(autoPriority);
+
+      // Determine importance level based on priority
+      let importanceLevel: 'low' | 'medium' | 'high' | 'critical' = 'medium';
+      if (autoPriority === 'urgent') importanceLevel = 'critical';
+      else if (autoPriority === 'high') importanceLevel = 'high';
+      else if (autoPriority === 'low') importanceLevel = 'low';
+
       // Create dispute
       const dispute = await Dispute.create({
         contractId,
         paymentId: payment.id,
-        initiatedById: userId,
-        againstId: againstUserId,
+        initiatedBy: userId,
+        against: againstUserId,
         reason,
         detailedDescription: description,
-        category: category || 'other',
+        category: disputeCategory,
         evidence,
         status: 'open',
-        priority: 'medium',
-        importanceLevel: 'medium',
+        priority: autoPriority,
+        autoPriorityReason,
+        responseDeadline,
+        importanceLevel,
         logs: [{
           action: 'Disputa creada',
           performedBy: userId,
           timestamp: new Date(),
-          details: `Categoría: ${category || 'other'}${evidence.length > 0 ? `, ${evidence.length} archivo(s) adjunto(s)` : ''}`,
+          details: `Categoría: ${disputeCategory}. Prioridad automática: ${autoPriority} (${autoPriorityReason})${evidence.length > 0 ? `. ${evidence.length} archivo(s) adjunto(s)` : ''}`,
         }],
       });
 
@@ -144,7 +167,7 @@ router.post(
       payment.status = 'disputed';
       payment.disputeId = dispute.id;
       payment.disputedAt = new Date();
-      payment.disputedById = userId;
+      payment.disputedBy = userId;
       await payment.save();
 
       // Notify respondent
@@ -201,7 +224,7 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
     const { status, page = 1, limit = 20 } = req.query;
 
     const query: any = {
-      [Op.or]: [{ initiatedById: userId }, { againstId: userId }],
+      [Op.or]: [{ initiatedBy: userId }, { against: userId }],
     };
 
     if (status) {
@@ -295,8 +318,8 @@ router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
 
     // Verify user is a participant
     const isParticipant =
-      dispute.initiatedById === userId ||
-      dispute.againstId === userId;
+      dispute.initiatedBy === userId ||
+      dispute.against === userId;
 
     if (!isParticipant) {
       res.status(403).json({
@@ -353,8 +376,8 @@ router.post(
 
       // Verify user is a participant
       const isParticipant =
-        dispute.initiatedById === userId ||
-        dispute.againstId === userId;
+        dispute.initiatedBy === userId ||
+        dispute.against === userId;
 
       if (!isParticipant) {
         res.status(403).json({
@@ -424,8 +447,8 @@ router.post(
 
       // Verify user is a participant
       const isParticipant =
-        dispute.initiatedById === userId ||
-        dispute.againstId === userId;
+        dispute.initiatedBy === userId ||
+        dispute.against === userId;
 
       if (!isParticipant) {
         res.status(403).json({

@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useSocket } from "../hooks/useSocket";
-import { Briefcase, Calendar, DollarSign, User, Clock, ArrowUpDown, ArrowUp, ArrowDown, Wifi, WifiOff } from "lucide-react";
+import { Briefcase, Calendar, DollarSign, User, Clock, ArrowUpDown, ArrowUp, ArrowDown, Wifi, WifiOff, Flag } from "lucide-react";
 
 interface Contract {
   id: string;
@@ -33,6 +33,7 @@ type SortDirection = 'asc' | 'desc' | null;
 
 export default function ContractsScreen() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { isConnected, registerContractUpdateHandler, registerContractsRefreshHandler } = useSocket();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
@@ -332,27 +333,44 @@ export default function ContractsScreen() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-6 text-sm text-slate-600 dark:text-slate-400">
-                      <div className="flex items-center gap-2">
-                        <img
-                          src={otherParty.avatar}
-                          alt={otherParty.name}
-                          className="h-8 w-8 rounded-full object-cover"
-                        />
-                        <span>{otherParty.name}</span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-6 text-sm text-slate-600 dark:text-slate-400">
+                        <div className="flex items-center gap-2">
+                          <img
+                            src={otherParty.avatar}
+                            alt={otherParty.name}
+                            className="h-8 w-8 rounded-full object-cover"
+                          />
+                          <span>{otherParty.name}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-4 w-4" />
+                          <span>
+                            {new Date(contract.startDate).toLocaleDateString("es-AR")}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-4 w-4" />
+                          <span>
+                            Creado {new Date(contract.createdAt).toLocaleDateString("es-AR")}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
-                        <span>
-                          {new Date(contract.startDate).toLocaleDateString("es-AR")}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Clock className="h-4 w-4" />
-                        <span>
-                          Creado {new Date(contract.createdAt).toLocaleDateString("es-AR")}
-                        </span>
-                      </div>
+                      {/* Report button - only for active or completed contracts */}
+                      {['in_progress', 'completed', 'awaiting_confirmation'].includes(contract.status) && (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            navigate(`/disputes/new?contractId=${contract.id}`);
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 dark:bg-orange-900/20 dark:hover:bg-orange-900/30 dark:text-orange-400 rounded-lg transition-colors"
+                          title="Reportar un problema con este contrato"
+                        >
+                          <Flag className="h-3.5 w-3.5" />
+                          Reportar
+                        </button>
+                      )}
                     </div>
                   </Link>
                 );
