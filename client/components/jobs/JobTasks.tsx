@@ -456,7 +456,7 @@ export default function JobTasks({ jobId, isOwner, isWorker, jobStatus }: JobTas
               <CheckCircle2 className="h-12 w-12 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
               <p className="text-slate-500 dark:text-slate-400">
                 {isOwner
-                  ? "No hay tareas todavía. Agrega tareas para guiar al trabajador."
+                  ? "No hay tareas definidas. Opcionalmente, puedes agregar tareas para organizar el trabajo."
                   : "No hay tareas definidas para este trabajo."}
               </p>
             </div>
@@ -508,7 +508,7 @@ export default function JobTasks({ jobId, isOwner, isWorker, jobStatus }: JobTas
                   className="flex items-center justify-center gap-2 w-full rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 py-3 text-sm font-medium text-slate-500 dark:text-slate-400 hover:border-sky-500 hover:text-sky-600 dark:hover:border-sky-500 dark:hover:text-sky-400 transition-colors"
                 >
                   <Plus className="h-4 w-4" />
-                  Agregar tarea
+                  Agregar tarea (opcional)
                 </button>
               )}
             </div>

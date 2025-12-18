@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket";
@@ -9,16 +9,40 @@ import AdPlaceholder from "@/components/AdPlaceholder";
 import UserNameWithBadge from "@/components/user/UserNameWithBadge";
 import type { Job } from "@/types";
 
+// Polling interval for auto-refresh (30 seconds)
+const POLLING_INTERVAL = 30000;
+
 export const JobsScreen: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { registerJobsRefreshHandler, registerJobUpdateHandler } = useSocket();
+  const { registerJobsRefreshHandler, registerJobUpdateHandler, isConnected } = useSocket();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const { ads, recordImpression, recordClick } = useAdvertisements({
     placement: 'jobs_list',
   });
 
+  // Memoized fetch function
+  const fetchJobs = useCallback(async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch("/api/jobs", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      console.log('📥 Jobs fetched from API:', data.jobs?.length || 0, 'jobs');
+      setJobs(data.jobs || []);
+    } catch (error) {
+      console.error("Error fetching jobs:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Initial fetch and socket handlers registration
   useEffect(() => {
     fetchJobs();
 
@@ -32,36 +56,49 @@ export const JobsScreen: React.FC = () => {
       console.log("💼 Job update detected:", data);
       fetchJobs();
     });
-  }, []);
+  }, [fetchJobs, registerJobsRefreshHandler, registerJobUpdateHandler]);
 
-  // Debug: log ads and mixed content
+  // Polling fallback when socket is not connected
   useEffect(() => {
-    console.log('Advertisements loaded:', ads);
-    console.log('Jobs loaded:', jobs);
-    if (jobs.length > 0) {
-      const mixed = getMixedContent();
-      console.log('Mixed content:', mixed);
+    // Clear any existing polling
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
     }
-  }, [ads, jobs]);
 
-  const fetchJobs = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      // Fetch ALL jobs (including user's own jobs in any status)
-      const response = await fetch("/api/jobs", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const data = await response.json();
-      console.log('📥 Jobs fetched from API:', data.jobs);
-      setJobs(data.jobs || []);
-    } catch (error) {
-      console.error("Error:", error);
-    } finally {
-      setLoading(false);
+    // If socket is not connected, use polling as fallback
+    if (!isConnected) {
+      console.log("⏱️ Socket not connected, starting polling fallback...");
+      pollingRef.current = setInterval(() => {
+        console.log("⏱️ Polling for job updates...");
+        fetchJobs();
+      }, POLLING_INTERVAL);
+    } else {
+      console.log("✅ Socket connected, using real-time updates");
     }
-  };
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [isConnected, fetchJobs]);
+
+  // Refresh when window regains focus
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log("👁️ Tab became visible, refreshing jobs...");
+        fetchJobs();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [fetchJobs]);
 
   // Filtrar trabajos del usuario y otros trabajos
   // En Job model, el campo es "client" no "postedBy"
@@ -70,19 +107,7 @@ export const JobsScreen: React.FC = () => {
     // Support both PostgreSQL (id) and MongoDB (_id) for compatibility
     const clientId = typeof job.client === 'string' ? job.client : (job.client?.id || job.client?._id);
     const userId = user?.id || user?._id;
-    const isMyJob = clientId === userId;
-
-    console.log('🔍 Checking job:', {
-      jobId: job.id || job._id,
-      jobTitle: job.title,
-      jobStatus: job.status,
-      client: job.client,
-      clientId: clientId,
-      userId: userId,
-      isMyJob
-    });
-
-    return isMyJob;
+    return clientId === userId;
   });
 
   // Show only "open" status jobs to others (exclude drafts and pending payment)
@@ -92,14 +117,6 @@ export const JobsScreen: React.FC = () => {
     const isNotMyJob = clientId !== userId;
     const isOpen = job.status === 'open';
     return isNotMyJob && isOpen;
-  });
-
-  console.log('📊 Filter results:', {
-    totalJobs: jobs.length,
-    myJobs: myJobs.length,
-    myJobsDetails: myJobs.map(j => ({ title: j.title, status: j.status })),
-    otherJobs: otherJobs.length,
-    userId: user?._id
   });
 
   // Mix jobs and ads together (only for other jobs, not user's jobs)
@@ -312,8 +329,6 @@ export const JobsScreen: React.FC = () => {
         ) : (
           <div className="space-y-4">
             {getMixedContent().map((item, index) => {
-              console.log('Rendering item:', item.type, item.adType);
-
               if (item.type === 'ad') {
                 return (
                   <Advertisement
@@ -326,7 +341,6 @@ export const JobsScreen: React.FC = () => {
               }
 
               if (item.type === 'ad-placeholder') {
-                console.log('Rendering AdPlaceholder with type:', item.adType);
                 return <AdPlaceholder key={`ad-placeholder-${index}`} adType={item.adType as any} />;
               }
 

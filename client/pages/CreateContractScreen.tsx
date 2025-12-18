@@ -23,6 +23,7 @@ import {
 import { JOB_CATEGORIES, JOB_TAGS } from "../../shared/constants/categories";
 import { CustomDateInput } from "@/components/ui/CustomDatePicker";
 import LocationAutocomplete from "@/components/ui/LocationAutocomplete";
+import StreetAutocomplete from "@/components/ui/StreetAutocomplete";
 import FileUploadWithPreview from "@/components/ui/FileUploadWithPreview";
 
 interface FormFieldProps {
@@ -406,12 +407,11 @@ export default function CreateContractScreen() {
             <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
               <div className="sm:col-span-3">
                 <FormField label="Calle" icon={Home}>
-                  <input
-                    type="text"
+                  <StreetAutocomplete
                     value={addressStreet}
-                    onChange={(e) => setAddressStreet(e.target.value)}
+                    onChange={setAddressStreet}
+                    location={location}
                     placeholder="Ej: Av. Santa Fe"
-                    className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
                   />
                 </FormField>
               </div>

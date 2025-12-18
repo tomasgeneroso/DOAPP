@@ -128,12 +128,12 @@ export default function LocationCircleMap({ location }: LocationCircleMapProps) 
         maxZoom: 19
       }).addTo(map);
 
-      // Dibujar círculo de 2km
+      // Dibujar círculo de 1km
       const circle = L.circle([lat, lng], {
         color: '#0ea5e9',
         fillColor: '#0ea5e9',
         fillOpacity: 0.2,
-        radius: 2000 // 2km en metros
+        radius: 1000 // 1km en metros
       }).addTo(map);
 
       // Ajustar vista al círculo
@@ -187,7 +187,7 @@ export default function LocationCircleMap({ location }: LocationCircleMapProps) 
         )}
       </div>
       <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-        El círculo muestra un área aproximada de 2km de radio alrededor de {location}
+        El círculo muestra un área aproximada de 1km de radio alrededor de {location}
       </p>
       {geocodedAddress && (
         <p className="mt-1 text-xs text-sky-600 dark:text-sky-400">
