@@ -122,7 +122,7 @@ export default function MessagesScreen() {
 
   // Handle fetching messages and socket connection when conversation changes
   useEffect(() => {
-    if (!conversationIdParam) return;
+    if (!conversationIdParam || conversationIdParam.trim() === '') return;
 
     // Fetch messages for this conversation
     fetchMessages(conversationIdParam);
@@ -175,7 +175,7 @@ export default function MessagesScreen() {
   };
 
   const fetchMessages = async (convId: string) => {
-    if (!token) return;
+    if (!token || !convId || convId.trim() === '') return;
 
     setLoadingMessages(true);
     try {

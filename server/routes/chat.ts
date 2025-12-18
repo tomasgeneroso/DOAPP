@@ -169,6 +169,15 @@ router.get("/conversations/:id", protect, async (req: AuthRequest, res: Response
     const { id } = req.params;
     const userId = req.user.id;
 
+    // Validate UUID
+    if (!id || id.trim() === '') {
+      res.status(400).json({
+        success: false,
+        message: "ID de conversación inválido",
+      });
+      return;
+    }
+
     const conversation = await Conversation.findByPk(id, {
       include: [
         {
@@ -428,6 +437,15 @@ router.get("/conversations/:id/messages", protect, async (req: AuthRequest, res:
     const { id } = req.params;
     const userId = req.user.id;
     const { page = 1, limit = 50, before } = req.query;
+
+    // Validate UUID
+    if (!id || id.trim() === '') {
+      res.status(400).json({
+        success: false,
+        message: "ID de conversación inválido",
+      });
+      return;
+    }
 
     // Verify user is participant
     const conversation = await Conversation.findByPk(id);

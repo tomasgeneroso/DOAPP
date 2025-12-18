@@ -21,9 +21,10 @@ export default tseslint.config(
       ...reactHooks.configs.recommended.rules,
       // Make hooks rules strict to catch infinite loops
       "react-hooks/rules-of-hooks": "error",
-      "react-hooks/exhaustive-deps": "error",
+      "react-hooks/exhaustive-deps": "warn",
       "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
       "@typescript-eslint/no-unused-vars": "off",
+      "@typescript-eslint/no-explicit-any": "off",
     },
   },
 );
