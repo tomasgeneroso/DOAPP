@@ -2,10 +2,12 @@ import express, { Request, Response } from "express";
 import { Contract } from "../../models/sql/Contract.model.js";
 import { User } from "../../models/sql/User.model.js";
 import { Job } from "../../models/sql/Job.model.js";
+import { Notification } from "../../models/sql/Notification.model.js";
 import { protect } from "../../middleware/auth.js";
 import { requirePermission, requireRole } from "../../middleware/permissions.js";
 import { verifyOwnerPassword } from "../../middleware/ownerVerification.js";
 import { logAudit, getSeverityForAction, detectChanges } from "../../utils/auditLog.js";
+import emailService from "../../services/email.js";
 import type { AuthRequest } from "../../types/index.js";
 import { Op } from "sequelize";
 
@@ -296,6 +298,257 @@ router.put(
         data: oldContract,
       });
     } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor",
+      });
+    }
+  }
+);
+
+// @route   POST /api/admin/contracts/:id/approve
+// @desc    Aprobar contrato - cambia estado a "ready" (listo para aceptación de las partes)
+// @access  Admin+
+router.post(
+  "/:id/approve",
+  requirePermission("contracts:update"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { adminNotes } = req.body;
+
+      const contract = await Contract.findByPk(req.params.id, {
+        include: [
+          { model: User, as: 'client', attributes: ['id', 'name', 'email'] },
+          { model: User, as: 'doer', attributes: ['id', 'name', 'email'] },
+          { model: Job, as: 'job', attributes: ['id', 'title'] }
+        ]
+      });
+
+      if (!contract) {
+        res.status(404).json({
+          success: false,
+          message: "Contrato no encontrado",
+        });
+        return;
+      }
+
+      // Solo se puede aprobar contratos en estado pending o in_review
+      if (!['pending', 'in_review'].includes(contract.status)) {
+        res.status(400).json({
+          success: false,
+          message: `No se puede aprobar un contrato con estado "${contract.status}". Solo contratos pendientes o en revisión.`,
+        });
+        return;
+      }
+
+      const previousStatus = contract.status;
+
+      // Cambiar estado a "ready" - listo para que las partes acepten
+      await contract.update({
+        status: 'ready',
+        notes: adminNotes ? `${contract.notes || ''}\n[Admin] ${adminNotes}`.trim() : contract.notes,
+      });
+
+      const client = contract.client as any;
+      const doer = contract.doer as any;
+      const job = contract.job as any;
+      const jobTitle = job?.title || 'Contrato';
+
+      // Notificar al cliente
+      await Notification.create({
+        recipientId: contract.clientId,
+        type: 'success',
+        category: 'contract',
+        title: 'Contrato aprobado',
+        message: `El contrato para "${jobTitle}" ha sido aprobado y está listo para tu aceptación.`,
+        relatedModel: 'Contract',
+        relatedId: contract.id,
+        actionText: 'Ver contrato',
+        data: { contractId: contract.id, jobId: job?.id },
+        read: false,
+      });
+
+      // Notificar al trabajador
+      await Notification.create({
+        recipientId: contract.doerId,
+        type: 'success',
+        category: 'contract',
+        title: 'Contrato aprobado',
+        message: `El contrato para "${jobTitle}" ha sido aprobado y está listo para tu aceptación.`,
+        relatedModel: 'Contract',
+        relatedId: contract.id,
+        actionText: 'Ver contrato',
+        data: { contractId: contract.id, jobId: job?.id },
+        read: false,
+      });
+
+      // Enviar emails
+      if (client?.email) {
+        await emailService.sendEmail({
+          to: client.email,
+          subject: `Contrato aprobado - ${jobTitle}`,
+          html: `
+            <h2>¡Tu contrato ha sido aprobado!</h2>
+            <p>El contrato para <strong>"${jobTitle}"</strong> ha sido revisado y aprobado por nuestro equipo.</p>
+            <p>Ahora está listo para que ambas partes lo acepten y puedan comenzar a trabajar.</p>
+            <p>
+              <a href="${process.env.CLIENT_URL}/contracts/${contract.id}"
+                 style="display: inline-block; padding: 12px 24px; background-color: #22c55e; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">
+                Ver contrato
+              </a>
+            </p>
+          `,
+        });
+      }
+
+      if (doer?.email) {
+        await emailService.sendEmail({
+          to: doer.email,
+          subject: `Contrato aprobado - ${jobTitle}`,
+          html: `
+            <h2>¡El contrato ha sido aprobado!</h2>
+            <p>El contrato para <strong>"${jobTitle}"</strong> ha sido revisado y aprobado.</p>
+            <p>Ahora está listo para que ambas partes lo acepten y puedan comenzar a trabajar.</p>
+            <p>
+              <a href="${process.env.CLIENT_URL}/contracts/${contract.id}"
+                 style="display: inline-block; padding: 12px 24px; background-color: #22c55e; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">
+                Ver contrato
+              </a>
+            </p>
+          `,
+        });
+      }
+
+      await logAudit({
+        req,
+        action: "approve_contract",
+        category: "contract",
+        severity: "medium",
+        description: `Admin ${req.user.name} aprobó contrato ${contract.id}. Estado: ${previousStatus} → ready`,
+        targetModel: "Contract",
+        targetId: contract.id.toString(),
+        metadata: { previousStatus, newStatus: 'ready', adminNotes },
+      });
+
+      res.json({
+        success: true,
+        message: "Contrato aprobado correctamente. Las partes han sido notificadas.",
+        data: contract,
+      });
+    } catch (error: any) {
+      console.error("Error approving contract:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor",
+      });
+    }
+  }
+);
+
+// @route   POST /api/admin/contracts/:id/reject
+// @desc    Rechazar contrato en revisión
+// @access  Admin+
+router.post(
+  "/:id/reject",
+  requirePermission("contracts:update"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { reason } = req.body;
+
+      if (!reason) {
+        res.status(400).json({
+          success: false,
+          message: "Debe proporcionar una razón para el rechazo",
+        });
+        return;
+      }
+
+      const contract = await Contract.findByPk(req.params.id, {
+        include: [
+          { model: User, as: 'client', attributes: ['id', 'name', 'email'] },
+          { model: User, as: 'doer', attributes: ['id', 'name', 'email'] },
+          { model: Job, as: 'job', attributes: ['id', 'title'] }
+        ]
+      });
+
+      if (!contract) {
+        res.status(404).json({
+          success: false,
+          message: "Contrato no encontrado",
+        });
+        return;
+      }
+
+      if (!['pending', 'in_review'].includes(contract.status)) {
+        res.status(400).json({
+          success: false,
+          message: `No se puede rechazar un contrato con estado "${contract.status}".`,
+        });
+        return;
+      }
+
+      const previousStatus = contract.status;
+
+      await contract.update({
+        status: 'rejected',
+        cancellationReason: reason,
+        cancelledBy: req.user.id,
+      });
+
+      const client = contract.client as any;
+      const doer = contract.doer as any;
+      const job = contract.job as any;
+      const jobTitle = job?.title || 'Contrato';
+
+      // Notificar a ambas partes
+      for (const user of [client, doer]) {
+        if (user) {
+          await Notification.create({
+            recipientId: user.id,
+            type: 'error',
+            category: 'contract',
+            title: 'Contrato rechazado',
+            message: `El contrato para "${jobTitle}" ha sido rechazado. Razón: ${reason}`,
+            relatedModel: 'Contract',
+            relatedId: contract.id,
+            actionText: 'Ver detalles',
+            data: { contractId: contract.id, reason },
+            read: false,
+          });
+
+          if (user.email) {
+            await emailService.sendEmail({
+              to: user.email,
+              subject: `Contrato rechazado - ${jobTitle}`,
+              html: `
+                <h2>El contrato ha sido rechazado</h2>
+                <p>El contrato para <strong>"${jobTitle}"</strong> ha sido rechazado por nuestro equipo.</p>
+                <p><strong>Razón:</strong> ${reason}</p>
+                <p>Por favor, revisa los detalles y considera crear un nuevo contrato que cumpla con nuestras políticas.</p>
+              `,
+            });
+          }
+        }
+      }
+
+      await logAudit({
+        req,
+        action: "reject_contract",
+        category: "contract",
+        severity: "medium",
+        description: `Admin ${req.user.name} rechazó contrato ${contract.id}. Razón: ${reason}`,
+        targetModel: "Contract",
+        targetId: contract.id.toString(),
+        metadata: { previousStatus, reason },
+      });
+
+      res.json({
+        success: true,
+        message: "Contrato rechazado. Las partes han sido notificadas.",
+        data: contract,
+      });
+    } catch (error: any) {
+      console.error("Error rejecting contract:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Error del servidor",

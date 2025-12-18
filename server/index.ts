@@ -26,6 +26,7 @@ import { startAutoSelectWorkerJob } from "./jobs/autoSelectWorker.js";
 import { startAutoCancelExpiredJobsJob } from "./jobs/autoCancelExpiredJobs.js";
 import { startJobReminderJob } from "./jobs/jobReminders.js";
 import { startSuspendFlexibleEndDateJob } from "./jobs/suspendFlexibleEndDateJobs.js";
+import { startResetReferralDiscountsJob } from "./jobs/resetReferralDiscounts.js";
 
 // Rutas
 import authRoutes from "./routes/auth.js";
@@ -128,6 +129,9 @@ import userAnalyticsRoutes from "./routes/userAnalytics.js";
 // Performance monitoring
 import adminPerformanceRoutes from "./routes/admin/performance.js";
 import { performanceMiddleware } from "./services/performanceMonitor.js";
+
+// Pending payments report
+import adminPendingPaymentsRoutes from "./routes/admin/pendingPayments.js";
 
 // ESM __dirname equivalent
 const __filename = fileURLToPath(import.meta.url);
@@ -251,6 +255,7 @@ app.use("/api/admin/company-balance", companyBalanceRoutes);
 app.use("/api/admin/marketing", marketingRoutes);
 app.use("/api/admin/family-codes", familyCodesRoutes);
 app.use("/api/admin/performance", adminPerformanceRoutes);
+app.use("/api/admin/pending-payments", adminPendingPaymentsRoutes);
 
 // Analytics Routes
 app.use("/api/analytics/disputes", analyticsDisputesRoutes);
@@ -337,6 +342,9 @@ startJobReminderJob();
 
 // Initialize suspend jobs with flexible end date (24h before start without end date)
 startSuspendFlexibleEndDateJob();
+
+// Initialize reset referral discounts (daily at midnight)
+startResetReferralDiscountsJob();
 
 // Manejo de errores del servidor
 httpServer.on('error', (error: NodeJS.ErrnoException) => {

@@ -133,7 +133,7 @@ class ReferralService {
         rewardType = 'one_free';
         freeContractsToAdd = 1;
       } else if (completedReferrals === 3) {
-        // Tercer referido: comisión reducida permanente
+        // Tercer referido: comisión reducida por 1 MES (no permanente)
         rewardType = 'reduced_commission';
         newCommissionRate = 3;
       }
@@ -142,6 +142,15 @@ class ReferralService {
         referrer.freeContractsRemaining += freeContractsToAdd;
         referrer.currentCommissionRate = newCommissionRate;
         referrer.referralBenefitsUsed = completedReferrals;
+
+        // Si es el tercer referido, establecer fecha de expiración del descuento (1 mes)
+        if (completedReferrals === 3) {
+          const expirationDate = new Date();
+          expirationDate.setMonth(expirationDate.getMonth() + 1);
+          referrer.hasReferralDiscount = true;
+          referrer.referralDiscountExpiresAt = expirationDate;
+        }
+
         await referrer.save();
 
         // Actualizar el registro de referido

@@ -456,11 +456,16 @@ router.post(
 );
 
 // @route   PUT /api/contracts/:id/accept
-// @desc    Aceptar contrato (por el doer)
+// @desc    Aceptar contrato (por el cliente o doer)
+// @desc    Flujo: pending → admin aprueba → ready → ambas partes aceptan → accepted
 // @access  Private
 router.put("/:id/accept", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const contract = await Contract.findByPk(req.params.id);
+    const contract = await Contract.findByPk(req.params.id, {
+      include: [
+        { model: Job, as: 'job', attributes: ['id', 'title'] }
+      ]
+    });
 
     if (!contract) {
       res.status(404).json({
@@ -470,56 +475,117 @@ router.put("/:id/accept", protect, async (req: AuthRequest, res: Response): Prom
       return;
     }
 
-    // Verificar que el usuario sea el doer
-    if (contract.doerId.toString() !== req.user.id.toString()) {
+    const isClient = contract.clientId.toString() === req.user.id.toString();
+    const isDoer = contract.doerId.toString() === req.user.id.toString();
+
+    // Verificar que el usuario sea parte del contrato
+    if (!isClient && !isDoer) {
       res.status(403).json({
         success: false,
-        message: "Solo el doer puede aceptar este contrato",
+        message: "No tienes permiso para aceptar este contrato",
       });
       return;
     }
 
-    if (contract.status !== "pending") {
+    // Solo se pueden aceptar contratos en estado "pending" o "ready"
+    if (!["pending", "ready"].includes(contract.status)) {
       res.status(400).json({
         success: false,
-        message: "Este contrato no puede ser aceptado",
+        message: "Este contrato no puede ser aceptado en su estado actual",
       });
       return;
     }
 
-    contract.status = "accepted";
-    contract.termsAcceptedByDoer = true;
-    contract.paymentStatus = "held";
+    // Actualizar la aceptación según quién sea
+    if (isClient) {
+      if (contract.termsAcceptedByClient) {
+        res.status(400).json({
+          success: false,
+          message: "Ya has aceptado este contrato",
+        });
+        return;
+      }
+      contract.termsAcceptedByClient = true;
+    } else if (isDoer) {
+      if (contract.termsAcceptedByDoer) {
+        res.status(400).json({
+          success: false,
+          message: "Ya has aceptado este contrato",
+        });
+        return;
+      }
+      contract.termsAcceptedByDoer = true;
+    }
+
+    // Si ambas partes han aceptado, cambiar a "accepted"
+    const bothAccepted = contract.termsAcceptedByClient && contract.termsAcceptedByDoer;
+
+    if (bothAccepted) {
+      contract.status = "accepted";
+      contract.termsAccepted = true;
+      contract.termsAcceptedAt = new Date();
+      contract.paymentStatus = "held";
+    }
+
     await contract.save();
 
     // Send email notification
     const emailService = (await import('../services/email.js')).default;
-    const job = await Job.findByPk(contract.jobId);
-    await emailService.sendContractAcceptedEmail(
-      contract.clientId.toString(),
-      req.user.id.toString(),
-      contract.id.toString(),
-      job?.title || 'Contrato'
-    );
+    const job = contract.job as any;
+    const jobTitle = job?.title || 'Contrato';
+
+    if (bothAccepted) {
+      // Notificar que el contrato fue aceptado por ambas partes
+      await emailService.sendContractAcceptedEmail(
+        contract.clientId.toString(),
+        contract.doerId.toString(),
+        contract.id.toString(),
+        jobTitle
+      );
+    } else {
+      // Notificar a la otra parte que debe aceptar
+      const otherPartyId = isClient ? contract.doerId : contract.clientId;
+      const acceptedByRole = isClient ? 'cliente' : 'trabajador';
+
+      // Crear notificación para la otra parte
+      const { Notification } = await import('../models/sql/Notification.model.js');
+      await Notification.create({
+        recipientId: otherPartyId,
+        type: 'info',
+        category: 'contract',
+        title: 'Contrato pendiente de aceptación',
+        message: `El ${acceptedByRole} ha aceptado el contrato para "${jobTitle}". Ahora es tu turno de aceptarlo.`,
+        relatedModel: 'Contract',
+        relatedId: contract.id,
+        actionText: 'Ver contrato',
+        data: { contractId: contract.id },
+        read: false,
+      });
+    }
 
     // Send real-time notifications via Socket.io
     socketService.notifyContractUpdate(
       contract.id.toString(),
       contract.clientId.toString(),
-      req.user.id.toString(),
+      contract.doerId.toString(),
       {
-        action: 'accepted',
+        action: bothAccepted ? 'accepted' : 'partial_acceptance',
+        acceptedBy: isClient ? 'client' : 'doer',
         contract
       }
     );
 
     // Notify dashboard refresh
     socketService.notifyDashboardRefresh(contract.clientId.toString());
-    socketService.notifyDashboardRefresh(req.user.id.toString());
+    socketService.notifyDashboardRefresh(contract.doerId.toString());
 
     res.json({
       success: true,
+      message: bothAccepted
+        ? "Contrato aceptado por ambas partes"
+        : `Has aceptado el contrato. Esperando aceptación de la otra parte.`,
       contract,
+      bothAccepted,
     });
   } catch (error: any) {
     res.status(500).json({
@@ -729,14 +795,25 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
       const Payment = (await import('../models/sql/Payment.model.js')).default;
       const payment = await Payment.findOne({ where: { contractId: id } });
 
+      // Determinar el monto a pagar al trabajador
+      // Para trabajos multi-trabajador, usar el allocatedAmount del contrato
+      // Para trabajos de un solo trabajador, usar el precio del contrato
+      const paymentAmount = contract.allocatedAmount
+        ? parseFloat(contract.allocatedAmount.toString())
+        : contract.price;
+
       if (payment) {
         payment.status = 'completed';
         payment.escrowReleasedAt = new Date();
         payment.payerConfirmed = contract.clientConfirmed;
         payment.recipientConfirmed = contract.doerConfirmed;
+        // Guardar el monto real que se paga a este trabajador
+        payment.workerPaymentAmount = paymentAmount;
         await payment.save();
 
         // TODO: Transferir fondos al destinatario usando MercadoPago
+        // Para multi-trabajador: payment.workerPaymentAmount es el monto a transferir
+        console.log(`💰 Liberando pago de $${paymentAmount.toLocaleString()} ARS al trabajador ${contract.doerId}`);
       }
 
       // Send completion email
@@ -747,9 +824,35 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
         contract.doerId.toString(),
         contract.id.toString(),
         job?.title || 'Contrato',
-        payment?.amountARS || contract.price,
+        paymentAmount,
         'ARS'
       );
+
+      // Si es un trabajo multi-trabajador, crear registro de pago pendiente
+      if (job && (job.maxWorkers || 1) > 1) {
+        const BalanceTransaction = (await import('../models/sql/BalanceTransaction.model.js')).default;
+
+        // Registrar el pago pendiente al trabajador
+        await BalanceTransaction.create({
+          userId: contract.doerId,
+          type: 'payment',
+          amount: paymentAmount,
+          description: `Pago por contrato #${contract.id} - ${job.title}`,
+          status: 'pending', // Pendiente de transferencia real
+          relatedModel: 'Contract',
+          relatedId: contract.id,
+          metadata: {
+            jobId: job.id,
+            contractId: contract.id,
+            jobTitle: job.title,
+            isMultiWorker: true,
+            totalWorkers: job.maxWorkers,
+            percentageOfBudget: contract.percentageOfBudget || (paymentAmount / job.price * 100),
+          },
+        });
+
+        console.log(`📝 Registrado pago pendiente de $${paymentAmount.toLocaleString()} ARS para trabajador ${contract.doerId} (trabajo multi-trabajador)`);
+      }
     } else {
       contract.status = 'awaiting_confirmation';
 
@@ -1043,7 +1146,10 @@ router.post("/:id/cancel", protect, async (req: AuthRequest, res: Response): Pro
 });
 
 /**
- * Request contract extension (unlimited extensions allowed)
+ * Request contract extension
+ * - Maximum 1 extension per contract
+ * - Must be requested at least 24h before job start date
+ * - Requires approval from the worker (doer)
  * POST /api/contracts/:id/request-extension
  */
 router.post("/:id/request-extension", protect, async (req: AuthRequest, res: Response): Promise<void> => {
@@ -1057,7 +1163,9 @@ router.post("/:id/request-extension", protect, async (req: AuthRequest, res: Res
       return;
     }
 
-    const contract = await Contract.findByPk(id);
+    const contract = await Contract.findByPk(id, {
+      include: [{ model: Job, as: 'job' }]
+    });
     if (!contract) {
       res.status(404).json({ success: false, message: "Contrato no encontrado" });
       return;
@@ -1072,11 +1180,45 @@ router.post("/:id/request-extension", protect, async (req: AuthRequest, res: Res
       return;
     }
 
+    // *** NUEVA RESTRICCIÓN: Máximo 1 extensión por contrato ***
+    if (contract.hasBeenExtended || (contract.extensionCount || 0) >= 1) {
+      res.status(400).json({
+        success: false,
+        message: "Este contrato ya ha sido extendido una vez. Solo se permite una extensión por contrato. Si necesitas más tiempo, deberás crear un nuevo contrato."
+      });
+      return;
+    }
+
+    // *** NUEVA RESTRICCIÓN: Solo el cliente puede solicitar extensión ***
+    if (!isClient) {
+      res.status(403).json({
+        success: false,
+        message: "Solo el dueño del trabajo puede solicitar una extensión de fecha."
+      });
+      return;
+    }
+
+    // *** NUEVA RESTRICCIÓN: Verificar que estemos al menos 24h antes del inicio del trabajo ***
+    const job = contract.job as Job;
+    if (job && job.startDate) {
+      const now = new Date();
+      const jobStartDate = new Date(job.startDate);
+      const twentyFourHoursBeforeStart = new Date(jobStartDate.getTime() - 24 * 60 * 60 * 1000);
+
+      if (now > twentyFourHoursBeforeStart) {
+        res.status(400).json({
+          success: false,
+          message: "No puedes solicitar una extensión con menos de 24 horas antes del inicio del trabajo. La solicitud debe realizarse antes de ese plazo."
+        });
+        return;
+      }
+    }
+
     // Verificar que no haya una solicitud de extensión pendiente
     if (contract.extensionRequestedBy && !contract.extensionApprovedBy) {
       res.status(400).json({
         success: false,
-        message: "Ya hay una solicitud de extensión pendiente. Espera a que sea aprobada o rechazada."
+        message: "Ya hay una solicitud de extensión pendiente. Espera a que el trabajador la apruebe o rechace."
       });
       return;
     }
@@ -1107,8 +1249,28 @@ router.post("/:id/request-extension", protect, async (req: AuthRequest, res: Res
 
     await contract.save();
 
-    // Notificar a la otra parte
-    const otherPartyId = isClient ? contract.doerId.toString() : contract.clientId.toString();
+    // *** NOTIFICACIÓN MEJORADA: Crear notificación persistente para el trabajador ***
+    await Notification.create({
+      recipientId: contract.doerId,
+      type: 'warning',
+      category: 'contract',
+      title: 'Solicitud de extensión de contrato',
+      message: `El cliente ha solicitado extender el contrato por ${extensionDays} día${extensionDays > 1 ? 's' : ''}${extensionAmount ? ` con un monto adicional de $${extensionAmount.toLocaleString()} ARS` : ''}. Por favor revisa y aprueba o rechaza la solicitud.`,
+      relatedModel: 'Contract',
+      relatedId: contract.id,
+      actionText: 'Ver contrato',
+      data: {
+        contractId: contract.id,
+        jobId: contract.jobId,
+        extensionDays,
+        extensionAmount: extensionAmount || 0,
+        extensionNotes,
+        action: 'extension_requested'
+      },
+      read: false,
+    });
+
+    // Notificar en tiempo real a la otra parte
     socketService.notifyContractUpdate(
       contract.id.toString(),
       contract.clientId.toString(),
@@ -1120,12 +1282,11 @@ router.post("/:id/request-extension", protect, async (req: AuthRequest, res: Res
       }
     );
 
-    const extensionNumber = (contract.extensionCount || 0) + 1;
     res.json({
       success: true,
-      message: `Solicitud de extensión #${extensionNumber} enviada. Esperando aprobación de la otra parte.`,
+      message: `Solicitud de extensión enviada. El trabajador debe aprobar la extensión para que sea efectiva.`,
       contract,
-      extensionNumber,
+      extensionNumber: 1, // Always 1 since we only allow one extension
     });
   } catch (error: any) {
     console.error('Error requesting extension:', error);
@@ -1211,7 +1372,27 @@ router.post("/:id/approve-extension", protect, async (req: AuthRequest, res: Res
 
     await contract.save();
 
-    // Notificar a ambas partes
+    // *** Crear notificación persistente para el cliente (quien solicitó) ***
+    await Notification.create({
+      recipientId: contract.clientId,
+      type: 'success',
+      category: 'contract',
+      title: 'Extensión de contrato aprobada',
+      message: `El trabajador ha aprobado la extensión de ${contract.extensionDays} día${(contract.extensionDays || 0) > 1 ? 's' : ''}. Nueva fecha de fin: ${newEndDate.toLocaleDateString('es-AR')}.`,
+      relatedModel: 'Contract',
+      relatedId: contract.id,
+      actionText: 'Ver contrato',
+      data: {
+        contractId: contract.id,
+        jobId: contract.jobId,
+        extensionDays: contract.extensionDays,
+        newEndDate: newEndDate.toISOString(),
+        action: 'extension_approved'
+      },
+      read: false,
+    });
+
+    // Notificar a ambas partes en tiempo real
     socketService.notifyContractUpdate(
       contract.id.toString(),
       contract.clientId.toString(),
@@ -1229,7 +1410,7 @@ router.post("/:id/approve-extension", protect, async (req: AuthRequest, res: Res
 
     res.json({
       success: true,
-      message: `Extensión #${contract.extensionCount} aprobada. El contrato se extendió ${contract.extensionDays} días${contract.extensionAmount ? ` con un monto adicional de $${contract.extensionAmount.toLocaleString()} ARS` : ''}. Nueva fecha de fin: ${newEndDate.toLocaleDateString('es-AR')}.`,
+      message: `Extensión aprobada. El contrato se extendió ${contract.extensionDays} días${contract.extensionAmount ? ` con un monto adicional de $${contract.extensionAmount.toLocaleString()} ARS` : ''}. Nueva fecha de fin: ${newEndDate.toLocaleDateString('es-AR')}.`,
       contract,
       extensionNumber: contract.extensionCount,
     });
@@ -1278,6 +1459,9 @@ router.post("/:id/reject-extension", protect, async (req: AuthRequest, res: Resp
       return;
     }
 
+    // Guardar datos de extensión para la notificación antes de limpiar
+    const extensionDaysRequested = contract.extensionDays;
+
     // Limpiar la solicitud de extensión
     contract.extensionRequestedBy = undefined;
     contract.extensionRequestedAt = undefined;
@@ -1287,7 +1471,26 @@ router.post("/:id/reject-extension", protect, async (req: AuthRequest, res: Resp
 
     await contract.save();
 
-    // Notificar a ambas partes
+    // *** Crear notificación persistente para el cliente (quien solicitó) ***
+    await Notification.create({
+      recipientId: contract.clientId,
+      type: 'warning',
+      category: 'contract',
+      title: 'Extensión de contrato rechazada',
+      message: `El trabajador ha rechazado la solicitud de extensión de ${extensionDaysRequested} día${(extensionDaysRequested || 0) > 1 ? 's' : ''}.${reason ? ` Razón: ${reason}` : ''} La fecha de fin del contrato se mantiene sin cambios.`,
+      relatedModel: 'Contract',
+      relatedId: contract.id,
+      actionText: 'Ver contrato',
+      data: {
+        contractId: contract.id,
+        jobId: contract.jobId,
+        reason: reason || 'Sin razón especificada',
+        action: 'extension_rejected'
+      },
+      read: false,
+    });
+
+    // Notificar a ambas partes en tiempo real
     socketService.notifyContractUpdate(
       contract.id.toString(),
       contract.clientId.toString(),
@@ -1301,7 +1504,7 @@ router.post("/:id/reject-extension", protect, async (req: AuthRequest, res: Resp
 
     res.json({
       success: true,
-      message: "Solicitud de extensión rechazada",
+      message: "Solicitud de extensión rechazada. La fecha de fin se mantiene sin cambios.",
       contract,
     });
   } catch (error: any) {

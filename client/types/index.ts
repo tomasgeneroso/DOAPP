@@ -58,6 +58,18 @@ export interface Job {
   pendingPaymentAmount?: number;
   priceChangeReason?: string;
   publicationAmount?: number;
+  // Pending price decrease (requires worker approval)
+  pendingPriceDecrease?: number;
+  pendingPriceDecreaseReason?: string;
+  pendingPriceDecreaseAt?: string;
+  priceDecreaseAcceptances?: Array<{
+    workerId: string;
+    acceptedAt: string;
+  }>;
+  priceDecreaseRejections?: Array<{
+    workerId: string;
+    rejectedAt: string;
+  }>;
   // doerId for compatibility
   doerId?: string;
 }

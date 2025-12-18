@@ -113,8 +113,9 @@ export default function JobDetail() {
   const handleJobUpdate = useCallback((data: any) => {
     if (data.jobId === id || data.job?.id === id) {
       console.log("📝 Job updated:", data);
-      if (data.job) {
-        setJob(data.job);
+      if (data.job && typeof data.job === 'object') {
+        // Merge with existing job to preserve all fields
+        setJob(prev => prev ? { ...prev, ...data.job } : data.job);
       }
     }
   }, [id]);

@@ -11,7 +11,9 @@ process.env.PORT = '5001';
 process.env.CLIENT_URL = 'http://localhost:5173';
 
 // Increase timeout for database operations
-jest.setTimeout(30000);
+if (typeof jest !== 'undefined') {
+  jest.setTimeout(30000);
+}
 
 // Global error handler for unhandled promises
 process.on('unhandledRejection', (reason, promise) => {

@@ -31,6 +31,7 @@ import { Job } from './Job.model.js';
 
 export type ContractStatus =
   | 'pending'
+  | 'ready'           // Listo - aprobado por admin, esperando aceptación de ambas partes
   | 'accepted'
   | 'rejected'
   | 'in_progress'

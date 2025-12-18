@@ -414,6 +414,38 @@ export class Job extends Model {
   previousStatus?: string;
 
   // ============================================
+  // PENDING PRICE DECREASE (requires worker approval)
+  // ============================================
+
+  // Proposed new price (pending worker approval)
+  @Column(DataType.DECIMAL(12, 2))
+  pendingPriceDecrease?: number;
+
+  // Reason for the price decrease (required)
+  @Column(DataType.TEXT)
+  pendingPriceDecreaseReason?: string;
+
+  // When the price decrease was proposed
+  @Column(DataType.DATE)
+  pendingPriceDecreaseAt?: Date;
+
+  // Workers who have accepted the price decrease [{workerId, acceptedAt}]
+  @Default([])
+  @Column(DataType.JSONB)
+  priceDecreaseAcceptances!: Array<{
+    workerId: string;
+    acceptedAt: Date;
+  }>;
+
+  // Workers who have rejected the price decrease [{workerId, rejectedAt}]
+  @Default([])
+  @Column(DataType.JSONB)
+  priceDecreaseRejections!: Array<{
+    workerId: string;
+    rejectedAt: Date;
+  }>;
+
+  // ============================================
   // METHODS
   // ============================================
 

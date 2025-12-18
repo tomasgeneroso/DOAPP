@@ -392,6 +392,17 @@ export class User extends Model {
   @Column(DataType.DECIMAL(4, 2))
   currentCommissionRate!: number;
 
+  // Fecha en que expira el descuento de comisión por referido (3% por 1 mes)
+  // Después de esta fecha, vuelve al 8% si no tiene suscripción PRO/SUPER PRO
+  @Column(DataType.DATE)
+  referralDiscountExpiresAt?: Date;
+
+  // Indica si el usuario ganó el descuento permanente (3%) por completar 3 referidos
+  // NOTA: Este descuento ahora dura solo 1 mes desde que se otorga
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  hasReferralDiscount!: boolean;
+
   @Default(0)
   @Column(DataType.INTEGER)
   referralBenefitsUsed!: number;

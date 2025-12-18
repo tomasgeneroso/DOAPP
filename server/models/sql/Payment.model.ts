@@ -196,6 +196,11 @@ export class Payment extends Model {
   @Column(DataType.DATE)
   escrowReleasedAt?: Date;
 
+  // For multi-worker jobs: the specific amount to pay this worker
+  // May differ from the total payment amount when split between workers
+  @Column(DataType.DECIMAL(12, 2))
+  workerPaymentAmount?: number;
+
   @ForeignKey(() => User)
   @Column(DataType.UUID)
   escrowReleasedBy?: string;

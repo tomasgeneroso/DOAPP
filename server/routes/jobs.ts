@@ -861,6 +861,245 @@ router.put("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
       console.log(`📝 Job ${job.id} was ${previousStatus}, changing to pending_approval after edit`);
     }
 
+    // ============================================
+    // VALIDACIÓN DE CAMBIO DE PRECIO
+    // Si el precio aumenta, requiere pago de diferencia + comisión
+    // ============================================
+    const newPrice = req.body.price !== undefined ? Number(req.body.price) : null;
+    const oldPrice = Number(job.price);
+
+    if (newPrice !== null && newPrice !== oldPrice) {
+      const priceDifference = newPrice - oldPrice;
+
+      if (priceDifference > 0) {
+        // Precio aumentado - requiere pago de diferencia + comisión
+        const client = await User.findByPk(req.user.id);
+        if (!client) {
+          res.status(404).json({
+            success: false,
+            message: "Usuario no encontrado",
+          });
+          return;
+        }
+
+        // Calcular comisión según el tipo de membresía
+        let commissionRate = 8; // FREE: 8%
+        const MIN_COMMISSION = 1000; // Mínimo $1000 ARS
+
+        if (client.hasFamilyPlan) {
+          commissionRate = 0; // Family Plan: 0%
+        } else if (client.membershipTier === 'super_pro') {
+          commissionRate = 2; // Super Pro: 2%
+        } else if (client.membershipTier === 'pro') {
+          commissionRate = 3; // Pro: 3%
+        } else if (client.hasReferralDiscount) {
+          commissionRate = 3; // Referral discount: 3%
+        }
+
+        // Calcular comisión con mínimo $1000 ARS
+        let additionalCommission = priceDifference * (commissionRate / 100);
+        additionalCommission = Math.max(additionalCommission, MIN_COMMISSION);
+
+        const totalRequired = priceDifference + additionalCommission;
+
+        // Guardar estado actual para restaurar si cancela
+        const prevStatus = job.status;
+
+        // Remover el precio de los datos de actualización - se actualizará después del pago
+        delete updateData.price;
+
+        await job.update({
+          ...updateData,
+          pendingNewPrice: newPrice,
+          priceChangeReason: req.body.priceChangeReason || 'Modificación de presupuesto',
+          originalPrice: job.originalPrice || oldPrice,
+          previousStatus: prevStatus,
+          status: 'pending_payment', // Requiere pago
+          pendingPaymentAmount: totalRequired,
+        });
+
+        // Notificar actualización
+        socketService.notifyJobStatusChanged(job.toJSON(), 'pending_payment');
+
+        res.status(402).json({
+          success: false,
+          requiresPayment: true,
+          message: "Para aumentar el presupuesto debes pagar la diferencia + comisión.",
+          amountRequired: totalRequired,
+          breakdown: {
+            oldPrice,
+            newPrice,
+            priceDifference,
+            commission: additionalCommission,
+            commissionRate,
+            minCommission: MIN_COMMISSION,
+            total: totalRequired,
+          },
+          redirectTo: `/jobs/${job.id}/payment?amount=${totalRequired}&reason=budget_increase&oldPrice=${oldPrice}&newPrice=${newPrice}`,
+          job: {
+            id: job.id,
+            title: job.title,
+            status: 'pending_payment',
+            oldPrice,
+            pendingNewPrice: newPrice,
+          },
+        });
+        return;
+      }
+
+      // Si el precio disminuyó
+      if (priceDifference < 0) {
+        // Verificar si estamos a menos de 24hr del inicio
+        const now = new Date();
+        const startDate = new Date(job.startDate);
+        const twentyFourHoursBefore = new Date(startDate.getTime() - 24 * 60 * 60 * 1000);
+
+        if (now > twentyFourHoursBefore) {
+          res.status(400).json({
+            success: false,
+            message: "No puedes reducir el precio del trabajo con menos de 24 horas antes del inicio.",
+          });
+          return;
+        }
+
+        // Verificar si se proporcionó razón (obligatorio)
+        const priceDecreaseReason = req.body.priceChangeReason || req.body.priceDecreaseReason;
+        if (!priceDecreaseReason || priceDecreaseReason.trim().length === 0) {
+          res.status(400).json({
+            success: false,
+            message: "Debes proporcionar un motivo para la reducción del precio.",
+            requiresReason: true,
+          });
+          return;
+        }
+
+        // Verificar si hay postulados
+        const { Proposal } = await import('../models/sql/Proposal.model.js');
+        const proposals = await Proposal.findAll({
+          where: {
+            jobId: job.id,
+            status: { [Op.in]: ['pending', 'approved'] }
+          },
+          include: [{
+            model: User,
+            as: 'doer',
+            attributes: ['id', 'name', 'email']
+          }]
+        });
+
+        // Si hay postulados, crear solicitud pendiente que requiere su aceptación
+        if (proposals.length > 0) {
+          // Guardar la solicitud de disminución pendiente
+          await job.update({
+            pendingPriceDecrease: newPrice,
+            pendingPriceDecreaseReason: priceDecreaseReason.trim(),
+            pendingPriceDecreaseAt: new Date(),
+            priceDecreaseAcceptances: [],
+            priceDecreaseRejections: [],
+          });
+
+          // Notificar a todos los trabajadores con propuestas
+          const { Notification } = await import('../models/sql/Notification.model.js');
+          for (const proposal of proposals) {
+            await Notification.create({
+              recipientId: proposal.doerId,
+              type: 'warning',
+              category: 'job',
+              title: 'Propuesta de cambio de precio',
+              message: `El cliente ha propuesto reducir el precio del trabajo "${job.title}" de $${oldPrice.toLocaleString('es-AR')} a $${newPrice.toLocaleString('es-AR')}. Motivo: ${priceDecreaseReason}. Por favor acepta o rechaza esta propuesta.`,
+              relatedModel: 'Job',
+              relatedId: job.id,
+              data: {
+                type: 'price_decrease_proposal',
+                oldPrice,
+                newPrice,
+                reason: priceDecreaseReason,
+                proposalId: proposal.id,
+              },
+              read: false,
+            });
+
+            // Notificación por socket
+            socketService.notifyUser(proposal.doerId, 'price_decrease_proposal', {
+              jobId: job.id,
+              jobTitle: job.title,
+              oldPrice,
+              newPrice,
+              reason: priceDecreaseReason,
+              proposalId: proposal.id,
+            });
+          }
+
+          // Invalidar cache
+          cacheService.delPattern('jobs:*');
+
+          res.json({
+            success: true,
+            pendingApproval: true,
+            message: `Se ha enviado la propuesta de reducción de precio a ${proposals.length} trabajador(es). El precio se actualizará cuando todos acepten.`,
+            workersNotified: proposals.length,
+            proposedPrice: newPrice,
+            currentPrice: oldPrice,
+            reason: priceDecreaseReason,
+          });
+          return;
+        }
+
+        // Si no hay postulados, aplicar el cambio directamente
+        // Guardar precio original si es el primer cambio
+        if (!job.originalPrice) {
+          updateData.originalPrice = oldPrice;
+        }
+
+        // Agregar al historial de cambios
+        const priceHistory = job.priceHistory || [];
+        priceHistory.push({
+          oldPrice,
+          newPrice,
+          reason: priceDecreaseReason,
+          changedAt: new Date(),
+        });
+        updateData.priceHistory = priceHistory;
+        updateData.priceChangedAt = new Date();
+
+        // Si el trabajo ya fue pagado, crear saldo a favor para el cliente
+        // y procesar devolución parcial del monto de la diferencia
+        if (job.publicationPaid) {
+          const refundAmount = Math.abs(priceDifference);
+          // Crear registro de saldo a favor (se procesará la devolución)
+          const { BalanceTransaction } = await import('../models/sql/BalanceTransaction.model.js');
+          await BalanceTransaction.create({
+            userId: req.user.id,
+            type: 'refund',
+            amount: refundAmount,
+            description: `Saldo a favor por reducción de presupuesto del trabajo "${job.title}"`,
+            status: 'pending',
+            relatedModel: 'Job',
+            relatedId: job.id,
+            metadata: {
+              oldPrice,
+              newPrice,
+              reason: 'price_decrease',
+            },
+          });
+
+          // Crear notificación al usuario
+          const { Notification } = await import('../models/sql/Notification.model.js');
+          await Notification.create({
+            recipientId: req.user.id,
+            type: 'info',
+            category: 'payment',
+            title: 'Saldo a favor generado',
+            message: `Se ha generado un saldo a favor de $${refundAmount.toLocaleString('es-AR')} por la reducción del presupuesto de tu trabajo "${job.title}".`,
+            relatedModel: 'Job',
+            relatedId: job.id,
+            data: { refundAmount, oldPrice, newPrice },
+            read: false,
+          });
+        }
+      }
+    }
+
     // Update the job
     await job.update(updateData);
 
@@ -2016,6 +2255,497 @@ router.delete("/:id/workers/:workerId", protect, async (req: AuthRequest, res: R
     });
   } catch (error: any) {
     console.error('❌ Error removing worker:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   POST /api/jobs/:id/accept-price-decrease
+// @desc    Accept a pending price decrease proposal (worker)
+// @access  Private
+router.post("/:id/accept-price-decrease", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const job = await Job.findByPk(req.params.id);
+
+    if (!job) {
+      res.status(404).json({
+        success: false,
+        message: "Trabajo no encontrado",
+      });
+      return;
+    }
+
+    // Verificar que hay una disminución de precio pendiente
+    if (!job.pendingPriceDecrease) {
+      res.status(400).json({
+        success: false,
+        message: "No hay una propuesta de reducción de precio pendiente para este trabajo.",
+      });
+      return;
+    }
+
+    // Verificar que el usuario tiene una propuesta en este trabajo
+    const { Proposal } = await import('../models/sql/Proposal.model.js');
+    const userProposal = await Proposal.findOne({
+      where: {
+        jobId: job.id,
+        doerId: req.user.id,
+        status: { [Op.in]: ['pending', 'approved'] }
+      }
+    });
+
+    if (!userProposal) {
+      res.status(403).json({
+        success: false,
+        message: "No tienes una postulación activa en este trabajo.",
+      });
+      return;
+    }
+
+    // Verificar que no haya aceptado o rechazado ya
+    const acceptances = job.priceDecreaseAcceptances || [];
+    const rejections = job.priceDecreaseRejections || [];
+
+    if (acceptances.some(a => a.workerId === req.user.id)) {
+      res.status(400).json({
+        success: false,
+        message: "Ya has aceptado esta propuesta de reducción de precio.",
+      });
+      return;
+    }
+
+    if (rejections.some(r => r.workerId === req.user.id)) {
+      res.status(400).json({
+        success: false,
+        message: "Ya has rechazado esta propuesta de reducción de precio.",
+      });
+      return;
+    }
+
+    // Agregar aceptación
+    acceptances.push({
+      workerId: req.user.id,
+      acceptedAt: new Date(),
+    });
+
+    // Contar propuestas activas
+    const totalProposals = await Proposal.count({
+      where: {
+        jobId: job.id,
+        status: { [Op.in]: ['pending', 'approved'] }
+      }
+    });
+
+    // Verificar si todos han aceptado
+    const allAccepted = acceptances.length >= totalProposals;
+
+    if (allAccepted) {
+      // Aplicar la reducción de precio
+      const oldPrice = Number(job.price);
+      const newPrice = Number(job.pendingPriceDecrease);
+      const priceDifference = newPrice - oldPrice;
+
+      // Guardar precio original si es el primer cambio
+      const updateData: any = {
+        price: newPrice,
+        priceDecreaseAcceptances: acceptances,
+        pendingPriceDecrease: null,
+        pendingPriceDecreaseReason: null,
+        pendingPriceDecreaseAt: null,
+      };
+
+      if (!job.originalPrice) {
+        updateData.originalPrice = oldPrice;
+      }
+
+      // Agregar al historial de cambios
+      const priceHistory = job.priceHistory || [];
+      priceHistory.push({
+        oldPrice,
+        newPrice,
+        reason: job.pendingPriceDecreaseReason || 'Reducción de presupuesto aceptada',
+        changedAt: new Date(),
+      });
+      updateData.priceHistory = priceHistory;
+      updateData.priceChangedAt = new Date();
+
+      // Si el trabajo ya fue pagado, crear saldo a favor para el cliente
+      if (job.publicationPaid) {
+        const refundAmount = Math.abs(priceDifference);
+        const { BalanceTransaction } = await import('../models/sql/BalanceTransaction.model.js');
+        await BalanceTransaction.create({
+          userId: job.clientId,
+          type: 'refund',
+          amount: refundAmount,
+          description: `Saldo a favor por reducción de presupuesto del trabajo "${job.title}"`,
+          status: 'pending',
+          relatedModel: 'Job',
+          relatedId: job.id,
+          metadata: {
+            oldPrice,
+            newPrice,
+            reason: 'price_decrease_accepted',
+          },
+        });
+      }
+
+      await job.update(updateData);
+
+      // Notificar al cliente que todos aceptaron
+      const { Notification } = await import('../models/sql/Notification.model.js');
+      await Notification.create({
+        recipientId: job.clientId,
+        type: 'success',
+        category: 'job',
+        title: 'Reducción de precio aprobada',
+        message: `Todos los trabajadores han aceptado la reducción de precio de tu trabajo "${job.title}". El nuevo precio es $${newPrice.toLocaleString('es-AR')}.`,
+        relatedModel: 'Job',
+        relatedId: job.id,
+        data: { oldPrice, newPrice },
+        read: false,
+      });
+
+      // Notificar por socket
+      socketService.notifyUser(job.clientId, 'price_decrease_approved', {
+        jobId: job.id,
+        jobTitle: job.title,
+        oldPrice,
+        newPrice,
+      });
+
+      // Invalidar cache
+      cacheService.delPattern('jobs:*');
+
+      res.json({
+        success: true,
+        message: "Has aceptado la reducción de precio. Todos los trabajadores han aceptado, el precio ha sido actualizado.",
+        priceUpdated: true,
+        newPrice,
+        oldPrice,
+      });
+    } else {
+      // Guardar aceptación pero esperar a los demás
+      await job.update({
+        priceDecreaseAcceptances: acceptances,
+      });
+
+      // Notificar al cliente del progreso
+      const { Notification } = await import('../models/sql/Notification.model.js');
+      await Notification.create({
+        recipientId: job.clientId,
+        type: 'info',
+        category: 'job',
+        title: 'Un trabajador aceptó la reducción',
+        message: `Un trabajador ha aceptado la reducción de precio de tu trabajo "${job.title}". ${acceptances.length}/${totalProposals} han aceptado.`,
+        relatedModel: 'Job',
+        relatedId: job.id,
+        data: {
+          accepted: acceptances.length,
+          total: totalProposals,
+        },
+        read: false,
+      });
+
+      res.json({
+        success: true,
+        message: `Has aceptado la reducción de precio. Esperando a que los demás trabajadores respondan (${acceptances.length}/${totalProposals}).`,
+        priceUpdated: false,
+        acceptedCount: acceptances.length,
+        totalWorkers: totalProposals,
+      });
+    }
+  } catch (error: any) {
+    console.error('❌ Error accepting price decrease:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   POST /api/jobs/:id/reject-price-decrease
+// @desc    Reject a pending price decrease proposal (worker)
+// @access  Private
+router.post("/:id/reject-price-decrease", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const job = await Job.findByPk(req.params.id);
+
+    if (!job) {
+      res.status(404).json({
+        success: false,
+        message: "Trabajo no encontrado",
+      });
+      return;
+    }
+
+    // Verificar que hay una disminución de precio pendiente
+    if (!job.pendingPriceDecrease) {
+      res.status(400).json({
+        success: false,
+        message: "No hay una propuesta de reducción de precio pendiente para este trabajo.",
+      });
+      return;
+    }
+
+    // Verificar que el usuario tiene una propuesta en este trabajo
+    const { Proposal } = await import('../models/sql/Proposal.model.js');
+    const userProposal = await Proposal.findOne({
+      where: {
+        jobId: job.id,
+        doerId: req.user.id,
+        status: { [Op.in]: ['pending', 'approved'] }
+      }
+    });
+
+    if (!userProposal) {
+      res.status(403).json({
+        success: false,
+        message: "No tienes una postulación activa en este trabajo.",
+      });
+      return;
+    }
+
+    // Verificar que no haya aceptado o rechazado ya
+    const acceptances = job.priceDecreaseAcceptances || [];
+    const rejections = job.priceDecreaseRejections || [];
+
+    if (acceptances.some(a => a.workerId === req.user.id)) {
+      res.status(400).json({
+        success: false,
+        message: "Ya has aceptado esta propuesta. No puedes cambiar tu decisión.",
+      });
+      return;
+    }
+
+    if (rejections.some(r => r.workerId === req.user.id)) {
+      res.status(400).json({
+        success: false,
+        message: "Ya has rechazado esta propuesta de reducción de precio.",
+      });
+      return;
+    }
+
+    // Agregar rechazo
+    rejections.push({
+      workerId: req.user.id,
+      rejectedAt: new Date(),
+    });
+
+    // Cancelar la propuesta de reducción (con un rechazo es suficiente)
+    const oldPrice = Number(job.price);
+    const proposedPrice = Number(job.pendingPriceDecrease);
+    const reason = job.pendingPriceDecreaseReason;
+
+    await job.update({
+      priceDecreaseRejections: rejections,
+      pendingPriceDecrease: null,
+      pendingPriceDecreaseReason: null,
+      pendingPriceDecreaseAt: null,
+      priceDecreaseAcceptances: [],
+    });
+
+    // Notificar al cliente que un trabajador rechazó
+    const { Notification } = await import('../models/sql/Notification.model.js');
+    const worker = await User.findByPk(req.user.id, { attributes: ['id', 'name'] });
+
+    await Notification.create({
+      recipientId: job.clientId,
+      type: 'warning',
+      category: 'job',
+      title: 'Reducción de precio rechazada',
+      message: `El trabajador ${worker?.name || 'Un trabajador'} ha rechazado la reducción de precio de tu trabajo "${job.title}". El precio se mantiene en $${oldPrice.toLocaleString('es-AR')}.`,
+      relatedModel: 'Job',
+      relatedId: job.id,
+      data: {
+        oldPrice,
+        proposedPrice,
+        reason,
+        rejectedBy: req.user.id,
+      },
+      read: false,
+    });
+
+    // Notificar por socket
+    socketService.notifyUser(job.clientId, 'price_decrease_rejected', {
+      jobId: job.id,
+      jobTitle: job.title,
+      oldPrice,
+      proposedPrice,
+      rejectedBy: req.user.id,
+    });
+
+    // Invalidar cache
+    cacheService.delPattern('jobs:*');
+
+    res.json({
+      success: true,
+      message: "Has rechazado la reducción de precio. El precio del trabajo se mantiene sin cambios.",
+      currentPrice: oldPrice,
+    });
+  } catch (error: any) {
+    console.error('❌ Error rejecting price decrease:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   GET /api/jobs/:id/pending-price-decrease
+// @desc    Get pending price decrease details for a job
+// @access  Private
+router.get("/:id/pending-price-decrease", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const job = await Job.findByPk(req.params.id, {
+      attributes: [
+        'id', 'title', 'price', 'clientId',
+        'pendingPriceDecrease', 'pendingPriceDecreaseReason', 'pendingPriceDecreaseAt',
+        'priceDecreaseAcceptances', 'priceDecreaseRejections'
+      ]
+    });
+
+    if (!job) {
+      res.status(404).json({
+        success: false,
+        message: "Trabajo no encontrado",
+      });
+      return;
+    }
+
+    if (!job.pendingPriceDecrease) {
+      res.json({
+        success: true,
+        hasPendingDecrease: false,
+        message: "No hay propuesta de reducción de precio pendiente.",
+      });
+      return;
+    }
+
+    // Contar propuestas activas
+    const { Proposal } = await import('../models/sql/Proposal.model.js');
+    const totalProposals = await Proposal.count({
+      where: {
+        jobId: job.id,
+        status: { [Op.in]: ['pending', 'approved'] }
+      }
+    });
+
+    // Verificar si el usuario actual ya respondió
+    const acceptances = job.priceDecreaseAcceptances || [];
+    const rejections = job.priceDecreaseRejections || [];
+    const userAccepted = acceptances.some(a => a.workerId === req.user.id);
+    const userRejected = rejections.some(r => r.workerId === req.user.id);
+
+    res.json({
+      success: true,
+      hasPendingDecrease: true,
+      currentPrice: job.price,
+      proposedPrice: job.pendingPriceDecrease,
+      reason: job.pendingPriceDecreaseReason,
+      proposedAt: job.pendingPriceDecreaseAt,
+      acceptedCount: acceptances.length,
+      rejectedCount: rejections.length,
+      totalWorkers: totalProposals,
+      userResponse: userAccepted ? 'accepted' : userRejected ? 'rejected' : null,
+      isOwner: job.clientId === req.user.id,
+    });
+  } catch (error: any) {
+    console.error('❌ Error getting pending price decrease:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   DELETE /api/jobs/:id/cancel-price-decrease
+// @desc    Cancel a pending price decrease proposal (client only)
+// @access  Private
+router.delete("/:id/cancel-price-decrease", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const job = await Job.findByPk(req.params.id);
+
+    if (!job) {
+      res.status(404).json({
+        success: false,
+        message: "Trabajo no encontrado",
+      });
+      return;
+    }
+
+    // Solo el cliente puede cancelar
+    if (job.clientId !== req.user.id) {
+      res.status(403).json({
+        success: false,
+        message: "Solo el dueño del trabajo puede cancelar la propuesta de reducción.",
+      });
+      return;
+    }
+
+    if (!job.pendingPriceDecrease) {
+      res.status(400).json({
+        success: false,
+        message: "No hay una propuesta de reducción de precio pendiente.",
+      });
+      return;
+    }
+
+    const proposedPrice = job.pendingPriceDecrease;
+
+    // Cancelar la propuesta
+    await job.update({
+      pendingPriceDecrease: null,
+      pendingPriceDecreaseReason: null,
+      pendingPriceDecreaseAt: null,
+      priceDecreaseAcceptances: [],
+      priceDecreaseRejections: [],
+    });
+
+    // Notificar a los trabajadores con propuestas
+    const { Proposal } = await import('../models/sql/Proposal.model.js');
+    const { Notification } = await import('../models/sql/Notification.model.js');
+    const proposals = await Proposal.findAll({
+      where: {
+        jobId: job.id,
+        status: { [Op.in]: ['pending', 'approved'] }
+      }
+    });
+
+    for (const proposal of proposals) {
+      await Notification.create({
+        recipientId: proposal.doerId,
+        type: 'info',
+        category: 'job',
+        title: 'Propuesta de cambio de precio cancelada',
+        message: `El cliente ha cancelado la propuesta de reducción de precio del trabajo "${job.title}". El precio se mantiene en $${job.price.toLocaleString('es-AR')}.`,
+        relatedModel: 'Job',
+        relatedId: job.id,
+        data: {
+          currentPrice: job.price,
+          proposedPrice,
+        },
+        read: false,
+      });
+
+      socketService.notifyUser(proposal.doerId, 'price_decrease_cancelled', {
+        jobId: job.id,
+        jobTitle: job.title,
+        currentPrice: job.price,
+      });
+    }
+
+    // Invalidar cache
+    cacheService.delPattern('jobs:*');
+
+    res.json({
+      success: true,
+      message: "Propuesta de reducción de precio cancelada.",
+      currentPrice: job.price,
+    });
+  } catch (error: any) {
+    console.error('❌ Error cancelling price decrease:', error);
     res.status(500).json({
       success: false,
       message: error.message || "Error del servidor",
