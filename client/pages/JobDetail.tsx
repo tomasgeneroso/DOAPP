@@ -1074,7 +1074,7 @@ export default function JobDetail() {
             {!isOwnJob && job.status === 'open' && job.doerId && (
               <div className="space-y-4">
                 {/* Check if current user is the selected worker */}
-                {job.doerId === userId ? (
+                {job.doerId === userId || (userId && job.selectedWorkers?.includes(userId)) ? (
                   <div className="rounded-2xl border border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30 p-4">
                     <div className="flex items-center gap-2 mb-2">
                       <CheckCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
@@ -1091,19 +1091,29 @@ export default function JobDetail() {
                         minute: '2-digit'
                       })}
                     </p>
-                    {contractData && (
+                    <div className="flex flex-wrap items-center gap-3 mt-3">
+                      {contractData && (
+                        <Link
+                          to={`/contracts/${contractData.id}`}
+                          className="inline-flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          Ver detalles del contrato <ExternalLink className="h-4 w-4" />
+                        </Link>
+                      )}
                       <Link
-                        to={`/contracts/${contractData.id}`}
-                        className="mt-3 inline-flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                        to="/my-jobs?tab=applied&view=calendar"
+                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-100 dark:bg-blue-800/50 text-blue-700 dark:text-blue-300 text-sm font-medium rounded-lg hover:bg-blue-200 dark:hover:bg-blue-700/50 transition-colors"
                       >
-                        Ver detalles del contrato <ExternalLink className="h-4 w-4" />
+                        <Calendar className="h-4 w-4" />
+                        Ver en Calendario
                       </Link>
-                    )}
+                    </div>
                   </div>
-                ) : (
+                ) : (job.selectedWorkers?.length || 0) >= (job.maxWorkers || 1) ? (
+                  // Solo mostrar "ya tiene profesional" si TODOS los puestos están ocupados
                   <div className="rounded-2xl border border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30 p-4">
                     <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                      👤 Este trabajo ya tiene un profesional asignado
+                      👥 Este trabajo ya tiene {job.maxWorkers === 1 ? 'un profesional asignado' : `los ${job.maxWorkers} profesionales asignados`}
                     </p>
                     <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                       Iniciará el {new Date(job.startDate).toLocaleDateString('es-AR', {
@@ -1112,14 +1122,14 @@ export default function JobDetail() {
                       })}
                     </p>
                   </div>
-                )}
+                ) : null}
               </div>
             )}
 
             {!isOwnJob && job.status === 'in_progress' && job.doerId && (
               <div className="space-y-4">
-                {/* Check if current user is the selected worker */}
-                {contractData?.doerId === userId ? (
+                {/* Check if current user is one of the selected workers */}
+                {contractData?.doerId === userId || (userId && job.selectedWorkers?.includes(userId)) ? (
                   <>
                     {/* Selected Worker Info */}
                     <div className="rounded-2xl border border-green-300 dark:border-green-600 bg-green-50 dark:bg-green-900/30 p-4">
@@ -1129,12 +1139,21 @@ export default function JobDetail() {
                           ¡Fuiste seleccionado para este trabajo!
                         </p>
                       </div>
-                      <Link
-                        to={`/contracts/${contractData?.id}`}
-                        className="inline-flex items-center gap-2 text-sm text-green-600 dark:text-green-400 hover:underline"
-                      >
-                        Ver detalles del contrato <ExternalLink className="h-4 w-4" />
-                      </Link>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <Link
+                          to={`/contracts/${contractData?.id}`}
+                          className="inline-flex items-center gap-2 text-sm text-green-600 dark:text-green-400 hover:underline"
+                        >
+                          Ver detalles del contrato <ExternalLink className="h-4 w-4" />
+                        </Link>
+                        <Link
+                          to="/my-jobs?tab=applied&view=calendar"
+                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-100 dark:bg-green-800/50 text-green-700 dark:text-green-300 text-sm font-medium rounded-lg hover:bg-green-200 dark:hover:bg-green-700/50 transition-colors"
+                        >
+                          <Calendar className="h-4 w-4" />
+                          Ver en Calendario
+                        </Link>
+                      </div>
                     </div>
 
                     {/* Pairing Code Display for Worker */}
@@ -1184,13 +1203,14 @@ export default function JobDetail() {
                       </div>
                     )}
                   </>
-                ) : (
+                ) : (job.selectedWorkers?.length || 0) >= (job.maxWorkers || 1) ? (
+                  // Solo mostrar mensaje si todos los puestos están ocupados
                   <div className="rounded-2xl border border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30 p-4">
                     <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                      🔧 Este trabajo ya tiene un profesional asignado
+                      🔧 Este trabajo ya tiene {job.maxWorkers === 1 ? 'un profesional asignado' : `los ${job.maxWorkers} profesionales asignados`}
                     </p>
                   </div>
-                )}
+                ) : null}
               </div>
             )}
 
@@ -1384,21 +1404,32 @@ export default function JobDetail() {
                               </div>
                             </div>
 
-                            {/* Select Button */}
-                            <button
-                              onClick={() => openSelectConfirmModal(proposal)}
-                              disabled={selectingWorker === proposal.id}
-                              className="shrink-0 flex items-center gap-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-                            >
-                              {selectingWorker === proposal.id ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                              ) : (
-                                <>
-                                  <CheckCircle className="h-4 w-4" />
-                                  Seleccionar
-                                </>
-                              )}
-                            </button>
+                            {/* Select Button or Status Badge */}
+                            {proposal.status === 'pending' ? (
+                              <button
+                                onClick={() => openSelectConfirmModal(proposal)}
+                                disabled={selectingWorker === proposal.id}
+                                className="shrink-0 flex items-center gap-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                              >
+                                {selectingWorker === proposal.id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <>
+                                    <CheckCircle className="h-4 w-4" />
+                                    Seleccionar
+                                  </>
+                                )}
+                              </button>
+                            ) : proposal.status === 'approved' ? (
+                              <span className="shrink-0 flex items-center gap-1 px-3 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm font-medium rounded-lg border border-green-300 dark:border-green-600">
+                                <CheckCircle className="h-4 w-4" />
+                                Seleccionado
+                              </span>
+                            ) : proposal.status === 'rejected' ? (
+                              <span className="shrink-0 flex items-center gap-1 px-3 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-sm font-medium rounded-lg border border-red-300 dark:border-red-600">
+                                Rechazado
+                              </span>
+                            ) : null}
                           </div>
 
                           {/* Cover Letter Preview */}
@@ -2016,7 +2047,15 @@ export default function JobDetail() {
                   <ul className="text-sm text-green-200 mt-2 space-y-1">
                     <li>• Se creará el contrato con el trabajador</li>
                     <li>• El trabajador recibirá una notificación</li>
-                    <li>• Las demás postulaciones serán rechazadas</li>
+                    {(job.maxWorkers || 1) > 1 ? (
+                      (job.selectedWorkers?.length || 0) + 1 >= (job.maxWorkers || 1) ? (
+                        <li>• Las demás postulaciones serán rechazadas (se completan los {job.maxWorkers} puestos)</li>
+                      ) : (
+                        <li>• Las demás postulaciones seguirán pendientes ({(job.maxWorkers || 1) - (job.selectedWorkers?.length || 0) - 1} puesto{(job.maxWorkers || 1) - (job.selectedWorkers?.length || 0) - 1 !== 1 ? 's' : ''} restante{(job.maxWorkers || 1) - (job.selectedWorkers?.length || 0) - 1 !== 1 ? 's' : ''})</li>
+                      )
+                    ) : (
+                      <li>• Las demás postulaciones serán rechazadas</li>
+                    )}
                   </ul>
                 </div>
               </div>

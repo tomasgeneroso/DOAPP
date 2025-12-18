@@ -13,14 +13,18 @@ import {
   Tag,
   Bell,
   MessageCircle,
+  HelpCircle,
+  PlayCircle,
 } from "lucide-react";
 import { JOB_CATEGORIES } from "../../shared/constants/categories";
+import { useOnboarding } from "../hooks/useOnboarding";
 
-type TabType = "basic" | "address" | "banking" | "legal" | "interests" | "notifications" | "contact";
+type TabType = "basic" | "address" | "banking" | "legal" | "interests" | "notifications" | "help";
 
 export default function UserSettings() {
   const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
+  const { startOnboarding } = useOnboarding();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabType>("basic");
   const [loading, setLoading] = useState(false);
@@ -29,7 +33,7 @@ export default function UserSettings() {
   // Handle tab from URL query parameter
   useEffect(() => {
     const tabParam = searchParams.get("tab");
-    if (tabParam && ["basic", "address", "banking", "legal", "interests", "notifications", "contact"].includes(tabParam)) {
+    if (tabParam && ["basic", "address", "banking", "legal", "interests", "notifications", "help"].includes(tabParam)) {
       setActiveTab(tabParam as TabType);
     }
   }, [searchParams]);
@@ -167,6 +171,7 @@ export default function UserSettings() {
     { id: "legal", label: "Información Legal", icon: FileText },
     { id: "interests", label: "Rubros de Interés", icon: Tag },
     { id: "notifications", label: "Notificaciones", icon: Bell },
+    { id: "help", label: "Ayuda", icon: HelpCircle },
   ];
 
   return (
@@ -696,8 +701,83 @@ export default function UserSettings() {
                 </div>
               )}
 
-              {/* Save button */}
-              {(
+              {activeTab === "help" && (
+                <div className="space-y-6">
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Ayuda
+                  </h2>
+                  <div className="space-y-4">
+                    {/* Tutorial restart */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                            <PlayCircle className="h-5 w-5 text-sky-500" />
+                            Tutorial de la plataforma
+                          </p>
+                          <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
+                            Vuelve a ver el tutorial interactivo que te guía por las funciones principales de DOAPP.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            startOnboarding();
+                            navigate('/');
+                          }}
+                          className="flex-shrink-0 px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-medium rounded-lg transition-colors"
+                        >
+                          Ver tutorial
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Support ticket */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                            <MessageCircle className="h-5 w-5 text-green-500" />
+                            Contactar soporte
+                          </p>
+                          <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
+                            ¿Tienes algún problema o pregunta? Crea un ticket de soporte y te ayudaremos.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => navigate('/tickets/new')}
+                          className="flex-shrink-0 px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-colors"
+                        >
+                          Crear ticket
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Help center link */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
+                            <HelpCircle className="h-5 w-5 text-amber-500" />
+                            Centro de ayuda
+                          </p>
+                          <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
+                            Encuentra respuestas a preguntas frecuentes y guías de uso.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => navigate('/help')}
+                          className="flex-shrink-0 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition-colors"
+                        >
+                          Ver ayuda
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Save button - only show for tabs that need saving */}
+              {activeTab !== "help" && (
                 <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700">
                   <button
                     onClick={handleSave}

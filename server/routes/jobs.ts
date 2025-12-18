@@ -6,6 +6,8 @@ import { Contract } from "../models/sql/Contract.model.js";
 import { BalanceTransaction } from "../models/sql/BalanceTransaction.model.js";
 import { JobTask } from "../models/sql/JobTask.model.js";
 import { Notification } from "../models/sql/Notification.model.js";
+import { Conversation } from "../models/sql/Conversation.model.js";
+import { ChatMessage } from "../models/sql/ChatMessage.model.js";
 import { protect } from "../middleware/auth.js";
 import type { AuthRequest } from "../types/index.js";
 import { socketService } from "../index.js";
@@ -1185,6 +1187,114 @@ router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<
     }
 
     const jobId = job.id;
+    const jobTitle = job.title;
+
+    // Importar Proposal
+    const { Proposal } = await import('../models/sql/Proposal.model.js');
+
+    // Verificar contratos en progreso o completados (no se pueden eliminar)
+    const inProgressContracts = await Contract.findAll({
+      where: {
+        jobId: job.id,
+        status: { [Op.in]: ['in_progress', 'awaiting_confirmation', 'completed'] }
+      }
+    });
+
+    if (inProgressContracts.length > 0) {
+      res.status(400).json({
+        success: false,
+        message: "No puedes eliminar un trabajo que tiene contratos en progreso o completados.",
+      });
+      return;
+    }
+
+    // Obtener contratos activos (pending, ready, accepted) para cancelarlos
+    const activeContracts = await Contract.findAll({
+      where: {
+        jobId: job.id,
+        status: { [Op.in]: ['pending', 'ready', 'accepted'] }
+      },
+      include: [{ model: User, as: 'doer', attributes: ['id', 'name', 'email'] }]
+    });
+
+    // Cancelar contratos activos y notificar a los workers
+    for (const contract of activeContracts) {
+      contract.status = 'cancelled';
+      contract.cancellationReason = 'El trabajo fue eliminado por el cliente';
+      contract.cancelledBy = req.user.id;
+      await contract.save();
+
+      if (contract.doerId) {
+        // Crear notificación persistente
+        await Notification.create({
+          recipientId: contract.doerId,
+          type: 'warning',
+          title: 'Contrato cancelado',
+          message: `El trabajo "${jobTitle}" ha sido eliminado por el cliente. Tu contrato ha sido cancelado.`,
+          category: 'contract',
+          relatedId: contract.id,
+          data: { jobId, jobTitle, contractId: contract.id, action: 'job_deleted' }
+        });
+
+        // Notificar en tiempo real
+        socketService.notifyUser(contract.doerId, 'notification:new', {
+          type: 'warning',
+          title: 'Contrato cancelado',
+          message: `El trabajo "${jobTitle}" ha sido eliminado por el cliente. Tu contrato ha sido cancelado.`,
+        });
+      }
+    }
+
+    // Obtener propuestas aprobadas que no tienen contrato (workers seleccionados sin contrato aún)
+    const approvedProposals = await Proposal.findAll({
+      where: {
+        jobId: job.id,
+        status: 'approved'
+      },
+      include: [{ model: User, as: 'freelancer', attributes: ['id', 'name'] }]
+    });
+
+    // Notificar a workers con propuestas aprobadas (si no fueron notificados ya por contrato)
+    const notifiedWorkerIds = new Set(activeContracts.map(c => c.doerId));
+    for (const proposal of approvedProposals) {
+      if (proposal.freelancerId && !notifiedWorkerIds.has(proposal.freelancerId)) {
+        // Crear notificación persistente
+        await Notification.create({
+          recipientId: proposal.freelancerId,
+          type: 'warning',
+          title: 'Trabajo eliminado',
+          message: `El trabajo "${jobTitle}" para el que fuiste seleccionado ha sido eliminado por el cliente.`,
+          category: 'job',
+          relatedId: jobId,
+          data: { jobId, jobTitle, action: 'job_deleted' }
+        });
+
+        // Notificar en tiempo real
+        socketService.notifyUser(proposal.freelancerId, 'notification:new', {
+          type: 'warning',
+          title: 'Trabajo eliminado',
+          message: `El trabajo "${jobTitle}" para el que fuiste seleccionado ha sido eliminado por el cliente.`,
+        });
+      }
+    }
+
+    // Eliminar propuestas relacionadas primero (para evitar error de foreign key)
+    await Proposal.destroy({ where: { jobId: job.id } });
+
+    // Eliminar tareas relacionadas
+    await JobTask.destroy({ where: { jobId: job.id } });
+
+    // Eliminar conversaciones y mensajes relacionados
+    const conversations = await Conversation.findAll({ where: { jobId: job.id } });
+    for (const conversation of conversations) {
+      await ChatMessage.destroy({ where: { conversationId: conversation.id } });
+    }
+    await Conversation.destroy({ where: { jobId: job.id } });
+
+    // Eliminar todos los contratos relacionados (ya están cancelados los activos)
+    await Contract.destroy({ where: { jobId: job.id } });
+
+    // Ahora eliminar el trabajo
     await job.destroy();
 
     // Invalidate jobs cache
@@ -1780,10 +1890,23 @@ router.patch("/:id/cancel", protect, async (req: AuthRequest, res: Response): Pr
     job.status = "cancelled";
     job.cancellationReason = reason || null;
     job.cancelledAt = new Date();
+    job.cancelledById = req.user.id;
+    job.cancelledByRole = 'owner'; // Cancelled by job owner
     await job.save();
+
+    // Invalidar cache
+    cacheService.delPattern('jobs:*');
 
     // Notificar actualizacion en tiempo real
     socketService.notifyJobStatusChanged(job.toJSON(), previousStatus);
+
+    // Emitir evento de actualización para la vista de mis publicaciones
+    socketService.io.emit("jobs:refresh", {
+      action: "cancelled",
+      jobId: job.id,
+      job: job.toJSON(),
+      cancelledBy: 'owner'
+    });
 
     // Si estaba pending_approval, se reembolsa todo (precio + comision)
     // TODO: Implementar logica de reembolso via MercadoPago si es necesario

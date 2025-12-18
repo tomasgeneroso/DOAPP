@@ -231,6 +231,12 @@ export class Job extends Model {
   @Column(DataType.DATE)
   cancelledAt?: Date;
 
+  @Column(DataType.UUID)
+  cancelledById?: string; // User ID of who cancelled the job
+
+  @Column(DataType.STRING)
+  cancelledByRole?: string; // 'owner' (job owner) or 'admin' (admin user)
+
   @Default(false)
   @Column(DataType.BOOLEAN)
   permanentlyCancelled!: boolean; // When true, user cannot edit/resubmit this job

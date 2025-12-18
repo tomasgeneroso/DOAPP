@@ -13,6 +13,7 @@ import emailService from "../services/email.js";
 import { config } from "../config/env.js";
 import { socketService } from "../index.js";
 import { Op } from 'sequelize';
+import cacheService from "../services/cacheService.js";
 
 const router = express.Router();
 
@@ -123,7 +124,7 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
         {
           model: Job,
           as: 'job',
-          attributes: ['title', 'summary', 'price', 'location', 'category']
+          attributes: ['id', 'title', 'description', 'summary', 'price', 'location', 'category', 'status', 'startDate', 'endDate']
         },
         {
           model: User,
@@ -457,6 +458,43 @@ router.post(
       socketService.notifyDashboardRefresh(req.user.id);
       socketService.notifyDashboardRefresh(job.clientId);
 
+      // Create persistent notification for job owner
+      const freelancerUser = await User.findByPk(req.user.id, {
+        attributes: ['name', 'avatar']
+      });
+
+      const notificationTitle = isCounterOffer
+        ? 'Nueva contraoferta recibida'
+        : 'Nueva postulación recibida';
+      const notificationMessage = isCounterOffer
+        ? `${freelancerUser?.name || 'Un trabajador'} envió una contraoferta de $${proposedPrice.toLocaleString('es-AR')} ARS para "${job.title}"`
+        : `${freelancerUser?.name || 'Un trabajador'} se postuló para "${job.title}" por $${proposedPrice.toLocaleString('es-AR')} ARS`;
+
+      const notification = await Notification.create({
+        recipientId: job.clientId,
+        type: isCounterOffer ? 'counter_offer' : 'new_proposal',
+        category: 'proposal',
+        title: notificationTitle,
+        message: notificationMessage,
+        relatedModel: 'Proposal',
+        relatedId: proposal.id,
+        actionText: 'Ver postulación',
+        data: {
+          jobId: job.id,
+          jobTitle: job.title,
+          proposalId: proposal.id,
+          freelancerId: req.user.id,
+          freelancerName: freelancerUser?.name,
+          freelancerAvatar: freelancerUser?.avatar,
+          proposedPrice,
+          isCounterOffer,
+        },
+        read: false,
+      });
+
+      // Send real-time notification to job owner
+      socketService.notifyUser(job.clientId, notification.toJSON());
+
       res.status(201).json({
         success: true,
         proposal: populatedProposal,
@@ -769,6 +807,33 @@ router.put("/:id/approve", protect, async (req: AuthRequest, res: Response): Pro
       ]
     });
     socketService.notifyNewContract(populatedContract?.toJSON());
+
+    // Invalidate job cache to ensure fresh data on next fetch
+    cacheService.delPattern(`jobs:*`);
+    cacheService.delPattern(`job:${job.id}*`);
+
+    // Emit job update event with updated job data for real-time UI refresh
+    const updatedJob = await Job.findByPk(job.id, {
+      include: [
+        { model: User, as: 'client', attributes: ['id', 'name', 'avatar', 'rating'] },
+        { model: User, as: 'doer', attributes: ['id', 'name', 'avatar', 'rating'], required: false }
+      ]
+    });
+
+    // Notify job update to refresh the job detail page
+    socketService.notifyJobUpdate(job.id, req.user.id, {
+      action: 'worker_selected',
+      job: updatedJob?.toJSON(),
+      selectedWorkers: updatedJob?.selectedWorkers,
+      maxWorkers: updatedJob?.maxWorkers,
+    });
+
+    // Also emit jobs:refresh for the list views
+    socketService.io.emit("jobs:refresh", {
+      action: "worker_selected",
+      jobId: job.id,
+      job: updatedJob?.toJSON()
+    });
 
     res.json({
       success: true,

@@ -95,11 +95,23 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
   // Check if user needs onboarding when they first log in
   useEffect(() => {
     if (user && !hasCheckedOnboarding) {
-      // Check localStorage first for tooltip onboarding (separate from interest selection)
-      const tooltipOnboardingCompleted = localStorage.getItem(`onboarding_tooltips_${user.id || user._id}`);
+      const userId = user.id || user._id;
+      if (!userId) {
+        setHasCheckedOnboarding(true);
+        return;
+      }
 
-      if (!tooltipOnboardingCompleted && user.onboardingCompleted) {
-        // User completed interest selection but not tooltips - mark that we should show tooltips
+      // Check localStorage first for tooltip onboarding
+      const tooltipOnboardingStatus = localStorage.getItem(`onboarding_tooltips_${userId}`);
+
+      // Show tooltips if:
+      // 1. User hasn't completed/skipped tooltip onboarding, AND
+      // 2. User has been using the app (onboardingCompleted means they went through interest selection)
+      //    OR they're returning users who may not have the flag
+      const shouldShow = !tooltipOnboardingStatus && user.onboardingCompleted !== false;
+
+      if (shouldShow) {
+        console.log('🎓 Tooltip onboarding: scheduling to show');
         setShouldShowOnboarding(true);
       }
       setHasCheckedOnboarding(true);
@@ -109,12 +121,39 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
   // Only activate onboarding when user is on the home page (/)
   useEffect(() => {
     if (shouldShowOnboarding && location.pathname === '/') {
-      // Small delay to ensure page is loaded and DOM is ready
-      const timer = setTimeout(() => {
-        setIsActive(true);
-        setShouldShowOnboarding(false); // Don't show again after activating
-      }, 500);
-      return () => clearTimeout(timer);
+      // Wait for DOM to be ready - check for key elements before showing
+      const checkAndActivate = () => {
+        const logoElement = document.querySelector('[data-onboarding="logo"]');
+        const searchElement = document.querySelector('[data-onboarding="search"]');
+
+        // If key elements exist, activate onboarding
+        if (logoElement || searchElement) {
+          console.log('🎓 Tooltip onboarding: activating');
+          setIsActive(true);
+          setShouldShowOnboarding(false);
+          return true;
+        }
+        return false;
+      };
+
+      // Try immediately first
+      if (checkAndActivate()) return;
+
+      // Otherwise, poll for elements with a timeout
+      let attempts = 0;
+      const maxAttempts = 10;
+      const timer = setInterval(() => {
+        attempts++;
+        if (checkAndActivate() || attempts >= maxAttempts) {
+          clearInterval(timer);
+          if (attempts >= maxAttempts) {
+            console.log('🎓 Tooltip onboarding: elements not found, skipping');
+            setShouldShowOnboarding(false);
+          }
+        }
+      }, 300);
+
+      return () => clearInterval(timer);
     }
   }, [shouldShowOnboarding, location.pathname]);
 
@@ -202,6 +241,13 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
   };
 
   const startOnboarding = () => {
+    // Clear localStorage to allow restart
+    if (user) {
+      const userId = user.id || user._id;
+      if (userId) {
+        localStorage.removeItem(`onboarding_tooltips_${userId}`);
+      }
+    }
     setCurrentStep(0);
     setIsActive(true);
   };
