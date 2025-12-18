@@ -99,7 +99,7 @@ export default function MessagesScreen() {
   const [loadingMessages, setLoadingMessages] = useState(false);
 
   // Combine socket messages with local messages (socket messages take priority for new ones)
-  const messages = [...localMessages, ...(socketMessages as Message[]).filter(
+  const messages = [...localMessages, ...(socketMessages as unknown as Message[]).filter(
     sm => !localMessages.find(lm => getId(lm) === getId(sm as any))
   )];
 

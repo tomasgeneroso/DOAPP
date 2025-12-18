@@ -30,6 +30,7 @@ import {
   Briefcase,
 } from "lucide-react";
 import type { Job } from "@/types";
+import { getClientInfo } from "@/lib/utils";
 import MultipleRatings from "../components/user/MultipleRatings";
 import LocationCircleMap from "../components/map/LocationCircleMap";
 import JobTasks from "../components/jobs/JobTasks";
@@ -687,13 +688,14 @@ export default function JobDetail() {
   }
 
   // Support both PostgreSQL (id) and MongoDB (_id)
-  const clientId = typeof job.client === 'string' ? job.client : (job.client?.id || job.client?._id);
+  const clientInfo = getClientInfo(job.client);
+  const clientId = clientInfo?.id;
   const userId = user?.id || user?._id;
   const isOwnJob = user && clientId === userId;
   const isDraft = job.status === 'draft' || job.status === 'pending_payment';
 
   // Check if current user is a worker on this job
-  const isWorkerOnJob = user && (
+  const isWorkerOnJob = user && userId && (
     job.doerId === userId ||
     (job.selectedWorkers && job.selectedWorkers.includes(userId))
   );
@@ -733,7 +735,7 @@ export default function JobDetail() {
                     </div>
                     <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-300">
                       <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-                      {(Number(job.client.rating) || 0).toFixed(1)}
+                      {(clientInfo?.rating || 0).toFixed(1)}
                     </span>
                   </div>
                 </div>
@@ -905,21 +907,21 @@ export default function JobDetail() {
                   <div className="h-12 w-12 overflow-hidden rounded-full bg-sky-100">
                     <img
                       src={
-                        job.client.avatar ||
-                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${job.client.name}`
+                        clientInfo?.avatar ||
+                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${clientInfo?.name || 'user'}`
                       }
-                      alt={job.client.name}
+                      alt={clientInfo?.name || 'Usuario'}
                       className="h-full w-full object-cover"
                     />
                   </div>
                   <div className="flex-1">
                     <p className="font-semibold text-slate-900 dark:text-white">
-                      {job.client.name}
+                      {clientInfo?.name || 'Usuario'}
                     </p>
                     <div className="flex items-center gap-1 text-sm text-slate-600 dark:text-slate-300">
                       <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
                       <span>
-                        {(Number(job.client.rating) || 0).toFixed(1)} ({job.client.reviewsCount || 0}{" "}
+                        {(clientInfo?.rating || 0).toFixed(1)} ({clientInfo?.reviewsCount || 0}{" "}
                         reviews)
                       </span>
                     </div>
@@ -931,7 +933,7 @@ export default function JobDetail() {
                 {showClientMenu && (
                   <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-10 overflow-hidden">
                     <Link
-                      to={`/profile/${job.client.id || job.client._id}`}
+                      to={`/profile/${clientInfo?.id || clientInfo?._id}`}
                       className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                       onClick={() => setShowClientMenu(false)}
                     >
@@ -939,7 +941,7 @@ export default function JobDetail() {
                       <span className="text-sm text-slate-700 dark:text-slate-200">Ver perfil</span>
                     </Link>
                     <Link
-                      to={`/profile/${job.client.id || job.client._id}?tab=jobs`}
+                      to={`/profile/${clientInfo?.id || clientInfo?._id}?tab=jobs`}
                       className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-t border-slate-100 dark:border-slate-700"
                       onClick={() => setShowClientMenu(false)}
                     >
@@ -952,9 +954,11 @@ export default function JobDetail() {
               <div className="my-4 h-px bg-slate-200 dark:bg-slate-700"></div>
 
               {/* Multiple Ratings Display */}
-              <div className="mb-4">
-                <MultipleRatings user={job.client} size="sm" />
-              </div>
+              {job.client && typeof job.client !== 'string' && (
+                <div className="mb-4">
+                  <MultipleRatings user={job.client as any} />
+                </div>
+              )}
 
               <div className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
                 <div className="flex items-center gap-2">
@@ -963,7 +967,7 @@ export default function JobDetail() {
                 </div>
                 <div className="flex items-center gap-2">
                   <DollarSign className="h-4 w-4" />
-                  <span>{job.client.completedJobs} trabajos completados</span>
+                  <span>{clientInfo?.completedJobs || 0} trabajos completados</span>
                 </div>
               </div>
               {user && !isOwnJob && (
@@ -1126,7 +1130,7 @@ export default function JobDetail() {
                         </p>
                       </div>
                       <Link
-                        to={`/contracts/${contractData.id}`}
+                        to={`/contracts/${contractData?.id}`}
                         className="inline-flex items-center gap-2 text-sm text-green-600 dark:text-green-400 hover:underline"
                       >
                         Ver detalles del contrato <ExternalLink className="h-4 w-4" />
@@ -1134,7 +1138,7 @@ export default function JobDetail() {
                     </div>
 
                     {/* Pairing Code Display for Worker */}
-                    {contractData.pairingCode && (
+                    {contractData?.pairingCode && (
                       <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-2xl p-5 border-2 border-purple-200 dark:border-purple-700 shadow-md">
                         <div className="flex items-start gap-4">
                           <div className="p-3 bg-purple-100 dark:bg-purple-900/50 rounded-lg">
@@ -1150,7 +1154,7 @@ export default function JobDetail() {
                             <div className="flex items-center gap-3">
                               <div className="flex-1 bg-white dark:bg-slate-800 rounded-lg p-3 border-2 border-purple-300 dark:border-purple-600">
                                 <p className="text-2xl font-mono font-bold text-purple-700 dark:text-purple-300 text-center tracking-widest">
-                                  {contractData.pairingCode}
+                                  {contractData?.pairingCode}
                                 </p>
                               </div>
                               <button
@@ -1170,9 +1174,9 @@ export default function JobDetail() {
                                 ¡Código copiado!
                               </p>
                             )}
-                            {contractData.pairingExpiry && (
+                            {contractData?.pairingExpiry && (
                               <p className="text-xs text-purple-600 dark:text-purple-400 mt-2">
-                                Expira: {new Date(contractData.pairingExpiry).toLocaleString('es-AR')}
+                                Expira: {new Date(contractData?.pairingExpiry).toLocaleString('es-AR')}
                               </p>
                             )}
                           </div>

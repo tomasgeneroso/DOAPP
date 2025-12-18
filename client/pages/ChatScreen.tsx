@@ -40,7 +40,9 @@ interface Message {
     action?: string;
     [key: string]: any;
   };
+  read?: boolean;
   createdAt: string;
+  updatedAt?: string;
 }
 
 interface JobContext {
@@ -251,7 +253,7 @@ export default function ChatScreen() {
             // Check if this temp message is now confirmed by server
             const hasServerVersion = newMessages.some(nm =>
               (nm as any).message === m.message &&
-              (nm as any).senderId === m.senderId
+              (nm as any).sender === m.sender
             );
             return !hasServerVersion;
           });
@@ -480,8 +482,6 @@ export default function ChatScreen() {
     const optimisticMessage: Message = {
       _id: `temp-${Date.now()}`,
       id: `temp-${Date.now()}`,
-      conversationId,
-      senderId: user?.id || user?._id || '',
       sender: {
         id: user?.id || user?._id || '',
         _id: user?._id || user?.id || '',

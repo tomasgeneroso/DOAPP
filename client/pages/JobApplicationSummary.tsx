@@ -16,6 +16,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import type { Job } from "@/types";
+import { getClientInfo } from "@/lib/utils";
 
 export default function JobApplicationSummary() {
   const { id } = useParams<{ id: string }>();
@@ -176,7 +177,8 @@ export default function JobApplicationSummary() {
     );
   }
 
-  const isOwnJob = user && (job.client.id || job.client._id) === user.id;
+  const clientInfo = getClientInfo(job.client);
+  const isOwnJob = user && clientInfo && clientInfo.id === user.id;
 
   if (isOwnJob) {
     return (
@@ -352,36 +354,38 @@ export default function JobApplicationSummary() {
               </div>
 
               {/* Client Info */}
-              <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
-                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
-                  Cliente
-                </h3>
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-12 overflow-hidden rounded-full bg-sky-100">
-                    <img
-                      src={
-                        job.client.avatar ||
-                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${job.client.name}`
-                      }
-                      alt={job.client.name}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-slate-900 dark:text-white">
-                      {job.client.name}
-                    </p>
-                    <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
-                      <div className="flex items-center gap-1">
-                        <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-                        <span>{(Number(job.client.rating) || 0).toFixed(1)}</span>
+              {clientInfo && (
+                <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
+                    Cliente
+                  </h3>
+                  <div className="flex items-center gap-3">
+                    <div className="h-12 w-12 overflow-hidden rounded-full bg-sky-100">
+                      <img
+                        src={
+                          clientInfo.avatar ||
+                          `https://api.dicebear.com/7.x/avataaars/svg?seed=${clientInfo.name}`
+                        }
+                        alt={clientInfo.name}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                    <div>
+                      <p className="font-semibold text-slate-900 dark:text-white">
+                        {clientInfo.name}
+                      </p>
+                      <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400">
+                        <div className="flex items-center gap-1">
+                          <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+                          <span>{(Number(clientInfo.rating) || 0).toFixed(1)}</span>
+                        </div>
+                        <span>•</span>
+                        <span>{clientInfo.completedJobs || 0} trabajos completados</span>
                       </div>
-                      <span>•</span>
-                      <span>{job.client.completedJobs || 0} trabajos completados</span>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Info Banner */}

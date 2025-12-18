@@ -41,7 +41,7 @@ export const verifyOwnerPassword = async (
     }
 
     // Obtener usuario con contraseña
-    const user = await User.findByPk(req.user._id).select("+password");
+    const user = await User.findByPk(req.user._id);
 
     if (!user || !user.password) {
       res.status(401).json({
@@ -109,7 +109,7 @@ export const verify2FA = async (
     }
 
     // Obtener usuario con secret de 2FA
-    const user = await User.findByPk(req.user._id).select("+twoFactorSecret");
+    const user = await User.findByPk(req.user._id);
 
     if (!user || !user.twoFactorSecret) {
       res.status(401).json({

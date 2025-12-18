@@ -8,7 +8,7 @@ import { Promoter } from "../../models/sql/Promoter.model.js";
 import { Advertisement } from "../../models/sql/Advertisement.model.js";
 import { Membership } from "../../models/sql/Membership.model.js";
 import { Op } from 'sequelize';
-import sequelize from '../../config/database.js';
+import { sequelize } from '../../config/database.js';
 
 const router = express.Router();
 
@@ -337,14 +337,9 @@ router.get(
       });
 
       let totalRevenueARS = 0;
-      let totalRevenueUSD = 0;
 
       completedContractsData.forEach((contract) => {
-        if (contract.currency === "USD") {
-          totalRevenueUSD += contract.commission || 0;
-        } else {
-          totalRevenueARS += contract.commission || 0;
-        }
+        totalRevenueARS += Number(contract.commission) || 0;
       });
 
       // Conversion rates (visitors to registrations)
@@ -378,7 +373,6 @@ router.get(
         },
         revenue: {
           totalARS: totalRevenueARS,
-          totalUSD: totalRevenueUSD,
         },
         registrationRate,
       });

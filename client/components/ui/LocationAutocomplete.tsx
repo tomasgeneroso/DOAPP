@@ -8,6 +8,7 @@ interface LocationAutocompleteProps {
   placeholder?: string;
   required?: boolean;
   name?: string;
+  disabled?: boolean;
 }
 
 export default function LocationAutocomplete({
@@ -15,7 +16,8 @@ export default function LocationAutocomplete({
   onChange,
   placeholder = "Ej: Palermo, CABA",
   required = false,
-  name = "location"
+  name = "location",
+  disabled = false
 }: LocationAutocompleteProps) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -98,7 +100,8 @@ export default function LocationAutocomplete({
           }}
           placeholder={placeholder}
           required={required}
-          className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
+          disabled={disabled}
+          className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed"
           autoComplete="off"
         />
       </div>

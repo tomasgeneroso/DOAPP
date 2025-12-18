@@ -311,11 +311,11 @@ router.put(
 
       switch (action) {
         case 'pause':
-          if (job.status === 'paused') {
+          if (job.status === 'suspended') {
             res.status(400).json({ success: false, message: 'La publicación ya está pausada' });
             return;
           }
-          newStatus = 'paused';
+          newStatus = 'suspended';
           message = 'Publicación pausada exitosamente';
           notificationMessage = reason
             ? `Tu publicación "${job.title}" ha sido pausada por el administrador. Razón: ${reason}`
@@ -331,7 +331,7 @@ router.put(
           break;
 
         case 'resume':
-          if (job.status !== 'paused') {
+          if (job.status !== 'suspended') {
             res.status(400).json({ success: false, message: 'Solo se pueden reanudar publicaciones pausadas' });
             return;
           }

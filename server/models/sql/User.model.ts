@@ -369,10 +369,6 @@ export class User extends Model {
   @Column(DataType.INTEGER)
   completedReferrals!: number;
 
-  @Default(0)
-  @Column(DataType.INTEGER)
-  freeContractsRemaining!: number;
-
   @Default(false)
   @Column(DataType.BOOLEAN)
   isEarlyUser!: boolean;
@@ -387,10 +383,6 @@ export class User extends Model {
   @Default(0)
   @Column(DataType.INTEGER)
   invitationCodesUsed!: number;
-
-  @Default(8.0)
-  @Column(DataType.DECIMAL(4, 2))
-  currentCommissionRate!: number;
 
   // Fecha en que expira el descuento de comisión por referido (3% por 1 mes)
   // Después de esta fecha, vuelve al 8% si no tiene suscripción PRO/SUPER PRO

@@ -278,7 +278,7 @@ export default function ProposalDetail() {
                   </div>
                   {/* Multiple Ratings for Freelancer */}
                   <div className="mt-3">
-                    <MultipleRatings user={proposal.freelancer as any} size="sm" />
+                    <MultipleRatings user={proposal.freelancer as any} />
                   </div>
                 </div>
                 <div>

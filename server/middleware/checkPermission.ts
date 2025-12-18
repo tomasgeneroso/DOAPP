@@ -26,7 +26,7 @@ export const checkPermission = (
     }
 
     // Get user's permissions from their role
-    const userRole = req.user.adminRole || "user";
+    const userRole = (req.user.adminRole || "user") as keyof typeof ROLE_PERMISSIONS;
     const rolePermissions = ROLE_PERMISSIONS[userRole] || [];
 
     // Add custom permissions if any

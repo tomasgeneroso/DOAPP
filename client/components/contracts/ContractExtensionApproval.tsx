@@ -154,7 +154,7 @@ export default function ContractExtensionApproval({
                 {loading ? 'Procesando...' : 'Aprobar Extensión'}
               </Button>
               <Button
-                variant="danger"
+                variant="error"
                 onClick={() => setShowRejectForm(true)}
                 disabled={loading}
                 className="flex-1"
@@ -180,7 +180,7 @@ export default function ContractExtensionApproval({
                   Cancelar
                 </Button>
                 <Button
-                  variant="danger"
+                  variant="error"
                   onClick={handleReject}
                   disabled={loading}
                   className="flex-1"

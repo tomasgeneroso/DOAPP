@@ -3,6 +3,8 @@ import {
   useContext,
   useState,
   useEffect,
+  useCallback,
+  useMemo,
   ReactNode,
 } from "react";
 import type { User, RegisterData } from "@/types";
@@ -79,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     validateToken();
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
@@ -124,9 +126,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Login error:", error);
       throw error;
     }
-  };
+  }, []);
 
-  const register = async (data: RegisterData) => {
+  const register = useCallback(async (data: RegisterData) => {
     try {
       const response = await fetch("/api/auth/register", {
         method: "POST",
@@ -158,9 +160,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Register error:", error);
       throw error;
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       // Llamar al endpoint de logout para limpiar la cookie en el servidor
       await fetch("/api/auth/logout", {
@@ -176,9 +178,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setToken(null);
       console.log('✅ Logout exitoso');
     }
-  };
+  }, []);
 
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     try {
       const response = await fetch("/api/auth/me", {
         credentials: 'include', // Usa la cookie automáticamente
@@ -200,7 +202,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Error refreshing user:", error);
     }
-  };
+  }, []);
 
   // Handle notification modal accept
   const handleNotificationAccept = async () => {
@@ -255,19 +257,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [retryTimeoutId]);
 
+  // Memoize context value to prevent unnecessary re-renders
+  const contextValue = useMemo(() => ({
+    user,
+    token,
+    isAuthenticated: !!user,
+    isLoading,
+    login,
+    register,
+    logout,
+    refreshUser,
+  }), [user, token, isLoading, login, register, logout, refreshUser]);
+
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        token,
-        isAuthenticated: !!user,
-        isLoading,
-        login,
-        register,
-        logout,
-        refreshUser,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
       <NotificationPermissionModal
         isOpen={showNotificationModal}

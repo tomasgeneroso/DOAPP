@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback, memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import type { Job } from "@/types";
@@ -8,7 +8,7 @@ interface JobCardProps {
   index?: number;
 }
 
-export const JobCard: React.FC<JobCardProps> = ({ job, index = 0 }) => {
+const JobCardComponent: React.FC<JobCardProps> = ({ job, index = 0 }) => {
   const navigate = useNavigate();
   const [isPressed, setIsPressed] = useState(false);
 
@@ -95,3 +95,12 @@ export const JobCard: React.FC<JobCardProps> = ({ job, index = 0 }) => {
     </div>
   );
 };
+
+// Memoize to prevent re-renders when parent updates but job props unchanged
+export const JobCard = memo(JobCardComponent, (prevProps, nextProps) => {
+  return prevProps.job._id === nextProps.job._id &&
+         prevProps.job.title === nextProps.job.title &&
+         prevProps.job.budget === nextProps.job.budget &&
+         prevProps.job.description === nextProps.job.description &&
+         prevProps.index === nextProps.index;
+});

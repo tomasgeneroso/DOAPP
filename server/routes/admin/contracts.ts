@@ -139,7 +139,7 @@ router.post(
       // Validate job if provided
       let job = null;
       if (jobId) {
-        const Job = (await import("../../models/Job.js")).default;
+        const { Job } = await import("../../models/sql/index.js");
         job = await Job.findByPk(jobId);
         if (!job) {
           res.status(404).json({

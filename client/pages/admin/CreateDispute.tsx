@@ -127,21 +127,23 @@ export default function AdminCreateDispute() {
         formDataToSend.append("attachments", file);
       });
 
-      const response = await api.post("/admin/disputes/create", formDataToSend, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
+      const response = await fetch("/api/admin/disputes/create", {
+        method: "POST",
+        credentials: "include",
+        body: formDataToSend,
       });
 
-      if (response.data.success) {
+      const data = await response.json();
+
+      if (data.success) {
         alert("Disputa creada exitosamente");
         navigate("/admin/disputes");
       } else {
-        alert(`Error: ${response.data.message}`);
+        alert(`Error: ${data.message}`);
       }
     } catch (error: any) {
       console.error("Error creating dispute:", error);
-      alert(error.response?.data?.message || "Error al crear la disputa");
+      alert(error.message || "Error al crear la disputa");
     } finally {
       setSubmitting(false);
     }

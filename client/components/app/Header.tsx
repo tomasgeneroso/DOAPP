@@ -19,7 +19,7 @@ import {
   Heart,
 } from "lucide-react";
 import { ThemeToggleCompact } from "../ui/ThemeToggle";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { usePermissions } from "../../hooks/usePermissions";
 import InvitationCodesModal from "../InvitationCodesModal";
 import NotificationDropdown from "../NotificationDropdown";
@@ -33,11 +33,19 @@ export default function Header() {
   const [showInvitationModal, setShowInvitationModal] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const handleLogout = async () => {
+  const handleLogout = useCallback(async () => {
     await logout();
     navigate("/");
     setIsMenuOpen(false);
-  };
+  }, [logout, navigate]);
+
+  const toggleMenu = useCallback(() => {
+    setIsMenuOpen(prev => !prev);
+  }, []);
+
+  const closeMenu = useCallback(() => {
+    setIsMenuOpen(false);
+  }, []);
 
   // Fetch initial unread count
   useEffect(() => {
@@ -54,7 +62,7 @@ export default function Header() {
     });
   }, []);
 
-  const fetchUnreadCount = async () => {
+  const fetchUnreadCount = useCallback(async () => {
     try {
       const response = await fetch("/api/chat/unread-count", {
         credentials: 'include',
@@ -67,9 +75,9 @@ export default function Header() {
     } catch (error) {
       console.error("Error fetching unread count:", error);
     }
-  };
+  }, []);
 
-  // Cerrar menú cuando se hace clic fuera
+  // Cerrar menú cuando se hace clic fuera o con Escape
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -77,11 +85,58 @@ export default function Header() {
       }
     };
 
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isMenuOpen) {
+        setIsMenuOpen(false);
+      }
+    };
+
     document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
     };
-  }, []);
+  }, [isMenuOpen]);
+
+  // Memoize free contracts badge calculation
+  const contractsBadge = useMemo(() => {
+    if (!user) return null;
+
+    const freeContractsRemaining = user.freeContractsRemaining || 0;
+    const proContractsUsed = user.proContractsUsedThisMonth || 0;
+    let monthlyFreeLimit = 0;
+    if (user.membershipTier === 'super_pro') monthlyFreeLimit = 2;
+    else if (user.membershipTier === 'pro') monthlyFreeLimit = 1;
+    const monthlyFreeRemaining = Math.max(0, monthlyFreeLimit - proContractsUsed);
+    const totalFreeRemaining = freeContractsRemaining + monthlyFreeRemaining;
+    const isFreeUser = !user.membershipTier || user.membershipTier === 'free';
+
+    if (totalFreeRemaining > 0) {
+      return {
+        type: 'free' as const,
+        totalFreeRemaining,
+        freeContractsRemaining,
+        monthlyFreeRemaining,
+        isFreeUser,
+      };
+    }
+
+    let commissionRate = 8;
+    if (user.hasFamilyPlan) commissionRate = 0;
+    else if (user.membershipTier === 'super_pro') commissionRate = 2;
+    else if (user.membershipTier === 'pro') commissionRate = 3;
+
+    if (user.hasFamilyPlan) {
+      return { type: 'family' as const };
+    }
+
+    return {
+      type: 'commission' as const,
+      commissionRate,
+      membershipTier: user.membershipTier,
+    };
+  }, [user?.freeContractsRemaining, user?.proContractsUsedThisMonth, user?.membershipTier, user?.hasFamilyPlan]);
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg">
@@ -103,93 +158,64 @@ export default function Header() {
         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
           {user ? (
             <>
-              {/* Free Contracts Counter */}
-              {(() => {
-                const freeContractsRemaining = user.freeContractsRemaining || 0;
-                const proContractsUsed = user.proContractsUsedThisMonth || 0;
-                let monthlyFreeLimit = 0;
-                if (user.membershipTier === 'super_pro') monthlyFreeLimit = 2;
-                else if (user.membershipTier === 'pro') monthlyFreeLimit = 1;
-                const monthlyFreeRemaining = Math.max(0, monthlyFreeLimit - proContractsUsed);
-                const totalFreeRemaining = freeContractsRemaining + monthlyFreeRemaining;
-
-                // Mostrar siempre el contador
-                if (totalFreeRemaining > 0) {
-                  // Usuario con contratos gratis disponibles
-                  const isFreeUser = !user.membershipTier || user.membershipTier === 'free';
-
-                  return (
-                    <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
-                      <FileText className="h-4 w-4 text-green-600 dark:text-green-400" />
-                      <div className="flex flex-col">
-                        {isFreeUser ? (
-                          // Usuario FREE: mensaje simple
-                          <span className="text-xs font-semibold text-green-700 dark:text-green-300">
-                            {totalFreeRemaining} contrato{totalFreeRemaining !== 1 ? 's' : ''} gratis disponible{totalFreeRemaining !== 1 ? 's' : ''}
+              {/* Free Contracts Counter - memoized calculation */}
+              {contractsBadge?.type === 'free' && (
+                <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                  <FileText className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  <div className="flex flex-col">
+                    {contractsBadge.isFreeUser ? (
+                      <span className="text-xs font-semibold text-green-700 dark:text-green-300">
+                        {contractsBadge.totalFreeRemaining} contrato{contractsBadge.totalFreeRemaining !== 1 ? 's' : ''} gratis disponible{contractsBadge.totalFreeRemaining !== 1 ? 's' : ''}
+                      </span>
+                    ) : (
+                      <>
+                        <span className="text-xs font-semibold text-green-700 dark:text-green-300">
+                          {contractsBadge.totalFreeRemaining} contrato{contractsBadge.totalFreeRemaining !== 1 ? 's' : ''} gratis
+                        </span>
+                        {contractsBadge.freeContractsRemaining > 0 && (
+                          <span className="text-[10px] text-green-600 dark:text-green-400">
+                            {contractsBadge.freeContractsRemaining} inicial{contractsBadge.freeContractsRemaining !== 1 ? 'es' : ''}
                           </span>
-                        ) : (
-                          // Usuario PRO/SUPER PRO: con desglose
-                          <>
-                            <span className="text-xs font-semibold text-green-700 dark:text-green-300">
-                              {totalFreeRemaining} contrato{totalFreeRemaining !== 1 ? 's' : ''} gratis
-                            </span>
-                            {freeContractsRemaining > 0 && (
-                              <span className="text-[10px] text-green-600 dark:text-green-400">
-                                {freeContractsRemaining} inicial{freeContractsRemaining !== 1 ? 'es' : ''}
-                              </span>
-                            )}
-                            {monthlyFreeRemaining > 0 && (
-                              <span className="text-[10px] text-green-600 dark:text-green-400">
-                                {monthlyFreeRemaining} este mes
-                              </span>
-                            )}
-                          </>
                         )}
-                      </div>
-                    </div>
-                  );
-                } else {
-                  // Usuario sin contratos gratis - mostrar comisión
-                  let commissionRate = 8;
-                  if (user.hasFamilyPlan) commissionRate = 0;
-                  else if (user.membershipTier === 'super_pro') commissionRate = 2;
-                  else if (user.membershipTier === 'pro') commissionRate = 3;
-
-                  // Si tiene Plan Familia, mostrar badge especial
-                  if (user.hasFamilyPlan) {
-                    return (
-                      <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-pink-50 dark:bg-pink-900/20 border border-pink-200 dark:border-pink-800">
-                        <Heart className="h-4 w-4 text-pink-600 dark:text-pink-400 fill-pink-500" />
-                        <div className="flex flex-col">
-                          <span className="text-xs font-semibold text-pink-700 dark:text-pink-300">
-                            Sin comisión
+                        {contractsBadge.monthlyFreeRemaining > 0 && (
+                          <span className="text-[10px] text-green-600 dark:text-green-400">
+                            {contractsBadge.monthlyFreeRemaining} este mes
                           </span>
-                          <span className="text-[10px] text-pink-600 dark:text-pink-400">
-                            PLAN FAMILIA
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <Link
-                      to="/membership/pricing"
-                      className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors cursor-pointer"
-                    >
-                      <FileText className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                      <div className="flex flex-col">
-                        <span className="text-xs font-semibold text-orange-700 dark:text-orange-300">
-                          Comisión {commissionRate}%
-                        </span>
-                        <span className="text-[10px] text-orange-600 dark:text-orange-400">
-                          {user.membershipTier === 'super_pro' ? 'SUPER PRO' : user.membershipTier === 'pro' ? 'PRO' : 'FREE'}
-                        </span>
-                      </div>
-                    </Link>
-                  );
-                }
-              })()}
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+              {contractsBadge?.type === 'family' && (
+                <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-pink-50 dark:bg-pink-900/20 border border-pink-200 dark:border-pink-800">
+                  <Heart className="h-4 w-4 text-pink-600 dark:text-pink-400 fill-pink-500" />
+                  <div className="flex flex-col">
+                    <span className="text-xs font-semibold text-pink-700 dark:text-pink-300">
+                      Sin comisión
+                    </span>
+                    <span className="text-[10px] text-pink-600 dark:text-pink-400">
+                      PLAN FAMILIA
+                    </span>
+                  </div>
+                </div>
+              )}
+              {contractsBadge?.type === 'commission' && (
+                <Link
+                  to="/membership/pricing"
+                  className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors cursor-pointer"
+                >
+                  <FileText className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+                  <div className="flex flex-col">
+                    <span className="text-xs font-semibold text-orange-700 dark:text-orange-300">
+                      Comisión {contractsBadge.commissionRate}%
+                    </span>
+                    <span className="text-[10px] text-orange-600 dark:text-orange-400">
+                      {contractsBadge.membershipTier === 'super_pro' ? 'SUPER PRO' : contractsBadge.membershipTier === 'pro' ? 'PRO' : 'FREE'}
+                    </span>
+                  </div>
+                </Link>
+              )}
 
               <Link
                 to="/contracts/create"
@@ -238,8 +264,11 @@ export default function Header() {
           {user ? (
             <div className="relative" ref={menuRef} data-onboarding="profile-menu">
               <button
-                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                onClick={toggleMenu}
                 className="flex items-center gap-2 rounded-full bg-slate-100 dark:bg-slate-800 p-2 text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                aria-label="Menú de usuario"
+                aria-expanded={isMenuOpen}
+                aria-haspopup="menu"
               >
                 <img
                   src={user.avatar}
@@ -253,86 +282,100 @@ export default function Header() {
                   className={`h-4 w-4 text-slate-500 transition-transform ${
                     isMenuOpen ? "rotate-180" : ""
                   }`}
+                  aria-hidden="true"
                 />
               </button>
 
               {/* Menú desplegable */}
               {isMenuOpen && (
-                <div className="absolute right-0 mt-2 w-56 origin-top-right rounded-xl bg-white dark:bg-slate-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none overflow-hidden z-[100]">
-                  <div className="py-1">
+                <div
+                  className="absolute right-0 mt-2 w-56 origin-top-right rounded-xl bg-white dark:bg-slate-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none overflow-hidden z-[100]"
+                  role="menu"
+                  aria-orientation="vertical"
+                  aria-labelledby="user-menu-button"
+                >
+                  <div className="py-1" role="none">
                     <Link
                       to="/dashboard"
-                      onClick={() => setIsMenuOpen(false)}
+                      onClick={closeMenu}
                       className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                      role="menuitem"
                     >
-                      <LayoutDashboard className="h-4 w-4" />
+                      <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
                       Dashboard
                     </Link>
                     <Link
                       to={`/profile/${user._id}`}
-                      onClick={() => setIsMenuOpen(false)}
+                      onClick={closeMenu}
                       className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                      role="menuitem"
                     >
-                      <UserIcon className="h-4 w-4" />
+                      <UserIcon className="h-4 w-4" aria-hidden="true" />
                       Mi Perfil
                     </Link>
                     <Link
                       to="/my-jobs"
-                      onClick={() => setIsMenuOpen(false)}
+                      onClick={closeMenu}
                       className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                      role="menuitem"
                     >
-                      <Briefcase className="h-4 w-4" />
+                      <Briefcase className="h-4 w-4" aria-hidden="true" />
                       Mis Trabajos
                     </Link>
                     <Link
                       to="/settings"
-                      onClick={() => setIsMenuOpen(false)}
+                      onClick={closeMenu}
                       className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                      role="menuitem"
                     >
-                      <Settings className="h-4 w-4" />
+                      <Settings className="h-4 w-4" aria-hidden="true" />
                       Configuración
                     </Link>
                     <Link
                       to="/help"
-                      onClick={() => setIsMenuOpen(false)}
+                      onClick={closeMenu}
                       className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                      role="menuitem"
                     >
-                      <HelpCircle className="h-4 w-4" />
+                      <HelpCircle className="h-4 w-4" aria-hidden="true" />
                       Ayuda y Soporte
                     </Link>
                     <Link
                       to="/referrals"
-                      onClick={() => setIsMenuOpen(false)}
+                      onClick={closeMenu}
                       className="flex w-full items-center gap-3 px-4 py-3 text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
+                      role="menuitem"
                     >
-                      <Gift className="h-4 w-4" />
+                      <Gift className="h-4 w-4" aria-hidden="true" />
                       Códigos de Invitación
                       {user.invitationCodesRemaining &&
                         user.invitationCodesRemaining > 0 && (
-                          <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-purple-500 px-1.5 text-xs font-bold text-white">
+                          <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-purple-500 px-1.5 text-xs font-bold text-white" aria-label={`${user.invitationCodesRemaining} códigos disponibles`}>
                             {user.invitationCodesRemaining}
                           </span>
                         )}
                     </Link>
                     {user.adminRole && (
                       <>
-                        <hr className="my-1 border-slate-200 dark:border-slate-700" />
+                        <hr className="my-1 border-slate-200 dark:border-slate-700" role="separator" />
                         <Link
                           to="/admin"
-                          onClick={() => setIsMenuOpen(false)}
+                          onClick={closeMenu}
                           className="flex items-center gap-3 px-4 py-3 text-sm text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors font-medium"
+                          role="menuitem"
                         >
-                          <Shield className="h-4 w-4" />
+                          <Shield className="h-4 w-4" aria-hidden="true" />
                           Panel de Admin
                         </Link>
                       </>
                     )}
-                    <hr className="my-1 border-slate-200 dark:border-slate-700" />
+                    <hr className="my-1 border-slate-200 dark:border-slate-700" role="separator" />
                     <button
                       onClick={handleLogout}
                       className="flex w-full items-center gap-3 px-4 py-3 text-sm text-red-600 dark:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                      role="menuitem"
                     >
-                      <LogOut className="h-4 w-4" />
+                      <LogOut className="h-4 w-4" aria-hidden="true" />
                       Cerrar sesión
                     </button>
                   </div>

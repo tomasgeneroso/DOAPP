@@ -330,15 +330,13 @@ export default function PortfolioManager() {
                 <div className="flex gap-2">
                   <Button
                     variant="secondary"
-                    size="sm"
                     onClick={() => window.location.href = `/portfolio/${item._id}`}
                     className="flex-1"
                   >
                     Ver
                   </Button>
                   <Button
-                    variant="danger"
-                    size="sm"
+                    variant="error"
                     onClick={() => handleDelete(item._id)}
                     className="flex-1"
                   >

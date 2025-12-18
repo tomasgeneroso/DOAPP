@@ -8,7 +8,7 @@ import type { AuthRequest } from '../../types/index.js';
 const router = express.Router();
 
 // Middleware: Solo el owner puede acceder a estas rutas
-const ownerOnly = requireAdminRole(['owner']);
+const ownerOnly = requireAdminRole('owner');
 
 /**
  * @route   GET /api/admin/family-codes

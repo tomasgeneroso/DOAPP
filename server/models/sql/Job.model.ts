@@ -499,6 +499,7 @@ export class Job extends Model {
    * Calculate duration in days
    */
   getDurationDays(): number {
+    if (!this.endDate || !this.startDate) return 0;
     const diff = this.endDate.getTime() - this.startDate.getTime();
     return Math.ceil(diff / (1000 * 60 * 60 * 24));
   }

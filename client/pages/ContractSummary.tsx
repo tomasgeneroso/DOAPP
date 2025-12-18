@@ -384,9 +384,9 @@ export default function ContractSummary() {
                         </>
                       )}
                     </p>
-                    {user.freeContractsRemaining > 0 && (
+                    {(user.freeContractsRemaining ?? 0) > 0 && (
                       <p className="mt-2 text-green-700 dark:text-green-300 font-semibold">
-                        ✨ Tienes {user.freeContractsRemaining} contrato{user.freeContractsRemaining > 1 ? 's' : ''} gratis disponible{user.freeContractsRemaining > 1 ? 's' : ''}
+                        ✨ Tienes {user.freeContractsRemaining} contrato{(user.freeContractsRemaining ?? 0) > 1 ? 's' : ''} gratis disponible{(user.freeContractsRemaining ?? 0) > 1 ? 's' : ''}
                       </p>
                     )}
                   </div>

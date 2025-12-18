@@ -33,26 +33,25 @@ export function startResetProMembershipCountersJob() {
 
       for (const user of proUsers) {
         try {
+          const u = user as any;
           // Verificar si completó 3 contratos en el mes pasado y otorgar bonus
-          if (user.monthlyContractsUsed >= 3 && !user.earnedBonusContract) {
-            user.earnedBonusContract = true;
-            user.monthlyFreeContractsLimit += 1; // Agregar 1 contrato gratis bonus
+          if ((u.proContractsUsedThisMonth || 0) >= 3 && !u.earnedBonusContract) {
+            u.earnedBonusContract = true;
+            u.freeContractsRemaining = (u.freeContractsRemaining || 0) + 1; // Agregar 1 contrato gratis bonus
             bonusAwardedCount++;
             console.log(`🎁 [CRON] Usuario ${user.email} ganó contrato bonus por completar 3 contratos`);
           }
 
           // Resetear contadores mensuales
-          user.monthlyContractsUsed = 0;
-          user.earnedBonusContract = false;
-          user.monthlyFreeContractsLimit = 3; // Resetear a 3 contratos gratis
-          user.lastMonthlyReset = now;
+          u.proContractsUsedThisMonth = 0;
+          u.freeContractsRemaining = 3; // Resetear a 3 contratos gratis
 
           await user.save();
           resetCount++;
 
           console.log(`✅ [CRON] Reseteado usuario ${user.email} (PRO)`);
         } catch (error) {
-          console.error(`❌ [CRON] Error reseteando usuario ${user._id}:`, error);
+          console.error(`❌ [CRON] Error reseteando usuario ${user.id}:`, error);
         }
       }
 

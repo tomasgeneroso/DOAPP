@@ -167,7 +167,7 @@ export const csrfProtection = (req: Request, res: Response, next: NextFunction) 
   }
 
   const token = req.headers["x-csrf-token"] || req.body?.csrfToken;
-  const sessionToken = req.session?.csrfToken;
+  const sessionToken = (req.session as any)?.csrfToken;
 
   if (!token || !sessionToken || token !== sessionToken) {
     res.status(403).json({
@@ -184,8 +184,9 @@ export const csrfProtection = (req: Request, res: Response, next: NextFunction) 
  * Generate CSRF token for session
  */
 export const generateCsrfToken = (req: Request, res: Response, next: NextFunction) => {
-  if (!req.session?.csrfToken) {
-    req.session.csrfToken = require("crypto").randomBytes(32).toString("hex");
+  const session = req.session as any;
+  if (!session?.csrfToken) {
+    session.csrfToken = require("crypto").randomBytes(32).toString("hex");
   }
   next();
 };

@@ -5,7 +5,7 @@ import { JOB_CATEGORIES } from "../../shared/constants/categories";
 import { Check, X } from "lucide-react";
 
 export default function OnboardingScreen() {
-  const { user, updateUserData } = useAuth();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);

@@ -18,16 +18,12 @@ export function startEscalateExpiredChangeRequestsJob() {
       const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
 
       // Buscar solicitudes pendientes creadas hace más de 2 días
-      const expiredRequests = await ContractChangeRequest.find({
-        status: 'pending',
-        createdAt: { [Op.lte]: twoDaysAgo },
-      }).populate({
-        path: 'contract',
-        populate: [
-          { path: 'client', select: 'name email' },
-          { path: 'doer', select: 'name email' },
-          { path: 'job', select: 'title' },
-        ],
+      const expiredRequests = await (ContractChangeRequest as any).findAll({
+        where: {
+          status: 'pending',
+          createdAt: { [Op.lte]: twoDaysAgo },
+        },
+        include: ['contract'],
       });
 
       if (expiredRequests.length === 0) {
@@ -79,7 +75,7 @@ Solicitud automáticamente escalada después de 2 días sin respuesta.
           // Actualizar solicitud
           request.status = 'escalated_to_support';
           request.escalatedAt = new Date();
-          request.supportTicketId = ticket._id as any;
+          request.supportTicketId = (ticket as any).id;
           await request.save();
 
           // Enviar emails a ambas partes
@@ -94,10 +90,10 @@ Solicitud automáticamente escalada después de 2 días sin respuesta.
 
               <p>Nuestro equipo revisará el caso y se pondrá en contacto contigo pronto.</p>
 
-              <p><strong>Número de ticket:</strong> #${ticket._id}</p>
+              <p><strong>Número de ticket:</strong> #${(ticket as any).id}</p>
 
               <p>
-                <a href="${process.env.CLIENT_URL}/support/tickets/${ticket._id}"
+                <a href="${process.env.CLIENT_URL}/support/tickets/${(ticket as any).id}"
                    style="display: inline-block; padding: 12px 24px; background-color: #0ea5e9; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">
                   Ver ticket de soporte
                 </a>
@@ -119,12 +115,12 @@ Solicitud automáticamente escalada después de 2 días sin respuesta.
               <p><strong>Razón de la solicitud:</strong></p>
               <p>${request.reason}</p>
 
-              <p><strong>Número de ticket:</strong> #${ticket._id}</p>
+              <p><strong>Número de ticket:</strong> #${(ticket as any).id}</p>
 
               <p>Si deseas proporcionar información adicional, puedes responder en el ticket de soporte.</p>
 
               <p>
-                <a href="${process.env.CLIENT_URL}/support/tickets/${ticket._id}"
+                <a href="${process.env.CLIENT_URL}/support/tickets/${(ticket as any).id}"
                    style="display: inline-block; padding: 12px 24px; background-color: #0ea5e9; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">
                   Ver ticket de soporte
                 </a>
@@ -134,7 +130,7 @@ Solicitud automáticamente escalada después de 2 días sin respuesta.
 
           escalatedCount++;
           console.log(
-            `✅ [CRON] Escalada solicitud ${request._id} → Ticket ${ticket._id}`
+            `✅ [CRON] Escalada solicitud ${request._id} → Ticket ${(ticket as any).id}`
           );
         } catch (error) {
           console.error(`❌ [CRON] Error escalando solicitud ${request._id}:`, error);

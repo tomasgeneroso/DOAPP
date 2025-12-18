@@ -6,46 +6,34 @@ import { RateLimiterMemory } from "rate-limiter-flexible";
  * Provides per-user, per-endpoint rate limiting
  */
 
-// Rate limiter instances
-let authLimiter: RateLimiterMemory;
-let apiLimiter: RateLimiterMemory;
-let strictLimiter: RateLimiterMemory;
-let perUserLimiter: RateLimiterMemory;
+// Rate limiter instances - initialized immediately
+const authLimiter = new RateLimiterMemory({
+  keyPrefix: "rl:auth",
+  points: 20, // Aumentado de 5 a 20 - permite más intentos de login
+  duration: 15 * 60,
+  blockDuration: 5 * 60, // Reducido de 15 a 5 minutos
+});
 
-// Initialize rate limiters
-function initializeRateLimiters() {
-  // Memory-based rate limiters - adjusted for better UX
-  authLimiter = new RateLimiterMemory({
-    keyPrefix: "rl:auth",
-    points: 20, // Aumentado de 5 a 20 - permite más intentos de login
-    duration: 15 * 60,
-    blockDuration: 5 * 60, // Reducido de 15 a 5 minutos
-  });
+const apiLimiter = new RateLimiterMemory({
+  keyPrefix: "rl:api",
+  points: 500, // Aumentado de 100 a 500 - apps SPA hacen muchas requests
+  duration: 15 * 60,
+});
 
-  apiLimiter = new RateLimiterMemory({
-    keyPrefix: "rl:api",
-    points: 500, // Aumentado de 100 a 500 - apps SPA hacen muchas requests
-    duration: 15 * 60,
-  });
+const strictLimiter = new RateLimiterMemory({
+  keyPrefix: "rl:strict",
+  points: 10, // Aumentado de 3 a 10
+  duration: 60 * 60,
+  blockDuration: 30 * 60, // Reducido de 60 a 30 minutos
+});
 
-  strictLimiter = new RateLimiterMemory({
-    keyPrefix: "rl:strict",
-    points: 10, // Aumentado de 3 a 10
-    duration: 60 * 60,
-    blockDuration: 30 * 60, // Reducido de 60 a 30 minutos
-  });
+const perUserLimiter = new RateLimiterMemory({
+  keyPrefix: "rl:user",
+  points: 500, // Aumentado de 200 a 500
+  duration: 60 * 60,
+});
 
-  perUserLimiter = new RateLimiterMemory({
-    keyPrefix: "rl:user",
-    points: 500, // Aumentado de 200 a 500
-    duration: 60 * 60,
-  });
-
-  console.log("✅ Memory-based rate limiters initialized");
-}
-
-// Initialize on module load
-initializeRateLimiters();
+console.log("✅ Memory-based rate limiters initialized");
 
 /**
  * Create rate limit middleware

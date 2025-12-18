@@ -80,8 +80,7 @@ export default function ContractDetail() {
       }
     };
     registerContractUpdateHandler(handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, loadContract, loadPayments, registerContractUpdateHandler]);
 
   const handleReleaseEscrow = async (paymentId: string) => {
     if (!confirm("¿Estás seguro de liberar el pago del escrow?")) return;

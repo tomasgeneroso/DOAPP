@@ -656,7 +656,7 @@ export default function ProfilePage() {
         {/* Report Profile Modal */}
         {showReportModal && user && (
           <ReportProfileModal
-            userId={user._id || user.id}
+            userId={user._id || user.id || ''}
             userName={user.name}
             onClose={() => setShowReportModal(false)}
             onSuccess={() => {

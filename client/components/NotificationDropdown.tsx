@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   Bell,
@@ -224,7 +224,7 @@ export default function NotificationDropdown() {
     }
   }, [registerNotificationHandler, isOpen]);
 
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking outside or pressing Escape
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -232,12 +232,22 @@ export default function NotificationDropdown() {
       }
     };
 
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && isOpen) {
+        setIsOpen(false);
+      }
+    };
+
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [isOpen]);
 
   // Mark single notification as read
-  const markAsRead = async (notificationId: string) => {
+  const markAsRead = useCallback(async (notificationId: string) => {
     try {
       await fetch(`/api/notifications/${notificationId}/read`, {
         method: 'PUT',
@@ -250,10 +260,10 @@ export default function NotificationDropdown() {
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
-  };
+  }, []);
 
   // Mark all as read
-  const markAllAsRead = async () => {
+  const markAllAsRead = useCallback(async () => {
     try {
       await fetch('/api/notifications/read-all', {
         method: 'PUT',
@@ -264,19 +274,32 @@ export default function NotificationDropdown() {
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
     }
-  };
+  }, []);
+
+  const toggleDropdown = useCallback(() => {
+    setIsOpen(prev => !prev);
+  }, []);
+
+  const closeDropdown = useCallback(() => {
+    setIsOpen(false);
+  }, []);
 
   return (
     <div className="relative" ref={dropdownRef}>
       {/* Bell Button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={toggleDropdown}
         className="relative flex items-center justify-center w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-        aria-label="Notificaciones"
+        aria-label={unreadCount > 0 ? `Notificaciones, ${unreadCount} sin leer` : "Notificaciones"}
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
       >
-        <Bell className="h-5 w-5 text-slate-600 dark:text-slate-300" />
+        <Bell className="h-5 w-5 text-slate-600 dark:text-slate-300" aria-hidden="true" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white animate-pulse">
+          <span
+            className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white animate-pulse"
+            aria-hidden="true"
+          >
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -284,7 +307,12 @@ export default function NotificationDropdown() {
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 origin-top-right rounded-xl bg-white dark:bg-slate-800 shadow-xl ring-1 ring-black ring-opacity-5 z-[100] overflow-hidden">
+        <div
+          className="absolute right-0 mt-2 w-80 sm:w-96 origin-top-right rounded-xl bg-white dark:bg-slate-800 shadow-xl ring-1 ring-black ring-opacity-5 z-[100] overflow-hidden"
+          role="menu"
+          aria-orientation="vertical"
+          aria-label="Notificaciones"
+        >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
             <h3 className="font-semibold text-slate-900 dark:text-white">
@@ -371,7 +399,7 @@ export default function NotificationDropdown() {
           <div className="border-t border-slate-200 dark:border-slate-700">
             <Link
               to="/notifications"
-              onClick={() => setIsOpen(false)}
+              onClick={closeDropdown}
               className="block w-full text-center px-4 py-3 text-sm font-medium text-sky-600 dark:text-sky-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
             >
               Ver todas las notificaciones

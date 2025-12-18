@@ -42,15 +42,22 @@ export type ContractStatus =
   | 'in_review';
 
 export type PaymentStatus = 'pending' | 'held' | 'released' | 'refunded' | 'completed' | 'escrow';
-export type DeliveryStatus = 'pending' | 'in_progress' | 'completed';
+export type DeliveryStatus = 'pending' | 'in_progress' | 'completed' | 'approved' | 'rejected';
 
 interface Delivery {
+  id?: string;
   description: string;
-  startDate: Date;
-  endDate: Date;
+  files?: string[];
+  startDate?: Date;
+  endDate?: Date;
   status: DeliveryStatus;
   completedAt?: Date;
   notes?: string;
+  reviewedBy?: string;
+  reviewedAt?: Date;
+  feedback?: string;
+  submittedBy?: string;
+  submittedAt?: Date;
 }
 
 interface PendingModification {
@@ -86,7 +93,7 @@ interface ExtensionRecord {
   notes?: string;
 }
 
-export type { ExtensionRecord };
+export type { Delivery, PriceModification, ExtensionRecord };
 
 @Table({
   tableName: 'contracts',
@@ -488,7 +495,7 @@ export class Contract extends Model {
    * Check if contract can be extended
    */
   canBeExtended(): boolean {
-    return !this.isExtended && (this.status === 'in_progress' || this.status === 'active');
+    return !this.hasBeenExtended && (this.status === 'in_progress' || this.status === 'accepted');
   }
 
   /**
@@ -576,7 +583,7 @@ export class Contract extends Model {
    * Check if contract is active
    */
   isActive(): boolean {
-    return this.status === 'active';
+    return this.status === 'in_progress' || this.status === 'accepted';
   }
 
   /**
@@ -622,8 +629,8 @@ export class Contract extends Model {
    * Check if pairing is expired
    */
   isPairingExpired(): boolean {
-    if (!this.pairingCodeExpiresAt) return false;
-    return new Date() > this.pairingCodeExpiresAt;
+    if (!this.pairingExpiry) return false;
+    return new Date() > this.pairingExpiry;
   }
 
   /**
@@ -638,19 +645,19 @@ export class Contract extends Model {
    */
   async confirmCompletion(userId: string): Promise<boolean> {
     if (userId === this.clientId) {
-      this.clientConfirmedCompletion = true;
-      this.clientCompletionConfirmedAt = new Date();
+      this.clientConfirmed = true;
+      this.clientConfirmedAt = new Date();
     } else if (userId === this.doerId) {
-      this.doerConfirmedCompletion = true;
-      this.doerCompletionConfirmedAt = new Date();
+      this.doerConfirmed = true;
+      this.doerConfirmedAt = new Date();
     } else {
       return false;
     }
 
     // If both confirmed, mark as completed
-    if (this.clientConfirmedCompletion && this.doerConfirmedCompletion) {
+    if (this.clientConfirmed && this.doerConfirmed) {
       this.status = 'completed';
-      this.completedAt = new Date();
+      this.actualEndDate = new Date();
     }
 
     await this.save();
@@ -665,18 +672,18 @@ export class Contract extends Model {
     reason: string,
     additionalPrice?: number
   ): Promise<void> {
-    if (this.isExtended) {
+    if (this.hasBeenExtended) {
       throw new Error('Contract has already been extended');
     }
 
     this.originalEndDate = this.endDate;
     this.endDate = newEndDate;
-    this.extensionReason = reason;
-    this.isExtended = true;
+    this.extensionNotes = reason;
+    this.hasBeenExtended = true;
     this.extensionRequestedAt = new Date();
 
     if (additionalPrice) {
-      this.extensionPrice = additionalPrice;
+      this.extensionAmount = additionalPrice;
     }
 
     await this.save();
@@ -728,14 +735,16 @@ export class Contract extends Model {
       this.deliveries = [];
     }
 
-    this.deliveries.push({
+    const newDelivery: Delivery = {
       id: crypto.randomUUID(),
       description,
       files,
       submittedBy,
       submittedAt: new Date(),
       status: 'pending',
-    });
+    };
+
+    this.deliveries.push(newDelivery);
 
     await this.save();
   }

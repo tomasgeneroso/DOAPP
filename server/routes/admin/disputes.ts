@@ -321,7 +321,7 @@ router.post(
           // Refund via MercadoPago (minus platform fee)
           if (payment.mercadopagoPaymentId) {
             try {
-              const refundAmountARS = payment.amountARS || 0;
+              const refundAmountARS = payment.amountArs || 0;
               const commission = (payment as any).commission || 0;
               const refundableAmount = refundAmountARS - commission; // Don't refund commission
 
@@ -683,6 +683,7 @@ router.post(
         dispute.id.toString(),
         userId,
         againstUserId,
+        contractId,
         job?.title || "Contrato",
         title
       );

@@ -341,7 +341,7 @@ export default function MembershipCheckout() {
                 Resumen de Pago
               </h2>
 
-              {plan === 'quarterly' && selectedPlan.savings && (
+              {plan === 'quarterly' && 'savings' in selectedPlan && selectedPlan.savings && (
                 <div className="mb-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
                   <p className="text-green-800 dark:text-green-200 text-sm font-semibold text-center">
                     Ahorra {selectedPlan.savings} con el plan trimestral

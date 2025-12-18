@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import { Button } from "./Button";
+import Button from "./Button";
 
 interface TermsModalProps {
   isOpen: boolean;

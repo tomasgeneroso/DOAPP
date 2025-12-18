@@ -777,7 +777,9 @@ router.put("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
     // Check if job has past dates (expired) - only if endDateFlexible is false
     const now = new Date();
     const jobEndDate = job.endDate ? new Date(job.endDate) : null;
-    const hasExpiredDates = !job.endDateFlexible && jobEndDate && jobEndDate < now;
+    // Default endDateFlexible to false for jobs created before this field existed
+    const jobEndDateFlexible = job.endDateFlexible ?? false;
+    const hasExpiredDates = !jobEndDateFlexible && jobEndDate && jobEndDate < now;
 
     // Parse endDateFlexible from request
     const newEndDateFlexible = req.body.endDateFlexible === 'true' || req.body.endDateFlexible === true;
@@ -800,7 +802,7 @@ router.put("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
     }
 
     // Validate endDate if not flexible
-    if (!newEndDateFlexible && !req.body.endDate && !job.endDateFlexible) {
+    if (!newEndDateFlexible && !req.body.endDate && !jobEndDateFlexible) {
       // Only require endDate if job wasn't already flexible
       res.status(400).json({
         success: false,
