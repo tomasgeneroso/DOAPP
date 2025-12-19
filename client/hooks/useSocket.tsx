@@ -4,10 +4,16 @@ import { useAuth } from "./useAuth";
 
 // Configuración de URL para Socket.io
 // En desarrollo, usar el mismo host (proxy de Vite lo redirigirá a :5000)
-// En producción, usar la URL del API
-const SOCKET_URL = import.meta.env.DEV
-  ? "" // Empty string = same host (uses Vite proxy)
-  : (import.meta.env.VITE_API_URL || "http://localhost:5000");
+// En producción, usar la URL base del sitio (sin /api)
+const getSocketUrl = () => {
+  if (import.meta.env.DEV) {
+    return ""; // Empty string = same host (uses Vite proxy)
+  }
+  const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  // Remove /api suffix if present to get base URL
+  return apiUrl.replace(/\/api\/?$/, "");
+};
+const SOCKET_URL = getSocketUrl();
 
 // Reconnection configuration
 const MAX_RECONNECT_ATTEMPTS = 5;
