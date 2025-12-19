@@ -94,6 +94,12 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
 
   // Check if user needs onboarding when they first log in
   useEffect(() => {
+    // TEMPORARILY DISABLED IN PRODUCTION - TODO: re-enable when onboarding is fixed
+    if (!import.meta.env.DEV) {
+      setHasCheckedOnboarding(true);
+      return;
+    }
+
     if (user && !hasCheckedOnboarding) {
       const userId = user.id || user._id;
       if (!userId) {
