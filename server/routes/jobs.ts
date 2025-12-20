@@ -1533,26 +1533,69 @@ router.patch("/:id/budget", protect, async (req: AuthRequest, res: Response): Pr
     }
 
     const currentPrice = Number(job.price);
-    // Usar el precio máximo pagado históricamente para calcular el crédito
-    // Si hay originalPrice y es mayor al precio actual, significa que hubo reducciones
-    // y el usuario ya pagó por ese monto mayor
-    const maxPaidPrice = job.originalPrice ? Math.max(Number(job.originalPrice), currentPrice) : currentPrice;
+    const priceDifference = newPrice - currentPrice;
 
-    // La diferencia real a pagar es: nuevo precio - máximo pagado
-    // Si newPrice <= maxPaidPrice, no hay que pagar más (ya pagó eso o más)
-    const priceDifference = newPrice - maxPaidPrice;
+    // Obtener el usuario para acceder a su balance
+    const client = await User.findByPk(req.user.id);
+    if (!client) {
+      res.status(404).json({
+        success: false,
+        message: "Usuario no encontrado",
+      });
+      return;
+    }
 
-    // Si el precio supera lo que ya pagó, manejar pago de diferencia
+    const userBalance = parseFloat(client.balanceArs as any) || 0;
+
+    // CASO 1: El precio BAJA -> Acreditar la diferencia al balance del usuario
+    if (priceDifference < 0) {
+      const refundAmount = Math.abs(priceDifference);
+
+      // Acreditar al balance del usuario
+      await client.addBalance(refundAmount);
+
+      // Agregar al historial de cambios
+      const priceHistory = job.priceHistory || [];
+      priceHistory.push({
+        oldPrice: currentPrice,
+        newPrice,
+        reason: reason.trim(),
+        changedAt: new Date(),
+        refundedToBalance: refundAmount,
+      });
+
+      // Actualizar el trabajo
+      await job.update({
+        price: newPrice,
+        priceChangeReason: reason.trim(),
+        priceChangedAt: new Date(),
+        priceHistory,
+      });
+
+      // Notificar actualización en tiempo real
+      socketService.notifyJobStatusChanged(job.toJSON(), job.status);
+
+      res.json({
+        success: true,
+        message: `Presupuesto reducido. Se acreditaron $${refundAmount.toLocaleString('es-AR')} ARS a tu balance.`,
+        job: {
+          id: job.id,
+          title: job.title,
+          oldPrice: currentPrice,
+          newPrice,
+          reason: reason.trim(),
+          priceHistory,
+        },
+        balanceUpdate: {
+          refundedAmount: refundAmount,
+          newBalance: userBalance + refundAmount,
+        },
+      });
+      return;
+    }
+
+    // CASO 2: El precio SUBE -> Usar balance disponible y cobrar lo que falta
     if (priceDifference > 0) {
-      const client = await User.findByPk(req.user.id);
-      if (!client) {
-        res.status(404).json({
-          success: false,
-          message: "Usuario no encontrado",
-        });
-        return;
-      }
-
       // Calcular comisión según el tipo de membresía
       let commissionRate = 8; // FREE: 8%
 
@@ -1567,21 +1610,65 @@ router.patch("/:id/budget", protect, async (req: AuthRequest, res: Response): Pr
       const additionalCommission = priceDifference * (commissionRate / 100);
       const totalRequired = priceDifference + additionalCommission;
 
-      // NO actualizar el precio todavía - solo guardar el precio propuesto
-      // El precio real se actualiza cuando el pago sea exitoso
+      // Calcular cuánto se puede cubrir con el balance
+      const balanceToUse = Math.min(userBalance, totalRequired);
+      const amountToPay = totalRequired - balanceToUse;
 
-      // Guardar estado actual para restaurar si cancela
+      // Si el balance cubre todo, procesar directamente
+      if (amountToPay <= 0) {
+        // Descontar del balance
+        await client.subtractBalance(totalRequired);
+
+        // Agregar al historial de cambios
+        const priceHistory = job.priceHistory || [];
+        priceHistory.push({
+          oldPrice: currentPrice,
+          newPrice,
+          reason: reason.trim(),
+          changedAt: new Date(),
+          paidFromBalance: totalRequired,
+        });
+
+        // Actualizar el trabajo
+        await job.update({
+          price: newPrice,
+          priceChangeReason: reason.trim(),
+          priceChangedAt: new Date(),
+          priceHistory,
+        });
+
+        // Notificar actualización en tiempo real
+        socketService.notifyJobStatusChanged(job.toJSON(), job.status);
+
+        res.json({
+          success: true,
+          message: `Presupuesto aumentado. Se descontaron $${totalRequired.toLocaleString('es-AR')} ARS de tu balance.`,
+          job: {
+            id: job.id,
+            title: job.title,
+            oldPrice: currentPrice,
+            newPrice,
+            reason: reason.trim(),
+            priceHistory,
+          },
+          balanceUpdate: {
+            deductedAmount: totalRequired,
+            newBalance: userBalance - totalRequired,
+          },
+        });
+        return;
+      }
+
+      // Si el balance NO cubre todo, pausar y pedir pago por la diferencia
       const previousStatus = job.status;
 
       await job.update({
-        // NO cambiar el precio todavía
-        // price: newPrice,  <- Se actualiza después del pago
-        pendingNewPrice: newPrice, // Guardar el nuevo precio propuesto
+        pendingNewPrice: newPrice,
         priceChangeReason: req.body.reason.trim(),
-        originalPrice: job.originalPrice || currentPrice, // Guardar el primer precio pagado
-        previousStatus: previousStatus, // Guardar estado anterior
-        status: 'paused', // Pausar hasta que pague
-        pendingPaymentAmount: totalRequired,
+        previousStatus: previousStatus,
+        status: 'paused',
+        pendingPaymentAmount: amountToPay,
+        pendingBalanceDeduction: balanceToUse, // Guardar cuánto se descontará del balance al pagar
       });
 
       // Notificar actualización
@@ -1590,69 +1677,41 @@ router.patch("/:id/budget", protect, async (req: AuthRequest, res: Response): Pr
       res.status(402).json({
         success: false,
         requiresPayment: true,
-        message: "Presupuesto actualizado. Debes completar el pago para reactivar el trabajo.",
-        amountRequired: totalRequired,
+        message: balanceToUse > 0
+          ? `Se usarán $${balanceToUse.toLocaleString('es-AR')} de tu balance. Debes pagar $${amountToPay.toLocaleString('es-AR')} adicionales.`
+          : "Debes completar el pago para reactivar el trabajo.",
+        amountRequired: amountToPay,
         breakdown: {
           oldPrice: currentPrice,
           newPrice,
-          maxPaidPrice, // El máximo que ya pagó
-          priceDifference, // Solo la diferencia adicional a pagar
+          priceDifference,
           commission: additionalCommission,
           commissionRate,
-          total: totalRequired,
+          totalRequired,
+          balanceAvailable: userBalance,
+          balanceToUse,
+          amountToPay,
         },
-        redirectTo: `/jobs/${job.id}/payment?amount=${totalRequired}&reason=budget_increase&oldPrice=${currentPrice}&newPrice=${newPrice}`,
+        redirectTo: `/jobs/${job.id}/payment?amount=${amountToPay}&reason=budget_increase&oldPrice=${currentPrice}&newPrice=${newPrice}&balanceUsed=${balanceToUse}`,
         job: {
           id: job.id,
           title: job.title,
           status: 'paused',
           oldPrice: currentPrice,
           newPrice,
-          creditApplied: maxPaidPrice - currentPrice, // Crédito aplicado
         },
       });
       return;
     }
 
-    // Guardar precio original (máximo pagado) si es el primer cambio
-    // Esto permite rastrear el crédito disponible para futuros aumentos
-    if (!job.originalPrice) {
-      job.originalPrice = currentPrice;
-    }
-
-    // Agregar al historial de cambios
-    const priceHistory = job.priceHistory || [];
-    priceHistory.push({
-      oldPrice: currentPrice,
-      newPrice,
-      reason: reason.trim(),
-      changedAt: new Date(),
-    });
-
-    // Actualizar el trabajo
-    // Mantener originalPrice como el máximo pagado históricamente
-    await job.update({
-      price: newPrice,
-      priceChangeReason: reason.trim(),
-      priceChangedAt: new Date(),
-      priceHistory,
-      // originalPrice se mantiene como el máximo para calcular créditos futuros
-    });
-
-    // Notificar actualización en tiempo real
-    socketService.notifyJobStatusChanged(job.toJSON(), job.status);
-
+    // CASO 3: El precio NO cambió (no debería pasar, pero por si acaso)
     res.json({
       success: true,
-      message: "Presupuesto actualizado exitosamente",
+      message: "El presupuesto no ha cambiado",
       job: {
         id: job.id,
         title: job.title,
-        oldPrice: currentPrice,
-        newPrice,
-        reason: reason.trim(),
-        priceHistory,
-        creditAvailable: maxPaidPrice - newPrice, // Crédito restante
+        price: currentPrice,
       },
     });
   } catch (error: any) {
