@@ -20,22 +20,24 @@ export default function LocationCircleMap({ location }: LocationCircleMapProps) 
     const geocodeLocation = async () => {
       setLoading(true);
 
-      // Verificar cache primero
       const cacheKey = location.toLowerCase().trim();
-      if (geocodeCache[cacheKey]) {
-        setCoordinates(geocodeCache[cacheKey]);
+
+      // SIEMPRE verificar coordenadas predefinidas primero (tienen prioridad sobre cache)
+      const predefinedCoords = getApproximateCoordinates(location);
+      const isDefaultCoords = predefinedCoords[0] === -34.6037 && predefinedCoords[1] === -58.3816;
+      const isBuenosAires = location.toLowerCase().includes('buenos aires') || location.toLowerCase().includes('caba');
+
+      if (!isDefaultCoords || isBuenosAires) {
+        // Es una ubicación predefinida que encontramos
+        setCoordinates(predefinedCoords);
+        geocodeCache[cacheKey] = predefinedCoords;
         setLoading(false);
         return;
       }
 
-      // Primero intentar con coordenadas predefinidas para Argentina
-      const predefinedCoords = getApproximateCoordinates(location);
-      if (predefinedCoords[0] !== -34.6037 || predefinedCoords[1] !== -58.3816 ||
-          location.toLowerCase().includes('buenos aires') ||
-          location.toLowerCase().includes('caba')) {
-        // Es una ubicación predefinida que encontramos
-        setCoordinates(predefinedCoords);
-        geocodeCache[cacheKey] = predefinedCoords;
+      // Solo usar cache si no hay coordenadas predefinidas
+      if (geocodeCache[cacheKey]) {
+        setCoordinates(geocodeCache[cacheKey]);
         setLoading(false);
         return;
       }
@@ -248,6 +250,22 @@ function getApproximateCoordinates(location: string): [number, number] {
     'bariloche': [-41.1335, -71.3103],
     'ushuaia': [-54.8019, -68.3029],
     'posadas': [-27.3671, -55.8961],
+    'corrientes': [-27.4692, -58.8306],
+    'resistencia': [-27.4514, -58.9867],
+    'formosa': [-26.1775, -58.1781],
+    'san juan': [-31.5375, -68.5364],
+    'san luis': [-33.3017, -66.3378],
+    'la rioja': [-29.4131, -66.8558],
+    'catamarca': [-28.4696, -65.7852],
+    'jujuy': [-24.1858, -65.2995],
+    'san salvador de jujuy': [-24.1858, -65.2995],
+    'santiago del estero': [-27.7951, -64.2615],
+    'santa rosa': [-36.6177, -64.2907],
+    'rawson': [-43.3002, -65.1023],
+    'río gallegos': [-51.6230, -69.2168],
+    'viedma': [-40.8135, -62.9967],
+    'paraná': [-31.7413, -60.5115],
+    'concordia': [-31.3929, -58.0207],
   };
 
   // Buscar coincidencias
