@@ -35,6 +35,28 @@ import MultipleRatings from "../components/user/MultipleRatings";
 import LocationCircleMap from "../components/map/LocationCircleMap";
 import JobTasks from "../components/jobs/JobTasks";
 
+// Helper para parsear números en formato argentino (punto = miles, coma = decimal)
+// Ej: "40.000" -> 40000, "40.000,50" -> 40000.50
+const parseArgentineNumber = (value: string): number => {
+  if (!value) return 0;
+  // Remover espacios
+  let cleaned = value.trim();
+  // Si tiene coma, es decimal argentino: reemplazar puntos por nada y coma por punto
+  if (cleaned.includes(',')) {
+    cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+  } else {
+    // Si solo tiene puntos, asumimos que son separadores de miles
+    cleaned = cleaned.replace(/\./g, '');
+  }
+  return parseFloat(cleaned) || 0;
+};
+
+// Helper para formatear número para mostrar en input (sin separadores)
+const formatBudgetInput = (value: string): string => {
+  // Solo permitir números, puntos y comas
+  return value.replace(/[^0-9.,]/g, '');
+};
+
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
   const { user, token } = useAuth();
@@ -480,8 +502,11 @@ export default function JobDetail() {
   const handleChangeBudget = async () => {
     if (!job || !token) return;
 
+    // Parsear el número en formato argentino
+    const parsedBudget = parseArgentineNumber(newBudget);
+
     // Validaciones
-    if (!newBudget || Number(newBudget) <= 0) {
+    if (!newBudget || parsedBudget <= 0) {
       setError('El presupuesto debe ser mayor a 0');
       return;
     }
@@ -503,7 +528,7 @@ export default function JobDetail() {
         },
         credentials: 'include',
         body: JSON.stringify({
-          newPrice: Number(newBudget),
+          newPrice: parsedBudget,
           reason: budgetReason.trim(),
         }),
       });
@@ -1907,14 +1932,18 @@ export default function JobDetail() {
                     Nuevo presupuesto (ARS) *
                   </label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="decimal"
                     value={newBudget}
-                    onChange={(e) => setNewBudget(e.target.value)}
-                    placeholder="Ej: 25000"
-                    min="1"
-                    step="1"
+                    onChange={(e) => setNewBudget(formatBudgetInput(e.target.value))}
+                    placeholder="Ej: 25000 o 25.000"
                     className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-white placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   />
+                  {newBudget && (
+                    <p className="mt-1 text-xs text-slate-400">
+                      Valor: ${parseArgentineNumber(newBudget).toLocaleString('es-AR')} ARS
+                    </p>
+                  )}
                 </div>
 
                 <div>
