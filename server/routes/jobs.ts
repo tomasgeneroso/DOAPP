@@ -1532,10 +1532,17 @@ router.patch("/:id/budget", protect, async (req: AuthRequest, res: Response): Pr
       return;
     }
 
-    const oldPrice = Number(job.price);
-    const priceDifference = newPrice - oldPrice;
+    const currentPrice = Number(job.price);
+    // Usar el precio máximo pagado históricamente para calcular el crédito
+    // Si hay originalPrice y es mayor al precio actual, significa que hubo reducciones
+    // y el usuario ya pagó por ese monto mayor
+    const maxPaidPrice = job.originalPrice ? Math.max(Number(job.originalPrice), currentPrice) : currentPrice;
 
-    // Si el precio aumentó, manejar pago de diferencia
+    // La diferencia real a pagar es: nuevo precio - máximo pagado
+    // Si newPrice <= maxPaidPrice, no hay que pagar más (ya pagó eso o más)
+    const priceDifference = newPrice - maxPaidPrice;
+
+    // Si el precio supera lo que ya pagó, manejar pago de diferencia
     if (priceDifference > 0) {
       const client = await User.findByPk(req.user.id);
       if (!client) {
@@ -1571,7 +1578,7 @@ router.patch("/:id/budget", protect, async (req: AuthRequest, res: Response): Pr
         // price: newPrice,  <- Se actualiza después del pago
         pendingNewPrice: newPrice, // Guardar el nuevo precio propuesto
         priceChangeReason: req.body.reason.trim(),
-        originalPrice: job.originalPrice || oldPrice,
+        originalPrice: job.originalPrice || currentPrice, // Guardar el primer precio pagado
         previousStatus: previousStatus, // Guardar estado anterior
         status: 'paused', // Pausar hasta que pague
         pendingPaymentAmount: totalRequired,
@@ -1586,45 +1593,50 @@ router.patch("/:id/budget", protect, async (req: AuthRequest, res: Response): Pr
         message: "Presupuesto actualizado. Debes completar el pago para reactivar el trabajo.",
         amountRequired: totalRequired,
         breakdown: {
-          oldPrice,
+          oldPrice: currentPrice,
           newPrice,
-          priceDifference,
+          maxPaidPrice, // El máximo que ya pagó
+          priceDifference, // Solo la diferencia adicional a pagar
           commission: additionalCommission,
           commissionRate,
           total: totalRequired,
         },
-        redirectTo: `/jobs/${job.id}/payment?amount=${totalRequired}&reason=budget_increase&oldPrice=${oldPrice}&newPrice=${newPrice}`,
+        redirectTo: `/jobs/${job.id}/payment?amount=${totalRequired}&reason=budget_increase&oldPrice=${currentPrice}&newPrice=${newPrice}`,
         job: {
           id: job.id,
           title: job.title,
           status: 'paused',
-          oldPrice,
+          oldPrice: currentPrice,
           newPrice,
+          creditApplied: maxPaidPrice - currentPrice, // Crédito aplicado
         },
       });
       return;
     }
 
-    // Guardar precio original si es el primer cambio
+    // Guardar precio original (máximo pagado) si es el primer cambio
+    // Esto permite rastrear el crédito disponible para futuros aumentos
     if (!job.originalPrice) {
-      job.originalPrice = oldPrice;
+      job.originalPrice = currentPrice;
     }
 
     // Agregar al historial de cambios
     const priceHistory = job.priceHistory || [];
     priceHistory.push({
-      oldPrice,
+      oldPrice: currentPrice,
       newPrice,
       reason: reason.trim(),
       changedAt: new Date(),
     });
 
     // Actualizar el trabajo
+    // Mantener originalPrice como el máximo pagado históricamente
     await job.update({
       price: newPrice,
       priceChangeReason: reason.trim(),
       priceChangedAt: new Date(),
       priceHistory,
+      // originalPrice se mantiene como el máximo para calcular créditos futuros
     });
 
     // Notificar actualización en tiempo real
@@ -1636,10 +1648,11 @@ router.patch("/:id/budget", protect, async (req: AuthRequest, res: Response): Pr
       job: {
         id: job.id,
         title: job.title,
-        oldPrice,
+        oldPrice: currentPrice,
         newPrice,
         reason: reason.trim(),
         priceHistory,
+        creditAvailable: maxPaidPrice - newPrice, // Crédito restante
       },
     });
   } catch (error: any) {
