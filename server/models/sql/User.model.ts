@@ -75,6 +75,7 @@ interface LegalInfo {
     { fields: ['username'], unique: true },
     { fields: ['google_id'] },
     { fields: ['facebook_id'] },
+    { fields: ['twitter_id'] },
     { fields: ['role'] },
     { fields: ['is_verified'] },
     { fields: ['membership_tier'] },
@@ -200,6 +201,10 @@ export class User extends Model {
   @Index
   @Column(DataType.STRING)
   facebookId?: string;
+
+  @Index
+  @Column(DataType.STRING)
+  twitterId?: string;
 
   // ============================================
   // TWO-FACTOR AUTHENTICATION

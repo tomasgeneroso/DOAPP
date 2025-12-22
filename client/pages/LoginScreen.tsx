@@ -586,6 +586,7 @@ export default function LoginScreen() {
 
           <div className="flex items-center justify-center gap-3 sm:gap-4">
             {/* Social Logins */}
+            {/* Facebook temporarily disabled
             <button
               type="button"
               onClick={loginWithFacebook}
@@ -595,6 +596,7 @@ export default function LoginScreen() {
             >
               <Facebook className="h-5 w-5" />
             </button>
+            */}
             <a
               href={`${import.meta.env.VITE_API_URL}/auth/google`}
               className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-xl transition hover:border-sky-300 hover:bg-slate-50 dark:hover:bg-slate-600"
@@ -607,7 +609,7 @@ export default function LoginScreen() {
                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
               </svg>
             </a>
-            <a
+<a
               href={`${import.meta.env.VITE_API_URL}/auth/twitter`}
               className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-xl text-slate-900 dark:text-white transition hover:border-sky-300 hover:bg-slate-50 dark:hover:bg-slate-600"
               aria-label="Ingresar con X"

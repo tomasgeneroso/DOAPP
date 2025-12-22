@@ -21,6 +21,7 @@ import emailService from "../services/email.js";
 import anomalyDetection from "../services/anomalyDetection.js";
 import { createAuditLog, getClientIp, getUserAgent } from "../utils/auditLogger.js";
 import { uploadAvatar, uploadCover } from "../middleware/upload.js";
+import twitterOAuth from "../services/twitterOAuth.js";
 
 const router = express.Router();
 
@@ -874,6 +875,130 @@ router.post("/facebook/token", async (req: Request, res: Response): Promise<void
       success: false,
       message: error.message || "Error del servidor",
     });
+  }
+});
+
+// ============================================
+// Twitter/X OAuth 2.0
+// ============================================
+
+// @route   GET /api/auth/twitter
+// @desc    Initiate Twitter OAuth 2.0 flow
+// @access  Public
+router.get("/twitter", (req: Request, res: Response): void => {
+  try {
+    if (!twitterOAuth.isTwitterOAuthConfigured()) {
+      res.redirect(`${config.clientUrl}/login?error=twitter_not_configured`);
+      return;
+    }
+
+    const { url, state } = twitterOAuth.generateAuthUrl();
+
+    // Store state in cookie for verification
+    res.cookie('twitter_oauth_state', state, {
+      httpOnly: true,
+      secure: config.nodeEnv === 'production',
+      sameSite: 'lax',
+      maxAge: 10 * 60 * 1000, // 10 minutes
+    });
+
+    res.redirect(url);
+  } catch (error: any) {
+    console.error('Twitter OAuth initiation error:', error);
+    res.redirect(`${config.clientUrl}/login?error=twitter_oauth_failed`);
+  }
+});
+
+// @route   GET /api/auth/twitter/callback
+// @desc    Twitter OAuth 2.0 callback
+// @access  Public
+router.get("/twitter/callback", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { code, state, error: oauthError } = req.query;
+
+    // Check for OAuth error
+    if (oauthError) {
+      console.error('Twitter OAuth error:', oauthError);
+      res.redirect(`${config.clientUrl}/login?error=twitter_oauth_denied`);
+      return;
+    }
+
+    // Verify state to prevent CSRF
+    const storedState = req.cookies?.twitter_oauth_state;
+    if (!state || state !== storedState) {
+      res.redirect(`${config.clientUrl}/login?error=twitter_oauth_state_mismatch`);
+      return;
+    }
+
+    // Clear the state cookie
+    res.clearCookie('twitter_oauth_state');
+
+    if (!code || typeof code !== 'string') {
+      res.redirect(`${config.clientUrl}/login?error=twitter_oauth_no_code`);
+      return;
+    }
+
+    // Exchange code for tokens
+    const tokens = await twitterOAuth.exchangeCodeForTokens(code, state as string);
+
+    // Get user profile
+    const twitterUser = await twitterOAuth.getUserProfile(tokens.accessToken);
+
+    // Find or create user
+    let user = await User.findOne({ where: { twitterId: twitterUser.id } });
+
+    if (!user) {
+      // Generate a unique username based on Twitter username
+      let username = twitterUser.username.toLowerCase();
+      const existingUsername = await User.findOne({ where: { username } });
+      if (existingUsername) {
+        username = `${username}_${Date.now().toString(36)}`;
+      }
+
+      // Create new user
+      user = await User.create({
+        twitterId: twitterUser.id,
+        name: twitterUser.name,
+        username,
+        email: '', // Twitter doesn't provide email in v2 API without additional permissions
+        avatar: twitterUser.profileImageUrl,
+        isVerified: true,
+        termsAccepted: true,
+        termsAcceptedAt: new Date(),
+      });
+
+      console.log(`✅ New user created via Twitter: ${user.id}`);
+    } else {
+      // Update avatar if changed
+      if (twitterUser.profileImageUrl && twitterUser.profileImageUrl !== user.avatar) {
+        user.avatar = twitterUser.profileImageUrl;
+      }
+    }
+
+    // Update last login
+    user.lastLogin = new Date();
+    user.lastLoginIp = getClientIp(req);
+    await user.save();
+
+    // Generate JWT token
+    const token = generateToken(user.id as string);
+
+    // Set token in httpOnly cookie
+    res.cookie('token', token, {
+      httpOnly: true,
+      secure: config.nodeEnv === 'production',
+      sameSite: 'lax',
+      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    });
+
+    // Check if user needs to complete registration (no DNI)
+    const needsDni = !user.dni;
+
+    // Redirect to frontend with token
+    res.redirect(`${config.clientUrl}/auth/callback?token=${token}${needsDni ? '&needsDni=true' : ''}`);
+  } catch (error: any) {
+    console.error('Twitter OAuth callback error:', error);
+    res.redirect(`${config.clientUrl}/login?error=twitter_oauth_failed`);
   }
 });
 

@@ -35,6 +35,10 @@ export const config = {
   facebookAppId: process.env.FACEBOOK_APP_ID || "",
   facebookAppSecret: process.env.FACEBOOK_APP_SECRET || "",
 
+  // OAuth - Twitter/X
+  twitterClientId: process.env.TWITTER_CLIENT_ID || "",
+  twitterClientSecret: process.env.TWITTER_CLIENT_SECRET || "",
+
   // PayPal - Usa credenciales de sandbox en desarrollo, producción en producción
   paypalMode: process.env.PAYPAL_MODE || "sandbox",
   paypalClientId: process.env.PAYPAL_MODE === "sandbox"
