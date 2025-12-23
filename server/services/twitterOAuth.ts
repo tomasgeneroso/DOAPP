@@ -1,56 +1,70 @@
-import { auth } from 'twitter-api-sdk';
 import { config } from '../config/env.js';
 import crypto from 'crypto';
 
-// Store for PKCE code verifiers (in production, use Redis)
-const codeVerifiers = new Map<string, { verifier: string; expiresAt: Date }>();
+// Store for PKCE code verifiers and states (in production, use Redis)
+const authSessions = new Map<string, { codeVerifier: string; expiresAt: Date }>();
 
 // Twitter OAuth 2.0 configuration
+const TWITTER_AUTH_URL = 'https://twitter.com/i/oauth2/authorize';
+const TWITTER_TOKEN_URL = 'https://api.twitter.com/2/oauth2/token';
 const TWITTER_SCOPES = ['tweet.read', 'users.read', 'offline.access'];
 const CALLBACK_URL = `${config.serverUrl}/api/auth/twitter/callback`;
 
 /**
- * Create Twitter OAuth 2.0 client
+ * Generate a random string for state/verifier
  */
-function createAuthClient() {
-  if (!config.twitterClientId || !config.twitterClientSecret) {
-    throw new Error('Twitter OAuth credentials not configured');
-  }
+function generateRandomString(length: number): string {
+  return crypto.randomBytes(length).toString('base64url').slice(0, length);
+}
 
-  return new auth.OAuth2User({
-    client_id: config.twitterClientId,
-    client_secret: config.twitterClientSecret,
-    callback: CALLBACK_URL,
-    scopes: TWITTER_SCOPES,
-  });
+/**
+ * Generate PKCE code challenge from verifier
+ */
+function generateCodeChallenge(verifier: string): string {
+  return crypto
+    .createHash('sha256')
+    .update(verifier)
+    .digest('base64url');
 }
 
 /**
  * Generate authorization URL for Twitter OAuth 2.0
  */
 export function generateAuthUrl(): { url: string; state: string } {
-  const authClient = createAuthClient();
-
-  // Generate state for CSRF protection
-  const state = crypto.randomBytes(32).toString('hex');
-
-  // Generate authorization URL (PKCE is handled internally by the SDK)
-  const authUrl = authClient.generateAuthURL({
-    state,
-    code_challenge_method: 's256',
-  });
-
-  // Store the code verifier for later use
-  const codeVerifier = (authClient as any).codeVerifier;
-  if (codeVerifier) {
-    codeVerifiers.set(state, {
-      verifier: codeVerifier,
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
-    });
+  if (!config.twitterClientId) {
+    throw new Error('Twitter OAuth credentials not configured');
   }
 
-  // Clean up expired verifiers
-  cleanupExpiredVerifiers();
+  // Generate state for CSRF protection
+  const state = generateRandomString(32);
+
+  // Generate PKCE code verifier and challenge
+  const codeVerifier = generateRandomString(64);
+  const codeChallenge = generateCodeChallenge(codeVerifier);
+
+  // Store the code verifier for later use
+  authSessions.set(state, {
+    codeVerifier,
+    expiresAt: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+  });
+
+  // Clean up expired sessions
+  cleanupExpiredSessions();
+
+  // Build authorization URL
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id: config.twitterClientId,
+    redirect_uri: CALLBACK_URL,
+    scope: TWITTER_SCOPES.join(' '),
+    state,
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256',
+  });
+
+  const authUrl = `${TWITTER_AUTH_URL}?${params.toString()}`;
+
+  console.log('🐦 Twitter OAuth URL generated, state:', state.substring(0, 8) + '...');
 
   return { url: authUrl, state };
 }
@@ -63,22 +77,52 @@ export async function exchangeCodeForTokens(code: string, state: string): Promis
   refreshToken?: string;
   expiresAt?: Date;
 }> {
-  const authClient = createAuthClient();
-
   // Retrieve the code verifier
-  const storedData = codeVerifiers.get(state);
-  if (storedData) {
-    (authClient as any).codeVerifier = storedData.verifier;
-    codeVerifiers.delete(state);
+  const session = authSessions.get(state);
+  if (!session) {
+    throw new Error('Invalid or expired OAuth state');
   }
 
-  // Exchange code for tokens
-  const { token } = await authClient.requestAccessToken(code);
+  const { codeVerifier } = session;
+  authSessions.delete(state);
+
+  console.log('🐦 Exchanging code for tokens...');
+
+  // Prepare the token request
+  const params = new URLSearchParams({
+    grant_type: 'authorization_code',
+    code,
+    redirect_uri: CALLBACK_URL,
+    code_verifier: codeVerifier,
+  });
+
+  // Create Basic auth header
+  const credentials = Buffer.from(
+    `${config.twitterClientId}:${config.twitterClientSecret}`
+  ).toString('base64');
+
+  const response = await fetch(TWITTER_TOKEN_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Authorization': `Basic ${credentials}`,
+    },
+    body: params.toString(),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    console.error('🐦 Twitter token error:', errorData);
+    throw new Error(`Twitter token error: ${errorData.error_description || errorData.error || 'Unknown error'}`);
+  }
+
+  const data = await response.json();
+  console.log('🐦 Tokens received successfully');
 
   return {
-    accessToken: token.access_token!,
-    refreshToken: token.refresh_token,
-    expiresAt: token.expires_at ? new Date(token.expires_at * 1000) : undefined,
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token,
+    expiresAt: data.expires_in ? new Date(Date.now() + data.expires_in * 1000) : undefined,
   };
 }
 
@@ -91,7 +135,8 @@ export async function getUserProfile(accessToken: string): Promise<{
   username: string;
   profileImageUrl?: string;
 }> {
-  // Use Twitter API v2 to get user info
+  console.log('🐦 Fetching user profile...');
+
   const response = await fetch('https://api.twitter.com/2/users/me?user.fields=profile_image_url', {
     headers: {
       'Authorization': `Bearer ${accessToken}`,
@@ -99,17 +144,19 @@ export async function getUserProfile(accessToken: string): Promise<{
   });
 
   if (!response.ok) {
-    const error = await response.json();
+    const error = await response.json().catch(() => ({}));
+    console.error('🐦 Twitter API error:', error);
     throw new Error(`Twitter API error: ${error.detail || error.title || 'Unknown error'}`);
   }
 
   const data = await response.json();
+  console.log('🐦 User profile fetched:', data.data.username);
 
   return {
     id: data.data.id,
     name: data.data.name,
     username: data.data.username,
-    profileImageUrl: data.data.profile_image_url?.replace('_normal', '_400x400'), // Get larger image
+    profileImageUrl: data.data.profile_image_url?.replace('_normal', '_400x400'),
   };
 }
 
@@ -121,18 +168,35 @@ export async function refreshAccessToken(refreshToken: string): Promise<{
   refreshToken?: string;
   expiresAt?: Date;
 }> {
-  const authClient = createAuthClient();
+  const params = new URLSearchParams({
+    grant_type: 'refresh_token',
+    refresh_token: refreshToken,
+  });
 
-  // Set the refresh token
-  (authClient as any).token = { refresh_token: refreshToken };
+  const credentials = Buffer.from(
+    `${config.twitterClientId}:${config.twitterClientSecret}`
+  ).toString('base64');
 
-  // Refresh the token
-  const { token } = await authClient.refreshAccessToken();
+  const response = await fetch(TWITTER_TOKEN_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Authorization': `Basic ${credentials}`,
+    },
+    body: params.toString(),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(`Twitter refresh error: ${errorData.error_description || errorData.error || 'Unknown error'}`);
+  }
+
+  const data = await response.json();
 
   return {
-    accessToken: token.access_token!,
-    refreshToken: token.refresh_token,
-    expiresAt: token.expires_at ? new Date(token.expires_at * 1000) : undefined,
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token,
+    expiresAt: data.expires_in ? new Date(Date.now() + data.expires_in * 1000) : undefined,
   };
 }
 
@@ -144,13 +208,13 @@ export function isTwitterOAuthConfigured(): boolean {
 }
 
 /**
- * Clean up expired code verifiers
+ * Clean up expired auth sessions
  */
-function cleanupExpiredVerifiers() {
+function cleanupExpiredSessions() {
   const now = new Date();
-  for (const [state, data] of codeVerifiers.entries()) {
+  for (const [state, data] of authSessions.entries()) {
     if (data.expiresAt < now) {
-      codeVerifiers.delete(state);
+      authSessions.delete(state);
     }
   }
 }

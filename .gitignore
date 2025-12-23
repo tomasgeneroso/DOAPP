@@ -13,6 +13,7 @@ build
 .env.production
 .env.development
 .env.test
+.env.patch
 
 # SSL certificates (development)
 ssl/
@@ -97,7 +98,11 @@ coverage
 *.pfx
 firebase-adminsdk*.json
 doapp-firebase-adminsdk.json
+*-firebase-adminsdk*.json
 serviceAccountKey.json
+google-credentials*.json
+*-credentials.json
+*.credentials.json
 
 # Package manager
 .pnpm-store
