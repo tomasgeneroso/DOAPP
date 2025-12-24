@@ -1,0 +1,92 @@
+/* Quill Dark Mode Styles */
+.dark .ql-toolbar {
+  background-color: rgb(51 65 85);
+  border-color: rgb(71 85 105) !important;
+}
+
+.dark .ql-toolbar button {
+  color: rgb(226 232 240);
+}
+
+.dark .ql-toolbar button:hover {
+  color: white;
+}
+
+.dark .ql-toolbar button.ql-active {
+  color: rgb(96 165 250);
+}
+
+.dark .ql-toolbar .ql-stroke {
+  stroke: rgb(226 232 240);
+}
+
+.dark .ql-toolbar .ql-fill {
+  fill: rgb(226 232 240);
+}
+
+.dark .ql-toolbar .ql-picker-label {
+  color: rgb(226 232 240);
+}
+
+.dark .ql-container {
+  background-color: rgb(51 65 85);
+  border-color: rgb(71 85 105) !important;
+  color: rgb(226 232 240);
+}
+
+.dark .ql-editor {
+  color: rgb(226 232 240);
+}
+
+.dark .ql-editor.ql-blank::before {
+  color: rgb(148 163 184);
+}
+
+/* Prose styles for article content */
+.prose-content {
+  @apply text-slate-900 dark:text-slate-100;
+}
+
+.prose-content h1 {
+  @apply text-3xl font-bold mb-4 mt-6;
+}
+
+.prose-content h2 {
+  @apply text-2xl font-bold mb-3 mt-5;
+}
+
+.prose-content h3 {
+  @apply text-xl font-bold mb-2 mt-4;
+}
+
+.prose-content p {
+  @apply mb-4 leading-relaxed;
+}
+
+.prose-content ul {
+  @apply list-disc list-inside mb-4 space-y-2;
+}
+
+.prose-content ol {
+  @apply list-decimal list-inside mb-4 space-y-2;
+}
+
+.prose-content strong {
+  @apply font-bold;
+}
+
+.prose-content em {
+  @apply italic;
+}
+
+.prose-content u {
+  @apply underline;
+}
+
+.prose-content a {
+  @apply text-blue-600 dark:text-blue-400 hover:underline;
+}
+
+.prose-content blockquote {
+  @apply border-l-4 border-slate-300 dark:border-slate-600 pl-4 italic my-4;
+}

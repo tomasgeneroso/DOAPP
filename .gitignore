@@ -148,7 +148,6 @@ test-cookies.txt
 
 # Empty client folders
 client/src/
-client/styles/
 
 # TypeScript build info
 tsconfig.tsbuildinfo
