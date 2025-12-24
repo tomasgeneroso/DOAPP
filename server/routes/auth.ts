@@ -894,12 +894,16 @@ router.get("/twitter", (req: Request, res: Response): void => {
 
     const { url, state } = twitterOAuth.generateAuthUrl();
 
+    console.log('🐦 Twitter OAuth initiated, state:', state.substring(0, 8) + '...');
+
     // Store state in cookie for verification
+    // Use sameSite: 'none' with secure: true for cross-site redirects
     res.cookie('twitter_oauth_state', state, {
       httpOnly: true,
-      secure: config.nodeEnv === 'production',
-      sameSite: 'lax',
+      secure: true, // Required for sameSite: 'none'
+      sameSite: 'none', // Required for cross-site cookie
       maxAge: 10 * 60 * 1000, // 10 minutes
+      path: '/',
     });
 
     res.redirect(url);
@@ -925,7 +929,12 @@ router.get("/twitter/callback", async (req: Request, res: Response): Promise<voi
 
     // Verify state to prevent CSRF
     const storedState = req.cookies?.twitter_oauth_state;
+    console.log('🐦 Twitter callback - state from URL:', state ? (state as string).substring(0, 8) + '...' : 'MISSING');
+    console.log('🐦 Twitter callback - state from cookie:', storedState ? storedState.substring(0, 8) + '...' : 'MISSING');
+    console.log('🐦 Twitter callback - all cookies:', Object.keys(req.cookies || {}));
+
     if (!state || state !== storedState) {
+      console.error('🐦 State mismatch! URL state:', state, 'Cookie state:', storedState);
       res.redirect(`${config.clientUrl}/login?error=twitter_oauth_state_mismatch`);
       return;
     }
@@ -982,6 +991,8 @@ router.get("/twitter/callback", async (req: Request, res: Response): Promise<voi
 
     // Generate JWT token
     const token = generateToken(user.id as string);
+    console.log('🐦 Twitter login successful for user:', user.id);
+    console.log('🐦 Generated token (first 20 chars):', token.substring(0, 20) + '...');
 
     // Set token in httpOnly cookie
     res.cookie('token', token, {
@@ -995,7 +1006,9 @@ router.get("/twitter/callback", async (req: Request, res: Response): Promise<voi
     const needsDni = !user.dni;
 
     // Redirect to frontend with token
-    res.redirect(`${config.clientUrl}/auth/callback?token=${token}${needsDni ? '&needsDni=true' : ''}`);
+    const redirectUrl = `${config.clientUrl}/auth/callback?token=${token}${needsDni ? '&needsDni=true' : ''}`;
+    console.log('🐦 Redirecting to:', redirectUrl.substring(0, 80) + '...');
+    res.redirect(redirectUrl);
   } catch (error: any) {
     console.error('Twitter OAuth callback error:', error);
     res.redirect(`${config.clientUrl}/login?error=twitter_oauth_failed`);

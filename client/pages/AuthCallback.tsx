@@ -17,18 +17,22 @@ export default function AuthCallback() {
     }
 
     if (token) {
-      // Fetch user data with the token
-      fetch("/api/auth/me", {
+      // Save token immediately to localStorage
+      localStorage.setItem("token", token);
+
+      // Fetch user data with the token using the API URL
+      const apiUrl = import.meta.env.VITE_API_URL || '/api';
+      fetch(`${apiUrl}/auth/me`, {
         headers: {
           Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
         },
         credentials: 'include', // Include cookies for httpOnly token
       })
         .then((res) => res.json())
         .then((data) => {
           if (data.success && data.user) {
-            // Save token and user to localStorage for client-side access
-            localStorage.setItem("token", token);
+            // Save user to localStorage for client-side access
             localStorage.setItem("user", JSON.stringify(data.user));
 
             // Check if user needs to complete registration (DNI)
