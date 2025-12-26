@@ -277,7 +277,7 @@ export default function Index() {
             ) : (
               <>
                 Publicá el servicio que necesites o{" "}
-                <span className="text-sky-600">buscá oportunidades</span>{" "}
+                <span className="text-sky-600">encontrá oportunidades</span>{" "}
                 para ofrecer tus servicios.
               </>
             )}
@@ -292,7 +292,7 @@ export default function Index() {
           {!user && !isLoading && (
             <p className="mx-auto mt-3 sm:mt-4 max-w-2xl text-sm sm:text-base leading-6 sm:leading-7 text-gray-500 dark:text-slate-500 px-2">
               Nos aseguramos que cada acuerdo se cumpla por ambas partes.
-              Publicá un trabajo, negociá directamente con el profesional y pagá
+              Publicá un trabajo, negociá directamente con la persona y pagá
               automáticamente solo cuando todo esté verificado.
             </p>
           )}
@@ -339,7 +339,7 @@ export default function Index() {
                   Publicá
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Creá tu trabajo con los detalles del servicio que necesitás
+                  Publicá tu servicio con los detalles que necesitás
                 </p>
                 <div className="hidden md:block absolute top-8 -right-4 text-sky-400">
                   <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
@@ -362,7 +362,7 @@ export default function Index() {
                   Elegí
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Recibí propuestas y elegí al mejor profesional
+                  Recibí propuestas y elegí al mejor perfil
                 </p>
                 <div className="hidden md:block absolute top-8 -right-4 text-orange-400">
                   <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
@@ -408,7 +408,7 @@ export default function Index() {
                   ¡Listo!
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Confirmá y el pago se libera automáticamente
+                  Confirmá el servicio prestado y el pago se libera automáticamente
                 </p>
               </div>
             </div>
@@ -422,7 +422,7 @@ export default function Index() {
               ¿Ofrecés servicios?
             </h2>
             <p className="text-center text-gray-600 dark:text-gray-400 mb-8">
-              Encontrá trabajos y empezá a ganar
+              Encontrá trabajos, mostrá tu portfolio y empezá a ganar
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 md:gap-4">
@@ -514,18 +514,32 @@ export default function Index() {
               </div>
             </div>
 
-            {/* MercadoPago Badge */}
+            {/* Payment Methods */}
             <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700">
-              <div className="flex flex-col items-center justify-center gap-3">
+              <div className="flex flex-col items-center justify-center gap-4">
                 <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">
-                  Pagos procesados de forma segura con:
+                  Pagos procesados de forma segura:
                 </span>
-                <div className="bg-white px-6 py-3 rounded-lg border-2 border-sky-200 dark:border-sky-800 shadow-md">
-                  <img
-                    src="/MP_RGB_HANDSHAKE_color_horizontal.svg"
-                    alt="MercadoPago - Pagos Seguros"
-                    className="h-8 sm:h-10 w-auto"
-                  />
+                <div className="flex flex-wrap items-center justify-center gap-4">
+                  <div className="bg-white px-5 py-3 rounded-lg border-2 border-sky-200 dark:border-sky-800 shadow-md">
+                    <img
+                      src="/MP_RGB_HANDSHAKE_color_horizontal.svg"
+                      alt="MercadoPago - Pagos Seguros"
+                      className="h-7 sm:h-9 w-auto"
+                    />
+                  </div>
+                  <div className="bg-white dark:bg-slate-700 px-4 py-3 rounded-lg border-2 border-orange-200 dark:border-orange-800 shadow-md flex items-center gap-2">
+                    <svg className="w-6 h-6 text-orange-500" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M23.638 14.904c-1.602 6.43-8.113 10.34-14.542 8.736C2.67 22.05-1.244 15.525.362 9.105 1.962 2.67 8.475-1.243 14.9.358c6.43 1.605 10.342 8.115 8.738 14.546zm-6.35-4.613c.24-1.59-.974-2.45-2.64-3.03l.54-2.153-1.315-.33-.525 2.107c-.345-.087-.705-.167-1.064-.25l.526-2.127-1.32-.33-.54 2.165c-.285-.067-.565-.132-.84-.2l-1.815-.45-.35 1.407s.975.225.955.238c.535.136.63.486.615.766l-1.477 5.92c-.075.166-.24.406-.614.314.015.02-.96-.24-.96-.24l-.66 1.51 1.71.426.93.242-.54 2.19 1.32.327.54-2.17c.36.1.705.19 1.05.273l-.51 2.154 1.32.33.545-2.19c2.24.427 3.93.257 4.64-1.774.57-1.637-.03-2.58-1.217-3.196.854-.193 1.5-.76 1.68-1.93h.01zm-3.01 4.22c-.404 1.64-3.157.75-4.05.53l.72-2.9c.896.23 3.757.67 3.33 2.37zm.41-4.24c-.37 1.49-2.662.735-3.405.55l.654-2.64c.744.18 3.137.52 2.75 2.084v.006z"/>
+                    </svg>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Cripto</span>
+                  </div>
+                  <div className="bg-white dark:bg-slate-700 px-4 py-3 rounded-lg border-2 border-green-200 dark:border-green-800 shadow-md flex items-center gap-2">
+                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Transferencia</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -558,7 +572,7 @@ export default function Index() {
                 </svg>
                 <div className="text-left">
                   <p className="text-xs sm:text-sm font-semibold text-sky-900 dark:text-sky-300">
-                    En Doers, cada contrato queda protegido:
+                    En DoApp, cada contrato queda protegido:
                   </p>
                   <p className="text-[11px] sm:text-xs text-sky-700 dark:text-sky-400 mt-1">
                     el dinero se mantiene en garantía hasta que ambas partes

@@ -98,7 +98,7 @@ export default function HomeScreen() {
         ) : (
           <>
             Publicá el servicio que necesites o{' '}
-            <Text style={[styles.heroTitleAccent, { color: themeColors.primary[600] }]}>buscá oportunidades</Text>
+            <Text style={[styles.heroTitleAccent, { color: themeColors.primary[600] }]}>encontrá oportunidades</Text>
             {' '}para ofrecer tus servicios.
           </>
         )}
@@ -111,7 +111,7 @@ export default function HomeScreen() {
 
       {!user && (
         <Text style={[styles.heroSmallText, { color: themeColors.text.muted }]}>
-          Nos aseguramos que cada acuerdo se cumpla por ambas partes. Publicá un trabajo, negociá directamente con el profesional y pagá automáticamente solo cuando todo esté verificado.
+          Nos aseguramos que cada acuerdo se cumpla por ambas partes. Publicá un trabajo, negociá directamente con la persona y pagá automáticamente solo cuando todo esté verificado.
         </Text>
       )}
 
@@ -142,7 +142,7 @@ export default function HomeScreen() {
             <Text style={styles.stepNumberText}>1</Text>
           </View>
           <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Publicá</Text>
-          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Creá tu trabajo con los detalles del servicio que necesitás</Text>
+          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Publicá tu servicio con los detalles que necesitás</Text>
         </View>
 
         <View style={styles.stepArrow}>
@@ -157,7 +157,7 @@ export default function HomeScreen() {
             <Text style={styles.stepNumberText}>2</Text>
           </View>
           <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Elegí</Text>
-          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Recibí propuestas y elegí al mejor profesional</Text>
+          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Recibí propuestas y elegí al mejor perfil</Text>
         </View>
 
         <View style={styles.stepArrow}>
@@ -187,7 +187,7 @@ export default function HomeScreen() {
             <Text style={styles.stepNumberText}>4</Text>
           </View>
           <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>¡Listo!</Text>
-          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Confirmá y el pago se libera automáticamente</Text>
+          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Confirmá el servicio prestado y el pago se libera automáticamente</Text>
         </View>
       </View>
     </View>
@@ -196,7 +196,7 @@ export default function HomeScreen() {
   const renderHowItWorksWorker = () => (
     <View style={[styles.howItWorksCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
       <Text style={[styles.howItWorksTitle, { color: themeColors.text.primary }]}>¿Ofrecés servicios?</Text>
-      <Text style={[styles.howItWorksSubtitle, { color: themeColors.text.secondary }]}>Encontrá trabajos y empezá a ganar</Text>
+      <Text style={[styles.howItWorksSubtitle, { color: themeColors.text.secondary }]}>Encontrá trabajos, mostrá tu portfolio y empezá a ganar</Text>
 
       <View style={styles.stepsContainer}>
         <View style={styles.step}>
@@ -392,10 +392,17 @@ export default function HomeScreen() {
         </Text>
 
         <View style={styles.paymentSection}>
-          <Text style={styles.paymentTitle}>Pagos procesados de forma segura con:</Text>
+          <Text style={styles.paymentTitle}>Pagos procesados de forma segura:</Text>
           <View style={styles.paymentLogos}>
             <View style={styles.mpLogoContainer}>
               <Text style={styles.mpLogo}>mercado pago</Text>
+            </View>
+            <View style={[styles.paymentMethodBadge, { backgroundColor: '#fff7ed', borderColor: '#fdba74' }]}>
+              <Text style={[styles.bitcoinIcon, { color: '#f97316' }]}>₿</Text>
+              <Text style={[styles.paymentMethodText, { color: '#f97316' }]}>Cripto</Text>
+            </View>
+            <View style={[styles.paymentMethodBadge, { backgroundColor: '#dcfce7', borderColor: '#86efac' }]}>
+              <Text style={[styles.paymentMethodText, { color: '#16a34a' }]}>Transferencia</Text>
             </View>
           </View>
         </View>
@@ -886,8 +893,10 @@ const styles = StyleSheet.create({
   },
   paymentLogos: {
     flexDirection: 'row',
-    gap: spacing.lg,
+    flexWrap: 'wrap',
+    gap: spacing.md,
     justifyContent: 'center',
+    alignItems: 'center',
   },
   mpLogoContainer: {
     backgroundColor: '#00AAEF',
@@ -899,6 +908,23 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: fontSize.sm,
     fontWeight: fontWeight.semibold,
+  },
+  paymentMethodBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderWidth: 2,
+  },
+  paymentMethodText: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+  },
+  bitcoinIcon: {
+    fontSize: fontSize.lg,
+    fontWeight: fontWeight.bold,
   },
   // Empty State
   emptyContainer: {
