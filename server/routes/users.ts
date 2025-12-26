@@ -168,6 +168,62 @@ router.get("/u/:username", async (req: Request, res: Response): Promise<void> =>
   }
 });
 
+// @route   GET /api/users/:id/profile
+// @desc    Get public user profile by ID
+// @access  Public
+router.get("/:id/profile", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.params.id;
+
+    const user = await User.findByPk(userId, {
+      attributes: {
+        exclude: ['password', 'twoFactorSecret', 'twoFactorBackupCodes', 'bankingInfo', 'notificationPreferences', 'dni']
+      }
+    });
+
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: "Usuario no encontrado",
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        _id: user.id,
+        id: user.id,
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        avatar: user.avatar,
+        coverImage: user.coverImage,
+        bio: user.bio,
+        location: user.address,
+        rating: user.rating,
+        workQualityRating: user.workQualityRating,
+        workerRating: user.workerRating,
+        contractRating: user.contractRating,
+        reviewsCount: user.reviewsCount,
+        jobsCompleted: user.completedJobs,
+        contractsCompleted: user.completedContracts,
+        role: user.role,
+        isVerified: user.isVerified,
+        membershipType: user.membershipTier || 'free',
+        skills: user.skills || [],
+        phone: user.phone,
+        createdAt: user.createdAt,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
 // @route   GET /api/users/:id/completed-by-category
 // @desc    Get user's completed jobs grouped by category with average ratings
 // @access  Public

@@ -133,7 +133,6 @@ nul
 docs/
 *.md
 !README.md
-!CLAUDE.md
 !client/components/**/*.md
 !client/pages/**/*.md
 

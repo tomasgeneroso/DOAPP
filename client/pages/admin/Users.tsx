@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { adminApi } from "@/lib/adminApi";
 import type { AdminUser } from "@/types/admin";
-import { Search, Ban, CheckCircle, Trash2 } from "lucide-react";
+import { Search, Ban, CheckCircle, Trash2, Eye } from "lucide-react";
 
 export default function AdminUsers() {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -118,22 +120,26 @@ export default function AdminUsers() {
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {users.map((user) => (
-              <tr key={user.id || user._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+              <tr
+                key={user.id || user._id}
+                className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
+                onClick={() => navigate(`/perfil/${user.id || user._id}`)}
+              >
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
                     <div className="h-10 w-10 flex-shrink-0">
                       {user.avatar ? (
-                        <img className="h-10 w-10 rounded-full" src={user.avatar} alt="" />
+                        <img className="h-10 w-10 rounded-full object-cover" src={user.avatar} alt="" />
                       ) : (
-                        <div className="h-10 w-10 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
-                          <span className="text-gray-600 dark:text-gray-200 font-medium">
-                            {user.name.charAt(0).toUpperCase()}
+                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-sky-500 to-sky-600 flex items-center justify-center">
+                          <span className="text-white font-semibold text-sm">
+                            {user.name.substring(0, 2).toUpperCase()}
                           </span>
                         </div>
                       )}
                     </div>
                     <div className="ml-4">
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">{user.name}</div>
+                      <div className="text-sm font-medium text-gray-900 dark:text-white hover:text-sky-600 dark:hover:text-sky-400">{user.name}</div>
                       {user.adminRole && (
                         <div className="text-xs text-sky-600 dark:text-sky-400">{user.adminRole}</div>
                       )}
@@ -188,9 +194,22 @@ export default function AdminUsers() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <div className="flex gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/perfil/${user.id || user._id}`);
+                      }}
+                      className="text-sky-600 hover:text-sky-900 dark:text-sky-400 dark:hover:text-sky-300"
+                      title="Ver perfil"
+                    >
+                      <Eye className="h-5 w-5" />
+                    </button>
                     {user.isBanned ? (
                       <button
-                        onClick={() => handleUnban(user.id || user._id!)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUnban(user.id || user._id!);
+                        }}
                         className="text-green-600 hover:text-green-900"
                         title="Desbanear"
                       >
@@ -198,7 +217,10 @@ export default function AdminUsers() {
                       </button>
                     ) : (
                       <button
-                        onClick={() => handleBan(user.id || user._id!, user.name)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleBan(user.id || user._id!, user.name);
+                        }}
                         className="text-red-600 hover:text-red-900"
                         title="Banear"
                       >
