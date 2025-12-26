@@ -802,7 +802,7 @@ export default function JobDetail() {
                     </p>
                   </div>
                 </div>
-                {job.endDateFlexible ? (
+                {job?.endDateFlexible ? (
                   <div className="col-span-2 flex items-center gap-3 rounded-xl border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4">
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-600">
                       <AlertTriangle className="h-5 w-5" />

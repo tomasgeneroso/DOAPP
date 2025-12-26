@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useSocket } from "../hooks/useSocket";
 import {
@@ -18,6 +18,9 @@ import {
   Send,
   CalendarDays,
   List,
+  Trophy,
+  AlertTriangle,
+  Share2,
 } from "lucide-react";
 import JobsCalendar from "../components/jobs/JobsCalendar";
 
@@ -69,6 +72,7 @@ export default function MyJobsScreen() {
   const { user, token } = useAuth();
   const { isConnected, registerJobUpdateHandler, registerMyJobsRefreshHandler, registerJobsRefreshHandler, registerNewProposalHandler } = useSocket();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,8 +85,8 @@ export default function MyJobsScreen() {
     const viewParam = searchParams.get("view");
     return viewParam === "calendar" ? "calendar" : "list";
   });
-  const [filter, setFilter] = useState<"all" | "published" | "pending_payment" | "draft">("all");
-  const [proposalFilter, setProposalFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
+  const [filter, setFilter] = useState<"all" | "published" | "pending_payment" | "draft" | "completed" | "disputed">("all");
+  const [proposalFilter, setProposalFilter] = useState<"all" | "pending" | "approved" | "rejected" | "completed" | "disputed">("all");
 
   const fetchMyJobs = useCallback(async () => {
     try {
@@ -188,6 +192,8 @@ export default function MyJobsScreen() {
         return "bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400";
       case "in_progress":
         return "bg-sky-100 text-sky-800 dark:bg-sky-900/20 dark:text-sky-400";
+      case "disputed":
+        return "bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400";
       default:
         return "bg-slate-100 text-slate-800 dark:bg-slate-900/20 dark:text-slate-400";
     }
@@ -206,6 +212,7 @@ export default function MyJobsScreen() {
       pending: "Pendiente",
       approved: "Aprobada",
       rejected: "Rechazada",
+      disputed: "En Disputa",
     };
     return labels[status] || status;
   };
@@ -281,6 +288,12 @@ export default function MyJobsScreen() {
       if (filter === "draft") {
         return job.status === "draft";
       }
+      if (filter === "completed") {
+        return job.status === "completed";
+      }
+      if (filter === "disputed") {
+        return job.status === "disputed";
+      }
       return true;
     });
   };
@@ -290,6 +303,8 @@ export default function MyJobsScreen() {
       if (proposalFilter === "pending") return proposal.status === "pending";
       if (proposalFilter === "approved") return proposal.status === "approved";
       if (proposalFilter === "rejected") return proposal.status === "rejected";
+      if (proposalFilter === "completed") return proposal.job.status === "completed";
+      if (proposalFilter === "disputed") return proposal.job.status === "disputed";
       return true;
     });
   };
@@ -304,11 +319,15 @@ export default function MyJobsScreen() {
     (j.payment?.status === "pending" && j.payment?.requiresProof && !j.payment?.proofSubmitted)
   ).length;
   const draftCount = jobs.filter(j => j.status === "draft").length;
+  const completedJobsCount = jobs.filter(j => j.status === "completed").length;
+  const disputedJobsCount = jobs.filter(j => j.status === "disputed").length;
 
   // Count proposals by status
   const pendingProposalsCount = proposals.filter(p => p.status === "pending").length;
   const approvedProposalsCount = proposals.filter(p => p.status === "approved").length;
   const rejectedProposalsCount = proposals.filter(p => p.status === "rejected").length;
+  const completedProposalsCount = proposals.filter(p => p.job.status === "completed").length;
+  const disputedProposalsCount = proposals.filter(p => p.job.status === "disputed").length;
 
   // Transform data for calendar - real-time synced with jobs/proposals state
   const calendarJobs = mainTab === "published"
@@ -434,7 +453,7 @@ export default function MyJobsScreen() {
         {viewMode === "list" && mainTab === "published" && (
           <>
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -452,6 +471,26 @@ export default function MyJobsScreen() {
                     <p className="text-2xl font-bold text-green-600">{publishedCount}</p>
                   </div>
                   <CheckCircle className="h-8 w-8 text-green-500" />
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">Completados</p>
+                    <p className="text-2xl font-bold text-blue-600">{completedJobsCount}</p>
+                  </div>
+                  <Trophy className="h-8 w-8 text-blue-500" />
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">En Disputa</p>
+                    <p className="text-2xl font-bold text-orange-600">{disputedJobsCount}</p>
+                  </div>
+                  <AlertTriangle className="h-8 w-8 text-orange-500" />
                 </div>
               </div>
 
@@ -497,6 +536,26 @@ export default function MyJobsScreen() {
                 }`}
               >
                 Publicados ({publishedCount})
+              </button>
+              <button
+                onClick={() => setFilter("completed")}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  filter === "completed"
+                    ? "bg-blue-500 text-white"
+                    : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                }`}
+              >
+                Completados ({completedJobsCount})
+              </button>
+              <button
+                onClick={() => setFilter("disputed")}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  filter === "disputed"
+                    ? "bg-orange-500 text-white"
+                    : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                }`}
+              >
+                En Disputa ({disputedJobsCount})
               </button>
               <button
                 onClick={() => setFilter("pending_payment")}
@@ -636,6 +695,16 @@ export default function MyJobsScreen() {
                           Subir Comprobante
                         </Link>
                       )}
+
+                      {job.status === "completed" && (
+                        <button
+                          onClick={() => navigate(`/portfolio/create?fromJob=${job.id}`)}
+                          className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors text-sm"
+                        >
+                          <Share2 className="h-4 w-4" />
+                          Compartir en Portfolio
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -648,7 +717,7 @@ export default function MyJobsScreen() {
         {viewMode === "list" && mainTab === "applied" && (
           <>
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -676,6 +745,26 @@ export default function MyJobsScreen() {
                     <p className="text-2xl font-bold text-green-600">{approvedProposalsCount}</p>
                   </div>
                   <CheckCircle className="h-8 w-8 text-green-500" />
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">Completados</p>
+                    <p className="text-2xl font-bold text-blue-600">{completedProposalsCount}</p>
+                  </div>
+                  <Trophy className="h-8 w-8 text-blue-500" />
+                </div>
+              </div>
+
+              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">En Disputa</p>
+                    <p className="text-2xl font-bold text-orange-600">{disputedProposalsCount}</p>
+                  </div>
+                  <AlertTriangle className="h-8 w-8 text-orange-500" />
                 </div>
               </div>
 
@@ -721,6 +810,26 @@ export default function MyJobsScreen() {
                 }`}
               >
                 Aprobadas ({approvedProposalsCount})
+              </button>
+              <button
+                onClick={() => setProposalFilter("completed")}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  proposalFilter === "completed"
+                    ? "bg-blue-500 text-white"
+                    : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                }`}
+              >
+                Completados ({completedProposalsCount})
+              </button>
+              <button
+                onClick={() => setProposalFilter("disputed")}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  proposalFilter === "disputed"
+                    ? "bg-orange-500 text-white"
+                    : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                }`}
+              >
+                En Disputa ({disputedProposalsCount})
               </button>
               <button
                 onClick={() => setProposalFilter("rejected")}
@@ -846,6 +955,16 @@ export default function MyJobsScreen() {
                         <CalendarDays className="h-4 w-4" />
                         Ver en Calendario
                       </button>
+
+                      {proposal.job.status === "completed" && (
+                        <button
+                          onClick={() => navigate(`/portfolio/create?fromJob=${proposal.job.id}`)}
+                          className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors text-sm"
+                        >
+                          <Share2 className="h-4 w-4" />
+                          Compartir en Portfolio
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

@@ -44,6 +44,7 @@ import CreateDispute from "./pages/CreateDispute";
 import DisputeDetail from "./pages/DisputeDetail";
 import HelpPage from "./pages/HelpPage";
 import PortfolioManager from "./pages/PortfolioManager";
+import CreatePortfolioPost from "./pages/CreatePortfolioPost";
 import ProUsageDashboard from "./pages/ProUsageDashboard";
 import BalancePage from "./pages/BalancePage";
 import WithdrawalRequestPage from "./pages/WithdrawalRequestPage";
@@ -208,6 +209,14 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <PortfolioManager />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/portfolio/create"
+                element={
+                  <ProtectedRoute>
+                    <CreatePortfolioPost />
                   </ProtectedRoute>
                 }
               />
