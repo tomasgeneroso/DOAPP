@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { PlusCircle, MessageCircle, Lock, CheckCircle, MapPin, Calendar, Star, Package, Briefcase, Users, Sun, Moon } from 'lucide-react-native';
+import { PlusCircle, MessageCircle, Lock, CheckCircle, MapPin, Calendar, Star, Package, Briefcase, User, Sun, Moon, Search, ArrowRight } from 'lucide-react-native';
 import { Job } from '../../types';
 import { getJobs } from '../../services/jobs';
 import { useAuth } from '../../context/AuthContext';
@@ -97,14 +97,16 @@ export default function HomeScreen() {
           `¡Hola de nuevo, ${user.name?.split(' ')[0]}!`
         ) : (
           <>
-            Encontrá al <Text style={[styles.heroTitleAccent, { color: themeColors.primary[600] }]}>profesional perfecto.</Text>
+            Publicá el servicio que necesites o{' '}
+            <Text style={[styles.heroTitleAccent, { color: themeColors.primary[600] }]}>buscá oportunidades</Text>
+            {' '}para ofrecer tus servicios.
           </>
         )}
       </Text>
       <Text style={[styles.heroSubtitle, { color: themeColors.text.secondary }]}>
         {user
           ? '¿Listo para empezar un nuevo proyecto o buscar oportunidades?'
-          : 'En Doers, conectamos personas que necesitan servicios con quienes saben hacerlos. Garantizamos que el trabajo se complete o te devolvemos el dinero. Rápido, fácil y 100% seguro.'}
+          : 'En DoApp, conectamos personas que necesitan servicios con quienes saben hacerlos. Garantizamos que el trabajo se complete o te devolvemos el dinero.'}
       </Text>
 
       {!user && (
@@ -126,9 +128,10 @@ export default function HomeScreen() {
     </View>
   );
 
-  const renderHowItWorks = () => (
+  const renderHowItWorksClient = () => (
     <View style={[styles.howItWorksCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
-      <Text style={[styles.howItWorksTitle, { color: themeColors.text.primary }]}>¿Cómo funciona?</Text>
+      <Text style={[styles.howItWorksTitle, { color: themeColors.text.primary }]}>¿Necesitás un servicio?</Text>
+      <Text style={[styles.howItWorksSubtitle, { color: themeColors.text.secondary }]}>Publicá tu trabajo y encontrá profesionales</Text>
 
       <View style={styles.stepsContainer}>
         <View style={styles.step}>
@@ -138,8 +141,12 @@ export default function HomeScreen() {
           <View style={styles.stepNumber}>
             <Text style={styles.stepNumberText}>1</Text>
           </View>
-          <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Publicá o Buscá</Text>
-          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Creá un trabajo o buscá oportunidades</Text>
+          <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Publicá</Text>
+          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Creá tu trabajo con los detalles del servicio que necesitás</Text>
+        </View>
+
+        <View style={styles.stepArrow}>
+          <ArrowRight size={20} color={themeColors.text.muted} />
         </View>
 
         <View style={styles.step}>
@@ -149,8 +156,12 @@ export default function HomeScreen() {
           <View style={[styles.stepNumber, { backgroundColor: colors.secondary[600] }]}>
             <Text style={styles.stepNumberText}>2</Text>
           </View>
-          <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Conectá y Negociá</Text>
-          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Hablá directamente sin intermediarios</Text>
+          <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Elegí</Text>
+          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Recibí propuestas y elegí al mejor profesional</Text>
+        </View>
+
+        <View style={styles.stepArrow}>
+          <ArrowRight size={20} color={themeColors.text.muted} />
         </View>
 
         <View style={styles.step}>
@@ -160,8 +171,12 @@ export default function HomeScreen() {
           <View style={[styles.stepNumber, { backgroundColor: '#8b5cf6' }]}>
             <Text style={styles.stepNumberText}>3</Text>
           </View>
-          <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Pago Seguro</Text>
-          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Dinero en garantía hasta confirmar</Text>
+          <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Pagá Seguro</Text>
+          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Tu dinero queda en garantía hasta completar</Text>
+        </View>
+
+        <View style={styles.stepArrow}>
+          <ArrowRight size={20} color={themeColors.text.muted} />
         </View>
 
         <View style={styles.step}>
@@ -172,7 +187,72 @@ export default function HomeScreen() {
             <Text style={styles.stepNumberText}>4</Text>
           </View>
           <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>¡Listo!</Text>
-          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Pago liberado automáticamente</Text>
+          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Confirmá y el pago se libera automáticamente</Text>
+        </View>
+      </View>
+    </View>
+  );
+
+  const renderHowItWorksWorker = () => (
+    <View style={[styles.howItWorksCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+      <Text style={[styles.howItWorksTitle, { color: themeColors.text.primary }]}>¿Ofrecés servicios?</Text>
+      <Text style={[styles.howItWorksSubtitle, { color: themeColors.text.secondary }]}>Encontrá trabajos y empezá a ganar</Text>
+
+      <View style={styles.stepsContainer}>
+        <View style={styles.step}>
+          <View style={[styles.stepIcon, { backgroundColor: colors.primary[500] }]}>
+            <Search size={24} color="#fff" strokeWidth={2} />
+          </View>
+          <View style={styles.stepNumber}>
+            <Text style={styles.stepNumberText}>1</Text>
+          </View>
+          <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Buscá</Text>
+          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Explorá trabajos que se ajusten a tus habilidades</Text>
+        </View>
+
+        <View style={styles.stepArrow}>
+          <ArrowRight size={20} color={themeColors.text.muted} />
+        </View>
+
+        <View style={styles.step}>
+          <View style={[styles.stepIcon, { backgroundColor: colors.secondary[500] }]}>
+            <MessageCircle size={24} color="#fff" strokeWidth={2} />
+          </View>
+          <View style={[styles.stepNumber, { backgroundColor: colors.secondary[600] }]}>
+            <Text style={styles.stepNumberText}>2</Text>
+          </View>
+          <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Aplicá</Text>
+          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Enviá tu propuesta con tu mejor oferta</Text>
+        </View>
+
+        <View style={styles.stepArrow}>
+          <ArrowRight size={20} color={themeColors.text.muted} />
+        </View>
+
+        <View style={styles.step}>
+          <View style={[styles.stepIcon, { backgroundColor: '#8b5cf6' }]}>
+            <Briefcase size={24} color="#fff" strokeWidth={2} />
+          </View>
+          <View style={[styles.stepNumber, { backgroundColor: '#8b5cf6' }]}>
+            <Text style={styles.stepNumberText}>3</Text>
+          </View>
+          <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Trabajá</Text>
+          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Realizá el trabajo con tranquilidad</Text>
+        </View>
+
+        <View style={styles.stepArrow}>
+          <ArrowRight size={20} color={themeColors.text.muted} />
+        </View>
+
+        <View style={styles.step}>
+          <View style={[styles.stepIcon, { backgroundColor: colors.success[500] }]}>
+            <CheckCircle size={24} color="#fff" strokeWidth={2} />
+          </View>
+          <View style={[styles.stepNumber, { backgroundColor: colors.success[600] }]}>
+            <Text style={styles.stepNumberText}>4</Text>
+          </View>
+          <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Cobrá</Text>
+          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Recibí tu pago de forma segura y garantizada</Text>
         </View>
       </View>
     </View>
@@ -249,7 +329,8 @@ export default function HomeScreen() {
   const renderHeader = () => (
     <>
       {renderHero()}
-      {renderHowItWorks()}
+      {renderHowItWorksClient()}
+      {renderHowItWorksWorker()}
       {renderSecurityBanner()}
 
       {/* Tabs */}
@@ -268,9 +349,9 @@ export default function HomeScreen() {
           style={[styles.tab, activeTab === 'users' && styles.tabActive]}
           onPress={() => setActiveTab('users')}
         >
-          <Users size={16} color={activeTab === 'users' ? themeColors.primary[600] : themeColors.text.secondary} strokeWidth={2} />
+          <User size={16} color={activeTab === 'users' ? themeColors.primary[600] : themeColors.text.secondary} strokeWidth={2} />
           <Text style={[styles.tabText, { color: themeColors.text.secondary }, activeTab === 'users' && styles.tabTextActive]}>
-            Usuarios
+            Perfiles
           </Text>
         </TouchableOpacity>
       </View>
@@ -579,18 +660,30 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.bold,
     color: colors.slate[900],
     textAlign: 'center',
+    marginBottom: spacing.xs,
+  },
+  howItWorksSubtitle: {
+    fontSize: fontSize.sm,
+    color: colors.slate[600],
+    textAlign: 'center',
     marginBottom: spacing.lg,
   },
   stepsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
+    alignItems: 'flex-start',
   },
   step: {
-    width: '48%',
+    width: '20%',
+    minWidth: 70,
     alignItems: 'center',
     marginBottom: spacing.lg,
     position: 'relative',
+  },
+  stepArrow: {
+    paddingTop: spacing.lg,
+    paddingHorizontal: spacing.xs,
   },
   stepIcon: {
     width: 48,

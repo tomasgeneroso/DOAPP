@@ -276,8 +276,9 @@ export default function Index() {
               `¡Hola de nuevo, ${user.name}!`
             ) : (
               <>
-                Encontrá al{" "}
-                <span className="text-sky-600">profesional perfecto.</span>
+                Publicá el servicio que necesites o{" "}
+                <span className="text-sky-600">buscá oportunidades</span>{" "}
+                para ofrecer tus servicios.
               </>
             )}
           </h1>
@@ -286,13 +287,13 @@ export default function Index() {
               ? "Cargando..."
               : user
               ? "¿Listo para empezar un nuevo proyecto o buscar oportunidades? Estás en el lugar correcto."
-              : "En Doers, conectamos personas que necesitan servicios con quienes saben hacerlos. \n Garantizamos que el trabajo se complete o te devolvemos el dinero. Rápido, fácil y 100% seguro."}
+              : "En DoApp, conectamos personas que necesitan servicios con quienes saben hacerlos. Garantizamos que el trabajo se complete o te devolvemos el dinero."}
           </p>
           {!user && !isLoading && (
             <p className="mx-auto mt-3 sm:mt-4 max-w-2xl text-sm sm:text-base leading-6 sm:leading-7 text-gray-500 dark:text-slate-500 px-2">
               Nos aseguramos que cada acuerdo se cumpla por ambas partes.
               Publicá un trabajo, negociá directamente con el profesional y pagá
-              automaticamente solo cuando todo esté verificado.
+              automáticamente solo cuando todo esté verificado.
             </p>
           )}
           {!user && !isLoading && (
@@ -313,12 +314,15 @@ export default function Index() {
           )}
         </div>
 
-        {/* How it works - Process Flow */}
+        {/* How it works - Para Clientes */}
         <div className="mt-8 sm:mt-12 max-w-6xl mx-auto px-2">
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6 sm:p-8 border border-slate-200 dark:border-slate-700">
-            <h2 className="text-xl sm:text-2xl font-bold text-center text-gray-900 dark:text-white mb-8">
-              ¿Cómo funciona?
+            <h2 className="text-xl sm:text-2xl font-bold text-center text-gray-900 dark:text-white mb-2">
+              ¿Necesitás un servicio?
             </h2>
+            <p className="text-center text-gray-600 dark:text-gray-400 mb-8">
+              Publicá tu trabajo y encontrá profesionales
+            </p>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 md:gap-4">
               {/* Step 1 */}
@@ -332,12 +336,11 @@ export default function Index() {
                   1
                 </div>
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
-                  Publicá o Buscá
+                  Publicá
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Creá un trabajo que necesites o buscá oportunidades para ofrecer tus servicios
+                  Creá tu trabajo con los detalles del servicio que necesitás
                 </p>
-                {/* Arrow - Desktop only */}
                 <div className="hidden md:block absolute top-8 -right-4 text-sky-400">
                   <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z" />
@@ -349,19 +352,18 @@ export default function Index() {
               <div className="flex flex-col items-center text-center relative">
                 <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center shadow-lg mb-4">
                   <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                 </div>
                 <div className="absolute -top-2 -left-2 w-8 h-8 bg-orange-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md">
                   2
                 </div>
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
-                  Conectá y Negociá
+                  Elegí
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Hablá directamente, acordá detalles y precio. Sin intermediarios
+                  Recibí propuestas y elegí al mejor profesional
                 </p>
-                {/* Arrow - Desktop only */}
                 <div className="hidden md:block absolute top-8 -right-4 text-orange-400">
                   <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z" />
@@ -380,12 +382,11 @@ export default function Index() {
                   3
                 </div>
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
-                  Pago Seguro
+                  Pagá Seguro
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  El dinero queda en garantía hasta que ambos confirmen el trabajo completado
+                  Tu dinero queda en garantía hasta que el trabajo se complete
                 </p>
-                {/* Arrow - Desktop only */}
                 <div className="hidden md:block absolute top-8 -right-4 text-purple-400">
                   <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z" />
@@ -407,7 +408,108 @@ export default function Index() {
                   ¡Listo!
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Trabajo completado, pago liberado automáticamente
+                  Confirmá y el pago se libera automáticamente
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* How it works - Para Trabajadores */}
+        <div className="mt-6 sm:mt-8 max-w-6xl mx-auto px-2">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6 sm:p-8 border border-slate-200 dark:border-slate-700">
+            <h2 className="text-xl sm:text-2xl font-bold text-center text-gray-900 dark:text-white mb-2">
+              ¿Ofrecés servicios?
+            </h2>
+            <p className="text-center text-gray-600 dark:text-gray-400 mb-8">
+              Encontrá trabajos y empezá a ganar
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 md:gap-4">
+              {/* Step 1 */}
+              <div className="flex flex-col items-center text-center relative">
+                <div className="w-16 h-16 bg-gradient-to-br from-sky-500 to-sky-600 rounded-full flex items-center justify-center shadow-lg mb-4">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <div className="absolute -top-2 -left-2 w-8 h-8 bg-sky-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md">
+                  1
+                </div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                  Buscá
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Explorá trabajos que se ajusten a tus habilidades
+                </p>
+                <div className="hidden md:block absolute top-8 -right-4 text-sky-400">
+                  <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Step 2 */}
+              <div className="flex flex-col items-center text-center relative">
+                <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-full flex items-center justify-center shadow-lg mb-4">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                  </svg>
+                </div>
+                <div className="absolute -top-2 -left-2 w-8 h-8 bg-orange-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md">
+                  2
+                </div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                  Aplicá
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Enviá tu propuesta con tu mejor oferta
+                </p>
+                <div className="hidden md:block absolute top-8 -right-4 text-orange-400">
+                  <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Step 3 */}
+              <div className="flex flex-col items-center text-center relative">
+                <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg mb-4">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div className="absolute -top-2 -left-2 w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md">
+                  3
+                </div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                  Trabajá
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Realizá el trabajo con tranquilidad
+                </p>
+                <div className="hidden md:block absolute top-8 -right-4 text-purple-400">
+                  <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Step 4 */}
+              <div className="flex flex-col items-center text-center relative">
+                <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center shadow-lg mb-4">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="absolute -top-2 -left-2 w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md">
+                  4
+                </div>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                  Cobrá
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Recibí tu pago de forma segura y garantizada
                 </p>
               </div>
             </div>

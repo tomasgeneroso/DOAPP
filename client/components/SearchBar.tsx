@@ -265,7 +265,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
               }`}
             >
               <Users className="h-4 w-4" />
-              Usuarios
+              Perfiles
             </button>
           </div>
         </div>
