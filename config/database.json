@@ -1,13 +1,12 @@
 {
   "development": {
     "username": "postgres",
-    "password": null,
+    "password": "Corchoytomsy99",
     "database": "doapp_test",
     "host": "localhost",
     "port": 5433,
     "dialect": "postgres",
-    "logging": false,
-    "use_env_variable": "DEV_DATABASE_URL"
+    "logging": false
   },
   "test": {
     "username": "postgres",

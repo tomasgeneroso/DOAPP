@@ -186,6 +186,22 @@ export class Payment extends Model {
   mercadopagoStatusDetail?: string;
 
   // ============================================
+  // PAYMENT METHOD DETAILS
+  // ============================================
+
+  @Column(DataType.STRING(50))
+  paymentTypeId?: string; // credit_card, debit_card, bank_transfer, account_money, etc.
+
+  @Column(DataType.STRING(50))
+  paymentMethodId?: string; // visa, master, amex, etc.
+
+  @Column(DataType.STRING(4))
+  cardLastFourDigits?: string; // Last 4 digits of card
+
+  @Column(DataType.STRING(50))
+  cardBrand?: string; // Visa, Mastercard, American Express, etc.
+
+  // ============================================
   // ESCROW MANAGEMENT
   // ============================================
 

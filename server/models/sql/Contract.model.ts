@@ -334,6 +334,11 @@ export class Contract extends Model {
   @Column(DataType.DATE)
   doerConfirmedAt?: Date;
 
+  // Timestamp when contract entered awaiting_confirmation status
+  // Used for auto-confirm after 2 hours
+  @Column(DataType.DATE)
+  awaitingConfirmationAt?: Date;
+
   // ============================================
   // MODIFICATION REQUEST (JSONB)
   // ============================================
@@ -426,6 +431,56 @@ export class Contract extends Model {
   // Percentage of total job budget allocated to this worker
   @Column(DataType.DECIMAL(5, 2))
   percentageOfBudget?: number;
+
+  // ============================================
+  // TASK CLAIM SYSTEM
+  // ============================================
+
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  hasPendingTaskClaim!: boolean;
+
+  @Column(DataType.DATE)
+  taskClaimRequestedAt?: Date;
+
+  @ForeignKey(() => User)
+  @Column(DataType.UUID)
+  taskClaimRequestedBy?: string;
+
+  @BelongsTo(() => User, 'taskClaimRequestedBy')
+  taskClaimRequester?: User;
+
+  @Column(DataType.DATE)
+  taskClaimNewEndDate?: Date;
+
+  @Column(DataType.TEXT)
+  taskClaimReason?: string;
+
+  @Default([])
+  @Column(DataType.JSONB)
+  claimedTaskIds!: string[];
+
+  @Column(DataType.DATE)
+  taskClaimRespondedAt?: Date;
+
+  @Column(DataType.STRING(20))
+  taskClaimResponse?: 'pending' | 'accepted' | 'rejected';
+
+  @Column(DataType.TEXT)
+  taskClaimRejectionReason?: string;
+
+  @Default([])
+  @Column(DataType.JSONB)
+  taskClaimHistory!: Array<{
+    claimedTaskIds: string[];
+    requestedAt: Date;
+    requestedBy: string;
+    newEndDate: Date;
+    reason: string;
+    response?: 'accepted' | 'rejected';
+    respondedAt?: Date;
+    rejectionReason?: string;
+  }>;
 
   // ============================================
   // DISPUTE

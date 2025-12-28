@@ -8,6 +8,9 @@ import { paymentApi, Payment } from "@/lib/paymentApi";
 import { PaymentModal } from "@/components/payments/PaymentModal";
 import ContractExtensionRequest from "@/components/contracts/ContractExtensionRequest";
 import ContractExtensionApproval from "@/components/contracts/ContractExtensionApproval";
+import TaskClaimModal from "@/components/contracts/TaskClaimModal";
+import TaskClaimResponse from "@/components/contracts/TaskClaimResponse";
+import TaskEvidenceUploadModal from "@/components/contracts/TaskEvidenceUploadModal";
 import {
   ArrowLeft,
   Calendar,
@@ -22,6 +25,8 @@ import {
   Copy,
   Wifi,
   WifiOff,
+  ClipboardList,
+  Camera,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 
@@ -40,6 +45,8 @@ export default function ContractDetail() {
   const [loadingPairing, setLoadingPairing] = useState(false);
   const [pairingMessage, setPairingMessage] = useState("");
   const [showExtensionForm, setShowExtensionForm] = useState(false);
+  const [showTaskClaimModal, setShowTaskClaimModal] = useState(false);
+  const [showEvidenceModal, setShowEvidenceModal] = useState(false);
 
   const loadContract = useCallback(async () => {
     try {
@@ -698,6 +705,74 @@ export default function ContractDetail() {
             </>
           )}
 
+          {/* Task Claim Section */}
+          {/* Show response UI for doer if there's a pending claim */}
+          {contract.hasPendingTaskClaim && isDoer && (
+            <div className="mb-6">
+              <TaskClaimResponse
+                contract={contract}
+                onSuccess={() => {
+                  loadContract();
+                }}
+              />
+            </div>
+          )}
+
+          {/* Show claim button for client when contract is awaiting confirmation */}
+          {isClient && contract.status === 'awaiting_confirmation' && !contract.hasPendingTaskClaim && (
+            <div className="mb-6">
+              <button
+                onClick={() => setShowTaskClaimModal(true)}
+                className="w-full bg-amber-50 dark:bg-amber-900/20 border-2 border-dashed border-amber-300 dark:border-amber-700 rounded-lg p-4 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors flex items-center justify-center gap-2"
+              >
+                <ClipboardList className="h-5 w-5" />
+                Reclamar Tareas Incompletas
+              </button>
+              <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
+                Si alguna tarea no fue completada, puedes reclamarla antes de confirmar
+              </p>
+            </div>
+          )}
+
+          {/* Show pending claim info for client */}
+          {isClient && contract.hasPendingTaskClaim && (
+            <div className="mb-6 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <ClipboardList className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h3 className="font-semibold text-amber-900 dark:text-amber-100 mb-1">
+                    Reclamo Pendiente
+                  </h3>
+                  <p className="text-sm text-amber-700 dark:text-amber-300">
+                    Has reclamado {contract.claimedTaskIds?.length || 0} tarea{(contract.claimedTaskIds?.length || 0) > 1 ? 's' : ''}.
+                    Esperando respuesta del trabajador.
+                  </p>
+                  {contract.taskClaimNewEndDate && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                      Nueva fecha propuesta: {new Date(contract.taskClaimNewEndDate).toLocaleDateString('es-AR')}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Evidence Upload Section for Workers */}
+          {isDoer && contract.status === 'in_progress' && (
+            <div className="mb-6">
+              <button
+                onClick={() => setShowEvidenceModal(true)}
+                className="w-full bg-sky-50 dark:bg-sky-900/20 border-2 border-dashed border-sky-300 dark:border-sky-700 rounded-lg p-4 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/30 transition-colors flex items-center justify-center gap-2"
+              >
+                <Camera className="h-5 w-5" />
+                Subir Fotos de Evidencia
+              </button>
+              <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
+                Documenta el trabajo realizado para proteger tu trabajo en caso de disputas
+              </p>
+            </div>
+          )}
+
           {/* Payments Section */}
           {payments.length > 0 && (
             <div className="bg-white rounded-lg shadow p-6">
@@ -763,6 +838,30 @@ export default function ContractDetail() {
           onSuccess={() => {
             loadPayments();
             loadContract();
+          }}
+        />
+      )}
+
+      {/* Task Claim Modal */}
+      <TaskClaimModal
+        contract={contract}
+        isOpen={showTaskClaimModal}
+        onClose={() => setShowTaskClaimModal(false)}
+        onSuccess={() => {
+          loadContract();
+          setShowTaskClaimModal(false);
+        }}
+      />
+
+      {/* Evidence Upload Modal for Workers */}
+      {contract.jobId && (
+        <TaskEvidenceUploadModal
+          jobId={typeof contract.jobId === 'object' ? contract.jobId._id : contract.jobId}
+          isOpen={showEvidenceModal}
+          onClose={() => setShowEvidenceModal(false)}
+          onSuccess={() => {
+            loadContract();
+            setShowEvidenceModal(false);
           }}
         />
       )}

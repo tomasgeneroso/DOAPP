@@ -855,6 +855,10 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
       }
     } else {
       contract.status = 'awaiting_confirmation';
+      // Set timestamp for auto-confirm after 2 hours
+      if (!contract.awaitingConfirmationAt) {
+        contract.awaitingConfirmationAt = new Date();
+      }
 
       // Send awaiting confirmation email to the other party
       const emailService = (await import('../services/email.js')).default;
@@ -2227,6 +2231,377 @@ router.post("/:id/approve-price-change", protect, async (req: AuthRequest, res: 
       success: false,
       message: error.message || "Error al procesar aprobación de cambio de precio"
     });
+  }
+});
+
+// ============================================
+// TASK CLAIM SYSTEM
+// ============================================
+
+// @route   POST /api/contracts/:id/claim-tasks
+// @desc    Client claims uncompleted tasks before confirming contract completion
+// @access  Private (Client only)
+router.post("/:id/claim-tasks", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { taskIds, newEndDate, reason } = req.body;
+
+    if (!taskIds || !Array.isArray(taskIds) || taskIds.length === 0) {
+      res.status(400).json({
+        success: false,
+        message: "Debe seleccionar al menos una tarea no completada"
+      });
+      return;
+    }
+
+    if (!newEndDate) {
+      res.status(400).json({
+        success: false,
+        message: "Debe especificar una nueva fecha de entrega"
+      });
+      return;
+    }
+
+    const contract = await Contract.findByPk(id, {
+      include: [
+        { model: User, as: 'client', attributes: ['id', 'name', 'email'] },
+        { model: User, as: 'doer', attributes: ['id', 'name', 'email'] },
+        { model: Job }
+      ]
+    });
+
+    if (!contract) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    // Only client can claim tasks
+    if (contract.clientId !== req.user.id) {
+      res.status(403).json({
+        success: false,
+        message: "Solo el cliente puede reclamar tareas no completadas"
+      });
+      return;
+    }
+
+    // Contract must be awaiting confirmation or in progress
+    if (contract.status !== 'awaiting_confirmation' && contract.status !== 'in_progress') {
+      res.status(400).json({
+        success: false,
+        message: "Solo se pueden reclamar tareas en contratos en progreso o esperando confirmación"
+      });
+      return;
+    }
+
+    // Check if there's already a pending claim
+    if (contract.hasPendingTaskClaim) {
+      res.status(400).json({
+        success: false,
+        message: "Ya hay un reclamo de tareas pendiente de respuesta"
+      });
+      return;
+    }
+
+    // Verify the tasks exist and belong to this job
+    const { JobTask } = await import('../models/sql/JobTask.model.js');
+    const tasks = await JobTask.findAll({
+      where: {
+        id: taskIds,
+        jobId: contract.jobId
+      }
+    });
+
+    if (tasks.length !== taskIds.length) {
+      res.status(400).json({
+        success: false,
+        message: "Una o más tareas no existen o no pertenecen a este trabajo"
+      });
+      return;
+    }
+
+    // Mark tasks as claimed
+    for (const task of tasks) {
+      task.isClaimed = true;
+      task.claimedAt = new Date();
+      task.claimedBy = req.user.id;
+      task.claimNotes = reason;
+      await task.save();
+    }
+
+    // Update contract with claim info
+    contract.hasPendingTaskClaim = true;
+    contract.taskClaimRequestedAt = new Date();
+    contract.taskClaimRequestedBy = req.user.id;
+    contract.taskClaimNewEndDate = new Date(newEndDate);
+    contract.taskClaimReason = reason || 'Tareas no completadas';
+    contract.claimedTaskIds = taskIds;
+    contract.taskClaimResponse = 'pending';
+    await contract.save();
+
+    // Notify the worker
+    const notificationService = (await import('../services/notification.js')).default;
+    await notificationService.createNotification({
+      userId: contract.doerId,
+      type: 'task_claim',
+      title: 'Reclamo de tareas pendientes',
+      message: `El cliente ha reclamado ${tasks.length} tarea(s) como no completada(s). Tienes 48 horas para responder.`,
+      relatedContractId: contract.id,
+      actionUrl: `/contracts/${contract.id}`
+    });
+
+    // Send email notification
+    const emailService = await import('../services/email.js');
+    if (contract.doer?.email) {
+      await emailService.sendEmail(
+        contract.doer.email,
+        'Reclamo de tareas pendientes en DoApp',
+        'task-claim',
+        {
+          workerName: contract.doer.name,
+          clientName: contract.client?.name,
+          taskCount: tasks.length,
+          taskNames: tasks.map(t => t.title).join(', '),
+          newEndDate: new Date(newEndDate).toLocaleDateString('es-AR'),
+          reason: reason || 'No especificado',
+          contractUrl: `${process.env.FRONTEND_URL || 'https://doapp.com'}/contracts/${contract.id}`
+        }
+      );
+    }
+
+    res.json({
+      success: true,
+      message: "Reclamo de tareas enviado. El trabajador será notificado.",
+      contract
+    });
+  } catch (error: any) {
+    console.error('Error claiming tasks:', error);
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+  }
+});
+
+// @route   POST /api/contracts/:id/respond-task-claim
+// @desc    Worker responds to task claim (accept or reject)
+// @access  Private (Doer only)
+router.post("/:id/respond-task-claim", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const { accept, rejectionReason } = req.body;
+
+    const contract = await Contract.findByPk(id, {
+      include: [
+        { model: User, as: 'client', attributes: ['id', 'name', 'email'] },
+        { model: User, as: 'doer', attributes: ['id', 'name', 'email'] },
+        { model: Job }
+      ]
+    });
+
+    if (!contract) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    // Only worker can respond
+    if (contract.doerId !== req.user.id) {
+      res.status(403).json({
+        success: false,
+        message: "Solo el trabajador puede responder al reclamo"
+      });
+      return;
+    }
+
+    // Must have a pending claim
+    if (!contract.hasPendingTaskClaim) {
+      res.status(400).json({
+        success: false,
+        message: "No hay reclamo de tareas pendiente"
+      });
+      return;
+    }
+
+    const { JobTask } = await import('../models/sql/JobTask.model.js');
+    const notificationService = (await import('../services/notification.js')).default;
+
+    // Add to claim history
+    contract.taskClaimHistory = [
+      ...contract.taskClaimHistory,
+      {
+        claimedTaskIds: contract.claimedTaskIds,
+        requestedAt: contract.taskClaimRequestedAt!,
+        requestedBy: contract.taskClaimRequestedBy!,
+        newEndDate: contract.taskClaimNewEndDate!,
+        reason: contract.taskClaimReason || '',
+        response: accept ? 'accepted' : 'rejected',
+        respondedAt: new Date(),
+        rejectionReason: accept ? undefined : rejectionReason
+      }
+    ];
+
+    contract.taskClaimRespondedAt = new Date();
+
+    if (accept) {
+      // Worker accepts - extend the contract end date
+      contract.taskClaimResponse = 'accepted';
+      contract.hasPendingTaskClaim = false;
+
+      // Update contract end date
+      const originalEndDate = contract.endDate;
+      contract.endDate = contract.taskClaimNewEndDate!;
+
+      // Reset confirmation status so both parties need to confirm again
+      contract.clientConfirmed = false;
+      contract.doerConfirmed = false;
+      contract.status = 'in_progress';
+
+      // Clear claim data
+      const claimedTasks = await JobTask.findAll({
+        where: { id: contract.claimedTaskIds }
+      });
+
+      // Mark tasks as still needing completion (not claimed anymore)
+      for (const task of claimedTasks) {
+        task.isClaimed = false;
+        task.status = 'pending';
+        await task.save();
+      }
+
+      await contract.save();
+
+      // Notify client
+      await notificationService.createNotification({
+        userId: contract.clientId,
+        type: 'task_claim_accepted',
+        title: 'Reclamo aceptado',
+        message: `El trabajador aceptó completar las tareas reclamadas. Nueva fecha de entrega: ${contract.taskClaimNewEndDate?.toLocaleDateString('es-AR')}`,
+        relatedContractId: contract.id,
+        actionUrl: `/contracts/${contract.id}`
+      });
+
+      res.json({
+        success: true,
+        message: "Reclamo aceptado. La fecha de entrega ha sido extendida.",
+        contract
+      });
+    } else {
+      // Worker rejects - create a dispute automatically
+      if (!rejectionReason) {
+        res.status(400).json({
+          success: false,
+          message: "Debe proporcionar una razón para el rechazo"
+        });
+        return;
+      }
+
+      contract.taskClaimResponse = 'rejected';
+      contract.taskClaimRejectionReason = rejectionReason;
+      contract.hasPendingTaskClaim = false;
+
+      // Create dispute
+      const { Dispute } = await import('../models/sql/Dispute.model.js');
+      const dispute = await Dispute.create({
+        contractId: contract.id,
+        jobId: contract.jobId,
+        initiatorId: req.user.id, // Worker is the initiator since they're denying
+        respondentId: contract.clientId,
+        reason: `Reclamo de tareas denegado: ${rejectionReason}`,
+        description: `El cliente reclamó las siguientes tareas como no completadas. El trabajador ha denegado el reclamo.\n\nTareas reclamadas: ${contract.claimedTaskIds.join(', ')}\n\nRazón del cliente: ${contract.taskClaimReason}\n\nRazón del rechazo del trabajador: ${rejectionReason}`,
+        status: 'open',
+        type: 'task_completion'
+      });
+
+      contract.status = 'disputed';
+      contract.disputeId = dispute.id;
+      contract.disputedAt = new Date();
+      await contract.save();
+
+      // Notify both parties
+      await notificationService.createNotification({
+        userId: contract.clientId,
+        type: 'dispute_created',
+        title: 'Disputa creada automáticamente',
+        message: `El trabajador rechazó el reclamo de tareas. Se ha abierto una disputa para resolver el conflicto.`,
+        relatedContractId: contract.id,
+        relatedDisputeId: dispute.id,
+        actionUrl: `/disputes/${dispute.id}`
+      });
+
+      await notificationService.createNotification({
+        userId: contract.doerId,
+        type: 'dispute_created',
+        title: 'Disputa creada',
+        message: `Has rechazado el reclamo de tareas. Se ha abierto una disputa para resolver el conflicto.`,
+        relatedContractId: contract.id,
+        relatedDisputeId: dispute.id,
+        actionUrl: `/disputes/${dispute.id}`
+      });
+
+      res.json({
+        success: true,
+        message: "Reclamo rechazado. Se ha creado una disputa automáticamente.",
+        contract,
+        disputeId: dispute.id
+      });
+    }
+  } catch (error: any) {
+    console.error('Error responding to task claim:', error);
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+  }
+});
+
+// @route   GET /api/contracts/:id/task-claim
+// @desc    Get task claim status for a contract
+// @access  Private
+router.get("/:id/task-claim", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+
+    const contract = await Contract.findByPk(id, {
+      attributes: [
+        'id', 'clientId', 'doerId', 'hasPendingTaskClaim',
+        'taskClaimRequestedAt', 'taskClaimRequestedBy',
+        'taskClaimNewEndDate', 'taskClaimReason', 'claimedTaskIds',
+        'taskClaimResponse', 'taskClaimRejectionReason', 'taskClaimHistory'
+      ]
+    });
+
+    if (!contract) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    // Only parties involved can view
+    if (contract.clientId !== req.user.id && contract.doerId !== req.user.id) {
+      res.status(403).json({
+        success: false,
+        message: "No tienes permiso para ver este reclamo"
+      });
+      return;
+    }
+
+    // Get claimed tasks details
+    const { JobTask } = await import('../models/sql/JobTask.model.js');
+    const claimedTasks = contract.claimedTaskIds.length > 0
+      ? await JobTask.findAll({
+          where: { id: contract.claimedTaskIds }
+        })
+      : [];
+
+    res.json({
+      success: true,
+      taskClaim: {
+        hasPendingClaim: contract.hasPendingTaskClaim,
+        requestedAt: contract.taskClaimRequestedAt,
+        requestedBy: contract.taskClaimRequestedBy,
+        newEndDate: contract.taskClaimNewEndDate,
+        reason: contract.taskClaimReason,
+        response: contract.taskClaimResponse,
+        rejectionReason: contract.taskClaimRejectionReason,
+        claimedTasks,
+        history: contract.taskClaimHistory
+      }
+    });
+  } catch (error: any) {
+    console.error('Error getting task claim:', error);
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
   }
 });
 

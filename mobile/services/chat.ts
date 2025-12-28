@@ -61,3 +61,10 @@ export async function startConversation(data: {
 }): Promise<ApiResponse<{ conversation: Conversation }>> {
   return post<{ conversation: Conversation }>('/chat/conversations', data);
 }
+
+/**
+ * Obtener detalles de una conversación
+ */
+export async function getConversation(conversationId: string): Promise<ApiResponse<{ conversation: Conversation }>> {
+  return get<{ conversation: Conversation }>(`/chat/conversations/${conversationId}`);
+}

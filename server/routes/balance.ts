@@ -70,7 +70,7 @@ router.get("/transactions", protect, async (req: AuthRequest, res: Response): Pr
         {
           model: Payment,
           as: 'relatedPayment',
-          attributes: ['amount', 'status']
+          attributes: ['amount', 'status', 'paymentTypeId', 'paymentMethodId', 'cardLastFourDigits', 'cardBrand', 'paymentMethod']
         }
       ]
     });

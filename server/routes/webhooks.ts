@@ -70,10 +70,18 @@ async function handlePaymentWebhook(data: any, ip: string) {
     const external_reference = metadata?.external_reference;
     const status_detail = mpPaymentData.status_detail || status;
 
+    // Extract payment method details
+    const paymentMethodInfo = {
+      payment_type_id: mpPaymentData.payment_type_id,
+      payment_method_id: mpPaymentData.payment_method_id,
+      card_last_four_digits: mpPaymentData.card_last_four_digits,
+      card_brand: mpPaymentData.card_brand,
+    };
+
     logger.payment('WEBHOOK_DATA', `MercadoPago payment data received`, {
       paymentId: paymentId?.toString(),
       status,
-      data: { external_reference, amount: transaction_amount, currency: currency_id }
+      data: { external_reference, amount: transaction_amount, currency: currency_id, ...paymentMethodInfo }
     });
 
     // Buscar el pago en nuestra base de datos
@@ -108,6 +116,12 @@ async function handlePaymentWebhook(data: any, ip: string) {
     foundPayment.mercadopagoPaymentId = paymentId?.toString();
     foundPayment.mercadopagoStatus = status;
     foundPayment.mercadopagoStatusDetail = status_detail;
+
+    // Save payment method details
+    foundPayment.paymentTypeId = paymentMethodInfo.payment_type_id;
+    foundPayment.paymentMethodId = paymentMethodInfo.payment_method_id;
+    foundPayment.cardLastFourDigits = paymentMethodInfo.card_last_four_digits;
+    foundPayment.cardBrand = paymentMethodInfo.card_brand;
 
     if (status === 'succeeded' || status === 'approved') {
       await handleApprovedPayment(foundPayment, metadata);

@@ -12,11 +12,12 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Send, User } from 'lucide-react-native';
+import { ArrowLeft, Send, User, Key, Copy, Check } from 'lucide-react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
-import { getMessages, sendMessage, markAsRead } from '../../services/chat';
-import { Message, User as UserType } from '../../types';
+import { getMessages, sendMessage, markAsRead, getConversation } from '../../services/chat';
+import { Message, User as UserType, Conversation } from '../../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 
 export default function ChatScreen() {
@@ -33,6 +34,35 @@ export default function ChatScreen() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [conversation, setConversation] = useState<Conversation | null>(null);
+  const [copiedJobCode, setCopiedJobCode] = useState(false);
+
+  // Get job code (first 8 chars of UUID in uppercase)
+  const getJobCode = (jobId: string | undefined): string => {
+    return jobId?.substring(0, 8).toUpperCase() || '';
+  };
+
+  const handleCopyJobCode = async () => {
+    const jobId = conversation?.jobId || conversation?.job?.id || conversation?.job?._id;
+    if (jobId) {
+      const code = getJobCode(jobId);
+      await Clipboard.setStringAsync(code);
+      setCopiedJobCode(true);
+      setTimeout(() => setCopiedJobCode(false), 3000);
+    }
+  };
+
+  const fetchConversation = async () => {
+    if (!id) return;
+    try {
+      const response = await getConversation(id);
+      if (response.success && response.data) {
+        setConversation(response.data.conversation);
+      }
+    } catch (error) {
+      console.error('Error fetching conversation:', error);
+    }
+  };
 
   const fetchMessages = async (pageNum: number = 1, append: boolean = false) => {
     if (!id) return;
@@ -66,6 +96,7 @@ export default function ChatScreen() {
 
   useEffect(() => {
     fetchMessages();
+    fetchConversation();
   }, [id]);
 
   const handleSend = async () => {
@@ -210,9 +241,28 @@ export default function ChatScreen() {
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color={themeColors.text.primary} />
         </TouchableOpacity>
-        <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]}>
-          Chat
-        </Text>
+        <View style={styles.headerCenter}>
+          <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]}>
+            Chat
+          </Text>
+          {/* Job Code Badge */}
+          {(conversation?.jobId || conversation?.job) && (
+            <TouchableOpacity
+              onPress={handleCopyJobCode}
+              style={[styles.jobCodeBadge, { backgroundColor: themeColors.primary[50], borderColor: themeColors.primary[200] }]}
+            >
+              <Key size={12} color={themeColors.primary[600]} />
+              <Text style={[styles.jobCodeText, { color: themeColors.primary[700] }]}>
+                #{getJobCode(conversation?.jobId || conversation?.job?.id || conversation?.job?._id)}
+              </Text>
+              {copiedJobCode ? (
+                <Check size={12} color={colors.success[500]} />
+              ) : (
+                <Copy size={12} color={themeColors.primary[400]} />
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
         <View style={{ width: 40 }} />
       </View>
 
@@ -306,6 +356,25 @@ const styles = StyleSheet.create({
     fontSize: fontSize.lg,
     fontWeight: fontWeight.semibold,
     textAlign: 'center',
+  },
+  headerCenter: {
+    flex: 1,
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  jobCodeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    gap: 4,
+  },
+  jobCodeText: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.bold,
+    fontFamily: 'monospace',
   },
   loadingContainer: {
     flex: 1,

@@ -27,6 +27,7 @@ import { startAutoCancelExpiredJobsJob } from "./jobs/autoCancelExpiredJobs.js";
 import { startJobReminderJob } from "./jobs/jobReminders.js";
 import { startSuspendFlexibleEndDateJob } from "./jobs/suspendFlexibleEndDateJobs.js";
 import { startResetReferralDiscountsJob } from "./jobs/resetReferralDiscounts.js";
+import { startAutoConfirmContractsJob } from "./jobs/autoConfirmContracts.js";
 
 // Rutas
 import authRoutes from "./routes/auth.js";
@@ -345,6 +346,9 @@ startSuspendFlexibleEndDateJob();
 
 // Initialize reset referral discounts (daily at midnight)
 startResetReferralDiscountsJob();
+
+// Initialize auto-confirm contracts (every 5 minutes - 2 hours timeout)
+startAutoConfirmContractsJob();
 
 // Manejo de errores del servidor
 httpServer.on('error', (error: NodeJS.ErrnoException) => {

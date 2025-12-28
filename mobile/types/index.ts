@@ -168,11 +168,15 @@ export interface Message {
 
 export interface Conversation {
   _id: string;
+  id?: string;
   participants: User[] | string[];
   job?: Job | string;
+  jobId?: string;
   contract?: Contract | string;
+  contractId?: string;
   lastMessage?: Message;
   unreadCount?: number;
+  metadata?: Record<string, any>;
   createdAt: string;
   updatedAt: string;
 }

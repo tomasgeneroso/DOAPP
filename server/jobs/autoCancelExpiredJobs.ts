@@ -157,6 +157,7 @@ export async function checkAndProcessUserExpiredJobs(userId: string): Promise<nu
     const now = new Date();
 
     // Find expired jobs for this user
+    // IMPORTANTE: No cancelar trabajos que ya tienen trabajador asignado (doerId)
     const expiredJobs = await Job.findAll({
       where: {
         clientId: userId,
@@ -166,6 +167,8 @@ export async function checkAndProcessUserExpiredJobs(userId: string): Promise<nu
         endDate: {
           [Op.lt]: now,
         },
+        // Solo cancelar si NO tiene trabajador asignado
+        doerId: null,
       },
     });
 
@@ -199,6 +202,7 @@ async function checkAndProcessAllExpiredJobs(): Promise<void> {
     const now = new Date();
 
     // Buscar trabajos abiertos o pausados cuya fecha de FIN ya pasó
+    // IMPORTANTE: No cancelar trabajos que ya tienen trabajador asignado (doerId)
     const expiredJobs = await Job.findAll({
       where: {
         status: {
@@ -207,6 +211,8 @@ async function checkAndProcessAllExpiredJobs(): Promise<void> {
         endDate: {
           [Op.lt]: now,
         },
+        // Solo cancelar si NO tiene trabajador asignado
+        doerId: null,
       },
       include: [
         {

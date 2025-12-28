@@ -565,6 +565,7 @@ router.get("/:id", async (req: Request, res: Response): Promise<void> => {
       job: jobData,
     });
   } catch (error: any) {
+    console.error('❌ Error in GET /api/jobs/:id:', error.message);
     res.status(500).json({
       success: false,
       message: error.message || "Error del servidor",
@@ -751,7 +752,7 @@ router.post(
 // @route   PUT /api/jobs/:id
 // @desc    Actualizar trabajo
 // @access  Private
-router.put("/:id", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     let job = await Job.findByPk(req.params.id);
 
@@ -799,6 +800,38 @@ router.put("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
 
     // Prepare update data
     let updateData: any = { ...req.body };
+
+    // Process uploaded images (new images)
+    const uploadedFiles = req.files as Express.Multer.File[];
+    const newImageUrls = uploadedFiles?.map(file => `/uploads/job-images/${file.filename}`) || [];
+
+    // Handle existing images (parse from JSON string if needed)
+    let existingImages: string[] = [];
+    if (req.body.existingImages) {
+      try {
+        existingImages = typeof req.body.existingImages === 'string'
+          ? JSON.parse(req.body.existingImages)
+          : req.body.existingImages;
+      } catch (e) {
+        existingImages = [];
+      }
+    }
+
+    // Combine existing and new images
+    if (newImageUrls.length > 0 || req.body.existingImages !== undefined) {
+      updateData.images = [...existingImages, ...newImageUrls];
+    }
+    // Remove existingImages from updateData (it's not a real field)
+    delete updateData.existingImages;
+
+    // Parse tags if sent as JSON string
+    if (updateData.tags && typeof updateData.tags === 'string') {
+      try {
+        updateData.tags = JSON.parse(updateData.tags);
+      } catch (e) {
+        updateData.tags = [];
+      }
+    }
 
     // Handle endDateFlexible
     if (newEndDateFlexible !== undefined) {
@@ -1160,6 +1193,7 @@ router.put("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
       requiresApproval: requiresReapproval,
     });
   } catch (error: any) {
+    console.error('❌ Error updating job:', error.message);
     res.status(500).json({
       success: false,
       message: error.message || "Error del servidor",

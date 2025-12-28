@@ -88,6 +88,7 @@ import AdminPerformanceMonitor from "./pages/admin/PerformanceMonitor";
 import EditJobScreen from "./pages/EditJobScreen";
 import NotificationsScreen from "./pages/NotificationsScreen";
 import CompleteRegistration from "./pages/CompleteRegistration";
+import SiteMap from "./pages/SiteMap";
 
 export default function App() {
   // Setup fetch interceptor for automatic token handling
@@ -366,6 +367,7 @@ export default function App() {
               <Route path="/blog" element={<BlogsScreen />} />
               <Route path="/blog/create" element={<CreateBlogScreen />} />
               <Route path="/blog/:slug" element={<BlogDetailScreen />} />
+              <Route path="/sitemap" element={<SiteMap />} />
             </Route>
             <Route path="/login" element={<LoginScreen />} />
             <Route path="/register" element={<LoginScreen />} />

@@ -1149,11 +1149,14 @@ router.post(
       // Ensure price is a number
       const jobPrice = typeof job.price === 'string' ? parseFloat(job.price) : job.price;
 
-      // Calculate duration safely
+      // Calculate duration safely - handle flexible end date
       const startDate = new Date(job.startDate);
-      const endDate = new Date(job.endDate);
-      const durationMs = endDate.getTime() - startDate.getTime();
-      const durationDays = Math.max(1, Math.ceil(durationMs / (1000 * 60 * 60 * 24)));
+      const endDate = job.endDate ? new Date(job.endDate) : null;
+      let durationDays = 1; // Default to 1 day if no end date
+      if (endDate) {
+        const durationMs = endDate.getTime() - startDate.getTime();
+        durationDays = Math.max(1, Math.ceil(durationMs / (1000 * 60 * 60 * 24)));
+      }
 
       // Crear propuesta automáticamente aprobada
       const proposal = await Proposal.create({
@@ -1198,7 +1201,10 @@ router.post(
       }
 
       // Crear mensaje automático del sistema con nuevo formato
-      const systemMessage = `${req.user.name} se postuló al trabajo||${job.title}||Inicio: ${startDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })} a las ${startDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}\nFinalización estimada: ${endDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })} a las ${endDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}\nPrecio Acordado: $${jobPrice.toLocaleString("es-AR")} ARS\nUbicación: ${job.location}\n\n⏳ Puedes ser seleccionado hasta 48 horas antes del inicio del trabajo.`;
+      const endDateText = endDate
+        ? `Finalización estimada: ${endDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })} a las ${endDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`
+        : `Finalización: Por definir (fecha flexible)`;
+      const systemMessage = `${req.user.name} se postuló al trabajo||${job.title}||Inicio: ${startDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })} a las ${startDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}\n${endDateText}\nPrecio Acordado: $${jobPrice.toLocaleString("es-AR")} ARS\nUbicación: ${job.location}\n\n⏳ Puedes ser seleccionado hasta 48 horas antes del inicio del trabajo.`;
 
       await ChatMessage.create({
         conversationId: conversation.id,

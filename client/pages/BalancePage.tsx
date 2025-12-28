@@ -12,6 +12,9 @@ import {
   ArrowUpCircle,
   ArrowDownCircle,
   Loader2,
+  CreditCard,
+  Banknote,
+  Building2,
 } from "lucide-react";
 import type { BalanceTransaction } from "@/types";
 
@@ -119,6 +122,79 @@ export default function BalancePage() {
       default:
         return "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400";
     }
+  };
+
+  // Get payment method icon based on card brand or payment type
+  const getPaymentMethodIcon = (transaction: BalanceTransaction) => {
+    const payment = transaction.relatedPayment;
+    if (!payment || typeof payment === 'string') return null;
+
+    const { cardBrand, paymentTypeId, paymentMethod } = payment;
+
+    // Card brands
+    if (cardBrand) {
+      const brand = cardBrand.toLowerCase();
+      if (brand.includes('visa')) {
+        return (
+          <div className="flex items-center gap-1.5">
+            <div className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">VISA</div>
+          </div>
+        );
+      }
+      if (brand.includes('master')) {
+        return (
+          <div className="flex items-center gap-1.5">
+            <div className="flex">
+              <div className="w-4 h-4 bg-red-500 rounded-full -mr-1.5"></div>
+              <div className="w-4 h-4 bg-yellow-500 rounded-full opacity-80"></div>
+            </div>
+          </div>
+        );
+      }
+      if (brand.includes('amex') || brand.includes('american')) {
+        return (
+          <div className="flex items-center gap-1.5">
+            <div className="bg-blue-800 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">AMEX</div>
+          </div>
+        );
+      }
+      // Generic card
+      return <CreditCard className="h-4 w-4 text-slate-500" />;
+    }
+
+    // Payment types
+    if (paymentTypeId === 'bank_transfer' || paymentMethod === 'bank_transfer') {
+      return <Building2 className="h-4 w-4 text-green-600" />;
+    }
+    if (paymentTypeId === 'account_money') {
+      return <Wallet className="h-4 w-4 text-sky-500" />;
+    }
+    if (paymentTypeId === 'credit_card' || paymentTypeId === 'debit_card') {
+      return <CreditCard className="h-4 w-4 text-slate-500" />;
+    }
+
+    return null;
+  };
+
+  // Get payment method label with last 4 digits
+  const getPaymentMethodLabel = (transaction: BalanceTransaction) => {
+    const payment = transaction.relatedPayment;
+    if (!payment || typeof payment === 'string') return null;
+
+    const { cardLastFourDigits, cardBrand, paymentTypeId, paymentMethod } = payment;
+
+    if (cardLastFourDigits && cardBrand) {
+      return `•••• ${cardLastFourDigits}`;
+    }
+
+    if (paymentTypeId === 'bank_transfer' || paymentMethod === 'bank_transfer') {
+      return 'Transferencia';
+    }
+    if (paymentTypeId === 'account_money') {
+      return 'Dinero en cuenta';
+    }
+
+    return null;
   };
 
   if (loading) {
@@ -276,10 +352,19 @@ export default function BalancePage() {
                           <p className="font-medium text-slate-900 dark:text-white">
                             {transaction.description}
                           </p>
-                          <div className="flex items-center gap-2 mt-1">
+                          <div className="flex items-center gap-2 mt-1 flex-wrap">
                             <span className={`px-2 py-0.5 rounded text-xs font-medium ${getTypeColor(transaction.type)}`}>
                               {getTypeLabel(transaction.type)}
                             </span>
+                            {/* Payment method badge */}
+                            {getPaymentMethodIcon(transaction) && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300">
+                                {getPaymentMethodIcon(transaction)}
+                                {getPaymentMethodLabel(transaction) && (
+                                  <span className="font-mono">{getPaymentMethodLabel(transaction)}</span>
+                                )}
+                              </span>
+                            )}
                             <span className="text-xs text-slate-500 dark:text-slate-400">
                               {new Date(transaction.createdAt).toLocaleDateString("es-AR", {
                                 day: "numeric",

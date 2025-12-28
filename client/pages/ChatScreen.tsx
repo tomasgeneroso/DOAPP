@@ -392,12 +392,33 @@ export default function ChatScreen() {
 
   // State for copying pairing code
   const [copiedCode, setCopiedCode] = useState(false);
+  const [copiedJobCode, setCopiedJobCode] = useState(false);
 
   const handleCopyPairingCode = () => {
     if (contractData?.pairingCode) {
       navigator.clipboard.writeText(contractData.pairingCode);
       setCopiedCode(true);
       setTimeout(() => setCopiedCode(false), 3000);
+    }
+  };
+
+  // Get the current job ID from various sources
+  const getCurrentJobId = (): string | null => {
+    return jobContext?.jobId || conversationData?.jobId || contractData?.job?.id || null;
+  };
+
+  // Get job code (first 8 chars of UUID in uppercase)
+  const getJobCode = (jobId: string | null): string => {
+    return jobId?.substring(0, 8).toUpperCase() || '';
+  };
+
+  const handleCopyJobCode = () => {
+    const jobId = getCurrentJobId();
+    if (jobId) {
+      const code = getJobCode(jobId);
+      navigator.clipboard.writeText(code);
+      setCopiedJobCode(true);
+      setTimeout(() => setCopiedJobCode(false), 3000);
     }
   };
 
@@ -674,9 +695,27 @@ export default function ChatScreen() {
                 <ArrowLeft className="h-5 w-5 text-slate-600 dark:text-slate-400" />
               </Link>
               <div>
-                <h1 className="text-lg font-semibold text-slate-900 dark:text-white">
-                  Conversación
-                </h1>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-lg font-semibold text-slate-900 dark:text-white">
+                    Conversación
+                  </h1>
+                  {/* Job Code Badge */}
+                  {getCurrentJobId() && (
+                    <button
+                      onClick={handleCopyJobCode}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-100 dark:bg-sky-900/40 text-sm font-mono font-bold text-sky-700 dark:text-sky-300 hover:bg-sky-200 dark:hover:bg-sky-900/60 transition-colors border border-sky-200 dark:border-sky-700"
+                      title="Copiar código del trabajo"
+                    >
+                      <Key className="h-3.5 w-3.5" />
+                      #{getJobCode(getCurrentJobId())}
+                      {copiedJobCode ? (
+                        <Check className="h-3.5 w-3.5 text-green-500" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5 opacity-60" />
+                      )}
+                    </button>
+                  )}
+                </div>
                 <p className="text-sm text-slate-500 dark:text-slate-400">
                   {jobContext ? jobContext.title : otherParticipant?.name || 'Chat'}
                 </p>

@@ -51,7 +51,7 @@ export default function DisputeResolution() {
                   1. Introducción
                 </h2>
                 <p className="text-slate-600 dark:text-slate-300 mb-4">
-                  En DOAPP, nos esforzamos por proporcionar un ambiente seguro y justo para todas las transacciones. Sin embargo, entendemos que pueden surgir desacuerdos entre clientes y profesionales (Doers). Este documento establece el proceso formal de resolución de disputas.
+                  En DOAPP, nos esforzamos por proporcionar un ambiente seguro y justo para todas las transacciones. Sin embargo, entendemos que pueden surgir desacuerdos entre las personas dentro de la app. Este documento establece el proceso formal de resolución de disputas.
                 </p>
                 <p className="text-slate-600 dark:text-slate-300 mb-4">
                   Nuestro objetivo es resolver todos los conflictos de manera justa, transparente y eficiente, protegiendo los intereses de ambas partes.
@@ -70,7 +70,7 @@ export default function DisputeResolution() {
                   Para Clientes:
                 </h3>
                 <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 mb-4 space-y-2">
-                  <li>El trabajo entregado no coincide con lo acordado</li>
+                  <li>El trabajo entregado no coincide con lo acordado en los detalles</li>
                   <li>El Doer no completó el trabajo según las especificaciones</li>
                   <li>El Doer incumplió los plazos sin justificación válida</li>
                   <li>La calidad del trabajo es significativamente inferior a lo esperado</li>

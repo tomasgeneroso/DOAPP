@@ -109,6 +109,14 @@ export class Conversation extends Model {
   unreadCount!: Record<string, number>;
 
   // ============================================
+  // METADATA
+  // ============================================
+
+  @Default({})
+  @Column(DataType.JSONB)
+  metadata?: Record<string, any>;
+
+  // ============================================
   // ARCHIVE
   // ============================================
 

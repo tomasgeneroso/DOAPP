@@ -4,7 +4,7 @@
  * Bank Transfer handled separately
  */
 
-import { MercadoPagoConfig, Preference } from 'mercadopago';
+import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 
 export type PaymentProvider = 'mercadopago' | 'bank_transfer' | 'binance';
 
@@ -29,6 +29,7 @@ interface CreatePaymentResult {
 
 class MercadoPagoPaymentService {
   private client: Preference | null = null;
+  private paymentClient: Payment | null = null;
   private isInitialized: boolean = false;
 
   constructor() {
@@ -56,6 +57,7 @@ class MercadoPagoPaymentService {
       });
 
       this.client = new Preference(mpConfig);
+      this.paymentClient = new Payment(mpConfig);
       this.isInitialized = true;
       // MercadoPago ready
     } catch (error) {
@@ -228,31 +230,82 @@ class MercadoPagoPaymentService {
   }
 
   /**
-   * Get payment status
-   * Note: MercadoPago Preference doesn't have a direct status API
-   * We need to use the Payment API with the actual payment ID from webhooks
+   * Get payment status and details from MercadoPago Payment API
+   * This uses the actual payment ID from webhooks to get full payment info
+   * including card details, payment method, etc.
    */
   async getPayment(paymentId: string, provider: PaymentProvider) {
-    if (!this.isInitialized || !this.client) {
+    if (!this.isInitialized || !this.paymentClient) {
       throw new Error('MercadoPago is not initialized');
     }
 
     try {
-      // Get preference by ID
-      const preference = await this.client.get({ preferenceId: paymentId });
+      // Get payment by ID using Payment API
+      const payment = await this.paymentClient.get({ id: paymentId });
+
+      // Extract card info if available
+      const cardData = payment.card || {};
+      const lastFourDigits = cardData.last_four_digits || null;
+      const cardBrand = this.normalizeCardBrand(payment.payment_method_id);
 
       return {
-        id: preference.id || paymentId,
-        status: 'pending', // Preferences don't have status, only payments do
-        amount: preference.items?.[0]?.unit_price || 0,
-        currency: preference.items?.[0]?.currency_id || 'ARS',
+        id: payment.id?.toString() || paymentId,
+        status: payment.status || 'pending',
+        status_detail: payment.status_detail,
+        amount: payment.transaction_amount || 0,
+        transaction_amount: payment.transaction_amount,
+        currency: payment.currency_id || 'ARS',
+        currency_id: payment.currency_id,
         provider: provider,
-        metadata: preference.metadata || {},
+        metadata: payment.metadata || {},
+        // Payment method details
+        payment_type_id: payment.payment_type_id, // credit_card, debit_card, bank_transfer, etc.
+        payment_method_id: payment.payment_method_id, // visa, master, amex, etc.
+        card_last_four_digits: lastFourDigits,
+        card_brand: cardBrand,
+        // Additional card info
+        card_first_six_digits: cardData.first_six_digits,
+        card_expiration_month: cardData.expiration_month,
+        card_expiration_year: cardData.expiration_year,
+        cardholder_name: cardData.cardholder?.name,
       };
     } catch (error: any) {
       console.error(`Error fetching payment ${paymentId}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Normalize card brand name for display
+   */
+  private normalizeCardBrand(paymentMethodId: string | undefined): string | null {
+    if (!paymentMethodId) return null;
+
+    const brandMap: Record<string, string> = {
+      'visa': 'Visa',
+      'master': 'Mastercard',
+      'mastercard': 'Mastercard',
+      'amex': 'American Express',
+      'american_express': 'American Express',
+      'diners': 'Diners Club',
+      'naranja': 'Naranja',
+      'nativa': 'Nativa',
+      'tarshop': 'Tarjeta Shopping',
+      'cencosud': 'Cencosud',
+      'cabal': 'Cabal',
+      'argencard': 'Argencard',
+      'cordobesa': 'Cordobesa',
+      'cmr': 'CMR Falabella',
+      'cordial': 'Cordial',
+      'account_money': 'Dinero en cuenta',
+      'rapipago': 'Rapipago',
+      'pagofacil': 'Pago Fácil',
+      'bapropagos': 'BaproPagos',
+      'cargavirtual': 'Carga Virtual',
+      'redlink': 'Red Link',
+    };
+
+    return brandMap[paymentMethodId.toLowerCase()] || paymentMethodId;
   }
 
   /**

@@ -737,4 +737,119 @@ router.get("/unread-count-duplicate", protect, async (req: AuthRequest, res: Res
   }
 });
 
+/**
+ * Find or create a conversation with job context
+ * POST /api/chat/conversations/find-or-create
+ * Used when client wants to message a freelancer about a specific job/proposal
+ */
+router.post(
+  "/conversations/find-or-create",
+  protect,
+  [body("participantId").isUUID().withMessage("ID de participante inválido")],
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          errors: errors.array(),
+        });
+        return;
+      }
+
+      const userId = req.user.id;
+      const { participantId, jobId, proposalId } = req.body;
+
+      // Don't allow chatting with yourself
+      if (userId === participantId) {
+        res.status(400).json({
+          success: false,
+          message: "No puedes iniciar una conversación contigo mismo",
+        });
+        return;
+      }
+
+      // Check if participant exists
+      const participant = await User.findByPk(participantId);
+      if (!participant) {
+        res.status(404).json({
+          success: false,
+          message: "Usuario no encontrado",
+        });
+        return;
+      }
+
+      // Check if job exists (if provided)
+      let job = null;
+      if (jobId) {
+        job = await Job.findByPk(jobId);
+        if (!job) {
+          res.status(404).json({
+            success: false,
+            message: "Trabajo no encontrado",
+          });
+          return;
+        }
+      }
+
+      // Try to find existing direct conversation between these users
+      let conversation = await Conversation.findOne({
+        where: {
+          participants: {
+            [Op.contains]: [userId, participantId],
+          },
+          type: "direct",
+        },
+      });
+
+      if (!conversation) {
+        // Create new conversation with job context
+        conversation = await Conversation.create({
+          participants: [userId, participantId],
+          type: "direct",
+          jobId: jobId || null,
+          metadata: {
+            createdFromProposal: proposalId || null,
+            jobTitle: job?.title || null,
+          },
+        });
+      } else if (jobId && !conversation.jobId) {
+        // Update existing conversation with job context if not already set
+        conversation.jobId = jobId;
+        conversation.metadata = {
+          ...conversation.metadata,
+          createdFromProposal: proposalId || null,
+          jobTitle: job?.title || null,
+        };
+        await conversation.save();
+      }
+
+      // Populate participant info
+      const otherParticipantId = conversation.participants.find((p: string) => p !== userId);
+      const otherUser = await User.findByPk(otherParticipantId, {
+        attributes: ['id', 'name', 'avatar', 'rating'],
+      });
+
+      res.json({
+        success: true,
+        conversation: {
+          ...conversation.toJSON(),
+          otherUser,
+          job: job ? {
+            id: job.id,
+            title: job.title,
+            status: job.status,
+          } : null,
+        },
+      });
+    } catch (error: any) {
+      console.error("Find or create conversation error:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor",
+      });
+    }
+  }
+);
+
 export default router;

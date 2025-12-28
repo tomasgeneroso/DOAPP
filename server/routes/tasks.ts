@@ -452,6 +452,147 @@ router.delete(
   }
 );
 
+// @route   POST /api/jobs/:jobId/tasks/:taskId/evidence
+// @desc    Upload evidence photos for a task (worker only)
+// @access  Private (worker only)
+router.post(
+  "/:taskId/evidence",
+  protect,
+  [
+    param("taskId").isUUID(),
+    body("photos").isArray({ min: 1 }).withMessage("Debes subir al menos una foto"),
+    body("photos.*").isString().withMessage("Cada foto debe ser una URL válida"),
+  ],
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({ success: false, errors: errors.array() });
+        return;
+      }
+
+      const { jobId, taskId } = req.params;
+      const { photos } = req.body;
+
+      const job = await Job.findByPk(jobId);
+      if (!job) {
+        res.status(404).json({ success: false, message: "Trabajo no encontrado" });
+        return;
+      }
+
+      // Only workers can upload evidence
+      const isWorker = await isJobWorker(job, req.user.id);
+      if (!isWorker) {
+        res.status(403).json({
+          success: false,
+          message: "Solo los trabajadores pueden subir evidencia"
+        });
+        return;
+      }
+
+      const task = await JobTask.findOne({
+        where: { id: taskId, jobId }
+      });
+
+      if (!task) {
+        res.status(404).json({ success: false, message: "Tarea no encontrada" });
+        return;
+      }
+
+      // Add photos to existing evidence
+      const existingPhotos = task.evidencePhotos || [];
+      const newPhotos = [...existingPhotos, ...photos];
+
+      await task.update({
+        evidencePhotos: newPhotos,
+        evidenceUploadedAt: new Date(),
+        evidenceUploadedBy: req.user.id,
+      });
+
+      // Get updated tasks with status
+      const tasks = await getTasksWithStatus(jobId);
+
+      // Notify job owner about evidence upload
+      socketService.notifyJobUpdate(jobId, job.clientId, {
+        action: 'task_evidence_uploaded',
+        task: task.toJSON(),
+        tasks,
+        uploadedBy: req.user.id,
+      });
+
+      res.json({
+        success: true,
+        message: "Evidencia subida exitosamente",
+        task: task.toJSON(),
+        tasks,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor"
+      });
+    }
+  }
+);
+
+// @route   GET /api/jobs/:jobId/tasks/evidence-required
+// @desc    Check if evidence is required (for prompting worker at job start)
+// @access  Private (worker only)
+router.get(
+  "/evidence-required",
+  protect,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { jobId } = req.params;
+
+      const job = await Job.findByPk(jobId);
+      if (!job) {
+        res.status(404).json({ success: false, message: "Trabajo no encontrado" });
+        return;
+      }
+
+      // Only workers can check this
+      const isWorker = await isJobWorker(job, req.user.id);
+      if (!isWorker) {
+        res.status(403).json({
+          success: false,
+          message: "Solo los trabajadores pueden ver esto"
+        });
+        return;
+      }
+
+      // Get tasks that don't have evidence yet
+      const tasksWithoutEvidence = await JobTask.findAll({
+        where: {
+          jobId,
+          [Op.or]: [
+            { evidencePhotos: { [Op.eq]: [] } },
+            { evidencePhotos: { [Op.is]: null } }
+          ]
+        },
+        order: [['orderIndex', 'ASC']],
+      });
+
+      res.json({
+        success: true,
+        evidenceRequired: tasksWithoutEvidence.length > 0,
+        tasksWithoutEvidence: tasksWithoutEvidence.map(t => ({
+          id: t.id,
+          title: t.title,
+          description: t.description,
+          orderIndex: t.orderIndex,
+        })),
+        totalTasksWithoutEvidence: tasksWithoutEvidence.length,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor"
+      });
+    }
+  }
+);
+
 // @route   PUT /api/jobs/:jobId/tasks/reorder
 // @desc    Reorder tasks (job owner only)
 // @access  Private (job owner only)

@@ -76,6 +76,7 @@ export default function JobDetail() {
   const [proposals, setProposals] = useState<any[]>([]);
   const [loadingProposals, setLoadingProposals] = useState(false);
   const [selectingWorker, setSelectingWorker] = useState<string | null>(null);
+  const [messagingProposal, setMessagingProposal] = useState<string | null>(null);
   const [showSelectConfirmModal, setShowSelectConfirmModal] = useState(false);
   const [selectedProposal, setSelectedProposal] = useState<any>(null);
   const [newProposalAlert, setNewProposalAlert] = useState<string | null>(null);
@@ -112,6 +113,7 @@ export default function JobDetail() {
     doerId?: string;
   } | null>(null);
   const [copiedPairingCode, setCopiedPairingCode] = useState(false);
+  const [copiedJobCode, setCopiedJobCode] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
   const [checkingApplication, setCheckingApplication] = useState(false);
 
@@ -304,6 +306,20 @@ export default function JobDetail() {
     }
   };
 
+  // Get job code (first 8 chars of UUID in uppercase)
+  const getJobCode = (jobId: string) => {
+    return jobId?.substring(0, 8).toUpperCase() || '';
+  };
+
+  const handleCopyJobCode = () => {
+    if (job?.id) {
+      const code = getJobCode(job.id);
+      navigator.clipboard.writeText(code);
+      setCopiedJobCode(true);
+      setTimeout(() => setCopiedJobCode(false), 3000);
+    }
+  };
+
   const handleApply = () => {
     if (!user) {
       navigate("/login", { state: { from: `/jobs/${id}` } });
@@ -348,6 +364,52 @@ export default function JobDetail() {
       setError(err.message || 'Error al iniciar conversación');
     } finally {
       setSendingMessage(false);
+    }
+  };
+
+  // Send message to a specific proposal's freelancer
+  const handleMessageProposal = async (proposal: any) => {
+    if (!user || !job || !token) {
+      navigate("/login", { state: { from: `/jobs/${id}` } });
+      return;
+    }
+
+    const freelancerId = proposal.freelancer?.id || proposal.freelancerId;
+    if (!freelancerId) {
+      setError('No se pudo identificar al freelancer');
+      return;
+    }
+
+    setMessagingProposal(proposal.id);
+    setError(null);
+
+    try {
+      // Create or find conversation with the freelancer, linked to this job
+      const response = await fetch('/api/chat/conversations/find-or-create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          participantId: freelancerId,
+          jobId: job.id || job._id,
+          proposalId: proposal.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Navigate to chat with job context
+        navigate(`/chat/${data.conversation.id}?jobId=${job.id || job._id}`);
+      } else {
+        setError(data.message || 'No se pudo iniciar la conversación');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Error al iniciar conversación');
+    } finally {
+      setMessagingProposal(null);
     }
   };
 
@@ -754,6 +816,20 @@ export default function JobDetail() {
                     {job.title}
                   </h1>
                   <div className="flex flex-wrap items-center gap-3 text-sm text-slate-600 dark:text-slate-300">
+                    {/* Job Code - Prominent */}
+                    <button
+                      onClick={handleCopyJobCode}
+                      className="inline-flex items-center gap-2 rounded-lg bg-sky-100 dark:bg-sky-900/40 px-3 py-1.5 text-sm font-mono font-bold text-sky-700 dark:text-sky-300 hover:bg-sky-200 dark:hover:bg-sky-900/60 transition-colors border border-sky-200 dark:border-sky-700"
+                      title="Copiar código del trabajo"
+                    >
+                      <Key className="h-4 w-4" />
+                      #{getJobCode(job.id || job._id)}
+                      {copiedJobCode ? (
+                        <Check className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <Copy className="h-4 w-4 opacity-60" />
+                      )}
+                    </button>
                     <div className="flex items-center gap-1">
                       <MapPin className="h-4 w-4" />
                       <span>{job.location}{job.neighborhood ? `, ${job.neighborhood}` : ''}</span>
@@ -1068,7 +1144,7 @@ export default function JobDetail() {
                     ⏳ Tu trabajo está pendiente de aprobación por un administrador
                   </p>
                   <p className="text-xs text-yellow-600 dark:text-yellow-400">
-                    Puedes cancelar ahora y recibir un reembolso total (precio + comisión).
+                    Puedes cancelar ahora y recibir un reembolso del precio (sin comisión).
                   </p>
                 </div>
 
@@ -1082,7 +1158,7 @@ export default function JobDetail() {
                   ) : (
                     <>
                       <XCircle className="h-4 w-4" />
-                      Cancelar y recibir reembolso total
+                      Cancelar y recibir reembolso
                     </>
                   )}
                 </button>
@@ -1388,7 +1464,7 @@ export default function JobDetail() {
 
                             {/* Info */}
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <Link
                                   to={`/profile/${proposal.freelancer?.id || proposal.freelancerId}`}
                                   className="font-semibold text-slate-900 dark:text-white hover:text-sky-500 dark:hover:text-sky-400 transition-colors"
@@ -1396,6 +1472,11 @@ export default function JobDetail() {
                                   {proposal.freelancer?.name || 'Usuario'}
                                 </Link>
                                 <ExternalLink className="h-3 w-3 text-slate-400 dark:text-slate-500" />
+                                {/* Job Code Badge */}
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-sky-100 dark:bg-sky-900/40 text-xs font-mono font-bold text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-700">
+                                  <Key className="h-3 w-3" />
+                                  #{getJobCode(job.id || job._id)}
+                                </span>
                               </div>
                               <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400 mt-1">
                                 <span className="flex items-center gap-1">
@@ -1429,32 +1510,49 @@ export default function JobDetail() {
                               </div>
                             </div>
 
-                            {/* Select Button or Status Badge */}
-                            {proposal.status === 'pending' ? (
+                            {/* Action Buttons */}
+                            <div className="shrink-0 flex items-center gap-2">
+                              {/* Message Button */}
                               <button
-                                onClick={() => openSelectConfirmModal(proposal)}
-                                disabled={selectingWorker === proposal.id}
-                                className="shrink-0 flex items-center gap-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                                onClick={() => handleMessageProposal(proposal)}
+                                disabled={messagingProposal === proposal.id}
+                                className="flex items-center gap-1 px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                                title="Enviar mensaje"
                               >
-                                {selectingWorker === proposal.id ? (
+                                {messagingProposal === proposal.id ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
-                                  <>
-                                    <CheckCircle className="h-4 w-4" />
-                                    Seleccionar
-                                  </>
+                                  <MessageSquare className="h-4 w-4" />
                                 )}
                               </button>
-                            ) : proposal.status === 'approved' ? (
-                              <span className="shrink-0 flex items-center gap-1 px-3 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm font-medium rounded-lg border border-green-300 dark:border-green-600">
-                                <CheckCircle className="h-4 w-4" />
-                                Seleccionado
-                              </span>
-                            ) : proposal.status === 'rejected' ? (
-                              <span className="shrink-0 flex items-center gap-1 px-3 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-sm font-medium rounded-lg border border-red-300 dark:border-red-600">
-                                Rechazado
-                              </span>
-                            ) : null}
+
+                              {/* Select Button or Status Badge */}
+                              {proposal.status === 'pending' ? (
+                                <button
+                                  onClick={() => openSelectConfirmModal(proposal)}
+                                  disabled={selectingWorker === proposal.id}
+                                  className="flex items-center gap-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                                >
+                                  {selectingWorker === proposal.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <CheckCircle className="h-4 w-4" />
+                                      Seleccionar
+                                    </>
+                                  )}
+                                </button>
+                              ) : proposal.status === 'approved' ? (
+                                <span className="flex items-center gap-1 px-3 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm font-medium rounded-lg border border-green-300 dark:border-green-600">
+                                  <CheckCircle className="h-4 w-4" />
+                                  Seleccionado
+                                </span>
+                              ) : proposal.status === 'rejected' ? (
+                                <span className="flex items-center gap-1 px-3 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-sm font-medium rounded-lg border border-red-300 dark:border-red-600">
+                                  Rechazado
+                                </span>
+                              ) : null}
+                            </div>
                           </div>
 
                           {/* Cover Letter Preview */}

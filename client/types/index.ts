@@ -247,6 +247,53 @@ export interface Contract {
     transactionId?: string;
   }>;
   originalPrice?: number;
+  // Task claim system
+  hasPendingTaskClaim?: boolean;
+  taskClaimRequestedAt?: string;
+  taskClaimRequestedBy?: string;
+  taskClaimNewEndDate?: string;
+  taskClaimReason?: string;
+  claimedTaskIds?: string[];
+  taskClaimResponse?: 'pending' | 'accepted' | 'rejected';
+  taskClaimRejectionReason?: string;
+  taskClaimRespondedAt?: string;
+  taskClaimHistory?: Array<{
+    action: 'requested' | 'accepted' | 'rejected';
+    by: string;
+    at: string;
+    taskIds: string[];
+    newEndDate?: string;
+    reason?: string;
+    rejectionReason?: string;
+  }>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface JobTask {
+  _id: string;
+  id?: string;
+  jobId: string;
+  createdById: string;
+  title: string;
+  description?: string;
+  orderIndex: number;
+  dueDate?: string;
+  status: 'pending' | 'in_progress' | 'completed';
+  startedAt?: string;
+  completedAt?: string;
+  completedById?: string;
+  requiresPreviousCompletion: boolean;
+  dependsOnTaskId?: string;
+  // Task claim tracking
+  isClaimed?: boolean;
+  claimedAt?: string;
+  claimedBy?: string;
+  claimNotes?: string;
+  // Evidence photos
+  evidencePhotos?: string[];
+  evidenceUploadedAt?: string;
+  evidenceUploadedBy?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -260,7 +307,15 @@ export interface BalanceTransaction {
   balanceAfter: number;
   description: string;
   relatedContract?: Contract | string;
-  relatedPayment?: string;
+  relatedPayment?: {
+    amount: number;
+    status: string;
+    paymentTypeId?: string; // credit_card, debit_card, bank_transfer, etc.
+    paymentMethodId?: string; // visa, master, amex, etc.
+    cardLastFourDigits?: string;
+    cardBrand?: string; // Visa, Mastercard, etc.
+    paymentMethod?: string; // mercadopago, bank_transfer, binance
+  } | string;
   metadata?: {
     previousPrice?: number;
     newPrice?: number;

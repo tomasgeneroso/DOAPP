@@ -24,7 +24,11 @@ import {
   AlertCircle,
   CheckCircle,
   Users,
+  Key,
+  Copy,
+  Check,
 } from 'lucide-react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { getJob } from '../../services/jobs';
@@ -47,6 +51,21 @@ export default function JobDetailScreen() {
   const [proposedPrice, setProposedPrice] = useState('');
   const [showProposalForm, setShowProposalForm] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
+  const [copiedJobCode, setCopiedJobCode] = useState(false);
+
+  // Get job code (first 8 chars of UUID in uppercase)
+  const getJobCode = (jobId: string | undefined): string => {
+    return jobId?.substring(0, 8).toUpperCase() || '';
+  };
+
+  const handleCopyJobCode = async () => {
+    if (job?.id || job?._id) {
+      const code = getJobCode(job.id || job._id);
+      await Clipboard.setStringAsync(code);
+      setCopiedJobCode(true);
+      setTimeout(() => setCopiedJobCode(false), 3000);
+    }
+  };
 
   const fetchJob = async () => {
     if (!id) return;
@@ -243,12 +262,30 @@ export default function JobDetailScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Status Badge */}
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(job.status) + '20' }]}>
-          <View style={[styles.statusDot, { backgroundColor: getStatusColor(job.status) }]} />
-          <Text style={[styles.statusText, { color: getStatusColor(job.status) }]}>
-            {getStatusText(job.status)}
-          </Text>
+        {/* Status Badge & Job Code */}
+        <View style={styles.badgesRow}>
+          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(job.status) + '20' }]}>
+            <View style={[styles.statusDot, { backgroundColor: getStatusColor(job.status) }]} />
+            <Text style={[styles.statusText, { color: getStatusColor(job.status) }]}>
+              {getStatusText(job.status)}
+            </Text>
+          </View>
+
+          {/* Job Code Badge */}
+          <TouchableOpacity
+            onPress={handleCopyJobCode}
+            style={[styles.jobCodeBadge, { backgroundColor: themeColors.primary[50], borderColor: themeColors.primary[200] }]}
+          >
+            <Key size={14} color={themeColors.primary[600]} />
+            <Text style={[styles.jobCodeText, { color: themeColors.primary[700] }]}>
+              #{getJobCode(job.id || job._id)}
+            </Text>
+            {copiedJobCode ? (
+              <Check size={14} color={colors.success[500]} />
+            ) : (
+              <Copy size={14} color={themeColors.primary[400]} />
+            )}
+          </TouchableOpacity>
         </View>
 
         {/* Title & Price */}
@@ -348,9 +385,18 @@ export default function JobDetailScreen() {
                   style={[styles.proposalItem, { borderColor: themeColors.border }]}
                 >
                   <View style={styles.proposalHeader}>
-                    <Text style={[styles.proposalDoer, { color: themeColors.text.primary }]}>
-                      {doer?.name || 'Usuario'}
-                    </Text>
+                    <View style={styles.proposalDoerRow}>
+                      <Text style={[styles.proposalDoer, { color: themeColors.text.primary }]}>
+                        {doer?.name || 'Usuario'}
+                      </Text>
+                      {/* Job Code Badge in proposal */}
+                      <View style={[styles.proposalJobCode, { backgroundColor: themeColors.primary[50] }]}>
+                        <Key size={10} color={themeColors.primary[600]} />
+                        <Text style={[styles.proposalJobCodeText, { color: themeColors.primary[700] }]}>
+                          #{getJobCode(job.id || job._id)}
+                        </Text>
+                      </View>
+                    </View>
                     {proposal.proposedPrice && (
                       <Text style={[styles.proposalPrice, { color: themeColors.primary[600] }]}>
                         {formatPrice(proposal.proposedPrice)}
@@ -531,14 +577,32 @@ const styles = StyleSheet.create({
     fontSize: fontSize.base,
     fontWeight: fontWeight.semibold,
   },
+  badgesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    alignSelf: 'flex-start',
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs,
     borderRadius: borderRadius.full,
-    marginBottom: spacing.md,
+  },
+  jobCodeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    gap: spacing.xs,
+  },
+  jobCodeText: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.bold,
+    fontFamily: 'monospace',
   },
   statusDot: {
     width: 8,
@@ -645,9 +709,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing.xs,
   },
+  proposalDoerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    flexWrap: 'wrap',
+  },
   proposalDoer: {
     fontSize: fontSize.base,
     fontWeight: fontWeight.medium,
+  },
+  proposalJobCode: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xs,
+    paddingVertical: 2,
+    borderRadius: borderRadius.sm,
+    gap: 2,
+  },
+  proposalJobCodeText: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.bold,
+    fontFamily: 'monospace',
   },
   proposalPrice: {
     fontSize: fontSize.base,

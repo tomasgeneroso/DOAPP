@@ -133,6 +133,45 @@ export class JobTask extends Model {
   dependsOnTask?: JobTask;
 
   // ============================================
+  // TASK CLAIM TRACKING
+  // ============================================
+
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  isClaimed!: boolean;
+
+  @Column(DataType.DATE)
+  claimedAt?: Date;
+
+  @ForeignKey(() => User)
+  @Column(DataType.UUID)
+  claimedBy?: string;
+
+  @BelongsTo(() => User, 'claimedBy')
+  claimer?: User;
+
+  @Column(DataType.TEXT)
+  claimNotes?: string;
+
+  // ============================================
+  // EVIDENCE PHOTOS (required at job start)
+  // ============================================
+
+  @Default([])
+  @Column(DataType.JSONB)
+  evidencePhotos!: string[];
+
+  @Column(DataType.DATE)
+  evidenceUploadedAt?: Date;
+
+  @ForeignKey(() => User)
+  @Column(DataType.UUID)
+  evidenceUploadedBy?: string;
+
+  @BelongsTo(() => User, 'evidenceUploadedBy')
+  evidenceUploader?: User;
+
+  // ============================================
   // TIMESTAMPS
   // ============================================
 
