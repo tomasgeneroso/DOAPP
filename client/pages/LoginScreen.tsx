@@ -35,6 +35,7 @@ export default function LoginScreen() {
     phone: "",
     dni: "",
     referralCode: "",
+    cbu: "",
     termsAccepted: false,
   });
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
@@ -135,6 +136,7 @@ export default function LoginScreen() {
           phone: formData.phone,
           dni: formData.dni,
           referralCode: formData.referralCode || undefined,
+          cbu: formData.cbu || undefined,
           termsAccepted: formData.termsAccepted,
         });
 
@@ -491,6 +493,29 @@ export default function LoginScreen() {
                   </div>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                     Si alguien te invitó, ingresa su código aquí
+                  </p>
+                </div>
+                <div>
+                  <label
+                    htmlFor="cbu"
+                    className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
+                  >
+                    CBU / CVU <span className="text-slate-400">(opcional)</span>
+                  </label>
+                  <div className="mt-2">
+                    <input
+                      id="cbu"
+                      name="cbu"
+                      type="text"
+                      onChange={handleInputChange}
+                      value={formData.cbu}
+                      placeholder="0000000000000000000000"
+                      className="block w-full h-12 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                      maxLength={22}
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    Tu CBU/CVU para recibir pagos por trabajos. Si no lo completás ahora, lo necesitarás cuando completes tu primer trabajo.
                   </p>
                 </div>
                 <div className="flex items-center">

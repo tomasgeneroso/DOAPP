@@ -417,6 +417,36 @@ export class User extends Model {
   hasFamilyPlan!: boolean;
 
   // ============================================
+  // MERCADOPAGO OAUTH (Split Payments)
+  // ============================================
+
+  @Index
+  @Column(DataType.STRING(255))
+  mercadopagoUserId?: string;
+
+  @Column(DataType.TEXT)
+  mercadopagoAccessToken?: string;
+
+  @Column(DataType.TEXT)
+  mercadopagoRefreshToken?: string;
+
+  @Column(DataType.DATE)
+  mercadopagoTokenExpiresAt?: Date;
+
+  @Column(DataType.DATE)
+  mercadopagoLinkedAt?: Date;
+
+  @Column(DataType.STRING(255))
+  mercadopagoEmail?: string;
+
+  @Column(DataType.STRING(255))
+  mercadopagoPublicKey?: string;
+
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  prefersMercadopagoPayout!: boolean;
+
+  // ============================================
   // METHODS
   // ============================================
 
@@ -659,6 +689,80 @@ export class User extends Model {
   hasSufficientBalance(amount: number): boolean {
     const currentBalance = parseFloat(this.balanceArs as any) || 0;
     return currentBalance >= amount;
+  }
+
+  /**
+   * Check if user has MercadoPago linked and active
+   */
+  hasMercadopagoLinked(): boolean {
+    return !!(
+      this.mercadopagoUserId &&
+      this.mercadopagoAccessToken &&
+      this.mercadopagoLinkedAt
+    );
+  }
+
+  /**
+   * Check if MercadoPago token is expired or about to expire (within 1 hour)
+   */
+  isMercadopagoTokenExpired(): boolean {
+    if (!this.mercadopagoTokenExpiresAt) return true;
+    const oneHourFromNow = new Date(Date.now() + 60 * 60 * 1000);
+    return new Date(this.mercadopagoTokenExpiresAt) <= oneHourFromNow;
+  }
+
+  /**
+   * Check if user prefers automatic MercadoPago payout
+   */
+  wantsMercadopagoPayout(): boolean {
+    return this.prefersMercadopagoPayout && this.hasMercadopagoLinked();
+  }
+
+  /**
+   * Link MercadoPago account
+   */
+  async linkMercadopago(data: {
+    userId: string;
+    accessToken: string;
+    refreshToken: string;
+    expiresIn: number;
+    email?: string;
+    publicKey?: string;
+  }): Promise<void> {
+    this.mercadopagoUserId = data.userId;
+    this.mercadopagoAccessToken = data.accessToken;
+    this.mercadopagoRefreshToken = data.refreshToken;
+    this.mercadopagoTokenExpiresAt = new Date(Date.now() + data.expiresIn * 1000);
+    this.mercadopagoLinkedAt = new Date();
+    this.mercadopagoEmail = data.email;
+    this.mercadopagoPublicKey = data.publicKey;
+    this.prefersMercadopagoPayout = true;
+    await this.save();
+  }
+
+  /**
+   * Unlink MercadoPago account
+   */
+  async unlinkMercadopago(): Promise<void> {
+    this.mercadopagoUserId = undefined;
+    this.mercadopagoAccessToken = undefined;
+    this.mercadopagoRefreshToken = undefined;
+    this.mercadopagoTokenExpiresAt = undefined;
+    this.mercadopagoLinkedAt = undefined;
+    this.mercadopagoEmail = undefined;
+    this.mercadopagoPublicKey = undefined;
+    this.prefersMercadopagoPayout = false;
+    await this.save();
+  }
+
+  /**
+   * Update MercadoPago tokens after refresh
+   */
+  async updateMercadopagoTokens(accessToken: string, refreshToken: string, expiresIn: number): Promise<void> {
+    this.mercadopagoAccessToken = accessToken;
+    this.mercadopagoRefreshToken = refreshToken;
+    this.mercadopagoTokenExpiresAt = new Date(Date.now() + expiresIn * 1000);
+    await this.save();
   }
 
   /**

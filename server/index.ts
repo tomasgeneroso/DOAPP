@@ -239,6 +239,9 @@ app.use("/api/posts", postsRoutes);
 app.use("/api/promoter", promoterRoutes);
 app.use("/api/user-analytics", userAnalyticsRoutes);
 
+// MercadoPago OAuth routes
+app.use("/api/mercadopago", (await import('./routes/mercadopagoOAuth.js')).default);
+
 // Admin Routes
 app.use("/api/admin/users", adminUsersRoutes);
 app.use("/api/admin/contracts", adminContractsRoutes);

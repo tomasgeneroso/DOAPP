@@ -15,7 +15,10 @@ import {
   CreditCard,
   User,
   Clock,
-  RefreshCw
+  RefreshCw,
+  Wallet,
+  Zap,
+  Link2
 } from "lucide-react";
 
 interface WorkerPaymentInfo {
@@ -38,9 +41,15 @@ interface WorkerPaymentInfo {
     cbu: string | null;
     alias: string | null;
   } | null;
+  hasBankingInfo: boolean;
   amountToPay: number;
   commission: number;
   percentageOfBudget: number | null;
+  // MercadoPago Split Payment info
+  mercadopagoLinked: boolean;
+  prefersMercadopagoPayout: boolean;
+  mercadopagoEmail: string | null;
+  payoutMethod: 'mercadopago_auto' | 'bank_transfer_manual';
 }
 
 interface ContractPaymentRow {
@@ -67,6 +76,10 @@ interface ReportSummary {
   totalCommissionCollected: number;
   averagePaymentPerWorker: number;
   bankBreakdown: Record<string, { count: number; totalAmount: number }>;
+  payoutMethodBreakdown: {
+    mercadopagoAuto: { count: number; totalAmount: number };
+    bankTransferManual: { count: number; totalAmount: number };
+  };
 }
 
 interface PaymentDetails {
@@ -188,7 +201,7 @@ export default function PendingPayments() {
   };
 
   const handleMarkAsPaid = async (contractId: string) => {
-    if (!confirm("¿Confirmas que el pago al trabajador fue realizado?")) return;
+    if (!confirm("¿Confirmas que el pago al trabajador fue realizado mediante transferencia bancaria?")) return;
 
     try {
       setMarkingPaidId(contractId);
@@ -220,6 +233,71 @@ export default function PendingPayments() {
       alert("Error al marcar pago como completado");
     } finally {
       setMarkingPaidId(null);
+    }
+  };
+
+  const handleProcessMercadoPago = async (contractId: string) => {
+    if (!confirm("¿Procesar pago automático por MercadoPago? El trabajador recibirá el dinero inmediatamente en su cuenta de MercadoPago.")) return;
+
+    try {
+      setMarkingPaidId(contractId);
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/admin/pending-payments/${contractId}/process-mercadopago`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert(`✅ Pago automático procesado exitosamente.\nID Transacción: ${data.transactionId}\nMonto: $${data.workerAmount.toLocaleString('es-AR')}`);
+        loadPayments();
+        if (showModal) {
+          setShowModal(false);
+          setSelectedPayment(null);
+        }
+      } else {
+        if (data.fallbackToManual) {
+          alert(`⚠️ Error en pago automático: ${data.message}\n\nPor favor procese el pago manualmente mediante transferencia bancaria.`);
+        } else {
+          alert(data.message || "Error al procesar pago automático");
+        }
+      }
+    } catch (error) {
+      console.error("Error processing MercadoPago payment:", error);
+      alert("Error al procesar pago por MercadoPago. Por favor use el método manual.");
+    } finally {
+      setMarkingPaidId(null);
+    }
+  };
+
+  const handleProcessAllMercadoPago = async () => {
+    if (!confirm("¿Procesar TODOS los pagos automáticos elegibles por MercadoPago? Esta acción pagará a todos los trabajadores que tengan cuenta MercadoPago vinculada y prefieran pago automático.")) return;
+
+    try {
+      setActionLoading(true);
+      const token = localStorage.getItem("token");
+      const response = await fetch("/api/admin/pending-payments/process-all-mercadopago", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert(`✅ Procesamiento batch completado:\n\n• Exitosos: ${data.results.success}\n• Fallidos: ${data.results.failed}\n${data.results.errors.length > 0 ? '\nErrores:\n' + data.results.errors.slice(0, 5).join('\n') : ''}`);
+        loadPayments();
+      } else {
+        alert(data.message || "Error en procesamiento batch");
+      }
+    } catch (error) {
+      console.error("Error in batch processing:", error);
+      alert("Error en procesamiento batch");
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -365,6 +443,20 @@ export default function PendingPayments() {
             <RefreshCw className="h-4 w-4" />
             Actualizar
           </button>
+          {summary?.payoutMethodBreakdown?.mercadopagoAuto?.count && summary.payoutMethodBreakdown.mercadopagoAuto.count > 0 && (
+            <button
+              onClick={handleProcessAllMercadoPago}
+              disabled={actionLoading}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition disabled:opacity-50"
+            >
+              {actionLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Zap className="h-4 w-4" />
+              )}
+              Pagar Todos MP ({summary.payoutMethodBreakdown.mercadopagoAuto.count})
+            </button>
+          )}
           <button
             onClick={handleExportXLSX}
             className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition"
@@ -424,7 +516,7 @@ export default function PendingPayments() {
 
       {/* Summary Stats */}
       {summary && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
@@ -477,6 +569,40 @@ export default function PendingPayments() {
               </div>
             </div>
           </div>
+          {/* MercadoPago Auto Stats */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border-l-4 border-emerald-500">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
+                <Wallet className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">MP Automático</div>
+                <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                  {summary.payoutMethodBreakdown?.mercadopagoAuto?.count || 0}
+                </div>
+                <div className="text-xs text-gray-500">
+                  ${(summary.payoutMethodBreakdown?.mercadopagoAuto?.totalAmount || 0).toLocaleString('es-AR')}
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* Bank Transfer Stats */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border-l-4 border-amber-500">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
+                <Building className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Transferencia</div>
+                <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                  {summary.payoutMethodBreakdown?.bankTransferManual?.count || 0}
+                </div>
+                <div className="text-xs text-gray-500">
+                  ${(summary.payoutMethodBreakdown?.bankTransferManual?.totalAmount || 0).toLocaleString('es-AR')}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -499,6 +625,9 @@ export default function PendingPayments() {
                   Trabajadores
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Método Pago
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Monto
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -515,7 +644,7 @@ export default function PendingPayments() {
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {payments.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                     No hay pagos pendientes en este período
                   </td>
                 </tr>
@@ -560,6 +689,31 @@ export default function PendingPayments() {
                       )}
                     </td>
                     <td className="px-4 py-4">
+                      {payment.workers.map((w, i) => (
+                        <div key={i} className="mb-1 flex items-center gap-1">
+                          {w.payoutMethod === 'mercadopago_auto' ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300">
+                              <Wallet className="h-3 w-3" />
+                              MP Auto
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300">
+                              <Building className="h-3 w-3" />
+                              Transf.
+                            </span>
+                          )}
+                          {!w.hasBankingInfo && w.payoutMethod === 'bank_transfer_manual' && (
+                            <span
+                              className="inline-flex items-center text-red-500 dark:text-red-400"
+                              title="Sin datos bancarios"
+                            >
+                              <AlertCircle className="h-3.5 w-3.5" />
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </td>
+                    <td className="px-4 py-4">
                       <div className="text-sm font-medium text-green-600 dark:text-green-400">
                         ${payment.totalContractAmount.toLocaleString('es-AR')}
                       </div>
@@ -595,18 +749,35 @@ export default function PendingPayments() {
                           <Eye className="h-4 w-4" />
                         </button>
                         {payment.paymentStatus !== 'completed' && (
-                          <button
-                            onClick={() => handleMarkAsPaid(payment.contractId)}
-                            disabled={markingPaidId === payment.contractId}
-                            className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded disabled:opacity-50"
-                            title="Marcar como pagado"
-                          >
-                            {markingPaidId === payment.contractId ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <CheckCircle className="h-4 w-4" />
+                          <>
+                            {/* Show MP button if any worker has mercadopago_auto */}
+                            {payment.workers.some(w => w.payoutMethod === 'mercadopago_auto') && (
+                              <button
+                                onClick={() => handleProcessMercadoPago(payment.contractId)}
+                                disabled={markingPaidId === payment.contractId}
+                                className="p-1.5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded disabled:opacity-50"
+                                title="Pagar por MercadoPago"
+                              >
+                                {markingPaidId === payment.contractId ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Zap className="h-4 w-4" />
+                                )}
+                              </button>
                             )}
-                          </button>
+                            <button
+                              onClick={() => handleMarkAsPaid(payment.contractId)}
+                              disabled={markingPaidId === payment.contractId}
+                              className="p-1.5 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded disabled:opacity-50"
+                              title="Marcar como pagado (transferencia)"
+                            >
+                              {markingPaidId === payment.contractId ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <CheckCircle className="h-4 w-4" />
+                              )}
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>

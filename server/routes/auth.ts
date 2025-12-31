@@ -83,7 +83,7 @@ router.post(
         return;
       }
 
-      const { name, username, email, password, phone, dni, termsAccepted, referralCode } = req.body;
+      const { name, username, email, password, phone, dni, termsAccepted, referralCode, cbu } = req.body;
 
       // Verificar si el usuario ya existe por email
       const existingUser = await User.findOne({ where: { email } });
@@ -118,6 +118,18 @@ router.post(
         }
       }
 
+      // Validar CBU si se proporcionó (debe tener 22 dígitos)
+      let bankingInfo = undefined;
+      if (cbu) {
+        const cleanCbu = cbu.replace(/\D/g, '');
+        if (cleanCbu.length === 22) {
+          bankingInfo = {
+            cbu: cleanCbu,
+          };
+        }
+        // Si el CBU no tiene 22 dígitos, simplemente lo ignoramos (es opcional)
+      }
+
       // Crear usuario
       const user = await User.create({
         name,
@@ -129,6 +141,7 @@ router.post(
         termsAccepted,
         termsAcceptedAt: termsAccepted ? new Date() : undefined,
         referredBy: referrer?.id,
+        bankingInfo,
       });
 
       // Crear registro de referido si existe

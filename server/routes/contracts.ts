@@ -884,6 +884,40 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
       contract.paymentStatus = 'released';
       contract.actualEndDate = new Date();
 
+      // Verificar si el trabajador tiene datos bancarios para recibir el pago
+      const doer = await User.findByPk(contract.doerId);
+      const hasBankingInfo = doer?.bankingInfo?.cbu || doer?.bankingInfo?.alias;
+
+      // Si no tiene datos bancarios, enviar notificación para que los complete
+      if (!hasBankingInfo) {
+        const Notification = (await import('../models/sql/Notification.model.js')).default;
+        await Notification.create({
+          recipientId: contract.doerId,
+          type: 'warning',
+          category: 'payment',
+          title: 'Datos bancarios requeridos',
+          message: 'Para recibir tu pago, necesitamos que completes tus datos bancarios (CBU/CVU). Por favor actualiza tu información de pago en la configuración de tu perfil.',
+          relatedModel: 'Contract',
+          relatedId: contract.id,
+          sentVia: ['in_app', 'email', 'push'],
+          data: {
+            requiresBankingInfo: true,
+            contractId: contract.id,
+            amount: contract.allocatedAmount || contract.price,
+          },
+        });
+
+        // Enviar email específico
+        const emailService = (await import('../services/email.js')).default;
+        await emailService.sendBankingInfoRequiredEmail(
+          contract.doerId.toString(),
+          contract.id.toString(),
+          contract.allocatedAmount || contract.price
+        );
+
+        console.log(`⚠️ Trabajador ${contract.doerId} no tiene datos bancarios. Notificación enviada.`);
+      }
+
       // Buscar el pago y liberarlo
       const Payment = (await import('../models/sql/Payment.model.js')).default;
       const payment = await Payment.findOne({ where: { contractId: id } });

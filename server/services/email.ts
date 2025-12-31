@@ -1677,6 +1677,77 @@ class EmailService {
 
     await this.sendEmail({ to, subject, html });
   }
+
+  /**
+   * Send banking info required email when a worker completes a job but has no banking data
+   */
+  async sendBankingInfoRequiredEmail(userId: string, contractId: string, amount: number): Promise<void> {
+    try {
+      const user = await User.findByPk(userId);
+      if (!user?.email) return;
+
+      const settingsUrl = `${config.clientUrl}/settings?tab=banking`;
+      const contractUrl = `${config.clientUrl}/contracts/${contractId}`;
+
+      const subject = "⚠️ Datos bancarios requeridos para recibir tu pago - Doers";
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <style>
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+            .header { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+            .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+            .button { display: inline-block; padding: 14px 35px; background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%); color: white; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: bold; }
+            .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
+            .amount { font-size: 32px; font-weight: bold; color: #10B981; margin: 20px 0; }
+            .warning-box { background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 20px; margin: 20px 0; border-radius: 8px; }
+            .emoji { font-size: 48px; margin-bottom: 10px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="emoji">💳</div>
+              <h1>Datos Bancarios Requeridos</h1>
+            </div>
+            <div class="content">
+              <p>Hola ${user.name},</p>
+              <p>¡Felicitaciones! Tu trabajo ha sido completado exitosamente. Tienes un pago pendiente de:</p>
+              <div class="amount">$${amount.toLocaleString("es-AR")} ARS</div>
+              <div class="warning-box">
+                <strong>⚠️ Acción requerida:</strong>
+                <p style="margin-bottom: 0;">Para poder transferirte el dinero, necesitamos que completes tus datos bancarios (CBU/CVU) en la configuración de tu perfil.</p>
+              </div>
+              <p>¿Qué necesitamos?</p>
+              <ul>
+                <li><strong>CBU o CVU:</strong> 22 dígitos de tu cuenta bancaria o billetera virtual</li>
+                <li><strong>Alias (opcional):</strong> Tu alias bancario para verificación</li>
+              </ul>
+              <center>
+                <a href="${settingsUrl}" class="button">Completar Datos Bancarios</a>
+              </center>
+              <p style="color: #666; font-size: 14px; margin-top: 20px;">
+                Una vez que completes tus datos, nuestro equipo procesará tu pago lo antes posible.
+              </p>
+            </div>
+            <div class="footer">
+              <p>© ${new Date().getFullYear()} Doers. Todos los derechos reservados.</p>
+              <p>Este es un correo automático, por favor no respondas.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      await this.sendEmail({ to: user.email, subject, html });
+      console.log(`📧 Banking info required email sent to ${user.email}`);
+    } catch (error) {
+      console.error('Error sending banking info required email:', error);
+    }
+  }
 }
 
 export default new EmailService();
