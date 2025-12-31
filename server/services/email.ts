@@ -1617,6 +1617,66 @@ class EmailService {
 
     await this.sendEmail({ to, subject, html });
   }
+
+  /**
+   * Send job completion confirmation reminder
+   */
+  async sendConfirmationReminder(to: string, userName: string, jobTitle: string, contractId: string, isClient: boolean): Promise<void> {
+    const subject = "Recordatorio: Confirma que el trabajo fue completado - Doers";
+    const contractUrl = `${config.clientUrl}/contracts/${contractId}`;
+    const roleText = isClient ? "el trabajador" : "el cliente";
+    const actionText = isClient
+      ? "Confirma que el trabajo fue realizado correctamente para que el trabajador reciba su pago."
+      : "Confirma que entregaste el trabajo correctamente para recibir tu pago.";
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
+          .button { display: inline-block; padding: 14px 35px; background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: bold; }
+          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
+          .job-box { background: white; border-left: 4px solid #10B981; padding: 20px; margin: 20px 0; border-radius: 8px; }
+          .emoji { font-size: 48px; margin-bottom: 10px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <div class="emoji">✅</div>
+            <h1>¡El trabajo ha terminado!</h1>
+          </div>
+          <div class="content">
+            <p>Hola ${userName},</p>
+            <p>El trabajo ha llegado a su fecha de finalización y necesita tu confirmación.</p>
+            <div class="job-box">
+              <h3 style="margin-top: 0; color: #059669;">${jobTitle}</h3>
+              <p>${actionText}</p>
+            </div>
+            <p>Una vez que tanto tú como ${roleText} confirmen, el proceso de pago se completará automáticamente.</p>
+            <center>
+              <a href="${contractUrl}" class="button">Confirmar trabajo</a>
+            </center>
+            <p style="color: #666; font-size: 14px; margin-top: 20px;">
+              Si tienes algún problema con el trabajo realizado, puedes abrir una disputa desde la página del contrato.
+            </p>
+          </div>
+          <div class="footer">
+            <p>© ${new Date().getFullYear()} Doers. Todos los derechos reservados.</p>
+            <p>Este es un correo automático, por favor no respondas.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    await this.sendEmail({ to, subject, html });
+  }
 }
 
 export default new EmailService();

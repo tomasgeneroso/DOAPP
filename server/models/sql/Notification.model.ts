@@ -12,7 +12,7 @@ import {
 } from 'sequelize-typescript';
 import { User } from './User.model.js';
 
-export type NotificationType = 'info' | 'success' | 'warning' | 'error' | 'alert' | 'job_reminder' | 'group_chat' | 'job_auto_cancelled';
+export type NotificationType = 'info' | 'success' | 'warning' | 'error' | 'alert' | 'job_reminder' | 'group_chat' | 'job_auto_cancelled' | 'confirm_remind';
 export type NotificationCategory = 'ticket' | 'contract' | 'user' | 'payment' | 'system' | 'admin' | 'jobs' | 'chat' | 'proposal';
 export type NotificationChannel = 'in_app' | 'email' | 'push';
 

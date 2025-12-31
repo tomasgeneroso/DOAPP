@@ -43,6 +43,7 @@ export default function AdminLayout() {
     { path: "/admin/roles", icon: Shield, label: "Asignar Roles", roles: ["owner", "super_admin", "admin"] },
     { path: "/admin/role-permissions", icon: Lock, label: "Permisos de Roles", roles: ["owner", "super_admin"] },
     { path: "/admin/contracts", icon: FileText, label: "Contratos", roles: ["owner", "super_admin", "admin"] },
+    { path: "/admin/pending-payments", icon: DollarSign, label: "Pagos Pendientes", roles: ["owner", "super_admin", "admin"] },
     { path: "/admin/financial-transactions", icon: DollarSign, label: "Movimientos Financieros", roles: ["owner", "super_admin", "admin"] },
     { path: "/admin/disputes", icon: Shield, label: "Disputas", roles: ["owner", "super_admin", "admin", "support"] },
     { path: "/admin/tickets", icon: TicketIcon, label: "Tickets", roles: ["owner", "super_admin", "admin", "support"] },

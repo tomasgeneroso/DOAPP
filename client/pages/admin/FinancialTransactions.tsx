@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import * as XLSX from "xlsx";
 import {
   DollarSign,
   TrendingUp,
@@ -59,10 +60,20 @@ interface Transaction {
   isEscrow: boolean;
   escrowReleased: boolean;
   description: string;
+  // Payment method details
+  paymentMethod?: string;
+  cardBrand?: string;
+  cardLastFourDigits?: string;
+  paymentMethodId?: string;
+  mercadopagoPaymentId?: string;
+  // Bank transfer details
+  isOwnBankAccount?: boolean;
+  thirdPartyAccountHolder?: string;
+  senderBankName?: string;
 }
 
 type ChartType = 'escrow' | 'recent' | 'commissions' | 'total' | null;
-type SortField = 'date' | 'type' | 'description' | 'client' | 'doer' | 'amount' | 'commission' | 'status' | 'released';
+type SortField = 'date' | 'type' | 'description' | 'client' | 'doer' | 'amount' | 'commission' | 'status' | 'released' | 'paymentMethod';
 type SortDirection = 'asc' | 'desc' | null;
 
 export default function FinancialTransactions() {
@@ -88,6 +99,7 @@ export default function FinancialTransactions() {
     status: 'all',
     search: ''
   });
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     loadTransactions();
@@ -134,6 +146,88 @@ export default function FinancialTransactions() {
       }
     } catch (error) {
       console.error("Error loading stats:", error);
+    }
+  };
+
+  const handleExportXLSX = () => {
+    setExporting(true);
+    try {
+      const sortedData = getSortedTransactions();
+
+      const typeLabels: Record<string, string> = {
+        contract_payment: 'Contrato',
+        membership: 'Membresía',
+        job_publication: 'Publicación',
+        budget_increase: 'Aumento Presupuesto',
+        escrow_deposit: 'Escrow',
+        escrow_release: 'Liberación'
+      };
+
+      // Prepare data for Excel
+      const excelData = sortedData.map(t => ({
+        'ID': t.id,
+        'Fecha': new Date(t.date).toLocaleDateString('es-AR'),
+        'Tipo': typeLabels[t.type] || t.type,
+        'Descripción': t.contract?.title || t.description || '',
+        'Cliente': t.contract?.client?.name || t.payer?.name || '',
+        'Email Cliente': t.contract?.client?.email || t.payer?.email || '',
+        'Doer': t.contract?.doer?.name || t.recipient?.name || '',
+        'Email Doer': t.contract?.doer?.email || t.recipient?.email || '',
+        'Monto Total': Number(t.totalAmount || 0),
+        'Moneda': t.currency || 'ARS',
+        'Comisión': Number(t.platformFee || 0),
+        '% Comisión': Number(t.platformFeePercentage || 0),
+        'Estado': t.status,
+        'Método Pago': t.paymentMethod || '',
+        'Tarjeta': t.cardBrand || '',
+        'Últimos 4': t.cardLastFourDigits || '',
+        'Banco Origen': t.senderBankName || '',
+        'Cuenta Propia': t.isOwnBankAccount === true ? 'Sí' : (t.isOwnBankAccount === false ? 'No' : ''),
+        'Titular Tercero': t.thirdPartyAccountHolder || '',
+        'Escrow': t.isEscrow ? (t.escrowReleased ? 'Liberado' : 'Retenido') : '',
+        'ID MercadoPago': t.mercadopagoPaymentId || ''
+      }));
+
+      // Create worksheet
+      const ws = XLSX.utils.json_to_sheet(excelData);
+
+      // Set column widths
+      const colWidths = [
+        { wch: 36 },  // ID
+        { wch: 12 },  // Fecha
+        { wch: 15 },  // Tipo
+        { wch: 30 },  // Descripción
+        { wch: 20 },  // Cliente
+        { wch: 25 },  // Email Cliente
+        { wch: 20 },  // Doer
+        { wch: 25 },  // Email Doer
+        { wch: 15 },  // Monto Total
+        { wch: 8 },   // Moneda
+        { wch: 12 },  // Comisión
+        { wch: 12 },  // % Comisión
+        { wch: 15 },  // Estado
+        { wch: 15 },  // Método Pago
+        { wch: 12 },  // Tarjeta
+        { wch: 10 },  // Últimos 4
+        { wch: 20 },  // Banco Origen
+        { wch: 12 },  // Cuenta Propia
+        { wch: 25 },  // Titular Tercero
+        { wch: 12 },  // Escrow
+        { wch: 20 },  // ID MercadoPago
+      ];
+      ws['!cols'] = colWidths;
+
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Movimientos');
+
+      // Generate file and download
+      XLSX.writeFile(wb, `movimientos-financieros-${new Date().toISOString().split('T')[0]}.xlsx`);
+    } catch (error) {
+      console.error("Error exporting XLSX:", error);
+      alert("Error al exportar Excel");
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -340,9 +434,22 @@ export default function FinancialTransactions() {
   };
 
   const getSortedTransactions = () => {
-    if (!sortField || !sortDirection) return transactions;
+    // First filter by search
+    let filtered = transactions;
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      filtered = transactions.filter(t => {
+        const id = t.id.toLowerCase();
+        const description = (t.contract?.title || t.description || '').toLowerCase();
+        const clientName = (t.contract?.client?.name || t.payer?.name || '').toLowerCase();
+        const doerName = (t.contract?.doer?.name || t.recipient?.name || '').toLowerCase();
+        return id.includes(searchLower) || description.includes(searchLower) || clientName.includes(searchLower) || doerName.includes(searchLower);
+      });
+    }
 
-    return [...transactions].sort((a, b) => {
+    if (!sortField || !sortDirection) return filtered;
+
+    return [...filtered].sort((a, b) => {
       let comparison = 0;
 
       switch (sortField) {
@@ -378,6 +485,11 @@ export default function FinancialTransactions() {
           break;
         case 'released':
           comparison = (a.escrowReleased ? 1 : 0) - (b.escrowReleased ? 1 : 0);
+          break;
+        case 'paymentMethod':
+          const methodA = a.paymentMethod || '';
+          const methodB = b.paymentMethod || '';
+          comparison = methodA.localeCompare(methodB, 'es');
           break;
       }
 
@@ -432,6 +544,72 @@ export default function FinancialTransactions() {
     );
   };
 
+  const getCardBrandLogo = (brand?: string) => {
+    const logos: Record<string, { bg: string; text: string; label: string }> = {
+      visa: { bg: 'bg-blue-600', text: 'text-white', label: 'VISA' },
+      mastercard: { bg: 'bg-red-500', text: 'text-white', label: 'MC' },
+      master: { bg: 'bg-red-500', text: 'text-white', label: 'MC' },
+      amex: { bg: 'bg-blue-400', text: 'text-white', label: 'AMEX' },
+      american_express: { bg: 'bg-blue-400', text: 'text-white', label: 'AMEX' },
+      naranja: { bg: 'bg-orange-500', text: 'text-white', label: 'NAR' },
+      cabal: { bg: 'bg-green-600', text: 'text-white', label: 'CAB' },
+      mercadopago: { bg: 'bg-sky-500', text: 'text-white', label: 'MP' },
+      account_money: { bg: 'bg-sky-500', text: 'text-white', label: 'MP' },
+      debit: { bg: 'bg-gray-500', text: 'text-white', label: 'DEB' },
+      credit: { bg: 'bg-purple-500', text: 'text-white', label: 'CRED' },
+    };
+    const normalizedBrand = brand?.toLowerCase().replace(/\s+/g, '_') || '';
+    return logos[normalizedBrand] || { bg: 'bg-gray-400', text: 'text-white', label: brand?.slice(0, 4).toUpperCase() || '?' };
+  };
+
+  const renderPaymentMethod = (transaction: Transaction) => {
+    const { paymentMethod, cardBrand, cardLastFourDigits, mercadopagoPaymentId, isOwnBankAccount, thirdPartyAccountHolder, senderBankName } = transaction;
+
+    if (!paymentMethod && !cardBrand && !mercadopagoPaymentId) {
+      return <span className="text-gray-400">-</span>;
+    }
+
+    // Check if it's a bank transfer with bank info
+    if (paymentMethod === 'bank_transfer' && senderBankName) {
+      return (
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded text-xs font-bold bg-emerald-600 text-white">
+              TRANSF
+            </span>
+            <span className="text-xs text-gray-600 dark:text-gray-400">
+              {senderBankName}
+            </span>
+          </div>
+          <div className="text-xs">
+            {isOwnBankAccount ? (
+              <span className="text-green-600 dark:text-green-400">Cuenta propia</span>
+            ) : (
+              <span className="text-orange-600 dark:text-orange-400">
+                Tercero: {thirdPartyAccountHolder || 'N/A'}
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    const logo = getCardBrandLogo(cardBrand || paymentMethod);
+
+    return (
+      <div className="flex items-center gap-2">
+        <span className={`px-2 py-0.5 rounded text-xs font-bold ${logo.bg} ${logo.text}`}>
+          {logo.label}
+        </span>
+        {cardLastFourDigits && (
+          <span className="text-sm font-mono text-gray-600 dark:text-gray-400">
+            •••• {cardLastFourDigits}
+          </span>
+        )}
+      </div>
+    );
+  };
+
   const getChartTitle = () => {
     const titles = {
       escrow: 'Análisis de Pagos en Escrow',
@@ -455,11 +633,21 @@ export default function FinancialTransactions() {
   return (
     <div>
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Movimientos Financieros</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-2">
-          Historial completo de transacciones y comisiones
-        </p>
+      <div className="mb-8 flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Movimientos Financieros</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">
+            Historial completo de transacciones y comisiones
+          </p>
+        </div>
+        <button
+          onClick={handleExportXLSX}
+          disabled={exporting || transactions.length === 0}
+          className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Download className="h-4 w-4" />
+          {exporting ? 'Exportando...' : 'Exportar Excel'}
+        </button>
       </div>
 
       {/* Stats Cards */}
@@ -753,7 +941,21 @@ export default function FinancialTransactions() {
 
       {/* Filters */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
-        <div className="flex flex-wrap gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Search */}
+          <div className="md:col-span-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Buscar
+            </label>
+            <input
+              type="text"
+              placeholder="Buscar por ID, descripción, cliente o doer..."
+              value={filters.search}
+              onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
+            />
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Tipo
@@ -761,7 +963,7 @@ export default function FinancialTransactions() {
             <select
               value={filters.type}
               onChange={(e) => setFilters({ ...filters, type: e.target.value })}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="all">Todos</option>
               <option value="contract_payment">Contratos</option>
@@ -779,7 +981,7 @@ export default function FinancialTransactions() {
             <select
               value={filters.status}
               onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-              className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
               <option value="all">Todos</option>
               <option value="pending">Pendiente</option>
@@ -798,6 +1000,9 @@ export default function FinancialTransactions() {
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-gray-900">
               <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  ID
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   <button
                     onClick={() => handleSort('date')}
@@ -872,6 +1077,15 @@ export default function FinancialTransactions() {
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   <button
+                    onClick={() => handleSort('paymentMethod')}
+                    className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                  >
+                    Método Pago
+                    <SortIcon field="paymentMethod" />
+                  </button>
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  <button
                     onClick={() => handleSort('released')}
                     className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
                   >
@@ -887,6 +1101,11 @@ export default function FinancialTransactions() {
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {getSortedTransactions().map((transaction) => (
                 <tr key={transaction.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                  <td className="px-6 py-4">
+                    <div className="text-xs font-mono text-gray-600 dark:text-gray-400" title={transaction.id}>
+                      {transaction.id.slice(-8).toUpperCase()}
+                    </div>
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                     {new Date(transaction.date).toLocaleDateString('es-AR', {
                       day: '2-digit',
@@ -983,13 +1202,24 @@ export default function FinancialTransactions() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     {getStatusBadge(transaction.status)}
                   </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {renderPaymentMethod(transaction)}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
-                    {transaction.isEscrow && (
+                    {transaction.isEscrow ? (
                       transaction.escrowReleased ? (
-                        <CheckCircle className="w-5 h-5 text-green-500 mx-auto" />
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
+                          <CheckCircle className="w-3 h-3" />
+                          Liberado
+                        </span>
                       ) : (
-                        <Lock className="w-5 h-5 text-blue-500 mx-auto" />
+                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400">
+                          <Lock className="w-3 h-3" />
+                          Retenido
+                        </span>
                       )
+                    ) : (
+                      <span className="text-gray-400">-</span>
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">

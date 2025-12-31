@@ -151,6 +151,32 @@ export class PaymentProof extends Model {
   transferCurrency?: string;
 
   // ============================================
+  // BANK TRANSFER DETAILS
+  // ============================================
+
+  @Default(true)
+  @Column({
+    type: DataType.BOOLEAN,
+    allowNull: true,
+    comment: 'Whether the bank account belongs to the user or a third party',
+  })
+  isOwnBankAccount?: boolean;
+
+  @Column({
+    type: DataType.STRING(255),
+    allowNull: true,
+    comment: 'Name of the third party account holder if isOwnBankAccount is false',
+  })
+  thirdPartyAccountHolder?: string;
+
+  @Column({
+    type: DataType.STRING(255),
+    allowNull: true,
+    comment: 'Name of the bank from which the transfer was made',
+  })
+  senderBankName?: string;
+
+  // ============================================
   // STATUS AND VERIFICATION
   // ============================================
 

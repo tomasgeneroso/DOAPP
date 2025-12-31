@@ -101,20 +101,14 @@ router.get("/", protect, requireRole(['admin', 'super_admin', 'owner']), async (
         break;
     }
 
-    // Query completed contracts with escrow released or awaiting payment
+    // Query contracts where both parties confirmed and payment is pending
+    // paymentStatus NOT 'completed' means payment hasn't been released to worker yet
     const contracts = await Contract.findAll({
       where: {
-        status: { [Op.in]: ['completed', 'awaiting_confirmation'] },
-        escrowStatus: { [Op.in]: ['released', 'held_escrow'] },
+        status: { [Op.in]: ['completed', 'awaiting_confirmation', 'in_progress'] },
         clientConfirmed: true,
         doerConfirmed: true,
-        [Op.or]: [
-          { paymentStatus: { [Op.in]: ['pending', 'held', 'escrow'] } },
-          {
-            paymentStatus: 'released',
-            updatedAt: { [Op.between]: [startDate, endDate] }
-          }
-        ]
+        paymentStatus: { [Op.notIn]: ['completed'] }
       },
       include: [
         {
@@ -217,7 +211,9 @@ router.get("/", protect, requireRole(['admin', 'super_admin', 'owner']), async (
         totalContractAmount,
         totalCommission,
         completedAt: firstContract.clientConfirmedAt || firstContract.updatedAt,
-        paymentStatus: firstContract.paymentStatus,
+        paymentStatus: firstContract.paymentStatus || 'pending',
+        escrowStatus: firstContract.escrowStatus || 'held_escrow',
+        contractStatus: firstContract.status,
         workers
       });
     }

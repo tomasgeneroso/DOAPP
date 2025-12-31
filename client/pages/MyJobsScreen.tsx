@@ -21,6 +21,7 @@ import {
   Trophy,
   AlertTriangle,
   Share2,
+  Loader2,
 } from "lucide-react";
 import JobsCalendar from "../components/jobs/JobsCalendar";
 
@@ -87,6 +88,13 @@ export default function MyJobsScreen() {
   });
   const [filter, setFilter] = useState<"all" | "published" | "pending_payment" | "draft" | "completed" | "disputed">("all");
   const [proposalFilter, setProposalFilter] = useState<"all" | "pending" | "approved" | "rejected" | "completed" | "disputed">("all");
+  const [confirmingJobId, setConfirmingJobId] = useState<string | null>(null);
+  const [confirmingProposalJobId, setConfirmingProposalJobId] = useState<string | null>(null);
+  const [showConfirmationSuccessModal, setShowConfirmationSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [jobContracts, setJobContracts] = useState<Record<string, { id: string; clientConfirmed: boolean; doerConfirmed: boolean; status: string }>>({});
+  const [proposalContracts, setProposalContracts] = useState<Record<string, { id: string; clientConfirmed: boolean; doerConfirmed: boolean; status: string }>>({});
 
   const fetchMyJobs = useCallback(async () => {
     try {
@@ -126,6 +134,167 @@ export default function MyJobsScreen() {
       setLoadingProposals(false);
     }
   }, [token]);
+
+  // Fetch contract info for jobs that need confirmation
+  const fetchJobContract = useCallback(async (jobId: string) => {
+    if (!token) return;
+    try {
+      const response = await fetch(`/api/contracts/by-job/${jobId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (data.success && data.contract) {
+        setJobContracts(prev => ({
+          ...prev,
+          [jobId]: {
+            id: data.contract.id,
+            clientConfirmed: data.contract.clientConfirmed,
+            doerConfirmed: data.contract.doerConfirmed,
+            status: data.contract.status,
+          }
+        }));
+      }
+    } catch (error) {
+      console.error(`Error fetching contract for job ${jobId}:`, error);
+    }
+  }, [token]);
+
+  // Handle confirm work for client (owner of job)
+  const handleConfirmWork = async (jobId: string) => {
+    const contract = jobContracts[jobId];
+    if (!contract || !token) return;
+
+    setConfirmingJobId(jobId);
+    try {
+      const response = await fetch(`/api/contracts/${contract.id}/confirm`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (data.success) {
+        setJobContracts(prev => ({
+          ...prev,
+          [jobId]: {
+            ...prev[jobId],
+            clientConfirmed: data.contract?.clientConfirmed ?? prev[jobId]?.clientConfirmed,
+            doerConfirmed: data.contract?.doerConfirmed ?? prev[jobId]?.doerConfirmed,
+            status: data.contract?.status ?? prev[jobId]?.status,
+          }
+        }));
+        // Show success modal
+        setShowConfirmationSuccessModal(true);
+        // Refresh jobs list if contract completed
+        if (data.contract?.status === 'completed') {
+          fetchMyJobs();
+        }
+      } else {
+        setErrorMessage(data.message || 'Error al confirmar el trabajo');
+        setShowErrorModal(true);
+      }
+    } catch (error) {
+      console.error('Error confirming work:', error);
+      setErrorMessage('Error al confirmar el trabajo');
+      setShowErrorModal(true);
+    } finally {
+      setConfirmingJobId(null);
+    }
+  };
+
+  // Fetch contracts for jobs that have ended and need confirmation
+  useEffect(() => {
+    const now = new Date();
+    jobs.forEach(job => {
+      if (job.endDate && new Date(job.endDate) <= now &&
+          (job.status === 'open' || job.status === 'in_progress') &&
+          !jobContracts[job.id]) {
+        fetchJobContract(job.id);
+      }
+    });
+  }, [jobs, jobContracts, fetchJobContract]);
+
+  // Fetch contract info for proposals that need confirmation (worker side)
+  const fetchProposalContract = useCallback(async (jobId: string) => {
+    if (!token) return;
+    try {
+      const response = await fetch(`/api/contracts/by-job/${jobId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (data.success && data.contract) {
+        setProposalContracts(prev => ({
+          ...prev,
+          [jobId]: {
+            id: data.contract.id,
+            clientConfirmed: data.contract.clientConfirmed,
+            doerConfirmed: data.contract.doerConfirmed,
+            status: data.contract.status,
+          }
+        }));
+      }
+    } catch (error) {
+      console.error(`Error fetching contract for proposal job ${jobId}:`, error);
+    }
+  }, [token]);
+
+  // Handle confirm work for worker (from proposals)
+  const handleConfirmProposalWork = async (jobId: string) => {
+    const contract = proposalContracts[jobId];
+    if (!contract || !token) return;
+
+    setConfirmingProposalJobId(jobId);
+    try {
+      const response = await fetch(`/api/contracts/${contract.id}/confirm`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (data.success) {
+        setProposalContracts(prev => ({
+          ...prev,
+          [jobId]: {
+            ...prev[jobId],
+            clientConfirmed: data.contract?.clientConfirmed ?? prev[jobId]?.clientConfirmed,
+            doerConfirmed: data.contract?.doerConfirmed ?? prev[jobId]?.doerConfirmed,
+            status: data.contract?.status ?? prev[jobId]?.status,
+          }
+        }));
+        // Show success modal
+        setShowConfirmationSuccessModal(true);
+        // Refresh proposals list if contract completed
+        if (data.contract?.status === 'completed') {
+          fetchMyProposals();
+        }
+      } else {
+        setErrorMessage(data.message || 'Error al confirmar el trabajo');
+        setShowErrorModal(true);
+      }
+    } catch (error) {
+      console.error('Error confirming work:', error);
+      setErrorMessage('Error al confirmar el trabajo');
+      setShowErrorModal(true);
+    } finally {
+      setConfirmingProposalJobId(null);
+    }
+  };
+
+  // Fetch contracts for approved proposals that have ended and need confirmation
+  useEffect(() => {
+    const now = new Date();
+    proposals.forEach(proposal => {
+      if (proposal.status === 'approved' &&
+          proposal.job.endDate && new Date(proposal.job.endDate) <= now &&
+          (proposal.job.status === 'open' || proposal.job.status === 'in_progress') &&
+          !proposalContracts[proposal.job.id]) {
+        fetchProposalContract(proposal.job.id);
+      }
+    });
+  }, [proposals, proposalContracts, fetchProposalContract]);
 
   useEffect(() => {
     fetchMyJobs();
@@ -696,6 +865,39 @@ export default function MyJobsScreen() {
                         </Link>
                       )}
 
+                      {/* Confirm button for jobs that have ended */}
+                      {job.endDate && new Date(job.endDate) <= new Date() &&
+                        (job.status === 'open' || job.status === 'in_progress') &&
+                        jobContracts[job.id] && !jobContracts[job.id].clientConfirmed && (
+                        <button
+                          onClick={() => handleConfirmWork(job.id)}
+                          disabled={confirmingJobId === job.id}
+                          className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition-colors text-sm disabled:opacity-50"
+                        >
+                          {confirmingJobId === job.id ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Confirmando...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="h-4 w-4" />
+                              Confirmar trabajo realizado
+                            </>
+                          )}
+                        </button>
+                      )}
+
+                      {/* Waiting for worker confirmation */}
+                      {job.endDate && new Date(job.endDate) <= new Date() &&
+                        (job.status === 'open' || job.status === 'in_progress') &&
+                        jobContracts[job.id] && jobContracts[job.id].clientConfirmed && !jobContracts[job.id].doerConfirmed && (
+                        <div className="flex items-center gap-2 px-3 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg text-sm">
+                          <Clock className="h-4 w-4" />
+                          Esperando confirmación del trabajador
+                        </div>
+                      )}
+
                       {job.status === "completed" && (
                         <button
                           onClick={() => navigate(`/portfolio/create?fromJob=${job.id}`)}
@@ -956,6 +1158,41 @@ export default function MyJobsScreen() {
                         Ver en Calendario
                       </button>
 
+                      {/* Confirm button for workers - proposals that have ended */}
+                      {proposal.status === 'approved' &&
+                        proposal.job.endDate && new Date(proposal.job.endDate) <= new Date() &&
+                        (proposal.job.status === 'open' || proposal.job.status === 'in_progress') &&
+                        proposalContracts[proposal.job.id] && !proposalContracts[proposal.job.id].doerConfirmed && (
+                        <button
+                          onClick={() => handleConfirmProposalWork(proposal.job.id)}
+                          disabled={confirmingProposalJobId === proposal.job.id}
+                          className="flex items-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition-colors text-sm disabled:opacity-50"
+                        >
+                          {confirmingProposalJobId === proposal.job.id ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Confirmando...
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="h-4 w-4" />
+                              Confirmar mi trabajo
+                            </>
+                          )}
+                        </button>
+                      )}
+
+                      {/* Waiting for client confirmation */}
+                      {proposal.status === 'approved' &&
+                        proposal.job.endDate && new Date(proposal.job.endDate) <= new Date() &&
+                        (proposal.job.status === 'open' || proposal.job.status === 'in_progress') &&
+                        proposalContracts[proposal.job.id] && proposalContracts[proposal.job.id].doerConfirmed && !proposalContracts[proposal.job.id].clientConfirmed && (
+                        <div className="flex items-center gap-2 px-3 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg text-sm">
+                          <Clock className="h-4 w-4" />
+                          Esperando confirmación del cliente
+                        </div>
+                      )}
+
                       {proposal.job.status === "completed" && (
                         <button
                           onClick={() => navigate(`/portfolio/create?fromJob=${proposal.job.id}`)}
@@ -973,6 +1210,65 @@ export default function MyJobsScreen() {
           </>
         )}
       </div>
+
+      {/* Confirmation Success Modal */}
+      {showConfirmationSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-green-600 bg-slate-900 p-6 shadow-2xl">
+            <div className="mb-4 flex flex-col items-center text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 mb-4">
+                <CheckCircle className="h-10 w-10 text-green-500" />
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-2">
+                ¡Gracias por confirmar el trabajo!
+              </h3>
+              <p className="text-slate-300">
+                Gracias por confiar en DoApp, nosotros nos encargamos de que el pago llegue a destino.
+              </p>
+            </div>
+
+            <div className="flex justify-center">
+              <button
+                onClick={() => setShowConfirmationSuccessModal(false)}
+                className="rounded-xl bg-gradient-to-r from-green-500 to-green-600 px-8 py-3 font-semibold text-white shadow-lg transition-all hover:from-green-600 hover:to-green-700"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error Modal */}
+      {showErrorModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-red-600 bg-slate-900 p-6 shadow-2xl">
+            <div className="mb-4 flex flex-col items-center text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500/20 mb-4">
+                <AlertCircle className="h-10 w-10 text-red-500" />
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-2">
+                Error
+              </h3>
+              <p className="text-slate-300">
+                {errorMessage}
+              </p>
+            </div>
+
+            <div className="flex justify-center">
+              <button
+                onClick={() => {
+                  setShowErrorModal(false);
+                  setErrorMessage("");
+                }}
+                className="rounded-xl bg-gradient-to-r from-red-500 to-red-600 px-8 py-3 font-semibold text-white shadow-lg transition-all hover:from-red-600 hover:to-red-700"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

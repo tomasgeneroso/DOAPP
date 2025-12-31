@@ -339,6 +339,11 @@ export class Contract extends Model {
   @Column(DataType.DATE)
   awaitingConfirmationAt?: Date;
 
+  // Confirmation reminder sent
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  confirmationReminderSent!: boolean;
+
   // ============================================
   // MODIFICATION REQUEST (JSONB)
   // ============================================

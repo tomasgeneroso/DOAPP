@@ -7,6 +7,7 @@ import { Membership } from "../../models/sql/Membership.model.js";
 import { WithdrawalRequest } from "../../models/sql/WithdrawalRequest.model.js";
 import { Advertisement } from "../../models/sql/Advertisement.model.js";
 import { Promoter } from "../../models/sql/Promoter.model.js";
+import { PaymentProof } from "../../models/sql/PaymentProof.model.js";
 import { Op } from 'sequelize';
 
 const router = express.Router();
@@ -266,7 +267,7 @@ router.get(
         if (endDate) where.createdAt[Op.lte] = new Date(endDate as string);
       }
 
-      // Get payments with contract and user details
+      // Get payments with contract, user details, and payment proof
       const payments = await Payment.findAll({
         where,
         include: [
@@ -280,6 +281,13 @@ router.get(
               { association: 'doer', attributes: ['name', 'email'] },
               { association: 'job', attributes: ['title'] }
             ]
+          },
+          {
+            model: PaymentProof,
+            as: 'proofs',
+            where: { isActive: true },
+            required: false,
+            attributes: ['isOwnBankAccount', 'thirdPartyAccountHolder', 'senderBankName']
           }
         ],
         order: [['createdAt', 'DESC']],
@@ -306,6 +314,7 @@ router.get(
       // Format transactions (only real user transactions)
       const transactions = realPayments.map((payment: any) => {
         const contract = payment.contract;
+        const activeProof = payment.proofs && payment.proofs.length > 0 ? payment.proofs[0] : null;
 
         // Calculate commission details from payment or contract
         let platformFee = Number(payment.platformFee) || 0;
@@ -353,6 +362,17 @@ router.get(
           // Escrow details
           isEscrow: payment.isEscrow,
           escrowReleased: payment.status === 'released' || payment.status === 'completed',
+
+          // Payment method details
+          paymentMethod: payment.paymentMethod,
+          cardBrand: payment.cardBrand,
+          cardLastFourDigits: payment.cardLastFourDigits,
+          paymentMethodId: payment.paymentMethodId,
+
+          // Bank transfer details (from PaymentProof)
+          isOwnBankAccount: activeProof?.isOwnBankAccount,
+          thirdPartyAccountHolder: activeProof?.thirdPartyAccountHolder,
+          senderBankName: activeProof?.senderBankName,
 
           // Payment IDs
           paypalOrderId: payment.paypalOrderId,

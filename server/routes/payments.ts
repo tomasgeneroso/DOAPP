@@ -1360,7 +1360,11 @@ router.post("/:paymentId/upload-proof", protect, upload.single('proof'), async (
       transferAmount,
       transferCurrency,
       binanceTransactionId,
-      binanceSenderUserId
+      binanceSenderUserId,
+      // Bank transfer fields
+      isOwnBankAccount,
+      thirdPartyAccountHolder,
+      senderBankName
     } = req.body;
 
     if (!req.file) {
@@ -1400,6 +1404,10 @@ router.post("/:paymentId/upload-proof", protect, upload.single('proof'), async (
       binanceSenderUserId: binanceSenderUserId || null,
       transferAmount: transferAmount || null,
       transferCurrency: transferCurrency || null,
+      // Bank transfer fields
+      isOwnBankAccount: isOwnBankAccount === 'true' || isOwnBankAccount === true,
+      thirdPartyAccountHolder: thirdPartyAccountHolder || null,
+      senderBankName: senderBankName || null,
       status: 'pending',
       uploadedAt: new Date(),
       isActive: true,

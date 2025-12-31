@@ -1,76 +1,164 @@
 import { useState, useEffect } from "react";
-import { CheckCircle, XCircle, Eye, FileText, AlertCircle, Download, Loader2 } from "lucide-react";
+import * as XLSX from "xlsx";
+import {
+  CheckCircle,
+  XCircle,
+  Eye,
+  FileText,
+  AlertCircle,
+  Download,
+  Loader2,
+  DollarSign,
+  Users,
+  Calendar,
+  Building,
+  CreditCard,
+  User,
+  Clock,
+  RefreshCw
+} from "lucide-react";
 
-interface PaymentProof {
-  id: string;
-  fileUrl: string;
-  fileName: string;
-  fileType: string;
-  status: string;
-  uploadedAt: string;
-  binanceNickname?: string;
-  binanceTransactionId?: string;
-  transferAmount?: number;
-  transferCurrency?: string;
-  user?: {
-    username: string;
-    email: string;
-  };
+interface WorkerPaymentInfo {
+  workerId: string;
+  workerName: string;
+  workerEmail: string;
+  workerDni: string | null;
+  workerPhone: string | null;
+  workerAddress: {
+    street: string | null;
+    city: string | null;
+    state: string | null;
+    postalCode: string | null;
+    country: string | null;
+  } | null;
+  bankingInfo: {
+    bankName: string | null;
+    accountHolder: string | null;
+    accountType: string | null;
+    cbu: string | null;
+    alias: string | null;
+  } | null;
+  amountToPay: number;
+  commission: number;
+  percentageOfBudget: number | null;
 }
 
-interface Payment {
-  id: string;
-  amount: number;
-  currency: string;
-  status: string;
-  paymentType: string;
-  paymentMethod: string;
-  description?: string;
-  createdAt: string;
-  payer?: {
+interface ContractPaymentRow {
+  contractId: string;
+  contractNumber: number;
+  jobId: string;
+  jobTitle: string;
+  clientId: string;
+  clientName: string;
+  clientEmail: string;
+  totalContractAmount: number;
+  totalCommission: number;
+  completedAt: string;
+  paymentStatus: string;
+  escrowStatus: string;
+  contractStatus: string;
+  workers: WorkerPaymentInfo[];
+}
+
+interface ReportSummary {
+  totalContracts: number;
+  totalWorkers: number;
+  totalAmountToPay: number;
+  totalCommissionCollected: number;
+  averagePaymentPerWorker: number;
+  bankBreakdown: Record<string, { count: number; totalAmount: number }>;
+}
+
+interface PaymentDetails {
+  contract: {
     id: string;
-    username: string;
-    email: string;
-    name: string;
+    status: string;
+    paymentStatus: string;
+    escrowStatus: string;
+    price: number;
+    commission: number;
+    totalPrice: number;
+    allocatedAmount?: number;
+    percentageOfBudget?: number;
+    startDate: string;
+    endDate: string;
+    completedAt?: string;
   };
-  job?: {
+  job: {
     id: string;
     title: string;
-    status: string;
-    price: number;
-    category?: string;
-    pendingNewPrice?: number;
-    pendingPaymentAmount?: number;
-    priceChangeReason?: string;
+    description: string;
+    totalBudget: number;
+    maxWorkers: number;
+    selectedWorkersCount: number;
+    location: string;
   };
-  proofs?: PaymentProof[];
+  client: {
+    id: string;
+    name: string;
+    email: string;
+    dni?: string;
+    phone?: string;
+    address?: any;
+  };
+  worker: {
+    id: string;
+    name: string;
+    email: string;
+    dni?: string;
+    phone?: string;
+    address?: any;
+    bankingInfo?: {
+      bankName?: string;
+      accountHolder?: string;
+      accountType?: string;
+      cbu?: string;
+      alias?: string;
+    };
+  };
+  payment?: {
+    id: string;
+    status: string;
+    amount: number;
+    workerPaymentAmount?: number;
+    mercadopagoId?: string;
+    paidAt?: string;
+  };
 }
 
 export default function PendingPayments() {
-  const [payments, setPayments] = useState<Payment[]>([]);
+  const [payments, setPayments] = useState<ContractPaymentRow[]>([]);
+  const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
+  const [selectedPayment, setSelectedPayment] = useState<PaymentDetails | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [rejectReason, setRejectReason] = useState("");
-  const [notes, setNotes] = useState("");
-  const [statusFilter, setStatusFilter] = useState("pending_verification");
+  const [markingPaidId, setMarkingPaidId] = useState<string | null>(null);
+
+  // Filters
+  const [period, setPeriod] = useState("daily");
+  const [sortBy, setSortBy] = useState("completedAt");
+  const [sortOrder, setSortOrder] = useState("desc");
 
   useEffect(() => {
     loadPayments();
-  }, [statusFilter]);
+  }, [period, sortBy, sortOrder]);
 
   const loadPayments = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem("token");
-      const response = await fetch(`/api/admin/payments/pending?status=${statusFilter}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const response = await fetch(
+        `/api/admin/pending-payments?period=${period}&sortBy=${sortBy}&sortOrder=${sortOrder}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
 
       const data = await response.json();
       if (data.success) {
-        setPayments(data.data || []);
+        setPayments(data.report?.data || []);
+        setSummary(data.report?.summary || null);
       }
     } catch (error) {
       console.error("Error loading payments:", error);
@@ -79,127 +167,182 @@ export default function PendingPayments() {
     }
   };
 
-  const handleViewPayment = async (paymentId: string) => {
+  const handleViewPayment = async (contractId: string) => {
     try {
+      setActionLoading(true);
       const token = localStorage.getItem("token");
-      const response = await fetch(`/api/admin/payments/${paymentId}`, {
+      const response = await fetch(`/api/admin/pending-payments/${contractId}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       const data = await response.json();
       if (data.success) {
-        setSelectedPayment(data.data);
+        setSelectedPayment(data.paymentDetails);
         setShowModal(true);
       }
     } catch (error) {
       console.error("Error loading payment details:", error);
-    }
-  };
-
-  const handleApprove = async () => {
-    if (!selectedPayment) return;
-
-    try {
-      setActionLoading(true);
-      const token = localStorage.getItem("token");
-      const response = await fetch(`/api/admin/payments/${selectedPayment.id}/approve`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ notes }),
-      });
-
-      const data = await response.json();
-      if (data.success) {
-        alert("Pago aprobado exitosamente");
-        setShowModal(false);
-        setSelectedPayment(null);
-        setNotes("");
-        loadPayments();
-      } else {
-        alert(data.message || "Error aprobando pago");
-      }
-    } catch (error) {
-      console.error("Error approving payment:", error);
-      alert("Error aprobando pago");
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleReject = async () => {
-    if (!selectedPayment || !rejectReason.trim()) {
-      alert("Debe proporcionar un motivo de rechazo");
-      return;
-    }
+  const handleMarkAsPaid = async (contractId: string) => {
+    if (!confirm("¿Confirmas que el pago al trabajador fue realizado?")) return;
 
     try {
-      setActionLoading(true);
+      setMarkingPaidId(contractId);
       const token = localStorage.getItem("token");
-      const response = await fetch(`/api/admin/payments/${selectedPayment.id}/reject`, {
+      const response = await fetch(`/api/admin/pending-payments/${contractId}/mark-paid`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ reason: rejectReason, notes }),
+        body: JSON.stringify({
+          paymentMethod: "bank_transfer",
+          adminNotes: "Pago procesado manualmente"
+        }),
       });
 
       const data = await response.json();
       if (data.success) {
-        alert("Pago rechazado");
-        setShowModal(false);
-        setSelectedPayment(null);
-        setRejectReason("");
-        setNotes("");
         loadPayments();
+        if (showModal) {
+          setShowModal(false);
+          setSelectedPayment(null);
+        }
       } else {
-        alert(data.message || "Error rechazando pago");
+        alert(data.message || "Error al marcar pago");
       }
     } catch (error) {
-      console.error("Error rejecting payment:", error);
-      alert("Error rechazando pago");
+      console.error("Error marking payment:", error);
+      alert("Error al marcar pago como completado");
     } finally {
-      setActionLoading(false);
+      setMarkingPaidId(null);
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const handleExportXLSX = () => {
+    try {
+      // Flatten workers into rows - one row per worker
+      const excelData: any[] = [];
+
+      payments.forEach((payment) => {
+        payment.workers.forEach((worker) => {
+          excelData.push({
+            'ID Contrato': payment.contractId,
+            '# Contrato': payment.contractNumber,
+            'ID Trabajo': payment.jobId,
+            'Título Trabajo': payment.jobTitle,
+            'Cliente': payment.clientName,
+            'Email Cliente': payment.clientEmail,
+            'Trabajador': worker.workerName,
+            'Email Trabajador': worker.workerEmail,
+            'DNI Trabajador': worker.workerDni || '',
+            'Teléfono': worker.workerPhone || '',
+            'Banco': worker.bankingInfo?.bankName || '',
+            'Titular Cuenta': worker.bankingInfo?.accountHolder || '',
+            'Tipo Cuenta': worker.bankingInfo?.accountType || '',
+            'CBU': worker.bankingInfo?.cbu || '',
+            'Alias': worker.bankingInfo?.alias || '',
+            'Monto a Pagar': worker.amountToPay,
+            'Comisión': worker.commission,
+            '% del Presupuesto': worker.percentageOfBudget || 100,
+            'Total Contrato': payment.totalContractAmount,
+            'Estado Pago': payment.paymentStatus,
+            'Estado Escrow': payment.escrowStatus,
+            'Fecha Completado': new Date(payment.completedAt).toLocaleDateString('es-AR'),
+          });
+        });
+      });
+
+      // Create worksheet
+      const ws = XLSX.utils.json_to_sheet(excelData);
+
+      // Set column widths
+      const colWidths = [
+        { wch: 36 },  // ID Contrato
+        { wch: 12 },  // # Contrato
+        { wch: 36 },  // ID Trabajo
+        { wch: 30 },  // Título Trabajo
+        { wch: 20 },  // Cliente
+        { wch: 25 },  // Email Cliente
+        { wch: 20 },  // Trabajador
+        { wch: 25 },  // Email Trabajador
+        { wch: 12 },  // DNI Trabajador
+        { wch: 15 },  // Teléfono
+        { wch: 20 },  // Banco
+        { wch: 20 },  // Titular Cuenta
+        { wch: 12 },  // Tipo Cuenta
+        { wch: 25 },  // CBU
+        { wch: 20 },  // Alias
+        { wch: 15 },  // Monto a Pagar
+        { wch: 12 },  // Comisión
+        { wch: 15 },  // % del Presupuesto
+        { wch: 15 },  // Total Contrato
+        { wch: 15 },  // Estado Pago
+        { wch: 15 },  // Estado Escrow
+        { wch: 15 },  // Fecha Completado
+      ];
+      ws['!cols'] = colWidths;
+
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Pagos Pendientes');
+
+      // Generate file and download
+      XLSX.writeFile(wb, `pagos-pendientes-${period}-${new Date().toISOString().split('T')[0]}.xlsx`);
+    } catch (error) {
+      console.error("Error exporting XLSX:", error);
+      alert("Error al exportar Excel");
+    }
+  };
+
+  const getPaymentStatusBadge = (status: string) => {
     const badges: Record<string, string> = {
-      pending_verification: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
-      approved: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-      rejected: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
-      pending: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300",
+      pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
+      held: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+      escrow: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
+      released: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+      completed: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
     };
     return badges[status] || badges.pending;
   };
 
-  const getStatusLabel = (status: string) => {
+  const getPaymentStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
-      pending_verification: "Verificación Pendiente",
-      approved: "Aprobado",
-      rejected: "Rechazado",
       pending: "Pendiente",
+      held: "En Escrow",
+      escrow: "En Escrow",
+      released: "Liberado",
+      completed: "Completado",
     };
     return labels[status] || status;
   };
 
-  const getPaymentTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      job_publication: "Publicación de Trabajo",
-      budget_increase: "Aumento de Presupuesto",
-      contract_payment: "Pago de Contrato",
-      membership: "Membresía",
+  const getEscrowStatusBadge = (status: string) => {
+    const badges: Record<string, string> = {
+      held_escrow: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
+      released: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+      refunded: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
     };
-    return labels[type] || type;
+    return badges[status] || "bg-gray-100 text-gray-800";
+  };
+
+  const getEscrowStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      held_escrow: "En Escrow",
+      released: "Liberado",
+      refunded: "Reembolsado",
+    };
+    return labels[status] || status;
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-500"></div>
+        <Loader2 className="h-12 w-12 animate-spin text-sky-500" />
       </div>
     );
   }
@@ -207,11 +350,29 @@ export default function PendingPayments() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Pagos Pendientes</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-2">
-          Gestiona y verifica los pagos pendientes de aprobación
-        </p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Pagos Pendientes</h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">
+            Gestiona los pagos a trabajadores de contratos completados
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={loadPayments}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Actualizar
+          </button>
+          <button
+            onClick={handleExportXLSX}
+            className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition"
+          >
+            <Download className="h-4 w-4" />
+            Exportar Excel
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -219,41 +380,105 @@ export default function PendingPayments() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Estado
+              Período
             </label>
             <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              value={period}
+              onChange={(e) => setPeriod(e.target.value)}
               className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 text-gray-900 dark:text-white"
             >
-              <option value="pending_verification">Verificación Pendiente</option>
-              <option value="pending">Pendiente</option>
-              <option value="approved">Aprobado</option>
-              <option value="rejected">Rechazado</option>
+              <option value="daily">Hoy</option>
+              <option value="weekly">Esta Semana</option>
+              <option value="monthly">Este Mes</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Ordenar por
+            </label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 text-gray-900 dark:text-white"
+            >
+              <option value="completedAt">Fecha Completado</option>
+              <option value="amount">Monto</option>
+              <option value="workerCount">Cant. Trabajadores</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Orden
+            </label>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value)}
+              className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 text-gray-900 dark:text-white"
+            >
+              <option value="desc">Más reciente</option>
+              <option value="asc">Más antiguo</option>
             </select>
           </div>
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <div className="text-sm text-gray-600 dark:text-gray-400">Total Pagos</div>
-          <div className="text-2xl font-bold text-gray-900 dark:text-white">{payments.length}</div>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <div className="text-sm text-gray-600 dark:text-gray-400">Pendientes Verificación</div>
-          <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-            {payments.filter((p) => p.status === "pending_verification").length}
+      {/* Summary Stats */}
+      {summary && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Contratos</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {summary.totalContracts}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                <Users className="h-5 w-5 text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Trabajadores</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                  {summary.totalWorkers}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
+                <DollarSign className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+              </div>
+              <div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Total a Pagar</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                  ${summary.totalAmountToPay.toLocaleString('es-AR')}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                <CreditCard className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">Comisiones</div>
+                <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                  ${summary.totalCommissionCollected.toLocaleString('es-AR')}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <div className="text-sm text-gray-600 dark:text-gray-400">Con Comprobante</div>
-          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-            {payments.filter((p) => p.proofs && p.proofs.length > 0).length}
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Payments Table */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
@@ -262,19 +487,22 @@ export default function PendingPayments() {
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Usuario
+                  #
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Tipo
+                  Trabajo
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Cliente
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Trabajadores
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Monto
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Estado
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Comprobante
+                  Escrow
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Fecha
@@ -287,77 +515,100 @@ export default function PendingPayments() {
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {payments.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                    No se encontraron pagos
+                  <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                    No hay pagos pendientes en este período
                   </td>
                 </tr>
               ) : (
                 payments.map((payment) => (
-                  <tr key={payment.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                  <tr key={payment.contractId} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <td className="px-4 py-4 text-sm font-medium text-gray-900 dark:text-white">
+                      {payment.contractNumber}
+                    </td>
                     <td className="px-4 py-4">
                       <div className="text-sm font-medium text-gray-900 dark:text-white">
-                        {payment.payer?.name || payment.payer?.username || "N/A"}
+                        {payment.jobTitle}
                       </div>
                       <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {payment.payer?.email}
+                        ID: {payment.jobId.slice(0, 8)}...
                       </div>
                     </td>
                     <td className="px-4 py-4">
                       <div className="text-sm text-gray-900 dark:text-white">
-                        {getPaymentTypeLabel(payment.paymentType)}
-                      </div>
-                      {payment.job && (
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          {payment.job.title}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="text-sm font-medium text-gray-900 dark:text-white">
-                        ${payment.amount.toLocaleString()} {payment.currency}
+                        {payment.clientName}
                       </div>
                       <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {payment.paymentMethod}
+                        {payment.clientEmail}
                       </div>
                     </td>
                     <td className="px-4 py-4">
-                      <span
-                        className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadge(
-                          payment.status
-                        )}`}
-                      >
-                        {getStatusLabel(payment.status)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-4">
-                      {payment.proofs && payment.proofs.length > 0 ? (
-                        <div className="flex items-center gap-1 text-green-600 dark:text-green-400">
-                          <FileText className="h-4 w-4" />
-                          <span className="text-xs">{payment.proofs.length} archivo(s)</span>
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-gray-400" />
+                        <span className="text-sm text-gray-900 dark:text-white">
+                          {payment.workers.length}
+                        </span>
+                      </div>
+                      {payment.workers.slice(0, 2).map((w, i) => (
+                        <div key={i} className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[150px]">
+                          {w.workerName}
                         </div>
-                      ) : (
-                        <div className="flex items-center gap-1 text-gray-400">
-                          <AlertCircle className="h-4 w-4" />
-                          <span className="text-xs">Sin comprobante</span>
+                      ))}
+                      {payment.workers.length > 2 && (
+                        <div className="text-xs text-gray-400">
+                          +{payment.workers.length - 2} más
                         </div>
                       )}
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="text-sm font-medium text-green-600 dark:text-green-400">
+                        ${payment.totalContractAmount.toLocaleString('es-AR')}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        Com: ${payment.totalCommission.toLocaleString('es-AR')}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="space-y-1">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getEscrowStatusBadge(payment.escrowStatus)}`}>
+                          {getEscrowStatusLabel(payment.escrowStatus)}
+                        </span>
+                        <div className="text-xs text-gray-500">
+                          Pago: {getPaymentStatusLabel(payment.paymentStatus)}
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-4">
                       <div className="text-sm text-gray-900 dark:text-white">
-                        {new Date(payment.createdAt).toLocaleDateString("es-AR")}
+                        {new Date(payment.completedAt).toLocaleDateString("es-AR")}
                       </div>
                       <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {new Date(payment.createdAt).toLocaleTimeString("es-AR")}
+                        {new Date(payment.completedAt).toLocaleTimeString("es-AR", { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </td>
                     <td className="px-4 py-4">
-                      <button
-                        onClick={() => handleViewPayment(payment.id)}
-                        className="p-1 text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded"
-                        title="Ver detalles"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleViewPayment(payment.contractId)}
+                          className="p-1.5 text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded"
+                          title="Ver detalles"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                        {payment.paymentStatus !== 'completed' && (
+                          <button
+                            onClick={() => handleMarkAsPaid(payment.contractId)}
+                            disabled={markingPaidId === payment.contractId}
+                            className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded disabled:opacity-50"
+                            title="Marcar como pagado"
+                          >
+                            {markingPaidId === payment.contractId ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <CheckCircle className="h-4 w-4" />
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -378,7 +629,7 @@ export default function PendingPayments() {
                     Detalles del Pago
                   </h2>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    ID: {selectedPayment.id}
+                    Contrato ID: {selectedPayment.contract.id.slice(0, 8)}...
                   </p>
                 </div>
                 <button
@@ -389,240 +640,148 @@ export default function PendingPayments() {
                 </button>
               </div>
 
-              {/* Payment Info */}
+              {/* Status badges */}
+              <div className="flex gap-3 mb-6">
+                <span className={`px-3 py-1 text-sm font-medium rounded-full ${getPaymentStatusBadge(selectedPayment.contract.paymentStatus)}`}>
+                  Pago: {getPaymentStatusLabel(selectedPayment.contract.paymentStatus)}
+                </span>
+                <span className={`px-3 py-1 text-sm font-medium rounded-full ${getEscrowStatusBadge(selectedPayment.contract.escrowStatus)}`}>
+                  Escrow: {getEscrowStatusLabel(selectedPayment.contract.escrowStatus)}
+                </span>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                      Usuario
-                    </label>
-                    <p className="text-gray-900 dark:text-white">
-                      {selectedPayment.payer?.name || selectedPayment.payer?.username}
+                {/* Job Info */}
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    Trabajo
+                  </h3>
+                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {selectedPayment.job.title}
                     </p>
-                    <p className="text-sm text-gray-500">{selectedPayment.payer?.email}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                      Tipo de Pago
-                    </label>
-                    <p className="text-gray-900 dark:text-white">
-                      {getPaymentTypeLabel(selectedPayment.paymentType)}
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {selectedPayment.job.location}
                     </p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                      Método de Pago
-                    </label>
-                    <p className="text-gray-900 dark:text-white">
-                      {selectedPayment.paymentMethod}
+                    <p className="text-sm text-gray-700 dark:text-gray-300">
+                      Presupuesto total: ${selectedPayment.job.totalBudget.toLocaleString('es-AR')}
                     </p>
+                    {selectedPayment.job.maxWorkers > 1 && (
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        Trabajadores: {selectedPayment.job.selectedWorkersCount} / {selectedPayment.job.maxWorkers}
+                      </p>
+                    )}
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                      Monto
-                    </label>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                      ${selectedPayment.amount.toLocaleString()} {selectedPayment.currency}
+                {/* Client Info */}
+                <div className="space-y-4">
+                  <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    Cliente
+                  </h3>
+                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                      {selectedPayment.client.name}
                     </p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                      Estado
-                    </label>
-                    <p>
-                      <span
-                        className={`px-3 py-1 text-sm font-medium rounded-full ${getStatusBadge(
-                          selectedPayment.status
-                        )}`}
-                      >
-                        {getStatusLabel(selectedPayment.status)}
-                      </span>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {selectedPayment.client.email}
                     </p>
+                    {selectedPayment.client.dni && (
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        DNI: {selectedPayment.client.dni}
+                      </p>
+                    )}
                   </div>
-                  {selectedPayment.job && (
-                    <div>
-                      <label className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                        Trabajo Relacionado
-                      </label>
-                      <p className="text-gray-900 dark:text-white">
-                        {selectedPayment.job.title}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Precio actual: ${selectedPayment.job.price.toLocaleString()}
-                      </p>
-                      {selectedPayment.job.pendingNewPrice && (
-                        <p className="text-sm text-blue-600 dark:text-blue-400 font-medium">
-                          Nuevo precio: ${selectedPayment.job.pendingNewPrice.toLocaleString()}
-                        </p>
-                      )}
-                      {selectedPayment.job.priceChangeReason && (
-                        <p className="text-sm text-gray-500">
-                          Razón: {selectedPayment.job.priceChangeReason}
-                        </p>
-                      )}
-                      <p className="text-sm text-gray-500">
-                        Estado: {selectedPayment.job.status}
-                      </p>
-                    </div>
-                  )}
                 </div>
               </div>
 
-              {/* Info banner for budget_increase */}
-              {selectedPayment.paymentType === 'budget_increase' && (
-                <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                  <h4 className="font-medium text-blue-800 dark:text-blue-300 mb-2">
-                    ℹ️ Aumento de Presupuesto
-                  </h4>
-                  <p className="text-sm text-blue-700 dark:text-blue-400">
-                    Este pago corresponde a un <strong>aumento de presupuesto</strong> de un trabajo existente.
-                  </p>
-                  <ul className="mt-2 text-sm text-blue-700 dark:text-blue-400 list-disc list-inside space-y-1">
-                    <li><strong>Al aprobar:</strong> El nuevo precio se aplicará automáticamente y el trabajo se reactivará.</li>
-                    <li><strong>Al rechazar:</strong> El trabajo permanecerá pausado y el usuario podrá subir un nuevo comprobante.</li>
-                  </ul>
-                </div>
-              )}
-
-              {/* Payment Proofs */}
-              {selectedPayment.proofs && selectedPayment.proofs.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                    Comprobantes de Pago
-                  </h3>
-                  <div className="space-y-4">
-                    {selectedPayment.proofs.map((proof) => (
-                      <div
-                        key={proof.id}
-                        className="border border-gray-200 dark:border-gray-700 rounded-lg p-4"
-                      >
-                        <div className="flex items-start justify-between mb-3">
-                          <div className="flex-1">
-                            <p className="font-medium text-gray-900 dark:text-white">
-                              {proof.fileName}
-                            </p>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Subido: {new Date(proof.uploadedAt).toLocaleString("es-AR")}
-                            </p>
-                            {proof.binanceNickname && (
-                              <div className="mt-2 space-y-1">
-                                <p className="text-sm text-gray-700 dark:text-gray-300">
-                                  <span className="font-medium">Binance:</span>{" "}
-                                  {proof.binanceNickname}
-                                </p>
-                                {proof.binanceTransactionId && (
-                                  <p className="text-sm text-gray-700 dark:text-gray-300">
-                                    <span className="font-medium">TX ID:</span>{" "}
-                                    {proof.binanceTransactionId}
-                                  </p>
-                                )}
-                                {proof.transferAmount && (
-                                  <p className="text-sm text-gray-700 dark:text-gray-300">
-                                    <span className="font-medium">Monto:</span>{" "}
-                                    {proof.transferAmount} {proof.transferCurrency}
-                                  </p>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          <a
-                            href={proof.fileUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-2 px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm"
-                          >
-                            <Download className="h-4 w-4" />
-                            Ver
-                          </a>
-                        </div>
-
-                        {/* Image preview for image files */}
-                        {(proof.fileType === "png" ||
-                          proof.fileType === "jpg" ||
-                          proof.fileType === "jpeg") && (
-                          <div className="mt-3">
-                            <img
-                              src={proof.fileUrl}
-                              alt="Comprobante"
-                              className="max-w-full h-auto rounded-lg border border-gray-300 dark:border-gray-600"
-                            />
-                          </div>
-                        )}
-
-                        {/* PDF preview */}
-                        {proof.fileType === "pdf" && (
-                          <div className="mt-3">
-                            <iframe
-                              src={proof.fileUrl}
-                              className="w-full h-96 border border-gray-300 dark:border-gray-600 rounded-lg"
-                              title="PDF Preview"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    ))}
+              {/* Worker & Payment Info */}
+              <div className="space-y-4 mb-6">
+                <h3 className="font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Building className="h-4 w-4" />
+                  Trabajador - Datos de Pago
+                </h3>
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-gray-900 dark:text-white">
+                        {selectedPayment.worker.name}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {selectedPayment.worker.email}
+                      </p>
+                      {selectedPayment.worker.dni && (
+                        <p className="text-sm text-gray-700 dark:text-gray-300">
+                          DNI: {selectedPayment.worker.dni}
+                        </p>
+                      )}
+                      {selectedPayment.worker.phone && (
+                        <p className="text-sm text-gray-700 dark:text-gray-300">
+                          Tel: {selectedPayment.worker.phone}
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      {selectedPayment.worker.bankingInfo ? (
+                        <>
+                          <p className="text-sm text-gray-700 dark:text-gray-300">
+                            <span className="font-medium">Banco:</span> {selectedPayment.worker.bankingInfo.bankName || 'N/A'}
+                          </p>
+                          <p className="text-sm text-gray-700 dark:text-gray-300">
+                            <span className="font-medium">Titular:</span> {selectedPayment.worker.bankingInfo.accountHolder || 'N/A'}
+                          </p>
+                          <p className="text-sm text-gray-700 dark:text-gray-300">
+                            <span className="font-medium">CBU:</span>{' '}
+                            <span className="font-mono bg-gray-200 dark:bg-gray-600 px-2 py-0.5 rounded">
+                              {selectedPayment.worker.bankingInfo.cbu || 'N/A'}
+                            </span>
+                          </p>
+                          <p className="text-sm text-gray-700 dark:text-gray-300">
+                            <span className="font-medium">Alias:</span> {selectedPayment.worker.bankingInfo.alias || 'N/A'}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-sm text-red-500">
+                          Sin datos bancarios registrados
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
-              )}
+              </div>
 
-              {/* Admin Actions */}
-              {selectedPayment.status === "pending_verification" && (
-                <div className="space-y-4">
+              {/* Payment Amount */}
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6">
+                <div className="flex justify-between items-center">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Notas (opcional)
-                    </label>
-                    <textarea
-                      value={notes}
-                      onChange={(e) => setNotes(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      rows={3}
-                      placeholder="Agrega notas sobre esta verificación..."
-                    />
+                    <p className="text-sm text-green-700 dark:text-green-300">Monto a pagar al trabajador</p>
+                    <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                      (Precio: ${selectedPayment.contract.price.toLocaleString('es-AR')} - Comisión: ${selectedPayment.contract.commission.toLocaleString('es-AR')})
+                    </p>
                   </div>
+                  <p className="text-3xl font-bold text-green-700 dark:text-green-300">
+                    ${(selectedPayment.contract.price - selectedPayment.contract.commission).toLocaleString('es-AR')}
+                  </p>
+                </div>
+              </div>
 
-                  <div className="flex gap-3">
-                    <button
-                      onClick={handleApprove}
-                      disabled={actionLoading}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition"
-                    >
-                      {actionLoading ? (
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                      ) : (
-                        <CheckCircle className="h-5 w-5" />
-                      )}
-                      Aprobar Pago
-                    </button>
-                  </div>
-
-                  <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                      Motivo de Rechazo (requerido para rechazar)
-                    </label>
-                    <textarea
-                      value={rejectReason}
-                      onChange={(e) => setRejectReason(e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      rows={2}
-                      placeholder="Explica el motivo del rechazo..."
-                    />
-                    <button
-                      onClick={handleReject}
-                      disabled={actionLoading || !rejectReason.trim()}
-                      className="mt-3 w-full flex items-center justify-center gap-2 px-4 py-3 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition"
-                    >
-                      {actionLoading ? (
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                      ) : (
-                        <XCircle className="h-5 w-5" />
-                      )}
-                      Rechazar Pago
-                    </button>
-                  </div>
+              {/* Actions */}
+              {selectedPayment.contract.paymentStatus !== 'completed' && (
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => handleMarkAsPaid(selectedPayment.contract.id)}
+                    disabled={markingPaidId === selectedPayment.contract.id}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition"
+                  >
+                    {markingPaidId === selectedPayment.contract.id ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <CheckCircle className="h-5 w-5" />
+                    )}
+                    Marcar como Pagado
+                  </button>
                 </div>
               )}
             </div>

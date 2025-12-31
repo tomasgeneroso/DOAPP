@@ -151,29 +151,69 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
 });
 
 // @route   GET /api/contracts/by-job/:jobId
-// @desc    Obtener contrato por ID del trabajo
+// @desc    Obtener contrato por ID del trabajo (para team jobs, devuelve el contrato del usuario actual)
 // @access  Private
 router.get("/by-job/:jobId", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const contract = await Contract.findOne({
-      where: { jobId: req.params.jobId },
-      include: [
-        {
-          model: Job,
-          as: 'job'
-        },
-        {
-          model: User,
-          as: 'client',
-          attributes: ['id', 'name', 'email', 'phone', 'avatar', 'rating', 'reviewsCount']
-        },
-        {
-          model: User,
-          as: 'doer',
-          attributes: ['id', 'name', 'email', 'phone', 'avatar', 'rating', 'reviewsCount']
-        }
-      ]
+    const userId = req.user.id.toString();
+    const includeOptions = [
+      {
+        model: Job,
+        as: 'job'
+      },
+      {
+        model: User,
+        as: 'client',
+        attributes: ['id', 'name', 'email', 'phone', 'avatar', 'rating', 'reviewsCount']
+      },
+      {
+        model: User,
+        as: 'doer',
+        attributes: ['id', 'name', 'email', 'phone', 'avatar', 'rating', 'reviewsCount']
+      }
+    ];
+
+    // First, check if user is a worker (doer) - return their specific contract
+    let contract = await Contract.findOne({
+      where: {
+        jobId: req.params.jobId,
+        doerId: userId
+      },
+      include: includeOptions
     });
+
+    // If not found as doer, check if user is the client
+    if (!contract) {
+      // For clients (job owners), find the first contract that needs their confirmation
+      // Priority: unconfirmed contracts first, then any contract
+      contract = await Contract.findOne({
+        where: {
+          jobId: req.params.jobId,
+          clientId: userId,
+          clientConfirmed: false
+        },
+        include: includeOptions
+      });
+
+      // If all contracts are confirmed by client, just return any contract
+      if (!contract) {
+        contract = await Contract.findOne({
+          where: {
+            jobId: req.params.jobId,
+            clientId: userId
+          },
+          include: includeOptions
+        });
+      }
+    }
+
+    // If not found as participant, try to find any contract for admin users
+    if (!contract && isAdminUser(req.user)) {
+      contract = await Contract.findOne({
+        where: { jobId: req.params.jobId },
+        include: includeOptions
+      });
+    }
 
     if (!contract) {
       res.status(404).json({
@@ -183,22 +223,75 @@ router.get("/by-job/:jobId", protect, async (req: AuthRequest, res: Response): P
       return;
     }
 
-    // Verificar que el usuario sea parte del contrato o sea admin
-    const isParticipant =
-      contract.clientId.toString() === req.user.id.toString() ||
-      contract.doerId.toString() === req.user.id.toString();
+    res.json({
+      success: true,
+      contract,
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
 
-    if (!isParticipant && !isAdminUser(req.user)) {
-      res.status(403).json({
+// @route   GET /api/contracts/all-by-job/:jobId
+// @desc    Obtener TODOS los contratos de un trabajo (para team jobs)
+// @access  Private
+router.get("/all-by-job/:jobId", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user.id.toString();
+
+    // First verify the user is a participant (client or one of the workers)
+    const job = await Job.findByPk(req.params.jobId);
+    if (!job) {
+      res.status(404).json({
         success: false,
-        message: "No tienes permiso para ver este contrato",
+        message: "Trabajo no encontrado",
       });
       return;
     }
 
+    const jobClientId = typeof job.client === 'object' ? (job.client as any)?.id : job.clientId;
+    const isClient = jobClientId?.toString() === userId;
+    const isWorker = job.selectedWorkers?.includes(userId) || job.doerId?.toString() === userId;
+    const isAdmin = isAdminUser(req.user);
+
+    if (!isClient && !isWorker && !isAdmin) {
+      res.status(403).json({
+        success: false,
+        message: "No tienes permiso para ver los contratos de este trabajo",
+      });
+      return;
+    }
+
+    const contracts = await Contract.findAll({
+      where: { jobId: req.params.jobId },
+      include: [
+        {
+          model: User,
+          as: 'doer',
+          attributes: ['id', 'name', 'avatar']
+        }
+      ],
+      attributes: ['id', 'doerId', 'clientConfirmed', 'doerConfirmed', 'status']
+    });
+
     res.json({
       success: true,
-      contract,
+      contracts: contracts.map(c => ({
+        id: c.id,
+        doerId: c.doerId,
+        doerName: (c.doer as any)?.name || 'Trabajador',
+        doerAvatar: (c.doer as any)?.avatar,
+        clientConfirmed: c.clientConfirmed,
+        doerConfirmed: c.doerConfirmed,
+        status: c.status,
+      })),
+      totalContracts: contracts.length,
+      allClientConfirmed: contracts.every(c => c.clientConfirmed),
+      allDoerConfirmed: contracts.every(c => c.doerConfirmed),
+      allCompleted: contracts.every(c => c.clientConfirmed && c.doerConfirmed),
     });
   } catch (error: any) {
     res.status(500).json({
@@ -832,11 +925,18 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
       if (job && (job.maxWorkers || 1) > 1) {
         const BalanceTransaction = (await import('../models/sql/BalanceTransaction.model.js')).default;
 
+        // Obtener el balance actual del trabajador
+        const worker = await User.findByPk(contract.doerId);
+        const currentBalance = worker?.availableBalance || 0;
+        const newBalance = currentBalance + paymentAmount;
+
         // Registrar el pago pendiente al trabajador
         await BalanceTransaction.create({
           userId: contract.doerId,
           type: 'payment',
           amount: paymentAmount,
+          balanceBefore: currentBalance,
+          balanceAfter: newBalance,
           description: `Pago por contrato #${contract.id} - ${job.title}`,
           status: 'pending', // Pendiente de transferencia real
           relatedModel: 'Contract',
@@ -850,6 +950,12 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
             percentageOfBudget: contract.percentageOfBudget || (paymentAmount / job.price * 100),
           },
         });
+
+        // Actualizar el balance del trabajador
+        if (worker) {
+          worker.availableBalance = newBalance;
+          await worker.save();
+        }
 
         console.log(`📝 Registrado pago pendiente de $${paymentAmount.toLocaleString()} ARS para trabajador ${contract.doerId} (trabajo multi-trabajador)`);
       }

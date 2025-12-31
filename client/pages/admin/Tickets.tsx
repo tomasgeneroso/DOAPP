@@ -190,7 +190,7 @@ export default function AdminTickets() {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
           <input
             type="text"
-            placeholder="Buscar tickets..."
+            placeholder="Buscar por ID, número de ticket o asunto..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-gray-900 dark:text-white placeholder-gray-400"
@@ -230,6 +230,9 @@ export default function AdminTickets() {
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-900">
             <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                ID
+              </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Ticket
               </th>
@@ -283,6 +286,11 @@ export default function AdminTickets() {
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {getSortedTickets().map((ticket) => (
               <tr key={ticket.id || ticket._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                <td className="px-6 py-4">
+                  <div className="text-xs font-mono text-gray-600 dark:text-gray-400" title={ticket.id || ticket._id}>
+                    {(ticket.id || ticket._id || '').slice(-8).toUpperCase()}
+                  </div>
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <Link
                     to={`/admin/tickets/${ticket.id || ticket._id}`}

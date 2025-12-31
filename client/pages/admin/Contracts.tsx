@@ -301,8 +301,10 @@ export default function AdminContracts() {
 
   const filteredContracts = contracts.filter((contract) => {
     const jobTitle = contract.job?.title || contract.title || '';
+    const contractId = contract.id || contract._id || '';
     const matchesSearch =
       searchQuery === "" ||
+      contractId.toLowerCase().includes(searchQuery.toLowerCase()) ||
       jobTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
       contract.client?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       contract.doer?.name?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -374,7 +376,7 @@ export default function AdminContracts() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Buscar por título, cliente o doer..."
+              placeholder="Buscar por ID, título, cliente o doer..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 text-gray-900 dark:text-white"
@@ -468,6 +470,9 @@ export default function AdminContracts() {
             <thead className="bg-gray-50 dark:bg-gray-700">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  ID
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   <button
                     onClick={() => handleSort('job')}
                     className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200"
@@ -535,13 +540,18 @@ export default function AdminContracts() {
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {getSortedAndFilteredContracts().length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={10} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                     No se encontraron contratos
                   </td>
                 </tr>
               ) : (
                 getSortedAndFilteredContracts().map((contract) => (
                   <tr key={contract.id || contract._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                    <td className="px-4 py-4">
+                      <div className="text-xs font-mono text-gray-600 dark:text-gray-400" title={contract.id || contract._id}>
+                        {(contract.id || contract._id || '').slice(-8).toUpperCase()}
+                      </div>
+                    </td>
                     <td className="px-4 py-4">
                       <div className="text-sm font-medium text-gray-900 dark:text-white">
                         {contract.job?.title || contract.title || 'Sin título'}

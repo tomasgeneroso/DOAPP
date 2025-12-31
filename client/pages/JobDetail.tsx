@@ -105,19 +105,64 @@ export default function JobDetail() {
   const [contractRedirectUrl, setContractRedirectUrl] = useState<string>("");
   const [contractRedirectMessage, setContractRedirectMessage] = useState<string>("");
 
-  // Contract data for pairing code (for worker view)
+  // Contract data for pairing code and confirmation (for worker view)
   const [contractData, setContractData] = useState<{
     id: string;
     pairingCode?: string;
     pairingExpiry?: string;
     doerId?: string;
+    clientId?: string;
+    status?: string;
+    clientConfirmed?: boolean;
+    doerConfirmed?: boolean;
   } | null>(null);
+
+  // All contracts for team jobs (to check if all workers confirmed)
+  const [allContractsData, setAllContractsData] = useState<{
+    contracts: Array<{
+      id: string;
+      doerId: string;
+      doerName: string;
+      doerAvatar?: string;
+      clientConfirmed: boolean;
+      doerConfirmed: boolean;
+      status: string;
+    }>;
+    totalContracts: number;
+    allClientConfirmed: boolean;
+    allDoerConfirmed: boolean;
+    allCompleted: boolean;
+  } | null>(null);
+
+  const [confirmingWork, setConfirmingWork] = useState(false);
+  const [showConfirmationSuccessModal, setShowConfirmationSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [copiedPairingCode, setCopiedPairingCode] = useState(false);
   const [copiedJobCode, setCopiedJobCode] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
   const [checkingApplication, setCheckingApplication] = useState(false);
 
-  const { registerNewProposalHandler, registerJobUpdateHandler, registerJobsRefreshHandler } = useSocket();
+  const { registerNewProposalHandler, registerJobUpdateHandler, registerJobsRefreshHandler, registerContractUpdateHandler } = useSocket();
+
+  // Handle contract updates (for real-time confirmation updates)
+  const handleContractUpdate = useCallback((data: any) => {
+    if (contractData && (data.contractId === contractData.id || data.contract?.id === contractData.id || data.contract?.jobId === id)) {
+      console.log("📋 Contract updated:", data);
+      if (data.contract) {
+        setContractData(prev => prev ? {
+          ...prev,
+          clientConfirmed: data.contract.clientConfirmed ?? prev.clientConfirmed,
+          doerConfirmed: data.contract.doerConfirmed ?? prev.doerConfirmed,
+          status: data.contract.status ?? prev.status,
+        } : null);
+      }
+      // Also refresh job data if contract status changed
+      if (data.contract?.status === 'completed' || data.action === 'confirmed') {
+        setRefreshKey(prev => prev + 1);
+      }
+    }
+  }, [contractData, id]);
 
   // Handle new proposal notification
   const handleNewProposal = useCallback((data: any) => {
@@ -159,7 +204,8 @@ export default function JobDetail() {
     registerNewProposalHandler(handleNewProposal);
     registerJobUpdateHandler(handleJobUpdate);
     registerJobsRefreshHandler(handleJobsRefresh);
-  }, [registerNewProposalHandler, registerJobUpdateHandler, registerJobsRefreshHandler, handleNewProposal, handleJobUpdate, handleJobsRefresh]);
+    registerContractUpdateHandler(handleContractUpdate);
+  }, [registerNewProposalHandler, registerJobUpdateHandler, registerJobsRefreshHandler, registerContractUpdateHandler, handleNewProposal, handleJobUpdate, handleJobsRefresh, handleContractUpdate]);
 
   // Fetch job data
   const fetchJob = useCallback(async () => {
@@ -265,14 +311,20 @@ export default function JobDetail() {
     checkIfApplied();
   }, [job, user, token]);
 
-  // Fetch contract data for selected worker (to show pairing code)
+  // Fetch contract data for selected worker OR client (to show pairing code and confirmation)
   useEffect(() => {
     const fetchContractData = async () => {
       if (!job || !user || !token) return;
-      // Only fetch if current user is the selected worker (doer)
-      const jobDoerId = job.doerId || (job as any).doer?.id;
+      const jobDoerId = job.doerId || (typeof job.doer === 'object' ? job.doer?.id : job.doer);
+      const jobClientId = typeof job.client === 'object' ? (job.client?.id || job.client?._id) : job.client;
       const userId = user?.id || user?._id;
-      if (!jobDoerId || jobDoerId !== userId) return;
+
+      // Fetch if current user is either the selected worker OR the client
+      const isDoer = jobDoerId && jobDoerId === userId;
+      const isClient = jobClientId && jobClientId === userId;
+      const isSelectedWorker = job.selectedWorkers?.includes(userId as string);
+
+      if (!isDoer && !isClient && !isSelectedWorker) return;
 
       try {
         // Fetch contract by job ID
@@ -288,6 +340,10 @@ export default function JobDetail() {
             pairingCode: data.contract.pairingCode,
             pairingExpiry: data.contract.pairingExpiry,
             doerId: data.contract.doerId,
+            clientId: data.contract.clientId,
+            status: data.contract.status,
+            clientConfirmed: data.contract.clientConfirmed,
+            doerConfirmed: data.contract.doerConfirmed,
           });
         }
       } catch (err) {
@@ -295,7 +351,35 @@ export default function JobDetail() {
       }
     };
 
+    // Fetch all contracts for team jobs
+    const fetchAllContracts = async () => {
+      if (!job || !token) return;
+      // Only fetch for team jobs
+      if (!job.maxWorkers || job.maxWorkers <= 1) return;
+
+      try {
+        const response = await fetch(`/api/contracts/all-by-job/${job.id || job._id}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await response.json();
+        if (data.success) {
+          setAllContractsData({
+            contracts: data.contracts,
+            totalContracts: data.totalContracts,
+            allClientConfirmed: data.allClientConfirmed,
+            allDoerConfirmed: data.allDoerConfirmed,
+            allCompleted: data.allCompleted,
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching all contracts:", err);
+      }
+    };
+
     fetchContractData();
+    fetchAllContracts();
   }, [job, user, token]);
 
   const handleCopyPairingCode = () => {
@@ -317,6 +401,47 @@ export default function JobDetail() {
       navigator.clipboard.writeText(code);
       setCopiedJobCode(true);
       setTimeout(() => setCopiedJobCode(false), 3000);
+    }
+  };
+
+  // Handle confirming work completion
+  const handleConfirmWork = async () => {
+    if (!contractData?.id || !token) return;
+
+    setConfirmingWork(true);
+    try {
+      const response = await fetch(`/api/contracts/${contractData.id}/confirm`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (data.success) {
+        // Update local contract data
+        setContractData(prev => prev ? {
+          ...prev,
+          clientConfirmed: data.contract?.clientConfirmed ?? prev.clientConfirmed,
+          doerConfirmed: data.contract?.doerConfirmed ?? prev.doerConfirmed,
+          status: data.contract?.status ?? prev.status,
+        } : null);
+        // Refresh all contracts data for team jobs
+        if (job?.maxWorkers && job.maxWorkers > 1) {
+          fetchAllContracts();
+        }
+        // Show success modal instead of navigating
+        setShowConfirmationSuccessModal(true);
+      } else {
+        setErrorMessage(data.message || 'Error al confirmar el trabajo');
+        setShowErrorModal(true);
+      }
+    } catch (err) {
+      console.error('Error confirming work:', err);
+      setErrorMessage('Error al confirmar el trabajo');
+      setShowErrorModal(true);
+    } finally {
+      setConfirmingWork(false);
     }
   };
 
@@ -984,6 +1109,7 @@ export default function JobDetail() {
                 isOwner={!!isOwnJob}
                 isWorker={!!isWorkerOnJob}
                 jobStatus={job.status}
+                clientConfirmed={contractData?.clientConfirmed || (allContractsData?.allClientConfirmed ?? false)}
               />
             )}
 
@@ -1092,8 +1218,14 @@ export default function JobDetail() {
               )}
             </div>
 
-            {/* Action Buttons - Only show if no worker assigned yet */}
-            {!isOwnJob && job.status === 'open' && !job.doerId && (
+            {/* Action Buttons - Only show if positions still available */}
+            {!isOwnJob && job.status === 'open' && job.doerId !== userId && (
+              // For team jobs: show if there are still positions available and user is not already selected
+              // For single worker jobs: show if no worker assigned yet
+              (job.maxWorkers && job.maxWorkers > 1)
+                ? (job.selectedWorkers?.length || 0) < job.maxWorkers && !job.selectedWorkers?.includes(userId || '')
+                : !job.doerId
+            ) && (
               <div className="space-y-3">
                 {hasApplied ? (
                   <div className="w-full rounded-xl bg-gradient-to-r from-green-500 to-green-600 px-6 py-3 text-center shadow-lg shadow-green-500/30">
@@ -1171,45 +1303,162 @@ export default function JobDetail() {
               </div>
             )}
 
-            {/* Trabajador asignado pero trabajo aún no iniciado (fecha futura) */}
-            {!isOwnJob && job.status === 'open' && job.doerId && (
+            {/* Trabajador asignado - verificar si ya inició, terminó o no */}
+            {!isOwnJob && job.status === 'open' && (job.doerId || (job.selectedWorkers && job.selectedWorkers.length > 0)) && (
               <div className="space-y-4">
                 {/* Check if current user is the selected worker */}
-                {job.doerId === userId || (userId && job.selectedWorkers?.includes(userId)) ? (
-                  <div className="rounded-2xl border border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30 p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <CheckCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                      <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">
-                        ¡Fuiste seleccionado para este trabajo!
+                {job.doerId === userId || contractData?.doerId === userId || (userId && job.selectedWorkers?.includes(userId)) ? (
+                  // Check if end date has passed (job finished)
+                  job.endDate && new Date(job.endDate) <= new Date() ? (
+                    // Job has finished - show celebration message and confirm button
+                    <div className="rounded-2xl border-2 border-emerald-400 dark:border-emerald-500 bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-900/30 dark:to-green-900/30 p-5">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="p-2 bg-emerald-100 dark:bg-emerald-800/50 rounded-full">
+                          <CheckCircle className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                        </div>
+                        <div>
+                          <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">
+                            ¡Felicitaciones! Trabajo terminado
+                          </p>
+                          <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                            El trabajo finalizó el {new Date(job.endDate).toLocaleDateString('es-AR', {
+                              day: 'numeric',
+                              month: 'long',
+                              year: 'numeric'
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                      <p className="text-sm text-emerald-700 dark:text-emerald-300 mb-4">
+                        Ahora solo resta confirmar que el trabajo fue finalizado correctamente para proceder con los pagos.
                       </p>
-                    </div>
-                    <p className="text-sm text-blue-600 dark:text-blue-400 mt-2">
-                      El trabajo iniciará el {new Date(job.startDate).toLocaleDateString('es-AR', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-3 mt-3">
-                      {contractData && (
-                        <Link
-                          to={`/contracts/${contractData.id}`}
-                          className="inline-flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                        >
-                          Ver detalles del contrato <ExternalLink className="h-4 w-4" />
-                        </Link>
+
+                      {/* Confirmation status - Team jobs show all workers */}
+                      {allContractsData && allContractsData.totalContracts > 1 ? (
+                        <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4 mb-4">
+                          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">
+                            Estado de confirmaciones ({allContractsData.contracts.filter(c => c.doerConfirmed).length}/{allContractsData.totalContracts} trabajadores):
+                          </p>
+                          <div className="space-y-2">
+                            {allContractsData.contracts.map((c) => (
+                              <div key={c.id} className="flex items-center gap-2 text-sm">
+                                <span className={`flex items-center gap-1 ${c.doerConfirmed ? 'text-green-600' : 'text-slate-400'}`}>
+                                  {c.doerConfirmed ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                                  {c.doerName}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : contractData && (
+                        <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4 mb-4">
+                          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Estado de confirmaciones:</p>
+                          <div className="flex items-center gap-4 text-sm">
+                            <span className={`flex items-center gap-1 ${contractData.doerConfirmed ? 'text-green-600' : 'text-slate-400'}`}>
+                              {contractData.doerConfirmed ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                              Tu confirmación
+                            </span>
+                            <span className={`flex items-center gap-1 ${contractData.clientConfirmed ? 'text-green-600' : 'text-slate-400'}`}>
+                              {contractData.clientConfirmed ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                              Confirmación del cliente
+                            </span>
+                          </div>
+                        </div>
                       )}
-                      <Link
-                        to="/my-jobs?tab=applied&view=calendar"
-                        className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-100 dark:bg-blue-800/50 text-blue-700 dark:text-blue-300 text-sm font-medium rounded-lg hover:bg-blue-200 dark:hover:bg-blue-700/50 transition-colors"
-                      >
-                        <Calendar className="h-4 w-4" />
-                        Ver en Calendario
-                      </Link>
+
+                      <div className="flex flex-wrap items-center gap-3">
+                        {contractData && !contractData.doerConfirmed && (
+                          <button
+                            onClick={handleConfirmWork}
+                            disabled={confirmingWork}
+                            className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-lg shadow-emerald-200 dark:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {confirmingWork ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Confirmando...
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle className="h-4 w-4" />
+                                Confirmar mi trabajo
+                              </>
+                            )}
+                          </button>
+                        )}
+                        {contractData?.doerConfirmed && !(allContractsData?.allCompleted ?? (contractData?.clientConfirmed)) && (
+                          <div className="px-4 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-xl text-sm">
+                            {allContractsData && allContractsData.totalContracts > 1
+                              ? `Esperando confirmaciones (${allContractsData.contracts.filter(c => c.doerConfirmed && c.clientConfirmed).length}/${allContractsData.totalContracts} completos)...`
+                              : 'Esperando confirmación del cliente...'}
+                          </div>
+                        )}
+                        {(allContractsData?.allCompleted ?? (contractData?.doerConfirmed && contractData?.clientConfirmed)) && (
+                          <div className="px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-xl text-sm font-medium">
+                            ✅ Todos confirmaron - Los pagos serán liberados a los trabajadores
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  ) : new Date(job.startDate) <= new Date() ? (
+                    // Job has started but not finished - show "in progress" message
+                    <div className="rounded-2xl border border-green-300 dark:border-green-600 bg-green-50 dark:bg-green-900/30 p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                        <p className="text-sm font-semibold text-green-700 dark:text-green-300">
+                          Trabajo en progreso
+                        </p>
+                      </div>
+                      {job.endDate && (
+                        <p className="text-sm text-green-600 dark:text-green-400 mt-2">
+                          El trabajo terminará el {new Date(job.endDate).toLocaleDateString('es-AR', {
+                            day: 'numeric',
+                            month: 'long',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap items-center gap-3 mt-3">
+                        <Link
+                          to="/my-jobs?tab=applied&view=calendar"
+                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-100 dark:bg-green-800/50 text-green-700 dark:text-green-300 text-sm font-medium rounded-lg hover:bg-green-200 dark:hover:bg-green-700/50 transition-colors"
+                        >
+                          <Calendar className="h-4 w-4" />
+                          Ver en Calendario
+                        </Link>
+                      </div>
+                    </div>
+                  ) : (
+                    // Job hasn't started yet - show "selected" message
+                    <div className="rounded-2xl border border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30 p-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <CheckCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                        <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+                          ¡Fuiste seleccionado para este trabajo!
+                        </p>
+                      </div>
+                      <p className="text-sm text-blue-600 dark:text-blue-400 mt-2">
+                        El trabajo iniciará el {new Date(job.startDate).toLocaleDateString('es-AR', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-3 mt-3">
+                        <Link
+                          to="/my-jobs?tab=applied&view=calendar"
+                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-100 dark:bg-blue-800/50 text-blue-700 dark:text-blue-300 text-sm font-medium rounded-lg hover:bg-blue-200 dark:hover:bg-blue-700/50 transition-colors"
+                        >
+                          <Calendar className="h-4 w-4" />
+                          Ver en Calendario
+                        </Link>
+                      </div>
+                    </div>
+                  )
                 ) : (job.selectedWorkers?.length || 0) >= (job.maxWorkers || 1) ? (
                   // Solo mostrar "ya tiene profesional" si TODOS los puestos están ocupados
                   <div className="rounded-2xl border border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30 p-4">
@@ -1227,38 +1476,137 @@ export default function JobDetail() {
               </div>
             )}
 
-            {!isOwnJob && job.status === 'in_progress' && job.doerId && (
+            {!isOwnJob && job.status === 'in_progress' && (job.doerId || (job.selectedWorkers && job.selectedWorkers.length > 0)) && (
               <div className="space-y-4">
                 {/* Check if current user is one of the selected workers */}
-                {contractData?.doerId === userId || (userId && job.selectedWorkers?.includes(userId)) ? (
+                {contractData?.doerId === userId || job.doerId === userId || (userId && job.selectedWorkers?.includes(userId)) ? (
                   <>
-                    {/* Selected Worker Info */}
-                    <div className="rounded-2xl border border-green-300 dark:border-green-600 bg-green-50 dark:bg-green-900/30 p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
-                        <p className="text-sm font-semibold text-green-700 dark:text-green-300">
-                          ¡Fuiste seleccionado para este trabajo!
+                    {/* Check if job has finished (endDate passed) */}
+                    {job.endDate && new Date(job.endDate) <= new Date() ? (
+                      // Job has finished - show celebration message and confirm button
+                      <div className="rounded-2xl border-2 border-emerald-400 dark:border-emerald-500 bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-900/30 dark:to-green-900/30 p-5">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="p-2 bg-emerald-100 dark:bg-emerald-800/50 rounded-full">
+                            <CheckCircle className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                          </div>
+                          <div>
+                            <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">
+                              ¡Felicitaciones! Trabajo terminado
+                            </p>
+                            <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                              El trabajo finalizó el {new Date(job.endDate).toLocaleDateString('es-AR', {
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric'
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="text-sm text-emerald-700 dark:text-emerald-300 mb-4">
+                          Ahora solo resta confirmar que el trabajo fue finalizado correctamente para proceder con los pagos.
                         </p>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-3">
-                        <Link
-                          to={`/contracts/${contractData?.id}`}
-                          className="inline-flex items-center gap-2 text-sm text-green-600 dark:text-green-400 hover:underline"
-                        >
-                          Ver detalles del contrato <ExternalLink className="h-4 w-4" />
-                        </Link>
-                        <Link
-                          to="/my-jobs?tab=applied&view=calendar"
-                          className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-100 dark:bg-green-800/50 text-green-700 dark:text-green-300 text-sm font-medium rounded-lg hover:bg-green-200 dark:hover:bg-green-700/50 transition-colors"
-                        >
-                          <Calendar className="h-4 w-4" />
-                          Ver en Calendario
-                        </Link>
-                      </div>
-                    </div>
 
-                    {/* Pairing Code Display for Worker */}
-                    {contractData?.pairingCode && (
+                        {/* Confirmation status - Team jobs show all workers */}
+                        {allContractsData && allContractsData.totalContracts > 1 ? (
+                          <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4 mb-4">
+                            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">
+                              Estado de confirmaciones ({allContractsData.contracts.filter(c => c.doerConfirmed).length}/{allContractsData.totalContracts} trabajadores):
+                            </p>
+                            <div className="space-y-2">
+                              {allContractsData.contracts.map((c) => (
+                                <div key={c.id} className="flex items-center gap-2 text-sm">
+                                  <span className={`flex items-center gap-1 ${c.doerConfirmed ? 'text-green-600' : 'text-slate-400'}`}>
+                                    {c.doerConfirmed ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                                    {c.doerName}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : contractData && (
+                          <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4 mb-4">
+                            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Estado de confirmaciones:</p>
+                            <div className="flex items-center gap-4 text-sm">
+                              <span className={`flex items-center gap-1 ${contractData.doerConfirmed ? 'text-green-600' : 'text-slate-400'}`}>
+                                {contractData.doerConfirmed ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                                Tu confirmación
+                              </span>
+                              <span className={`flex items-center gap-1 ${contractData.clientConfirmed ? 'text-green-600' : 'text-slate-400'}`}>
+                                {contractData.clientConfirmed ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                                Confirmación del cliente
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="flex flex-wrap items-center gap-3">
+                          {contractData && !contractData.doerConfirmed && (
+                            <button
+                              onClick={handleConfirmWork}
+                              disabled={confirmingWork}
+                              className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-lg shadow-emerald-200 dark:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {confirmingWork ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                  Confirmando...
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle className="h-4 w-4" />
+                                  Confirmar mi trabajo
+                                </>
+                              )}
+                            </button>
+                          )}
+                          {contractData?.doerConfirmed && !(allContractsData?.allCompleted ?? (contractData?.clientConfirmed)) && (
+                            <div className="px-4 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-xl text-sm">
+                              {allContractsData && allContractsData.totalContracts > 1
+                                ? `Esperando confirmaciones (${allContractsData.contracts.filter(c => c.doerConfirmed && c.clientConfirmed).length}/${allContractsData.totalContracts} completos)...`
+                                : 'Esperando confirmación del cliente...'}
+                            </div>
+                          )}
+                          {(allContractsData?.allCompleted ?? (contractData?.doerConfirmed && contractData?.clientConfirmed)) && (
+                            <div className="px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-xl text-sm font-medium">
+                              ✅ Todos confirmaron - Los pagos serán liberados a los trabajadores
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      // Job is still in progress
+                      <div className="rounded-2xl border border-green-300 dark:border-green-600 bg-green-50 dark:bg-green-900/30 p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                          <p className="text-sm font-semibold text-green-700 dark:text-green-300">
+                            Trabajo en progreso
+                          </p>
+                        </div>
+                        {job.endDate && (
+                          <p className="text-sm text-green-600 dark:text-green-400 mt-2">
+                            El trabajo terminará el {new Date(job.endDate).toLocaleDateString('es-AR', {
+                              day: 'numeric',
+                              month: 'long',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
+                        )}
+                        <div className="flex flex-wrap items-center gap-3 mt-3">
+                          <Link
+                            to="/my-jobs?tab=applied&view=calendar"
+                            className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-100 dark:bg-green-800/50 text-green-700 dark:text-green-300 text-sm font-medium rounded-lg hover:bg-green-200 dark:hover:bg-green-700/50 transition-colors"
+                          >
+                            <Calendar className="h-4 w-4" />
+                            Ver en Calendario
+                          </Link>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Pairing Code Display for Worker - only show if job not finished */}
+                    {contractData?.pairingCode && !(job.endDate && new Date(job.endDate) <= new Date()) && (
                       <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-2xl p-5 border-2 border-purple-200 dark:border-purple-700 shadow-md">
                         <div className="flex items-start gap-4">
                           <div className="p-3 bg-purple-100 dark:bg-purple-900/50 rounded-lg">
@@ -1705,6 +2053,126 @@ export default function JobDetail() {
                     <p className="text-sm font-medium text-red-700 dark:text-red-300">{error}</p>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Client view - Job finished, needs confirmation */}
+            {isOwnJob && !isDraft && (job.doerId || (job.selectedWorkers && job.selectedWorkers.length > 0)) && job.endDate && new Date(job.endDate) <= new Date() &&
+              (job.status === 'open' || job.status === 'in_progress') && contractData && !contractData.clientConfirmed && (
+              <div className="rounded-2xl border-2 border-emerald-400 dark:border-emerald-500 bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-900/30 dark:to-green-900/30 p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-2 bg-emerald-100 dark:bg-emerald-800/50 rounded-full">
+                    <CheckCircle className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">
+                      ¡Trabajo terminado!
+                    </p>
+                    <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                      El trabajo finalizó el {new Date(job.endDate).toLocaleDateString('es-AR', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric'
+                      })}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-sm text-emerald-700 dark:text-emerald-300 mb-4">
+                  Confirma que el trabajo fue realizado correctamente para proceder con los pagos al trabajador.
+                </p>
+
+                {/* Confirmation status */}
+                <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4 mb-4">
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Estado de confirmaciones:</p>
+                  <div className="flex items-center gap-4 text-sm">
+                    <span className={`flex items-center gap-1 ${contractData.clientConfirmed ? 'text-green-600' : 'text-slate-400'}`}>
+                      {contractData.clientConfirmed ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                      Tu confirmación
+                    </span>
+                    <span className={`flex items-center gap-1 ${contractData.doerConfirmed ? 'text-green-600' : 'text-slate-400'}`}>
+                      {contractData.doerConfirmed ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                      Confirmación del trabajador
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    onClick={handleConfirmWork}
+                    disabled={confirmingWork}
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl shadow-lg shadow-emerald-200 dark:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {confirmingWork ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Confirmando...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-4 w-4" />
+                        Confirmar trabajo realizado
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Client view - Waiting for worker confirmation */}
+            {isOwnJob && !isDraft && (job.doerId || (job.selectedWorkers && job.selectedWorkers.length > 0)) && job.endDate && new Date(job.endDate) <= new Date() &&
+              (job.status === 'open' || job.status === 'in_progress') && contractData && contractData.clientConfirmed &&
+              !(allContractsData?.allCompleted ?? contractData.doerConfirmed) && (
+              <div className="rounded-2xl border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/30 p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-2 bg-amber-100 dark:bg-amber-800/50 rounded-full">
+                    <Clock className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-amber-700 dark:text-amber-300">
+                      {allContractsData && allContractsData.totalContracts > 1
+                        ? `Esperando confirmaciones (${allContractsData.contracts.filter(c => c.doerConfirmed && c.clientConfirmed).length}/${allContractsData.totalContracts})`
+                        : 'Esperando confirmación del trabajador'}
+                    </p>
+                  </div>
+                </div>
+                {allContractsData && allContractsData.totalContracts > 1 ? (
+                  <div className="space-y-2 mb-3">
+                    {allContractsData.contracts.map((c) => (
+                      <div key={c.id} className="flex items-center gap-2 text-sm">
+                        <span className={`flex items-center gap-1 ${c.doerConfirmed ? 'text-green-600' : 'text-amber-600'}`}>
+                          {c.doerConfirmed ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                          {c.doerName}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-amber-700 dark:text-amber-300">
+                    Ya confirmaste que el trabajo fue realizado. Estamos esperando que el trabajador también confirme para proceder con los pagos.
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Client view - All confirmed */}
+            {isOwnJob && !isDraft && (job.doerId || (job.selectedWorkers && job.selectedWorkers.length > 0)) && job.endDate && new Date(job.endDate) <= new Date() &&
+              (job.status === 'open' || job.status === 'in_progress') && (allContractsData?.allCompleted ?? (contractData && contractData.clientConfirmed && contractData.doerConfirmed)) && (
+              <div className="rounded-2xl border-2 border-green-400 dark:border-green-500 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="p-2 bg-green-100 dark:bg-green-800/50 rounded-full">
+                    <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-bold text-green-700 dark:text-green-300">
+                      ¡Trabajo completado!
+                    </p>
+                  </div>
+                </div>
+                <p className="text-sm text-green-700 dark:text-green-300">
+                  ✅ {allContractsData && allContractsData.totalContracts > 1
+                    ? `Todos los ${allContractsData.totalContracts} trabajadores y el cliente confirmaron - Los pagos serán liberados`
+                    : 'Ambos confirmaron - El pago será liberado al trabajador'}
+                </p>
               </div>
             )}
 
@@ -2335,6 +2803,65 @@ export default function JobDetail() {
                   className="flex-1 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:from-purple-600 hover:to-purple-700"
                 >
                   Ir al Contrato
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Confirmation Success Modal */}
+        {showConfirmationSuccessModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="w-full max-w-md rounded-2xl border border-green-600 bg-slate-900 p-6 shadow-2xl">
+              <div className="mb-4 flex flex-col items-center text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 mb-4">
+                  <CheckCircle className="h-10 w-10 text-green-500" />
+                </div>
+                <h3 className="text-2xl font-bold text-white mb-2">
+                  ¡Gracias por confirmar el trabajo!
+                </h3>
+                <p className="text-slate-300">
+                  Gracias por confiar en DoApp, nosotros nos encargamos de que el pago llegue a destino.
+                </p>
+              </div>
+
+              <div className="flex justify-center">
+                <button
+                  onClick={() => setShowConfirmationSuccessModal(false)}
+                  className="rounded-xl bg-gradient-to-r from-green-500 to-green-600 px-8 py-3 font-semibold text-white shadow-lg transition-all hover:from-green-600 hover:to-green-700"
+                >
+                  Entendido
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Error Modal */}
+        {showErrorModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="w-full max-w-md rounded-2xl border border-red-600 bg-slate-900 p-6 shadow-2xl">
+              <div className="mb-4 flex flex-col items-center text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500/20 mb-4">
+                  <XCircle className="h-10 w-10 text-red-500" />
+                </div>
+                <h3 className="text-2xl font-bold text-white mb-2">
+                  Error
+                </h3>
+                <p className="text-slate-300">
+                  {errorMessage}
+                </p>
+              </div>
+
+              <div className="flex justify-center">
+                <button
+                  onClick={() => {
+                    setShowErrorModal(false);
+                    setErrorMessage("");
+                  }}
+                  className="rounded-xl bg-gradient-to-r from-red-500 to-red-600 px-8 py-3 font-semibold text-white shadow-lg transition-all hover:from-red-600 hover:to-red-700"
+                >
+                  Entendido
                 </button>
               </div>
             </div>

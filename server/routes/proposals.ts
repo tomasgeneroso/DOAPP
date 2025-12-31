@@ -604,6 +604,8 @@ router.put("/:id/approve", protect, async (req: AuthRequest, res: Response): Pro
     // Agregar trabajador al array de selectedWorkers
     const updatedWorkers = [...currentWorkers, proposal.freelancerId];
     job.selectedWorkers = updatedWorkers;
+    // Mark the array as changed for Sequelize to detect the update
+    job.changed('selectedWorkers', true);
 
     // Si es el primer trabajador, también asignar a doerId para compatibilidad
     if (!job.doerId) {
@@ -647,6 +649,16 @@ router.put("/:id/approve", protect, async (req: AuthRequest, res: Response): Pro
       }
     }
 
+    // Validar monto mínimo de $5000 ARS ANTES de modificar el job
+    const MINIMUM_CONTRACT_AMOUNT = 5000;
+    if (workerAllocation < MINIMUM_CONTRACT_AMOUNT) {
+      res.status(400).json({
+        success: false,
+        message: `El monto mínimo del contrato es de $${MINIMUM_CONTRACT_AMOUNT.toLocaleString()} ARS. El monto propuesto es $${workerAllocation.toLocaleString()} ARS`,
+      });
+      return;
+    }
+
     // Calculate percentage of total budget
     const percentageOfBudget = (workerAllocation / jobPrice) * 100;
 
@@ -659,6 +671,8 @@ router.put("/:id/approve", protect, async (req: AuthRequest, res: Response): Pro
       allocatedAt: new Date(),
     });
     job.workerAllocations = currentAllocations;
+    // Mark the array as changed for Sequelize to detect the update
+    job.changed('workerAllocations', true);
 
     // Update allocated total and remaining budget
     const newAllocatedTotal = currentAllocations.reduce((sum, a) => sum + a.allocatedAmount, 0);
@@ -695,16 +709,6 @@ router.put("/:id/approve", protect, async (req: AuthRequest, res: Response): Pro
     // Crear o actualizar chat grupal si hay múltiples trabajadores
     if (updatedWorkers.length > 1 || maxWorkers > 1) {
       await createOrUpdateGroupChat(job, updatedWorkers);
-    }
-
-    // Validar monto mínimo de $5000 ARS para la asignación del trabajador
-    const MINIMUM_CONTRACT_AMOUNT = 5000;
-    if (workerAllocation < MINIMUM_CONTRACT_AMOUNT) {
-      res.status(400).json({
-        success: false,
-        message: `El monto mínimo del contrato es de $${MINIMUM_CONTRACT_AMOUNT.toLocaleString()} ARS`,
-      });
-      return;
     }
 
     // Crear contrato automáticamente con el monto asignado

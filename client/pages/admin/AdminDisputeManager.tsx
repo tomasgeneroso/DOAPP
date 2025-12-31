@@ -72,6 +72,7 @@ const AdminDisputeManager: React.FC = () => {
   const [filterPriority, setFilterPriority] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [sortField, setSortField] = useState<SortField | null>(null);
@@ -198,10 +199,17 @@ const AdminDisputeManager: React.FC = () => {
 
   const getFilteredDisputes = () => {
     return disputes.filter((dispute) => {
+      const disputeId = dispute.id || dispute._id || '';
+      const matchesSearch =
+        searchQuery === "" ||
+        disputeId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        dispute.reason.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        dispute.initiatedBy.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        dispute.against.name.toLowerCase().includes(searchQuery.toLowerCase());
       const disputeDate = new Date(dispute.createdAt);
       const matchesDateFrom = !dateFrom || disputeDate >= new Date(dateFrom);
       const matchesDateTo = !dateTo || disputeDate <= new Date(dateTo + 'T23:59:59');
-      return matchesDateFrom && matchesDateTo;
+      return matchesSearch && matchesDateFrom && matchesDateTo;
     });
   };
 
@@ -343,7 +351,18 @@ const AdminDisputeManager: React.FC = () => {
 
         {/* Filters */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
+            {/* Search */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Buscar</label>
+              <input
+                type="text"
+                placeholder="Buscar por ID, motivo o usuario..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              />
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Estado</label>
               <select
@@ -444,6 +463,9 @@ const AdminDisputeManager: React.FC = () => {
                 <thead className="bg-gray-50 dark:bg-gray-700">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      ID
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                       <button
                         onClick={() => handleSort('priority')}
                         className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-white transition-colors"
@@ -499,6 +521,11 @@ const AdminDisputeManager: React.FC = () => {
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {getSortedDisputes().map((dispute) => (
                     <tr key={dispute.id || dispute._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <td className="px-6 py-4">
+                        <div className="text-xs font-mono text-gray-600 dark:text-gray-400" title={dispute.id || dispute._id}>
+                          {(dispute.id || dispute._id || '').slice(-8).toUpperCase()}
+                        </div>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {getPriorityIcon(dispute.priority)}
                       </td>

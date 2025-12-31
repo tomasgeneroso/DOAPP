@@ -46,9 +46,10 @@ interface JobTasksProps {
   jobStatus: string;
   singleDelivery?: boolean; // If false, allow per-task due dates
   jobEndDate?: string; // End date of the job (for validation)
+  clientConfirmed?: boolean; // If true, tasks cannot be added/edited
 }
 
-export default function JobTasks({ jobId, isOwner, isWorker, jobStatus, singleDelivery = true, jobEndDate }: JobTasksProps) {
+export default function JobTasks({ jobId, isOwner, isWorker, jobStatus, singleDelivery = true, jobEndDate, clientConfirmed = false }: JobTasksProps) {
   const { token } = useAuth();
   const { registerJobUpdateHandler } = useSocket();
   const [tasks, setTasks] = useState<JobTask[]>([]);
@@ -481,8 +482,8 @@ export default function JobTasks({ jobId, isOwner, isWorker, jobStatus, singleDe
             </div>
           )}
 
-          {/* Add task form (owner only) */}
-          {isOwner && (
+          {/* Add task form (owner only, not when confirmed) */}
+          {isOwner && !clientConfirmed && (
             <div className="mt-4">
               {showAddForm ? (
                 <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/10 p-4">

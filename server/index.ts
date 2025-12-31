@@ -28,6 +28,7 @@ import { startJobReminderJob } from "./jobs/jobReminders.js";
 import { startSuspendFlexibleEndDateJob } from "./jobs/suspendFlexibleEndDateJobs.js";
 import { startResetReferralDiscountsJob } from "./jobs/resetReferralDiscounts.js";
 import { startAutoConfirmContractsJob } from "./jobs/autoConfirmContracts.js";
+import { startConfirmationReminderJob } from "./jobs/sendConfirmationReminders.js";
 
 // Rutas
 import authRoutes from "./routes/auth.js";
@@ -349,6 +350,9 @@ startResetReferralDiscountsJob();
 
 // Initialize auto-confirm contracts (every 5 minutes - 2 hours timeout)
 startAutoConfirmContractsJob();
+
+// Initialize confirmation reminders (when job ends, remind both parties to confirm)
+startConfirmationReminderJob();
 
 // Manejo de errores del servidor
 httpServer.on('error', (error: NodeJS.ErrnoException) => {

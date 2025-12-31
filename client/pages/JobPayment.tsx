@@ -4,7 +4,7 @@ import { Helmet } from "react-helmet-async";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/components/ui/Toast";
 import { CreditCard, ArrowLeft, Loader2, Calendar, FileText, Upload, Eye } from "lucide-react";
-import PaymentMethodSelector, { PaymentMethod, BinancePaymentData } from "@/components/payments/PaymentMethodSelector";
+import PaymentMethodSelector, { PaymentMethod, BinancePaymentData, BankTransferPaymentData } from "@/components/payments/PaymentMethodSelector";
 
 export default function JobPayment() {
   const { id } = useParams<{ id: string }>();
@@ -34,6 +34,13 @@ export default function JobPayment() {
   const [binanceData, setBinanceData] = useState<BinancePaymentData>({
     transactionId: '',
     senderUserId: '',
+  });
+
+  // Bank transfer payment data
+  const [bankTransferData, setBankTransferData] = useState<BankTransferPaymentData>({
+    isOwnBankAccount: true,
+    thirdPartyAccountHolder: '',
+    senderBankName: '',
   });
 
   // Calculate commission based on user tier
@@ -199,11 +206,23 @@ export default function JobPayment() {
       setProcessing(true);
       setError(null);
 
-      // Validate bank transfer has proof
-      if (paymentMethod === 'bank_transfer' && !isFreeContract && !proofFile) {
-        toast.error('Comprobante requerido', 'Debes subir el comprobante de transferencia');
-        setProcessing(false);
-        return;
+      // Validate bank transfer has proof and bank name
+      if (paymentMethod === 'bank_transfer' && !isFreeContract) {
+        if (!proofFile) {
+          toast.error('Comprobante requerido', 'Debes subir el comprobante de transferencia');
+          setProcessing(false);
+          return;
+        }
+        if (!bankTransferData.senderBankName) {
+          toast.error('Datos incompletos', 'Debes indicar el nombre del banco');
+          setProcessing(false);
+          return;
+        }
+        if (!bankTransferData.isOwnBankAccount && !bankTransferData.thirdPartyAccountHolder) {
+          toast.error('Datos incompletos', 'Debes indicar el nombre del titular de la cuenta');
+          setProcessing(false);
+          return;
+        }
       }
 
       // Validate Binance payment data
@@ -263,6 +282,15 @@ export default function JobPayment() {
         if (paymentMethod === 'binance') {
           proofFormData.append('binanceTransactionId', binanceData.transactionId);
           proofFormData.append('binanceSenderUserId', binanceData.senderUserId);
+        }
+
+        // Add bank transfer specific data if applicable
+        if (paymentMethod === 'bank_transfer') {
+          proofFormData.append('isOwnBankAccount', String(bankTransferData.isOwnBankAccount));
+          proofFormData.append('senderBankName', bankTransferData.senderBankName);
+          if (!bankTransferData.isOwnBankAccount && bankTransferData.thirdPartyAccountHolder) {
+            proofFormData.append('thirdPartyAccountHolder', bankTransferData.thirdPartyAccountHolder);
+          }
         }
 
         const proofResponse = await fetch(`/api/payments/${data.paymentId}/upload-proof`, {
@@ -617,6 +645,7 @@ export default function JobPayment() {
                 amount={totalAmount}
                 currency="ARS"
                 onBinanceDataChange={setBinanceData}
+                onBankTransferDataChange={setBankTransferData}
               />
 
               {/* Binance Transfer - Upload Proof */}

@@ -6,11 +6,13 @@ import {
   DataType,
   ForeignKey,
   BelongsTo,
+  HasMany,
   Default,
   Index,
 } from 'sequelize-typescript';
 import { User } from './User.model.js';
 import { Contract } from './Contract.model.js';
+import { PaymentProof } from './PaymentProof.model.js';
 
 /**
  * Payment Model - PostgreSQL/Sequelize
@@ -97,6 +99,9 @@ export class Payment extends Model {
 
   @BelongsTo(() => User, 'recipientId')
   recipient?: User;
+
+  @HasMany(() => PaymentProof)
+  proofs?: PaymentProof[];
 
   // ============================================
   // AMOUNT & CURRENCY

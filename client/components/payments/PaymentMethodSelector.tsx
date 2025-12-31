@@ -7,6 +7,12 @@ export interface BinancePaymentData {
   senderUserId: string;
 }
 
+export interface BankTransferPaymentData {
+  isOwnBankAccount: boolean;
+  thirdPartyAccountHolder: string;
+  senderBankName: string;
+}
+
 interface PaymentMethodOption {
   id: PaymentMethod;
   name: string;
@@ -22,6 +28,7 @@ interface PaymentMethodSelectorProps {
   amount: number;
   currency?: string;
   onBinanceDataChange?: (data: BinancePaymentData) => void;
+  onBankTransferDataChange?: (data: BankTransferPaymentData) => void;
 }
 
 const PAYMENT_METHODS: PaymentMethodOption[] = [
@@ -56,6 +63,7 @@ export default function PaymentMethodSelector({
   amount,
   currency = 'ARS',
   onBinanceDataChange,
+  onBankTransferDataChange,
 }: PaymentMethodSelectorProps) {
   const [usdtAmount, setUsdtAmount] = useState<number | null>(null);
   const [usdtRate, setUsdtRate] = useState<number | null>(null);
@@ -66,6 +74,11 @@ export default function PaymentMethodSelector({
   const [binanceTransactionId, setBinanceTransactionId] = useState('');
   const [binanceSenderUserId, setBinanceSenderUserId] = useState('');
 
+  // Bank transfer payment data
+  const [isOwnBankAccount, setIsOwnBankAccount] = useState(true);
+  const [thirdPartyAccountHolder, setThirdPartyAccountHolder] = useState('');
+  const [senderBankName, setSenderBankName] = useState('');
+
   // Update parent component when Binance data changes
   useEffect(() => {
     if (selectedMethod === 'binance' && onBinanceDataChange) {
@@ -75,6 +88,17 @@ export default function PaymentMethodSelector({
       });
     }
   }, [binanceTransactionId, binanceSenderUserId, selectedMethod, onBinanceDataChange]);
+
+  // Update parent component when bank transfer data changes
+  useEffect(() => {
+    if (selectedMethod === 'bank_transfer' && onBankTransferDataChange) {
+      onBankTransferDataChange({
+        isOwnBankAccount,
+        thirdPartyAccountHolder,
+        senderBankName,
+      });
+    }
+  }, [isOwnBankAccount, thirdPartyAccountHolder, senderBankName, selectedMethod, onBankTransferDataChange]);
 
   // Fetch USDT conversion when Binance is selected
   useEffect(() => {
@@ -320,15 +344,66 @@ export default function PaymentMethodSelector({
       )}
 
       {selectedMethod === 'bank_transfer' && (
-        <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+        <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg space-y-4">
           <p className="text-sm text-gray-900 dark:text-gray-100 mb-2">
             <strong>Transferencia Bancaria</strong> - Realiza el pago desde tu banco.
           </p>
-          <ul className="text-xs text-gray-700 dark:text-gray-300 space-y-1">
+          <ul className="text-xs text-gray-700 dark:text-gray-300 space-y-1 mb-4">
             <li>• Te enviaremos los datos bancarios por email</li>
             <li>• Tiempo de procesamiento: 24-48hs hábiles</li>
             <li>• Envía el comprobante a soporte@doapp.com</li>
           </ul>
+
+          {/* Bank Name Field */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Nombre del Banco <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={senderBankName}
+              onChange={(e) => setSenderBankName(e.target.value)}
+              placeholder="Ej: Banco Galicia, Santander, BBVA, etc."
+              className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Nombre del banco desde donde realizarás la transferencia
+            </p>
+          </div>
+
+          {/* Account Ownership Toggle */}
+          <div className="p-3 bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isOwnBankAccount}
+                onChange={(e) => setIsOwnBankAccount(e.target.checked)}
+                className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+              />
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                La cuenta bancaria está a mi nombre
+              </span>
+            </label>
+          </div>
+
+          {/* Third Party Account Holder Field */}
+          {!isOwnBankAccount && (
+            <div className="animate-fadeIn">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Nombre del titular de la cuenta <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={thirdPartyAccountHolder}
+                onChange={(e) => setThirdPartyAccountHolder(e.target.value)}
+                placeholder="Nombre completo del titular"
+                className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              />
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Si la transferencia la realiza un tercero, indica el nombre del titular de la cuenta
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>
