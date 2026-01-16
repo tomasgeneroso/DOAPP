@@ -295,8 +295,8 @@ export default function EditJobScreen() {
   return (
     <>
       <Helmet>
-        <title>Editar Trabajo - Doers</title>
-        <meta name="description" content="Edita tu publicación de trabajo en Doers." />
+        <title>Editar Trabajo - DoApp</title>
+        <meta name="description" content="Edita tu publicación de trabajo en DoApp." />
       </Helmet>
       <div className="container mx-auto max-w-4xl py-8 px-4">
         <div className="mb-6">
@@ -535,46 +535,45 @@ export default function EditJobScreen() {
               </div>
             </div>
 
-            <div className={`grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6 ${fieldsDisabled ? 'p-4 rounded-xl border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/20' : ''}`}>
-              {fieldsDisabled && (
+            <div className={`grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6 ${hasExpiredDates ? 'p-4 rounded-xl border-2 border-amber-500 bg-amber-50 dark:bg-amber-900/20' : ''}`}>
+              {hasExpiredDates && (
                 <div className="sm:col-span-6 mb-2">
                   <p className="text-amber-700 dark:text-amber-300 text-sm font-medium">
-                    ⚠️ Este trabajo expiró. Selecciona nuevas fechas (la fecha de fin debe ser en el futuro) para poder guardarlo:
+                    ⚠️ Este trabajo expiró. Selecciona nuevas fechas para poder guardarlo:
                   </p>
+                  <ul className="text-amber-600 dark:text-amber-400 text-xs mt-1 list-disc list-inside">
+                    <li>La fecha de fin debe ser en el futuro</li>
+                    <li>La fecha de fin debe ser posterior a la fecha de inicio</li>
+                  </ul>
+                  {datesAreValid() && (
+                    <p className="text-green-600 dark:text-green-400 text-sm mt-2 font-medium">
+                      ✓ Las nuevas fechas son válidas
+                    </p>
+                  )}
                 </div>
               )}
               <div className="sm:col-span-3">
                 <FormField label="Fecha de inicio" icon={Calendar}>
-                  <CustomDateInput
-                    name="startDate"
-                    type="datetime"
+                  <input
+                    type="datetime-local"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
                     required
-                    placeholder="Selecciona fecha y hora de inicio"
-                    minDate={new Date()}
-                    defaultValue={startDate}
-                    onDateChange={(date) => {
-                      if (date) {
-                        setStartDate(date.toISOString().slice(0, 16));
-                      }
-                    }}
+                    min={new Date().toISOString().slice(0, 16)}
+                    className="block w-full rounded-xl border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 py-3 px-4 text-gray-900 dark:text-white focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 transition-all"
                   />
                 </FormField>
               </div>
               <div className="sm:col-span-3">
                 <FormField label="Fecha de finalización estimada" icon={Clock}>
                   {!endDateFlexible && (
-                    <CustomDateInput
-                      name="endDate"
-                      type="datetime"
+                    <input
+                      type="datetime-local"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
                       required
-                      placeholder="Selecciona fecha y hora de fin"
-                      minDate={new Date()}
-                      defaultValue={endDate}
-                      onDateChange={(date) => {
-                        if (date) {
-                          setEndDate(date.toISOString().slice(0, 16));
-                        }
-                      }}
+                      min={startDate || new Date().toISOString().slice(0, 16)}
+                      className="block w-full rounded-xl border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 py-3 px-4 text-gray-900 dark:text-white focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 transition-all"
                     />
                   )}
                   <label className="flex items-center gap-2 mt-2 cursor-pointer">

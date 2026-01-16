@@ -307,7 +307,7 @@ export default function NotificationsScreen() {
   return (
     <>
       <Helmet>
-        <title>Notificaciones - Doers</title>
+        <title>Notificaciones - DoApp</title>
         <meta name="description" content="Todas tus notificaciones en un solo lugar" />
       </Helmet>
 

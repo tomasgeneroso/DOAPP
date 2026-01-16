@@ -208,7 +208,7 @@ export default function BalancePage() {
   return (
     <>
       <Helmet>
-        <title>Mi Saldo - Doers</title>
+        <title>Mi Saldo - DoApp</title>
       </Helmet>
 
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 py-8">

@@ -8,6 +8,7 @@ import { protect } from "../middleware/auth.js";
 import type { AuthRequest } from "../types/index.js";
 import { socketService } from "../index.js";
 import { Op } from 'sequelize';
+import { calculateCommission } from "../services/commissionService.js";
 
 const router = express.Router();
 
@@ -435,35 +436,15 @@ router.post(
         await client.save();
       }
 
-      // Calcular comisión basada en el tier del usuario
-      // PLAN FAMILIA: 0% | SUPER PRO: 2% | PRO: 3% | FREE: 8%
-      // Mínimo de contrato: $8,000 ARS
-      let commissionRate = client?.currentCommissionRate || 8; // 8% por defecto para usuarios FREE
+      // Calcular comisión basada en el volumen mensual del usuario
+      // $0 - $50,000/mes: 6% | $50,000 - $150,000: 4% | $150,000 - $200,000: 3% | +$200,000: 2%
+      // Plan Familia: 0% | Mínimo de comisión: $1,000 ARS
+      const commissionResult = await calculateCommission(req.user.id, price, {
+        isFreeContract,
+      });
 
-      // Asegurar que la tasa sea correcta según el tier
-      // Plan Familia tiene prioridad (0% comisión)
-      if (client?.hasFamilyPlan) {
-        commissionRate = 0;
-      } else if (client?.membershipTier === 'super_pro') {
-        commissionRate = 2;
-      } else if (client?.membershipTier === 'pro') {
-        commissionRate = 3;
-      } else if (!client?.hasMembership) {
-        commissionRate = 8;
-      }
-
-      // Calcular comisión con mínimo de $1,000 ARS
-      let commission = 0;
-
-      // Plan Familia y contratos gratuitos no pagan comisión
-      const hasFamilyPlan = client?.hasFamilyPlan === true;
-      if (!isFreeContract && !hasFamilyPlan) {
-        // Calcular comisión basada en porcentaje
-        const calculatedCommission = price * (commissionRate / 100);
-        // Aplicar mínimo de $1,000 ARS siempre
-        commission = Math.max(calculatedCommission, MINIMUM_COMMISSION);
-      }
-
+      const commissionRate = commissionResult.rate;
+      const commission = commissionResult.commission;
       const totalPrice = price + commission;
 
       // Crear contrato
@@ -882,6 +863,7 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
     if (contract.clientConfirmed && contract.doerConfirmed) {
       contract.status = 'completed';
       contract.paymentStatus = 'released';
+      contract.escrowStatus = 'released';
       contract.actualEndDate = new Date();
 
       // Verificar si el trabajador tiene datos bancarios para recibir el pago
@@ -992,6 +974,33 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
         }
 
         console.log(`📝 Registrado pago pendiente de $${paymentAmount.toLocaleString()} ARS para trabajador ${contract.doerId} (trabajo multi-trabajador)`);
+
+        // Para trabajos multi-trabajador: verificar si TODOS los contratos están completados
+        const allJobContracts = await Contract.findAll({ where: { jobId: job.id } });
+        const allContractsCompleted = allJobContracts.every(c => c.clientConfirmed && c.doerConfirmed);
+
+        if (allContractsCompleted) {
+          job.status = 'completed';
+          await job.save();
+          console.log(`✅ Todos los contratos del trabajo ${job.id} completados. Job marcado como completed.`);
+
+          // Notificar actualización del trabajo
+          socketService.notifyJobUpdate(job.id.toString(), job.clientId?.toString() || '', {
+            action: 'job_completed',
+            job
+          });
+        }
+      } else if (job) {
+        // Para trabajos de un solo trabajador: marcar el job como completado directamente
+        job.status = 'completed';
+        await job.save();
+        console.log(`✅ Contrato único del trabajo ${job.id} completado. Job marcado como completed.`);
+
+        // Notificar actualización del trabajo
+        socketService.notifyJobUpdate(job.id.toString(), job.clientId?.toString() || '', {
+          action: 'job_completed',
+          job
+        });
       }
     } else {
       contract.status = 'awaiting_confirmation';
@@ -2106,17 +2115,9 @@ router.post("/:id/request-price-change", protect, async (req: AuthRequest, res: 
         return;
       }
 
-      // Calculate commission rate (considering family plan, pro membership, etc.)
-      let commissionRate = 8; // default
-      if (client.hasFamilyPlan) {
-        commissionRate = 0;
-      } else if (client.membershipTier === 'super_pro' && client.hasMembership) {
-        commissionRate = 2;
-      } else if (client.membershipTier === 'pro' && client.hasMembership) {
-        commissionRate = 3;
-      }
-
-      additionalCommission = priceDifference * (commissionRate / 100);
+      // Calculate commission using volume-based service
+      const commissionResult = await calculateCommission(userId, priceDifference);
+      additionalCommission = commissionResult.commission;
 
       // Check if client can afford the difference + commission
       const totalRequired = priceDifference + additionalCommission;
@@ -2230,16 +2231,9 @@ router.post("/:id/approve-price-change", protect, async (req: AuthRequest, res: 
 
       if (priceDifference > 0) {
         // Price increased - deduct from client balance
-        let commissionRate = 8;
-        if (client.hasFamilyPlan) {
-          commissionRate = 0;
-        } else if (client.membershipTier === 'super_pro' && client.hasMembership) {
-          commissionRate = 2;
-        } else if (client.membershipTier === 'pro' && client.hasMembership) {
-          commissionRate = 3;
-        }
-
-        const additionalCommission = priceDifference * (commissionRate / 100);
+        // Calculate commission using volume-based service
+        const commissionResult = await calculateCommission(contract.clientId, priceDifference);
+        const additionalCommission = commissionResult.commission;
         const totalDeduct = priceDifference + additionalCommission;
 
         const balanceBefore = client.balance;

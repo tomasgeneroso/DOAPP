@@ -1,5 +1,5 @@
 import express, { Request, Response } from "express";
-import { body, validationResult } from "express-validator";
+import { body, param, validationResult } from "express-validator";
 import { Job } from "../models/sql/Job.model.js";
 import { User } from "../models/sql/User.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
@@ -18,6 +18,7 @@ import fs from 'fs';
 import { cacheService, generateCacheKey } from "../services/cacheService.js";
 import tasksRoutes from "./tasks.js";
 import { checkAndProcessUserExpiredJobs } from "../jobs/autoCancelExpiredJobs.js";
+import { calculateCommission } from "../services/commissionService.js";
 
 const router = express.Router();
 
@@ -146,6 +147,16 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
     // Status filter
     if (status) {
       query.status = status;
+
+      // If filtering by "open" status, also exclude jobs with past end dates
+      if (status === 'open') {
+        query[Op.or] = [
+          // Jobs without end date (flexible)
+          { endDate: null },
+          // Jobs with end date in the future
+          { endDate: { [Op.gte]: new Date() } }
+        ];
+      }
     }
 
     // Category filter
@@ -527,8 +538,20 @@ router.get("/my-active-tasks", protect, async (req: AuthRequest, res: Response):
 // @route   GET /api/jobs/:id
 // @desc    Obtener trabajo por ID
 // @access  Public
-router.get("/:id", async (req: Request, res: Response): Promise<void> => {
+router.get("/:id",
+  [param("id").isUUID().withMessage("ID de trabajo inválido")],
+  async (req: Request, res: Response): Promise<void> => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({
+        success: false,
+        message: "ID de trabajo inválido",
+        errors: errors.array(),
+      });
+      return;
+    }
+
     const job = await Job.findByPk(req.params.id, {
       include: [
         {
@@ -924,23 +947,10 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
           return;
         }
 
-        // Calcular comisión según el tipo de membresía
-        let commissionRate = 8; // FREE: 8%
-        const MIN_COMMISSION = 1000; // Mínimo $1000 ARS
-
-        if (client.hasFamilyPlan) {
-          commissionRate = 0; // Family Plan: 0%
-        } else if (client.membershipTier === 'super_pro') {
-          commissionRate = 2; // Super Pro: 2%
-        } else if (client.membershipTier === 'pro') {
-          commissionRate = 3; // Pro: 3%
-        } else if (client.hasReferralDiscount) {
-          commissionRate = 3; // Referral discount: 3%
-        }
-
-        // Calcular comisión con mínimo $1000 ARS
-        let additionalCommission = priceDifference * (commissionRate / 100);
-        additionalCommission = Math.max(additionalCommission, MIN_COMMISSION);
+        // Calcular comisión usando el servicio centralizado basado en volumen
+        const commissionResult = await calculateCommission(req.user.id, priceDifference);
+        const commissionRate = commissionResult.rate;
+        const additionalCommission = commissionResult.commission;
 
         const totalRequired = priceDifference + additionalCommission;
 
@@ -974,7 +984,8 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
             priceDifference,
             commission: additionalCommission,
             commissionRate,
-            minCommission: MIN_COMMISSION,
+            minimumApplied: commissionResult.minimumApplied,
+            tierDescription: commissionResult.tierDescription,
             total: totalRequired,
           },
           redirectTo: `/jobs/${job.id}/payment?amount=${totalRequired}&reason=budget_increase&oldPrice=${oldPrice}&newPrice=${newPrice}`,
@@ -1630,18 +1641,10 @@ router.patch("/:id/budget", protect, async (req: AuthRequest, res: Response): Pr
 
     // CASO 2: El precio SUBE -> Usar balance disponible y cobrar lo que falta
     if (priceDifference > 0) {
-      // Calcular comisión según el tipo de membresía
-      let commissionRate = 8; // FREE: 8%
-
-      if (client.hasFamilyPlan) {
-        commissionRate = 0; // Family Plan: 0%
-      } else if (client.membershipTier === 'super_pro') {
-        commissionRate = 2; // Super Pro: 2%
-      } else if (client.membershipTier === 'pro') {
-        commissionRate = 3; // Pro: 3%
-      }
-
-      const additionalCommission = priceDifference * (commissionRate / 100);
+      // Calcular comisión usando el servicio centralizado basado en volumen
+      const commissionResult = await calculateCommission(client.id, priceDifference);
+      const commissionRate = commissionResult.rate;
+      const additionalCommission = commissionResult.commission;
       const totalRequired = priceDifference + additionalCommission;
 
       // Calcular cuánto se puede cubrir con el balance

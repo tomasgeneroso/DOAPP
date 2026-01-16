@@ -157,12 +157,35 @@ export interface Proposal {
 
 export interface Message {
   _id: string;
+  id?: string; // PostgreSQL support
   conversationId: string;
-  sender: User | string;
-  content: string;
+  sender: User | { id?: string; _id?: string; name: string; avatar?: string };
+  content?: string;
+  message?: string; // Backend uses 'message' field
   type: 'text' | 'image' | 'file' | 'system';
   attachments?: string[];
-  readBy: string[];
+  readBy?: string[];
+  read?: boolean;
+  readAt?: string;
+  metadata?: {
+    jobId?: string;
+    proposalId?: string;
+    proposalStatus?: 'pending' | 'approved' | 'rejected' | 'withdrawn';
+    contractId?: string;
+    action?: 'job_application' | 'direct_contract_proposal' | 'direct_proposal_accepted' | 'direct_proposal_rejected';
+    isCounterOffer?: boolean;
+    directProposal?: {
+      title: string;
+      description: string;
+      location?: string;
+      category?: string;
+      proposedPrice: number;
+      estimatedDuration?: number;
+      startDate?: string;
+      endDate?: string;
+    };
+    [key: string]: any;
+  };
   createdAt: string;
 }
 

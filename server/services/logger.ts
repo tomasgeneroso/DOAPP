@@ -205,6 +205,56 @@ class Logger {
     this.log('INFO', 'admin', `[${action}] ${message}`, { data: options });
   }
 
+  // Logs de notificaciones
+  notification(action: string, message: string, options?: {
+    notificationId?: string;
+    recipientId?: string;
+    type?: string;
+    category?: string;
+    error?: string;
+    data?: any;
+  }): void {
+    this.log('INFO', 'notifications', `[${action}] ${message}`, { data: options });
+  }
+
+  // Logs de propuestas
+  proposal(action: string, message: string, options?: {
+    proposalId?: string;
+    jobId?: string;
+    freelancerId?: string;
+    clientId?: string;
+    error?: string;
+    data?: any;
+  }): void {
+    this.log('INFO', 'proposals', `[${action}] ${message}`, { data: options });
+  }
+
+  // Capturar errores silenciosos - siempre escribe al archivo de errores
+  silentError(category: string, message: string, error: any, context?: any): void {
+    const errorDetails = {
+      message: error?.message || String(error),
+      stack: error?.stack,
+      name: error?.name,
+      code: error?.code,
+      context
+    };
+
+    // Siempre escribir a archivo, incluso en producción
+    this.log('ERROR', category, message, { data: errorDetails });
+
+    // También escribir a archivo específico de errores silenciosos
+    this.writeToFile('silent_errors', {
+      timestamp: new Date().toISOString(),
+      level: 'ERROR',
+      category,
+      message,
+      data: errorDetails
+    });
+
+    // Siempre mostrar en consola para errores silenciosos
+    console.error(`🔇 [SILENT ERROR] [${category}] ${message}:`, error?.message || error);
+  }
+
   // Obtener logs recientes (para panel admin)
   async getRecentLogs(category: string, limit: number = 100): Promise<string[]> {
     const filePath = this.getLogFilePath(category);

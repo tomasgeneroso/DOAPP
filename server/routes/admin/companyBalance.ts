@@ -8,6 +8,7 @@ import { WithdrawalRequest } from "../../models/sql/WithdrawalRequest.model.js";
 import { Advertisement } from "../../models/sql/Advertisement.model.js";
 import { Promoter } from "../../models/sql/Promoter.model.js";
 import { PaymentProof } from "../../models/sql/PaymentProof.model.js";
+import { Job } from "../../models/sql/Job.model.js";
 import { Op } from 'sequelize';
 
 const router = express.Router();
@@ -311,6 +312,30 @@ router.get(
 
       const total = realPayments.length;
 
+      // Get payment IDs for job_publication payments to find associated jobs
+      const publicationPaymentIds = realPayments
+        .filter((p: any) => p.paymentType === 'job_publication')
+        .map((p: any) => p.id);
+
+      // Find jobs that have these publication payments
+      const jobsWithPublicationPayments = publicationPaymentIds.length > 0
+        ? await Job.findAll({
+            where: { publicationPaymentId: { [Op.in]: publicationPaymentIds } },
+            attributes: ['id', 'title', 'publicationPaymentId', 'doerId', 'price'],
+            include: [
+              { association: 'doer', attributes: ['id', 'name', 'email'] }
+            ]
+          })
+        : [];
+
+      // Create a map of paymentId -> job for quick lookup
+      const paymentToJobMap = new Map<string, any>();
+      for (const job of jobsWithPublicationPayments) {
+        if (job.publicationPaymentId) {
+          paymentToJobMap.set(job.publicationPaymentId, job);
+        }
+      }
+
       // Format transactions (only real user transactions)
       const transactions = realPayments.map((payment: any) => {
         const contract = payment.contract;
@@ -329,6 +354,28 @@ router.get(
           }
         }
 
+        // Get doer from contract or from job (for job_publication payments)
+        let doer = contract?.doer || null;
+        let jobTitle = contract?.job?.title || null;
+        let jobPrice = contract?.price || null;
+
+        // For job_publication payments, look up the associated job
+        if (!doer && payment.paymentType === 'job_publication') {
+          const associatedJob = paymentToJobMap.get(payment.id);
+          if (associatedJob) {
+            doer = associatedJob.doer || null;
+            jobTitle = associatedJob.title;
+            jobPrice = associatedJob.price;
+          }
+        }
+
+        // Escrow amount: for escrow payments, use the payment amount
+        // For contract payments, use contract price minus commission
+        let escrowAmount = 0;
+        if (payment.isEscrow || payment.paymentType === 'escrow_deposit' || payment.paymentType === 'contract_payment') {
+          escrowAmount = Number(payment.escrowAmount) || Number(payment.amount) || 0;
+        }
+
         return {
           id: payment.id,
           date: payment.createdAt,
@@ -342,6 +389,13 @@ router.get(
           // Commission details
           platformFee,
           platformFeePercentage,
+
+          // Doer (worker) - from contract or job
+          doer,
+
+          // Job info (for job_publication without contract)
+          jobTitle,
+          jobPrice,
 
           // Contract details
           contract: contract ? {
@@ -361,6 +415,7 @@ router.get(
 
           // Escrow details
           isEscrow: payment.isEscrow,
+          escrowAmount,
           escrowReleased: payment.status === 'released' || payment.status === 'completed',
 
           // Payment method details

@@ -1,4 +1,4 @@
-import { forwardRef, useState } from "react";
+import { forwardRef, useState, useEffect } from "react";
 import ReactDatePicker, { registerLocale } from "react-datepicker";
 import { es } from "date-fns/locale/es";
 import "react-datepicker/dist/react-datepicker.css";
@@ -144,13 +144,35 @@ interface CustomDateInputProps extends Omit<CustomDatePickerProps, "value" | "on
 
 export const CustomDateInput = forwardRef<HTMLDivElement, CustomDateInputProps>(
   ({ name, defaultValue, onDateChange, ...props }, ref) => {
-    const [date, setDate] = useState<Date | null>(
-      defaultValue ? new Date(defaultValue) : null
-    );
+    // Parse defaultValue only once on mount, then track internally
+    const [date, setDate] = useState<Date | null>(() => {
+      if (defaultValue) {
+        const parsed = new Date(defaultValue);
+        return isNaN(parsed.getTime()) ? null : parsed;
+      }
+      return null;
+    });
+
+    // Track if we've initialized to avoid re-syncing on every render
+    const [hasInitialized, setHasInitialized] = useState(false);
+
+    // Only sync from defaultValue on initial load or if defaultValue changes significantly
+    useEffect(() => {
+      if (!hasInitialized && defaultValue) {
+        const newDate = new Date(defaultValue);
+        if (!isNaN(newDate.getTime())) {
+          setDate(newDate);
+          setHasInitialized(true);
+        }
+      }
+    }, [defaultValue, hasInitialized]);
 
     const handleChange = (newDate: Date | null) => {
+      console.log('[CustomDateInput] handleChange called:', name, newDate?.toISOString());
       setDate(newDate);
-      onDateChange?.(newDate, name);
+      if (onDateChange) {
+        onDateChange(newDate, name);
+      }
     };
 
     return (

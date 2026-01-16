@@ -361,7 +361,7 @@ export default function JobPayment() {
   return (
     <>
       <Helmet>
-        <title>{isBudgetIncrease ? 'Pago de Aumento de Presupuesto' : 'Pago de Publicación'} - Doers</title>
+        <title>{isBudgetIncrease ? 'Pago de Aumento de Presupuesto' : 'Pago de Publicación'} - DoApp</title>
       </Helmet>
 
       <div className="container mx-auto max-w-3xl py-12 px-4">

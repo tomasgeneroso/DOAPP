@@ -292,6 +292,7 @@ router.post(
           await contract.update({
             status: "completed",
             paymentStatus: "released",
+            escrowStatus: "released",
           });
           await payment.update({
             status: "completed",
@@ -312,6 +313,7 @@ router.post(
           await contract.update({
             status: "cancelled",
             paymentStatus: "refunded",
+            escrowStatus: "refunded",
           });
           await payment.update({
             status: "refunded",
@@ -343,6 +345,7 @@ router.post(
           await contract.update({
             status: "completed",
             paymentStatus: "partially_refunded",
+            escrowStatus: "released", // Escrow se libera (parcialmente al doer, parcialmente reembolsado)
           });
           await payment.update({
             status: "partially_refunded",

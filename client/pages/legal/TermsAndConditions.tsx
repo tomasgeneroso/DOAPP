@@ -6,10 +6,10 @@ export default function TermsAndConditions() {
   return (
     <>
       <Helmet>
-        <title>Términos y Condiciones - Doers</title>
+        <title>Términos y Condiciones - DoApp</title>
         <meta
           name="description"
-          content="Términos y condiciones de uso de la plataforma Doers"
+          content="Términos y condiciones de uso de la plataforma DoApp"
         />
       </Helmet>
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
@@ -51,7 +51,7 @@ export default function TermsAndConditions() {
                   1. Aceptación de los Términos
                 </h2>
                 <p className="text-slate-600 dark:text-slate-300 mb-4">
-                  Al acceder y utilizar Doers ("la Plataforma"), aceptas estar legalmente vinculado por estos
+                  Al acceder y utilizar DoApp ("la Plataforma"), aceptas estar legalmente vinculado por estos
                   Términos y Condiciones. Si no estás de acuerdo con alguna parte de estos términos, no debes
                   utilizar nuestros servicios.
                 </p>
@@ -62,8 +62,8 @@ export default function TermsAndConditions() {
                   2. Descripción del Servicio
                 </h2>
                 <p className="text-slate-600 dark:text-slate-300 mb-4">
-                  Doers es una plataforma que conecta a clientes que necesitan servicios con profesionales
-                  ("Doers") que pueden realizarlos. Facilitamos:
+                  DoApp es una plataforma que conecta a clientes que necesitan servicios con profesionales
+                  que pueden realizarlos. Facilitamos:
                 </p>
                 <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 mb-4 space-y-2">
                   <li>La publicación y búsqueda de trabajos</li>
@@ -94,7 +94,7 @@ export default function TermsAndConditions() {
                   4. Pagos y Comisiones
                 </h2>
                 <p className="text-slate-600 dark:text-slate-300 mb-4">
-                  Doers cobra una comisión del 5% sobre el monto total de cada transacción completada. Esta
+                  DoApp cobra una comisión del 5% sobre el monto total de cada transacción completada. Esta
                   comisión cubre:
                 </p>
                 <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 mb-4 space-y-2">
@@ -134,7 +134,7 @@ export default function TermsAndConditions() {
                 </ul>
 
                 <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-                  6.2 De los Doers
+                  6.2 De los Profesionales
                 </h3>
                 <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 mb-4 space-y-2">
                   <li>Completar el trabajo según lo acordado</li>
@@ -166,7 +166,7 @@ export default function TermsAndConditions() {
                   8. Resolución de Disputas
                 </h2>
                 <p className="text-slate-600 dark:text-slate-300 mb-4">
-                  En caso de conflicto, Doers actuará como mediador. Nos reservamos el derecho de:
+                  En caso de conflicto, DoApp actuará como mediador. Nos reservamos el derecho de:
                 </p>
                 <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 mb-4 space-y-2">
                   <li>Solicitar evidencia a ambas partes</li>
@@ -180,7 +180,7 @@ export default function TermsAndConditions() {
                   9. Limitación de Responsabilidad
                 </h2>
                 <p className="text-slate-600 dark:text-slate-300 mb-4">
-                  Doers actúa como intermediario. No somos responsables por:
+                  DoApp actúa como intermediario. No somos responsables por:
                 </p>
                 <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 mb-4 space-y-2">
                   <li>La calidad del trabajo realizado</li>
@@ -216,7 +216,7 @@ export default function TermsAndConditions() {
                 </p>
                 <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 mb-4 space-y-2">
                   <li>Tu amigo debe registrarse usando tu código único</li>
-                  <li>Debe completar su primer contrato como cliente o Doer</li>
+                  <li>Debe completar su primer contrato como cliente o profesional</li>
                   <li>Recibirás un contrato libre de comisión (5% de descuento) una vez que se complete el primer contrato de tu referido</li>
                   <li>El beneficio se aplica automáticamente a tu próximo contrato</li>
                   <li>No hay límite en la cantidad de referidos</li>
@@ -267,14 +267,14 @@ export default function TermsAndConditions() {
                   Para preguntas sobre estos términos, contáctanos en:
                 </p>
                 <ul className="text-slate-600 dark:text-slate-300 space-y-2">
-                  <li>Email: legal@doers.com</li>
+                  <li>Email: legal@doapp.com.ar</li>
                   <li>WhatsApp: +54 9 11 XXXX-XXXX</li>
                 </ul>
               </section>
 
               <div className="mt-12 p-6 bg-sky-50 dark:bg-sky-900/20 border-l-4 border-sky-500 rounded-r-lg">
                 <p className="text-sm text-sky-900 dark:text-sky-100">
-                  <strong>Nota importante:</strong> Al registrarte y utilizar Doers, confirmas que has leído,
+                  <strong>Nota importante:</strong> Al registrarte y utilizar DoApp, confirmas que has leído,
                   entendido y aceptado estos Términos y Condiciones en su totalidad.
                 </p>
               </div>

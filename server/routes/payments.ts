@@ -16,6 +16,7 @@ import path from 'path';
 import fs from 'fs';
 import logger from "../services/logger.js";
 import { socketService } from "../index.js";
+import { calculateCommission } from "../services/commissionService.js";
 
 // Ensure upload directory exists
 const PAYMENT_PROOFS_DIR = path.join(process.cwd(), 'uploads', 'payment-proofs');
@@ -133,18 +134,10 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
         return;
       }
 
-      // Calculate commission rate for paid contracts
-      let commissionRate = 8; // Default FREE
-      if (user.membershipTier === 'super_pro') commissionRate = 2;
-      else if (user.membershipTier === 'pro') commissionRate = 3;
-
-      // Calculate publication cost with minimum (use price field for PostgreSQL)
-      const MINIMUM_COMMISSION = 1000;
+      // Calculate commission using volume-based service
       const jobPrice = parseFloat(job.price as any) || 0;
-
-      // Calculate commission based on rate, then apply minimum
-      const calculatedCommission = jobPrice * (commissionRate / 100);
-      const publicationCost = Math.max(calculatedCommission, MINIMUM_COMMISSION);
+      const commissionResult = await calculateCommission(userId, jobPrice);
+      const publicationCost = commissionResult.commission;
 
       // Total amount = job price + publication commission
       const totalAmountARS = jobPrice + publicationCost;
@@ -498,22 +491,33 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
         // Update payment record with MercadoPago data
         payment.mercadopagoPaymentId = mpPaymentId;
         payment.mercadopagoStatus = mpPaymentData.status;
-        payment.mercadopagoStatusDetail = mpPaymentData.status;
+        payment.mercadopagoStatusDetail = mpPaymentData.status_detail || mpPaymentData.status;
+
+        // MercadoPago returns 'approved' for successful payments, not 'succeeded'
+        const isApproved = ['approved', 'succeeded', 'authorized'].includes(mpPaymentData.status);
 
         captureResult = {
-          status: mpPaymentData.status === 'succeeded' ? 'COMPLETED' : 'PENDING',
+          status: isApproved ? 'COMPLETED' : mpPaymentData.status?.toUpperCase() || 'PENDING',
           captureId: mpPaymentId,
           payerId: mpPaymentData.metadata?.payerId,
           payerEmail: mpPaymentData.metadata?.payerEmail,
+          mpStatus: mpPaymentData.status, // Keep original MP status for debugging
         };
-      } catch (error) {
+        console.log("🔍 [CAPTURE] MercadoPago status:", mpPaymentData.status, "-> captureResult.status:", captureResult.status);
+      } catch (error: any) {
+        logger.silentError('payments', 'Could not get MercadoPago payment info', error, {
+          mpPaymentId,
+          internalPaymentId: payment.id,
+          userId
+        });
         console.error("⚠️ [CAPTURE] Could not get MercadoPago payment, assuming approved");
+        captureResult.status = "COMPLETED"; // If we can't verify, assume it worked since user returned from MP
       }
     }
 
     // Update payment record
     console.log("🔍 [CAPTURE] Step 5 - Updating payment record...");
-    payment.status = captureResult.status === "COMPLETED" || captureResult.status === "approved" ? "completed" : "processing";
+    payment.status = captureResult.status === "COMPLETED" ? "completed" : "processing";
 
     if (payment.isEscrow) {
       console.log("🔍 [CAPTURE] Setting status to 'held_escrow'");
@@ -522,6 +526,16 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
 
     await payment.save();
     console.log("✅ [CAPTURE] Step 6 - Payment record updated. New status:", payment.status);
+
+    // Log payment capture success
+    logger.payment('CAPTURED', 'Payment captured successfully', {
+      paymentId: payment.id,
+      amount: Number(payment.amount),
+      currency: payment.currency,
+      userId,
+      status: payment.status,
+      provider: 'mercadopago'
+    });
 
     /* ===== PAYPAL CODE (COMMENTED) =====
     // Find payment by order ID

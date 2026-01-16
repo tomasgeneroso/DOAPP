@@ -10,6 +10,7 @@ import { logAudit, getSeverityForAction, detectChanges } from "../../utils/audit
 import emailService from "../../services/email.js";
 import type { AuthRequest } from "../../types/index.js";
 import { Op } from "sequelize";
+import { calculateCommission } from "../../services/commissionService.js";
 
 const router = express.Router();
 
@@ -150,9 +151,9 @@ router.post(
         }
       }
 
-      // Calculate commission (5% standard)
-      const commissionRate = 0.05;
-      const commission = price * commissionRate;
+      // Calculate commission using volume-based service
+      const commissionResult = await calculateCommission(clientId, price);
+      const commission = commissionResult.commission;
       const totalPrice = price + commission;
 
       // Create contract

@@ -17,6 +17,7 @@ import {
   FileText,
   Briefcase,
   Heart,
+  FileCheck,
 } from "lucide-react";
 import { ThemeToggleCompact } from "../ui/ThemeToggle";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
@@ -321,6 +322,15 @@ export default function Header() {
                     >
                       <Briefcase className="h-4 w-4" aria-hidden="true" />
                       Mis Trabajos
+                    </Link>
+                    <Link
+                      to="/contracts"
+                      onClick={closeMenu}
+                      className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                      role="menuitem"
+                    >
+                      <FileCheck className="h-4 w-4" aria-hidden="true" />
+                      Mis Contratos
                     </Link>
                     <Link
                       to="/settings"

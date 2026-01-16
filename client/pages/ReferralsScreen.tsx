@@ -76,7 +76,7 @@ export default function ReferralsScreen() {
   return (
     <>
       <Helmet>
-        <title>Referidos - Doers</title>
+        <title>Referidos - DoApp</title>
         <meta name="description" content="Invita a tus amigos y gana contratos sin comisión" />
       </Helmet>
 

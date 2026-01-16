@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import {
   DollarSign,
   TrendingUp,
@@ -45,6 +45,11 @@ interface Transaction {
   currency: string;
   platformFee: number;
   platformFeePercentage: number;
+  // Doer info (from contract or from job for job_publication)
+  doer?: { id?: string; name: string; email: string } | null;
+  // Job info (for job_publication without contract)
+  jobTitle?: string;
+  jobPrice?: number;
   contract: {
     id: string;
     title: string;
@@ -58,6 +63,7 @@ interface Transaction {
   payer: { name: string; email: string };
   recipient: { name: string; email: string } | null;
   isEscrow: boolean;
+  escrowAmount?: number;
   escrowReleased: boolean;
   description: string;
   // Payment method details
@@ -149,7 +155,7 @@ export default function FinancialTransactions() {
     }
   };
 
-  const handleExportXLSX = () => {
+  const handleExportXLSX = async () => {
     setExporting(true);
     try {
       const sortedData = getSortedTransactions();
@@ -163,66 +169,84 @@ export default function FinancialTransactions() {
         escrow_release: 'Liberación'
       };
 
-      // Prepare data for Excel
-      const excelData = sortedData.map(t => ({
-        'ID': t.id,
-        'Fecha': new Date(t.date).toLocaleDateString('es-AR'),
-        'Tipo': typeLabels[t.type] || t.type,
-        'Descripción': t.contract?.title || t.description || '',
-        'Cliente': t.contract?.client?.name || t.payer?.name || '',
-        'Email Cliente': t.contract?.client?.email || t.payer?.email || '',
-        'Doer': t.contract?.doer?.name || t.recipient?.name || '',
-        'Email Doer': t.contract?.doer?.email || t.recipient?.email || '',
-        'Monto Total': Number(t.totalAmount || 0),
-        'Moneda': t.currency || 'ARS',
-        'Comisión': Number(t.platformFee || 0),
-        '% Comisión': Number(t.platformFeePercentage || 0),
-        'Estado': t.status,
-        'Método Pago': t.paymentMethod || '',
-        'Tarjeta': t.cardBrand || '',
-        'Últimos 4': t.cardLastFourDigits || '',
-        'Banco Origen': t.senderBankName || '',
-        'Cuenta Propia': t.isOwnBankAccount === true ? 'Sí' : (t.isOwnBankAccount === false ? 'No' : ''),
-        'Titular Tercero': t.thirdPartyAccountHolder || '',
-        'Escrow': t.isEscrow ? (t.escrowReleased ? 'Liberado' : 'Retenido') : '',
-        'ID MercadoPago': t.mercadopagoPaymentId || ''
-      }));
+      // Create workbook and worksheet
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'DoApp';
+      workbook.created = new Date();
 
-      // Create worksheet
-      const ws = XLSX.utils.json_to_sheet(excelData);
+      const worksheet = workbook.addWorksheet('Movimientos');
 
-      // Set column widths
-      const colWidths = [
-        { wch: 36 },  // ID
-        { wch: 12 },  // Fecha
-        { wch: 15 },  // Tipo
-        { wch: 30 },  // Descripción
-        { wch: 20 },  // Cliente
-        { wch: 25 },  // Email Cliente
-        { wch: 20 },  // Doer
-        { wch: 25 },  // Email Doer
-        { wch: 15 },  // Monto Total
-        { wch: 8 },   // Moneda
-        { wch: 12 },  // Comisión
-        { wch: 12 },  // % Comisión
-        { wch: 15 },  // Estado
-        { wch: 15 },  // Método Pago
-        { wch: 12 },  // Tarjeta
-        { wch: 10 },  // Últimos 4
-        { wch: 20 },  // Banco Origen
-        { wch: 12 },  // Cuenta Propia
-        { wch: 25 },  // Titular Tercero
-        { wch: 12 },  // Escrow
-        { wch: 20 },  // ID MercadoPago
+      // Define columns with headers and widths
+      worksheet.columns = [
+        { header: 'ID', key: 'id', width: 36 },
+        { header: 'Fecha', key: 'fecha', width: 12 },
+        { header: 'Tipo', key: 'tipo', width: 15 },
+        { header: 'Descripción', key: 'descripcion', width: 30 },
+        { header: 'Cliente', key: 'cliente', width: 20 },
+        { header: 'Email Cliente', key: 'emailCliente', width: 25 },
+        { header: 'Doer', key: 'doer', width: 20 },
+        { header: 'Email Doer', key: 'emailDoer', width: 25 },
+        { header: 'Monto Total', key: 'montoTotal', width: 15 },
+        { header: 'Moneda', key: 'moneda', width: 8 },
+        { header: 'Comisión', key: 'comision', width: 12 },
+        { header: '% Comisión', key: 'porcentajeComision', width: 12 },
+        { header: 'Estado', key: 'estado', width: 15 },
+        { header: 'Método Pago', key: 'metodoPago', width: 15 },
+        { header: 'Tarjeta', key: 'tarjeta', width: 12 },
+        { header: 'Últimos 4', key: 'ultimos4', width: 10 },
+        { header: 'Banco Origen', key: 'bancoOrigen', width: 20 },
+        { header: 'Cuenta Propia', key: 'cuentaPropia', width: 12 },
+        { header: 'Titular Tercero', key: 'titularTercero', width: 25 },
+        { header: 'Escrow', key: 'escrow', width: 12 },
+        { header: 'Monto Escrow', key: 'montoEscrow', width: 15 },
+        { header: 'ID MercadoPago', key: 'idMercadoPago', width: 20 },
       ];
-      ws['!cols'] = colWidths;
 
-      // Create workbook
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'Movimientos');
+      // Style header row
+      worksheet.getRow(1).font = { bold: true };
+      worksheet.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE0E7FF' }
+      };
 
-      // Generate file and download
-      XLSX.writeFile(wb, `movimientos-financieros-${new Date().toISOString().split('T')[0]}.xlsx`);
+      // Add data rows
+      sortedData.forEach(t => {
+        worksheet.addRow({
+          id: t.id,
+          fecha: new Date(t.date).toLocaleDateString('es-AR'),
+          tipo: typeLabels[t.type] || t.type,
+          descripcion: t.contract?.title || t.jobTitle || t.description || '',
+          cliente: t.contract?.client?.name || t.payer?.name || '',
+          emailCliente: t.contract?.client?.email || t.payer?.email || '',
+          doer: t.doer?.name || t.contract?.doer?.name || t.recipient?.name || '',
+          emailDoer: t.doer?.email || t.contract?.doer?.email || t.recipient?.email || '',
+          montoTotal: Number(t.totalAmount || 0),
+          moneda: t.currency || 'ARS',
+          comision: Number(t.platformFee || 0),
+          porcentajeComision: Number(t.platformFeePercentage || 0),
+          estado: t.status,
+          metodoPago: t.paymentMethod || '',
+          tarjeta: t.cardBrand || '',
+          ultimos4: t.cardLastFourDigits || '',
+          bancoOrigen: t.senderBankName || '',
+          cuentaPropia: t.isOwnBankAccount === true ? 'Sí' : (t.isOwnBankAccount === false ? 'No' : ''),
+          titularTercero: t.thirdPartyAccountHolder || '',
+          escrow: (t.isEscrow || t.type === 'escrow_deposit' || t.type === 'contract_payment') ? (t.escrowReleased ? 'Liberado' : 'Retenido') : '',
+          montoEscrow: Number(t.escrowAmount || 0),
+          idMercadoPago: t.mercadopagoPaymentId || ''
+        });
+      });
+
+      // Generate buffer and download
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `movimientos-financieros-${new Date().toISOString().split('T')[0]}.xlsx`;
+      link.click();
+      URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Error exporting XLSX:", error);
       alert("Error al exportar Excel");
@@ -440,9 +464,9 @@ export default function FinancialTransactions() {
       const searchLower = filters.search.toLowerCase();
       filtered = transactions.filter(t => {
         const id = t.id.toLowerCase();
-        const description = (t.contract?.title || t.description || '').toLowerCase();
+        const description = (t.contract?.title || t.jobTitle || t.description || '').toLowerCase();
         const clientName = (t.contract?.client?.name || t.payer?.name || '').toLowerCase();
-        const doerName = (t.contract?.doer?.name || t.recipient?.name || '').toLowerCase();
+        const doerName = (t.doer?.name || t.contract?.doer?.name || t.recipient?.name || '').toLowerCase();
         return id.includes(searchLower) || description.includes(searchLower) || clientName.includes(searchLower) || doerName.includes(searchLower);
       });
     }
@@ -470,8 +494,8 @@ export default function FinancialTransactions() {
           comparison = clientA.localeCompare(clientB, 'es');
           break;
         case 'doer':
-          const doerA = a.contract?.doer?.name || a.recipient?.name || '';
-          const doerB = b.contract?.doer?.name || b.recipient?.name || '';
+          const doerA = a.doer?.name || a.contract?.doer?.name || a.recipient?.name || '';
+          const doerB = b.doer?.name || b.contract?.doer?.name || b.recipient?.name || '';
           comparison = doerA.localeCompare(doerB, 'es');
           break;
         case 'amount':
@@ -507,20 +531,71 @@ export default function FinancialTransactions() {
   };
 
   const getStatusBadge = (status: string) => {
-    const badges = {
-      pending: { color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400', icon: Clock },
-      held_escrow: { color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400', icon: Lock },
-      completed: { color: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400', icon: CheckCircle },
-      released: { color: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400', icon: CheckCircle },
-      failed: { color: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400', icon: XCircle },
-      refunded: { color: 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400', icon: ArrowRight }
+    const badges: Record<string, { color: string; icon: any; tooltip: string }> = {
+      pending: {
+        color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400',
+        icon: Clock,
+        tooltip: 'Pago iniciado pero no completado. Esperando confirmación de MercadoPago o verificación del comprobante.'
+      },
+      processing: {
+        color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/20 dark:text-orange-400',
+        icon: Clock,
+        tooltip: 'Pago en proceso de verificación por el equipo administrativo.'
+      },
+      held_escrow: {
+        color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400',
+        icon: Lock,
+        tooltip: 'Fondos retenidos en escrow. Se liberarán cuando ambas partes confirmen que el trabajo fue completado.'
+      },
+      awaiting_confirmation: {
+        color: 'bg-indigo-100 text-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-400',
+        icon: Clock,
+        tooltip: 'Esperando que el cliente y el trabajador confirmen que el trabajo fue completado.'
+      },
+      completed: {
+        color: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400',
+        icon: CheckCircle,
+        tooltip: 'Pago completado exitosamente. Los fondos fueron procesados.'
+      },
+      released: {
+        color: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400',
+        icon: CheckCircle,
+        tooltip: 'Escrow liberado. El trabajador recibió los fondos después de la confirmación del trabajo.'
+      },
+      failed: {
+        color: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400',
+        icon: XCircle,
+        tooltip: 'Pago fallido. Hubo un error en el procesamiento o fue rechazado por MercadoPago.'
+      },
+      refunded: {
+        color: 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400',
+        icon: ArrowRight,
+        tooltip: 'Pago reembolsado al cliente. Puede ser por cancelación, disputa resuelta o error.'
+      },
+      cancelled: {
+        color: 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400',
+        icon: XCircle,
+        tooltip: 'Pago cancelado antes de completarse.'
+      },
+      disputed: {
+        color: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400',
+        icon: XCircle,
+        tooltip: 'Pago en disputa. El escrow está congelado hasta que se resuelva.'
+      }
     };
 
-    const badge = badges[status as keyof typeof badges] || badges.pending;
+    const badge = badges[status] || {
+      color: 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400',
+      icon: Clock,
+      tooltip: `Estado: ${status}`
+    };
     const Icon = badge.icon;
 
     return (
-      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${badge.color}`}>
+      <span
+        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium cursor-help ${badge.color}`}
+        title={badge.tooltip}
+      >
         <Icon className="w-3 h-3" />
         {status.replace('_', ' ')}
       </span>
@@ -528,18 +603,61 @@ export default function FinancialTransactions() {
   };
 
   const getTypeBadge = (type: string) => {
-    const types: Record<string, string> = {
-      contract_payment: 'Contrato',
-      membership: 'Membresía',
-      job_publication: 'Publicación',
-      budget_increase: 'Aumento Presupuesto',
-      escrow_deposit: 'Escrow',
-      escrow_release: 'Liberación'
+    const types: Record<string, { label: string; tooltip: string; color: string }> = {
+      contract_payment: {
+        label: 'Contrato',
+        tooltip: 'Pago por un contrato de trabajo. Incluye el monto del servicio más la comisión de la plataforma.',
+        color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400'
+      },
+      membership: {
+        label: 'Membresía',
+        tooltip: 'Pago de suscripción PRO o SUPER PRO. Otorga beneficios como menor comisión y mayor visibilidad.',
+        color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400'
+      },
+      job_publication: {
+        label: 'Publicación',
+        tooltip: 'Pago por publicar un trabajo en la plataforma. El trabajo queda visible para que los profesionales apliquen.',
+        color: 'bg-sky-100 text-sky-800 dark:bg-sky-900/20 dark:text-sky-400'
+      },
+      budget_increase: {
+        label: 'Aumento Presupuesto',
+        tooltip: 'Pago adicional cuando el cliente aumenta el presupuesto de un trabajo ya publicado.',
+        color: 'bg-teal-100 text-teal-800 dark:bg-teal-900/20 dark:text-teal-400'
+      },
+      escrow_deposit: {
+        label: 'Escrow',
+        tooltip: 'Depósito en escrow. Los fondos quedan retenidos hasta que se complete y confirme el trabajo.',
+        color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400'
+      },
+      escrow_release: {
+        label: 'Liberación',
+        tooltip: 'Liberación de fondos desde escrow al trabajador después de confirmar el trabajo completado.',
+        color: 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+      },
+      refund: {
+        label: 'Reembolso',
+        tooltip: 'Devolución de fondos al cliente. Puede ser por cancelación o disputa resuelta a favor del cliente.',
+        color: 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
+      },
+      contract: {
+        label: 'Contrato',
+        tooltip: 'Pago asociado a un contrato de trabajo.',
+        color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400'
+      }
+    };
+
+    const typeInfo = types[type] || {
+      label: type,
+      tooltip: `Tipo de transacción: ${type}`,
+      color: 'bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400'
     };
 
     return (
-      <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/20 dark:text-purple-400">
-        {types[type] || type}
+      <span
+        className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium cursor-help ${typeInfo.color}`}
+        title={typeInfo.tooltip}
+      >
+        {typeInfo.label}
       </span>
     );
   };
@@ -1000,13 +1118,14 @@ export default function FinancialTransactions() {
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-gray-900">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" title="Identificador único del pago">
                   ID
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   <button
                     onClick={() => handleSort('date')}
                     className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                    title="Fecha y hora en que se realizó el pago"
                   >
                     Fecha
                     <SortIcon field="date" />
@@ -1016,6 +1135,7 @@ export default function FinancialTransactions() {
                   <button
                     onClick={() => handleSort('type')}
                     className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                    title="Tipo de transacción: Contrato, Membresía, Publicación, Escrow, etc."
                   >
                     Tipo
                     <SortIcon field="type" />
@@ -1025,6 +1145,7 @@ export default function FinancialTransactions() {
                   <button
                     onClick={() => handleSort('description')}
                     className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                    title="Título del trabajo o descripción del pago"
                   >
                     Descripción
                     <SortIcon field="description" />
@@ -1034,6 +1155,7 @@ export default function FinancialTransactions() {
                   <button
                     onClick={() => handleSort('client')}
                     className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                    title="Persona que realizó el pago (quien contrata el servicio)"
                   >
                     Cliente
                     <SortIcon field="client" />
@@ -1043,6 +1165,7 @@ export default function FinancialTransactions() {
                   <button
                     onClick={() => handleSort('doer')}
                     className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                    title="Trabajador asignado al trabajo (quien realiza el servicio)"
                   >
                     Doer
                     <SortIcon field="doer" />
@@ -1052,6 +1175,7 @@ export default function FinancialTransactions() {
                   <button
                     onClick={() => handleSort('amount')}
                     className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                    title="Monto total del pago incluyendo comisiones"
                   >
                     Monto Total
                     <SortIcon field="amount" />
@@ -1061,6 +1185,7 @@ export default function FinancialTransactions() {
                   <button
                     onClick={() => handleSort('commission')}
                     className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                    title="Tipo de membresía del usuario y porcentaje de comisión aplicado (FREE: 8%, PRO: 3%, SUPER PRO: 2%)"
                   >
                     Suscripción
                     <SortIcon field="commission" />
@@ -1070,6 +1195,7 @@ export default function FinancialTransactions() {
                   <button
                     onClick={() => handleSort('status')}
                     className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                    title="Estado actual del pago. Pasa el mouse sobre el badge para más detalles."
                   >
                     Estado
                     <SortIcon field="status" />
@@ -1079,6 +1205,7 @@ export default function FinancialTransactions() {
                   <button
                     onClick={() => handleSort('paymentMethod')}
                     className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                    title="Método usado para el pago: tarjeta, transferencia bancaria, saldo de MercadoPago"
                   >
                     Método Pago
                     <SortIcon field="paymentMethod" />
@@ -1088,12 +1215,13 @@ export default function FinancialTransactions() {
                   <button
                     onClick={() => handleSort('released')}
                     className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
+                    title="Estado del escrow: Retenido (esperando confirmación) o Liberado (pagado al trabajador)"
                   >
                     Escrow
                     <SortIcon field="released" />
                   </button>
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider" title="Ver detalles completos del pago">
                   Ver
                 </th>
               </tr>
@@ -1102,7 +1230,13 @@ export default function FinancialTransactions() {
               {getSortedTransactions().map((transaction) => (
                 <tr key={transaction.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                   <td className="px-6 py-4">
-                    <div className="text-xs font-mono text-gray-600 dark:text-gray-400" title={transaction.id}>
+                    <div
+                      className="text-xs font-mono text-gray-600 dark:text-gray-400 cursor-pointer hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
+                      title={`Click para copiar ID completo: ${transaction.id}`}
+                      onClick={() => {
+                        navigator.clipboard.writeText(transaction.id);
+                      }}
+                    >
                       {transaction.id.slice(-8).toUpperCase()}
                     </div>
                   </td>
@@ -1122,6 +1256,8 @@ export default function FinancialTransactions() {
                     <div className="text-sm text-gray-900 dark:text-white">
                       {transaction.contract ? (
                         <p className="font-medium">{transaction.contract.title}</p>
+                      ) : transaction.jobTitle ? (
+                        <p className="font-medium">{transaction.jobTitle}</p>
                       ) : (
                         <p>{transaction.description}</p>
                       )}
@@ -1146,7 +1282,12 @@ export default function FinancialTransactions() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm">
-                      {transaction.contract?.doer ? (
+                      {transaction.doer ? (
+                        <>
+                          <p className="font-medium text-gray-900 dark:text-white">{transaction.doer.name}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{transaction.doer.email}</p>
+                        </>
+                      ) : transaction.contract?.doer ? (
                         <>
                           <p className="font-medium text-gray-900 dark:text-white">{transaction.contract.doer.name}</p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">{transaction.contract.doer.email}</p>
@@ -1156,6 +1297,10 @@ export default function FinancialTransactions() {
                           <p className="font-medium text-gray-900 dark:text-white">{transaction.recipient.name}</p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">{transaction.recipient.email}</p>
                         </>
+                      ) : transaction.type === 'job_publication' ? (
+                        <span className="text-xs text-amber-600 dark:text-amber-400" title="Pago de publicación - aún no hay trabajador asignado">
+                          Sin asignar
+                        </span>
                       ) : (
                         <span className="text-gray-400">-</span>
                       )}
@@ -1206,20 +1351,36 @@ export default function FinancialTransactions() {
                     {renderPaymentMethod(transaction)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
-                    {transaction.isEscrow ? (
-                      transaction.escrowReleased ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
-                          <CheckCircle className="w-3 h-3" />
-                          Liberado
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400">
-                          <Lock className="w-3 h-3" />
-                          Retenido
-                        </span>
-                      )
+                    {transaction.isEscrow || transaction.type === 'escrow_deposit' || transaction.type === 'contract_payment' ? (
+                      <div className="flex flex-col items-center gap-1">
+                        {transaction.escrowReleased ? (
+                          <span
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400 cursor-help"
+                            title="Fondos liberados al trabajador. El trabajo fue confirmado como completado por ambas partes."
+                          >
+                            <CheckCircle className="w-3 h-3" />
+                            Liberado
+                          </span>
+                        ) : (
+                          <span
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400 cursor-help"
+                            title="Fondos retenidos en escrow. Se liberarán cuando el cliente y trabajador confirmen que el trabajo fue completado."
+                          >
+                            <Lock className="w-3 h-3" />
+                            Retenido
+                          </span>
+                        )}
+                        {(transaction.escrowAmount || 0) > 0 && (
+                          <span
+                            className="text-xs text-gray-600 dark:text-gray-400 font-medium cursor-help"
+                            title="Monto en escrow (fondos retenidos o liberados)"
+                          >
+                            ${Number(transaction.escrowAmount).toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          </span>
+                        )}
+                      </div>
                     ) : (
-                      <span className="text-gray-400">-</span>
+                      <span className="text-gray-400" title="Este tipo de pago no utiliza escrow">-</span>
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">

@@ -221,10 +221,10 @@ export default function CreateContractScreen() {
   return (
     <>
       <Helmet>
-        <title>Crear Nuevo Contrato - Doers</title>
+        <title>Crear Nuevo Contrato - DoApp</title>
         <meta
           name="description"
-          content="Publica un nuevo trabajo o servicio en Doers."
+          content="Publica un nuevo trabajo o servicio en DoApp."
         />
       </Helmet>
       <div className="container mx-auto max-w-4xl py-8 px-4">
@@ -241,7 +241,7 @@ export default function CreateContractScreen() {
           Publicar un nuevo trabajo
         </h1>
         <p className="mt-2 text-lg leading-8 text-gray-600 dark:text-slate-400">
-          Describe el servicio que necesitas para que los Doers puedan
+          Describe el servicio que necesitas para que los profesionales puedan
           postularse.
         </p>
 

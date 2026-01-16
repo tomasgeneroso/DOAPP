@@ -181,6 +181,19 @@ export function useSocket() {
       }
     });
 
+    // Message updated handler (for status changes like auto-selection)
+    socketInstance.on("message:updated", (updatedMessage: Message) => {
+      if (mountedRef.current) {
+        setMessages((prev) =>
+          prev.map((msg) =>
+            (msg.id === updatedMessage.id || msg._id === updatedMessage.id || msg._id === (updatedMessage as any)._id)
+              ? { ...msg, ...updatedMessage }
+              : msg
+          )
+        );
+      }
+    });
+
     // Typing handlers
     socketInstance.on("typing:update", (status: TypingStatus) => {
       if (mountedRef.current) {

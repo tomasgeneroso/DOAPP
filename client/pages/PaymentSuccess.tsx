@@ -306,7 +306,7 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
             <div className="flex items-center justify-between mb-4">
               <span className="text-gray-600 dark:text-gray-300 font-medium">Monto pagado:</span>
               <span className="text-3xl font-bold text-gray-900 dark:text-white">
-                ${confirmation.amount?.toFixed(2)}
+                ${Number(confirmation.amount || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
             <div className="flex items-center justify-between text-sm">

@@ -29,7 +29,11 @@ import {
   Gift,
   Copy,
   Check,
-  Users
+  Users,
+  Share2,
+  Link2,
+  Send,
+  X
 } from 'lucide-react';
 
 export default function ProfilePage() {
@@ -58,6 +62,13 @@ export default function ProfilePage() {
   const [showCoverUpload, setShowCoverUpload] = useState(false);
   const [referralStats, setReferralStats] = useState<any>(null);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [showShareMenu, setShowShareMenu] = useState(false);
+  const [copiedProfileLink, setCopiedProfileLink] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareSearchQuery, setShareSearchQuery] = useState('');
+  const [shareSearchResults, setShareSearchResults] = useState<User[]>([]);
+  const [shareSearchLoading, setShareSearchLoading] = useState(false);
+  const [shareSending, setShareSending] = useState(false);
 
   // Determine which identifier to use
   const profileIdentifier = username || userId;
@@ -186,6 +197,140 @@ export default function ProfilePage() {
       setTimeout(() => setCopiedCode(false), 2000);
     }
   };
+
+  // Generate profile URL
+  const getProfileUrl = () => {
+    const baseUrl = window.location.origin;
+    if (user?.username) {
+      return `${baseUrl}/u/${user.username}`;
+    }
+    return `${baseUrl}/profile/${user?.id || user?._id}`;
+  };
+
+  // Copy profile link
+  const copyProfileLink = async () => {
+    const url = getProfileUrl();
+    await navigator.clipboard.writeText(url);
+    setCopiedProfileLink(true);
+    setTimeout(() => setCopiedProfileLink(false), 2000);
+    setShowShareMenu(false);
+
+    // Track share event
+    if (user?.id || user?._id) {
+      try {
+        await fetch(`/api/users/${user.id || user._id}/track-share`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ type: 'copy_link' }),
+        });
+      } catch (err) {
+        console.error('Error tracking share:', err);
+      }
+    }
+  };
+
+  // Search users to share with
+  const searchUsersToShare = async (query: string) => {
+    if (!query || query.length < 2) {
+      setShareSearchResults([]);
+      return;
+    }
+
+    try {
+      setShareSearchLoading(true);
+      const response = await fetch(`/api/users/search?q=${encodeURIComponent(query)}&limit=10`, {
+        credentials: 'include',
+      });
+      const data = await response.json();
+      if (data.success) {
+        // Filter out the profile owner and current user
+        const filtered = data.users.filter((u: User) =>
+          u.id !== user?.id &&
+          u.id !== currentUser?.id &&
+          u._id !== user?._id &&
+          u._id !== currentUser?._id
+        );
+        setShareSearchResults(filtered);
+      }
+    } catch (err) {
+      console.error('Error searching users:', err);
+    } finally {
+      setShareSearchLoading(false);
+    }
+  };
+
+  // Share profile via private message
+  const shareProfileToUser = async (targetUser: User) => {
+    if (!user) return;
+
+    try {
+      setShareSending(true);
+
+      // Create or get conversation with target user
+      const convResponse = await fetch('/api/chat/conversations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          participants: [targetUser.id || targetUser._id],
+        }),
+      });
+      const convData = await convResponse.json();
+
+      if (!convData.success) {
+        throw new Error('No se pudo crear la conversación');
+      }
+
+      // Send message with profile link
+      const profileUrl = getProfileUrl();
+      const message = `Te comparto el perfil de ${user.name}: ${profileUrl}`;
+
+      await fetch(`/api/chat/conversations/${convData.conversation._id || convData.conversation.id}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          content: message,
+          type: 'profile_share',
+          metadata: {
+            sharedUserId: user.id || user._id,
+            sharedUserName: user.name,
+            sharedUserAvatar: user.avatar,
+            sharedUserUsername: user.username,
+          },
+        }),
+      });
+
+      // Track share event
+      await fetch(`/api/users/${user.id || user._id}/track-share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ type: 'private_message', targetUserId: targetUser.id || targetUser._id }),
+      });
+
+      setShowShareModal(false);
+      setShareSearchQuery('');
+      setShareSearchResults([]);
+
+      // Show success notification
+      alert(`Perfil compartido con ${targetUser.name}`);
+    } catch (err) {
+      console.error('Error sharing profile:', err);
+      alert('Error al compartir el perfil');
+    } finally {
+      setShareSending(false);
+    }
+  };
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      searchUsersToShare(shareSearchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [shareSearchQuery]);
 
   const handleStartChat = async () => {
     if (!userId || !user) return;
@@ -386,26 +531,80 @@ export default function ProfilePage() {
                       )}
                     </div>
 
-                    {/* Action Buttons (if not own profile) */}
-                    {currentUser && currentUser._id !== userId && currentUser.id !== userId && (
-                      <div className="flex gap-3">
-                        <Button
-                          onClick={handleStartChat}
-                          variant="primary"
-                          className="flex items-center gap-2"
-                        >
-                          <MessageCircle className="w-4 h-4" />
-                          <span>Chatear</span>
-                        </Button>
+                    {/* Action Buttons */}
+                    <div className="flex gap-3 flex-wrap">
+                      {/* Share Button - Always visible */}
+                      <div className="relative">
                         <button
-                          onClick={() => setShowReportModal(true)}
-                          className="px-4 py-2 rounded-xl border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-2"
+                          onClick={() => setShowShareMenu(!showShareMenu)}
+                          className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-2"
                         >
-                          <Flag className="w-4 h-4" />
-                          Denunciar
+                          {copiedProfileLink ? (
+                            <>
+                              <Check className="w-4 h-4 text-green-500" />
+                              <span className="text-green-500">Copiado</span>
+                            </>
+                          ) : (
+                            <>
+                              <Share2 className="w-4 h-4" />
+                              <span>Compartir</span>
+                            </>
+                          )}
                         </button>
+
+                        {/* Share Menu Dropdown */}
+                        {showShareMenu && (
+                          <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 z-50 overflow-hidden">
+                            <button
+                              onClick={copyProfileLink}
+                              className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-left"
+                            >
+                              <Link2 className="w-5 h-5 text-slate-500" />
+                              <div>
+                                <p className="font-medium text-slate-900 dark:text-white">Copiar enlace</p>
+                                <p className="text-xs text-slate-500">Copia el link del perfil</p>
+                              </div>
+                            </button>
+                            {currentUser && (
+                              <button
+                                onClick={() => {
+                                  setShowShareMenu(false);
+                                  setShowShareModal(true);
+                                }}
+                                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-left border-t border-slate-100 dark:border-slate-700"
+                              >
+                                <Send className="w-5 h-5 text-slate-500" />
+                                <div>
+                                  <p className="font-medium text-slate-900 dark:text-white">Enviar por mensaje</p>
+                                  <p className="text-xs text-slate-500">Compartir con otro usuario</p>
+                                </div>
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    )}
+
+                      {/* Chat & Report Buttons (if not own profile) */}
+                      {currentUser && currentUser._id !== userId && currentUser.id !== userId && (
+                        <>
+                          <Button
+                            onClick={handleStartChat}
+                            variant="primary"
+                            className="flex items-center gap-2"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                            <span>Chatear</span>
+                          </Button>
+                          <button
+                            onClick={() => setShowReportModal(true)}
+                            className="px-4 py-2 rounded-xl border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-2"
+                          >
+                            <Flag className="w-4 h-4" />
+                            Denunciar
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   {/* Stats Row */}
@@ -692,6 +891,115 @@ export default function ProfilePage() {
               alert('Denuncia enviada exitosamente. El equipo de soporte la revisará.');
               setShowReportModal(false);
             }}
+          />
+        )}
+
+        {/* Share Profile Modal */}
+        {showShareModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Compartir perfil
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowShareModal(false);
+                    setShareSearchQuery('');
+                    setShareSearchResults([]);
+                  }}
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5 text-slate-500" />
+                </button>
+              </div>
+
+              {/* Search Input */}
+              <div className="p-4">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={shareSearchQuery}
+                    onChange={(e) => setShareSearchQuery(e.target.value)}
+                    placeholder="Buscar usuario por nombre o @usuario..."
+                    className="w-full px-4 py-3 pl-10 border border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  />
+                  <MessageCircle className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                </div>
+              </div>
+
+              {/* Results */}
+              <div className="max-h-[300px] overflow-y-auto">
+                {shareSearchLoading ? (
+                  <div className="flex justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
+                  </div>
+                ) : shareSearchResults.length === 0 ? (
+                  <div className="text-center py-8 text-slate-500 dark:text-slate-400">
+                    {shareSearchQuery.length < 2
+                      ? 'Escribí al menos 2 caracteres para buscar'
+                      : 'No se encontraron usuarios'}
+                  </div>
+                ) : (
+                  <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                    {shareSearchResults.map((targetUser) => (
+                      <button
+                        key={targetUser.id || targetUser._id}
+                        onClick={() => shareProfileToUser(targetUser)}
+                        disabled={shareSending}
+                        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-left disabled:opacity-50"
+                      >
+                        <img
+                          src={getImageUrl(targetUser.avatar)}
+                          alt={targetUser.name}
+                          className="w-10 h-10 rounded-full object-cover"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-slate-900 dark:text-white truncate">
+                            {targetUser.name}
+                          </p>
+                          {targetUser.username && (
+                            <p className="text-sm text-slate-500 dark:text-slate-400">
+                              @{targetUser.username}
+                            </p>
+                          )}
+                        </div>
+                        <Send className="w-5 h-5 text-sky-500" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Profile Preview */}
+              {user && (
+                <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Se compartirá:</p>
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={getImageUrl(user.avatar)}
+                      alt={user.name}
+                      className="w-12 h-12 rounded-full object-cover"
+                    />
+                    <div>
+                      <p className="font-semibold text-slate-900 dark:text-white">{user.name}</p>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        {getProfileUrl()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Click outside to close share menu */}
+        {showShareMenu && (
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setShowShareMenu(false)}
           />
         )}
       </div>

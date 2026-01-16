@@ -216,7 +216,7 @@ export default function FileUploadWithPreview({
       {/* Descripción adicional */}
       {!error && (
         <p className="mt-2 text-xs text-gray-500">
-          Una imagen vale más que mil palabras. Ayuda a los Doers a entender el trabajo.
+          Una imagen vale más que mil palabras. Ayuda a los profesionales a entender el trabajo.
         </p>
       )}
 

@@ -158,9 +158,25 @@ router.get("/pricing", async (req, res) => {
           currency: 'ARS',
           benefits: [
             '3 contratos gratis (primeros 1000 usuarios)',
-            'Comisión: 8%',
+            'Comisión basada en volumen mensual',
             '3 códigos de invitación',
           ],
+          // Información detallada del sistema de comisiones por volumen
+          volumeCommissions: {
+            description: 'Cuando agotes tus contratos gratis, se aplica comisión según tu volumen mensual de contratos:',
+            tiers: [
+              { minVolume: 0, maxVolume: 50000, rate: 6, description: '$0 - $50,000/mes' },
+              { minVolume: 50000, maxVolume: 150000, rate: 4, description: '$50,000 - $150,000/mes' },
+              { minVolume: 150000, maxVolume: 200000, rate: 3, description: '$150,000 - $200,000/mes' },
+              { minVolume: 200000, maxVolume: null, rate: 2, description: '+$200,000/mes' },
+            ],
+            minimumCommission: 1000,
+            notes: [
+              'Comisión mínima: $1,000 ARS por contrato',
+              'El volumen se calcula sumando todos tus contratos del mes',
+              'A mayor volumen, menor comisión',
+            ],
+          },
         },
         pro: {
           name: 'PRO Mensual',

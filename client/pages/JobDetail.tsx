@@ -9,6 +9,7 @@ import {
   Clock,
   MapPin,
   MessageSquare,
+  MessageCircle,
   Star,
   User,
   DollarSign,
@@ -28,6 +29,7 @@ import {
   Check,
   ChevronDown,
   Briefcase,
+  Flag,
 } from "lucide-react";
 import type { Job } from "@/types";
 import { getClientInfo } from "@/lib/utils";
@@ -115,6 +117,9 @@ export default function JobDetail() {
     status?: string;
     clientConfirmed?: boolean;
     doerConfirmed?: boolean;
+    price?: number;
+    commission?: number;
+    totalPrice?: number;
   } | null>(null);
 
   // All contracts for team jobs (to check if all workers confirmed)
@@ -142,6 +147,7 @@ export default function JobDetail() {
   const [copiedJobCode, setCopiedJobCode] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
   const [checkingApplication, setCheckingApplication] = useState(false);
+  const [loadingChat, setLoadingChat] = useState(false);
 
   const { registerNewProposalHandler, registerJobUpdateHandler, registerJobsRefreshHandler, registerContractUpdateHandler } = useSocket();
 
@@ -256,8 +262,8 @@ export default function JobDetail() {
       const userId = user?.id || user?._id;
 
       if (clientId !== userId) return;
-      // Cargar propuestas si el trabajo está abierto, o si está in_progress pero sin doer asignado (estado inconsistente)
-      if (job.status !== 'open' && !(job.status === 'in_progress' && !job.doerId)) return;
+      // Cargar propuestas si el trabajo está abierto o in_progress (para ver historial de postulaciones)
+      if (job.status !== 'open' && job.status !== 'in_progress') return;
 
       setLoadingProposals(true);
       try {
@@ -311,6 +317,38 @@ export default function JobDetail() {
     checkIfApplied();
   }, [job, user, token]);
 
+  // Fetch all contracts for team jobs - extracted as callback for reuse
+  const fetchAllContracts = useCallback(async () => {
+    if (!job || !token) return;
+    // Jobs without contracts yet
+    const jobStatusWithoutContract = ['draft', 'pending_payment', 'pending_approval', 'open'];
+    if (jobStatusWithoutContract.includes(job.status)) return;
+    // Only fetch for team jobs that have selected workers
+    if (!job.maxWorkers || job.maxWorkers <= 1) return;
+    // Only fetch if there are selected workers (contracts exist)
+    if (!job.selectedWorkers || job.selectedWorkers.length === 0) return;
+
+    try {
+      const response = await fetch(`/api/contracts/all-by-job/${job.id || job._id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (data.success) {
+        setAllContractsData({
+          contracts: data.contracts,
+          totalContracts: data.totalContracts,
+          allClientConfirmed: data.allClientConfirmed,
+          allDoerConfirmed: data.allDoerConfirmed,
+          allCompleted: data.allCompleted,
+        });
+      }
+    } catch (err) {
+      console.error("Error fetching all contracts:", err);
+    }
+  }, [job, token]);
+
   // Fetch contract data for selected worker OR client (to show pairing code and confirmation)
   useEffect(() => {
     const fetchContractData = async () => {
@@ -318,6 +356,19 @@ export default function JobDetail() {
       const jobDoerId = job.doerId || (typeof job.doer === 'object' ? job.doer?.id : job.doer);
       const jobClientId = typeof job.client === 'object' ? (job.client?.id || job.client?._id) : job.client;
       const userId = user?.id || user?._id;
+
+      // Check if job has any selected worker - no worker means no contract exists
+      const hasSelectedWorker = jobDoerId || (job.selectedWorkers && job.selectedWorkers.length > 0);
+      if (!hasSelectedWorker) {
+        // No contract exists yet for this job - don't make the request
+        return;
+      }
+
+      // Additional check: Jobs in certain statuses don't have contracts yet
+      const jobStatusWithoutContract = ['draft', 'pending_payment', 'pending_approval', 'open', 'paused', 'cancelled'];
+      if (jobStatusWithoutContract.includes(job.status)) {
+        return; // No contract exists yet for this job
+      }
 
       // Fetch if current user is either the selected worker OR the client
       const isDoer = jobDoerId && jobDoerId === userId;
@@ -344,6 +395,9 @@ export default function JobDetail() {
             status: data.contract.status,
             clientConfirmed: data.contract.clientConfirmed,
             doerConfirmed: data.contract.doerConfirmed,
+            price: data.contract.price,
+            commission: data.contract.commission,
+            totalPrice: data.contract.totalPrice,
           });
         }
       } catch (err) {
@@ -351,36 +405,9 @@ export default function JobDetail() {
       }
     };
 
-    // Fetch all contracts for team jobs
-    const fetchAllContracts = async () => {
-      if (!job || !token) return;
-      // Only fetch for team jobs
-      if (!job.maxWorkers || job.maxWorkers <= 1) return;
-
-      try {
-        const response = await fetch(`/api/contracts/all-by-job/${job.id || job._id}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        const data = await response.json();
-        if (data.success) {
-          setAllContractsData({
-            contracts: data.contracts,
-            totalContracts: data.totalContracts,
-            allClientConfirmed: data.allClientConfirmed,
-            allDoerConfirmed: data.allDoerConfirmed,
-            allCompleted: data.allCompleted,
-          });
-        }
-      } catch (err) {
-        console.error("Error fetching all contracts:", err);
-      }
-    };
-
     fetchContractData();
     fetchAllContracts();
-  }, [job, user, token]);
+  }, [job, user, token, fetchAllContracts]);
 
   const handleCopyPairingCode = () => {
     if (contractData?.pairingCode) {
@@ -442,6 +469,33 @@ export default function JobDetail() {
       setShowErrorModal(true);
     } finally {
       setConfirmingWork(false);
+    }
+  };
+
+  // Handle opening chat with worker/client from contract
+  const handleOpenChat = async () => {
+    if (!contractData?.id || !token || loadingChat) return;
+
+    setLoadingChat(true);
+    try {
+      const response = await fetch(`/api/chat/conversations/by-contract/${contractData.id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (data.success && data.conversation) {
+        navigate(`/chat/${data.conversation._id || data.conversation.id}`);
+      } else {
+        setErrorMessage('No se pudo abrir el chat');
+        setShowErrorModal(true);
+      }
+    } catch (err) {
+      console.error('Error opening chat:', err);
+      setErrorMessage('Error al abrir el chat. Inténtalo de nuevo.');
+      setShowErrorModal(true);
+    } finally {
+      setLoadingChat(false);
     }
   };
 
@@ -915,7 +969,7 @@ export default function JobDetail() {
   return (
     <>
       <Helmet>
-        <title>{job.title} - Doers</title>
+        <title>{job.title} - DoApp</title>
         <meta name="description" content={job.summary} />
       </Helmet>
       <div className="container mx-auto px-4 py-8">
@@ -1088,6 +1142,413 @@ export default function JobDetail() {
                       Equipo completo
                     </p>
                   )}
+                </div>
+              )}
+
+              {/* Contract/Job Info Section - VISTA COMPLETA - Siempre visible para dueño o trabajador */}
+              {(isOwnJob || isWorkerOnJob) && (
+                <div className="mt-4 space-y-4">
+                  <div className="rounded-xl border-2 border-sky-200 dark:border-sky-700 bg-gradient-to-br from-sky-50 to-blue-50 dark:from-sky-900/20 dark:to-blue-900/20 p-4">
+                    <div className="flex items-center gap-2 mb-4">
+                      <Briefcase className="h-6 w-6 text-sky-600 dark:text-sky-400" />
+                      <h2 className="text-xl font-bold text-sky-800 dark:text-sky-300">
+                        {contractData ? '📋 Información del Contrato' : '📋 Información del Trabajo'}
+                      </h2>
+                    </div>
+
+                    {/* Partes del Contrato + Detalles de Pago + Fechas */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                      {/* Partes */}
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Users className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+                          <h3 className="font-semibold text-gray-900 dark:text-white">Partes del Contrato</h3>
+                        </div>
+                        <div className="space-y-2">
+                          <div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Cliente</p>
+                            <p className="font-medium text-gray-900 dark:text-white">{getClientInfo(job).name}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Trabajador</p>
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {job.doer?.name || job.selectedWorkers?.map(w => typeof w === 'string' ? w : w.name).join(', ') || 'Pendiente de asignar'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Detalles de Pago */}
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <DollarSign className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+                          <h3 className="font-semibold text-gray-900 dark:text-white">Detalles de Pago</h3>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span className="text-sm text-gray-600 dark:text-gray-400">Precio:</span>
+                            <span className="font-semibold text-gray-900 dark:text-white">
+                              ${Number(contractData?.price || job.price || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </div>
+                          {contractData?.commission && (
+                            <div className="flex justify-between">
+                              <span className="text-sm text-gray-600 dark:text-gray-400">Comisión:</span>
+                              <span className="font-semibold text-gray-900 dark:text-white">
+                                ${Number(contractData.commission).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          )}
+                          {contractData?.totalPrice && (
+                            <div className="flex justify-between border-t dark:border-gray-700 pt-2">
+                              <span className="font-semibold text-gray-900 dark:text-white">Total:</span>
+                              <span className="font-bold text-sky-600 dark:text-sky-400">
+                                ${Number(contractData.totalPrice).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          )}
+                          {contractData && (
+                            <div className="mt-2 text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                              <CheckCircle className="h-3 w-3" />
+                              Protegido con Escrow
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Fechas */}
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Calendar className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+                          <h3 className="font-semibold text-gray-900 dark:text-white">Fechas</h3>
+                        </div>
+                        <div className="space-y-2">
+                          <div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Inicio:</p>
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {job.startDate ? new Date(job.startDate).toLocaleDateString('es-AR', {
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              }) : 'N/A'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">Finalización:</p>
+                            <p className="font-medium text-gray-900 dark:text-white">
+                              {job.endDate ? new Date(job.endDate).toLocaleDateString('es-AR', {
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              }) : job.endDateFlexible ? 'Flexible' : 'N/A'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Estado del Contrato/Trabajo */}
+                    <div className="bg-white dark:bg-slate-800 rounded-lg p-4 mb-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Clock className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+                        <h3 className="font-semibold text-gray-900 dark:text-white">Estado {contractData ? 'del Contrato' : 'del Trabajo'}</h3>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className={`px-4 py-2 rounded-full font-bold ${
+                          contractData ? (
+                            contractData.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                            contractData.status === 'in_progress' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
+                            contractData.status === 'awaiting_confirmation' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' :
+                            contractData.status === 'accepted' ? 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-400' :
+                            'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                          ) : (
+                            job.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400' :
+                            job.status === 'in_progress' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' :
+                            job.status === 'open' ? 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-400' :
+                            job.status === 'pending_approval' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' :
+                            job.status === 'paused' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400' :
+                            job.status === 'cancelled' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' :
+                            'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                          )
+                        }`}>
+                          {contractData ? (
+                            contractData.status === 'completed' ? '✅ Completado' :
+                            contractData.status === 'in_progress' ? '🔧 En progreso' :
+                            contractData.status === 'awaiting_confirmation' ? '⏳ Esperando confirmación' :
+                            contractData.status === 'accepted' ? '✓ Aceptado' :
+                            contractData.status === 'pending' ? '⏳ Pendiente' :
+                            contractData.status
+                          ) : (
+                            job.status === 'completed' ? '✅ Completado' :
+                            job.status === 'in_progress' ? '🔧 En progreso' :
+                            job.status === 'open' ? '🟢 Abierto' :
+                            job.status === 'pending_approval' ? '⏳ Pendiente de aprobación' :
+                            job.status === 'pending_payment' ? '💳 Pendiente de pago' :
+                            job.status === 'paused' ? '⏸️ Pausado' :
+                            job.status === 'cancelled' ? '❌ Cancelado' :
+                            job.status === 'draft' ? '📝 Borrador' :
+                            job.status
+                          )}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Confirmaciones - Solo mostrar si hay contrato */}
+                    {contractData ? (
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
+                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Confirmaciones de Finalización</p>
+                        {allContractsData && allContractsData.totalContracts > 1 ? (
+                          <div className="space-y-2">
+                            {allContractsData.contracts.map((c) => (
+                              <div key={c.id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-700/50 rounded">
+                                <span className={`flex items-center gap-2 font-medium ${c.doerConfirmed && c.clientConfirmed ? 'text-green-600' : c.doerConfirmed || c.clientConfirmed ? 'text-amber-600' : 'text-slate-400'}`}>
+                                  {c.doerConfirmed && c.clientConfirmed ? (
+                                    <CheckCircle className="h-5 w-5" />
+                                  ) : (
+                                    <Clock className="h-5 w-5" />
+                                  )}
+                                  {c.doerName}
+                                </span>
+                                <div className="flex items-center gap-3">
+                                  <span className={`flex items-center gap-1 text-sm ${c.doerConfirmed ? 'text-green-600' : 'text-slate-400'}`}>
+                                    {c.doerConfirmed ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                                    Trabajador
+                                  </span>
+                                  <span className={`flex items-center gap-1 text-sm ${c.clientConfirmed ? 'text-green-600' : 'text-slate-400'}`}>
+                                    {c.clientConfirmed ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                                    Cliente
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className={`p-3 rounded-lg ${contractData.doerConfirmed ? 'bg-green-50 dark:bg-green-900/20 border-2 border-green-300' : 'bg-gray-50 dark:bg-gray-700/50'}`}>
+                              <div className="flex items-center gap-2">
+                                {contractData.doerConfirmed ? <CheckCircle className="h-5 w-5 text-green-600" /> : <Clock className="h-5 w-5 text-gray-400" />}
+                                <div>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">Trabajador</p>
+                                  <p className={`font-semibold ${contractData.doerConfirmed ? 'text-green-700 dark:text-green-400' : 'text-gray-600'}`}>
+                                    {contractData.doerConfirmed ? '✓ Confirmado' : 'Pendiente'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                            <div className={`p-3 rounded-lg ${contractData.clientConfirmed ? 'bg-green-50 dark:bg-green-900/20 border-2 border-green-300' : 'bg-gray-50 dark:bg-gray-700/50'}`}>
+                              <div className="flex items-center gap-2">
+                                {contractData.clientConfirmed ? <CheckCircle className="h-5 w-5 text-green-600" /> : <Clock className="h-5 w-5 text-gray-400" />}
+                                <div>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">Cliente</p>
+                                  <p className={`font-semibold ${contractData.clientConfirmed ? 'text-green-700 dark:text-green-400' : 'text-gray-600'}`}>
+                                    {contractData.clientConfirmed ? '✓ Confirmado' : 'Pendiente'}
+                                  </p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Botón de Confirmar - Habilitado 5 minutos antes del fin del trabajo hasta que se confirme */}
+                        {contractData.status === 'in_progress' && job.endDate && (() => {
+                          const now = new Date();
+                          const endDate = new Date(job.endDate);
+                          const fiveMinutesBefore = new Date(endDate.getTime() - 5 * 60 * 1000);
+                          return now >= fiveMinutesBefore;
+                        })() && (
+                          <div className="mt-4">
+                            {((isOwnJob && !contractData.clientConfirmed) || (isWorkerOnJob && !contractData.doerConfirmed)) && (
+                              <button
+                                onClick={handleConfirmWork}
+                                disabled={confirmingWork}
+                                className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-bold py-3 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 text-lg"
+                              >
+                                {confirmingWork ? (
+                                  <>
+                                    <Loader2 className="h-5 w-5 animate-spin" />
+                                    Confirmando...
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckCircle className="h-6 w-6" />
+                                    ✅ Confirmar Finalización del Trabajo
+                                  </>
+                                )}
+                              </button>
+                            )}
+                            {isOwnJob && contractData.clientConfirmed && !contractData.doerConfirmed && (
+                              <div className="bg-sky-50 dark:bg-sky-900/20 border-2 border-sky-300 dark:border-sky-700 rounded-lg p-4 text-center">
+                                <p className="text-sky-700 dark:text-sky-300 font-semibold">
+                                  ✓ Has confirmado. Esperando confirmación del trabajador...
+                                </p>
+                              </div>
+                            )}
+                            {isWorkerOnJob && contractData.doerConfirmed && !contractData.clientConfirmed && (
+                              <div className="bg-sky-50 dark:bg-sky-900/20 border-2 border-sky-300 dark:border-sky-700 rounded-lg p-4 text-center">
+                                <p className="text-sky-700 dark:text-sky-300 font-semibold">
+                                  ✓ Has confirmado. Esperando confirmación del cliente...
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Summary message */}
+                        {contractData.clientConfirmed && contractData.doerConfirmed ? (
+                          <div className="mt-4 text-sm text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/30 border-2 border-green-500 rounded-lg p-3 text-center font-bold">
+                            ✅ Ambas partes confirmaron - Contrato completado - Los pagos serán liberados
+                          </div>
+                        ) : contractData.status === 'awaiting_confirmation' && (
+                          <div className="mt-4 text-sm text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/30 border-2 border-amber-500 rounded-lg p-3 text-center font-semibold">
+                            ⏳ Esperando confirmación de {!contractData.clientConfirmed && !contractData.doerConfirmed ? 'ambas partes' : !contractData.clientConfirmed ? 'cliente' : 'trabajador'}
+                          </div>
+                        )}
+
+                        {/* Botones de acción: Chat y Reportar Problema */}
+                        <div className="mt-4 flex flex-wrap gap-3">
+                          <button
+                            onClick={handleOpenChat}
+                            disabled={loadingChat}
+                            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-700 border-2 border-sky-600 text-sky-600 dark:text-sky-400 dark:border-sky-500 rounded-lg hover:bg-sky-50 dark:hover:bg-sky-900/30 transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <MessageCircle className="h-5 w-5" />
+                            {loadingChat ? 'Cargando...' : 'Chat'}
+                          </button>
+                          {['in_progress', 'completed', 'awaiting_confirmation'].includes(contractData.status || '') && (
+                            <button
+                              onClick={() => navigate(`/disputes/new?contractId=${contractData.id}`)}
+                              className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-700 border-2 border-orange-600 text-orange-600 dark:text-orange-400 dark:border-orange-500 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/30 transition font-semibold"
+                            >
+                              <Flag className="h-5 w-5" />
+                              Reportar Problema
+                            </button>
+                          )}
+                          <Link
+                            to={`/contracts/${contractData.id}`}
+                            className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition font-semibold"
+                          >
+                            <ExternalLink className="h-5 w-5" />
+                            Ver Contrato
+                          </Link>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
+                        <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
+                          Aún no hay contrato activo para este trabajo
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Trabajadores del Proyecto - Solo si hay múltiples contratos */}
+                    {allContractsData && allContractsData.totalContracts > 1 && (
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-4 mt-4">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+                          <Users className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+                          Trabajadores del Proyecto ({allContractsData.totalContracts})
+                        </h3>
+                        <div className="space-y-3">
+                          {allContractsData.contracts.map((c) => (
+                            <div
+                              key={c.id}
+                              className={`p-4 rounded-lg border-2 ${
+                                c.clientConfirmed && c.doerConfirmed
+                                  ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700'
+                                  : c.status === 'cancelled'
+                                  ? 'bg-red-50 dark:bg-red-900/20 border-red-300 dark:border-red-700'
+                                  : 'bg-gray-50 dark:bg-gray-700/50 border-gray-200 dark:border-gray-600'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  {c.doerAvatar ? (
+                                    <img
+                                      src={c.doerAvatar}
+                                      alt={c.doerName}
+                                      className="w-10 h-10 rounded-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="w-10 h-10 rounded-full bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center">
+                                      <User className="w-5 h-5 text-sky-600 dark:text-sky-400" />
+                                    </div>
+                                  )}
+                                  <div>
+                                    <p className="font-medium text-gray-900 dark:text-white">
+                                      {c.doerName || 'Trabajador'}
+                                    </p>
+                                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                      c.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                      c.status === 'in_progress' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
+                                      c.status === 'awaiting_confirmation' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                                      c.status === 'cancelled' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
+                                      'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+                                    }`}>
+                                      {c.status === 'completed' ? 'Completado' :
+                                       c.status === 'in_progress' ? 'En progreso' :
+                                       c.status === 'awaiting_confirmation' ? 'Esperando confirmación' :
+                                       c.status === 'cancelled' ? 'Cancelado' :
+                                       c.status === 'accepted' ? 'Aceptado' :
+                                       c.status}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                  <div className="text-right">
+                                    <div className="flex items-center gap-1 text-sm">
+                                      {c.doerConfirmed ? (
+                                        <CheckCircle className="h-4 w-4 text-green-600" />
+                                      ) : (
+                                        <Clock className="h-4 w-4 text-yellow-500" />
+                                      )}
+                                      <span className="text-gray-600 dark:text-gray-400">Trabajador</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 text-sm mt-1">
+                                      {c.clientConfirmed ? (
+                                        <CheckCircle className="h-4 w-4 text-green-600" />
+                                      ) : (
+                                        <Clock className="h-4 w-4 text-yellow-500" />
+                                      )}
+                                      <span className="text-gray-600 dark:text-gray-400">Cliente {isOwnJob ? '(tú)' : ''}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                        {/* Resumen */}
+                        <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600 dark:text-gray-400">
+                              Confirmaciones por trabajadores:
+                            </span>
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              {allContractsData.contracts.filter(c => c.doerConfirmed).length} / {allContractsData.totalContracts}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-sm mt-1">
+                            <span className="text-gray-600 dark:text-gray-400">
+                              Confirmaciones por {isOwnJob ? 'ti (cliente)' : 'cliente'}:
+                            </span>
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              {allContractsData.contracts.filter(c => c.clientConfirmed).length} / {allContractsData.totalContracts}
+                            </span>
+                          </div>
+                          {allContractsData.allCompleted && (
+                            <div className="mt-3 bg-green-100 dark:bg-green-900/30 rounded-lg p-3 text-center">
+                              <p className="text-green-700 dark:text-green-300 font-medium">
+                                ✓ Todos los contratos han sido completados
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -1341,18 +1802,32 @@ export default function JobDetail() {
                           </p>
                           <div className="space-y-2">
                             {allContractsData.contracts.map((c) => (
-                              <div key={c.id} className="flex items-center gap-2 text-sm">
+                              <div key={c.id} className="flex items-center justify-between text-sm">
                                 <span className={`flex items-center gap-1 ${c.doerConfirmed ? 'text-green-600' : 'text-slate-400'}`}>
                                   {c.doerConfirmed ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
                                   {c.doerName}
                                 </span>
+                                <Link
+                                  to={`/contracts/${c.id}`}
+                                  className="text-xs text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 font-medium"
+                                >
+                                  Ver →
+                                </Link>
                               </div>
                             ))}
                           </div>
                         </div>
                       ) : contractData && (
                         <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4 mb-4">
-                          <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Estado de confirmaciones:</p>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Estado de confirmaciones:</p>
+                            <Link
+                              to={`/contracts/${contractData.id}`}
+                              className="text-xs text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 font-medium"
+                            >
+                              Ver contrato →
+                            </Link>
+                          </div>
                           <div className="flex items-center gap-4 text-sm">
                             <span className={`flex items-center gap-1 ${contractData.doerConfirmed ? 'text-green-600' : 'text-slate-400'}`}>
                               {contractData.doerConfirmed ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
@@ -1406,19 +1881,29 @@ export default function JobDetail() {
                       <div className="flex items-center gap-2 mb-2">
                         <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
                         <p className="text-sm font-semibold text-green-700 dark:text-green-300">
-                          Trabajo en progreso
+                          🔧 Trabajo en marcha
                         </p>
                       </div>
                       {job.endDate && (
-                        <p className="text-sm text-green-600 dark:text-green-400 mt-2">
-                          El trabajo terminará el {new Date(job.endDate).toLocaleDateString('es-AR', {
-                            day: 'numeric',
-                            month: 'long',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </p>
+                        <>
+                          <p className="text-sm text-green-600 dark:text-green-400 mt-2">
+                            El trabajo terminará el {new Date(job.endDate).toLocaleDateString('es-AR', {
+                              day: 'numeric',
+                              month: 'long',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
+                          <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
+                            <div className="flex items-start gap-2">
+                              <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                              <p className="text-sm text-amber-700 dark:text-amber-300">
+                                El botón de <strong>confirmar finalización</strong> se habilitará cuando llegue la hora de fin del trabajo para ambas partes.
+                              </p>
+                            </div>
+                          </div>
+                        </>
                       )}
                       <div className="flex flex-wrap items-center gap-3 mt-3">
                         <Link
@@ -1514,18 +1999,32 @@ export default function JobDetail() {
                             </p>
                             <div className="space-y-2">
                               {allContractsData.contracts.map((c) => (
-                                <div key={c.id} className="flex items-center gap-2 text-sm">
+                                <div key={c.id} className="flex items-center justify-between text-sm">
                                   <span className={`flex items-center gap-1 ${c.doerConfirmed ? 'text-green-600' : 'text-slate-400'}`}>
                                     {c.doerConfirmed ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
                                     {c.doerName}
                                   </span>
+                                  <Link
+                                    to={`/contracts/${c.id}`}
+                                    className="text-xs text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 font-medium"
+                                  >
+                                    Ver →
+                                  </Link>
                                 </div>
                               ))}
                             </div>
                           </div>
                         ) : contractData && (
                           <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4 mb-4">
-                            <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Estado de confirmaciones:</p>
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Estado de confirmaciones:</p>
+                              <Link
+                                to={`/contracts/${contractData.id}`}
+                                className="text-xs text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 font-medium"
+                              >
+                                Ver contrato →
+                              </Link>
+                            </div>
                             <div className="flex items-center gap-4 text-sm">
                               <span className={`flex items-center gap-1 ${contractData.doerConfirmed ? 'text-green-600' : 'text-slate-400'}`}>
                                 {contractData.doerConfirmed ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
@@ -1579,19 +2078,29 @@ export default function JobDetail() {
                         <div className="flex items-center gap-2 mb-2">
                           <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
                           <p className="text-sm font-semibold text-green-700 dark:text-green-300">
-                            Trabajo en progreso
+                            🔧 Trabajo en marcha
                           </p>
                         </div>
                         {job.endDate && (
-                          <p className="text-sm text-green-600 dark:text-green-400 mt-2">
-                            El trabajo terminará el {new Date(job.endDate).toLocaleDateString('es-AR', {
-                              day: 'numeric',
-                              month: 'long',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </p>
+                          <>
+                            <p className="text-sm text-green-600 dark:text-green-400 mt-2">
+                              El trabajo terminará el {new Date(job.endDate).toLocaleDateString('es-AR', {
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </p>
+                            <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
+                              <div className="flex items-start gap-2">
+                                <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                                <p className="text-sm text-amber-700 dark:text-amber-300">
+                                  El botón de <strong>confirmar finalización</strong> se habilitará cuando llegue la hora de fin del trabajo para ambas partes.
+                                </p>
+                              </div>
+                            </div>
+                          </>
                         )}
                         <div className="flex flex-wrap items-center gap-3 mt-3">
                           <Link
@@ -2138,18 +2647,32 @@ export default function JobDetail() {
                 {allContractsData && allContractsData.totalContracts > 1 ? (
                   <div className="space-y-2 mb-3">
                     {allContractsData.contracts.map((c) => (
-                      <div key={c.id} className="flex items-center gap-2 text-sm">
+                      <div key={c.id} className="flex items-center justify-between text-sm">
                         <span className={`flex items-center gap-1 ${c.doerConfirmed ? 'text-green-600' : 'text-amber-600'}`}>
                           {c.doerConfirmed ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
                           {c.doerName}
                         </span>
+                        <Link
+                          to={`/contracts/${c.id}`}
+                          className="text-xs text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 font-medium"
+                        >
+                          Ver contrato →
+                        </Link>
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <p className="text-sm text-amber-700 dark:text-amber-300">
-                    Ya confirmaste que el trabajo fue realizado. Estamos esperando que el trabajador también confirme para proceder con los pagos.
-                  </p>
+                ) : contractData && (
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-amber-700 dark:text-amber-300">
+                      Ya confirmaste que el trabajo fue realizado. Estamos esperando que el trabajador también confirme para proceder con los pagos.
+                    </p>
+                    <Link
+                      to={`/contracts/${contractData.id}`}
+                      className="text-sm text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 font-medium whitespace-nowrap ml-3"
+                    >
+                      Ver contrato →
+                    </Link>
+                  </div>
                 )}
               </div>
             )}
@@ -2317,6 +2840,192 @@ export default function JobDetail() {
                   <Edit className="h-4 w-4" />
                   Editar y definir fecha de fin
                 </button>
+              </div>
+            )}
+
+            {/* Trabajadores del Proyecto - Similar to ContractDetail */}
+            {isOwnJob && allContractsData && allContractsData.contracts && allContractsData.contracts.length > 0 && (
+              <div className="rounded-2xl border border-slate-700 bg-slate-800 overflow-hidden">
+                <div className="bg-slate-900/50 px-4 py-3 border-b border-slate-700">
+                  <h3 className="font-semibold text-white flex items-center gap-2">
+                    <Users className="h-5 w-5 text-sky-400" />
+                    Trabajadores del Proyecto ({allContractsData.contracts.length})
+                  </h3>
+                </div>
+                <div className="divide-y divide-slate-700">
+                  {allContractsData.contracts.map((contract) => (
+                    <div key={contract.id} className="p-4 hover:bg-slate-700/30 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 overflow-hidden rounded-full bg-sky-100">
+                            <img
+                              src={contract.doerAvatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${contract.doerName}`}
+                              alt={contract.doerName}
+                              className="h-full w-full object-cover"
+                            />
+                          </div>
+                          <div>
+                            <p className="font-medium text-white">{contract.doerName}</p>
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                              contract.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                              contract.status === 'in_progress' ? 'bg-blue-500/20 text-blue-400' :
+                              contract.status === 'awaiting_confirmation' ? 'bg-amber-500/20 text-amber-400' :
+                              'bg-slate-500/20 text-slate-400'
+                            }`}>
+                              {contract.status === 'completed' ? 'Completado' :
+                               contract.status === 'in_progress' ? 'En progreso' :
+                               contract.status === 'awaiting_confirmation' ? 'Esperando confirmación' :
+                               contract.status}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right text-xs">
+                            <div className="flex items-center gap-1">
+                              {contract.doerConfirmed ? (
+                                <CheckCircle className="h-4 w-4 text-green-500" />
+                              ) : (
+                                <Clock className="h-4 w-4 text-slate-400" />
+                              )}
+                              <span className={contract.doerConfirmed ? 'text-green-400' : 'text-slate-400'}>
+                                Trabajador
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1 mt-1">
+                              {contract.clientConfirmed ? (
+                                <CheckCircle className="h-4 w-4 text-green-500" />
+                              ) : (
+                                <Clock className="h-4 w-4 text-slate-400" />
+                              )}
+                              <span className={contract.clientConfirmed ? 'text-green-400' : 'text-slate-400'}>
+                                Cliente (tú)
+                              </span>
+                            </div>
+                          </div>
+                          <Link
+                            to={`/contracts/${contract.id}`}
+                            className="text-xs text-sky-400 hover:text-sky-300 font-medium"
+                          >
+                            Ver →
+                          </Link>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* Summary */}
+                <div className="bg-slate-900/50 px-4 py-3 border-t border-slate-700">
+                  <div className="flex justify-between text-xs text-slate-400">
+                    <span>Confirmados por trabajadores:</span>
+                    <span className="font-medium text-white">
+                      {allContractsData.contracts.filter(c => c.doerConfirmed).length} / {allContractsData.contracts.length}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs text-slate-400 mt-1">
+                    <span>Confirmados por ti (cliente):</span>
+                    <span className="font-medium text-white">
+                      {allContractsData.contracts.filter(c => c.clientConfirmed).length} / {allContractsData.contracts.length}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Single worker contract info - when not team job */}
+            {isOwnJob && contractData && (!allContractsData || allContractsData.contracts.length <= 1) && (
+              <div className="rounded-2xl border border-slate-700 bg-slate-800 overflow-hidden">
+                <div className="bg-slate-900/50 px-4 py-3 border-b border-slate-700">
+                  <h3 className="font-semibold text-white flex items-center gap-2">
+                    <Users className="h-5 w-5 text-sky-400" />
+                    Contrato del Trabajo
+                  </h3>
+                </div>
+                <div className="p-4">
+                  {/* Contract status */}
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-sm text-slate-400">Estado:</span>
+                    <span className={`text-sm px-3 py-1 rounded-full font-medium ${
+                      contractData.status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                      contractData.status === 'in_progress' ? 'bg-blue-500/20 text-blue-400' :
+                      contractData.status === 'awaiting_confirmation' ? 'bg-amber-500/20 text-amber-400' :
+                      'bg-slate-500/20 text-slate-400'
+                    }`}>
+                      {contractData.status === 'completed' ? 'Completado' :
+                       contractData.status === 'in_progress' ? 'En progreso' :
+                       contractData.status === 'awaiting_confirmation' ? 'Esperando confirmación' :
+                       contractData.status === 'pending' ? 'Pendiente' :
+                       contractData.status === 'ready' ? 'Listo' :
+                       contractData.status === 'accepted' ? 'Aceptado' :
+                       contractData.status}
+                    </span>
+                  </div>
+
+                  {/* Price details */}
+                  {contractData.price && (
+                    <div className="space-y-2 mb-4 p-3 bg-slate-900/50 rounded-lg">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-slate-400">Precio:</span>
+                        <span className="text-white font-medium">
+                          ${Number(contractData.price || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      {contractData.commission && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-slate-400">Comisión:</span>
+                          <span className="text-white">
+                            ${Number(contractData.commission || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      )}
+                      {contractData.totalPrice && (
+                        <div className="flex justify-between text-sm pt-2 border-t border-slate-700">
+                          <span className="text-slate-400 font-medium">Total:</span>
+                          <span className="text-sky-400 font-bold">
+                            ${Number(contractData.totalPrice || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Confirmation status */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-slate-400 mb-2">Estado de confirmaciones:</p>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {contractData.doerConfirmed ? (
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <Clock className="h-4 w-4 text-slate-400" />
+                        )}
+                        <span className={`text-sm ${contractData.doerConfirmed ? 'text-green-400' : 'text-slate-400'}`}>
+                          Trabajador: {contractData.doerConfirmed ? 'Confirmado' : 'Pendiente'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        {contractData.clientConfirmed ? (
+                          <CheckCircle className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <Clock className="h-4 w-4 text-slate-400" />
+                        )}
+                        <span className={`text-sm ${contractData.clientConfirmed ? 'text-green-400' : 'text-slate-400'}`}>
+                          Cliente (tú): {contractData.clientConfirmed ? 'Confirmado' : 'Pendiente'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Link to full contract */}
+                  <Link
+                    to={`/contracts/${contractData.id}`}
+                    className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Ver contrato completo
+                  </Link>
+                </div>
               </div>
             )}
 

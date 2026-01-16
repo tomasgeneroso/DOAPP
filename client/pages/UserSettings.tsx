@@ -15,16 +15,11 @@ import {
   MessageCircle,
   HelpCircle,
   PlayCircle,
-  Wallet,
-  Link2,
-  Unlink,
-  ExternalLink,
-  Loader2,
 } from "lucide-react";
 import { JOB_CATEGORIES } from "../../shared/constants/categories";
 import { useOnboarding } from "../hooks/useOnboarding";
 
-type TabType = "basic" | "address" | "banking" | "payments" | "legal" | "interests" | "notifications" | "help";
+type TabType = "basic" | "address" | "banking" | "legal" | "interests" | "notifications" | "help";
 
 export default function UserSettings() {
   const { user, refreshUser } = useAuth();
@@ -35,46 +30,11 @@ export default function UserSettings() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  // MercadoPago OAuth state
-  const [mpStatus, setMpStatus] = useState<{
-    isLinked: boolean;
-    prefersPayout: boolean;
-    email: string | null;
-    linkedAt: string | null;
-  } | null>(null);
-  const [mpLoading, setMpLoading] = useState(false);
-  const [mpServiceAvailable, setMpServiceAvailable] = useState(false);
-
-  // Handle tab from URL query parameter and MercadoPago callback
+  // Handle tab from URL query parameter
   useEffect(() => {
     const tabParam = searchParams.get("tab");
-    if (tabParam && ["basic", "address", "banking", "payments", "legal", "interests", "notifications", "help"].includes(tabParam)) {
+    if (tabParam && ["basic", "address", "banking", "legal", "interests", "notifications", "help"].includes(tabParam)) {
       setActiveTab(tabParam as TabType);
-    }
-
-    // Handle MercadoPago callback
-    const mpLinked = searchParams.get("mp_linked");
-    const mpError = searchParams.get("mp_error");
-    const mpEmail = searchParams.get("mp_email");
-
-    if (mpLinked === "true") {
-      setMessage({
-        type: "success",
-        text: mpEmail
-          ? `Cuenta de MercadoPago (${mpEmail}) vinculada exitosamente`
-          : "Cuenta de MercadoPago vinculada exitosamente",
-      });
-      setActiveTab("payments");
-      fetchMpStatus();
-      // Clean URL
-      navigate("/settings?tab=payments", { replace: true });
-    } else if (mpError) {
-      setMessage({
-        type: "error",
-        text: `Error al vincular MercadoPago: ${decodeURIComponent(mpError)}`,
-      });
-      setActiveTab("payments");
-      navigate("/settings?tab=payments", { replace: true });
     }
   }, [searchParams]);
 
@@ -204,123 +164,10 @@ export default function UserSettings() {
     );
   };
 
-  // Fetch MercadoPago status
-  const fetchMpStatus = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const [statusRes, serviceRes] = await Promise.all([
-        fetch("/api/mercadopago/status", {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch("/api/mercadopago/service-status"),
-      ]);
-
-      const statusData = await statusRes.json();
-      const serviceData = await serviceRes.json();
-
-      if (statusData.success) {
-        setMpStatus(statusData.data);
-      }
-      if (serviceData.success) {
-        setMpServiceAvailable(serviceData.data.oauthAvailable);
-      }
-    } catch (error) {
-      console.error("Error fetching MercadoPago status:", error);
-    }
-  };
-
-  // Initial fetch of MercadoPago status
-  useEffect(() => {
-    if (user) {
-      fetchMpStatus();
-    }
-  }, [user?.id]);
-
-  // Link MercadoPago account
-  const handleLinkMercadoPago = async () => {
-    setMpLoading(true);
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/mercadopago/auth-url?returnUrl=/settings", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json();
-
-      if (data.success && data.data.authUrl) {
-        window.location.href = data.data.authUrl;
-      } else {
-        setMessage({ type: "error", text: data.message || "Error al obtener URL de autorización" });
-        setMpLoading(false);
-      }
-    } catch (error: any) {
-      setMessage({ type: "error", text: "Error al conectar con MercadoPago" });
-      setMpLoading(false);
-    }
-  };
-
-  // Unlink MercadoPago account
-  const handleUnlinkMercadoPago = async () => {
-    if (!confirm("¿Estás seguro de desvincular tu cuenta de MercadoPago? Tus pagos se procesarán manualmente por transferencia bancaria.")) {
-      return;
-    }
-
-    setMpLoading(true);
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/mercadopago/unlink", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json();
-
-      if (data.success) {
-        setMessage({ type: "success", text: "Cuenta de MercadoPago desvinculada" });
-        setMpStatus({ isLinked: false, prefersPayout: false, email: null, linkedAt: null });
-        await refreshUser();
-      } else {
-        setMessage({ type: "error", text: data.message || "Error al desvincular" });
-      }
-    } catch (error: any) {
-      setMessage({ type: "error", text: "Error al desvincular cuenta" });
-    } finally {
-      setMpLoading(false);
-    }
-  };
-
-  // Update payout preference
-  const handleUpdatePayoutPreference = async (prefersMercadopago: boolean) => {
-    setMpLoading(true);
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch("/api/mercadopago/payout-preference", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ prefersMercadopago }),
-      });
-      const data = await response.json();
-
-      if (data.success) {
-        setMessage({ type: "success", text: data.message });
-        setMpStatus((prev) => prev ? { ...prev, prefersPayout: prefersMercadopago } : prev);
-        await refreshUser();
-      } else {
-        setMessage({ type: "error", text: data.message || "Error al actualizar preferencia" });
-      }
-    } catch (error: any) {
-      setMessage({ type: "error", text: "Error al actualizar preferencia" });
-    } finally {
-      setMpLoading(false);
-    }
-  };
-
   const tabs = [
     { id: "basic", label: "Información Básica", icon: User },
     { id: "address", label: "Dirección", icon: MapPin },
     { id: "banking", label: "Información Bancaria", icon: CreditCard },
-    { id: "payments", label: "Cobrar por MercadoPago", icon: Wallet },
     { id: "legal", label: "Información Legal", icon: FileText },
     { id: "interests", label: "Rubros de Interés", icon: Tag },
     { id: "notifications", label: "Notificaciones", icon: Bell },
@@ -330,7 +177,7 @@ export default function UserSettings() {
   return (
     <>
       <Helmet>
-        <title>Configuración de Usuario - Doers</title>
+        <title>Configuración de Usuario - DoApp</title>
       </Helmet>
       <div className="container mx-auto max-w-6xl py-8 px-4">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">
@@ -641,201 +488,6 @@ export default function UserSettings() {
                 </div>
               )}
 
-              {activeTab === "payments" && (
-                <div className="space-y-6">
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Cobros Automáticos por MercadoPago
-                  </h2>
-
-                  <div className="p-4 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg">
-                    <p className="text-sm text-sky-800 dark:text-sky-300">
-                      <strong>¿Cómo funciona?</strong> Al vincular tu cuenta de MercadoPago, cuando completes un trabajo y ambas partes confirmen,
-                      recibirás el pago automáticamente en tu cuenta de MercadoPago. Si no vinculas tu cuenta,
-                      los pagos se realizarán manualmente por transferencia bancaria.
-                    </p>
-                  </div>
-
-                  {/* Service availability check */}
-                  {!mpServiceAvailable && (
-                    <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-                      <p className="text-sm text-amber-800 dark:text-amber-300 flex items-center gap-2">
-                        <AlertCircle className="h-4 w-4" />
-                        El servicio de vinculación con MercadoPago no está disponible en este momento. Contacta a soporte si el problema persiste.
-                      </p>
-                    </div>
-                  )}
-
-                  {/* MercadoPago Link Status */}
-                  <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-3 rounded-full ${mpStatus?.isLinked ? "bg-green-100 dark:bg-green-900/30" : "bg-slate-200 dark:bg-slate-600"}`}>
-                          <Wallet className={`h-6 w-6 ${mpStatus?.isLinked ? "text-green-600 dark:text-green-400" : "text-slate-500 dark:text-slate-400"}`} />
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-gray-900 dark:text-white">
-                            Cuenta de MercadoPago
-                          </h3>
-                          {mpStatus?.isLinked ? (
-                            <p className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
-                              <CheckCircle2 className="h-4 w-4" />
-                              Vinculada: {mpStatus.email}
-                            </p>
-                          ) : (
-                            <p className="text-sm text-slate-500 dark:text-slate-400">
-                              No vinculada
-                            </p>
-                          )}
-                        </div>
-                      </div>
-
-                      {mpStatus?.isLinked ? (
-                        <button
-                          onClick={handleUnlinkMercadoPago}
-                          disabled={mpLoading}
-                          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-lg transition-colors disabled:opacity-50"
-                        >
-                          {mpLoading ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Unlink className="h-4 w-4" />
-                          )}
-                          Desvincular
-                        </button>
-                      ) : (
-                        <button
-                          onClick={handleLinkMercadoPago}
-                          disabled={mpLoading || !mpServiceAvailable}
-                          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-sky-500 hover:bg-sky-600 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {mpLoading ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Link2 className="h-4 w-4" />
-                          )}
-                          Vincular MercadoPago
-                        </button>
-                      )}
-                    </div>
-
-                    {mpStatus?.linkedAt && (
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                        Vinculada el {new Date(mpStatus.linkedAt).toLocaleDateString("es-AR", {
-                          day: "numeric",
-                          month: "long",
-                          year: "numeric",
-                        })}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Payout Preference */}
-                  {mpStatus?.isLinked && (
-                    <div className="space-y-4">
-                      <h3 className="font-semibold text-gray-900 dark:text-white">
-                        Preferencia de pago
-                      </h3>
-
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        {/* MercadoPago Auto option */}
-                        <button
-                          onClick={() => handleUpdatePayoutPreference(true)}
-                          disabled={mpLoading || mpStatus.prefersPayout}
-                          className={`p-4 rounded-xl border-2 text-left transition-all ${
-                            mpStatus.prefersPayout
-                              ? "border-sky-500 bg-sky-50 dark:bg-sky-900/20"
-                              : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
-                          } disabled:cursor-not-allowed`}
-                        >
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className={`p-2 rounded-full ${mpStatus.prefersPayout ? "bg-sky-100 dark:bg-sky-900/30" : "bg-slate-100 dark:bg-slate-700"}`}>
-                              <Wallet className={`h-5 w-5 ${mpStatus.prefersPayout ? "text-sky-600 dark:text-sky-400" : "text-slate-500 dark:text-slate-400"}`} />
-                            </div>
-                            <span className={`font-medium ${mpStatus.prefersPayout ? "text-sky-700 dark:text-sky-300" : "text-gray-900 dark:text-white"}`}>
-                              Pago Automático
-                            </span>
-                            {mpStatus.prefersPayout && (
-                              <CheckCircle2 className="h-5 w-5 text-sky-500 ml-auto" />
-                            )}
-                          </div>
-                          <p className="text-sm text-slate-600 dark:text-slate-400 ml-11">
-                            Recibe el pago directamente en tu cuenta de MercadoPago al confirmar el trabajo
-                          </p>
-                          <div className="mt-2 ml-11 flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
-                            <CheckCircle2 className="h-3 w-3" />
-                            Pago instantáneo
-                          </div>
-                        </button>
-
-                        {/* Bank Transfer Manual option */}
-                        <button
-                          onClick={() => handleUpdatePayoutPreference(false)}
-                          disabled={mpLoading || !mpStatus.prefersPayout}
-                          className={`p-4 rounded-xl border-2 text-left transition-all ${
-                            !mpStatus.prefersPayout
-                              ? "border-sky-500 bg-sky-50 dark:bg-sky-900/20"
-                              : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
-                          } disabled:cursor-not-allowed`}
-                        >
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className={`p-2 rounded-full ${!mpStatus.prefersPayout ? "bg-sky-100 dark:bg-sky-900/30" : "bg-slate-100 dark:bg-slate-700"}`}>
-                              <CreditCard className={`h-5 w-5 ${!mpStatus.prefersPayout ? "text-sky-600 dark:text-sky-400" : "text-slate-500 dark:text-slate-400"}`} />
-                            </div>
-                            <span className={`font-medium ${!mpStatus.prefersPayout ? "text-sky-700 dark:text-sky-300" : "text-gray-900 dark:text-white"}`}>
-                              Transferencia Bancaria
-                            </span>
-                            {!mpStatus.prefersPayout && (
-                              <CheckCircle2 className="h-5 w-5 text-sky-500 ml-auto" />
-                            )}
-                          </div>
-                          <p className="text-sm text-slate-600 dark:text-slate-400 ml-11">
-                            Recibe el pago por transferencia a tu cuenta bancaria
-                          </p>
-                          <div className="mt-2 ml-11 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
-                            <AlertCircle className="h-3 w-3" />
-                            Puede demorar hasta fin de mes
-                          </div>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Help section */}
-                  <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                    <h4 className="font-medium text-gray-900 dark:text-white mb-2">
-                      ¿Por qué vincular MercadoPago?
-                    </h4>
-                    <ul className="space-y-2 text-sm text-slate-600 dark:text-slate-400">
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                        <span><strong>Pagos instantáneos:</strong> Recibe tu dinero al momento de confirmar el trabajo</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                        <span><strong>Sin demoras:</strong> No tienes que esperar transferencias bancarias</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                        <span><strong>Seguro:</strong> MercadoPago protege tus datos y transacciones</span>
-                      </li>
-                      <li className="flex items-start gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                        <span><strong>Flexible:</strong> Puedes cambiar tu preferencia en cualquier momento</span>
-                      </li>
-                    </ul>
-                    <a
-                      href="https://www.mercadopago.com.ar/"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 mt-3 text-sm text-sky-600 dark:text-sky-400 hover:underline"
-                    >
-                      Más información sobre MercadoPago
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                  </div>
-                </div>
-              )}
-
               {activeTab === "legal" && (
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
@@ -1125,7 +777,7 @@ export default function UserSettings() {
               )}
 
               {/* Save button - only show for tabs that need saving */}
-              {activeTab !== "help" && activeTab !== "payments" && (
+              {activeTab !== "help" && (
                 <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-700">
                   <button
                     onClick={handleSave}

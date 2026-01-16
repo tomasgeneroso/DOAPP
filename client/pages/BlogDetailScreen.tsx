@@ -135,7 +135,7 @@ export default function BlogDetailScreen() {
     <>
       <Helmet>
         {/* Basic SEO */}
-        <title>{post.metaTitle || post.title} - Blog Doers</title>
+        <title>{post.metaTitle || post.title} - Blog DoApp</title>
         <meta name="description" content={post.metaDescription || post.excerpt} />
         {post.metaKeywords && post.metaKeywords.length > 0 && (
           <meta name="keywords" content={post.metaKeywords.join(', ')} />

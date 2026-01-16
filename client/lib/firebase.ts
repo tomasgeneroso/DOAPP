@@ -26,13 +26,41 @@ const app = initializeApp(firebaseConfig);
 // Initialize Firebase Cloud Messaging
 let messaging: Messaging | null = null;
 
-// Only initialize messaging if supported (not in SSR)
-if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+// Check if we're in a valid environment for FCM
+const isValidEnvironmentForFCM = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  if (!('serviceWorker' in navigator)) return false;
+
+  // Service workers require secure context (HTTPS or localhost)
+  // However, Firebase SW has issues with self-signed certs in dev
+  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  const isHttps = window.location.protocol === 'https:';
+
+  // In development with localhost, skip FCM to avoid SSL errors with service worker
+  if (isLocalhost && !isHttps) {
+    console.info('ℹ️ Firebase Messaging disabled on localhost HTTP (service worker requires HTTPS)');
+    return false;
+  }
+
+  // Even with HTTPS localhost, self-signed certs cause issues
+  if (isLocalhost && isHttps && import.meta.env.DEV) {
+    console.info('ℹ️ Firebase Messaging disabled in development (self-signed cert issues with SW)');
+    return false;
+  }
+
+  return true;
+};
+
+// Only initialize messaging if in valid environment
+if (isValidEnvironmentForFCM()) {
   try {
     messaging = getMessaging(app);
+    console.log('✅ Firebase Messaging initialized');
   } catch (error) {
-    console.error('Error initializing Firebase Messaging:', error);
+    console.warn('⚠️ Firebase Messaging initialization skipped:', (error as Error).message);
   }
+} else if (typeof window !== 'undefined') {
+  console.info('ℹ️ Push notifications will be available in production');
 }
 
 /**
@@ -41,16 +69,10 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
  */
 export const requestNotificationPermission = async (): Promise<string | null> => {
   if (!messaging) {
-    console.warn('Firebase Messaging not initialized');
-    return null;
-  }
-
-  // Check if we're on localhost without HTTPS (service worker won't work)
-  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  const isHttps = window.location.protocol === 'https:';
-
-  if (isLocalhost && !isHttps) {
-    console.warn('⚠️ Firebase Messaging requires HTTPS. Skipping on localhost HTTP.');
+    // Don't warn in development - it's expected
+    if (!import.meta.env.DEV) {
+      console.warn('Firebase Messaging not initialized');
+    }
     return null;
   }
 

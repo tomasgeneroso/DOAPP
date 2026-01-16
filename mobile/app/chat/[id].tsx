@@ -160,11 +160,166 @@ export default function ChatScreen() {
     return current !== next;
   };
 
+  // Helper to get message content (supports both 'message' and 'content' fields)
+  const getMessageContent = (msg: Message) => msg.message || msg.content || '';
+
+  // Helper to get sender info
+  const getSenderId = (sender: any) => sender?.id || sender?._id || '';
+
   const renderMessage = ({ item, index }: { item: Message; index: number }) => {
     const sender = item.sender as UserType;
-    const isOwn = sender?._id === user?._id || sender?.id === user?._id;
+    const senderId = getSenderId(sender);
+    const userId = user?._id || user?.id;
+    const isOwn = senderId === userId;
     const showDate = shouldShowDate(index);
+    const messageContent = getMessageContent(item);
 
+    // System message - special styling
+    if (item.type === 'system') {
+      // Parse message with || delimiter: "header||title||content"
+      const parts = messageContent.split('||');
+      const header = parts[0] || '';
+      const title = parts[1] || '';
+      const content = parts[2] || messageContent;
+      const isPending = item.metadata?.proposalStatus === 'pending';
+      const isDirectProposal = header === 'direct_proposal' || item.metadata?.action === 'direct_contract_proposal';
+
+      // Determine header text based on sender/receiver and message type
+      const getHeaderText = () => {
+        if (isDirectProposal) {
+          return isOwn
+            ? 'Enviaste una propuesta de contrato'
+            : `${sender?.name || 'Usuario'} te envió una propuesta de contrato`;
+        }
+        if (header.toLowerCase().includes('contraoferta')) {
+          return isOwn
+            ? 'Enviaste una contraoferta'
+            : `${sender?.name || 'Usuario'} envió una contraoferta`;
+        }
+        if (header.toLowerCase().includes('postuló') || header.toLowerCase().includes('aplicó')) {
+          return isOwn
+            ? 'Te postulaste al trabajo'
+            : `${sender?.name || 'Usuario'} quiere trabajar contigo`;
+        }
+        return header;
+      };
+
+      // System message styling
+      const getSystemStyles = () => {
+        if (isOwn) {
+          return {
+            bgColor: colors.primary[50],
+            borderColor: colors.primary[200],
+            headerColor: colors.primary[700],
+            iconBgColor: colors.primary[100],
+            iconColor: colors.primary[600],
+          };
+        }
+        if (isPending) {
+          return {
+            bgColor: colors.success[50],
+            borderColor: colors.success[300],
+            headerColor: colors.success[700],
+            iconBgColor: colors.success[100],
+            iconColor: colors.success[600],
+          };
+        }
+        return {
+          bgColor: themeColors.slate[50],
+          borderColor: themeColors.border,
+          headerColor: themeColors.text.primary,
+          iconBgColor: themeColors.slate[100],
+          iconColor: themeColors.text.secondary,
+        };
+      };
+
+      const sStyles = getSystemStyles();
+
+      return (
+        <View>
+          {showDate && (
+            <View style={styles.dateSeparator}>
+              <Text style={[styles.dateSeparatorText, { color: themeColors.text.muted }]}>
+                {formatDate(item.createdAt)}
+              </Text>
+            </View>
+          )}
+          <View style={[styles.messageContainer, isOwn ? styles.ownMessage : styles.otherMessage]}>
+            <View
+              style={[
+                styles.systemMessageBubble,
+                {
+                  backgroundColor: sStyles.bgColor,
+                  borderColor: sStyles.borderColor,
+                  marginLeft: isOwn ? 'auto' : 0,
+                  marginRight: isOwn ? 0 : 'auto',
+                },
+              ]}
+            >
+              {/* Nueva Postulación badge for received pending */}
+              {!isOwn && isPending && (
+                <View style={[styles.pendingBadge, { backgroundColor: colors.success[600] }]}>
+                  <View style={styles.pendingDot} />
+                  <Text style={styles.pendingBadgeText}>Nueva Postulación</Text>
+                </View>
+              )}
+
+              {/* Header with icon */}
+              <View style={styles.systemMessageHeader}>
+                <View style={[styles.systemIconContainer, { backgroundColor: sStyles.iconBgColor }]}>
+                  <User size={18} color={sStyles.iconColor} />
+                </View>
+                <View style={styles.systemMessageHeaderText}>
+                  <Text style={[styles.systemMessageTitle, { color: sStyles.headerColor }]}>
+                    {getHeaderText()}
+                  </Text>
+                  {title && (
+                    <Text style={[styles.systemMessageSubtitle, { color: themeColors.text.primary }]}>
+                      {title}
+                    </Text>
+                  )}
+                </View>
+              </View>
+
+              {/* Content */}
+              <Text style={[styles.systemMessageContent, { color: themeColors.text.secondary }]}>
+                {content.replace(/\*\*/g, '').replace(/\n/g, '\n')}
+              </Text>
+
+              {/* Action buttons for job_application or direct_contract_proposal */}
+              {(item.metadata?.action === 'job_application' || item.metadata?.action === 'direct_contract_proposal') && (
+                <View style={styles.systemMessageActions}>
+                  {item.metadata?.jobId && item.metadata?.action === 'job_application' && (
+                    <TouchableOpacity
+                      style={[styles.systemActionButton, { backgroundColor: colors.primary[600] }]}
+                      onPress={() => router.push(`/job/${item.metadata?.jobId}`)}
+                    >
+                      <Text style={styles.systemActionButtonText}>Ver Trabajo</Text>
+                    </TouchableOpacity>
+                  )}
+                  {isPending && !isOwn && (
+                    <Text style={[styles.pendingStatusText, { color: colors.warning[600] }]}>
+                      Esperando tu respuesta...
+                    </Text>
+                  )}
+                  {isPending && isOwn && (
+                    <Text style={[styles.pendingStatusText, { color: colors.warning[600] }]}>
+                      Esperando respuesta...
+                    </Text>
+                  )}
+                </View>
+              )}
+
+              <Text style={[styles.systemMessageTime, { color: themeColors.text.muted }]}>
+                {formatTime(item.createdAt)}
+              </Text>
+            </View>
+          </View>
+        </View>
+      );
+    }
+
+    // Regular message
     return (
       <View>
         {showDate && (
@@ -199,7 +354,7 @@ export default function ChatScreen() {
                 { color: isOwn ? '#fff' : themeColors.text.primary },
               ]}
             >
-              {item.content}
+              {messageContent}
             </Text>
             <Text
               style={[
@@ -276,7 +431,7 @@ export default function ChatScreen() {
           ref={flatListRef}
           data={messages}
           renderItem={renderMessage}
-          keyExtractor={(item) => item._id}
+          keyExtractor={(item) => item.id || item._id}
           inverted
           contentContainerStyle={styles.messagesList}
           showsVerticalScrollIndicator={false}
@@ -465,5 +620,90 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: fontSize.base,
     textAlign: 'center',
+  },
+  // System message styles
+  systemMessageBubble: {
+    maxWidth: '90%',
+    padding: spacing.md,
+    borderRadius: borderRadius.xl,
+    borderWidth: 2,
+    marginVertical: spacing.sm,
+  },
+  systemMessageHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: spacing.sm,
+  },
+  systemIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: spacing.sm,
+  },
+  systemMessageHeaderText: {
+    flex: 1,
+  },
+  systemMessageTitle: {
+    fontSize: fontSize.md,
+    fontWeight: fontWeight.bold,
+    marginBottom: 2,
+  },
+  systemMessageSubtitle: {
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.semibold,
+  },
+  systemMessageContent: {
+    fontSize: fontSize.sm,
+    lineHeight: 20,
+    marginBottom: spacing.sm,
+  },
+  systemMessageTime: {
+    fontSize: fontSize.xs,
+    alignSelf: 'flex-end',
+  },
+  systemMessageActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  systemActionButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+  },
+  systemActionButtonText: {
+    color: '#fff',
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+  },
+  pendingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.full,
+    alignSelf: 'flex-start',
+    marginBottom: spacing.sm,
+    gap: 6,
+  },
+  pendingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#fff',
+  },
+  pendingBadgeText: {
+    color: '#fff',
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.bold,
+  },
+  pendingStatusText: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
   },
 });

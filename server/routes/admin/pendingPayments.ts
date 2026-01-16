@@ -6,8 +6,7 @@ import { User } from "../../models/sql/User.model.js";
 import { Job } from "../../models/sql/Job.model.js";
 import { Payment } from "../../models/sql/Payment.model.js";
 import { Notification } from "../../models/sql/Notification.model.js";
-import { Op, literal } from 'sequelize';
-import mercadopagoOAuthService from "../../services/mercadopagoOAuth.js";
+import { Op } from 'sequelize';
 
 const router = express.Router();
 
@@ -31,15 +30,10 @@ interface WorkerPaymentInfo {
     cbu: string | null;
     alias: string | null;
   } | null;
-  hasBankingInfo: boolean; // Whether worker has CBU/CVU to receive payments
+  hasBankingInfo: boolean;
   amountToPay: number;
   commission: number;
   percentageOfBudget: number | null;
-  // MercadoPago Split Payment info
-  mercadopagoLinked: boolean;
-  prefersMercadopagoPayout: boolean;
-  mercadopagoEmail: string | null;
-  payoutMethod: 'mercadopago_auto' | 'bank_transfer_manual';
 }
 
 interface ContractPaymentRow {
@@ -67,7 +61,6 @@ interface ContractPaymentRow {
  * - endDate: ISO date string (for custom period)
  * - sortBy: 'contractNumber' | 'completedAt' | 'amount' | 'clientName' | 'workerCount'
  * - sortOrder: 'asc' | 'desc'
- * - paymentMethod: 'mercadopago' | 'bank_transfer' | 'all'
  */
 router.get("/", protect, requireRole(['admin', 'super_admin', 'owner']), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -77,7 +70,6 @@ router.get("/", protect, requireRole(['admin', 'super_admin', 'owner']), async (
       endDate: customEnd,
       sortBy = 'completedAt',
       sortOrder = 'desc',
-      paymentMethod = 'all'
     } = req.query;
 
     // Calculate date range based on period
@@ -127,7 +119,7 @@ router.get("/", protect, requireRole(['admin', 'super_admin', 'owner']), async (
         {
           model: User,
           as: 'doer',
-          attributes: ['id', 'name', 'email', 'dni', 'phone', 'address', 'bankingInfo', 'mercadopagoUserId', 'mercadopagoLinkedAt', 'mercadopagoEmail', 'prefersMercadopagoPayout']
+          attributes: ['id', 'name', 'email', 'dni', 'phone', 'address', 'bankingInfo']
         },
         {
           model: Job,
@@ -176,20 +168,6 @@ router.get("/", protect, requireRole(['admin', 'super_admin', 'owner']), async (
         totalContractAmount += amountToPay;
         totalCommission += commission;
 
-        // Filter by payment method if specified
-        if (paymentMethod !== 'all') {
-          const bankType = doer?.bankingInfo?.bankType;
-          if (paymentMethod === 'mercadopago' && bankType !== 'mercadopago') continue;
-          if (paymentMethod === 'bank_transfer' && bankType === 'mercadopago') continue;
-        }
-
-        // Determine if worker has MercadoPago linked and prefers automatic payout
-        const hasMercadopagoLinked = !!(doer?.mercadopagoUserId && doer?.mercadopagoLinkedAt);
-        const prefersMercadopagoPayout = doer?.prefersMercadopagoPayout === true;
-        const payoutMethod = (hasMercadopagoLinked && prefersMercadopagoPayout)
-          ? 'mercadopago_auto'
-          : 'bank_transfer_manual';
-
         // Check if worker has banking info (CBU/CVU) to receive payments
         const hasBankingInfo = !!(doer?.bankingInfo?.cbu || doer?.bankingInfo?.alias);
 
@@ -213,11 +191,6 @@ router.get("/", protect, requireRole(['admin', 'super_admin', 'owner']), async (
           percentageOfBudget: contract.percentageOfBudget
             ? parseFloat(contract.percentageOfBudget.toString())
             : null,
-          // MercadoPago Split Payment info
-          mercadopagoLinked: hasMercadopagoLinked,
-          prefersMercadopagoPayout,
-          mercadopagoEmail: doer?.mercadopagoEmail || null,
-          payoutMethod,
         });
       }
 
@@ -264,11 +237,6 @@ router.get("/", protect, requireRole(['admin', 'super_admin', 'owner']), async (
 
     // Group by bank for summary
     const bankSummary: Record<string, { count: number; totalAmount: number }> = {};
-    // Group by payout method for summary
-    const payoutMethodSummary = {
-      mercadopago_auto: { count: 0, totalAmount: 0 },
-      bank_transfer_manual: { count: 0, totalAmount: 0 },
-    };
 
     for (const row of paymentRows) {
       for (const worker of row.workers) {
@@ -278,10 +246,6 @@ router.get("/", protect, requireRole(['admin', 'super_admin', 'owner']), async (
         }
         bankSummary[bankName].count++;
         bankSummary[bankName].totalAmount += worker.amountToPay;
-
-        // Track payout method
-        payoutMethodSummary[worker.payoutMethod].count++;
-        payoutMethodSummary[worker.payoutMethod].totalAmount += worker.amountToPay;
       }
     }
 
@@ -299,10 +263,6 @@ router.get("/", protect, requireRole(['admin', 'super_admin', 'owner']), async (
           totalCommissionCollected,
           averagePaymentPerWorker: totalWorkers > 0 ? totalAmountToPay / totalWorkers : 0,
           bankBreakdown: bankSummary,
-          payoutMethodBreakdown: {
-            mercadopagoAuto: payoutMethodSummary.mercadopago_auto,
-            bankTransferManual: payoutMethodSummary.bank_transfer_manual,
-          },
         },
         data: paymentRows
       }
@@ -584,236 +544,6 @@ router.post("/:contractId/mark-paid", protect, requireRole(['admin', 'super_admi
     res.status(500).json({
       success: false,
       message: error.message || "Error al marcar pago"
-    });
-  }
-});
-
-/**
- * Process automatic payment via MercadoPago Split Payment
- * POST /api/admin/pending-payments/:contractId/process-mercadopago
- *
- * This endpoint attempts to automatically transfer funds to the worker
- * via MercadoPago if they have their account linked.
- */
-router.post("/:contractId/process-mercadopago", protect, requireRole(['admin', 'super_admin', 'owner']), async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { contractId } = req.params;
-    const { adminNotes } = req.body;
-    const adminId = req.user.id;
-
-    const contract = await Contract.findByPk(contractId, {
-      include: [
-        { model: User, as: 'doer' },
-        { model: User, as: 'client' },
-        { model: Job, as: 'job' }
-      ]
-    });
-
-    if (!contract) {
-      res.status(404).json({ success: false, message: "Contrato no encontrado" });
-      return;
-    }
-
-    const doer = contract.doer as User;
-    const job = contract.job as any;
-
-    // Verify worker has MercadoPago linked and prefers automatic payout
-    if (!doer.hasMercadopagoLinked()) {
-      res.status(400).json({
-        success: false,
-        message: "El trabajador no tiene cuenta de MercadoPago vinculada. Use el pago manual por transferencia bancaria.",
-      });
-      return;
-    }
-
-    if (!doer.prefersMercadopagoPayout) {
-      res.status(400).json({
-        success: false,
-        message: "El trabajador prefiere pago manual por transferencia bancaria.",
-      });
-      return;
-    }
-
-    // Calculate amounts
-    const workerAmount = parseFloat((contract.allocatedAmount || contract.price).toString());
-    const commission = parseFloat(contract.commission.toString());
-    const description = `Pago por trabajo: ${job?.title || 'Contrato ' + contractId}`;
-    const externalReference = `contract-${contractId}`;
-
-    // Attempt split payment via MercadoPago
-    console.log(`🔄 Processing MercadoPago split payment for contract ${contractId}`);
-    console.log(`   Worker: ${doer.name} (${doer.mercadopagoEmail})`);
-    console.log(`   Amount: $${workerAmount} ARS (commission: $${commission})`);
-
-    const result = await mercadopagoOAuthService.transferToBankAccount(
-      doer.id,
-      workerAmount,
-      description,
-      externalReference
-    );
-
-    if (result.success) {
-      // Update contract payment status
-      contract.paymentStatus = 'completed';
-      contract.paymentDate = new Date();
-      contract.escrowStatus = 'released';
-      await contract.save();
-
-      // Update associated payment if exists
-      const payment = await Payment.findOne({ where: { contractId } });
-      if (payment) {
-        payment.status = 'completed';
-        payment.paidAt = new Date();
-        payment.mercadopagoPaymentId = result.transactionId;
-        if (adminNotes) payment.adminNotes = adminNotes;
-        await payment.save();
-      }
-
-      // Notify worker
-      await Notification.create({
-        recipientId: doer.id,
-        type: 'success',
-        category: 'payment',
-        title: 'Pago automático recibido',
-        message: `Tu pago de $${workerAmount} ARS por "${job?.title}" ha sido enviado automáticamente a tu cuenta de MercadoPago.`,
-        relatedModel: 'Contract',
-        relatedId: contract.id,
-        sentVia: ['in_app'],
-      });
-
-      console.log(`✅ MercadoPago split payment completed: ${result.transactionId}`);
-
-      res.status(200).json({
-        success: true,
-        message: "Pago automático procesado exitosamente",
-        paymentMethod: 'mercadopago_auto',
-        transactionId: result.transactionId,
-        workerAmount: result.workerAmount,
-        contract
-      });
-    } else {
-      // Payment failed - log error and return failure message
-      console.error(`❌ MercadoPago split payment failed: ${result.error}`);
-
-      res.status(400).json({
-        success: false,
-        message: `Error procesando pago automático: ${result.error}. Por favor use pago manual por transferencia bancaria.`,
-        fallbackToManual: true,
-      });
-    }
-  } catch (error: any) {
-    console.error("Error processing MercadoPago payment:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Error al procesar pago automático",
-      fallbackToManual: true,
-    });
-  }
-});
-
-/**
- * Batch process all eligible MercadoPago payments
- * POST /api/admin/pending-payments/process-all-mercadopago
- */
-router.post("/process-all-mercadopago", protect, requireRole(['admin', 'super_admin', 'owner']), async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const adminId = req.user.id;
-
-    // Find all contracts eligible for automatic MercadoPago payment
-    const contracts = await Contract.findAll({
-      where: {
-        status: { [Op.in]: ['completed', 'awaiting_confirmation'] },
-        clientConfirmed: true,
-        doerConfirmed: true,
-        paymentStatus: { [Op.notIn]: ['completed'] }
-      },
-      include: [
-        {
-          model: User,
-          as: 'doer',
-          where: {
-            mercadopagoUserId: { [Op.ne]: null },
-            mercadopagoLinkedAt: { [Op.ne]: null },
-            prefersMercadopagoPayout: true,
-          }
-        },
-        { model: Job, as: 'job' }
-      ]
-    });
-
-    const results = {
-      total: contracts.length,
-      success: 0,
-      failed: 0,
-      errors: [] as string[],
-    };
-
-    for (const contract of contracts) {
-      const doer = contract.doer as User;
-      const job = contract.job as any;
-      const workerAmount = parseFloat((contract.allocatedAmount || contract.price).toString());
-      const description = `Pago por trabajo: ${job?.title || 'Contrato ' + contract.id}`;
-      const externalReference = `contract-${contract.id}`;
-
-      try {
-        const result = await mercadopagoOAuthService.transferToBankAccount(
-          doer.id,
-          workerAmount,
-          description,
-          externalReference
-        );
-
-        if (result.success) {
-          // Update contract
-          contract.paymentStatus = 'completed';
-          contract.paymentDate = new Date();
-          contract.escrowStatus = 'released';
-          await contract.save();
-
-          // Update payment
-          const payment = await Payment.findOne({ where: { contractId: contract.id } });
-          if (payment) {
-            payment.status = 'completed';
-            payment.paidAt = new Date();
-            payment.mercadopagoPaymentId = result.transactionId;
-            await payment.save();
-          }
-
-          // Notify worker
-          await Notification.create({
-            recipientId: doer.id,
-            type: 'success',
-            category: 'payment',
-            title: 'Pago automático recibido',
-            message: `Tu pago de $${workerAmount} ARS por "${job?.title}" ha sido enviado automáticamente a tu cuenta de MercadoPago.`,
-            relatedModel: 'Contract',
-            relatedId: contract.id,
-            sentVia: ['in_app'],
-          });
-
-          results.success++;
-        } else {
-          results.failed++;
-          results.errors.push(`Contract ${contract.id}: ${result.error}`);
-        }
-      } catch (err: any) {
-        results.failed++;
-        results.errors.push(`Contract ${contract.id}: ${err.message}`);
-      }
-    }
-
-    console.log(`✅ Batch MercadoPago processing complete: ${results.success}/${results.total} successful`);
-
-    res.status(200).json({
-      success: true,
-      message: `Procesamiento batch completado. ${results.success} exitosos, ${results.failed} fallidos.`,
-      results
-    });
-  } catch (error: any) {
-    console.error("Error in batch MercadoPago processing:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Error en procesamiento batch"
     });
   }
 });

@@ -164,6 +164,7 @@ export interface RegisterData {
   dni: string;
   termsAccepted: boolean;
   referralCode?: string;
+  cbu?: string;
 }
 
 export interface BlogPost {

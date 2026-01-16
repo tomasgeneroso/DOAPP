@@ -263,11 +263,14 @@ export default function Index() {
   return (
     <>
       <Helmet>
-        <title>Doers - La forma segura de contratar y trabajar</title>
+        <title>DoApp - Plataforma Freelance Argentina | Pagos Seguros con Escrow</title>
         <meta
           name="description"
-          content="Do – La forma segura de contratar y trabajar. La plataforma argentina que asegura que cada acuerdo se cumpla con garantía de dinero."
+          content="DoApp es la plataforma freelance argentina donde publicás trabajos o encontrás oportunidades. Pagos seguros con escrow, tu dinero protegido hasta confirmar el trabajo. Comisiones desde 2%. Registrate gratis."
         />
+        <meta property="og:url" content="https://doapparg.site/" />
+        <meta property="og:image" content="https://doapparg.site/og-image.png" />
+        <meta name="twitter:image" content="https://doapparg.site/og-image.png" />
       </Helmet>
       <div className="w-full max-w-[100vw] mx-auto px-3 sm:px-4 py-8 sm:py-12 overflow-x-hidden">
         <div className="text-center mb-8 sm:mb-12">
@@ -276,9 +279,8 @@ export default function Index() {
               `¡Hola de nuevo, ${user.name}!`
             ) : (
               <>
-                Publicá el servicio que necesites o{" "}
-                <span className="text-sky-600">encontrá oportunidades</span>{" "}
-                para ofrecer tus servicios.
+                Plataforma Freelance Argentina con{" "}
+                <span className="text-sky-600">Pagos Seguros</span>
               </>
             )}
           </h1>
@@ -287,7 +289,7 @@ export default function Index() {
               ? "Cargando..."
               : user
               ? "¿Listo para empezar un nuevo proyecto o buscar oportunidades? Estás en el lugar correcto."
-              : "En DoApp, conectamos personas que necesitan servicios con quienes saben hacerlos. Garantizamos que el trabajo se complete o te devolvemos el dinero."}
+              : "Publicá trabajos y contratá profesionales con garantía de pago. El dinero queda protegido en escrow hasta que confirmés el trabajo completado. Sin riesgos, sin estafas."}
           </p>
           {!user && !isLoading && (
             <p className="mx-auto mt-3 sm:mt-4 max-w-2xl text-sm sm:text-base leading-6 sm:leading-7 text-gray-500 dark:text-slate-500 px-2">

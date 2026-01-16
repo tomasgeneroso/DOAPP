@@ -8,6 +8,7 @@ import { requirePermission } from "../../middleware/permissions.js";
 import { logAudit } from "../../utils/auditLog.js";
 import type { AuthRequest } from "../../types/index.js";
 import { Op } from 'sequelize';
+import { logger } from "../../services/logger.js";
 
 const router = express.Router();
 
@@ -319,6 +320,90 @@ router.get(
       res.status(500).json({
         success: false,
         message: error.message || "Error del servidor",
+      });
+    }
+  }
+);
+
+// @route   GET /api/admin/analytics/logs
+// @desc    Ver logs del sistema (errores silenciosos, pagos, notificaciones)
+// @access  Owner only
+router.get(
+  "/logs",
+  requirePermission("admin:owner"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { category = "silent_errors", limit = 100 } = req.query;
+
+      const validCategories = [
+        "silent_errors",
+        "payments",
+        "notifications",
+        "proposals",
+        "contracts",
+        "auth",
+        "security",
+        "all"
+      ];
+
+      if (!validCategories.includes(category as string)) {
+        res.status(400).json({
+          success: false,
+          message: `Categoría inválida. Válidas: ${validCategories.join(", ")}`
+        });
+        return;
+      }
+
+      const logs = await logger.getRecentLogs(
+        category as string,
+        Math.min(Number(limit), 500)
+      );
+
+      res.json({
+        success: true,
+        data: {
+          category,
+          logs,
+          count: logs.length,
+          retrievedAt: new Date()
+        }
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error al obtener logs"
+      });
+    }
+  }
+);
+
+// @route   GET /api/admin/analytics/logs/categories
+// @desc    Ver categorías de logs disponibles
+// @access  Owner only
+router.get(
+  "/logs/categories",
+  requirePermission("admin:owner"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      res.json({
+        success: true,
+        data: {
+          categories: [
+            { id: "silent_errors", name: "Errores Silenciosos", description: "Errores que no interrumpen el flujo pero se registran" },
+            { id: "payments", name: "Pagos", description: "Operaciones de pago y MercadoPago" },
+            { id: "notifications", name: "Notificaciones", description: "Creación y envío de notificaciones" },
+            { id: "proposals", name: "Propuestas", description: "Postulaciones a trabajos" },
+            { id: "contracts", name: "Contratos", description: "Operaciones de contratos" },
+            { id: "auth", name: "Autenticación", description: "Login, registro, tokens" },
+            { id: "security", name: "Seguridad", description: "Eventos de seguridad" },
+            { id: "all", name: "Todos", description: "Todos los logs combinados" }
+          ]
+        }
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor"
       });
     }
   }

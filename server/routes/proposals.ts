@@ -1,5 +1,5 @@
 import express, { Request, Response } from "express";
-import { body, validationResult } from "express-validator";
+import { body, param, validationResult } from "express-validator";
 import { Proposal } from "../models/sql/Proposal.model.js";
 import { Job } from "../models/sql/Job.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
@@ -14,6 +14,7 @@ import { config } from "../config/env.js";
 import { socketService } from "../index.js";
 import { Op } from 'sequelize';
 import cacheService from "../services/cacheService.js";
+import { logger } from "../services/logger.js";
 
 const router = express.Router();
 
@@ -156,8 +157,21 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
 // @route   GET /api/proposals/check/:jobId
 // @desc    Verificar si el usuario ya aplicó a un trabajo
 // @access  Private
-router.get("/check/:jobId", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/check/:jobId",
+  protect,
+  [param("jobId").isUUID().withMessage("ID de trabajo inválido")],
+  async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({
+        success: false,
+        message: "ID de trabajo inválido",
+        errors: errors.array(),
+      });
+      return;
+    }
+
     const proposal = await Proposal.findOne({
       where: {
         jobId: req.params.jobId,
@@ -182,8 +196,21 @@ router.get("/check/:jobId", protect, async (req: AuthRequest, res: Response): Pr
 // @route   GET /api/proposals/job/:jobId
 // @desc    Obtener propuestas de un trabajo específico
 // @access  Private
-router.get("/job/:jobId", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/job/:jobId",
+  protect,
+  [param("jobId").isUUID().withMessage("ID de trabajo inválido")],
+  async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({
+        success: false,
+        message: "ID de trabajo inválido",
+        errors: errors.array(),
+      });
+      return;
+    }
+
     const job = await Job.findByPk(req.params.jobId);
 
     if (!job) {
@@ -231,8 +258,21 @@ router.get("/job/:jobId", protect, async (req: AuthRequest, res: Response): Prom
 // @route   GET /api/proposals/:id
 // @desc    Obtener propuesta por ID
 // @access  Private
-router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/:id",
+  protect,
+  [param("id").isUUID().withMessage("ID de propuesta inválido")],
+  async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({
+        success: false,
+        message: "ID de propuesta inválido",
+        errors: errors.array(),
+      });
+      return;
+    }
+
     const proposal = await Proposal.findByPk(req.params.id, {
       include: [
         {
@@ -318,6 +358,12 @@ router.post(
       }
 
       const { job: jobId, coverLetter, proposedPrice, estimatedDuration } = req.body;
+
+      logger.proposal('CREATE_START', 'Starting proposal creation', {
+        jobId,
+        freelancerId: req.user.id,
+        data: { proposedPrice, estimatedDuration }
+      });
 
       // Verificar que el trabajo existe y está abierto
       const job = await Job.findByPk(jobId);
@@ -421,7 +467,7 @@ router.post(
         ? `${req.user.name} envió una contraoferta||${job.title}||**Contraoferta:** $${proposedPrice.toLocaleString("es-AR")} ARS (Precio original: $${job.price.toLocaleString("es-AR")} ARS)\n**Ubicación:** ${job.location}\n**Duración estimada:** ${estimatedDuration} días\n\n**Mensaje:**\n${coverLetter}`
         : `${req.user.name} aplicó al trabajo||${job.title}||**Precio propuesto:** $${proposedPrice.toLocaleString("es-AR")} ARS\n**Ubicación:** ${job.location}\n**Duración estimada:** ${estimatedDuration} días\n**Fecha de inicio:** ${new Date(job.startDate).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })}`;
 
-      await ChatMessage.create({
+      const applicationMessage = await ChatMessage.create({
         conversationId: conversation.id,
         senderId: req.user.id,
         message: messageText,
@@ -429,15 +475,54 @@ router.post(
         metadata: {
           jobId: job.id,
           proposalId: proposal.id,
+          proposalStatus: 'pending',
           action: "job_application",
           isCounterOffer,
         },
       });
 
+      // Reload and emit system message with sender data
+      await applicationMessage.reload({
+        include: [{
+          model: User,
+          as: 'sender',
+          attributes: ['id', 'name', 'avatar'],
+        }],
+      });
+      socketService.getIO().to(`conversation:${conversation.id}`).emit('message:new', applicationMessage);
+
       // Actualizar conversación
       conversation.lastMessage = isCounterOffer ? "Nueva contraoferta recibida" : "Nueva aplicación recibida";
       conversation.lastMessageAt = new Date();
+
+      // Increment unread count for the client (job owner)
+      if (!conversation.unreadCount) {
+        conversation.unreadCount = {};
+      }
+      const clientIdStr = job.clientId.toString();
+      conversation.unreadCount[clientIdStr] = (conversation.unreadCount[clientIdStr] || 0) + 1;
+      conversation.changed('unreadCount', true);
+
       await conversation.save();
+
+      // Notify client about unread message update
+      // Get total unread count for the client
+      const clientConversations = await Conversation.findAll({
+        where: {
+          participants: { [Op.contains]: [clientIdStr] },
+          archived: false,
+        },
+        attributes: ['id', 'unreadCount']
+      });
+      let totalUnread = 0;
+      let unreadConversations = 0;
+      clientConversations.forEach((conv) => {
+        const unreadMap = conv.unreadCount as Record<string, number> | null;
+        const count = unreadMap?.[clientIdStr] || 0;
+        totalUnread += count;
+        if (count > 0) unreadConversations++;
+      });
+      socketService.notifyUnreadMessagesUpdate(clientIdStr, totalUnread, unreadConversations);
 
       // Send real-time notifications via Socket.io
       socketService.notifyProposalUpdate(
@@ -470,30 +555,56 @@ router.post(
         ? `${freelancerUser?.name || 'Un trabajador'} envió una contraoferta de $${proposedPrice.toLocaleString('es-AR')} ARS para "${job.title}"`
         : `${freelancerUser?.name || 'Un trabajador'} se postuló para "${job.title}" por $${proposedPrice.toLocaleString('es-AR')} ARS`;
 
-      const notification = await Notification.create({
-        recipientId: job.clientId,
-        type: isCounterOffer ? 'counter_offer' : 'new_proposal',
-        category: 'proposal',
-        title: notificationTitle,
-        message: notificationMessage,
-        relatedModel: 'Proposal',
-        relatedId: proposal.id,
-        actionText: 'Ver postulación',
-        data: {
-          jobId: job.id,
-          jobTitle: job.title,
+      try {
+        logger.proposal('CREATE_NOTIFICATION', 'Creating proposal notification for client', {
           proposalId: proposal.id,
+          jobId: job.id,
           freelancerId: req.user.id,
-          freelancerName: freelancerUser?.name,
-          freelancerAvatar: freelancerUser?.avatar,
-          proposedPrice,
-          isCounterOffer,
-        },
-        read: false,
-      });
+          clientId: job.clientId,
+          data: { isCounterOffer, proposedPrice }
+        });
 
-      // Send real-time notification to job owner
-      socketService.notifyUser(job.clientId, notification.toJSON());
+        const notification = await Notification.create({
+          recipientId: job.clientId,
+          type: isCounterOffer ? 'counter_offer' : 'new_proposal',
+          category: 'proposal',
+          title: notificationTitle,
+          message: notificationMessage,
+          relatedModel: 'Proposal',
+          relatedId: proposal.id,
+          actionText: 'Ver postulación',
+          data: {
+            jobId: job.id,
+            jobTitle: job.title,
+            proposalId: proposal.id,
+            freelancerId: req.user.id,
+            freelancerName: freelancerUser?.name,
+            freelancerAvatar: freelancerUser?.avatar,
+            proposedPrice,
+            isCounterOffer,
+          },
+          read: false,
+        });
+
+        logger.notification('CREATED', 'Proposal notification created successfully', {
+          notificationId: notification.id,
+          recipientId: job.clientId,
+          type: isCounterOffer ? 'counter_offer' : 'new_proposal',
+          category: 'proposal'
+        });
+
+        // Send real-time notification to job owner
+        socketService.notifyUser(job.clientId, notification.toJSON());
+      } catch (notifError: any) {
+        // Use silentError to always capture this, even in production
+        logger.silentError('proposals', 'Failed to create proposal notification', notifError, {
+          proposalId: proposal.id,
+          jobId: job.id,
+          clientId: job.clientId,
+          freelancerId: req.user.id
+        });
+        // Don't fail the whole request if notification fails
+      }
 
       res.status(201).json({
         success: true,
@@ -512,8 +623,21 @@ router.post(
 // @route   PUT /api/proposals/:id/approve
 // @desc    Aprobar propuesta (por el cliente) - soporta múltiples trabajadores con asignación de pago personalizada
 // @access  Private
-router.put("/:id/approve", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+router.put("/:id/approve",
+  protect,
+  [param("id").isUUID().withMessage("ID de propuesta inválido")],
+  async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({
+        success: false,
+        message: "ID de propuesta inválido",
+        errors: errors.array(),
+      });
+      return;
+    }
+
     // Extract optional allocated amount from request body
     const { allocatedAmount } = req.body;
 
@@ -859,9 +983,22 @@ router.put("/:id/approve", protect, async (req: AuthRequest, res: Response): Pro
 router.put(
   "/:id/reject",
   protect,
-  [body("rejectionReason").optional().isLength({ max: 500 })],
+  [
+    param("id").isUUID().withMessage("ID de propuesta inválido"),
+    body("rejectionReason").optional().isLength({ max: 500 })
+  ],
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          message: "ID de propuesta inválido",
+          errors: errors.array(),
+        });
+        return;
+      }
+
       const { rejectionReason } = req.body;
 
       const proposal = await Proposal.findByPk(req.params.id);
@@ -949,9 +1086,22 @@ router.put(
 router.put(
   "/:id/withdraw",
   protect,
-  [body("withdrawnReason").optional().isLength({ max: 500 })],
+  [
+    param("id").isUUID().withMessage("ID de propuesta inválido"),
+    body("withdrawnReason").optional().isLength({ max: 500 })
+  ],
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          message: "ID de propuesta inválido",
+          errors: errors.array(),
+        });
+        return;
+      }
+
       const { withdrawnReason } = req.body;
 
       const proposal = await Proposal.findByPk(req.params.id);
@@ -1036,8 +1186,21 @@ router.put(
 // @route   DELETE /api/proposals/:id
 // @desc    Eliminar propuesta (solo si está pending y es el freelancer)
 // @access  Private
-router.delete("/:id", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+router.delete("/:id",
+  protect,
+  [param("id").isUUID().withMessage("ID de propuesta inválido")],
+  async (req: AuthRequest, res: Response): Promise<void> => {
   try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({
+        success: false,
+        message: "ID de propuesta inválido",
+        errors: errors.array(),
+      });
+      return;
+    }
+
     const proposal = await Proposal.findByPk(req.params.id);
 
     if (!proposal) {
@@ -1208,24 +1371,62 @@ router.post(
       const endDateText = endDate
         ? `Finalización estimada: ${endDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })} a las ${endDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`
         : `Finalización: Por definir (fecha flexible)`;
-      const systemMessage = `${req.user.name} se postuló al trabajo||${job.title}||Inicio: ${startDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })} a las ${startDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}\n${endDateText}\nPrecio Acordado: $${jobPrice.toLocaleString("es-AR")} ARS\nUbicación: ${job.location}\n\n⏳ Puedes ser seleccionado hasta 48 horas antes del inicio del trabajo.`;
+      const systemMessageText = `${req.user.name} se postuló al trabajo||${job.title}||Inicio: ${startDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })} a las ${startDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}\n${endDateText}\nPrecio Acordado: $${jobPrice.toLocaleString("es-AR")} ARS\nUbicación: ${job.location}\n\n⏳ Puedes ser seleccionado hasta 48 horas antes del inicio del trabajo.`;
 
-      await ChatMessage.create({
+      const chatSystemMessage = await ChatMessage.create({
         conversationId: conversation.id,
         senderId: req.user.id,
-        message: systemMessage,
+        message: systemMessageText,
         type: "system",
         metadata: {
           jobId: job.id,
           proposalId: proposal.id,
+          proposalStatus: 'pending',
           action: "job_application",
         },
       });
 
+      // Reload and emit system message with sender data
+      await chatSystemMessage.reload({
+        include: [{
+          model: User,
+          as: 'sender',
+          attributes: ['id', 'name', 'avatar'],
+        }],
+      });
+      socketService.getIO().to(`conversation:${conversation.id}`).emit('message:new', chatSystemMessage);
+
       // Actualizar conversación
       conversation.lastMessage = "Nueva postulación recibida";
       conversation.lastMessageAt = new Date();
+
+      // Increment unread count for the client (job owner)
+      if (!conversation.unreadCount) {
+        conversation.unreadCount = {};
+      }
+      const clientIdStr = job.clientId.toString();
+      conversation.unreadCount[clientIdStr] = (conversation.unreadCount[clientIdStr] || 0) + 1;
+      conversation.changed('unreadCount', true);
+
       await conversation.save();
+
+      // Notify client about unread message update
+      const clientConversations = await Conversation.findAll({
+        where: {
+          participants: { [Op.contains]: [clientIdStr] },
+          archived: false,
+        },
+        attributes: ['id', 'unreadCount']
+      });
+      let totalUnread = 0;
+      let unreadConversations = 0;
+      clientConversations.forEach((conv) => {
+        const unreadMap = conv.unreadCount as Record<string, number> | null;
+        const count = unreadMap?.[clientIdStr] || 0;
+        totalUnread += count;
+        if (count > 0) unreadConversations++;
+      });
+      socketService.notifyUnreadMessagesUpdate(clientIdStr, totalUnread, unreadConversations);
 
       // Enviar emails a ambas partes
       const clientUser = job.client as any;
@@ -1435,6 +1636,550 @@ router.post(
       });
     } catch (error: any) {
       console.error("Error in start-negotiation:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor",
+      });
+    }
+  }
+);
+
+// @route   POST /api/proposals/direct
+// @desc    Crear propuesta de contrato directa (sin job existente)
+// @access  Private
+router.post(
+  "/direct",
+  protect,
+  [
+    body("recipientId").isUUID().withMessage("ID de destinatario inválido"),
+    body("title").notEmpty().isLength({ min: 5, max: 200 }).withMessage("El título debe tener entre 5 y 200 caracteres"),
+    body("description").notEmpty().isLength({ min: 10, max: 2000 }).withMessage("La descripción debe tener entre 10 y 2000 caracteres"),
+    body("proposedPrice").isNumeric().withMessage("El precio debe ser numérico"),
+    body("estimatedDuration").isInt({ min: 1 }).withMessage("La duración debe ser al menos 1 día"),
+    body("location").optional().isLength({ max: 100 }),
+    body("category").optional().isLength({ max: 50 }),
+    body("startDate").optional().isISO8601(),
+    body("endDate").optional().isISO8601(),
+    body("message").optional().isLength({ max: 1000 }),
+  ],
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          errors: errors.array(),
+        });
+        return;
+      }
+
+      const {
+        recipientId,
+        title,
+        description,
+        proposedPrice,
+        estimatedDuration,
+        location,
+        category,
+        startDate,
+        endDate,
+        message,
+      } = req.body;
+
+      // Verificar que el destinatario existe
+      const recipient = await User.findByPk(recipientId);
+      if (!recipient) {
+        res.status(404).json({
+          success: false,
+          message: "Usuario destinatario no encontrado",
+        });
+        return;
+      }
+
+      // Verificar que no se está enviando a sí mismo
+      if (recipientId === req.user.id) {
+        res.status(400).json({
+          success: false,
+          message: "No puedes enviarte una propuesta a ti mismo",
+        });
+        return;
+      }
+
+      // Crear o buscar conversación existente
+      let conversation = await Conversation.findOne({
+        where: {
+          participants: {
+            [Op.contains]: [req.user.id, recipientId],
+          },
+          type: "direct",
+        },
+      });
+
+      if (!conversation) {
+        conversation = await Conversation.create({
+          participants: [req.user.id, recipientId],
+          type: "direct",
+        });
+      }
+
+      // Crear la propuesta directa
+      const proposal = await Proposal.create({
+        freelancerId: recipientId, // El destinatario es el trabajador potencial
+        clientId: req.user.id, // El que propone es el cliente
+        coverLetter: message || `Propuesta de contrato: ${title}`,
+        proposedPrice: parseFloat(proposedPrice),
+        estimatedDuration: parseInt(estimatedDuration),
+        status: 'pending',
+        isDirectProposal: true,
+        conversationId: conversation.id,
+        directTitle: title,
+        directDescription: description,
+        directLocation: location,
+        directCategory: category,
+        directStartDate: startDate ? new Date(startDate) : undefined,
+        directEndDate: endDate ? new Date(endDate) : undefined,
+      });
+
+      // Crear mensaje del sistema en el chat
+      const systemMessage = await ChatMessage.create({
+        conversationId: conversation.id,
+        senderId: req.user.id,
+        message: `direct_proposal||${title}||${description.substring(0, 100)}...`,
+        type: 'system',
+        metadata: {
+          action: 'direct_contract_proposal',
+          proposalId: proposal.id,
+          proposalStatus: 'pending',
+          directProposal: {
+            title,
+            description,
+            location,
+            category,
+            proposedPrice: parseFloat(proposedPrice),
+            estimatedDuration: parseInt(estimatedDuration),
+            startDate,
+            endDate,
+          },
+        },
+      });
+
+      // Reload system message with sender data for socket emission
+      await systemMessage.reload({
+        include: [{
+          model: User,
+          as: 'sender',
+          attributes: ['id', 'name', 'avatar'],
+        }],
+      });
+
+      // Emit system message to conversation participants via socket
+      socketService.getIO().to(`conversation:${conversation.id}`).emit('message:new', systemMessage);
+
+      // Actualizar conversación
+      conversation.lastMessage = `Propuesta de contrato: ${title}`;
+      conversation.lastMessageAt = new Date();
+      if (!conversation.unreadCount) {
+        conversation.unreadCount = {};
+      }
+      conversation.unreadCount[recipientId] = (conversation.unreadCount[recipientId] || 0) + 1;
+      conversation.changed('unreadCount', true);
+      await conversation.save();
+
+      // Crear notificación
+      await Notification.create({
+        recipientId: recipientId,
+        type: 'info',
+        category: 'proposal',
+        title: 'Nueva propuesta de contrato',
+        message: `${req.user.name} te ha enviado una propuesta de contrato: ${title}`,
+        relatedModel: 'Proposal',
+        relatedId: proposal.id,
+        actionUrl: `/messages?conversation=${conversation.id}`,
+        actionText: 'Ver propuesta',
+      });
+
+      // Notificar en tiempo real
+      socketService.notifyUser(recipientId, 'proposal:direct', {
+        proposal: {
+          id: proposal.id,
+          title,
+          description,
+          proposedPrice: parseFloat(proposedPrice),
+          estimatedDuration: parseInt(estimatedDuration),
+          status: 'pending',
+          sender: {
+            id: req.user.id,
+            name: req.user.name,
+            avatar: req.user.avatar,
+          },
+        },
+        conversationId: conversation.id,
+      });
+
+      // Notificar actualización de mensajes no leídos
+      const recipientConversations = await Conversation.findAll({
+        where: {
+          participants: { [Op.contains]: [recipientId] },
+          archived: false,
+        },
+        attributes: ['id', 'unreadCount'],
+      });
+      let totalUnread = 0;
+      let unreadConversations = 0;
+      recipientConversations.forEach((conv) => {
+        const unreadMap = conv.unreadCount as Record<string, number> | null;
+        const count = unreadMap?.[recipientId] || 0;
+        totalUnread += count;
+        if (count > 0) unreadConversations++;
+      });
+      socketService.notifyUnreadMessagesUpdate(recipientId, totalUnread, unreadConversations);
+
+      res.status(201).json({
+        success: true,
+        proposal: {
+          id: proposal.id,
+          title,
+          description,
+          proposedPrice: parseFloat(proposedPrice),
+          estimatedDuration: parseInt(estimatedDuration),
+          status: 'pending',
+          isDirectProposal: true,
+        },
+        conversationId: conversation.id,
+        message: "Propuesta de contrato enviada exitosamente",
+      });
+    } catch (error: any) {
+      console.error("Error creating direct proposal:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor",
+      });
+    }
+  }
+);
+
+// @route   PUT /api/proposals/:id/accept-direct
+// @desc    Aceptar propuesta directa (crea contrato automáticamente)
+// @access  Private
+router.put(
+  "/:id/accept-direct",
+  protect,
+  [param("id").isUUID().withMessage("ID de propuesta inválido")],
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          message: "ID de propuesta inválido",
+          errors: errors.array(),
+        });
+        return;
+      }
+
+      const proposal = await Proposal.findByPk(req.params.id, {
+        include: [
+          { model: User, as: 'client', attributes: ['id', 'name', 'email', 'avatar'] },
+          { model: User, as: 'freelancer', attributes: ['id', 'name', 'email', 'avatar'] },
+        ],
+      });
+
+      if (!proposal) {
+        res.status(404).json({
+          success: false,
+          message: "Propuesta no encontrada",
+        });
+        return;
+      }
+
+      // Verificar que es una propuesta directa
+      if (!proposal.isDirectProposal) {
+        res.status(400).json({
+          success: false,
+          message: "Esta no es una propuesta directa",
+        });
+        return;
+      }
+
+      // Verificar que el usuario que acepta es el destinatario (freelancer)
+      if (proposal.freelancerId !== req.user.id) {
+        res.status(403).json({
+          success: false,
+          message: "No tienes permiso para aceptar esta propuesta",
+        });
+        return;
+      }
+
+      // Verificar que está pendiente
+      if (proposal.status !== 'pending') {
+        res.status(400).json({
+          success: false,
+          message: `Esta propuesta ya fue ${proposal.status === 'approved' ? 'aceptada' : 'procesada'}`,
+        });
+        return;
+      }
+
+      // Primero crear el Job (trabajo) basado en la propuesta directa
+      const job = await Job.create({
+        title: proposal.directTitle || 'Contrato Directo',
+        description: proposal.directDescription || '',
+        price: proposal.proposedPrice,
+        location: proposal.directLocation || 'Remoto',
+        category: proposal.directCategory || 'Otros',
+        startDate: proposal.directStartDate || new Date(),
+        endDate: proposal.directEndDate,
+        clientId: proposal.clientId,
+        status: 'in_progress', // Ya está en progreso porque hay contrato
+        selectedWorkers: [proposal.freelancerId],
+        maxWorkers: 1,
+        isDirectContract: true, // Flag para identificar contratos directos
+      });
+
+      // Actualizar propuesta
+      proposal.status = 'approved';
+      proposal.jobId = job.id;
+      await proposal.save();
+
+      // Crear contrato
+      const contract = await Contract.create({
+        jobId: job.id,
+        clientId: proposal.clientId,
+        doerId: proposal.freelancerId,
+        price: proposal.proposedPrice,
+        status: 'accepted', // Ya está aceptado por ambas partes
+        clientConfirmed: true,
+        doerConfirmed: true,
+        startDate: proposal.directStartDate || new Date(),
+        endDate: proposal.directEndDate,
+      });
+
+      // Actualizar mensaje del sistema en el chat
+      if (proposal.conversationId) {
+        await ChatMessage.update(
+          {
+            metadata: sequelize.literal(`
+              jsonb_set(metadata, '{proposalStatus}', '"accepted"')
+            `),
+          },
+          {
+            where: {
+              conversationId: proposal.conversationId,
+              'metadata.proposalId': proposal.id,
+            },
+          }
+        );
+
+        // Crear mensaje de confirmación
+        const acceptedMessage = await ChatMessage.create({
+          conversationId: proposal.conversationId,
+          senderId: req.user.id,
+          message: `system||Propuesta Aceptada||${req.user.name} ha aceptado la propuesta de contrato`,
+          type: 'system',
+          metadata: {
+            action: 'direct_proposal_accepted',
+            proposalId: proposal.id,
+            contractId: contract.id,
+            jobId: job.id,
+          },
+        });
+
+        // Reload and emit system message
+        await acceptedMessage.reload({
+          include: [{
+            model: User,
+            as: 'sender',
+            attributes: ['id', 'name', 'avatar'],
+          }],
+        });
+        socketService.getIO().to(`conversation:${proposal.conversationId}`).emit('message:new', acceptedMessage);
+
+        // Actualizar conversación con referencia al contrato
+        await Conversation.update(
+          {
+            contractId: contract.id,
+            jobId: job.id,
+            lastMessage: 'Propuesta de contrato aceptada',
+            lastMessageAt: new Date(),
+          },
+          { where: { id: proposal.conversationId } }
+        );
+      }
+
+      // Notificar al cliente
+      await Notification.create({
+        recipientId: proposal.clientId,
+        type: 'success',
+        category: 'contract',
+        title: 'Propuesta aceptada',
+        message: `${req.user.name} ha aceptado tu propuesta de contrato: ${proposal.directTitle}`,
+        relatedModel: 'Contract',
+        relatedId: contract.id,
+        actionUrl: `/contracts/${contract.id}`,
+        actionText: 'Ver contrato',
+      });
+
+      // Notificar en tiempo real
+      socketService.notifyUser(proposal.clientId, 'proposal:accepted', {
+        proposal: {
+          id: proposal.id,
+          status: 'approved',
+        },
+        contract: {
+          id: contract.id,
+          status: contract.status,
+        },
+        job: {
+          id: job.id,
+        },
+      });
+
+      res.json({
+        success: true,
+        message: "Propuesta aceptada exitosamente",
+        contract: {
+          id: contract.id,
+          status: contract.status,
+          jobId: job.id,
+        },
+        proposal: {
+          id: proposal.id,
+          status: proposal.status,
+        },
+      });
+    } catch (error: any) {
+      console.error("Error accepting direct proposal:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor",
+      });
+    }
+  }
+);
+
+// @route   PUT /api/proposals/:id/reject-direct
+// @desc    Rechazar propuesta directa
+// @access  Private
+router.put(
+  "/:id/reject-direct",
+  protect,
+  [
+    param("id").isUUID().withMessage("ID de propuesta inválido"),
+    body("reason").optional().isLength({ max: 500 }),
+  ],
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          message: "Datos inválidos",
+          errors: errors.array(),
+        });
+        return;
+      }
+
+      const { reason } = req.body;
+
+      const proposal = await Proposal.findByPk(req.params.id, {
+        include: [
+          { model: User, as: 'client', attributes: ['id', 'name', 'email'] },
+        ],
+      });
+
+      if (!proposal) {
+        res.status(404).json({
+          success: false,
+          message: "Propuesta no encontrada",
+        });
+        return;
+      }
+
+      // Verificar que es una propuesta directa
+      if (!proposal.isDirectProposal) {
+        res.status(400).json({
+          success: false,
+          message: "Esta no es una propuesta directa",
+        });
+        return;
+      }
+
+      // Verificar que el usuario que rechaza es el destinatario
+      if (proposal.freelancerId !== req.user.id) {
+        res.status(403).json({
+          success: false,
+          message: "No tienes permiso para rechazar esta propuesta",
+        });
+        return;
+      }
+
+      // Verificar que está pendiente
+      if (proposal.status !== 'pending') {
+        res.status(400).json({
+          success: false,
+          message: "Esta propuesta ya fue procesada",
+        });
+        return;
+      }
+
+      // Rechazar propuesta
+      proposal.status = 'rejected';
+      proposal.rejectionReason = reason;
+      await proposal.save();
+
+      // Crear mensaje de rechazo en el chat
+      if (proposal.conversationId) {
+        const rejectedMessage = await ChatMessage.create({
+          conversationId: proposal.conversationId,
+          senderId: req.user.id,
+          message: `system||Propuesta Rechazada||${req.user.name} ha rechazado la propuesta de contrato${reason ? `: ${reason}` : ''}`,
+          type: 'system',
+          metadata: {
+            action: 'direct_proposal_rejected',
+            proposalId: proposal.id,
+            reason,
+          },
+        });
+
+        // Reload and emit system message
+        await rejectedMessage.reload({
+          include: [{
+            model: User,
+            as: 'sender',
+            attributes: ['id', 'name', 'avatar'],
+          }],
+        });
+        socketService.getIO().to(`conversation:${proposal.conversationId}`).emit('message:new', rejectedMessage);
+      }
+
+      // Notificar al cliente
+      await Notification.create({
+        recipientId: proposal.clientId,
+        type: 'warning',
+        category: 'proposal',
+        title: 'Propuesta rechazada',
+        message: `${req.user.name} ha rechazado tu propuesta de contrato: ${proposal.directTitle}`,
+        relatedModel: 'Proposal',
+        relatedId: proposal.id,
+        actionUrl: `/messages?conversation=${proposal.conversationId}`,
+        actionText: 'Ver chat',
+      });
+
+      // Notificar en tiempo real
+      socketService.notifyUser(proposal.clientId, 'proposal:rejected', {
+        proposalId: proposal.id,
+        reason,
+      });
+
+      res.json({
+        success: true,
+        message: "Propuesta rechazada",
+        proposal: {
+          id: proposal.id,
+          status: proposal.status,
+        },
+      });
+    } catch (error: any) {
+      console.error("Error rejecting direct proposal:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Error del servidor",

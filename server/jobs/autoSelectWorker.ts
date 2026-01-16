@@ -4,7 +4,9 @@ import { Proposal } from '../models/sql/Proposal.model.js';
 import { Contract } from '../models/sql/Contract.model.js';
 import { User } from '../models/sql/User.model.js';
 import { Notification } from '../models/sql/Notification.model.js';
+import { ChatMessage } from '../models/sql/ChatMessage.model.js';
 import emailService from '../services/email.js';
+import socketService from '../services/socket.js';
 import { Op } from 'sequelize';
 
 /**
@@ -195,6 +197,40 @@ export function startAutoSelectWorkerJob() {
                   </p>
                 `,
               });
+            }
+
+            // Actualizar el mensaje del chat para reflejar la autoselección
+            const chatMessage = await ChatMessage.findOne({
+              where: {
+                'metadata.proposalId': proposal.id,
+                'metadata.action': 'job_application',
+              },
+            });
+
+            if (chatMessage) {
+              // Actualizar metadata para reflejar aprobación automática
+              await chatMessage.update({
+                metadata: {
+                  ...chatMessage.metadata,
+                  proposalStatus: 'approved',
+                  contractId: contract.id,
+                  autoSelected: true,
+                  autoSelectedAt: new Date().toISOString(),
+                },
+              });
+
+              // Emitir actualización por socket
+              const updatedMessage = await ChatMessage.findByPk(chatMessage.id, {
+                include: [{
+                  model: User,
+                  as: 'sender',
+                  attributes: ['id', 'name', 'avatar'],
+                }],
+              });
+
+              if (updatedMessage) {
+                socketService.getIO().to(`conversation:${chatMessage.conversationId}`).emit('message:updated', updatedMessage);
+              }
             }
           }
 

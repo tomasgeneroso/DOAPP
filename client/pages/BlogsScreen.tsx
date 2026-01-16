@@ -107,7 +107,7 @@ export default function BlogsScreen() {
   return (
     <>
       <Helmet>
-        <title>Blog - Doers</title>
+        <title>Blog - DoApp</title>
         <meta
           name="description"
           content="Aprende tips, trucos y guías prácticas para el hogar, reparaciones, limpieza y más"
@@ -119,7 +119,7 @@ export default function BlogsScreen() {
         <div className="bg-gradient-to-r from-sky-600 to-blue-600 text-white py-16">
           <div className="container mx-auto px-4">
             <div className="max-w-3xl mx-auto text-center">
-              <h1 className="text-4xl md:text-5xl font-bold mb-4">Blog de Doers</h1>
+              <h1 className="text-4xl md:text-5xl font-bold mb-4">Blog de DoApp</h1>
               <p className="text-xl text-sky-100 mb-6">
                 Tips, guías y consejos para tu hogar
               </p>

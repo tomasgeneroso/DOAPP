@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MembershipPricing } from '../types';
 import Button from './ui/Button';
-import { Crown, Check, X } from 'lucide-react';
+import { Crown, Check, X, TrendingDown, Info } from 'lucide-react';
 
 interface ProMembershipModalProps {
   isOpen: boolean;
@@ -121,7 +121,42 @@ export default function ProMembershipModal({ isOpen, onClose }: ProMembershipMod
                     ))}
                   </ul>
 
-                  <div className="mt-6">
+                  {/* Tabla de comisiones por volumen */}
+                  {(pricing.free as any).volumeCommissions && (
+                    <div className="mt-4 bg-white dark:bg-gray-600 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <TrendingDown className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                        <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                          Comisiones por Volumen
+                        </p>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                        {(pricing.free as any).volumeCommissions.description}
+                      </p>
+                      <div className="space-y-1.5">
+                        {(pricing.free as any).volumeCommissions.tiers.map((tier: any, index: number) => (
+                          <div key={index} className="flex justify-between items-center text-xs">
+                            <span className="text-gray-600 dark:text-gray-400">{tier.description}</span>
+                            <span className={`font-bold ${
+                              tier.rate <= 3 ? 'text-green-600 dark:text-green-400' :
+                              tier.rate <= 4 ? 'text-yellow-600 dark:text-yellow-400' :
+                              'text-orange-600 dark:text-orange-400'
+                            }`}>{tier.rate}%</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-500">
+                        <div className="flex items-start gap-1.5">
+                          <Info className="w-3.5 h-3.5 text-gray-400 flex-shrink-0 mt-0.5" />
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Comisión mínima: ${(pricing.free as any).volumeCommissions.minimumCommission.toLocaleString('es-AR')} ARS
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="mt-4">
                     <div className="bg-white dark:bg-gray-600 rounded-lg p-3 text-center">
                       <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
                         Plan Actual
@@ -199,7 +234,7 @@ export default function ProMembershipModal({ isOpen, onClose }: ProMembershipMod
                       </svg>
                     </div>
                     <h4 className="font-semibold text-gray-900 dark:text-white mb-1">Ahorra en Comisiones</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Solo 2% vs 6% en plan Free</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Solo 3% fijo vs 6-2% variable en Free</p>
                   </div>
 
                   <div className="text-center">

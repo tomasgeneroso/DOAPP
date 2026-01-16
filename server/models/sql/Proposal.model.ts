@@ -36,6 +36,7 @@ export type ProposalStatus = 'pending' | 'approved' | 'rejected' | 'cancelled' |
     { fields: ['client_id', 'status'] },
     { fields: ['status'] },
     { fields: ['is_counter_offer'] },
+    { fields: ['is_direct_proposal'] }, // Para propuestas directas sin job
   ],
 })
 export class Proposal extends Model {
@@ -51,13 +52,13 @@ export class Proposal extends Model {
   // ============================================
 
   @ForeignKey(() => Job)
-  @AllowNull(false)
+  @AllowNull(true) // Nullable for direct proposals without existing job
   @Index
   @Column(DataType.UUID)
-  jobId!: string;
+  jobId?: string;
 
   @BelongsTo(() => Job)
-  job!: Job;
+  job?: Job;
 
   @ForeignKey(() => User)
   @AllowNull(false)
@@ -131,6 +132,40 @@ export class Proposal extends Model {
 
   @Column(DataType.DECIMAL(12, 2))
   originalJobPrice?: number;
+
+  // ============================================
+  // DIRECT PROPOSAL (without existing job)
+  // ============================================
+
+  @Default(false)
+  @Index
+  @Column(DataType.BOOLEAN)
+  isDirectProposal!: boolean;
+
+  // For direct proposals: who proposed to whom
+  // freelancerId = recipient (the worker being offered the contract)
+  // clientId = sender (the client proposing the contract)
+  @Column(DataType.UUID)
+  conversationId?: string; // Chat where proposal was sent
+
+  // Direct proposal details (when no job exists)
+  @Column(DataType.STRING(200))
+  directTitle?: string;
+
+  @Column(DataType.TEXT)
+  directDescription?: string;
+
+  @Column(DataType.STRING(100))
+  directLocation?: string;
+
+  @Column(DataType.STRING(50))
+  directCategory?: string;
+
+  @Column(DataType.DATE)
+  directStartDate?: Date;
+
+  @Column(DataType.DATE)
+  directEndDate?: Date;
 
   // ============================================
   // REJECTION/CANCELLATION REASONS

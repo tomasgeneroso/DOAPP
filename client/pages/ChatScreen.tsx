@@ -21,7 +21,9 @@ import {
   CheckCircle,
   Clock,
   Key,
-  Copy
+  Copy,
+  Plus,
+  Handshake
 } from 'lucide-react';
 
 interface Message {
@@ -110,6 +112,7 @@ export default function ChatScreen() {
   const [showJobsList, setShowJobsList] = useState(false);
   const [participantJobs, setParticipantJobs] = useState<Job[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(false);
+  const [myAppliedJobIds, setMyAppliedJobIds] = useState<Set<string>>(new Set());
 
   // Conversation data (includes contractId if exists)
   const [conversationData, setConversationData] = useState<ConversationData | null>(null);
@@ -152,6 +155,9 @@ export default function ChatScreen() {
     jobContext?.allowNegotiation === false ? 'apply_direct' : 'apply_negotiate'
   );
   const [modalLoading, setModalLoading] = useState(false);
+
+  // Direct proposal modal
+  const [showDirectProposalModal, setShowDirectProposalModal] = useState(false);
 
   // Limpiar el location.state después de usarlo para evitar que persista en refresh
   useEffect(() => {
@@ -475,15 +481,31 @@ export default function ChatScreen() {
     setShowJobsList(true);
 
     try {
-      const response = await fetch(`/api/jobs?client=${otherParticipant.id || otherParticipant._id}&status=open`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      const data = await response.json();
+      // Fetch participant's jobs and my proposals in parallel
+      const [jobsResponse, proposalsResponse] = await Promise.all([
+        fetch(`/api/jobs?client=${otherParticipant.id || otherParticipant._id}&status=open`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch(`/api/proposals/my-proposals`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+      ]);
 
-      if (data.success) {
-        setParticipantJobs(data.jobs || []);
+      const [jobsData, proposalsData] = await Promise.all([
+        jobsResponse.json(),
+        proposalsResponse.json()
+      ]);
+
+      if (jobsData.success) {
+        setParticipantJobs(jobsData.jobs || []);
+      }
+
+      // Create a set of job IDs I've already applied to
+      if (proposalsData.success && proposalsData.proposals) {
+        const appliedIds = new Set<string>(
+          proposalsData.proposals.map((p: any) => p.jobId || p.job?.id || p.job?._id)
+        );
+        setMyAppliedJobIds(appliedIds);
       }
     } catch (error) {
       console.error('Error fetching participant jobs:', error);
@@ -659,6 +681,47 @@ export default function ChatScreen() {
     }
   };
 
+  // Handle direct proposal submission
+  const handleDirectProposalSubmit = async (data: any) => {
+    if (!conversationId || !otherParticipant || modalLoading) return;
+
+    setModalLoading(true);
+    try {
+      const response = await fetch('/api/proposals/direct', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          recipientId: data.recipientId || otherParticipant?.id || otherParticipant?._id,
+          title: data.title,
+          description: data.description,
+          proposedPrice: data.price,
+          estimatedDuration: data.estimatedDuration || 1,
+          location: data.location,
+          category: data.category,
+          startDate: data.startDate,
+          endDate: data.endDate,
+          message: data.description,
+        }),
+      });
+
+      const result = await response.json();
+      if (result.success) {
+        setShowDirectProposalModal(false);
+        fetchConversationData(); // Reload messages to show the new proposal
+      } else {
+        alert(result.message || 'Error al enviar la propuesta');
+      }
+    } catch (error) {
+      console.error('Error sending direct proposal:', error);
+      alert('Error al enviar la propuesta');
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -722,40 +785,55 @@ export default function ChatScreen() {
               </div>
             </div>
 
-            {/* Participant Profile */}
-            {otherParticipant && (
-              <button
-                onClick={handleProfileClick}
-                className="flex items-center gap-3 px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  {otherParticipant.avatar ? (
-                    <img
-                      src={otherParticipant.avatar}
-                      alt={otherParticipant.name}
-                      className="h-10 w-10 rounded-full object-cover"
-                    />
-                  ) : (
-                    <div className="h-10 w-10 rounded-full bg-sky-100 dark:bg-sky-900 flex items-center justify-center">
-                      <UserIcon className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+            {/* Actions */}
+            <div className="flex items-center gap-2">
+              {/* Direct Proposal Button - Only show if no existing job context */}
+              {otherParticipant && !jobContext && (
+                <button
+                  onClick={() => setShowDirectProposalModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg transition-colors"
+                  title="Proponer un contrato directo"
+                >
+                  <Handshake className="h-5 w-5" />
+                  <span className="hidden sm:inline">Proponer Contrato</span>
+                </button>
+              )}
+
+              {/* Participant Profile */}
+              {otherParticipant && (
+                <button
+                  onClick={handleProfileClick}
+                  className="flex items-center gap-3 px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    {otherParticipant.avatar ? (
+                      <img
+                        src={otherParticipant.avatar}
+                        alt={otherParticipant.name}
+                        className="h-10 w-10 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="h-10 w-10 rounded-full bg-sky-100 dark:bg-sky-900 flex items-center justify-center">
+                        <UserIcon className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+                      </div>
+                    )}
+                    <div className="text-left">
+                      <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                        {otherParticipant.name}
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Ver trabajos
+                      </p>
                     </div>
-                  )}
-                  <div className="text-left">
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white">
-                      {otherParticipant.name}
-                    </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Ver trabajos
-                    </p>
                   </div>
-                </div>
-                {showJobsList ? (
-                  <ChevronUp className="h-5 w-5 text-slate-400" />
-                ) : (
-                  <ChevronDown className="h-5 w-5 text-slate-400" />
-                )}
-              </button>
-            )}
+                  {showJobsList ? (
+                    <ChevronUp className="h-5 w-5 text-slate-400" />
+                  ) : (
+                    <ChevronDown className="h-5 w-5 text-slate-400" />
+                  )}
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -801,12 +879,21 @@ export default function ChatScreen() {
                           </span>
                         </div>
                       </div>
-                      <button
-                        onClick={() => navigate(`/jobs/${job.id || job._id}/apply`)}
-                        className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap"
-                      >
-                        Aplicar
-                      </button>
+                      {myAppliedJobIds.has(job.id || job._id) ? (
+                        <button
+                          onClick={() => navigate(`/jobs/${job.id || job._id}`)}
+                          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap"
+                        >
+                          Ver Trabajo
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => navigate(`/jobs/${job.id || job._id}/apply`)}
+                          className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap"
+                        >
+                          Aplicar
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -977,7 +1064,14 @@ export default function ChatScreen() {
             {/* Messages list */}
             {messages.map((message) => {
               // System message - special styling
-              if (message.type === 'system') {
+              // Check for type === 'system' OR messages with || delimiter OR job_application metadata
+              const isSystemMessage =
+                message.type === 'system' ||
+                (message.message?.includes('||') && message.metadata?.action) ||
+                message.metadata?.action === 'job_application' ||
+                message.metadata?.action === 'direct_contract_proposal';
+
+              if (isSystemMessage) {
                 // Parse message with || delimiter: "Usuario aplicó||Título||Contenido"
                 const parts = message.message.split('||');
                 const header = parts[0] || '';
@@ -1032,6 +1126,19 @@ export default function ChatScreen() {
                         </div>
                       )}
 
+                      {/* "Autoseleccionado" badge when worker was auto-selected */}
+                      {message.metadata?.autoSelected && (
+                        <div className="flex items-center gap-2 mb-4 pb-3 border-b border-purple-200 dark:border-purple-700">
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white text-xs font-bold rounded-full">
+                            <CheckCircle className="h-3 w-3" />
+                            Autoseleccionado
+                          </span>
+                          <span className="text-sm text-purple-700 dark:text-purple-300 font-medium">
+                            Selección automática por tiempo límite
+                          </span>
+                        </div>
+                      )}
+
                       <div className="flex items-start gap-4">
                         <div className={`p-3 rounded-full flex-shrink-0 ${iconContainerStyles}`}>
                           {!isCurrentUser && isPending ? (
@@ -1043,18 +1150,26 @@ export default function ChatScreen() {
                         <div className="flex-1 min-w-0">
                           {/* Header - modificar según quién es el usuario */}
                           <h4 className={`text-lg font-bold mb-1 ${headerStyles}`}>
-                            {isCurrentUser
-                              ? header.replace(/se postuló al trabajo|aplicó|envió una contraoferta/gi, (match) =>
-                                  match.toLowerCase().includes('contraoferta')
-                                    ? 'Enviaste una contraoferta'
-                                    : 'Te postulaste al trabajo'
-                                )
-                              : header.replace(/se postuló al trabajo|aplicó|envió una contraoferta/gi, (match) =>
-                                  match.toLowerCase().includes('contraoferta')
-                                    ? `${message.sender.name} envió una contraoferta`
-                                    : `${message.sender.name} quiere trabajar contigo`
-                                )
-                            }
+                            {(() => {
+                              // Handle direct_proposal type
+                              if (header === 'direct_proposal' || message.metadata?.action === 'direct_contract_proposal') {
+                                return isCurrentUser
+                                  ? 'Enviaste una propuesta de contrato'
+                                  : `${message.sender.name} te envió una propuesta de contrato`;
+                              }
+                              // Handle job applications and counter offers
+                              return isCurrentUser
+                                ? header.replace(/se postuló al trabajo|aplicó|envió una contraoferta/gi, (match) =>
+                                    match.toLowerCase().includes('contraoferta')
+                                      ? 'Enviaste una contraoferta'
+                                      : 'Te postulaste al trabajo'
+                                  )
+                                : header.replace(/se postuló al trabajo|aplicó|envió una contraoferta/gi, (match) =>
+                                    match.toLowerCase().includes('contraoferta')
+                                      ? `${message.sender.name} envió una contraoferta`
+                                      : `${message.sender.name} quiere trabajar contigo`
+                                  );
+                            })()}
                           </h4>
 
                           {/* Title */}
@@ -1078,16 +1193,18 @@ export default function ChatScreen() {
                           </div>
 
                           {/* Action Buttons */}
-                          {message.metadata?.action === 'job_application' && (
+                          {(message.metadata?.action === 'job_application' || message.metadata?.action === 'direct_contract_proposal') && (
                             <div className="flex flex-wrap gap-2 mt-4">
-                              {/* Botón Ver Trabajo - siempre visible */}
-                              <button
-                                onClick={() => navigate(`/jobs/${message.metadata?.jobId}`)}
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium rounded-lg transition-colors"
-                              >
-                                <Briefcase className="h-4 w-4" />
-                                Ver Trabajo
-                              </button>
+                              {/* Botón Ver Trabajo - only for job_application */}
+                              {message.metadata?.action === 'job_application' && message.metadata?.jobId && (
+                                <button
+                                  onClick={() => navigate(`/jobs/${message.metadata?.jobId}`)}
+                                  className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium rounded-lg transition-colors"
+                                >
+                                  <Briefcase className="h-4 w-4" />
+                                  Ver Trabajo
+                                </button>
+                              )}
 
                               {isCurrentUser ? (
                                 // Si YO envié esta aplicación/contraoferta
@@ -1135,7 +1252,7 @@ export default function ChatScreen() {
                                   )}
                                 </>
                               ) : (
-                                // Si YO soy el dueño del trabajo y RECIBÍ esta propuesta
+                                // Si YO RECIBÍ esta propuesta (dueño del trabajo o receptor de propuesta directa)
                                 <>
                                   {message.metadata?.proposalStatus === 'pending' && (
                                     <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
@@ -1146,55 +1263,71 @@ export default function ChatScreen() {
                                             return;
                                           }
 
-                                          if (!confirm('¿Estás seguro de que deseas seleccionar a este trabajador?')) {
+                                          const isDirectProposal = message.metadata?.action === 'direct_contract_proposal';
+                                          const confirmMsg = isDirectProposal
+                                            ? '¿Aceptas esta propuesta de contrato? Se creará el trabajo y contrato automáticamente.'
+                                            : '¿Estás seguro de que deseas seleccionar a este trabajador?';
+
+                                          if (!confirm(confirmMsg)) {
                                             return;
                                           }
 
                                           try {
-                                            const response = await fetch(
-                                              `/api/proposals/${message.metadata.proposalId}/approve`,
-                                              {
-                                                method: 'PUT',
-                                                headers: {
-                                                  'Content-Type': 'application/json',
-                                                  Authorization: `Bearer ${localStorage.getItem('token')}`,
-                                                },
-                                              }
-                                            );
+                                            // Use different endpoint for direct proposals
+                                            const endpoint = isDirectProposal
+                                              ? `/api/proposals/${message.metadata.proposalId}/accept-direct`
+                                              : `/api/proposals/${message.metadata.proposalId}/approve`;
+
+                                            const response = await fetch(endpoint, {
+                                              method: 'PUT',
+                                              headers: {
+                                                'Content-Type': 'application/json',
+                                                Authorization: `Bearer ${localStorage.getItem('token')}`,
+                                              },
+                                            });
 
                                             const data = await response.json();
 
                                             if (data.success && data.contractId) {
                                               navigate(`/contracts/${data.contractId}/summary`);
                                             } else {
-                                              alert(data.message || 'Error al seleccionar trabajador');
+                                              alert(data.message || 'Error al aceptar propuesta');
                                             }
                                           } catch (error) {
                                             console.error('Error accepting proposal:', error);
-                                            alert('Error al seleccionar trabajador');
+                                            alert('Error al aceptar propuesta');
                                           }
                                         }}
                                         className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
                                       >
                                         <CheckCircle className="h-5 w-5" />
-                                        Seleccionar Trabajador
+                                        {message.metadata?.action === 'direct_contract_proposal'
+                                          ? 'Aceptar Propuesta'
+                                          : 'Seleccionar Trabajador'}
                                       </button>
                                       <button
                                         onClick={async () => {
                                           if (!message.metadata?.proposalId) return;
-                                          if (!confirm('¿Estás seguro de que deseas rechazar esta postulación?')) return;
+
+                                          const isDirectProposal = message.metadata?.action === 'direct_contract_proposal';
+                                          const confirmMsg = isDirectProposal
+                                            ? '¿Estás seguro de que deseas rechazar esta propuesta de contrato?'
+                                            : '¿Estás seguro de que deseas rechazar esta postulación?';
+
+                                          if (!confirm(confirmMsg)) return;
 
                                           try {
-                                            const response = await fetch(
-                                              `/api/proposals/${message.metadata.proposalId}/reject`,
-                                              {
-                                                method: 'PUT',
-                                                headers: {
-                                                  'Content-Type': 'application/json',
-                                                  Authorization: `Bearer ${localStorage.getItem('token')}`,
-                                                },
-                                              }
-                                            );
+                                            const endpoint = isDirectProposal
+                                              ? `/api/proposals/${message.metadata.proposalId}/reject-direct`
+                                              : `/api/proposals/${message.metadata.proposalId}/reject`;
+
+                                            const response = await fetch(endpoint, {
+                                              method: 'PUT',
+                                              headers: {
+                                                'Content-Type': 'application/json',
+                                                Authorization: `Bearer ${localStorage.getItem('token')}`,
+                                              },
+                                            });
                                             const data = await response.json();
                                             if (data.success) {
                                               fetchConversationData();
@@ -1203,7 +1336,7 @@ export default function ChatScreen() {
                                             }
                                           } catch (error) {
                                             console.error('Error:', error);
-                                            alert('Error al rechazar la postulación');
+                                            alert('Error al rechazar la propuesta');
                                           }
                                         }}
                                         className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 text-sm font-medium rounded-xl transition-colors border-2 border-red-200 dark:border-red-800 hover:border-red-300 dark:hover:border-red-700"
@@ -1214,13 +1347,16 @@ export default function ChatScreen() {
                                     </div>
                                   )}
 
-                                  <button
-                                    onClick={() => navigate(`/jobs/${message.metadata?.jobId}/applications`)}
-                                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium rounded-xl transition-colors border-2 border-slate-200 dark:border-slate-600"
-                                  >
-                                    <Users className="h-4 w-4" />
-                                    Ver Todos los Postulados
-                                  </button>
+                                  {/* Show "Ver Todos los Postulados" only for job applications */}
+                                  {message.metadata?.action === 'job_application' && message.metadata?.jobId && (
+                                    <button
+                                      onClick={() => navigate(`/jobs/${message.metadata?.jobId}/applications`)}
+                                      className="inline-flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium rounded-xl transition-colors border-2 border-slate-200 dark:border-slate-600"
+                                    >
+                                      <Users className="h-4 w-4" />
+                                      Ver Todos los Postulados
+                                    </button>
+                                  )}
                                 </>
                               )}
                             </div>
@@ -1321,6 +1457,22 @@ export default function ChatScreen() {
           }}
           applicantName={otherParticipant?.name}
           onSubmit={handleModalSubmit}
+          isLoading={modalLoading}
+        />
+      )}
+
+      {/* Direct Proposal Modal */}
+      {showDirectProposalModal && otherParticipant && conversationId && (
+        <ContractModal
+          isOpen={showDirectProposalModal}
+          onClose={() => setShowDirectProposalModal(false)}
+          modalType="direct_proposal"
+          directProposalData={{
+            recipientId: otherParticipant.id || otherParticipant._id || '',
+            recipientName: otherParticipant.name,
+            conversationId: conversationId,
+          }}
+          onSubmit={handleDirectProposalSubmit}
           isLoading={modalLoading}
         />
       )}

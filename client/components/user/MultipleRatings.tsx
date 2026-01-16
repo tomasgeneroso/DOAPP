@@ -1,4 +1,3 @@
-import React from 'react';
 import { User } from '../../types';
 import { Star, Briefcase, UserCheck, FileText } from 'lucide-react';
 
@@ -78,8 +77,8 @@ export default function MultipleRatings({ user, showAll = true }: MultipleRating
                   {item.label}
                 </span>
                 {/* Tooltip */}
-                <div className="absolute left-0 top-full mt-2 w-64 bg-slate-800 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none border border-slate-700">
-                  <div className="absolute -top-1 left-4 w-2 h-2 bg-slate-800 border-l border-t border-slate-700 transform rotate-45"></div>
+                <div className="absolute left-0 top-full mt-2 w-64 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100] pointer-events-none border border-gray-700" style={{ backgroundColor: 'rgb(17, 24, 39)' }}>
+                  <div className="absolute -top-1 left-4 w-2 h-2 bg-gray-900 border-l border-t border-gray-700 transform rotate-45" style={{ backgroundColor: 'rgb(17, 24, 39)' }}></div>
                   {item.description}
                 </div>
               </div>
@@ -126,8 +125,8 @@ export default function MultipleRatings({ user, showAll = true }: MultipleRating
                 Puntuación General
               </span>
               {/* Tooltip */}
-              <div className="absolute left-0 top-full mt-2 w-64 bg-slate-800 text-white text-xs rounded-lg p-3 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none border border-slate-700">
-                <div className="absolute -top-1 left-4 w-2 h-2 bg-slate-800 border-l border-t border-slate-700 transform rotate-45"></div>
+              <div className="absolute left-0 top-full mt-2 w-64 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100] pointer-events-none border border-gray-700" style={{ backgroundColor: 'rgb(17, 24, 39)' }}>
+                <div className="absolute -top-1 left-4 w-2 h-2 bg-gray-900 border-l border-t border-gray-700 transform rotate-45" style={{ backgroundColor: 'rgb(17, 24, 39)' }}></div>
                 Promedio de todas las calificaciones recibidas en la plataforma
               </div>
             </div>

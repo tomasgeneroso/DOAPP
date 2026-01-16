@@ -85,7 +85,7 @@ export default function MessagesScreen() {
     isConnected,
     getTypingUsers,
     isUserOnline,
-    markAsRead,
+    markConversationAsRead,
   } = useSocket();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -127,10 +127,10 @@ export default function MessagesScreen() {
     // Fetch messages for this conversation
     fetchMessages(conversationIdParam);
 
-    // Join socket room and mark as read
+    // Join socket room and mark conversation as read
     if (isConnected) {
       joinConversation(conversationIdParam);
-      markAsRead(conversationIdParam, "");
+      markConversationAsRead(conversationIdParam);
     }
 
     // Update local unread count (using functional update to avoid dependency)

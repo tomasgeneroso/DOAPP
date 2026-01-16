@@ -10,6 +10,13 @@ import fcmService from "./fcm";
 import emailService from "./email";
 import { Op } from 'sequelize';
 
+// UUID validation regex
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function isValidUUID(id: any): boolean {
+  return typeof id === 'string' && id.length > 0 && UUID_REGEX.test(id);
+}
+
 interface AuthenticatedSocket extends Socket {
   userId?: string;
   user?: any;
@@ -255,7 +262,14 @@ export class SocketService {
       );
 
       for (const participantId of otherParticipants) {
-        const participantIdStr = participantId.toString();
+        const participantIdStr = participantId?.toString() || '';
+
+        // Skip invalid participant IDs
+        if (!isValidUUID(participantIdStr)) {
+          console.warn(`⚠️ Skipping invalid participant ID: ${participantIdStr}`);
+          continue;
+        }
+
         const isOnline = this.userSockets.has(participantIdStr);
 
         // Notify unread count update to the recipient
@@ -344,6 +358,12 @@ export class SocketService {
   private async handleReadReceipt(socket: AuthenticatedSocket, data: ReadReceiptData) {
     try {
       const { conversationId, messageId } = data;
+
+      // Validate messageId is not empty
+      if (!messageId || messageId.trim() === '') {
+        console.warn('Read receipt received with empty messageId, ignoring');
+        return;
+      }
 
       const message = await ChatMessage.findByPk(messageId);
 

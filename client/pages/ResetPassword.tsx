@@ -73,10 +73,10 @@ export default function ResetPassword() {
   return (
     <>
       <Helmet>
-        <title>Restablecer Contraseña - Doers</title>
+        <title>Restablecer Contraseña - DoApp</title>
         <meta
           name="description"
-          content="Crea una nueva contraseña para tu cuenta de Doers"
+          content="Crea una nueva contraseña para tu cuenta de DoApp"
         />
       </Helmet>
       <div className="flex min-h-full flex-col justify-center bg-slate-50 dark:bg-slate-900 px-6 py-12 lg:px-8">

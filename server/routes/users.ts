@@ -261,7 +261,7 @@ router.get("/:id/completed-by-category", async (req: Request, res: Response): Pr
     const reviews = await Review.findAll({
       where: {
         contractId: { [Op.in]: contractIds },
-        toUserId: userId,
+        reviewedId: userId,
       },
       attributes: ['contractId', 'rating', 'workQualityRating'],
     });
@@ -375,6 +375,98 @@ router.get("/:id", async (req: Request, res: Response): Promise<void> => {
         hasFamilyPlan: user.hasFamilyPlan,
         phone: user.phone,
         createdAt: user.createdAt,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   POST /api/users/:id/track-share
+// @desc    Track when a user's profile is shared
+// @access  Public (can be called without auth for external shares)
+router.post("/:id/track-share", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { type, targetUserId } = req.body;
+
+    if (!type || !['copy_link', 'private_message'].includes(type)) {
+      res.status(400).json({
+        success: false,
+        message: "Tipo de share inválido",
+      });
+      return;
+    }
+
+    const user = await User.findByPk(req.params.id);
+
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: "Usuario no encontrado",
+      });
+      return;
+    }
+
+    // Update share statistics
+    user.profileSharesCount = (user.profileSharesCount || 0) + 1;
+    user.lastProfileShareAt = new Date();
+
+    if (type === 'copy_link') {
+      user.profileSharesViaLink = (user.profileSharesViaLink || 0) + 1;
+    } else if (type === 'private_message') {
+      user.profileSharesViaMessage = (user.profileSharesViaMessage || 0) + 1;
+    }
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "Share registrado",
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   GET /api/users/:id/share-stats
+// @desc    Get profile share statistics (for PRO users)
+// @access  Private (owner only)
+router.get("/:id/share-stats", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const user = await User.findByPk(req.params.id, {
+      attributes: [
+        'profileSharesCount',
+        'profileSharesViaLink',
+        'profileSharesViaMessage',
+        'lastProfileShareAt',
+        'hasMembership',
+        'membershipTier',
+      ],
+    });
+
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: "Usuario no encontrado",
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      stats: {
+        totalShares: user.profileSharesCount || 0,
+        sharesViaLink: user.profileSharesViaLink || 0,
+        sharesViaMessage: user.profileSharesViaMessage || 0,
+        lastShareAt: user.lastProfileShareAt,
+        // Only PRO users get detailed stats
+        hasFullAccess: user.hasMembership && ['pro', 'super_pro'].includes(user.membershipTier || ''),
       },
     });
   } catch (error: any) {

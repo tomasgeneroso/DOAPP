@@ -78,7 +78,7 @@ export default function DisputeResolution() {
                 </ul>
 
                 <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-3">
-                  Para Doers:
+                  Para Profesionales:
                 </h3>
                 <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 mb-4 space-y-2">
                   <li>El cliente no aprueba el trabajo completado sin motivo válido</li>
@@ -283,7 +283,7 @@ export default function DisputeResolution() {
                   </div>
 
                   <div>
-                    <h4 className="font-semibold text-slate-900 dark:text-white mb-2">Para Doers:</h4>
+                    <h4 className="font-semibold text-slate-900 dark:text-white mb-2">Para Profesionales:</h4>
                     <ul className="text-slate-600 dark:text-slate-300 text-sm space-y-1">
                       <li>✓ Aclara todos los requisitos antes de empezar</li>
                       <li>✓ Comunica el progreso regularmente</li>
