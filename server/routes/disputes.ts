@@ -25,7 +25,7 @@ router.post(
   checkPermission(PERMISSIONS.DISPUTE_CREATE),
   uploadDisputeAttachments,
   [
-    body("contractId").isInt().withMessage("ID de contrato inválido"),
+    body("contractId").isUUID().withMessage("ID de contrato inválido"),
     body("reason").notEmpty().withMessage("El motivo es requerido"),
     body("description").notEmpty().withMessage("La descripción es requerida"),
   ],

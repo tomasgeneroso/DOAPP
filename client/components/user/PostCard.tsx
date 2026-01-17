@@ -5,7 +5,8 @@ import { Heart, MessageCircle, Eye, DollarSign, ChevronLeft, ChevronRight, Image
 import { useAuth } from "../../hooks/useAuth";
 
 interface Author {
-  _id: string;
+  id?: string;
+  _id?: string;
   name: string;
   avatar?: string;
   membershipTier?: string;
@@ -21,7 +22,8 @@ interface GalleryItem {
 }
 
 interface Post {
-  _id: string;
+  id?: string;
+  _id?: string;
   author: Author;
   title: string;
   description: string;
@@ -36,8 +38,8 @@ interface Post {
   tags?: string[];
   createdAt: string;
   // Portfolio-related fields
-  linkedJob?: string | { _id: string; title?: string };
-  linkedContract?: string | { _id: string };
+  linkedJob?: string | { id?: string; _id?: string; title?: string };
+  linkedContract?: string | { id?: string; _id?: string };
 }
 
 interface PostCardProps {
@@ -48,6 +50,9 @@ interface PostCardProps {
 
 export default function PostCard({ post, onLike, onComment }: PostCardProps) {
   const { user } = useAuth();
+  // Handle both id and _id (Sequelize vs MongoDB style)
+  const postId = post.id || post._id || '';
+  const authorId = post.author.id || post.author._id || '';
   const [isLiked, setIsLiked] = useState(
     user ? post.likes.includes(user._id || user.id || '') : false
   );
@@ -110,7 +115,7 @@ export default function PostCard({ post, onLike, onComment }: PostCardProps) {
 
     setIsLiking(true);
     try {
-      const response = await fetch(`/api/posts/${post._id}/like`, {
+      const response = await fetch(`/api/posts/${postId}/like`, {
         method: "POST",
         credentials: "include",
       });
@@ -120,7 +125,7 @@ export default function PostCard({ post, onLike, onComment }: PostCardProps) {
       if (data.success) {
         setIsLiked(data.liked);
         setLikesCount(data.likesCount);
-        onLike?.(post._id);
+        onLike?.(postId);
       }
     } catch (error) {
       console.error("Error liking post:", error);
@@ -151,7 +156,7 @@ export default function PostCard({ post, onLike, onComment }: PostCardProps) {
     <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden hover:shadow-md transition-shadow">
       {/* Author Header */}
       <div className="p-4 flex items-center gap-3">
-        <Link to={`/profile/${post.author._id}`}>
+        <Link to={`/profile/${authorId}`}>
           <img
             src={getImageUrl(post.author.avatar)}
             alt={post.author.name}
@@ -360,7 +365,7 @@ export default function PostCard({ post, onLike, onComment }: PostCardProps) {
           </button>
 
           <button
-            onClick={() => onComment?.(post._id)}
+            onClick={() => onComment?.(postId)}
             className="flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-blue-500 transition-colors"
           >
             <MessageCircle className="h-5 w-5" />

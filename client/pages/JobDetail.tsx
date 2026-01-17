@@ -1013,6 +1013,34 @@ export default function JobDetail() {
                         <Copy className="h-4 w-4 opacity-60" />
                       )}
                     </button>
+                    {/* Status Badge - Visible para todos */}
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ${
+                      job.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300 border border-green-200 dark:border-green-700' :
+                      job.status === 'in_progress' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-200 dark:border-blue-700' :
+                      job.status === 'open' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700' :
+                      job.status === 'pending_approval' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-200 dark:border-amber-700' :
+                      job.status === 'pending_payment' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300 border border-orange-200 dark:border-orange-700' :
+                      job.status === 'paused' ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600' :
+                      job.status === 'cancelled' ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border border-red-200 dark:border-red-700' :
+                      'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600'
+                    }`}>
+                      {job.status === 'completed' && <CheckCircle className="h-3.5 w-3.5" />}
+                      {job.status === 'in_progress' && <Clock className="h-3.5 w-3.5" />}
+                      {job.status === 'open' && <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />}
+                      {job.status === 'pending_approval' && <Clock className="h-3.5 w-3.5" />}
+                      {job.status === 'pending_payment' && <DollarSign className="h-3.5 w-3.5" />}
+                      {job.status === 'paused' && <Pause className="h-3.5 w-3.5" />}
+                      {job.status === 'cancelled' && <XCircle className="h-3.5 w-3.5" />}
+                      {job.status === 'completed' ? 'Completado' :
+                       job.status === 'in_progress' ? 'En Progreso' :
+                       job.status === 'open' ? 'Abierto' :
+                       job.status === 'pending_approval' ? 'Pendiente' :
+                       job.status === 'pending_payment' ? 'Pago Pendiente' :
+                       job.status === 'paused' ? 'Pausado' :
+                       job.status === 'cancelled' ? 'Cancelado' :
+                       job.status === 'draft' ? 'Borrador' :
+                       job.status}
+                    </span>
                     <div className="flex items-center gap-1">
                       <MapPin className="h-4 w-4" />
                       <span>{job.location}{job.neighborhood ? `, ${job.neighborhood}` : ''}</span>

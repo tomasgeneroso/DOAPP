@@ -12,8 +12,9 @@ import type { AuthRequest } from "../types/index.js";
 import emailService from "../services/email.js";
 import { config } from "../config/env.js";
 import { socketService } from "../index.js";
-import { Op } from 'sequelize';
+import { Op, Sequelize } from 'sequelize';
 import cacheService from "../services/cacheService.js";
+import { sequelize } from "../config/database.js";
 import { logger } from "../services/logger.js";
 
 const router = express.Router();
@@ -886,23 +887,35 @@ router.put("/:id/approve",
     }
 
     // Update the chat message metadata to reflect approved status
-    await ChatMessage.update(
-      {
-        metadata: {
-          jobId: proposal.jobId,
-          proposalId: proposal.id,
-          action: 'job_application',
-          proposalStatus: 'approved',
-          contractId: contract.id,
-        }
-      },
-      {
+    try {
+      const chatMessageToUpdate = await ChatMessage.findOne({
         where: {
           type: 'system',
-          'metadata.proposalId': proposal.id,
+          [Op.and]: [
+            sequelize.where(
+              sequelize.fn('jsonb_extract_path_text', sequelize.col('metadata'), 'proposalId'),
+              proposal.id
+            )
+          ]
         }
+      });
+
+      if (chatMessageToUpdate) {
+        await chatMessageToUpdate.update({
+          metadata: {
+            ...chatMessageToUpdate.metadata,
+            proposalStatus: 'approved',
+            contractId: contract.id,
+          }
+        });
+        console.log(`✅ Chat message ${chatMessageToUpdate.id} updated with approved status`);
+      } else {
+        console.log(`⚠️ No chat message found for proposal ${proposal.id}`);
       }
-    );
+    } catch (chatUpdateError) {
+      console.error('⚠️ Error updating chat message (non-critical):', chatUpdateError);
+      // Continue - this is not critical for the approval process
+    }
 
     // Send real-time notifications via Socket.io
     socketService.notifyProposalUpdate(

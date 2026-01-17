@@ -83,8 +83,13 @@ const CreateDispute: React.FC = () => {
       setLoadingContracts(true);
       // Include all disputable statuses: in_progress, awaiting_confirmation, completed
       const response = await api.get('/contracts?status=in_progress,awaiting_confirmation,completed&limit=100');
+      console.log('📋 Contracts response:', response);
       if (response.success) {
-        setContracts(response.contracts || response.data || []);
+        const contractsList = response.contracts || response.data || [];
+        console.log('📋 Contracts found:', contractsList.length, contractsList);
+        setContracts(contractsList);
+      } else {
+        console.log('📋 Response not successful:', response);
       }
     } catch (error) {
       console.error('Error loading contracts:', error);

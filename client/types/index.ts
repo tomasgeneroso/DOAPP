@@ -363,7 +363,8 @@ export interface WithdrawalRequest {
 }
 
 export interface PortfolioItem {
-  _id: string;
+  id?: string;
+  _id?: string;
   userId: User | string;
   title: string;
   description: string;

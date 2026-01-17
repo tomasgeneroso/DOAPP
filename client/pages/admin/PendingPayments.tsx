@@ -1391,7 +1391,7 @@ export default function PendingPayments() {
 
                   {/* Payment Proof Upload */}
                   <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
                       <Receipt className="h-4 w-4" />
                       Comprobante de Transferencia
                     </label>

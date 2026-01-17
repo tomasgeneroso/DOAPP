@@ -15,8 +15,9 @@ import {
 } from 'lucide-react';
 
 interface PortfolioItem {
-  _id: string;
-  userId: string | { _id: string; name: string; avatar?: string };
+  id?: string;
+  _id?: string;
+  userId: string | { id?: string; _id?: string; name: string; avatar?: string };
   title: string;
   description: string;
   category: string;
@@ -25,8 +26,8 @@ interface PortfolioItem {
   tags?: string[];
   clientName?: string;
   projectDuration?: string;
-  linkedJob?: string | { _id: string; title?: string };
-  linkedContract?: string | { _id: string };
+  linkedJob?: string | { id?: string; _id?: string; title?: string };
+  linkedContract?: string | { id?: string; _id?: string };
   createdAt: string;
   updatedAt: string;
 }
@@ -104,10 +105,15 @@ export default function PortfolioItemDetail() {
     );
   }
 
-  const linkedJobId = typeof item.linkedJob === 'object' ? item.linkedJob?._id : item.linkedJob;
+  // Handle both id and _id (Sequelize vs MongoDB style)
+  const linkedJobId = typeof item.linkedJob === 'object'
+    ? (item.linkedJob?.id || item.linkedJob?._id)
+    : item.linkedJob;
   const userName = typeof item.userId === 'object' ? item.userId.name : null;
   const userAvatar = typeof item.userId === 'object' ? item.userId.avatar : undefined;
-  const userIdStr = typeof item.userId === 'object' ? item.userId._id : item.userId;
+  const userIdStr = typeof item.userId === 'object'
+    ? (item.userId.id || item.userId._id)
+    : item.userId;
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
@@ -286,8 +292,8 @@ export default function PortfolioItemDetail() {
               </div>
             )}
 
-            {/* Link to Original Job */}
-            {linkedJobId && (
+            {/* Link to Original Job - Only show if linkedJobId is a valid UUID */}
+            {linkedJobId && linkedJobId !== 'undefined' && linkedJobId.length > 10 && (
               <Link
                 to={`/jobs/${linkedJobId}`}
                 className="inline-flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium rounded-xl transition-colors"

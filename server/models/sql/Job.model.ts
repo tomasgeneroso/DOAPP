@@ -25,7 +25,7 @@ import { User } from './User.model.js';
  * - Sistema de ratings y reviews
  */
 
-export type JobStatus = 'draft' | 'pending_payment' | 'pending_approval' | 'open' | 'in_progress' | 'completed' | 'cancelled' | 'suspended';
+export type JobStatus = 'draft' | 'pending_payment' | 'pending_approval' | 'open' | 'in_progress' | 'completed' | 'cancelled' | 'suspended' | 'paused';
 export type JobUrgency = 'low' | 'medium' | 'high';
 export type ExperienceLevel = 'beginner' | 'intermediate' | 'expert';
 
@@ -392,6 +392,8 @@ export class Job extends Model {
     newPrice: number;
     reason: string;
     changedAt: Date;
+    refundedToBalance?: number;
+    paidFromBalance?: number;
   }>;
 
   // ============================================

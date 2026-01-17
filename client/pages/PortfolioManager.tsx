@@ -36,7 +36,8 @@ export default function PortfolioManager() {
   const loadPortfolio = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/portfolio/user/${user?._id}`, {
+      const userId = user?.id || user?._id;
+      const response = await fetch(`/api/portfolio/user/${userId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -303,9 +304,11 @@ export default function PortfolioManager() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {portfolioItems.map((item) => (
+          {portfolioItems.map((item) => {
+            const itemId = item.id || item._id;
+            return (
             <div
-              key={item._id}
+              key={itemId}
               className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow"
             >
               {item.images && item.images.length > 0 && (
@@ -330,14 +333,14 @@ export default function PortfolioManager() {
                 <div className="flex gap-2">
                   <Button
                     variant="secondary"
-                    onClick={() => window.location.href = `/portfolio/${item._id}`}
+                    onClick={() => window.location.href = `/portfolio/${itemId}`}
                     className="flex-1"
                   >
                     Ver
                   </Button>
                   <Button
                     variant="error"
-                    onClick={() => handleDelete(item._id)}
+                    onClick={() => handleDelete(itemId || '')}
                     className="flex-1"
                   >
                     Eliminar
@@ -345,7 +348,7 @@ export default function PortfolioManager() {
                 </div>
               </div>
             </div>
-          ))}
+          );})}
         </div>
       )}
     </div>

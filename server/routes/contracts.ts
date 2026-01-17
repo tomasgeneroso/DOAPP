@@ -242,6 +242,145 @@ router.get("/by-job/:jobId", protect, async (req: AuthRequest, res: Response): P
   }
 });
 
+// @route   GET /api/contracts/debug-job/:jobId
+// @desc    Diagnóstico de contratos por trabajo (temporal)
+// @access  Private
+router.get("/debug-job/:jobId", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user.id.toString();
+    const jobId = req.params.jobId;
+
+    // Find all contracts for this job (without user filter)
+    const allContracts = await Contract.findAll({
+      where: { jobId },
+      include: [
+        { model: User, as: 'client', attributes: ['id', 'name', 'email'] },
+        { model: User, as: 'doer', attributes: ['id', 'name', 'email'] }
+      ]
+    });
+
+    // Find the job
+    const job = await Job.findByPk(jobId, {
+      include: [{ model: User, as: 'client', attributes: ['id', 'name', 'email'] }]
+    });
+
+    res.json({
+      success: true,
+      debug: {
+        currentUserId: userId,
+        jobExists: !!job,
+        jobId: job?.id,
+        jobCode: job?.code,
+        jobStatus: job?.status,
+        jobClientId: job?.clientId,
+        jobClient: job?.client,
+        jobDoerId: job?.doerId,
+        jobSelectedWorkers: job?.selectedWorkers,
+        totalContracts: allContracts.length,
+        contracts: allContracts.map(c => ({
+          id: c.id,
+          status: c.status,
+          clientId: c.clientId,
+          doerId: c.doerId,
+          client: (c as any).client,
+          doer: (c as any).doer,
+        }))
+      }
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+});
+
+// @route   POST /api/contracts/repair-job/:jobId
+// @desc    Crear contrato faltante para trabajo con doerId asignado (temporal)
+// @access  Private
+router.post("/repair-job/:jobId", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const jobId = req.params.jobId;
+    const userId = req.user.id.toString();
+
+    // Find the job
+    const job = await Job.findByPk(jobId);
+    if (!job) {
+      res.status(404).json({ success: false, message: 'Trabajo no encontrado' });
+      return;
+    }
+
+    // Check if user is the client
+    if (job.clientId !== userId) {
+      res.status(403).json({ success: false, message: 'Solo el cliente puede reparar este trabajo' });
+      return;
+    }
+
+    // Check if job has doerId but no contract
+    if (!job.doerId) {
+      res.status(400).json({ success: false, message: 'El trabajo no tiene trabajador asignado' });
+      return;
+    }
+
+    // Check if contract already exists
+    const existingContract = await Contract.findOne({
+      where: { jobId, doerId: job.doerId }
+    });
+
+    if (existingContract) {
+      res.status(400).json({ success: false, message: 'Ya existe un contrato para este trabajo', contractId: existingContract.id });
+      return;
+    }
+
+    // Create the missing contract
+    const price = parseFloat(job.price?.toString() || '0');
+    const commissionRate = 0.10; // 10% default
+    const commission = price * commissionRate;
+    const totalPrice = price + commission;
+
+    const startDate = job.startDate ? new Date(job.startDate) : new Date();
+    const endDate = job.endDate ? new Date(job.endDate) : new Date(startDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    const contract = await Contract.create({
+      jobId: job.id,
+      clientId: job.clientId,
+      doerId: job.doerId,
+      type: 'trabajo',
+      price,
+      commission,
+      totalPrice,
+      startDate,
+      endDate,
+      status: 'pending',
+      termsAccepted: false,
+      termsAcceptedByClient: false,
+      termsAcceptedByDoer: false,
+    });
+
+    // Update job's selectedWorkers if empty
+    if (!job.selectedWorkers || job.selectedWorkers.length === 0) {
+      job.selectedWorkers = [job.doerId];
+      await job.save();
+    }
+
+    console.log(`✅ Contract ${contract.id} created for job ${job.id} with doer ${job.doerId}`);
+
+    res.json({
+      success: true,
+      message: 'Contrato creado exitosamente',
+      contract: {
+        id: contract.id,
+        status: contract.status,
+        price: contract.price,
+        doerId: contract.doerId,
+      }
+    });
+  } catch (error: any) {
+    console.error('Error repairing job:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // @route   GET /api/contracts/all-by-job/:jobId
 // @desc    Obtener TODOS los contratos de un trabajo (para team jobs)
 // @access  Private

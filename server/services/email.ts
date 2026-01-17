@@ -774,7 +774,7 @@ class EmailService {
             <div class="content">
               <p>Hola,</p>
               <p><strong>${updateType}</strong></p>
-              <div class="amount">$${amount.toFixed(2)}</div>
+              <div class="amount">$${numericAmount.toFixed(2)}</div>
               <a href="${paymentUrl}" class="button">Ver detalles del pago</a>
             </div>
           </div>
@@ -782,7 +782,7 @@ class EmailService {
       </html>
     `;
 
-    await this.sendToUser(userId, `Pago de $${amount.toFixed(2)}`, html);
+    await this.sendToUser(userId, `Pago de $${numericAmount.toFixed(2)}`, html);
   }
 
   /**
@@ -963,7 +963,7 @@ class EmailService {
             <div class="content">
               <p>Hola,</p>
               <p>Tu pago ha sido recibido y se encuentra en escrow (custodia segura).</p>
-              <div class="amount">${currency} $${amount.toFixed(2)}</div>
+              <div class="amount">${currency} $${numericAmount.toFixed(2)}</div>
               <div class="info-box">
                 <p><strong>Trabajo:</strong> ${jobTitle}</p>
                 <p><strong>¿Qué es el escrow?</strong></p>
@@ -998,7 +998,7 @@ class EmailService {
             <div class="content">
               <p>Hola,</p>
               <p>¡Buenas noticias! El pago está asegurado y ya puedes comenzar a trabajar.</p>
-              <div class="amount">${currency} $${amount.toFixed(2)}</div>
+              <div class="amount">${currency} $${numericAmount.toFixed(2)}</div>
               <div class="info-box">
                 <p><strong>Trabajo:</strong> ${jobTitle}</p>
                 <p><strong>Pago protegido:</strong></p>
@@ -1075,9 +1075,11 @@ class EmailService {
     doerId: string,
     contractId: string,
     jobTitle: string,
-    amount: number,
+    amount: number | string,
     currency: string = "ARS"
   ): Promise<void> {
+    // Ensure amount is a number
+    const numericAmount = typeof amount === 'string' ? parseFloat(amount) : (amount || 0);
     const contractUrl = `${config.clientUrl}/contracts/${contractId}`;
 
     const htmlClient = `
@@ -1103,7 +1105,7 @@ class EmailService {
               <p>¡Felicidades! El contrato ha sido completado exitosamente.</p>
               <div class="success-box">
                 <h3 style="color: #10b981; margin-top: 0;">✅ ${jobTitle}</h3>
-                <p>El pago de <strong>${currency} $${amount.toFixed(2)}</strong> ha sido liberado al doer.</p>
+                <p>El pago de <strong>${currency} $${numericAmount.toFixed(2)}</strong> ha sido liberado al doer.</p>
               </div>
               <p><strong>¿Qué sigue?</strong></p>
               <p>Deja una reseña para ayudar a otros usuarios a conocer tu experiencia trabajando con este doer.</p>
@@ -1138,7 +1140,7 @@ class EmailService {
               <p>¡Excelente trabajo! El pago ha sido liberado.</p>
               <div class="success-box">
                 <h3 style="color: #10b981; margin-top: 0;">✅ ${jobTitle}</h3>
-                <div class="amount">${currency} $${amount.toFixed(2)}</div>
+                <div class="amount">${currency} $${numericAmount.toFixed(2)}</div>
                 <p>El dinero ha sido transferido a tu cuenta.</p>
               </div>
               <p>Invita al cliente a dejar una reseña para aumentar tu reputación en la plataforma.</p>

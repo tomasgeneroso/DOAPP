@@ -62,7 +62,7 @@ const upload = multer({
 const normalizeLocation = (location: string): string => {
   return location
     .toLowerCase()
-    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '') // Remove punctuation
+    .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, '') // Remove punctuation
     .replace(/\s+/g, ' ') // Normalize spaces
     .trim();
 };
@@ -553,6 +553,77 @@ router.get("/my-active-tasks", protect, async (req: AuthRequest, res: Response):
   }
 });
 
+// @route   GET /api/jobs/debug-by-code/:code
+// @desc    Diagnóstico de trabajo por código (temporal)
+// @access  Private
+router.get("/debug-by-code/:code", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const code = req.params.code.toLowerCase();
+    const userId = req.user.id.toString();
+
+    // Get all jobs and filter manually (simple approach)
+    const allJobs = await Job.findAll({
+      include: [
+        { model: User, as: 'client', attributes: ['id', 'name', 'email'] },
+        { model: User, as: 'doer', attributes: ['id', 'name', 'email'] }
+      ]
+    });
+
+    // Find job where ID starts with the code
+    const job = allJobs.find(j => j.id.toLowerCase().startsWith(code));
+
+    if (!job) {
+      res.status(404).json({ success: false, message: 'Trabajo no encontrado con código: ' + code });
+      return;
+    }
+
+    // Find contracts for this job
+    const contracts = await Contract.findAll({
+      where: { jobId: job.id },
+      include: [
+        { model: User, as: 'client', attributes: ['id', 'name', 'email'] },
+        { model: User, as: 'doer', attributes: ['id', 'name', 'email'] }
+      ]
+    });
+
+    res.json({
+      success: true,
+      debug: {
+        currentUserId: userId,
+        job: {
+          id: job.id,
+          title: job.title,
+          status: job.status,
+          clientId: job.clientId,
+          client: job.client,
+          doerId: job.doerId,
+          doer: job.doer,
+          selectedWorkers: job.selectedWorkers,
+          maxWorkers: job.maxWorkers,
+        },
+        contracts: contracts.map(c => ({
+          id: c.id,
+          status: c.status,
+          clientId: c.clientId,
+          doerId: c.doerId,
+          client: (c as any).client,
+          doer: (c as any).doer,
+          createdAt: c.createdAt,
+        })),
+        analysis: {
+          isCurrentUserClient: job.clientId === userId,
+          isCurrentUserDoer: job.doerId === userId,
+          isCurrentUserInSelectedWorkers: job.selectedWorkers?.includes(userId),
+          contractsForCurrentUser: contracts.filter(c => c.clientId === userId || c.doerId === userId).length,
+        }
+      }
+    });
+  } catch (error: any) {
+    console.error('Debug endpoint error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // @route   GET /api/jobs/:id
 // @desc    Obtener trabajo por ID
 // @access  Public
@@ -781,7 +852,7 @@ router.post(
           success: true,
           message: hasFreeInitialContracts
             ? "Trabajo publicado exitosamente (contrato inicial gratuito)"
-            : `Trabajo publicado exitosamente (contrato mensual ${user.membershipTier.toUpperCase()})`,
+            : `Trabajo publicado exitosamente (contrato mensual ${(user.membershipTier || 'free').toUpperCase()})`,
           job: populatedJob?.toJSON(),
           requiresPayment: false,
         });
@@ -807,7 +878,7 @@ router.post(
 // @access  Private
 router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    let job = await Job.findByPk(req.params.id);
+    const job = await Job.findByPk(req.params.id);
 
     if (!job) {
       res.status(404).json({
@@ -852,7 +923,7 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
     const requiresReapproval = ['rejected', 'cancelled'].includes(job.status) && !job.permanentlyCancelled;
 
     // Prepare update data
-    let updateData: any = { ...req.body };
+    const updateData: any = { ...req.body };
 
     // Process uploaded images (new images)
     const uploadedFiles = req.files as Express.Multer.File[];
@@ -1085,7 +1156,7 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
           const { Notification } = await import('../models/sql/Notification.model.js');
           for (const proposal of proposals) {
             await Notification.create({
-              recipientId: proposal.doerId,
+              recipientId: proposal.freelancerId,
               type: 'warning',
               category: 'job',
               title: 'Propuesta de cambio de precio',
@@ -1103,7 +1174,7 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
             });
 
             // Notificación por socket
-            socketService.notifyUser(proposal.doerId, 'price_decrease_proposal', {
+            socketService.notifyUser(proposal.freelancerId, 'price_decrease_proposal', {
               jobId: job.id,
               jobTitle: job.title,
               oldPrice,
@@ -2045,7 +2116,7 @@ router.patch("/:id/cancel", protect, async (req: AuthRequest, res: Response): Pr
     socketService.notifyJobStatusChanged(job.toJSON(), previousStatus);
 
     // Emitir evento de actualización para la vista de mis publicaciones
-    socketService.io.emit("jobs:refresh", {
+    socketService.getIO().emit("jobs:refresh", {
       action: "cancelled",
       jobId: job.id,
       job: job.toJSON(),
@@ -2984,7 +3055,7 @@ router.delete("/:id/cancel-price-decrease", protect, async (req: AuthRequest, re
 
     for (const proposal of proposals) {
       await Notification.create({
-        recipientId: proposal.doerId,
+        recipientId: proposal.freelancerId,
         type: 'info',
         category: 'job',
         title: 'Propuesta de cambio de precio cancelada',
@@ -2998,7 +3069,7 @@ router.delete("/:id/cancel-price-decrease", protect, async (req: AuthRequest, re
         read: false,
       });
 
-      socketService.notifyUser(proposal.doerId, 'price_decrease_cancelled', {
+      socketService.notifyUser(proposal.freelancerId, 'price_decrease_cancelled', {
         jobId: job.id,
         jobTitle: job.title,
         currentPrice: job.price,

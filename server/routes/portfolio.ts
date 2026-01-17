@@ -5,6 +5,7 @@ import { User } from "../models/sql/User.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
 import { Job } from "../models/sql/Job.model.js";
 import { body, validationResult } from "express-validator";
+import { Op } from "sequelize";
 
 const router = Router();
 
@@ -140,6 +141,21 @@ router.post(
         linkedJob
       } = req.body;
 
+      // Verificar que el trabajo no esté ya en otro portfolio
+      if (linkedJob) {
+        const existingPortfolio = await PortfolioItem.findOne({
+          where: { linkedJob }
+        });
+
+        if (existingPortfolio) {
+          res.status(400).json({
+            success: false,
+            message: "Este trabajo ya fue agregado al portafolio. Elimina el item existente para volver a publicarlo.",
+          });
+          return;
+        }
+      }
+
       const item = await PortfolioItem.create({
         userId,
         title,
@@ -215,6 +231,24 @@ router.put("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
       linkedContract,
       linkedJob
     } = req.body;
+
+    // Verificar que el trabajo no esté ya en otro portfolio (excluyendo el item actual)
+    if (linkedJob !== undefined && linkedJob !== item.linkedJob) {
+      const existingPortfolio = await PortfolioItem.findOne({
+        where: {
+          linkedJob,
+          id: { [Op.ne]: id }
+        }
+      });
+
+      if (existingPortfolio) {
+        res.status(400).json({
+          success: false,
+          message: "Este trabajo ya fue agregado a otro item del portafolio.",
+        });
+        return;
+      }
+    }
 
     if (title) item.title = title;
     if (description) item.description = description;
