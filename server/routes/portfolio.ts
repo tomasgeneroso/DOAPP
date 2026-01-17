@@ -109,7 +109,7 @@ router.post(
     body("title").trim().notEmpty().withMessage("El título es requerido"),
     body("description").trim().notEmpty().withMessage("La descripción es requerida"),
     body("category").trim().notEmpty().withMessage("La categoría es requerida"),
-    body("images").isArray({ min: 1 }).withMessage("Debe incluir al menos una imagen"),
+    body("images").optional().isArray(),
   ],
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {

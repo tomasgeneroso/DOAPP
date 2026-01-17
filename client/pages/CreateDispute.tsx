@@ -128,7 +128,7 @@ const CreateDispute: React.FC = () => {
         formDataToSend.append('attachments', file);
       });
 
-      const response = await axios.post(`${API_URL}/api/disputes`, formDataToSend, {
+      const response = await axios.post(`${API_URL}/disputes`, formDataToSend, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

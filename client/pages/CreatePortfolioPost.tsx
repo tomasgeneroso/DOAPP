@@ -127,7 +127,7 @@ export default function CreatePortfolioPost() {
         description,
         category,
         tags: tags.split(',').map(t => t.trim()).filter(Boolean),
-        linkedJobId: jobId,
+        linkedJob: jobId,
         price: jobData?.price,
         clientName: jobData?.client?.name || 'Cliente DoApp',
         projectDuration: calculateDuration(),

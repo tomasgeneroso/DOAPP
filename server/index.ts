@@ -12,7 +12,7 @@ import { config } from "./config/env.js";
 import { initDatabase } from "./config/database.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import passport from "./config/passport.js";
-import SocketService from "./services/socket.js";
+import SocketService, { setSocketServiceInstance } from "./services/socket.js";
 import {
   xssProtection,
   preventDirectoryTraversal,
@@ -319,6 +319,7 @@ if (config.nodeEnv === 'development') {
 
 // Inicializar Socket.io
 const socketService = new SocketService(httpServer);
+setSocketServiceInstance(socketService); // Register for global access via getIO()
 console.log("🔌 Socket.io initialized");
 
 // Export socket service for use in other modules

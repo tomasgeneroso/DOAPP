@@ -236,6 +236,7 @@ export default function ChatScreen() {
 
   // Sync socket messages with local state
   useEffect(() => {
+    console.log('🔄 Socket messages changed:', socketMessages.length, 'messages');
     if (socketMessages.length > 0) {
       setMessages(prev => {
         // Get IDs of existing messages, excluding temporary optimistic messages
@@ -1063,11 +1064,21 @@ export default function ChatScreen() {
 
             {/* Messages list */}
             {messages.map((message) => {
+              // DEBUG: Log message data to diagnose system message detection
+              console.log('Message data:', {
+                id: message.id,
+                type: message.type,
+                hasDelimiter: message.message?.includes('||'),
+                message: message.message?.substring(0, 100),
+                metadata: message.metadata,
+              });
+
               // System message - special styling
-              // Check for type === 'system' OR messages with || delimiter OR job_application metadata
+              // Check for type === 'system' OR messages with || delimiter (system messages use this format)
+              // OR job_application/direct_contract_proposal metadata
               const isSystemMessage =
                 message.type === 'system' ||
-                (message.message?.includes('||') && message.metadata?.action) ||
+                message.message?.includes('||') ||  // Any message with || is a system message
                 message.metadata?.action === 'job_application' ||
                 message.metadata?.action === 'direct_contract_proposal';
 
@@ -1193,10 +1204,14 @@ export default function ChatScreen() {
                           </div>
 
                           {/* Action Buttons */}
-                          {(message.metadata?.action === 'job_application' || message.metadata?.action === 'direct_contract_proposal') && (
+                          {/* Show actions if: has action metadata OR has jobId with || format OR has proposalId */}
+                          {(message.metadata?.action === 'job_application' ||
+                            message.metadata?.action === 'direct_contract_proposal' ||
+                            (message.message?.includes('||') && message.metadata?.jobId) ||
+                            message.metadata?.proposalId) && (
                             <div className="flex flex-wrap gap-2 mt-4">
-                              {/* Botón Ver Trabajo - only for job_application */}
-                              {message.metadata?.action === 'job_application' && message.metadata?.jobId && (
+                              {/* Botón Ver Trabajo - show if jobId exists */}
+                              {message.metadata?.jobId && (
                                 <button
                                   onClick={() => navigate(`/jobs/${message.metadata?.jobId}`)}
                                   className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium rounded-lg transition-colors"
@@ -1347,8 +1362,8 @@ export default function ChatScreen() {
                                     </div>
                                   )}
 
-                                  {/* Show "Ver Todos los Postulados" only for job applications */}
-                                  {message.metadata?.action === 'job_application' && message.metadata?.jobId && (
+                                  {/* Show "Ver Todos los Postulados" for job applications (by action or by || format with jobId) */}
+                                  {message.metadata?.jobId && message.metadata?.action !== 'direct_contract_proposal' && (
                                     <button
                                       onClick={() => navigate(`/jobs/${message.metadata?.jobId}/applications`)}
                                       className="inline-flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium rounded-xl transition-colors border-2 border-slate-200 dark:border-slate-600"

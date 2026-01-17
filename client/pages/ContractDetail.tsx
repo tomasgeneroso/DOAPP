@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket";
@@ -478,15 +478,33 @@ export default function ContractDetail() {
               <div className="space-y-3">
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Cliente</p>
-                  <p className="font-medium text-gray-900 dark:text-white">
-                    {contract.client?.name || "N/A"}
-                  </p>
+                  {contract.client?.id ? (
+                    <Link
+                      to={`/profile/${contract.client.id}`}
+                      className="font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hover:underline"
+                    >
+                      {contract.client.name}
+                    </Link>
+                  ) : (
+                    <p className="font-medium text-gray-900 dark:text-white">
+                      {contract.client?.name || "N/A"}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">Proveedor</p>
-                  <p className="font-medium text-gray-900 dark:text-white">
-                    {contract.doer?.name || "N/A"}
-                  </p>
+                  {contract.doer?.id ? (
+                    <Link
+                      to={`/profile/${contract.doer.id}`}
+                      className="font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hover:underline"
+                    >
+                      {contract.doer.name}
+                    </Link>
+                  ) : (
+                    <p className="font-medium text-gray-900 dark:text-white">
+                      {contract.doer?.name || "N/A"}
+                    </p>
+                  )}
                 </div>
               </div>
             </div>

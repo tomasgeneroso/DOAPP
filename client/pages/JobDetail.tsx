@@ -357,25 +357,26 @@ export default function JobDetail() {
       const jobClientId = typeof job.client === 'object' ? (job.client?.id || job.client?._id) : job.client;
       const userId = user?.id || user?._id;
 
-      // Check if job has any selected worker - no worker means no contract exists
-      const hasSelectedWorker = jobDoerId || (job.selectedWorkers && job.selectedWorkers.length > 0);
-      if (!hasSelectedWorker) {
-        // No contract exists yet for this job - don't make the request
-        return;
-      }
-
       // Additional check: Jobs in certain statuses don't have contracts yet
-      const jobStatusWithoutContract = ['draft', 'pending_payment', 'pending_approval', 'open', 'paused', 'cancelled'];
+      const jobStatusWithoutContract = ['draft', 'pending_payment', 'pending_approval', 'paused', 'cancelled'];
       if (jobStatusWithoutContract.includes(job.status)) {
         return; // No contract exists yet for this job
       }
 
       // Fetch if current user is either the selected worker OR the client
+      // Also try to fetch for 'open' and 'in_progress' jobs - the backend will return 404 if no contract exists
       const isDoer = jobDoerId && jobDoerId === userId;
       const isClient = jobClientId && jobClientId === userId;
       const isSelectedWorker = job.selectedWorkers?.includes(userId as string);
 
-      if (!isDoer && !isClient && !isSelectedWorker) return;
+      // Always try to fetch for client or if user might be a worker (let backend decide)
+      if (!isDoer && !isClient && !isSelectedWorker) {
+        // Even if not in selectedWorkers, try to fetch - user might have a contract from a proposal
+        // that wasn't reflected in selectedWorkers (data sync issue)
+        if (job.status !== 'open' && job.status !== 'in_progress') {
+          return;
+        }
+      }
 
       try {
         // Fetch contract by job ID
@@ -963,7 +964,8 @@ export default function JobDetail() {
   // Check if current user is a worker on this job
   const isWorkerOnJob = user && userId && (
     job.doerId === userId ||
-    (job.selectedWorkers && job.selectedWorkers.includes(userId))
+    (job.selectedWorkers && job.selectedWorkers.includes(userId)) ||
+    (contractData?.doerId === userId)
   );
 
   return (
@@ -1167,13 +1169,34 @@ export default function JobDetail() {
                         <div className="space-y-2">
                           <div>
                             <p className="text-xs text-gray-500 dark:text-gray-400">Cliente</p>
-                            <p className="font-medium text-gray-900 dark:text-white">{getClientInfo(job).name}</p>
+                            <Link
+                              to={`/profile/${getClientInfo(job).id}`}
+                              className="font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hover:underline"
+                            >
+                              {getClientInfo(job).name}
+                            </Link>
                           </div>
                           <div>
                             <p className="text-xs text-gray-500 dark:text-gray-400">Trabajador</p>
-                            <p className="font-medium text-gray-900 dark:text-white">
-                              {job.doer?.name || job.selectedWorkers?.map(w => typeof w === 'string' ? w : w.name).join(', ') || 'Pendiente de asignar'}
-                            </p>
+                            {job.doer ? (
+                              <Link
+                                to={`/profile/${job.doer.id || job.doer._id}`}
+                                className="font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hover:underline"
+                              >
+                                {job.doer.name}
+                              </Link>
+                            ) : contractData?.doerId ? (
+                              <Link
+                                to={`/profile/${contractData.doerId}`}
+                                className="font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hover:underline"
+                              >
+                                {allContractsData?.contracts?.find(c => c.doerId === contractData.doerId)?.doerName || 'Ver perfil'}
+                              </Link>
+                            ) : (
+                              <p className="font-medium text-gray-900 dark:text-white">
+                                Pendiente de asignar
+                              </p>
+                            )}
                           </div>
                         </div>
                       </div>

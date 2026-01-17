@@ -61,7 +61,7 @@ const DisputeDetail: React.FC = () => {
 
   const fetchDispute = async () => {
     try {
-      const response = await axios.get(`${API_URL}/api/disputes/${id}`, {
+      const response = await axios.get(`${API_URL}/disputes/${id}`, {
         withCredentials: true,
       });
       setDispute(response.data.data);
@@ -84,7 +84,7 @@ const DisputeDetail: React.FC = () => {
         formData.append('attachments', file);
       });
 
-      await axios.post(`${API_URL}/api/disputes/${id}/evidence`, formData, {
+      await axios.post(`${API_URL}/disputes/${id}/evidence`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -116,7 +116,7 @@ const DisputeDetail: React.FC = () => {
 
     setSubmitting(true);
     try {
-      await axios.post(`${API_URL}/api/disputes/${id}/messages`, {
+      await axios.post(`${API_URL}/disputes/${id}/messages`, {
         message,
       }, {
         withCredentials: true,

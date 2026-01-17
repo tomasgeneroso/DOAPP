@@ -608,6 +608,22 @@ export class SocketService {
   public notifyAdminEvent(event: string, data: any) {
     this.io.emit(`admin:${event}`, { ...data, timestamp: new Date() });
   }
+
+  // Get IO instance for direct use in routes
+  public getIO(): Server {
+    return this.io;
+  }
+}
+
+// Singleton instance for global access
+let socketServiceInstance: SocketService | null = null;
+
+export function setSocketServiceInstance(instance: SocketService) {
+  socketServiceInstance = instance;
+}
+
+export function getIO(): Server | null {
+  return socketServiceInstance?.getIO() || null;
 }
 
 export default SocketService;

@@ -44,8 +44,8 @@ router.get(
       if (isHidden !== undefined) where.isHidden = isHidden === "true";
       if (userId) {
         where[Op.or] = [
-          { client: userId },
-          { doer: userId },
+          { clientId: userId },
+          { doerId: userId },
         ];
       }
 

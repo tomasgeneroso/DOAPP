@@ -721,9 +721,8 @@ router.put("/:id/approve",
       return;
     }
 
-    // Actualizar propuesta
+    // Set proposal status (will save later after contract creation to avoid inconsistency)
     proposal.status = "approved";
-    await proposal.save();
 
     // Agregar trabajador al array de selectedWorkers
     const updatedWorkers = [...currentWorkers, proposal.freelancerId];
@@ -803,33 +802,19 @@ router.put("/:id/approve",
     job.allocatedTotal = newAllocatedTotal;
     job.remainingBudget = jobPrice - newAllocatedTotal;
 
-    // Si se alcanzó el máximo de trabajadores, rechazar las demás propuestas pendientes
-    if (updatedWorkers.length >= maxWorkers) {
-      await Proposal.update(
-        {
-          status: "rejected",
-          rejectionReason: `Se completaron los ${maxWorkers} puesto${maxWorkers > 1 ? 's' : ''} disponible${maxWorkers > 1 ? 's' : ''}`,
-        },
-        {
-          where: {
-            jobId: proposal.jobId,
-            id: { [Op.ne]: proposal.id },
-            status: "pending",
-          }
-        }
-      );
+    // Track if we need to reject other proposals and update job status (will do after contract creation)
+    const shouldRejectOtherProposals = updatedWorkers.length >= maxWorkers;
 
-      // Solo cambiar a in_progress si la fecha de inicio ya pasó
+    // Solo cambiar a in_progress si la fecha de inicio ya pasó
+    if (shouldRejectOtherProposals) {
       const now = new Date();
       const jobStartDate = job.startDate ? new Date(job.startDate) : now;
-
       if (jobStartDate <= now) {
         job.status = "in_progress";
       }
     }
 
-    await job.save();
-
+    // NOTE: All saves moved after contract creation to ensure atomicity
     // Crear o actualizar chat grupal si hay múltiples trabajadores
     if (updatedWorkers.length > 1 || maxWorkers > 1) {
       await createOrUpdateGroupChat(job, updatedWorkers);
@@ -840,13 +825,17 @@ router.put("/:id/approve",
     const commission = workerAllocation * PLATFORM_COMMISSION;
     const totalPrice = workerAllocation + commission;
 
-    const startDate = new Date();
-    const endDate = new Date();
-    endDate.setDate(endDate.getDate() + proposal.estimatedDuration);
+    // Use job dates or calculate from estimatedDuration
+    const startDate = job.startDate ? new Date(job.startDate) : new Date();
+    const endDate = job.endDate
+      ? new Date(job.endDate)
+      : new Date(startDate.getTime() + (proposal.estimatedDuration || 7) * 24 * 60 * 60 * 1000);
 
     // Generate pairing code (6 digit code)
     const pairingCode = Math.floor(100000 + Math.random() * 900000).toString();
     const pairingExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    console.log(`📋 Creating contract for job ${job.id}, worker ${proposal.freelancerId}, amount: ${workerAllocation}`);
 
     const contract = await Contract.create({
       jobId: proposal.jobId,
@@ -869,6 +858,32 @@ router.put("/:id/approve",
       allocatedAmount: workerAllocation,
       percentageOfBudget,
     });
+
+    console.log(`✅ Contract created: ${contract.id} for job ${job.id} with status ${contract.status}`);
+
+    // NOW save both proposal and job after contract is successfully created
+    await Promise.all([
+      proposal.save(),
+      job.save()
+    ]);
+    console.log(`✅ Proposal ${proposal.id} and Job ${job.id} saved successfully`);
+
+    // Reject other pending proposals if max workers reached (done after contract creation for consistency)
+    if (shouldRejectOtherProposals) {
+      await Proposal.update(
+        {
+          status: "rejected",
+          rejectionReason: `Se completaron los ${maxWorkers} puesto${maxWorkers > 1 ? 's' : ''} disponible${maxWorkers > 1 ? 's' : ''}`,
+        },
+        {
+          where: {
+            jobId: proposal.jobId,
+            id: { [Op.ne]: proposal.id },
+            status: "pending",
+          }
+        }
+      );
+    }
 
     // Update the chat message metadata to reflect approved status
     await ChatMessage.update(

@@ -7,6 +7,7 @@ import { User } from "../models/sql/User.model.js";
 import { Job } from "../models/sql/Job.model.js";
 import { body, validationResult } from "express-validator";
 import { Op } from 'sequelize';
+import { getIO } from "../services/socket.js";
 
 const router = Router();
 
@@ -580,6 +581,27 @@ router.post(
           },
         ],
       });
+
+      // Emit socket event for real-time updates
+      try {
+        const io = getIO();
+        if (io) {
+          // Emit to the conversation room
+          io.to(`conversation:${conversationId}`).emit('message:new', populatedMessage);
+
+          // Also notify other participants individually for notifications
+          const otherParticipants = conversation.participants.filter((p: string) => p !== userId);
+          for (const participantId of otherParticipants) {
+            io.to(`user:${participantId}`).emit('chat:message', {
+              conversationId,
+              message: populatedMessage,
+            });
+          }
+        }
+      } catch (socketError) {
+        console.error('Socket emit error:', socketError);
+        // Don't fail the request if socket fails
+      }
 
       res.status(201).json({
         success: true,

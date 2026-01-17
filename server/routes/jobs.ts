@@ -3,6 +3,7 @@ import { body, param, validationResult } from "express-validator";
 import { Job } from "../models/sql/Job.model.js";
 import { User } from "../models/sql/User.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
+import { Proposal } from "../models/sql/Proposal.model.js";
 import { BalanceTransaction } from "../models/sql/BalanceTransaction.model.js";
 import { JobTask } from "../models/sql/JobTask.model.js";
 import { Notification } from "../models/sql/Notification.model.js";
@@ -11,7 +12,7 @@ import { ChatMessage } from "../models/sql/ChatMessage.model.js";
 import { protect } from "../middleware/auth.js";
 import type { AuthRequest } from "../types/index.js";
 import { socketService } from "../index.js";
-import { Op } from 'sequelize';
+import { Op, Sequelize } from 'sequelize';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -323,16 +324,33 @@ router.get("/my-jobs", protect, async (req: AuthRequest, res: Response): Promise
 
     console.log(`✅ Found ${jobs.length} jobs for user ${req.user.email}`);
 
-    // Simple response without complex processing for now
-    const jobsSimple = jobs.map(job => ({
+    // Get proposal counts for all jobs
+    const jobIds = jobs.map(j => j.id);
+    const proposalCounts = await Proposal.findAll({
+      attributes: [
+        'jobId',
+        [Sequelize.fn('COUNT', Sequelize.col('id')), 'count']
+      ],
+      where: { jobId: { [Op.in]: jobIds } },
+      group: ['jobId']
+    });
+
+    // Create a map of jobId -> proposalCount
+    const countMap = new Map<string, number>();
+    proposalCounts.forEach((p: any) => {
+      countMap.set(p.jobId, parseInt(p.get('count'), 10));
+    });
+
+    // Add proposal counts to jobs
+    const jobsWithCounts = jobs.map(job => ({
       ...job.toJSON(),
-      proposalCount: 0,
+      proposalCount: countMap.get(job.id) || 0,
       payment: null
     }));
 
     res.json({
       success: true,
-      jobs: jobsSimple,
+      jobs: jobsWithCounts,
     });
   } catch (error: any) {
     console.error('❌ Error fetching my jobs:', error);

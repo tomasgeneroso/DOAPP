@@ -99,6 +99,22 @@ router.post(
         return;
       }
 
+      // Check if contract is completed and within 1 month dispute window
+      if (contract.status === 'completed') {
+        // Use completedAt if available, otherwise fall back to updatedAt
+        const completedDate = new Date(contract.completedAt || contract.updatedAt);
+        const oneMonthLater = new Date(completedDate);
+        oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
+
+        if (new Date() > oneMonthLater) {
+          res.status(400).json({
+            success: false,
+            message: "El período para abrir disputas ha expirado. Las disputas solo pueden abrirse dentro de 1 mes desde la finalización del contrato.",
+          });
+          return;
+        }
+      }
+
       // Find payment
       const payment = await Payment.findOne({ where: { contractId } });
       if (!payment) {
