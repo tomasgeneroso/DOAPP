@@ -39,6 +39,13 @@ export interface Job {
   // Multiple workers support
   maxWorkers?: number;
   selectedWorkers?: string[];
+  selectedWorkersData?: Array<{
+    id: string;
+    name: string;
+    avatar?: string;
+    rating: number;
+    reviewsCount?: number;
+  }>;
   groupChatId?: string;
   // Worker payment allocations
   workerAllocations?: Array<{

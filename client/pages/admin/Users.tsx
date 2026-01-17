@@ -1,16 +1,44 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { adminApi } from "@/lib/adminApi";
+import { useSocket } from "@/hooks/useSocket";
 import type { AdminUser } from "@/types/admin";
-import { Search, Ban, CheckCircle, Trash2, Eye } from "lucide-react";
+import { Search, Ban, CheckCircle, Trash2, Eye, Wifi, WifiOff, Bell, UserPlus } from "lucide-react";
 
 export default function AdminUsers() {
   const navigate = useNavigate();
+  const { isConnected, registerAdminUserCreatedHandler, registerAdminUserUpdatedHandler } = useSocket();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [realtimeAlert, setRealtimeAlert] = useState<string | null>(null);
+
+  // Real-time handlers
+  const handleNewUser = useCallback((data: any) => {
+    console.log('🔔 New user registered:', data);
+    setRealtimeAlert(`Nuevo usuario registrado: ${data.user?.name || data.user?.email}`);
+    // Add to beginning of list if on first page
+    if (page === 1) {
+      setUsers(prev => [data.user, ...prev.slice(0, 19)]);
+    }
+    setTimeout(() => setRealtimeAlert(null), 5000);
+  }, [page]);
+
+  const handleUserUpdated = useCallback((data: any) => {
+    console.log('🔔 User updated:', data);
+    setRealtimeAlert(`Usuario actualizado: ${data.user?.name || data.user?.email}`);
+    setUsers(prev =>
+      prev.map(u => (u.id === data.user?.id || u._id === data.user?._id) ? { ...u, ...data.user } : u)
+    );
+    setTimeout(() => setRealtimeAlert(null), 5000);
+  }, []);
+
+  useEffect(() => {
+    registerAdminUserCreatedHandler(handleNewUser);
+    registerAdminUserUpdatedHandler(handleUserUpdated);
+  }, [registerAdminUserCreatedHandler, registerAdminUserUpdatedHandler, handleNewUser, handleUserUpdated]);
 
   useEffect(() => {
     loadUsers();
@@ -71,9 +99,27 @@ export default function AdminUsers() {
 
   return (
     <div>
+      {/* Real-time Alert */}
+      {realtimeAlert && (
+        <div className="mb-4 p-4 bg-green-100 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg flex items-center gap-3 animate-pulse">
+          <UserPlus className="h-5 w-5 text-green-600 dark:text-green-400" />
+          <span className="text-green-800 dark:text-green-200 font-medium">{realtimeAlert}</span>
+        </div>
+      )}
+
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Usuarios</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-2">Administra y modera usuarios de la plataforma</p>
+        <div className="flex items-center gap-3 mb-2">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Usuarios</h1>
+          <span className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+            isConnected
+              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+              : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+          }`}>
+            {isConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+            {isConnected ? 'Live' : 'Offline'}
+          </span>
+        </div>
+        <p className="text-gray-600 dark:text-gray-400">Administra y modera usuarios de la plataforma</p>
       </div>
 
       {/* Search */}
@@ -123,7 +169,7 @@ export default function AdminUsers() {
               <tr
                 key={user.id || user._id}
                 className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
-                onClick={() => navigate(`/perfil/${user.id || user._id}`)}
+                onClick={() => navigate(`/profile/${user.id || user._id}`)}
               >
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
@@ -197,7 +243,7 @@ export default function AdminUsers() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigate(`/perfil/${user.id || user._id}`);
+                        navigate(`/profile/${user.id || user._id}`);
                       }}
                       className="text-sky-600 hover:text-sky-900 dark:text-sky-400 dark:hover:text-sky-300"
                       title="Ver perfil"

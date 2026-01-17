@@ -30,10 +30,12 @@ import {
   ChevronDown,
   Briefcase,
   Flag,
+  Share2,
 } from "lucide-react";
 import type { Job } from "@/types";
 import { getClientInfo } from "@/lib/utils";
 import MultipleRatings from "../components/user/MultipleRatings";
+import { getCategoryById } from "../../shared/constants/categories";
 import LocationCircleMap from "../components/map/LocationCircleMap";
 import JobTasks from "../components/jobs/JobTasks";
 
@@ -1702,6 +1704,109 @@ export default function JobDetail() {
               )}
             </div>
 
+            {/* Worker(s) Info - Public view of who is doing/did the work */}
+            {((job.doer && typeof job.doer === 'object') || (job.selectedWorkersData && job.selectedWorkersData.length > 0)) && (
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
+                <h2 className="mb-4 text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Briefcase className="h-5 w-5 text-sky-500" />
+                  {job.status === 'completed' ? 'Realizado por' : 'Trabajando en este proyecto'}
+                </h2>
+
+                {/* Single worker (doer) */}
+                {job.doer && typeof job.doer === 'object' && !job.selectedWorkersData?.length && (
+                  <Link
+                    to={`/profile/${job.doer.id || job.doer._id}`}
+                    className="flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl p-2 -m-2 transition-colors"
+                  >
+                    <div className="h-12 w-12 overflow-hidden rounded-full bg-sky-100">
+                      <img
+                        src={
+                          job.doer.avatar ||
+                          `https://api.dicebear.com/7.x/avataaars/svg?seed=${job.doer.name || 'worker'}`
+                        }
+                        alt={job.doer.name || 'Trabajador'}
+                        className="h-full w-full object-cover"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-slate-900 dark:text-white">
+                        {job.doer.name || 'Trabajador'}
+                      </p>
+                      <div className="flex items-center gap-1 text-sm text-slate-600 dark:text-slate-300">
+                        <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+                        <span>
+                          {(job.doer.rating || 0).toFixed(1)} ({job.doer.reviewsCount || 0} reviews)
+                        </span>
+                      </div>
+                    </div>
+                    <ExternalLink className="h-4 w-4 text-slate-400" />
+                  </Link>
+                )}
+
+                {/* Multiple workers (team job) */}
+                {job.selectedWorkersData && job.selectedWorkersData.length > 0 && (
+                  <div className="space-y-3">
+                    {job.selectedWorkersData.map((worker: any) => (
+                      <Link
+                        key={worker.id}
+                        to={`/profile/${worker.id}`}
+                        className="flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl p-2 -m-2 transition-colors"
+                      >
+                        <div className="h-10 w-10 overflow-hidden rounded-full bg-sky-100">
+                          <img
+                            src={
+                              worker.avatar ||
+                              `https://api.dicebear.com/7.x/avataaars/svg?seed=${worker.name || 'worker'}`
+                            }
+                            alt={worker.name || 'Trabajador'}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-slate-900 dark:text-white text-sm">
+                            {worker.name || 'Trabajador'}
+                          </p>
+                          <div className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-300">
+                            <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+                            <span>{(worker.rating || 0).toFixed(1)}</span>
+                          </div>
+                        </div>
+                        <ExternalLink className="h-4 w-4 text-slate-400" />
+                      </Link>
+                    ))}
+                  </div>
+                )}
+
+                {/* Job status indicator */}
+                <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
+                  <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium ${
+                    job.status === 'completed'
+                      ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                      : job.status === 'in_progress'
+                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                      : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
+                  }`}>
+                    {job.status === 'completed' ? (
+                      <>
+                        <CheckCircle className="h-4 w-4" />
+                        Trabajo completado
+                      </>
+                    ) : job.status === 'in_progress' ? (
+                      <>
+                        <Clock className="h-4 w-4" />
+                        En progreso
+                      </>
+                    ) : (
+                      <>
+                        <Clock className="h-4 w-4" />
+                        Trabajador asignado
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Action Buttons - Only show if positions still available */}
             {!isOwnJob && job.status === 'open' && job.doerId !== userId && (
               // For team jobs: show if there are still positions available and user is not already selected
@@ -2212,7 +2317,16 @@ export default function JobDetail() {
                   'text-green-700 dark:text-green-300'
                 }`}>
                   {job.status === 'cancelled' && '❌ Esta publicacion fue cancelada'}
-                  {job.status === 'completed' && '✅ Este trabajo fue completado'}
+                  {job.status === 'completed' && (
+                    <>
+                      ✅ Este trabajo fue completado
+                      {job.category && (
+                        <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300">
+                          {getCategoryById(job.category)?.icon} {getCategoryById(job.category)?.label || job.category}
+                        </span>
+                      )}
+                    </>
+                  )}
                   {job.status === 'paused' && (job.pendingNewPrice ? '⏳ Este trabajo está actualizando su presupuesto' : '⏸️ Este trabajo esta pausado')}
                   {job.status === 'suspended' && '⏸️ Este trabajo está suspendido por falta de fecha de finalización'}
                 </p>
@@ -2230,6 +2344,16 @@ export default function JobDetail() {
                       year: 'numeric'
                     })}
                   </p>
+                )}
+                {/* Share to Portfolio button for workers on completed jobs */}
+                {job.status === 'completed' && isWorkerOnJob && (
+                  <button
+                    onClick={() => navigate(`/portfolio/create?fromJob=${job.id || job._id}`)}
+                    className="mt-4 inline-flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
+                  >
+                    <Share2 className="h-4 w-4" />
+                    Compartir en Portfolio
+                  </button>
                 )}
               </div>
             )}

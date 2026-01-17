@@ -12,14 +12,28 @@ interface FileWithPreview extends File {
 }
 
 interface Contract {
-  _id: string;
-  jobId: {
+  id: string;
+  _id?: string; // MongoDB compatibility
+  job?: {
+    title: string;
+    summary?: string;
+    location?: string;
+  };
+  jobId?: {
     title: string;
   };
-  clientId: {
+  client?: {
+    name: string;
+    avatar?: string;
+  };
+  clientId?: {
     name: string;
   };
-  doerId: {
+  doer?: {
+    name: string;
+    avatar?: string;
+  };
+  doerId?: {
     name: string;
   };
   price: number;
@@ -67,9 +81,10 @@ const CreateDispute: React.FC = () => {
   const loadUserContracts = async () => {
     try {
       setLoadingContracts(true);
-      const response = await api.get('/contracts?status=in_progress,completed');
-      if (response.data.success) {
-        setContracts(response.data.data || []);
+      // Include all disputable statuses: in_progress, awaiting_confirmation, completed
+      const response = await api.get('/contracts?status=in_progress,awaiting_confirmation,completed&limit=100');
+      if (response.success) {
+        setContracts(response.contracts || response.data || []);
       }
     } catch (error) {
       console.error('Error loading contracts:', error);
@@ -135,7 +150,7 @@ const CreateDispute: React.FC = () => {
         withCredentials: true,
       });
 
-      navigate(`/disputes/${response.data.data._id}`);
+      navigate(`/disputes/${response.data.data.id || response.data.data._id}`);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Error al crear la disputa');
     } finally {
@@ -194,49 +209,62 @@ const CreateDispute: React.FC = () => {
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {contracts.map((contract) => (
-                      <button
-                        key={contract._id}
-                        type="button"
-                        onClick={() => setSelectedContract(contract._id)}
-                        className={`w-full p-4 rounded-lg border-2 transition text-left ${
-                          selectedContract === contract._id
-                            ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
-                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <p className="font-semibold text-gray-900 dark:text-white">
-                              {contract.jobId.title}
-                            </p>
-                            <div className="flex items-center gap-4 mt-2 text-sm text-gray-600 dark:text-gray-400">
-                              <span>Cliente: {contract.clientId.name}</span>
-                              <span>•</span>
-                              <span>Proveedor: {contract.doerId.name}</span>
-                              <span>•</span>
-                              <span className="font-semibold">${contract.price}</span>
-                            </div>
-                            <div className="flex items-center gap-2 mt-2">
-                              <span
-                                className={`text-xs px-2 py-1 rounded-full ${
-                                  contract.status === 'in_progress'
-                                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                                    : contract.status === 'completed'
-                                    ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                                }`}
-                              >
-                                {contract.status}
-                              </span>
-                              <span className="text-xs text-gray-500 dark:text-gray-400">
-                                Inicio: {new Date(contract.startDate).toLocaleDateString()}
-                              </span>
+                    {contracts.map((contract) => {
+                      const contractId = contract.id || contract._id;
+                      const jobTitle = contract.job?.title || contract.jobId?.title || 'Sin título';
+                      const clientName = contract.client?.name || contract.clientId?.name || 'Cliente';
+                      const doerName = contract.doer?.name || contract.doerId?.name || 'Proveedor';
+                      const statusLabels: Record<string, string> = {
+                        in_progress: 'En progreso',
+                        awaiting_confirmation: 'Esperando confirmación',
+                        completed: 'Completado',
+                      };
+                      return (
+                        <button
+                          key={contractId}
+                          type="button"
+                          onClick={() => setSelectedContract(contractId)}
+                          className={`w-full p-4 rounded-lg border-2 transition text-left ${
+                            selectedContract === contractId
+                              ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
+                              : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <p className="font-semibold text-gray-900 dark:text-white">
+                                {jobTitle}
+                              </p>
+                              <div className="flex items-center gap-4 mt-2 text-sm text-gray-600 dark:text-gray-400">
+                                <span>Cliente: {clientName}</span>
+                                <span>•</span>
+                                <span>Proveedor: {doerName}</span>
+                                <span>•</span>
+                                <span className="font-semibold">${contract.price?.toLocaleString('es-AR')}</span>
+                              </div>
+                              <div className="flex items-center gap-2 mt-2">
+                                <span
+                                  className={`text-xs px-2 py-1 rounded-full ${
+                                    contract.status === 'in_progress'
+                                      ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                      : contract.status === 'completed'
+                                      ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                                      : contract.status === 'awaiting_confirmation'
+                                      ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
+                                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                  }`}
+                                >
+                                  {statusLabels[contract.status] || contract.status}
+                                </span>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  Inicio: {new Date(contract.startDate).toLocaleDateString('es-AR')}
+                                </span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </button>
-                    ))}
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
               </div>

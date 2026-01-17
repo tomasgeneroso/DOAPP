@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { adminApi } from "@/lib/adminApi";
+import { useSocket } from "@/hooks/useSocket";
 import type { Ticket } from "@/types/admin";
-import { Plus, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Search, ArrowUpDown, ArrowUp, ArrowDown, Wifi, WifiOff, Bell } from "lucide-react";
 
 type SortField = 'subject' | 'category' | 'priority' | 'status' | 'date' | 'user';
 type SortDirection = 'asc' | 'desc' | null;
 
 export default function AdminTickets() {
+  const { isConnected, registerAdminTicketCreatedHandler, registerAdminTicketUpdatedHandler } = useSocket();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -17,6 +19,29 @@ export default function AdminTickets() {
   const [page, setPage] = useState(1);
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  const [realtimeAlert, setRealtimeAlert] = useState<string | null>(null);
+
+  // Real-time handlers
+  const handleNewTicket = useCallback((data: any) => {
+    console.log('🔔 New ticket received:', data);
+    setRealtimeAlert(`Nuevo ticket: ${data.ticket?.subject || 'Sin asunto'}`);
+    setTickets(prev => [data.ticket, ...prev]);
+    setTimeout(() => setRealtimeAlert(null), 5000);
+  }, []);
+
+  const handleTicketUpdated = useCallback((data: any) => {
+    console.log('🔔 Ticket updated:', data);
+    setRealtimeAlert(`Ticket actualizado: ${data.ticket?.subject || 'Sin asunto'}`);
+    setTickets(prev =>
+      prev.map(t => (t.id === data.ticket?.id || t._id === data.ticket?._id) ? { ...t, ...data.ticket } : t)
+    );
+    setTimeout(() => setRealtimeAlert(null), 5000);
+  }, []);
+
+  useEffect(() => {
+    registerAdminTicketCreatedHandler(handleNewTicket);
+    registerAdminTicketUpdatedHandler(handleTicketUpdated);
+  }, [registerAdminTicketCreatedHandler, registerAdminTicketUpdatedHandler, handleNewTicket, handleTicketUpdated]);
 
   useEffect(() => {
     loadTickets();
@@ -168,10 +193,28 @@ export default function AdminTickets() {
 
   return (
     <div>
+      {/* Real-time Alert */}
+      {realtimeAlert && (
+        <div className="mb-4 p-4 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg flex items-center gap-3 animate-pulse">
+          <Bell className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+          <span className="text-yellow-800 dark:text-yellow-200 font-medium">{realtimeAlert}</span>
+        </div>
+      )}
+
       <div className="mb-8 flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Tickets de Soporte</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
+          <div className="flex items-center gap-3 mb-2">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Tickets de Soporte</h1>
+            <span className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+              isConnected
+                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+            }`}>
+              {isConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+              {isConnected ? 'Live' : 'Offline'}
+            </span>
+          </div>
+          <p className="text-gray-600 dark:text-gray-400">
             Gestiona consultas y problemas de usuarios. Los usuarios crean tickets desde su panel.
           </p>
         </div>

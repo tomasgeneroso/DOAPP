@@ -41,7 +41,7 @@ export type ContractStatus =
   | 'disputed'
   | 'in_review';
 
-export type PaymentStatus = 'pending' | 'held' | 'released' | 'refunded' | 'completed' | 'escrow';
+export type PaymentStatus = 'pending' | 'held' | 'released' | 'refunded' | 'completed' | 'escrow' | 'pending_payout';
 export type DeliveryStatus = 'pending' | 'in_progress' | 'completed' | 'approved' | 'rejected';
 
 interface Delivery {
@@ -287,6 +287,23 @@ export class Contract extends Model {
 
   @Column(DataType.STRING)
   escrowPaymentId?: string;
+
+  // Payment verification fields (for admin payout)
+  @Column(DataType.STRING)
+  paymentProofUrl?: string;
+
+  @ForeignKey(() => User)
+  @Column(DataType.UUID)
+  paymentProcessedBy?: string;
+
+  @BelongsTo(() => User, 'paymentProcessedBy')
+  paymentProcessor?: User;
+
+  @Column(DataType.DATE)
+  paymentProcessedAt?: Date;
+
+  @Column(DataType.TEXT)
+  paymentAdminNotes?: string;
 
   // ============================================
   // PAIRING SYSTEM (Match Code)

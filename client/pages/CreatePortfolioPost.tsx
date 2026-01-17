@@ -9,6 +9,8 @@ import {
   CheckCircle,
   Trophy,
   Loader2,
+  ToggleLeft,
+  ToggleRight,
 } from 'lucide-react';
 
 interface JobData {
@@ -47,6 +49,7 @@ export default function CreatePortfolioPost() {
   const [tags, setTags] = useState('');
   const [images, setImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [publishAsPost, setPublishAsPost] = useState(true); // Auto-post to profile (default on)
 
   useEffect(() => {
     if (jobId) {
@@ -164,6 +167,61 @@ export default function CreatePortfolioPost() {
           },
           body: formData,
         });
+      }
+
+      // Also create a post if the option is enabled
+      if (publishAsPost) {
+        try {
+          // First upload images to get URLs for the post
+          let galleryItems: Array<{ url: string; type: 'image' }> = [];
+
+          if (images.length > 0) {
+            const postFormData = new FormData();
+            images.forEach(img => {
+              postFormData.append('images', img);
+            });
+
+            const uploadResponse = await fetch('/api/posts/upload-images', {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+              body: postFormData,
+            });
+
+            const uploadData = await uploadResponse.json();
+            if (uploadData.success && uploadData.urls) {
+              galleryItems = uploadData.urls.map((url: string) => ({
+                url,
+                type: 'image' as const,
+              }));
+            }
+          }
+
+          // Create the post
+          const postData = {
+            title,
+            description,
+            type: 'post',
+            gallery: galleryItems,
+            tags: tags.split(',').map(t => t.trim()).filter(Boolean),
+            linkedJob: jobId,
+            price: jobData?.price,
+            currency: 'ARS',
+          };
+
+          await fetch('/api/posts', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(postData),
+          });
+        } catch (postErr) {
+          console.error('Error creating post:', postErr);
+          // Don't fail the whole operation if post creation fails
+        }
       }
 
       setSuccess(true);
@@ -399,6 +457,42 @@ export default function CreatePortfolioPost() {
                 JPG, PNG, WebP - Máx 5MB cada una
               </span>
             </button>
+          </div>
+
+          {/* Auto-publish as Post Toggle */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
+                  Publicar también en mi perfil
+                </h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                  Además del portfolio, se creará un post visible en tu perfil
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPublishAsPost(!publishAsPost)}
+                className={`relative w-14 h-8 rounded-full transition-colors ${
+                  publishAsPost
+                    ? 'bg-green-500'
+                    : 'bg-slate-300 dark:bg-slate-600'
+                }`}
+              >
+                <span
+                  className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-transform ${
+                    publishAsPost ? 'left-7' : 'left-1'
+                  }`}
+                />
+              </button>
+            </div>
+            {publishAsPost && (
+              <div className="mt-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+                <p className="text-sm text-green-700 dark:text-green-300">
+                  ✓ Tu trabajo aparecerá en tu portfolio y como un post en tu perfil
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Job Details (read-only) */}

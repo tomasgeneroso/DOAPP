@@ -317,11 +317,27 @@ export default function ContractDetail() {
         return "bg-yellow-100 text-yellow-800";
       case "pending":
         return "bg-blue-100 text-blue-800";
+      case "pending_payout":
+      case "released": // Legacy - treat as pending_payout
+        return "bg-orange-100 text-orange-800";
       case "refunded":
         return "bg-red-100 text-red-800";
       default:
         return "bg-gray-100 text-gray-800";
     }
+  };
+
+  const getPaymentStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      pending: "Pendiente",
+      held_escrow: "En Escrow",
+      escrow: "En Escrow",
+      pending_payout: "En proceso de pago",
+      released: "En proceso de pago", // Legacy
+      completed: "Completado",
+      refunded: "Reembolsado",
+    };
+    return labels[status] || status;
   };
 
   if (loading) {
@@ -423,7 +439,7 @@ export default function ContractDetail() {
                       contract.paymentStatus
                     )}`}
                   >
-                    Pago: {contract.paymentStatus}
+                    Pago: {getPaymentStatusLabel(contract.paymentStatus)}
                   </span>
                   {isConnected ? (
                     <span className="flex items-center gap-1 text-green-600">

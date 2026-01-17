@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { useSocket } from '@/hooks/useSocket';
+import { Wifi, WifiOff, Bell } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -14,6 +16,7 @@ interface Dispute {
   status: string;
   priority: string;
   category: string;
+  importanceLevel?: 'low' | 'medium' | 'high' | 'critical';
   createdAt: Date | string;
   initiatedBy: {
     id?: string;
@@ -64,6 +67,7 @@ interface DisputeStats {
 
 const AdminDisputeManager: React.FC = () => {
   const navigate = useNavigate();
+  const { isConnected, registerAdminDisputeCreatedHandler, registerAdminDisputeUpdatedHandler } = useSocket();
 
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [stats, setStats] = useState<DisputeStats | null>(null);
@@ -77,6 +81,7 @@ const AdminDisputeManager: React.FC = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  const [realtimeAlert, setRealtimeAlert] = useState<string | null>(null);
 
   const fetchDisputes = async () => {
     setLoading(true);
@@ -119,6 +124,34 @@ const AdminDisputeManager: React.FC = () => {
     fetchStats();
   }, []);
 
+  // Real-time handlers
+  const handleNewDispute = useCallback((data: any) => {
+    console.log('🔔 New dispute received:', data);
+    setRealtimeAlert(`Nueva disputa: ${data.dispute?.reason || 'Sin motivo'}`);
+    setDisputes(prev => [data.dispute, ...prev]);
+    // Refresh stats
+    fetchStats();
+    // Auto-hide alert after 5 seconds
+    setTimeout(() => setRealtimeAlert(null), 5000);
+  }, []);
+
+  const handleDisputeUpdated = useCallback((data: any) => {
+    console.log('🔔 Dispute updated:', data);
+    setRealtimeAlert(`Disputa actualizada: ${data.dispute?.reason || 'Sin motivo'}`);
+    setDisputes(prev =>
+      prev.map(d => (d.id === data.dispute?.id || d._id === data.dispute?._id) ? { ...d, ...data.dispute } : d)
+    );
+    // Refresh stats
+    fetchStats();
+    // Auto-hide alert after 5 seconds
+    setTimeout(() => setRealtimeAlert(null), 5000);
+  }, []);
+
+  useEffect(() => {
+    registerAdminDisputeCreatedHandler(handleNewDispute);
+    registerAdminDisputeUpdatedHandler(handleDisputeUpdated);
+  }, [registerAdminDisputeCreatedHandler, registerAdminDisputeUpdatedHandler, handleNewDispute, handleDisputeUpdated]);
+
   const getStatusBadge = (status: string) => {
     const styles = {
       open: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
@@ -145,18 +178,57 @@ const AdminDisputeManager: React.FC = () => {
     );
   };
 
-  const getPriorityIcon = (priority: string) => {
-    const colors = {
-      low: 'text-gray-400',
-      medium: 'text-yellow-500',
-      high: 'text-orange-500',
-      urgent: 'text-red-500',
+  const getPriorityBadge = (priority: string) => {
+    const styles = {
+      low: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+      medium: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
+      high: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300',
+      urgent: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 animate-pulse',
+    };
+
+    const labels = {
+      low: 'Baja',
+      medium: 'Media',
+      high: 'Alta',
+      urgent: 'Urgente',
+    };
+
+    const icons = {
+      low: '○',
+      medium: '◐',
+      high: '●',
+      urgent: '⚠️',
     };
 
     return (
-      <svg className={`w-5 h-5 ${colors[priority as keyof typeof colors]}`} fill="currentColor" viewBox="0 0 20 20">
-        <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
-      </svg>
+      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold ${styles[priority as keyof typeof styles] || styles.medium}`}>
+        <span>{icons[priority as keyof typeof icons] || '○'}</span>
+        {labels[priority as keyof typeof labels] || priority}
+      </span>
+    );
+  };
+
+  const getImportanceBadge = (importance: string | undefined) => {
+    if (!importance) return null;
+
+    const styles = {
+      low: 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-600',
+      medium: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 border border-sky-200 dark:border-sky-700',
+      high: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300 border border-amber-200 dark:border-amber-700',
+      critical: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border border-red-200 dark:border-red-700 animate-pulse',
+    };
+
+    const labels = {
+      low: 'Importancia: Baja',
+      medium: 'Importancia: Media',
+      high: 'Importancia: Alta',
+      critical: '🔴 CRÍTICO',
+    };
+
+    return (
+      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${styles[importance as keyof typeof styles] || styles.medium}`}>
+        {labels[importance as keyof typeof labels] || importance}
+      </span>
     );
   };
 
@@ -270,10 +342,29 @@ const AdminDisputeManager: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
       <div className="max-w-7xl mx-auto px-4">
+        {/* Real-time Alert */}
+        {realtimeAlert && (
+          <div className="mb-4 p-4 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg flex items-center gap-3 animate-pulse">
+            <Bell className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+            <span className="text-yellow-800 dark:text-yellow-200 font-medium">{realtimeAlert}</span>
+          </div>
+        )}
+
         {/* Header */}
         <div className="mb-8 flex justify-between items-start">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Gestión de Disputas</h1>
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Disputas</h1>
+              {/* Connection indicator */}
+              <span className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+                isConnected
+                  ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                  : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+              }`}>
+                {isConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+                {isConnected ? 'Live' : 'Offline'}
+              </span>
+            </div>
             <p className="text-gray-600 dark:text-gray-400">Administra y resuelve disputas de contratos</p>
           </div>
           <button
@@ -344,6 +435,35 @@ const AdminDisputeManager: React.FC = () => {
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Priority Distribution */}
+        {stats && stats.byPriority && (
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-8">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Distribución por Prioridad</h3>
+            <div className="flex flex-wrap gap-4">
+              <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <span className="text-gray-400">○</span>
+                <span className="text-sm text-gray-600 dark:text-gray-300">Baja:</span>
+                <span className="font-bold text-gray-900 dark:text-white">{stats.byPriority.low || 0}</span>
+              </div>
+              <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                <span className="text-blue-500">◐</span>
+                <span className="text-sm text-blue-600 dark:text-blue-300">Media:</span>
+                <span className="font-bold text-blue-700 dark:text-blue-200">{stats.byPriority.medium || 0}</span>
+              </div>
+              <div className="flex items-center gap-2 px-4 py-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                <span className="text-orange-500">●</span>
+                <span className="text-sm text-orange-600 dark:text-orange-300">Alta:</span>
+                <span className="font-bold text-orange-700 dark:text-orange-200">{stats.byPriority.high || 0}</span>
+              </div>
+              <div className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                <span>⚠️</span>
+                <span className="text-sm text-red-600 dark:text-red-300">Urgente:</span>
+                <span className="font-bold text-red-700 dark:text-red-200">{stats.byPriority.urgent || 0}</span>
               </div>
             </div>
           </div>
@@ -527,7 +647,10 @@ const AdminDisputeManager: React.FC = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {getPriorityIcon(dispute.priority)}
+                        <div className="flex flex-col gap-1">
+                          {getPriorityBadge(dispute.priority)}
+                          {dispute.importanceLevel && getImportanceBadge(dispute.importanceLevel)}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <p className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2">

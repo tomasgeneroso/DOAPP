@@ -62,7 +62,7 @@ interface ContractPaymentRow {
  * - sortBy: 'contractNumber' | 'completedAt' | 'amount' | 'clientName' | 'workerCount'
  * - sortOrder: 'asc' | 'desc'
  */
-router.get("/", protect, requireRole(['admin', 'super_admin', 'owner']), async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const {
       period = 'daily',
@@ -101,14 +101,23 @@ router.get("/", protect, requireRole(['admin', 'super_admin', 'owner']), async (
         break;
     }
 
+    // Map sortBy to actual column names (completedAt doesn't exist, use updatedAt instead)
+    const sortByColumnMap: Record<string, string> = {
+      'completedAt': 'updatedAt',
+      'contractNumber': 'id',
+      'amount': 'price',
+      'clientName': 'clientId', // Will be sorted in-memory later
+    };
+    const actualSortBy = sortByColumnMap[sortBy as string] || sortBy as string;
+
     // Query contracts where both parties confirmed and payment is pending
-    // paymentStatus NOT 'completed' means payment hasn't been released to worker yet
+    // paymentStatus 'pending_payout' or legacy 'released' (not completed) need admin processing
     const contracts = await Contract.findAll({
       where: {
         status: { [Op.in]: ['completed', 'awaiting_confirmation', 'in_progress'] },
         clientConfirmed: true,
         doerConfirmed: true,
-        paymentStatus: { [Op.notIn]: ['completed'] }
+        paymentStatus: { [Op.in]: ['pending_payout', 'released'] } // Pending admin payout
       },
       include: [
         {
@@ -127,7 +136,7 @@ router.get("/", protect, requireRole(['admin', 'super_admin', 'owner']), async (
           attributes: ['id', 'title', 'maxWorkers', 'selectedWorkers', 'workerAllocations']
         }
       ],
-      order: [[sortBy as string, sortOrder as string]]
+      order: [[actualSortBy, sortOrder as string]]
     });
 
     // Group contracts by job for multi-worker jobs
@@ -280,7 +289,7 @@ router.get("/", protect, requireRole(['admin', 'super_admin', 'owner']), async (
  * Get detailed payment info for a specific contract
  * GET /api/admin/pending-payments/:contractId
  */
-router.get("/:contractId", protect, requireRole(['admin', 'super_admin', 'owner']), async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/:contractId", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { contractId } = req.params;
 
@@ -386,7 +395,7 @@ router.get("/:contractId", protect, requireRole(['admin', 'super_admin', 'owner'
  * Export pending payments report as CSV
  * GET /api/admin/pending-payments/export/csv
  */
-router.get("/export/csv", protect, requireRole(['admin', 'super_admin', 'owner']), async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/export/csv", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { period = 'monthly' } = req.query;
 
@@ -483,13 +492,138 @@ router.get("/export/csv", protect, requireRole(['admin', 'super_admin', 'owner']
 });
 
 /**
+ * Get completed payments history
+ * GET /api/admin/pending-payments/completed
+ */
+router.get("/completed/list", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const {
+      period = 'monthly',
+      sortBy = 'paymentProcessedAt',
+      sortOrder = 'desc',
+    } = req.query;
+
+    // Calculate date range based on period
+    let startDate = new Date();
+    const endDate = new Date();
+
+    switch (period) {
+      case 'daily':
+        startDate.setHours(0, 0, 0, 0);
+        break;
+      case 'weekly':
+        const dayOfWeek = startDate.getDay();
+        startDate.setDate(startDate.getDate() - dayOfWeek);
+        startDate.setHours(0, 0, 0, 0);
+        break;
+      case 'monthly':
+        startDate.setDate(1);
+        startDate.setHours(0, 0, 0, 0);
+        break;
+      case 'all':
+        startDate = new Date(0); // All time
+        break;
+    }
+
+    // Query contracts where payment is completed
+    const contracts = await Contract.findAll({
+      where: {
+        paymentStatus: 'completed',
+        paymentProcessedAt: { [Op.gte]: startDate }
+      },
+      include: [
+        {
+          model: User,
+          as: 'client',
+          attributes: ['id', 'name', 'email']
+        },
+        {
+          model: User,
+          as: 'doer',
+          attributes: ['id', 'name', 'email', 'bankingInfo']
+        },
+        {
+          model: Job,
+          as: 'job',
+          attributes: ['id', 'title']
+        },
+        {
+          model: User,
+          as: 'paymentProcessor',
+          attributes: ['id', 'name', 'email']
+        }
+      ],
+      order: [[sortBy as string === 'paymentProcessedAt' ? 'paymentProcessedAt' : 'updatedAt', sortOrder as string]]
+    });
+
+    // Build payment rows
+    const completedPayments = contracts.map((contract, index) => {
+      const doer = contract.doer as any;
+      const client = contract.client as any;
+      const job = contract.job as any;
+      const processor = (contract as any).paymentProcessor as any;
+
+      const workerAmount = contract.allocatedAmount || contract.price;
+      const commission = contract.commission || 0;
+      const netAmount = parseFloat(workerAmount.toString()) - parseFloat(commission.toString());
+
+      return {
+        contractId: contract.id,
+        rowNumber: index + 1,
+        jobId: job?.id,
+        jobTitle: job?.title || 'N/A',
+        clientName: client?.name || 'N/A',
+        clientEmail: client?.email || 'N/A',
+        workerName: doer?.name || 'N/A',
+        workerEmail: doer?.email || 'N/A',
+        bankName: doer?.bankingInfo?.bankName || 'N/A',
+        cbu: doer?.bankingInfo?.cbu || 'N/A',
+        grossAmount: parseFloat(workerAmount.toString()),
+        commission: parseFloat(commission.toString()),
+        netAmount,
+        paymentProofUrl: contract.paymentProofUrl,
+        paymentAdminNotes: contract.paymentAdminNotes,
+        processedBy: processor?.name || 'Sistema',
+        processedByEmail: processor?.email,
+        processedAt: contract.paymentProcessedAt,
+        completedAt: contract.clientConfirmedAt,
+      };
+    });
+
+    // Calculate summary
+    const totalPayments = completedPayments.length;
+    const totalGrossAmount = completedPayments.reduce((sum, p) => sum + p.grossAmount, 0);
+    const totalCommission = completedPayments.reduce((sum, p) => sum + p.commission, 0);
+    const totalNetPaid = completedPayments.reduce((sum, p) => sum + p.netAmount, 0);
+
+    res.status(200).json({
+      success: true,
+      data: completedPayments,
+      summary: {
+        totalPayments,
+        totalGrossAmount,
+        totalCommission,
+        totalNetPaid,
+      },
+      period,
+    });
+  } catch (error: any) {
+    console.error("Error fetching completed payments:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error al obtener pagos completados"
+    });
+  }
+});
+
+/**
  * Mark payment as processed (manual bank transfer)
  * POST /api/admin/pending-payments/:contractId/mark-paid
  */
-router.post("/:contractId/mark-paid", protect, requireRole(['admin', 'super_admin', 'owner']), async (req: AuthRequest, res: Response): Promise<void> => {
+router.post("/:contractId/mark-paid", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { contractId } = req.params;
-    const { proofOfPayment, adminNotes, paymentMethod } = req.body;
+    const { proofOfPayment, adminNotes, paymentMethod, deductions } = req.body;
     const adminId = req.user.id;
 
     const contract = await Contract.findByPk(contractId, {
@@ -507,10 +641,84 @@ router.post("/:contractId/mark-paid", protect, requireRole(['admin', 'super_admi
     const doer = contract.doer as any;
     const job = contract.job as any;
 
-    // Update contract payment status
+    // Calculate amount after fees (for reference)
+    const workerAmount = contract.allocatedAmount || contract.price;
+    const commission = contract.commission || 0;
+    const netBeforeDeductions = parseFloat(workerAmount.toString()) - parseFloat(commission.toString());
+
+    // Apply deductions if provided
+    const bankFee = deductions?.bankFee || 0;
+    const taxAmount = deductions?.taxAmount || 0;
+    const otherDeductions = deductions?.otherDeductions || 0;
+    const finalAmountPaid = deductions?.finalAmountPaid || netBeforeDeductions;
+
+    // Use the final amount with all deductions for the worker's balance
+    const netAmount = finalAmountPaid;
+
+    // Update contract payment status with proof and admin info
     contract.paymentStatus = 'completed';
     contract.paymentDate = new Date();
+    contract.paymentProcessedBy = adminId;
+    contract.paymentProcessedAt = new Date();
+    if (proofOfPayment) contract.paymentProofUrl = proofOfPayment;
+    // Store admin notes with deductions info
+    const fullNotes = [
+      adminNotes,
+      deductions ? `Deducciones: Comisión bancaria: $${bankFee}, Impuestos: $${taxAmount.toFixed(2)} (${deductions.taxPercentage || 0}%), Otras: $${otherDeductions}${deductions.otherDeductionsDescription ? ` (${deductions.otherDeductionsDescription})` : ''}. Monto final: $${finalAmountPaid.toFixed(2)}` : ''
+    ].filter(Boolean).join(' | ');
+    if (fullNotes) contract.paymentAdminNotes = fullNotes;
     await contract.save();
+
+    // Update worker's balance with the payment
+    if (doer) {
+      const currentBalance = parseFloat(doer.balance || 0);
+      const newBalance = currentBalance + netAmount;
+      await User.update(
+        { balance: newBalance, availableBalance: newBalance },
+        { where: { id: doer.id } }
+      );
+
+      // Update or create the balance transaction as completed
+      const BalanceTransaction = (await import('../../models/sql/BalanceTransaction.model.js')).default;
+      const existingTransaction = await BalanceTransaction.findOne({
+        where: { relatedModel: 'Contract', relatedId: contract.id, type: 'payment' }
+      });
+
+      if (existingTransaction) {
+        existingTransaction.status = 'completed';
+        existingTransaction.balanceAfter = newBalance;
+        existingTransaction.metadata = {
+          ...(existingTransaction.metadata || {}),
+          processedBy: adminId,
+          processedAt: new Date(),
+          proofOfPayment,
+          deductions: deductions || null,
+          grossAmount: netBeforeDeductions,
+          finalAmount: netAmount,
+        };
+        await existingTransaction.save();
+      } else {
+        await BalanceTransaction.create({
+          userId: doer.id,
+          type: 'payment',
+          amount: netAmount,
+          balanceBefore: currentBalance,
+          balanceAfter: newBalance,
+          description: `Pago por contrato - ${job?.title || 'Trabajo'}`,
+          status: 'completed',
+          relatedModel: 'Contract',
+          relatedId: contract.id,
+          metadata: {
+            processedBy: adminId,
+            processedAt: new Date(),
+            proofOfPayment,
+            deductions: deductions || null,
+            grossAmount: netBeforeDeductions,
+            finalAmount: netAmount,
+          },
+        });
+      }
+    }
 
     // Update associated payment if exists
     const payment = await Payment.findOne({ where: { contractId } });
@@ -526,11 +734,16 @@ router.post("/:contractId/mark-paid", protect, requireRole(['admin', 'super_admi
       recipientId: doer?.id,
       type: 'success',
       category: 'payment',
-      title: 'Pago recibido',
-      message: `Tu pago de $${contract.allocatedAmount || contract.price} ARS por "${job?.title}" ha sido procesado mediante transferencia bancaria.`,
+      title: '¡Pago recibido!',
+      message: `Has recibido $${netAmount.toLocaleString('es-AR')} ARS por "${job?.title}". El pago ha sido transferido a tu cuenta bancaria.`,
       relatedModel: 'Contract',
       relatedId: contract.id,
-      sentVia: ['in_app'],
+      sentVia: ['in_app', 'email', 'push'],
+      data: {
+        amount: netAmount,
+        contractId: contract.id,
+        jobTitle: job?.title,
+      },
     });
 
     res.status(200).json({

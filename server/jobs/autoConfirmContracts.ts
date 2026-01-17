@@ -75,32 +75,26 @@ export function startAutoConfirmContractsJob() {
             contract.doerConfirmedAt = contract.doerConfirmedAt || now;
             contract.status = 'completed';
             contract.completedAt = now;
+            contract.paymentStatus = 'pending_payout'; // Pendiente de pago por admin (no automático)
             contract.escrowStatus = 'released';
             await contract.save();
 
-            // Liberar fondos al trabajador
+            // Crear transacción de balance como pendiente (el admin debe verificar y procesar el pago)
             if (workerPaymentAmount > 0 && doer) {
-              // Obtener el balance actual del trabajador
               const doerUser = await User.findByPk(doer.id);
               const previousBalance = parseFloat(doerUser?.balance as any) || 0;
-              const newBalance = previousBalance + workerPaymentAmount;
 
-              await User.update(
-                { balance: newBalance },
-                { where: { id: doer.id } }
-              );
-
-              // Crear transacción de balance
+              // Crear transacción pendiente (no se acredita aún)
               await BalanceTransaction.create({
                 userId: doer.id,
                 type: 'payment',
                 amount: workerPaymentAmount,
                 previousBalance: previousBalance,
-                newBalance: newBalance,
-                description: `Pago por trabajo completado: ${job?.title || 'Contrato'}`,
+                newBalance: previousBalance, // No se acredita hasta que admin procese
+                description: `Pago pendiente por trabajo completado: ${job?.title || 'Contrato'}`,
                 relatedModel: 'Contract',
                 relatedId: contract.id,
-                status: 'completed',
+                status: 'pending', // Pendiente de procesamiento por admin
               });
             }
 
@@ -110,7 +104,7 @@ export function startAutoConfirmContractsJob() {
               type: 'info',
               category: 'contracts',
               title: 'Contrato confirmado automáticamente',
-              message: `El contrato para "${job?.title || 'trabajo'}" ha sido confirmado automáticamente después de 2 horas. El pago ha sido liberado al trabajador.`,
+              message: `El contrato para "${job?.title || 'trabajo'}" ha sido confirmado automáticamente después de 2 horas. El pago está siendo procesado.`,
               relatedModel: 'Contract',
               relatedId: contract.id,
               actionText: 'Ver contrato',
@@ -124,13 +118,13 @@ export function startAutoConfirmContractsJob() {
             // Notificación al trabajador
             await Notification.create({
               recipientId: contract.doerId,
-              type: 'success',
+              type: 'info',
               category: 'contracts',
-              title: '¡Pago recibido!',
-              message: `El contrato para "${job?.title || 'trabajo'}" ha sido confirmado automáticamente. Has recibido $${workerPaymentAmount?.toLocaleString('es-AR')} en tu balance.`,
+              title: 'Pago en proceso',
+              message: `El contrato para "${job?.title || 'trabajo'}" ha sido confirmado automáticamente. Tu pago de $${workerPaymentAmount?.toLocaleString('es-AR')} está siendo procesado y se acreditará pronto.`,
               relatedModel: 'Contract',
               relatedId: contract.id,
-              actionText: 'Ver balance',
+              actionText: 'Ver contrato',
               data: {
                 contractId: contract.id,
                 amount: workerPaymentAmount,
@@ -147,7 +141,7 @@ export function startAutoConfirmContractsJob() {
                 html: `
                   <h2>Contrato confirmado automáticamente</h2>
                   <p>El contrato para <strong>"${job?.title || 'trabajo'}"</strong> ha sido confirmado automáticamente después de 2 horas sin respuesta.</p>
-                  <p>El pago de <strong>$${workerPaymentAmount?.toLocaleString('es-AR')} ARS</strong> ha sido liberado al trabajador.</p>
+                  <p>El pago de <strong>$${workerPaymentAmount?.toLocaleString('es-AR')} ARS</strong> está siendo procesado y será transferido al trabajador.</p>
                   <p style="color: #666; font-size: 12px;">
                     Si tienes algún problema con el trabajo realizado, puedes abrir una disputa dentro de las próximas 24 horas.
                   </p>
@@ -159,22 +153,22 @@ export function startAutoConfirmContractsJob() {
             if (doer?.email) {
               await emailService.sendEmail({
                 to: doer.email,
-                subject: `💰 ¡Pago recibido! ${job?.title || 'Trabajo'}`,
+                subject: `⏳ Pago en proceso: ${job?.title || 'Trabajo'}`,
                 html: `
-                  <h2>¡Has recibido un pago!</h2>
+                  <h2>Tu pago está siendo procesado</h2>
                   <p>El contrato para <strong>"${job?.title || 'trabajo'}"</strong> ha sido confirmado automáticamente.</p>
-                  <p>Se han acreditado <strong>$${workerPaymentAmount?.toLocaleString('es-AR')} ARS</strong> a tu balance.</p>
+                  <p>Tu pago de <strong>$${workerPaymentAmount?.toLocaleString('es-AR')} ARS</strong> está siendo procesado y se acreditará a tu cuenta bancaria pronto.</p>
                   <p>
-                    <a href="${process.env.CLIENT_URL}/balance"
-                       style="display: inline-block; padding: 12px 24px; background-color: #22c55e; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">
-                      Ver mi balance
+                    <a href="${process.env.CLIENT_URL}/contracts/${contract.id}"
+                       style="display: inline-block; padding: 12px 24px; background-color: #0284c7; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">
+                      Ver contrato
                     </a>
                   </p>
                 `,
               });
             }
 
-            console.log(`✅ [CRON] Contrato "${contract.id}" auto-confirmado. Pago de $${workerPaymentAmount} liberado a ${doer?.name}`);
+            console.log(`✅ [CRON] Contrato "${contract.id}" auto-confirmado. Pago de $${workerPaymentAmount} pendiente de procesamiento para ${doer?.name}`);
           } catch (error) {
             console.error(`❌ [CRON] Error auto-confirmando contrato ${contract.id}:`, error);
           }

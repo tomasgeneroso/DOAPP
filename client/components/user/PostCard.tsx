@@ -1,7 +1,7 @@
 import { getImageUrl } from '../../utils/imageUrl';
 import { useState, useRef } from "react";
 import { Link } from "react-router-dom";
-import { Heart, MessageCircle, Eye, DollarSign, ChevronLeft, ChevronRight, Image as ImageIcon, Play } from "lucide-react";
+import { Heart, MessageCircle, Eye, DollarSign, ChevronLeft, ChevronRight, Image as ImageIcon, Play, Briefcase, Users } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
 
 interface Author {
@@ -35,6 +35,9 @@ interface Post {
   viewsCount: number;
   tags?: string[];
   createdAt: string;
+  // Portfolio-related fields
+  linkedJob?: string | { _id: string; title?: string };
+  linkedContract?: string | { _id: string };
 }
 
 interface PostCardProps {
@@ -181,6 +184,19 @@ export default function PostCard({ post, onLike, onComment }: PostCardProps) {
         {post.type === "article" && (
           <span className="px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-medium rounded-full">
             Artículo
+          </span>
+        )}
+        {/* Badge de rol - trabajo realizado o contratado */}
+        {post.linkedJob && (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300">
+            <Briefcase className="h-3 w-3" />
+            Trabajo realizado
+          </span>
+        )}
+        {post.linkedContract && !post.linkedJob && (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+            <Users className="h-3 w-3" />
+            Trabajo contratado
           </span>
         )}
       </div>

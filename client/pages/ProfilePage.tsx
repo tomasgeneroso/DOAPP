@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { User } from '../types';
 import { getImageUrl } from '../utils/imageUrl';
@@ -758,6 +758,44 @@ export default function ProfilePage() {
                   </div>
                 )}
               </div>
+
+              {/* Mis Trabajos Publicados - solo en perfil propio */}
+              {currentUser && (currentUser._id === userId || currentUser.id === userId) && (
+                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Briefcase className="h-5 w-5 text-sky-500" />
+                    Mis Trabajos Publicados
+                  </h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
+                    Trabajos que has publicado como cliente
+                  </p>
+                  <Link
+                    to="/my-jobs"
+                    className="inline-flex items-center gap-1 text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 text-sm font-medium"
+                  >
+                    Ver todos mis trabajos →
+                  </Link>
+                </div>
+              )}
+
+              {/* Mis Contrataciones - solo en perfil propio */}
+              {currentUser && (currentUser._id === userId || currentUser.id === userId) && (
+                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                    Trabajos que Realicé
+                  </h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
+                    Contratos donde trabajaste como profesional
+                  </p>
+                  <Link
+                    to="/contracts?role=doer"
+                    className="inline-flex items-center gap-1 text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 text-sm font-medium"
+                  >
+                    Ver mis trabajos realizados →
+                  </Link>
+                </div>
+              )}
             </div>
 
             {/* Right Column - Posts, Portfolio, Activity */}

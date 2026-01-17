@@ -14,6 +14,16 @@ import {
   CreditCard,
   User,
   RefreshCw,
+  Upload,
+  Receipt,
+  Copy,
+  Check,
+  Calculator,
+  Percent,
+  Banknote,
+  Clock,
+  History,
+  ExternalLink,
 } from "lucide-react";
 
 interface WorkerPaymentInfo {
@@ -125,7 +135,39 @@ interface PaymentDetails {
   };
 }
 
+interface CompletedPayment {
+  contractId: string;
+  rowNumber: number;
+  jobId: string;
+  jobTitle: string;
+  clientName: string;
+  clientEmail: string;
+  workerName: string;
+  workerEmail: string;
+  bankName: string;
+  cbu: string;
+  grossAmount: number;
+  commission: number;
+  netAmount: number;
+  paymentProofUrl?: string;
+  paymentAdminNotes?: string;
+  processedBy: string;
+  processedByEmail?: string;
+  processedAt: string;
+  completedAt: string;
+}
+
+interface CompletedSummary {
+  totalPayments: number;
+  totalGrossAmount: number;
+  totalCommission: number;
+  totalNetPaid: number;
+}
+
 export default function PendingPayments() {
+  // Tab state
+  const [activeTab, setActiveTab] = useState<"pending" | "completed">("pending");
+
   const [payments, setPayments] = useState<ContractPaymentRow[]>([]);
   const [summary, setSummary] = useState<ReportSummary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -133,15 +175,26 @@ export default function PendingPayments() {
   const [showModal, setShowModal] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [markingPaidId, setMarkingPaidId] = useState<string | null>(null);
+  const [paymentProof, setPaymentProof] = useState<File | null>(null);
+  const [adminNotes, setAdminNotes] = useState("");
+
+  // Completed payments state
+  const [completedPayments, setCompletedPayments] = useState<CompletedPayment[]>([]);
+  const [completedSummary, setCompletedSummary] = useState<CompletedSummary | null>(null);
+  const [completedLoading, setCompletedLoading] = useState(false);
+
+  // Liquidation form state
+  const [bankFee, setBankFee] = useState<number>(0);
+  const [taxPercentage, setTaxPercentage] = useState<number>(0);
+  const [otherDeductions, setOtherDeductions] = useState<number>(0);
+  const [otherDeductionsDescription, setOtherDeductionsDescription] = useState("");
+  const [copiedCBU, setCopiedCBU] = useState(false);
 
   // Filters
   const [period, setPeriod] = useState("daily");
+  const [completedPeriod, setCompletedPeriod] = useState("monthly");
   const [sortBy, setSortBy] = useState("completedAt");
   const [sortOrder, setSortOrder] = useState("desc");
-
-  useEffect(() => {
-    loadPayments();
-  }, [period, sortBy, sortOrder]);
 
   const loadPayments = async () => {
     try {
@@ -156,8 +209,8 @@ export default function PendingPayments() {
 
       const data = await response.json();
       if (data.success) {
-        setPayments(data.report?.data || []);
-        setSummary(data.report?.summary || null);
+        setPayments(data.data || []);
+        setSummary(data.summary || null);
       }
     } catch (error) {
       console.error("Error loading payments:", error);
@@ -165,6 +218,38 @@ export default function PendingPayments() {
       setLoading(false);
     }
   };
+
+  const loadCompletedPayments = async () => {
+    try {
+      setCompletedLoading(true);
+      const token = localStorage.getItem("token");
+      const response = await fetch(
+        `/api/admin/pending-payments/completed/list?period=${completedPeriod}&sortBy=paymentProcessedAt&sortOrder=${sortOrder}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      const data = await response.json();
+      if (data.success) {
+        setCompletedPayments(data.data || []);
+        setCompletedSummary(data.summary || null);
+      }
+    } catch (error) {
+      console.error("Error loading completed payments:", error);
+    } finally {
+      setCompletedLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "pending") {
+      loadPayments();
+    } else {
+      loadCompletedPayments();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period, completedPeriod, sortBy, sortOrder, activeTab]);
 
   const handleViewPayment = async (contractId: string) => {
     try {
@@ -186,12 +271,61 @@ export default function PendingPayments() {
     }
   };
 
-  const handleMarkAsPaid = async (contractId: string) => {
-    if (!confirm("¿Confirmas que el pago al trabajador fue realizado mediante transferencia bancaria?")) return;
+  // Calculate final amount after all deductions
+  const calculateFinalAmount = () => {
+    if (!selectedPayment) return 0;
+    const grossAmount = selectedPayment.contract.price;
+    const platformCommission = selectedPayment.contract.commission;
+    const netBeforeDeductions = grossAmount - platformCommission;
+    const taxAmount = netBeforeDeductions * (taxPercentage / 100);
+    const finalAmount = netBeforeDeductions - bankFee - taxAmount - otherDeductions;
+    return Math.max(0, finalAmount);
+  };
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedCBU(true);
+      setTimeout(() => setCopiedCBU(false), 2000);
+    } catch (err) {
+      console.error("Error copying to clipboard:", err);
+    }
+  };
+
+  // Reset liquidation form when modal opens
+  const handleViewPaymentWithReset = async (contractId: string) => {
+    setBankFee(0);
+    setTaxPercentage(0);
+    setOtherDeductions(0);
+    setOtherDeductionsDescription("");
+    setPaymentProof(null);
+    setAdminNotes("");
+    await handleViewPayment(contractId);
+  };
+
+  const handleMarkAsPaid = async (contractId: string, skipConfirm = false) => {
+    if (!skipConfirm && !confirm("¿Confirmas que el pago al trabajador fue realizado mediante transferencia bancaria?")) return;
 
     try {
       setMarkingPaidId(contractId);
       const token = localStorage.getItem("token");
+
+      // If there's a payment proof file, upload it first
+      let proofUrl = "";
+      if (paymentProof) {
+        const formData = new FormData();
+        formData.append("file", paymentProof);
+        const uploadRes = await fetch("/api/upload", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        const uploadData = await uploadRes.json();
+        if (uploadData.success && uploadData.url) {
+          proofUrl = uploadData.url;
+        }
+      }
+
       const response = await fetch(`/api/admin/pending-payments/${contractId}/mark-paid`, {
         method: "POST",
         headers: {
@@ -200,7 +334,16 @@ export default function PendingPayments() {
         },
         body: JSON.stringify({
           paymentMethod: "bank_transfer",
-          adminNotes: "Pago procesado manualmente"
+          proofOfPayment: proofUrl,
+          adminNotes: adminNotes || "Pago procesado manualmente",
+          deductions: {
+            bankFee,
+            taxPercentage,
+            taxAmount: (selectedPayment ? (selectedPayment.contract.price - selectedPayment.contract.commission) * (taxPercentage / 100) : 0),
+            otherDeductions,
+            otherDeductionsDescription,
+            finalAmountPaid: calculateFinalAmount(),
+          }
         }),
       });
 
@@ -210,6 +353,8 @@ export default function PendingPayments() {
         if (showModal) {
           setShowModal(false);
           setSelectedPayment(null);
+          setPaymentProof(null);
+          setAdminNotes("");
         }
       } else {
         alert(data.message || "Error al marcar pago");
@@ -315,7 +460,8 @@ export default function PendingPayments() {
       pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
       held: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
       escrow: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
-      released: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
+      pending_payout: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
+      released: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300", // Legacy - treat as pending_payout
       completed: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
     };
     return badges[status] || badges.pending;
@@ -326,7 +472,8 @@ export default function PendingPayments() {
       pending: "Pendiente",
       held: "En Escrow",
       escrow: "En Escrow",
-      released: "Liberado",
+      pending_payout: "Pendiente de Pago",
+      released: "Pendiente de Pago", // Legacy - treat as pending_payout
       completed: "Completado",
     };
     return labels[status] || status;
@@ -363,75 +510,118 @@ export default function PendingPayments() {
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Pagos Pendientes</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Pagos</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
-            Gestiona los pagos a trabajadores de contratos completados
+            Administra los pagos pendientes y el historial de pagos realizados
           </p>
         </div>
         <div className="flex gap-2">
           <button
-            onClick={loadPayments}
+            onClick={() => activeTab === "pending" ? loadPayments() : loadCompletedPayments()}
             className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition"
           >
             <RefreshCw className="h-4 w-4" />
             Actualizar
           </button>
-          <button
-            onClick={handleExportXLSX}
-            className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition"
-          >
-            <Download className="h-4 w-4" />
-            Exportar Excel
-          </button>
+          {activeTab === "pending" && (
+            <button
+              onClick={handleExportXLSX}
+              className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition"
+            >
+              <Download className="h-4 w-4" />
+              Exportar Excel
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Período
-            </label>
-            <select
-              value={period}
-              onChange={(e) => setPeriod(e.target.value)}
-              className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 text-gray-900 dark:text-white"
-            >
-              <option value="daily">Hoy</option>
-              <option value="weekly">Esta Semana</option>
-              <option value="monthly">Este Mes</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Ordenar por
-            </label>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 text-gray-900 dark:text-white"
-            >
-              <option value="completedAt">Fecha Completado</option>
-              <option value="amount">Monto</option>
-              <option value="workerCount">Cant. Trabajadores</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Orden
-            </label>
-            <select
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value)}
-              className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 text-gray-900 dark:text-white"
-            >
-              <option value="desc">Más reciente</option>
-              <option value="asc">Más antiguo</option>
-            </select>
-          </div>
-        </div>
+      {/* Tabs */}
+      <div className="border-b border-gray-200 dark:border-gray-700">
+        <nav className="-mb-px flex gap-4">
+          <button
+            onClick={() => setActiveTab("pending")}
+            className={`py-3 px-4 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
+              activeTab === "pending"
+                ? "border-sky-500 text-sky-600 dark:text-sky-400"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
+            }`}
+          >
+            <Clock className="h-4 w-4" />
+            Pendientes
+            {summary && summary.totalContracts > 0 && (
+              <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
+                {summary.totalContracts}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab("completed")}
+            className={`py-3 px-4 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
+              activeTab === "completed"
+                ? "border-green-500 text-green-600 dark:text-green-400"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
+            }`}
+          >
+            <History className="h-4 w-4" />
+            Pagos Realizados
+            {completedSummary && completedSummary.totalPayments > 0 && (
+              <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                {completedSummary.totalPayments}
+              </span>
+            )}
+          </button>
+        </nav>
       </div>
+
+      {/* Pending Payments Tab Content */}
+      {activeTab === "pending" && (
+        <>
+          {/* Filters */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Período
+                </label>
+                <select
+                  value={period}
+                  onChange={(e) => setPeriod(e.target.value)}
+                  className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 text-gray-900 dark:text-white"
+                >
+                  <option value="daily">Hoy</option>
+                  <option value="weekly">Esta Semana</option>
+                  <option value="monthly">Este Mes</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Ordenar por
+                </label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 text-gray-900 dark:text-white"
+                >
+                  <option value="completedAt">Fecha Completado</option>
+                  <option value="amount">Monto</option>
+                  <option value="workerCount">Cant. Trabajadores</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Orden
+                </label>
+                <select
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value)}
+                  className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 text-gray-900 dark:text-white"
+                >
+                  <option value="desc">Más reciente</option>
+                  <option value="asc">Más antiguo</option>
+                </select>
+              </div>
+            </div>
+          </div>
 
       {/* Summary Stats */}
       {summary && (
@@ -599,7 +789,7 @@ export default function PendingPayments() {
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={() => handleViewPayment(payment.contractId)}
+                          onClick={() => handleViewPaymentWithReset(payment.contractId)}
                           className="p-1.5 text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded"
                           title="Ver detalles"
                         >
@@ -628,6 +818,224 @@ export default function PendingPayments() {
           </table>
         </div>
       </div>
+        </>
+      )}
+
+      {/* Completed Payments Tab Content */}
+      {activeTab === "completed" && (
+        <>
+          {/* Filters for Completed */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Período
+                </label>
+                <select
+                  value={completedPeriod}
+                  onChange={(e) => setCompletedPeriod(e.target.value)}
+                  className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 text-gray-900 dark:text-white"
+                >
+                  <option value="daily">Hoy</option>
+                  <option value="weekly">Esta Semana</option>
+                  <option value="monthly">Este Mes</option>
+                  <option value="all">Todo el historial</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Orden
+                </label>
+                <select
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value)}
+                  className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 text-gray-900 dark:text-white"
+                >
+                  <option value="desc">Más reciente</option>
+                  <option value="asc">Más antiguo</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Completed Summary Stats */}
+          {completedSummary && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                    <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Pagos Realizados</div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {completedSummary.totalPayments}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                    <DollarSign className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Total Bruto</div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                      ${completedSummary.totalGrossAmount.toLocaleString('es-AR')}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                    <CreditCard className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Comisiones</div>
+                    <div className="text-2xl font-bold text-gray-900 dark:text-white">
+                      ${completedSummary.totalCommission.toLocaleString('es-AR')}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
+                    <Banknote className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-600 dark:text-gray-400">Total Pagado</div>
+                    <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                      ${completedSummary.totalNetPaid.toLocaleString('es-AR')}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Completed Payments Table */}
+          {completedLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-12 w-12 animate-spin text-sky-500" />
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        #
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Trabajo
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Trabajador
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Banco / CBU
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Monto
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Procesado por
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Fecha Pago
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Comprobante
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {completedPayments.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                          No hay pagos completados en este período
+                        </td>
+                      </tr>
+                    ) : (
+                      completedPayments.map((payment) => (
+                        <tr key={payment.contractId} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                          <td className="px-4 py-4 text-sm font-medium text-gray-900 dark:text-white">
+                            {payment.rowNumber}
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">
+                              {payment.jobTitle}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {payment.clientName}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="text-sm text-gray-900 dark:text-white">
+                              {payment.workerName}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {payment.workerEmail}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="text-xs text-gray-900 dark:text-white">
+                              {payment.bankName}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">
+                              {payment.cbu !== 'N/A' ? `${payment.cbu.slice(0, 8)}...` : 'N/A'}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="text-sm font-medium text-green-600 dark:text-green-400">
+                              ${payment.netAmount.toLocaleString('es-AR')}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              Com: ${payment.commission.toLocaleString('es-AR')}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="text-sm text-gray-900 dark:text-white">
+                              {payment.processedBy}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="text-sm text-gray-900 dark:text-white">
+                              {payment.processedAt ? new Date(payment.processedAt).toLocaleDateString("es-AR") : '-'}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {payment.processedAt ? new Date(payment.processedAt).toLocaleTimeString("es-AR", { hour: '2-digit', minute: '2-digit' }) : ''}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            {payment.paymentProofUrl ? (
+                              <a
+                                href={payment.paymentProofUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-sm text-sky-600 hover:text-sky-700 dark:text-sky-400"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                                Ver
+                              </a>
+                            ) : (
+                              <span className="text-xs text-gray-400">Sin comprobante</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
 
       {/* Payment Detail Modal */}
       {showModal && selectedPayment && (
@@ -734,7 +1142,7 @@ export default function PendingPayments() {
                         </p>
                       )}
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-3">
                       {selectedPayment.worker.bankingInfo ? (
                         <>
                           <p className="text-sm text-gray-700 dark:text-gray-300">
@@ -743,56 +1151,317 @@ export default function PendingPayments() {
                           <p className="text-sm text-gray-700 dark:text-gray-300">
                             <span className="font-medium">Titular:</span> {selectedPayment.worker.bankingInfo.accountHolder || 'N/A'}
                           </p>
-                          <p className="text-sm text-gray-700 dark:text-gray-300">
-                            <span className="font-medium">CBU:</span>{' '}
-                            <span className="font-mono bg-gray-200 dark:bg-gray-600 px-2 py-0.5 rounded">
+                          {/* CBU with copy button */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">CBU/CVU:</span>
+                            <code className="flex-1 font-mono text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-3 py-1.5 rounded border border-blue-200 dark:border-blue-700">
                               {selectedPayment.worker.bankingInfo.cbu || 'N/A'}
-                            </span>
-                          </p>
+                            </code>
+                            {selectedPayment.worker.bankingInfo.cbu && (
+                              <button
+                                onClick={() => copyToClipboard(selectedPayment.worker.bankingInfo?.cbu || '')}
+                                className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition"
+                                title="Copiar CBU"
+                              >
+                                {copiedCBU ? <Check className="h-5 w-5 text-green-500" /> : <Copy className="h-5 w-5" />}
+                              </button>
+                            )}
+                          </div>
                           <p className="text-sm text-gray-700 dark:text-gray-300">
                             <span className="font-medium">Alias:</span> {selectedPayment.worker.bankingInfo.alias || 'N/A'}
                           </p>
                         </>
                       ) : (
-                        <p className="text-sm text-red-500">
-                          Sin datos bancarios registrados
-                        </p>
+                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg p-3">
+                          <p className="text-sm text-red-600 dark:text-red-400 font-medium">
+                            ⚠️ Sin datos bancarios registrados
+                          </p>
+                          <p className="text-xs text-red-500 dark:text-red-400 mt-1">
+                            El trabajador debe completar sus datos bancarios para recibir el pago.
+                          </p>
+                        </div>
                       )}
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Payment Amount */}
-              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-6">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="text-sm text-green-700 dark:text-green-300">Monto a pagar al trabajador</p>
-                    <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                      (Precio: ${selectedPayment.contract.price.toLocaleString('es-AR')} - Comisión: ${selectedPayment.contract.commission.toLocaleString('es-AR')})
-                    </p>
-                  </div>
-                  <p className="text-3xl font-bold text-green-700 dark:text-green-300">
-                    ${(selectedPayment.contract.price - selectedPayment.contract.commission).toLocaleString('es-AR')}
-                  </p>
-                </div>
-              </div>
-
-              {/* Actions */}
+              {/* Liquidation Form */}
               {selectedPayment.contract.paymentStatus !== 'completed' && (
-                <div className="flex gap-3">
+                <div className="space-y-6">
+                  {/* Section Header */}
+                  <div className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
+                    <Calculator className="h-5 w-5 text-sky-500" />
+                    Formulario de Liquidación
+                  </div>
+
+                  {/* Deductions Form */}
+                  <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 space-y-4">
+                    <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300 flex items-center gap-2">
+                      <Percent className="h-4 w-4" />
+                      Deducciones (opcional)
+                    </h4>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Bank Fee */}
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          Comisión bancaria (ARS)
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={bankFee || ''}
+                            onChange={(e) => setBankFee(parseFloat(e.target.value) || 0)}
+                            placeholder="0.00"
+                            className="w-full pl-7 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Tax Percentage */}
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                          Retención impositiva (%)
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            value={taxPercentage || ''}
+                            onChange={(e) => setTaxPercentage(parseFloat(e.target.value) || 0)}
+                            placeholder="0"
+                            className="w-full pl-3 pr-8 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Other Deductions */}
+                    <div>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        Otras deducciones (ARS)
+                      </label>
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={otherDeductions || ''}
+                            onChange={(e) => setOtherDeductions(parseFloat(e.target.value) || 0)}
+                            placeholder="0.00"
+                            className="w-full pl-7 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                          />
+                        </div>
+                        <input
+                          type="text"
+                          value={otherDeductionsDescription}
+                          onChange={(e) => setOtherDeductionsDescription(e.target.value)}
+                          placeholder="Descripción..."
+                          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Payment Breakdown */}
+                  <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                    <h4 className="text-sm font-medium text-green-800 dark:text-green-300 mb-3 flex items-center gap-2">
+                      <Banknote className="h-4 w-4" />
+                      Desglose del Pago
+                    </h4>
+
+                    <div className="space-y-2 text-sm">
+                      {/* Gross Amount */}
+                      <div className="flex justify-between">
+                        <span className="text-gray-600 dark:text-gray-400">Monto bruto del contrato:</span>
+                        <span className="text-gray-900 dark:text-white font-medium">
+                          ${selectedPayment.contract.price.toLocaleString('es-AR')}
+                        </span>
+                      </div>
+
+                      {/* Platform Commission */}
+                      <div className="flex justify-between">
+                        <span className="text-gray-600 dark:text-gray-400">Comisión plataforma:</span>
+                        <span className="text-red-600 dark:text-red-400">
+                          -${selectedPayment.contract.commission.toLocaleString('es-AR')}
+                        </span>
+                      </div>
+
+                      {/* Subtotal */}
+                      <div className="flex justify-between border-t border-green-200 dark:border-green-700 pt-2 mt-2">
+                        <span className="text-gray-700 dark:text-gray-300">Neto antes de deducciones:</span>
+                        <span className="text-gray-900 dark:text-white font-medium">
+                          ${(selectedPayment.contract.price - selectedPayment.contract.commission).toLocaleString('es-AR')}
+                        </span>
+                      </div>
+
+                      {/* Bank Fee (if any) */}
+                      {bankFee > 0 && (
+                        <div className="flex justify-between text-orange-600 dark:text-orange-400">
+                          <span>Comisión bancaria:</span>
+                          <span>-${bankFee.toLocaleString('es-AR')}</span>
+                        </div>
+                      )}
+
+                      {/* Tax (if any) */}
+                      {taxPercentage > 0 && (
+                        <div className="flex justify-between text-orange-600 dark:text-orange-400">
+                          <span>Retención impositiva ({taxPercentage}%):</span>
+                          <span>
+                            -${((selectedPayment.contract.price - selectedPayment.contract.commission) * (taxPercentage / 100)).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Other Deductions (if any) */}
+                      {otherDeductions > 0 && (
+                        <div className="flex justify-between text-orange-600 dark:text-orange-400">
+                          <span>Otras deducciones{otherDeductionsDescription ? ` (${otherDeductionsDescription})` : ''}:</span>
+                          <span>-${otherDeductions.toLocaleString('es-AR')}</span>
+                        </div>
+                      )}
+
+                      {/* Final Amount */}
+                      <div className="flex justify-between border-t-2 border-green-300 dark:border-green-600 pt-3 mt-3">
+                        <span className="font-bold text-green-800 dark:text-green-300 text-base">
+                          MONTO FINAL A TRANSFERIR:
+                        </span>
+                        <span className="font-bold text-green-700 dark:text-green-400 text-xl">
+                          ${calculateFinalAmount().toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bank Info Summary for Transfer */}
+                  {selectedPayment.worker.bankingInfo?.cbu && (
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                      <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">
+                        📋 Datos para transferir:
+                      </h4>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                          <span className="text-blue-600 dark:text-blue-400">CBU/CVU:</span>
+                          <div className="flex items-center gap-2 mt-1">
+                            <code className="font-mono text-blue-800 dark:text-blue-200 bg-blue-100 dark:bg-blue-800/50 px-2 py-1 rounded text-xs">
+                              {selectedPayment.worker.bankingInfo.cbu}
+                            </code>
+                            <button
+                              onClick={() => copyToClipboard(selectedPayment.worker.bankingInfo?.cbu || '')}
+                              className="p-1 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-800/50 rounded"
+                            >
+                              {copiedCBU ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                            </button>
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-blue-600 dark:text-blue-400">Monto:</span>
+                          <div className="font-bold text-blue-800 dark:text-blue-200 mt-1">
+                            ${calculateFinalAmount().toLocaleString('es-AR', { maximumFractionDigits: 2 })} ARS
+                          </div>
+                        </div>
+                        {selectedPayment.worker.bankingInfo.bankName && (
+                          <div>
+                            <span className="text-blue-600 dark:text-blue-400">Banco:</span>
+                            <div className="text-blue-800 dark:text-blue-200 mt-1">
+                              {selectedPayment.worker.bankingInfo.bankName}
+                            </div>
+                          </div>
+                        )}
+                        {selectedPayment.worker.bankingInfo.accountHolder && (
+                          <div>
+                            <span className="text-blue-600 dark:text-blue-400">Titular:</span>
+                            <div className="text-blue-800 dark:text-blue-200 mt-1">
+                              {selectedPayment.worker.bankingInfo.accountHolder}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Payment Proof Upload */}
+                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                      <Receipt className="h-4 w-4" />
+                      Comprobante de Transferencia
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <label className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-sky-500 dark:hover:border-sky-400 transition">
+                        <Upload className="h-5 w-5 text-gray-400" />
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          {paymentProof ? paymentProof.name : "Subir comprobante (opcional)"}
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*,.pdf"
+                          className="hidden"
+                          onChange={(e) => setPaymentProof(e.target.files?.[0] || null)}
+                        />
+                      </label>
+                      {paymentProof && (
+                        <button
+                          onClick={() => setPaymentProof(null)}
+                          className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded"
+                        >
+                          <XCircle className="h-5 w-5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Admin Notes */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Notas internas (opcional)
+                    </label>
+                    <textarea
+                      value={adminNotes}
+                      onChange={(e) => setAdminNotes(e.target.value)}
+                      placeholder="Notas sobre el pago, referencia de transferencia, etc..."
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
+                      rows={2}
+                    />
+                  </div>
+
+                  {/* Submit Button */}
                   <button
-                    onClick={() => handleMarkAsPaid(selectedPayment.contract.id)}
-                    disabled={markingPaidId === selectedPayment.contract.id}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition"
+                    onClick={() => handleMarkAsPaid(selectedPayment.contract.id, true)}
+                    disabled={markingPaidId === selectedPayment.contract.id || !selectedPayment.worker.bankingInfo?.cbu}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-lg font-medium transition shadow-lg shadow-green-500/25"
                   >
                     {markingPaidId === selectedPayment.contract.id ? (
                       <Loader2 className="h-5 w-5 animate-spin" />
                     ) : (
                       <CheckCircle className="h-5 w-5" />
                     )}
-                    Marcar como Pagado
+                    Confirmar Liquidación - ${calculateFinalAmount().toLocaleString('es-AR')} ARS
                   </button>
+
+                  {!selectedPayment.worker.bankingInfo?.cbu && (
+                    <p className="text-center text-sm text-red-500">
+                      No se puede procesar el pago sin datos bancarios
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Completed Payment Info */}
+              {selectedPayment.contract.paymentStatus === 'completed' && (
+                <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                  <div className="flex items-center gap-2 text-green-700 dark:text-green-300">
+                    <CheckCircle className="h-5 w-5" />
+                    <span className="font-medium">Pago completado</span>
+                  </div>
                 </div>
               )}
             </div>

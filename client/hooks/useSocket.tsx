@@ -74,6 +74,13 @@ const eventHandlers = {
   onAdminPaymentCreated: null as ((data: any) => void) | null,
   onAdminPaymentUpdated: null as ((data: any) => void) | null,
   onAdminUserCreated: null as ((data: any) => void) | null,
+  onAdminUserUpdated: null as ((data: any) => void) | null,
+  onAdminDisputeCreated: null as ((data: any) => void) | null,
+  onAdminDisputeUpdated: null as ((data: any) => void) | null,
+  onAdminTicketCreated: null as ((data: any) => void) | null,
+  onAdminTicketUpdated: null as ((data: any) => void) | null,
+  onAdminWithdrawalCreated: null as ((data: any) => void) | null,
+  onAdminWithdrawalUpdated: null as ((data: any) => void) | null,
   onNewProposal: null as ((data: any) => void) | null,
   onContractsRefresh: null as ((data?: any) => void) | null,
   onMyJobsRefresh: null as ((data?: any) => void) | null,
@@ -315,6 +322,48 @@ export function useSocket() {
     socketInstance.on("admin:user:created", (data: any) => {
       if (eventHandlers.onAdminUserCreated) {
         eventHandlers.onAdminUserCreated(data);
+      }
+    });
+
+    socketInstance.on("admin:user:updated", (data: any) => {
+      if (eventHandlers.onAdminUserUpdated) {
+        eventHandlers.onAdminUserUpdated(data);
+      }
+    });
+
+    socketInstance.on("admin:dispute:created", (data: any) => {
+      if (eventHandlers.onAdminDisputeCreated) {
+        eventHandlers.onAdminDisputeCreated(data);
+      }
+    });
+
+    socketInstance.on("admin:dispute:updated", (data: any) => {
+      if (eventHandlers.onAdminDisputeUpdated) {
+        eventHandlers.onAdminDisputeUpdated(data);
+      }
+    });
+
+    socketInstance.on("admin:ticket:created", (data: any) => {
+      if (eventHandlers.onAdminTicketCreated) {
+        eventHandlers.onAdminTicketCreated(data);
+      }
+    });
+
+    socketInstance.on("admin:ticket:updated", (data: any) => {
+      if (eventHandlers.onAdminTicketUpdated) {
+        eventHandlers.onAdminTicketUpdated(data);
+      }
+    });
+
+    socketInstance.on("admin:withdrawal:created", (data: any) => {
+      if (eventHandlers.onAdminWithdrawalCreated) {
+        eventHandlers.onAdminWithdrawalCreated(data);
+      }
+    });
+
+    socketInstance.on("admin:withdrawal:updated", (data: any) => {
+      if (eventHandlers.onAdminWithdrawalUpdated) {
+        eventHandlers.onAdminWithdrawalUpdated(data);
       }
     });
 
@@ -569,6 +618,34 @@ export function useSocket() {
     eventHandlers.onAdminUserCreated = handler;
   }, []);
 
+  const registerAdminUserUpdatedHandler = useCallback((handler: (data: any) => void) => {
+    eventHandlers.onAdminUserUpdated = handler;
+  }, []);
+
+  const registerAdminDisputeCreatedHandler = useCallback((handler: (data: any) => void) => {
+    eventHandlers.onAdminDisputeCreated = handler;
+  }, []);
+
+  const registerAdminDisputeUpdatedHandler = useCallback((handler: (data: any) => void) => {
+    eventHandlers.onAdminDisputeUpdated = handler;
+  }, []);
+
+  const registerAdminTicketCreatedHandler = useCallback((handler: (data: any) => void) => {
+    eventHandlers.onAdminTicketCreated = handler;
+  }, []);
+
+  const registerAdminTicketUpdatedHandler = useCallback((handler: (data: any) => void) => {
+    eventHandlers.onAdminTicketUpdated = handler;
+  }, []);
+
+  const registerAdminWithdrawalCreatedHandler = useCallback((handler: (data: any) => void) => {
+    eventHandlers.onAdminWithdrawalCreated = handler;
+  }, []);
+
+  const registerAdminWithdrawalUpdatedHandler = useCallback((handler: (data: any) => void) => {
+    eventHandlers.onAdminWithdrawalUpdated = handler;
+  }, []);
+
   const registerNewProposalHandler = useCallback((handler: (data: any) => void) => {
     eventHandlers.onNewProposal = handler;
   }, []);
@@ -615,6 +692,13 @@ export function useSocket() {
     registerAdminPaymentCreatedHandler,
     registerAdminPaymentUpdatedHandler,
     registerAdminUserCreatedHandler,
+    registerAdminUserUpdatedHandler,
+    registerAdminDisputeCreatedHandler,
+    registerAdminDisputeUpdatedHandler,
+    registerAdminTicketCreatedHandler,
+    registerAdminTicketUpdatedHandler,
+    registerAdminWithdrawalCreatedHandler,
+    registerAdminWithdrawalUpdatedHandler,
     registerNewProposalHandler,
     registerContractsRefreshHandler,
     registerMyJobsRefreshHandler,

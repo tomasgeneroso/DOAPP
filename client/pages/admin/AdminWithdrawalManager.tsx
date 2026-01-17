@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { WithdrawalRequest } from '../../types';
+import { useSocket } from '@/hooks/useSocket';
 import {
   ArrowDownCircle,
   DollarSign,
@@ -16,11 +17,15 @@ import {
   Calendar,
   FileText,
   TrendingUp,
-  TrendingDown
+  TrendingDown,
+  Wifi,
+  WifiOff,
+  Bell
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 
 export default function AdminWithdrawalManager() {
+  const { isConnected, registerAdminWithdrawalCreatedHandler, registerAdminWithdrawalUpdatedHandler } = useSocket();
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -33,6 +38,35 @@ export default function AdminWithdrawalManager() {
   const [proofOfTransfer, setProofOfTransfer] = useState('');
   const [rejectionReason, setRejectionReason] = useState('');
   const [adminNotes, setAdminNotes] = useState('');
+  const [realtimeAlert, setRealtimeAlert] = useState<string | null>(null);
+
+  // Real-time handlers
+  const handleNewWithdrawal = useCallback((data: any) => {
+    console.log('🔔 New withdrawal request:', data);
+    const amount = data.withdrawal?.amount?.toLocaleString('es-AR') || '0';
+    setRealtimeAlert(`Nueva solicitud de retiro: $${amount}`);
+    setWithdrawals(prev => [data.withdrawal, ...prev]);
+    // Refresh stats
+    loadData();
+    setTimeout(() => setRealtimeAlert(null), 5000);
+  }, []);
+
+  const handleWithdrawalUpdated = useCallback((data: any) => {
+    console.log('🔔 Withdrawal updated:', data);
+    const amount = data.withdrawal?.amount?.toLocaleString('es-AR') || '0';
+    setRealtimeAlert(`Retiro actualizado: $${amount} - ${data.previousStatus} → ${data.withdrawal?.status}`);
+    setWithdrawals(prev =>
+      prev.map(w => (w.id === data.withdrawal?.id) ? { ...w, ...data.withdrawal } : w)
+    );
+    // Refresh stats
+    loadData();
+    setTimeout(() => setRealtimeAlert(null), 5000);
+  }, []);
+
+  useEffect(() => {
+    registerAdminWithdrawalCreatedHandler(handleNewWithdrawal);
+    registerAdminWithdrawalUpdatedHandler(handleWithdrawalUpdated);
+  }, [registerAdminWithdrawalCreatedHandler, registerAdminWithdrawalUpdatedHandler, handleNewWithdrawal, handleWithdrawalUpdated]);
 
   useEffect(() => {
     loadData();
@@ -261,11 +295,29 @@ export default function AdminWithdrawalManager() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
+      {/* Real-time Alert */}
+      {realtimeAlert && (
+        <div className="mb-4 p-4 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg flex items-center gap-3 animate-pulse">
+          <Bell className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+          <span className="text-yellow-800 dark:text-yellow-200 font-medium">{realtimeAlert}</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          Gestión de Retiros
-        </h1>
+        <div className="flex items-center gap-3 mb-2">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            Gestión de Retiros
+          </h1>
+          <span className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
+            isConnected
+              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+              : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+          }`}>
+            {isConnected ? <Wifi className="h-3 w-3" /> : <WifiOff className="h-3 w-3" />}
+            {isConnected ? 'Live' : 'Offline'}
+          </span>
+        </div>
         <p className="text-gray-600 dark:text-gray-400">
           Administra las solicitudes de retiro de los usuarios
         </p>

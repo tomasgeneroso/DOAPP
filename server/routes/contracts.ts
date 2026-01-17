@@ -99,7 +99,13 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
     };
 
     if (status) {
-      query.status = status;
+      // Support multiple statuses separated by comma
+      const statusArray = (status as string).split(',').map(s => s.trim());
+      if (statusArray.length > 1) {
+        query.status = { [Op.in]: statusArray };
+      } else {
+        query.status = statusArray[0];
+      }
     }
 
     const pageNum = parseInt(page as string);
@@ -859,11 +865,11 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
       contract.doerConfirmedAt = new Date();
     }
 
-    // Si ambas partes confirmaron, liberar el pago
+    // Si ambas partes confirmaron, marcar pago como pendiente de pago por admin
     if (contract.clientConfirmed && contract.doerConfirmed) {
       contract.status = 'completed';
-      contract.paymentStatus = 'released';
-      contract.escrowStatus = 'released';
+      contract.paymentStatus = 'pending_payout'; // Pendiente de pago por admin (no 'released' automático)
+      contract.escrowStatus = 'released'; // Escrow liberado, pero pago pendiente
       contract.actualEndDate = new Date();
 
       // Verificar si el trabajador tiene datos bancarios para recibir el pago

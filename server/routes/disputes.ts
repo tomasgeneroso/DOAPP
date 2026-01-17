@@ -101,8 +101,8 @@ router.post(
 
       // Check if contract is completed and within 1 month dispute window
       if (contract.status === 'completed') {
-        // Use completedAt if available, otherwise fall back to updatedAt
-        const completedDate = new Date(contract.completedAt || contract.updatedAt);
+        // Use updatedAt as the completion date (when status changed to completed)
+        const completedDate = new Date(contract.updatedAt);
         const oneMonthLater = new Date(completedDate);
         oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
 
@@ -231,6 +231,106 @@ router.post(
 );
 
 /**
+ * Get user's disputes with full details (for My Disputes page)
+ * GET /api/disputes/my-disputes
+ */
+router.get("/my-disputes", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user.id;
+    const { status, category, page = 1, limit = 50 } = req.query;
+
+    const query: any = {
+      [Op.or]: [{ initiatedBy: userId }, { against: userId }],
+    };
+
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+
+    if (category && category !== 'all') {
+      query.category = category;
+    }
+
+    const Job = (await import('../models/sql/Job.model.js')).Job;
+
+    const disputes = await Dispute.findAll({
+      where: query,
+      include: [
+        {
+          model: Contract,
+          as: 'contract',
+          attributes: ['id', 'price', 'status', 'jobId'],
+          include: [
+            {
+              model: Job,
+              as: 'job',
+              attributes: ['id', 'title'],
+            }
+          ]
+        },
+        {
+          model: User,
+          as: 'initiator',
+          attributes: ['id', 'name', 'avatar'],
+        },
+        {
+          model: User,
+          as: 'defendant',
+          attributes: ['id', 'name', 'avatar'],
+        },
+      ],
+      order: [['createdAt', 'DESC']],
+      limit: Number(limit),
+      offset: (Number(page) - 1) * Number(limit),
+    });
+
+    // Format data for frontend with message count
+    const formattedDisputes = disputes.map(dispute => {
+      const contractData = dispute.contract as any;
+      return {
+        id: dispute.id,
+        category: dispute.category,
+        priority: dispute.priority,
+        status: dispute.status,
+        reason: dispute.reason,
+        detailedDescription: dispute.detailedDescription,
+        createdAt: dispute.createdAt,
+        updatedAt: dispute.updatedAt,
+        importanceLevel: dispute.importanceLevel,
+        contract: contractData ? {
+          id: contractData.id,
+          title: contractData.job?.title || `Contrato #${contractData.id.slice(0, 8)}`,
+          price: contractData.price,
+        } : null,
+        initiator: dispute.initiator,
+        defendant: dispute.defendant,
+        messagesCount: dispute.messages?.length || 0,
+        evidenceCount: dispute.evidence?.length || 0,
+      };
+    });
+
+    const total = await Dispute.count({ where: query });
+
+    res.json({
+      success: true,
+      data: formattedDisputes,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+        pages: Math.ceil(total / Number(limit)),
+      },
+    });
+  } catch (error: any) {
+    console.error('Error loading user disputes:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+/**
  * Get all disputes (for user)
  * GET /api/disputes
  */
@@ -247,13 +347,22 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
       query.status = status;
     }
 
+    const Job = (await import('../models/sql/Job.model.js')).Job;
+
     const disputes = await Dispute.findAll({
       where: query,
       include: [
         {
           model: Contract,
           as: 'contract',
-          attributes: ['title'],
+          attributes: ['id', 'price', 'status', 'jobId'],
+          include: [
+            {
+              model: Job,
+              as: 'job',
+              attributes: ['id', 'title'],
+            }
+          ]
         },
         {
           model: User,
@@ -262,7 +371,7 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
         },
         {
           model: User,
-          as: 'respondent',
+          as: 'defendant',
           attributes: ['name', 'avatar'],
         },
       ],

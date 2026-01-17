@@ -601,6 +601,18 @@ router.get("/:id",
     if (jobData.client?.rating) jobData.client.rating = parseFloat(jobData.client.rating);
     if (jobData.doer?.rating) jobData.doer.rating = parseFloat(jobData.doer.rating);
 
+    // Fetch selected workers data for multi-worker jobs
+    if (jobData.selectedWorkers && jobData.selectedWorkers.length > 0) {
+      const selectedWorkersData = await User.findAll({
+        where: { id: { [Op.in]: jobData.selectedWorkers } },
+        attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount']
+      });
+      jobData.selectedWorkersData = selectedWorkersData.map((w: any) => ({
+        ...w.toJSON(),
+        rating: w.rating ? parseFloat(w.rating) : 0
+      }));
+    }
+
     res.json({
       success: true,
       job: jobData,

@@ -42,9 +42,11 @@ import ChatScreen from "./pages/ChatScreen";
 import CreateTicket from "./pages/CreateTicket";
 import CreateDispute from "./pages/CreateDispute";
 import DisputeDetail from "./pages/DisputeDetail";
+import MyDisputes from "./pages/MyDisputes";
 import HelpPage from "./pages/HelpPage";
 import PortfolioManager from "./pages/PortfolioManager";
 import CreatePortfolioPost from "./pages/CreatePortfolioPost";
+import PortfolioItemDetail from "./pages/PortfolioItemDetail";
 import ProUsageDashboard from "./pages/ProUsageDashboard";
 import BalancePage from "./pages/BalancePage";
 import WithdrawalRequestPage from "./pages/WithdrawalRequestPage";
@@ -221,6 +223,10 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/portfolio/:id"
+                element={<PortfolioItemDetail />}
+              />
               {/* Profile routes - username takes precedence */}
               <Route path="/u/:username" element={<ProfilePage />} />
               <Route path="/profile/:userId" element={<ProfilePage />} />
@@ -368,12 +374,60 @@ export default function App() {
               <Route path="/blog/create" element={<CreateBlogScreen />} />
               <Route path="/blog/:slug" element={<BlogDetailScreen />} />
               <Route path="/sitemap" element={<SiteMap />} />
+              <Route
+                path="/tickets/new"
+                element={
+                  <ProtectedRoute>
+                    <CreateTicket />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/my-disputes"
+                element={
+                  <ProtectedRoute>
+                    <MyDisputes />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/disputes/create"
+                element={
+                  <ProtectedRoute>
+                    <CreateDispute />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/disputes/new"
+                element={
+                  <ProtectedRoute>
+                    <CreateDispute />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/disputes/:id"
+                element={
+                  <ProtectedRoute>
+                    <DisputeDetail />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/help"
+                element={
+                  <ProtectedRoute>
+                    <HelpPage />
+                  </ProtectedRoute>
+                }
+              />
             </Route>
             <Route path="/login" element={<LoginScreen />} />
             <Route path="/register" element={<LoginScreen />} />
             <Route path="/banned" element={<BannedUserScreen />} />
             <Route path="/contact" element={<ContactPage />} />
-                        <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/legal/terminos-y-condiciones" element={<TermsAndConditions />} />
             <Route path="/legal/privacidad" element={<PrivacyPolicy />} />
@@ -393,38 +447,6 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <OnboardingScreen />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/tickets/new"
-              element={
-                <ProtectedRoute>
-                  <CreateTicket />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/disputes/new"
-              element={
-                <ProtectedRoute>
-                  <CreateDispute />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/disputes/:id"
-              element={
-                <ProtectedRoute>
-                  <DisputeDetail />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/help"
-              element={
-                <ProtectedRoute>
-                  <HelpPage />
                 </ProtectedRoute>
               }
             />
