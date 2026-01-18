@@ -4,6 +4,7 @@ import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../hooks/useAuth';
 import { useSocket } from '../hooks/useSocket';
 import { ContractModal, ContractModalType } from '../components/chat/ContractModals';
+import { SystemMessageCard } from '../components/chat/SystemMessageCard';
 import {
   Send,
   ArrowLeft,
@@ -1064,332 +1065,28 @@ export default function ChatScreen() {
 
             {/* Messages list */}
             {messages.map((message) => {
-              // DEBUG: Log message data to diagnose system message detection
-              console.log('Message data:', {
-                id: message.id,
-                type: message.type,
-                hasDelimiter: message.message?.includes('||'),
-                message: message.message?.substring(0, 100),
-                metadata: message.metadata,
-              });
-
-              // System message - special styling
-              // Check for type === 'system' OR messages with || delimiter (system messages use this format)
-              // OR job_application/direct_contract_proposal metadata
+              // Detect system messages with multiple conditions
+              const messageText = message.message || '';
               const isSystemMessage =
                 message.type === 'system' ||
-                message.message?.includes('||') ||  // Any message with || is a system message
+                messageText.includes('||') ||
+                messageText.includes('se postuló al trabajo') ||
+                messageText.includes('envió una contraoferta') ||
+                messageText.includes('Propuesta Aceptada') ||
+                messageText.includes('Propuesta Rechazada') ||
+                messageText.includes('direct_proposal') ||
                 message.metadata?.action === 'job_application' ||
                 message.metadata?.action === 'direct_contract_proposal';
 
               if (isSystemMessage) {
-                // Parse message with || delimiter: "Usuario aplicó||Título||Contenido"
-                const parts = message.message.split('||');
-                const header = parts[0] || '';
-                const title = parts[1] || '';
-                const content = parts[2] || message.message;
-
-                // Align based on sender
-                const isCurrentUser = (message.sender.id || message.sender._id) === user?.id;
-                const isPending = message.metadata?.proposalStatus === 'pending';
-
-                // Different styles for sent vs received applications
-                const containerStyles = isCurrentUser
-                  ? 'bg-gradient-to-br from-sky-50 to-blue-50 dark:from-sky-900/20 dark:to-blue-900/20 border-2 border-sky-200 dark:border-sky-800'
-                  : isPending
-                    ? 'bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50 dark:from-emerald-900/20 dark:via-green-900/20 dark:to-teal-900/20 border-2 border-emerald-300 dark:border-emerald-700 ring-2 ring-emerald-200/50 dark:ring-emerald-800/50'
-                    : 'bg-gradient-to-br from-slate-50 to-gray-50 dark:from-slate-900/20 dark:to-gray-900/20 border-2 border-slate-200 dark:border-slate-700';
-
-                const iconContainerStyles = isCurrentUser
-                  ? 'bg-sky-100 dark:bg-sky-900/50'
-                  : isPending
-                    ? 'bg-emerald-100 dark:bg-emerald-900/50'
-                    : 'bg-slate-100 dark:bg-slate-800';
-
-                const iconStyles = isCurrentUser
-                  ? 'text-sky-600 dark:text-sky-400'
-                  : isPending
-                    ? 'text-emerald-600 dark:text-emerald-400'
-                    : 'text-slate-600 dark:text-slate-400';
-
-                const headerStyles = isCurrentUser
-                  ? 'text-sky-900 dark:text-sky-100'
-                  : isPending
-                    ? 'text-emerald-900 dark:text-emerald-100'
-                    : 'text-slate-900 dark:text-slate-100';
-
                 return (
-                  <div
+                  <SystemMessageCard
                     key={message.id || message._id}
-                    className={`flex my-6 ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
-                  >
-                    <div className={`max-w-2xl w-full rounded-2xl p-6 shadow-lg ${containerStyles} ${isCurrentUser ? 'mr-4' : 'ml-4'}`}>
-                      {/* "Nueva Postulación" badge for received pending applications */}
-                      {!isCurrentUser && isPending && (
-                        <div className="flex items-center gap-2 mb-4 pb-3 border-b border-emerald-200 dark:border-emerald-700">
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white text-xs font-bold rounded-full animate-pulse">
-                            <span className="w-2 h-2 bg-white rounded-full" />
-                            Nueva Postulación
-                          </span>
-                          <span className="text-sm text-emerald-700 dark:text-emerald-300 font-medium">
-                            Requiere tu atención
-                          </span>
-                        </div>
-                      )}
-
-                      {/* "Autoseleccionado" badge when worker was auto-selected */}
-                      {message.metadata?.autoSelected && (
-                        <div className="flex items-center gap-2 mb-4 pb-3 border-b border-purple-200 dark:border-purple-700">
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white text-xs font-bold rounded-full">
-                            <CheckCircle className="h-3 w-3" />
-                            Autoseleccionado
-                          </span>
-                          <span className="text-sm text-purple-700 dark:text-purple-300 font-medium">
-                            Selección automática por tiempo límite
-                          </span>
-                        </div>
-                      )}
-
-                      <div className="flex items-start gap-4">
-                        <div className={`p-3 rounded-full flex-shrink-0 ${iconContainerStyles}`}>
-                          {!isCurrentUser && isPending ? (
-                            <UserCheck className={`h-6 w-6 ${iconStyles}`} />
-                          ) : (
-                            <Briefcase className={`h-6 w-6 ${iconStyles}`} />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          {/* Header - modificar según quién es el usuario */}
-                          <h4 className={`text-lg font-bold mb-1 ${headerStyles}`}>
-                            {(() => {
-                              // Handle direct_proposal type
-                              if (header === 'direct_proposal' || message.metadata?.action === 'direct_contract_proposal') {
-                                return isCurrentUser
-                                  ? 'Enviaste una propuesta de contrato'
-                                  : `${message.sender.name} te envió una propuesta de contrato`;
-                              }
-                              // Handle job applications and counter offers
-                              return isCurrentUser
-                                ? header.replace(/se postuló al trabajo|aplicó|envió una contraoferta/gi, (match) =>
-                                    match.toLowerCase().includes('contraoferta')
-                                      ? 'Enviaste una contraoferta'
-                                      : 'Te postulaste al trabajo'
-                                  )
-                                : header.replace(/se postuló al trabajo|aplicó|envió una contraoferta/gi, (match) =>
-                                    match.toLowerCase().includes('contraoferta')
-                                      ? `${message.sender.name} envió una contraoferta`
-                                      : `${message.sender.name} quiere trabajar contigo`
-                                  );
-                            })()}
-                          </h4>
-
-                          {/* Title */}
-                          {title && (
-                            <h5 className="text-base font-semibold text-slate-800 dark:text-slate-200 mb-3">
-                              {title}
-                            </h5>
-                          )}
-
-                          {/* Content */}
-                          <div className="prose prose-sm dark:prose-invert max-w-none mb-4">
-                            <div
-                              className="text-slate-700 dark:text-slate-300 text-sm"
-                              dangerouslySetInnerHTML={{
-                                __html: content
-                                  .replace(/\*\*(.*?)\*\*/g, '<strong class="text-slate-900 dark:text-white">$1</strong>')
-                                  .replace(/•/g, '<span class="text-sky-600 dark:text-sky-400">•</span>')
-                                  .replace(/\n/g, '<br />')
-                              }}
-                            />
-                          </div>
-
-                          {/* Action Buttons */}
-                          {/* Show actions if: has action metadata OR has jobId with || format OR has proposalId */}
-                          {(message.metadata?.action === 'job_application' ||
-                            message.metadata?.action === 'direct_contract_proposal' ||
-                            (message.message?.includes('||') && message.metadata?.jobId) ||
-                            message.metadata?.proposalId) && (
-                            <div className="flex flex-wrap gap-2 mt-4">
-                              {/* Botón Ver Trabajo - show if jobId exists */}
-                              {message.metadata?.jobId && (
-                                <button
-                                  onClick={() => navigate(`/jobs/${message.metadata?.jobId}`)}
-                                  className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium rounded-lg transition-colors"
-                                >
-                                  <Briefcase className="h-4 w-4" />
-                                  Ver Trabajo
-                                </button>
-                              )}
-
-                              {isCurrentUser ? (
-                                // Si YO envié esta aplicación/contraoferta
-                                <>
-                                  {message.metadata?.proposalStatus === 'pending' && (
-                                    <button
-                                      onClick={async () => {
-                                        if (!message.metadata?.proposalId) return;
-                                        if (!confirm('¿Estás seguro de que deseas cancelar tu propuesta?')) return;
-
-                                        try {
-                                          const response = await fetch(
-                                            `/api/proposals/${message.metadata.proposalId}/withdraw`,
-                                            {
-                                              method: 'PUT',
-                                              headers: {
-                                                'Content-Type': 'application/json',
-                                                Authorization: `Bearer ${localStorage.getItem('token')}`,
-                                              },
-                                            }
-                                          );
-                                          const data = await response.json();
-                                          if (data.success) {
-                                            alert('Propuesta cancelada');
-                                            fetchConversationData();
-                                          } else {
-                                            alert(data.message || 'Error al cancelar');
-                                          }
-                                        } catch (error) {
-                                          console.error('Error:', error);
-                                          alert('Error al cancelar la propuesta');
-                                        }
-                                      }}
-                                      className="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-colors"
-                                    >
-                                      <X className="h-4 w-4" />
-                                      Cancelar {message.metadata?.isCounterOffer ? 'Contraoferta' : 'Aplicación'}
-                                    </button>
-                                  )}
-                                  {message.metadata?.proposalStatus === 'pending' && (
-                                    <span className="inline-flex items-center gap-2 px-4 py-2 bg-yellow-100 text-yellow-800 text-sm font-medium rounded-lg">
-                                      <Loader2 className="h-4 w-4" />
-                                      Esperando respuesta...
-                                    </span>
-                                  )}
-                                </>
-                              ) : (
-                                // Si YO RECIBÍ esta propuesta (dueño del trabajo o receptor de propuesta directa)
-                                <>
-                                  {message.metadata?.proposalStatus === 'pending' && (
-                                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                                      <button
-                                        onClick={async () => {
-                                          if (!message.metadata?.proposalId) {
-                                            alert('No se encontró la propuesta');
-                                            return;
-                                          }
-
-                                          const isDirectProposal = message.metadata?.action === 'direct_contract_proposal';
-                                          const confirmMsg = isDirectProposal
-                                            ? '¿Aceptas esta propuesta de contrato? Se creará el trabajo y contrato automáticamente.'
-                                            : '¿Estás seguro de que deseas seleccionar a este trabajador?';
-
-                                          if (!confirm(confirmMsg)) {
-                                            return;
-                                          }
-
-                                          try {
-                                            // Use different endpoint for direct proposals
-                                            const endpoint = isDirectProposal
-                                              ? `/api/proposals/${message.metadata.proposalId}/accept-direct`
-                                              : `/api/proposals/${message.metadata.proposalId}/approve`;
-
-                                            const response = await fetch(endpoint, {
-                                              method: 'PUT',
-                                              headers: {
-                                                'Content-Type': 'application/json',
-                                                Authorization: `Bearer ${localStorage.getItem('token')}`,
-                                              },
-                                            });
-
-                                            const data = await response.json();
-
-                                            if (data.success && data.contractId) {
-                                              navigate(`/contracts/${data.contractId}/summary`);
-                                            } else {
-                                              alert(data.message || 'Error al aceptar propuesta');
-                                            }
-                                          } catch (error) {
-                                            console.error('Error accepting proposal:', error);
-                                            alert('Error al aceptar propuesta');
-                                          }
-                                        }}
-                                        className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white text-sm font-bold rounded-xl transition-all shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
-                                      >
-                                        <CheckCircle className="h-5 w-5" />
-                                        {message.metadata?.action === 'direct_contract_proposal'
-                                          ? 'Aceptar Propuesta'
-                                          : 'Seleccionar Trabajador'}
-                                      </button>
-                                      <button
-                                        onClick={async () => {
-                                          if (!message.metadata?.proposalId) return;
-
-                                          const isDirectProposal = message.metadata?.action === 'direct_contract_proposal';
-                                          const confirmMsg = isDirectProposal
-                                            ? '¿Estás seguro de que deseas rechazar esta propuesta de contrato?'
-                                            : '¿Estás seguro de que deseas rechazar esta postulación?';
-
-                                          if (!confirm(confirmMsg)) return;
-
-                                          try {
-                                            const endpoint = isDirectProposal
-                                              ? `/api/proposals/${message.metadata.proposalId}/reject-direct`
-                                              : `/api/proposals/${message.metadata.proposalId}/reject`;
-
-                                            const response = await fetch(endpoint, {
-                                              method: 'PUT',
-                                              headers: {
-                                                'Content-Type': 'application/json',
-                                                Authorization: `Bearer ${localStorage.getItem('token')}`,
-                                              },
-                                            });
-                                            const data = await response.json();
-                                            if (data.success) {
-                                              fetchConversationData();
-                                            } else {
-                                              alert(data.message || 'Error al rechazar');
-                                            }
-                                          } catch (error) {
-                                            console.error('Error:', error);
-                                            alert('Error al rechazar la propuesta');
-                                          }
-                                        }}
-                                        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 text-sm font-medium rounded-xl transition-colors border-2 border-red-200 dark:border-red-800 hover:border-red-300 dark:hover:border-red-700"
-                                      >
-                                        <X className="h-4 w-4" />
-                                        Rechazar
-                                      </button>
-                                    </div>
-                                  )}
-
-                                  {/* Show "Ver Todos los Postulados" for job applications (by action or by || format with jobId) */}
-                                  {message.metadata?.jobId && message.metadata?.action !== 'direct_contract_proposal' && (
-                                    <button
-                                      onClick={() => navigate(`/jobs/${message.metadata?.jobId}/applications`)}
-                                      className="inline-flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium rounded-xl transition-colors border-2 border-slate-200 dark:border-slate-600"
-                                    >
-                                      <Users className="h-4 w-4" />
-                                      Ver Todos los Postulados
-                                    </button>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          )}
-
-                          {/* Timestamp */}
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-3">
-                            {new Date(message.createdAt).toLocaleDateString('es-AR', {
-                              day: 'numeric',
-                              month: 'long',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+                    message={message}
+                    currentUserId={user?.id}
+                    onRefresh={fetchConversationData}
+                    token={token}
+                  />
                 );
               }
 

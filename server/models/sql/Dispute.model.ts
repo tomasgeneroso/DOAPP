@@ -69,6 +69,7 @@ export interface IDisputeMessage {
   from: string; // User UUID
   message: string;
   attachments?: IAttachment[];
+  isAdmin?: boolean; // True if message is from admin/support
   createdAt: Date;
 }
 
@@ -120,13 +121,13 @@ export class Dispute extends Model {
   contract!: Contract;
 
   @ForeignKey(() => Payment)
-  @AllowNull(false)
+  @AllowNull(true)
   @Index
   @Column(DataType.UUID)
-  paymentId!: string;
+  paymentId?: string;
 
   @BelongsTo(() => Payment)
-  payment!: Payment;
+  payment?: Payment;
 
   @ForeignKey(() => User)
   @AllowNull(false)

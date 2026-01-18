@@ -2,9 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useSocket } from '@/hooks/useSocket';
+import { useAuth } from '@/hooks/useAuth';
 import { Wifi, WifiOff, Bell } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 type SortField = 'reason' | 'category' | 'priority' | 'status' | 'date' | 'initiator' | 'against';
 type SortDirection = 'asc' | 'desc' | null;
@@ -17,6 +18,12 @@ interface Dispute {
   priority: string;
   category: string;
   importanceLevel?: 'low' | 'medium' | 'high' | 'critical';
+  hasPayment?: boolean;
+  payment?: {
+    id: string;
+    status: string;
+    amount: number;
+  } | null;
   createdAt: Date | string;
   initiatedBy: {
     id?: string;
@@ -68,6 +75,7 @@ interface DisputeStats {
 const AdminDisputeManager: React.FC = () => {
   const navigate = useNavigate();
   const { isConnected, registerAdminDisputeCreatedHandler, registerAdminDisputeUpdatedHandler } = useSocket();
+  const { token } = useAuth();
 
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [stats, setStats] = useState<DisputeStats | null>(null);
@@ -92,8 +100,8 @@ const AdminDisputeManager: React.FC = () => {
       params.append('page', page.toString());
       params.append('limit', '20');
 
-      const response = await axios.get(`${API_URL}/api/admin/disputes?${params}`, {
-        withCredentials: true,
+      const response = await axios.get(`${API_URL}/admin/disputes?${params}`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       setDisputes(response.data.data);
@@ -107,8 +115,8 @@ const AdminDisputeManager: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await axios.get(`${API_URL}/api/admin/disputes/stats/overview`, {
-        withCredentials: true,
+      const response = await axios.get(`${API_URL}/admin/disputes/stats/overview`, {
+        headers: { Authorization: `Bearer ${token}` },
       });
       setStats(response.data.data);
     } catch (error) {
@@ -228,6 +236,27 @@ const AdminDisputeManager: React.FC = () => {
     return (
       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${styles[importance as keyof typeof styles] || styles.medium}`}>
         {labels[importance as keyof typeof labels] || importance}
+      </span>
+    );
+  };
+
+  const getPaymentBadge = (hasPayment: boolean | undefined) => {
+    if (hasPayment) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+          <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          </svg>
+          Con Pago
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+        </svg>
+        Sin Pago
       </span>
     );
   };
@@ -625,6 +654,9 @@ const AdminDisputeManager: React.FC = () => {
                       </button>
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                      Pago
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                       <button
                         onClick={() => handleSort('date')}
                         className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-white transition-colors"
@@ -668,6 +700,9 @@ const AdminDisputeManager: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {getStatusBadge(dispute.status)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {getPaymentBadge(dispute.hasPayment)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
                         <div>{new Date(dispute.createdAt).toLocaleDateString('es-AR')}</div>

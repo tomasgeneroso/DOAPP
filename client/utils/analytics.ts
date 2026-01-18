@@ -12,9 +12,26 @@ declare global {
 
 /**
  * Initialize Google Analytics
+ * Note: The main initialization is handled by GoogleAnalytics.tsx component
+ * This function is kept for backwards compatibility but should not be called directly
  */
 export function initGA(measurementId: string) {
   if (typeof window === "undefined" || !measurementId) return;
+
+  // Check if already initialized
+  if (window.gtag) {
+    window.gtag("config", measurementId, {
+      page_path: window.location.pathname,
+      send_page_view: true,
+    });
+    return;
+  }
+
+  // Initialize dataLayer if not exists
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = function gtag(...args: any[]) {
+    window.dataLayer!.push(arguments);
+  };
 
   // Load Google Analytics script
   const script = document.createElement("script");
@@ -22,19 +39,11 @@ export function initGA(measurementId: string) {
   script.src = `https://www.googletagmanager.com/gtag/js?id=${measurementId}`;
   document.head.appendChild(script);
 
-  // Initialize gtag
-  window.dataLayer = window.dataLayer || [];
-  window.gtag = function gtag(...args: any[]) {
-    window.dataLayer!.push(arguments);
-  };
-
   window.gtag("js", new Date());
   window.gtag("config", measurementId, {
     page_path: window.location.pathname,
     send_page_view: true,
   });
-
-  console.log("✅ Google Analytics initialized");
 }
 
 /**
@@ -73,9 +82,12 @@ export function trackEvent(
 export function identifyUser(userId: string) {
   if (!window.gtag) return;
 
-  window.gtag("config", import.meta.env.GOOGLE_ANALYTICS_ID, {
-    user_id: userId,
-  });
+  const measurementId = import.meta.env.VITE_GOOGLE_ANALYTICS_ID;
+  if (measurementId) {
+    window.gtag("config", measurementId, {
+      user_id: userId,
+    });
+  }
 }
 
 /**

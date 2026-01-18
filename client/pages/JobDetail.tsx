@@ -38,6 +38,7 @@ import MultipleRatings from "../components/user/MultipleRatings";
 import { getCategoryById } from "../../shared/constants/categories";
 import LocationCircleMap from "../components/map/LocationCircleMap";
 import JobTasks from "../components/jobs/JobTasks";
+import { analytics } from "../utils/analytics";
 
 // Helper para parsear números en formato argentino (punto = miles, coma = decimal)
 // Ej: "40.000" -> 40000, "40.000,50" -> 40000.50
@@ -224,6 +225,12 @@ export default function JobDetail() {
       const data = await response.json();
       if (data.success) {
         setJob(data.job);
+        // Track job view
+        analytics.jobView(id, {
+          category: data.job.category,
+          price: data.job.price,
+          location: data.job.location?.city || data.job.location?.province,
+        });
       } else {
         setError(data.message || "No se pudo cargar el trabajo");
       }

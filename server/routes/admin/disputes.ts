@@ -31,9 +31,10 @@ router.get(
         where,
         include: [
           { model: Contract, as: "contract", attributes: ["price"] },
+          { model: Payment, as: "payment", attributes: ["id", "status", "amount"] },
           { model: User, as: "initiator", attributes: ["name", "email", "avatar"] },
           { model: User, as: "defendant", attributes: ["name", "email", "avatar"] },
-          { model: User, as: "assignedAdmin", attributes: ["name"] },
+          { model: User, as: "assignee", attributes: ["name"] },
           { model: User, as: "resolver", attributes: ["name"] },
         ],
         order: [["createdAt", "DESC"]],
@@ -41,11 +42,20 @@ router.get(
         offset: (Number(page) - 1) * Number(limit),
       });
 
+      // Add hasPayment flag for admin visibility
+      const disputesWithPaymentFlag = disputes.map(d => {
+        const plain = d.toJSON();
+        return {
+          ...plain,
+          hasPayment: !!plain.payment,
+        };
+      });
+
       const total = await Dispute.count({ where });
 
       res.json({
         success: true,
-        data: disputes,
+        data: disputesWithPaymentFlag,
         pagination: {
           page: Number(page),
           limit: Number(limit),
@@ -80,7 +90,7 @@ router.get(
           { model: Payment, as: "payment" },
           { model: User, as: "initiator", attributes: ["name", "email", "phone", "avatar"] },
           { model: User, as: "defendant", attributes: ["name", "email", "phone", "avatar"] },
-          { model: User, as: "assignedAdmin", attributes: ["name", "email"] },
+          { model: User, as: "assignee", attributes: ["name", "email"] },
           { model: User, as: "resolver", attributes: ["name", "email"] },
         ],
       });
@@ -265,12 +275,12 @@ router.post(
       }
 
       const contract = await Contract.findByPk(dispute.contractId);
-      const payment = await Payment.findByPk(dispute.paymentId);
+      const payment = dispute.paymentId ? await Payment.findByPk(dispute.paymentId) : null;
 
-      if (!contract || !payment) {
+      if (!contract) {
         res.status(404).json({
           success: false,
-          message: "Contrato o pago no encontrado",
+          message: "Contrato no encontrado",
         });
         return;
       }
@@ -294,15 +304,16 @@ router.post(
             paymentStatus: "released",
             escrowStatus: "released",
           });
-          await payment.update({
-            status: "completed",
-            escrowReleasedAt: new Date(),
-          });
+          if (payment) {
+            await payment.update({
+              status: "completed",
+              escrowReleasedAt: new Date(),
+            });
 
-          // Release escrow - MercadoPago handles this automatically
-          // No need to call API, just update payment status
-          if (payment.mercadopagoPaymentId) {
-            console.log(`✅ Escrow released for payment: ${payment.mercadopagoPaymentId}`);
+            // Release escrow - MercadoPago handles this automatically
+            if (payment.mercadopagoPaymentId) {
+              console.log(`✅ Escrow released for payment: ${payment.mercadopagoPaymentId}`);
+            }
           }
 
           disputeUpdateData.status = "resolved_released";
@@ -315,25 +326,27 @@ router.post(
             paymentStatus: "refunded",
             escrowStatus: "refunded",
           });
-          await payment.update({
-            status: "refunded",
-            refundedAt: new Date(),
-          });
+          if (payment) {
+            await payment.update({
+              status: "refunded",
+              refundedAt: new Date(),
+            });
 
-          // Refund via MercadoPago (minus platform fee)
-          if (payment.mercadopagoPaymentId) {
-            try {
-              const refundAmountARS = payment.amountArs || 0;
-              const commission = (payment as any).commission || 0;
-              const refundableAmount = refundAmountARS - commission; // Don't refund commission
+            // Refund via MercadoPago (minus platform fee)
+            if (payment.mercadopagoPaymentId) {
+              try {
+                const refundAmountARS = payment.amountArs || 0;
+                const commission = (payment as any).commission || 0;
+                const refundableAmount = refundAmountARS - commission; // Don't refund commission
 
-              await mercadopagoService.refundPayment(
-                payment.mercadopagoPaymentId,
-                'mercadopago',
-                refundableAmount
-              );
-            } catch (error) {
-              console.error("Error processing refund:", error);
+                await mercadopagoService.refundPayment(
+                  payment.mercadopagoPaymentId,
+                  'mercadopago',
+                  refundableAmount
+                );
+              } catch (error) {
+                console.error("Error processing refund:", error);
+              }
             }
           }
 
@@ -347,17 +360,19 @@ router.post(
             paymentStatus: "partially_refunded",
             escrowStatus: "released", // Escrow se libera (parcialmente al doer, parcialmente reembolsado)
           });
-          await payment.update({
-            status: "partially_refunded",
-            refundedAt: new Date(),
-          });
+          if (payment) {
+            await payment.update({
+              status: "partially_refunded",
+              refundedAt: new Date(),
+            });
 
-          // Partial refund via MercadoPago
-          if (payment.mercadopagoPaymentId && refundAmount) {
-            try {
-              await mercadopagoService.refundPayment(payment.mercadopagoPaymentId, 'mercadopago', refundAmount);
-            } catch (error) {
-              console.error("Error processing partial refund:", error);
+            // Partial refund via MercadoPago
+            if (payment.mercadopagoPaymentId && refundAmount) {
+              try {
+                await mercadopagoService.refundPayment(payment.mercadopagoPaymentId, 'mercadopago', refundAmount);
+              } catch (error) {
+                console.error("Error processing partial refund:", error);
+              }
             }
           }
 
@@ -388,8 +403,8 @@ router.post(
 
       await emailService.sendDisputeResolvedEmail(
         dispute.id.toString(),
-        contract.client.toString(),
-        contract.doer.toString(),
+        contract.clientId,
+        contract.doerId,
         job?.title || "Contrato",
         resolution,
         resolutionType
@@ -402,6 +417,86 @@ router.post(
       });
     } catch (error: any) {
       console.error("Error resolving dispute:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor",
+      });
+    }
+  }
+);
+
+/**
+ * Add message to dispute (Admin only)
+ * POST /api/admin/disputes/:id/messages
+ */
+router.post(
+  "/:id/messages",
+  protect,
+  authorize("owner", "super_admin", "moderator", "support"),
+  [body("message").notEmpty().withMessage("El mensaje es requerido")],
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({
+          success: false,
+          errors: errors.array(),
+        });
+        return;
+      }
+
+      const { id } = req.params;
+      const { message } = req.body;
+
+      const dispute = await Dispute.findByPk(id);
+
+      if (!dispute) {
+        res.status(404).json({
+          success: false,
+          message: "Disputa no encontrada",
+        });
+        return;
+      }
+
+      // Add message - use spread to ensure Sequelize detects JSONB change
+      const currentMessages = dispute.messages || [];
+      const newMessage = {
+        from: req.user.id,
+        message,
+        isAdmin: true,
+        createdAt: new Date(),
+      };
+
+      await dispute.update({
+        messages: [...currentMessages, newMessage],
+      });
+
+      // Also add to logs
+      const currentLogs = dispute.logs || [];
+      const newLog = {
+        action: "Mensaje de admin",
+        performedBy: req.user.id,
+        timestamp: new Date(),
+        details: `Admin envió mensaje a la disputa`,
+      };
+
+      await dispute.update({
+        logs: [...currentLogs, newLog],
+      });
+
+      // Reload with associations
+      await dispute.reload({
+        include: [
+          { model: User, as: "initiator", attributes: ["name", "avatar"] },
+          { model: User, as: "defendant", attributes: ["name", "avatar"] },
+        ],
+      });
+
+      res.json({
+        success: true,
+        data: dispute,
+      });
+    } catch (error: any) {
       res.status(500).json({
         success: false,
         message: error.message || "Error del servidor",
@@ -619,16 +714,8 @@ router.post(
           ? contract.doer.toString()
           : contract.client.toString();
 
-      // Find payment for this contract
+      // Find payment for this contract (may not exist for free contracts)
       const payment = await Payment.findOne({ where: { contractId } });
-
-      if (!payment) {
-        res.status(404).json({
-          success: false,
-          message: "Pago no encontrado para este contrato",
-        });
-        return;
-      }
 
       // Check if dispute already exists for this contract
       const existingDispute = await Dispute.findOne({
@@ -646,13 +733,15 @@ router.post(
         return;
       }
 
-      // Pause payment (move to disputed status)
-      await payment.update({ status: "disputed" });
+      // Pause payment (move to disputed status) if exists
+      if (payment) {
+        await payment.update({ status: "disputed" });
+      }
 
       // Create dispute
       const dispute = await Dispute.create({
         contractId,
-        paymentId: payment.id,
+        paymentId: payment?.id || null,
         initiatedBy: userId,
         against: againstUserId,
         title,

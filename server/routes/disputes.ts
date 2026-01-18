@@ -115,15 +115,8 @@ router.post(
         }
       }
 
-      // Find payment
+      // Find payment (may not exist for contracts without escrow/payment)
       const payment = await Payment.findOne({ where: { contractId } });
-      if (!payment) {
-        res.status(404).json({
-          success: false,
-          message: "Pago no encontrado",
-        });
-        return;
-      }
 
       // Determine respondent
       const againstUserId =
@@ -153,7 +146,7 @@ router.post(
       // Create dispute
       const dispute = await Dispute.create({
         contractId,
-        paymentId: payment.id,
+        paymentId: payment?.id || null,
         initiatedBy: userId,
         against: againstUserId,
         reason,
@@ -179,12 +172,14 @@ router.post(
       contract.disputedAt = new Date();
       await contract.save();
 
-      // Update payment status
-      payment.status = 'disputed';
-      payment.disputeId = dispute.id;
-      payment.disputedAt = new Date();
-      payment.disputedBy = userId;
-      await payment.save();
+      // Update payment status if payment exists
+      if (payment) {
+        payment.status = 'disputed';
+        payment.disputeId = dispute.id;
+        payment.disputedAt = new Date();
+        payment.disputedBy = userId;
+        await payment.save();
+      }
 
       // Notify respondent
       await fcmService.sendToUser({
@@ -422,7 +417,7 @@ router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
         },
         {
           model: User,
-          as: 'respondent',
+          as: 'defendant',
           attributes: ['name', 'avatar'],
         },
         {
@@ -441,12 +436,14 @@ router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
-    // Verify user is a participant
+    // Verify user is a participant OR an admin
     const isParticipant =
       dispute.initiatedBy === userId ||
       dispute.against === userId;
 
-    if (!isParticipant) {
+    const isAdmin = req.user.adminRole && ['owner', 'super_admin', 'admin', 'moderator', 'support'].includes(req.user.adminRole);
+
+    if (!isParticipant && !isAdmin) {
       res.status(403).json({
         success: false,
         message: "No tienes permiso para ver esta disputa",
@@ -467,27 +464,27 @@ router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
 });
 
 /**
- * Add message to dispute
+ * Add message to dispute (with optional attachments)
  * POST /api/disputes/:id/messages
  */
 router.post(
   "/:id/messages",
   protect,
-  [body("message").notEmpty().withMessage("El mensaje es requerido")],
+  uploadDisputeAttachments,
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        res.status(400).json({
-          success: false,
-          errors: errors.array(),
-        });
-        return;
-      }
-
       const { id } = req.params;
       const userId = req.user.id;
       const { message } = req.body;
+      const files = (req as any).files as Express.Multer.File[];
+
+      if (!message && (!files || files.length === 0)) {
+        res.status(400).json({
+          success: false,
+          message: "El mensaje o un archivo adjunto es requerido",
+        });
+        return;
+      }
 
       const dispute = await Dispute.findByPk(id);
 
@@ -499,12 +496,14 @@ router.post(
         return;
       }
 
-      // Verify user is a participant
+      // Check if user is a participant OR an admin
       const isParticipant =
         dispute.initiatedBy === userId ||
         dispute.against === userId;
 
-      if (!isParticipant) {
+      const isAdmin = req.user.adminRole && ['owner', 'super_admin', 'admin', 'moderator', 'support'].includes(req.user.adminRole);
+
+      if (!isParticipant && !isAdmin) {
         res.status(403).json({
           success: false,
           message: "No tienes permiso para comentar en esta disputa",
@@ -512,17 +511,52 @@ router.post(
         return;
       }
 
-      dispute.messages.push({
-        from: userId,
-        message,
-        createdAt: new Date(),
-      });
+      // Process attachments if any
+      const attachments = files && files.length > 0 ? files.map((file) => {
+        let fileType: "image" | "video" | "pdf" | "other" = "other";
+        if (file.mimetype.startsWith("image/")) {
+          fileType = "image";
+        } else if (file.mimetype.startsWith("video/")) {
+          fileType = "video";
+        } else if (file.mimetype === "application/pdf") {
+          fileType = "pdf";
+        }
+        return {
+          fileName: file.originalname,
+          fileUrl: getFileUrl(file.path, req),
+          fileType,
+          fileSize: file.size,
+          uploadedAt: new Date(),
+        };
+      }) : undefined;
+
+      // Use spread to create new array - Sequelize doesn't detect JSONB mutations
+      dispute.messages = [
+        ...dispute.messages,
+        {
+          from: userId,
+          message: message || '',
+          attachments,
+          isAdmin: isAdmin || false,
+          createdAt: new Date(),
+        }
+      ];
+      dispute.changed('messages', true);
 
       await dispute.save();
 
       // Track analytics event
       await disputeAnalytics.trackDisputeEvent('message_added', id, {
-        messageLength: message.length,
+        messageLength: message?.length || 0,
+        hasAttachments: !!(attachments && attachments.length > 0),
+      });
+
+      // Reload with associations
+      await dispute.reload({
+        include: [
+          { model: User, as: 'initiator', attributes: ['name', 'avatar'] },
+          { model: User, as: 'defendant', attributes: ['name', 'avatar'] },
+        ],
       });
 
       res.json({
@@ -604,16 +638,21 @@ router.post(
         };
       });
 
-      // Add evidence to dispute
-      dispute.evidence.push(...evidence);
+      // Add evidence to dispute - use spread to ensure Sequelize detects change
+      dispute.evidence = [...dispute.evidence, ...evidence];
+      dispute.changed('evidence', true);
 
       // Add log entry
-      dispute.logs.push({
-        action: `${files.length} archivo(s) subido(s)`,
-        performedBy: userId,
-        timestamp: new Date(),
-        details: `Tipos: ${evidence.map((a) => a.fileType).join(", ")}`,
-      });
+      dispute.logs = [
+        ...dispute.logs,
+        {
+          action: `${files.length} archivo(s) subido(s)`,
+          performedBy: userId,
+          timestamp: new Date(),
+          details: `Tipos: ${evidence.map((a) => a.fileType).join(", ")}`,
+        }
+      ];
+      dispute.changed('logs', true);
 
       await dispute.save();
 

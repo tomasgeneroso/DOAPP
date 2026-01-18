@@ -243,6 +243,14 @@ export const adminApi = {
       });
       return res.json();
     },
+    userActivity: async (period = "30d", limit = 20) => {
+      const res = await fetchWithAuth(`${API_URL}/admin/analytics/user-activity?period=${period}&limit=${limit}`, {});
+      return res.json();
+    },
+    userActivityById: async (userId: string) => {
+      const res = await fetchWithAuth(`${API_URL}/admin/analytics/user/${userId}/activity`, {});
+      return res.json();
+    },
   },
   // 2FA
   twoFactor: {

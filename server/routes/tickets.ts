@@ -247,12 +247,17 @@ router.post(
 
       const { message, isInternal } = req.body;
 
-      ticket.messages.push({
-        author: req.user.id,
-        message,
-        isInternal: isInternal && isAdmin ? true : false, // Only admins can create internal messages
-        createdAt: new Date(),
-      } as any);
+      // Use spread to ensure Sequelize detects JSONB change
+      ticket.messages = [
+        ...ticket.messages,
+        {
+          author: req.user.id,
+          message,
+          isInternal: isInternal && isAdmin ? true : false, // Only admins can create internal messages
+          createdAt: new Date(),
+        } as any
+      ];
+      ticket.changed('messages', true);
 
       // Update status if ticket was waiting for user response and user is responding
       if (ticket.status === "waiting_user" && isOwner) {

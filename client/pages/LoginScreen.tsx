@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/Input"; // Asegúrate que este componente
 import { Chrome, Facebook, Twitter, Eye, EyeOff, Home } from "lucide-react";
 import TokenExpiredNotice from "../components/TokenExpiredNotice";
 import MembershipOfferModal from "../components/MembershipOfferModal";
+import { analytics, identifyUser } from "../utils/analytics";
 
 type FormMode = "login" | "register";
 
@@ -120,7 +121,12 @@ export default function LoginScreen() {
 
     try {
       if (mode === "login") {
-        await login(formData.email, formData.password);
+        const user = await login(formData.email, formData.password);
+        // Track login event
+        analytics.login('email');
+        if (user?.id) {
+          identifyUser(user.id);
+        }
         navigate(from, { replace: true }); // Redirect to original page or home
       } else {
         if (!formData.termsAccepted) {
@@ -128,7 +134,7 @@ export default function LoginScreen() {
           setIsLoading(false);
           return;
         }
-        await register({
+        const newUser = await register({
           name: formData.name,
           username: formData.username.toLowerCase().trim(),
           email: formData.email,
@@ -139,6 +145,12 @@ export default function LoginScreen() {
           cbu: formData.cbu || undefined,
           termsAccepted: formData.termsAccepted,
         });
+
+        // Track signup event
+        analytics.signup('email');
+        if (newUser?.id) {
+          identifyUser(newUser.id);
+        }
 
         // Mark that user just registered to trigger membership check
         setJustRegistered(true);

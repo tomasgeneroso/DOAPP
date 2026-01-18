@@ -10,7 +10,8 @@ import {
   BarChart3,
   PieChart,
   ChevronRight,
-  Ticket
+  Ticket,
+  Trophy,
 } from "lucide-react";
 
 interface Stats {
@@ -275,6 +276,20 @@ export default function Analytics() {
                 <h3 className="text-lg font-bold mb-1">Métricas de Tickets</h3>
                 <p className="text-sm text-orange-100">
                   Análisis de soporte, categorías y tiempos de resolución
+                </p>
+              </Link>
+
+              <Link
+                to="/admin/analytics/user-activity"
+                className="bg-gradient-to-br from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 rounded-lg p-6 text-white transition-all transform hover:scale-105 shadow-lg"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <Trophy className="h-10 w-10" />
+                  <ChevronRight className="h-6 w-6" />
+                </div>
+                <h3 className="text-lg font-bold mb-1">Actividad por Usuario</h3>
+                <p className="text-sm text-purple-100">
+                  Rankings de disputas, tickets, contratos y pagos por usuario
                 </p>
               </Link>
             </div>

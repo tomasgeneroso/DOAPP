@@ -2,12 +2,15 @@ import express, { Request, Response } from "express";
 import { User } from "../../models/sql/User.model.js";
 import { Contract } from "../../models/sql/Contract.model.js";
 import { Ticket } from "../../models/sql/Ticket.model.js";
+import { Dispute } from "../../models/sql/Dispute.model.js";
+import { Payment } from "../../models/sql/Payment.model.js";
+import { Job } from "../../models/sql/Job.model.js";
 import { AuditLog } from "../../models/sql/AuditLog.model.js";
 import { protect } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/permissions.js";
 import { logAudit } from "../../utils/auditLog.js";
 import type { AuthRequest } from "../../types/index.js";
-import { Op } from 'sequelize';
+import { Op, fn, col, literal } from 'sequelize';
 import { logger } from "../../services/logger.js";
 
 const router = express.Router();
@@ -237,6 +240,397 @@ router.get(
     }
   }
 );
+
+// @route   GET /api/admin/analytics/user-activity
+// @desc    Métricas de actividad por usuario (disputas, tickets, contratos, pagos)
+// @access  Admin+
+router.get("/user-activity", async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { period = "30d", limit = 20 } = req.query;
+
+    const days = period === "7d" ? 7 : period === "30d" ? 30 : period === "90d" ? 90 : 365;
+    const dateLimit = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+    // Top users who opened disputes
+    const disputesOpened = await Dispute.findAll({
+      attributes: [
+        'initiatedBy',
+        [fn('COUNT', col('id')), 'count'],
+      ],
+      where: {
+        createdAt: { [Op.gte]: dateLimit },
+      },
+      group: ['initiatedBy'],
+      order: [[literal('count'), 'DESC']],
+      limit: Number(limit),
+      raw: true,
+    });
+
+    // Get user info for disputes opened
+    const disputeOpenerIds = disputesOpened.map((d: any) => d.initiatedBy);
+    const disputeOpeners = await User.findAll({
+      where: { id: { [Op.in]: disputeOpenerIds } },
+      attributes: ['id', 'name', 'email', 'avatar'],
+    });
+    const disputeOpenersMap = new Map(disputeOpeners.map(u => [u.id, u]));
+
+    // Top admins who resolved disputes
+    const disputesResolved = await Dispute.findAll({
+      attributes: [
+        'resolvedBy',
+        [fn('COUNT', col('id')), 'count'],
+      ],
+      where: {
+        resolvedAt: { [Op.gte]: dateLimit },
+        resolvedBy: { [Op.ne]: null },
+      },
+      group: ['resolvedBy'],
+      order: [[literal('count'), 'DESC']],
+      limit: Number(limit),
+      raw: true,
+    });
+
+    // Get admin info for disputes resolved
+    const disputeResolverIds = disputesResolved.map((d: any) => d.resolvedBy);
+    const disputeResolvers = await User.findAll({
+      where: { id: { [Op.in]: disputeResolverIds } },
+      attributes: ['id', 'name', 'email', 'avatar', 'adminRole'],
+    });
+    const disputeResolversMap = new Map(disputeResolvers.map(u => [u.id, u]));
+
+    // Top users who created tickets
+    const ticketsCreated = await Ticket.findAll({
+      attributes: [
+        'createdBy',
+        [fn('COUNT', col('id')), 'count'],
+      ],
+      where: {
+        createdAt: { [Op.gte]: dateLimit },
+      },
+      group: ['createdBy'],
+      order: [[literal('count'), 'DESC']],
+      limit: Number(limit),
+      raw: true,
+    });
+
+    // Get user info for tickets created
+    const ticketCreatorIds = ticketsCreated.map((t: any) => t.createdBy);
+    const ticketCreators = await User.findAll({
+      where: { id: { [Op.in]: ticketCreatorIds } },
+      attributes: ['id', 'name', 'email', 'avatar'],
+    });
+    const ticketCreatorsMap = new Map(ticketCreators.map(u => [u.id, u]));
+
+    // Top admins who resolved tickets (status = resolved or closed)
+    const ticketsResolved = await Ticket.findAll({
+      attributes: [
+        'assignedTo',
+        [fn('COUNT', col('id')), 'count'],
+      ],
+      where: {
+        updatedAt: { [Op.gte]: dateLimit },
+        status: { [Op.in]: ['resolved', 'closed'] },
+        assignedTo: { [Op.ne]: null },
+      },
+      group: ['assignedTo'],
+      order: [[literal('count'), 'DESC']],
+      limit: Number(limit),
+      raw: true,
+    });
+
+    // Get admin info for tickets resolved
+    const ticketResolverIds = ticketsResolved.map((t: any) => t.assignedTo);
+    const ticketResolvers = await User.findAll({
+      where: { id: { [Op.in]: ticketResolverIds } },
+      attributes: ['id', 'name', 'email', 'avatar', 'adminRole'],
+    });
+    const ticketResolversMap = new Map(ticketResolvers.map(u => [u.id, u]));
+
+    // Top clients who created contracts
+    const contractsCreatedByClient = await Contract.findAll({
+      attributes: [
+        'clientId',
+        [fn('COUNT', col('id')), 'count'],
+        [fn('SUM', col('price')), 'totalValue'],
+      ],
+      where: {
+        createdAt: { [Op.gte]: dateLimit },
+      },
+      group: ['clientId'],
+      order: [[literal('count'), 'DESC']],
+      limit: Number(limit),
+      raw: true,
+    });
+
+    // Get user info for contract creators
+    const contractCreatorIds = contractsCreatedByClient.map((c: any) => c.clientId);
+    const contractCreators = await User.findAll({
+      where: { id: { [Op.in]: contractCreatorIds } },
+      attributes: ['id', 'name', 'email', 'avatar'],
+    });
+    const contractCreatorsMap = new Map(contractCreators.map(u => [u.id, u]));
+
+    // Top doers who completed contracts
+    const contractsCompletedByDoer = await Contract.findAll({
+      attributes: [
+        'doerId',
+        [fn('COUNT', col('id')), 'count'],
+        [fn('SUM', col('price')), 'totalValue'],
+      ],
+      where: {
+        updatedAt: { [Op.gte]: dateLimit },
+        status: 'completed',
+      },
+      group: ['doerId'],
+      order: [[literal('count'), 'DESC']],
+      limit: Number(limit),
+      raw: true,
+    });
+
+    // Get user info for doers
+    const doerIds = contractsCompletedByDoer.map((c: any) => c.doerId);
+    const doers = await User.findAll({
+      where: { id: { [Op.in]: doerIds } },
+      attributes: ['id', 'name', 'email', 'avatar'],
+    });
+    const doersMap = new Map(doers.map(u => [u.id, u]));
+
+    // Top admins who released payments
+    const paymentsReleased = await Payment.findAll({
+      attributes: [
+        'escrowReleasedBy',
+        [fn('COUNT', col('id')), 'count'],
+        [fn('SUM', col('amount')), 'totalAmount'],
+      ],
+      where: {
+        escrowReleasedAt: { [Op.gte]: dateLimit },
+        escrowReleasedBy: { [Op.ne]: null },
+      },
+      group: ['escrowReleasedBy'],
+      order: [[literal('count'), 'DESC']],
+      limit: Number(limit),
+      raw: true,
+    });
+
+    // Get admin info for payment releasers
+    const paymentReleaserIds = paymentsReleased.map((p: any) => p.escrowReleasedBy);
+    const paymentReleasers = await User.findAll({
+      where: { id: { [Op.in]: paymentReleaserIds } },
+      attributes: ['id', 'name', 'email', 'avatar', 'adminRole'],
+    });
+    const paymentReleasersMap = new Map(paymentReleasers.map(u => [u.id, u]));
+
+    // Top clients who created jobs
+    const jobsCreated = await Job.findAll({
+      attributes: [
+        'clientId',
+        [fn('COUNT', col('id')), 'count'],
+        [fn('SUM', col('price')), 'totalValue'],
+      ],
+      where: {
+        createdAt: { [Op.gte]: dateLimit },
+      },
+      group: ['clientId'],
+      order: [[literal('count'), 'DESC']],
+      limit: Number(limit),
+      raw: true,
+    });
+
+    // Get user info for job creators
+    const jobCreatorIds = jobsCreated.map((j: any) => j.clientId);
+    const jobCreators = await User.findAll({
+      where: { id: { [Op.in]: jobCreatorIds } },
+      attributes: ['id', 'name', 'email', 'avatar'],
+    });
+    const jobCreatorsMap = new Map(jobCreators.map(u => [u.id, u]));
+
+    res.json({
+      success: true,
+      data: {
+        period,
+        dateLimit,
+        disputes: {
+          opened: disputesOpened.map((d: any) => ({
+            user: disputeOpenersMap.get(d.initiatedBy),
+            count: parseInt(d.count),
+          })),
+          resolved: disputesResolved.map((d: any) => ({
+            admin: disputeResolversMap.get(d.resolvedBy),
+            count: parseInt(d.count),
+          })),
+        },
+        tickets: {
+          created: ticketsCreated.map((t: any) => ({
+            user: ticketCreatorsMap.get(t.createdBy),
+            count: parseInt(t.count),
+          })),
+          resolved: ticketsResolved.map((t: any) => ({
+            admin: ticketResolversMap.get(t.assignedTo),
+            count: parseInt(t.count),
+          })),
+        },
+        contracts: {
+          createdByClient: contractsCreatedByClient.map((c: any) => ({
+            user: contractCreatorsMap.get(c.clientId),
+            count: parseInt(c.count),
+            totalValue: parseFloat(c.totalValue) || 0,
+          })),
+          completedByDoer: contractsCompletedByDoer.map((c: any) => ({
+            user: doersMap.get(c.doerId),
+            count: parseInt(c.count),
+            totalValue: parseFloat(c.totalValue) || 0,
+          })),
+        },
+        payments: {
+          released: paymentsReleased.map((p: any) => ({
+            admin: paymentReleasersMap.get(p.escrowReleasedBy),
+            count: parseInt(p.count),
+            totalAmount: parseFloat(p.totalAmount) || 0,
+          })),
+        },
+        jobs: {
+          created: jobsCreated.map((j: any) => ({
+            user: jobCreatorsMap.get(j.clientId),
+            count: parseInt(j.count),
+            totalValue: parseFloat(j.totalValue) || 0,
+          })),
+        },
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
+// @route   GET /api/admin/analytics/user/:userId/activity
+// @desc    Métricas de actividad de un usuario específico
+// @access  Admin+
+router.get("/user/:userId/activity", async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findByPk(userId, {
+      attributes: ['id', 'name', 'email', 'avatar', 'adminRole', 'createdAt'],
+    });
+
+    if (!user) {
+      res.status(404).json({ success: false, message: "Usuario no encontrado" });
+      return;
+    }
+
+    // Disputes opened by this user
+    const disputesOpened = await Dispute.count({
+      where: { initiatedBy: userId },
+    });
+
+    // Disputes resolved by this user (if admin)
+    const disputesResolved = await Dispute.count({
+      where: { resolvedBy: userId },
+    });
+
+    // Disputes against this user
+    const disputesAgainst = await Dispute.count({
+      where: { against: userId },
+    });
+
+    // Tickets created by this user
+    const ticketsCreated = await Ticket.count({
+      where: { createdBy: userId },
+    });
+
+    // Tickets resolved by this user (if admin)
+    const ticketsResolved = await Ticket.count({
+      where: {
+        assignedTo: userId,
+        status: { [Op.in]: ['resolved', 'closed'] },
+      },
+    });
+
+    // Contracts as client
+    const contractsAsClient = await Contract.count({
+      where: { clientId: userId },
+    });
+
+    const contractsCompletedAsClient = await Contract.count({
+      where: { clientId: userId, status: 'completed' },
+    });
+
+    // Contracts as doer
+    const contractsAsDoer = await Contract.count({
+      where: { doerId: userId },
+    });
+
+    const contractsCompletedAsDoer = await Contract.count({
+      where: { doerId: userId, status: 'completed' },
+    });
+
+    // Jobs created
+    const jobsCreated = await Job.count({
+      where: { clientId: userId },
+    });
+
+    // Payments released (if admin)
+    const paymentsReleased = await Payment.count({
+      where: { escrowReleasedBy: userId },
+    });
+
+    // Total spent as client
+    const totalSpentResult = await Contract.sum('price', {
+      where: { clientId: userId, status: 'completed' },
+    });
+
+    // Total earned as doer
+    const totalEarnedResult = await Contract.sum('workerPaymentAmount', {
+      where: { doerId: userId, status: 'completed' },
+    });
+
+    res.json({
+      success: true,
+      data: {
+        user,
+        activity: {
+          disputes: {
+            opened: disputesOpened,
+            resolved: disputesResolved,
+            against: disputesAgainst,
+          },
+          tickets: {
+            created: ticketsCreated,
+            resolved: ticketsResolved,
+          },
+          contracts: {
+            asClient: {
+              total: contractsAsClient,
+              completed: contractsCompletedAsClient,
+            },
+            asDoer: {
+              total: contractsAsDoer,
+              completed: contractsCompletedAsDoer,
+            },
+          },
+          jobs: {
+            created: jobsCreated,
+          },
+          payments: {
+            released: paymentsReleased,
+          },
+          financials: {
+            totalSpent: totalSpentResult || 0,
+            totalEarned: totalEarnedResult || 0,
+          },
+        },
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
 
 // @route   GET /api/admin/analytics/export
 // @desc    Exportar datos (CSV/JSON)

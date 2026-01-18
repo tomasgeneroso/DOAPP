@@ -95,6 +95,11 @@ const getNotificationUrl = (notification: Notification): string | null => {
     return notification.actionUrl;
   }
 
+  // Special case: Banking info required notification
+  if (notification.data?.requiresBankingInfo) {
+    return '/settings?tab=banking';
+  }
+
   // Generate URL based on relatedModel and relatedId
   if (notification.relatedModel && notification.relatedId) {
     switch (notification.relatedModel.toLowerCase()) {
@@ -379,7 +384,9 @@ export default function NotificationDropdown() {
                       </p>
                       {getNotificationUrl(notification) && (
                         <span className="inline-flex items-center gap-1 text-xs text-sky-600 dark:text-sky-400 mt-1">
-                          {notification.actionText || 'Ver detalles'}
+                          {notification.data?.requiresBankingInfo
+                            ? 'Configurar datos bancarios'
+                            : (notification.actionText || 'Ver detalles')}
                           <ExternalLink className="h-3 w-3" />
                         </span>
                       )}

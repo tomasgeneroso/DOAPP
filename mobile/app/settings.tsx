@@ -278,7 +278,7 @@ export default function SettingsScreen() {
           <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
             <TouchableOpacity
               style={styles.settingRow}
-              onPress={() => Alert.alert('Centro de ayuda', 'Próximamente')}
+              onPress={() => router.push('/help')}
             >
               <View style={styles.settingLeft}>
                 <HelpCircle size={20} color={themeColors.text.secondary} />

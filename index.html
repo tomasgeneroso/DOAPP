@@ -24,6 +24,15 @@
     <meta name="twitter:image" content="https://doapparg.site/og-image.png" />
 
     <title>DoApp</title>
+
+    <!-- Google Analytics 4 -->
+    <!-- El ID se configura dinámicamente desde React, pero el script base debe estar aquí -->
+    <script>
+      // Inicializar dataLayer antes de que cargue gtag
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+    </script>
   </head>
 
   <body>

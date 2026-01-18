@@ -99,12 +99,29 @@ class EmailService {
           tls: {
             rejectUnauthorized: false, // Útil para certificados auto-firmados
           },
+          // Timeouts para evitar bloqueos
+          connectionTimeout: 10000, // 10 segundos
+          greetingTimeout: 10000,
+          socketTimeout: 30000,
+          // Pool de conexiones
+          pool: true,
+          maxConnections: 3,
+          maxMessages: 100,
         });
 
-        // Verificar conexión
+        // Verificar conexión (sin bloquear)
         this.smtpTransporter.verify((error: any, success: any) => {
           if (error) {
-            console.error("❌ SMTP connection verification failed:", error);
+            // Clasificar el tipo de error
+            const errorMessage = error.message || String(error);
+            if (errorMessage.includes('EDNS') || errorMessage.includes('queryA') || errorMessage.includes('getaddrinfo')) {
+              console.warn("⚠️  SMTP DNS resolution failed. Emails will retry on send.");
+              console.warn(`   Host: ${smtpHost} - Check DNS configuration or network connectivity.`);
+            } else if (errorMessage.includes('ETIMEDOUT') || errorMessage.includes('ECONNREFUSED')) {
+              console.warn("⚠️  SMTP connection timeout/refused. Server may be unreachable.");
+            } else {
+              console.error("❌ SMTP connection verification failed:", errorMessage);
+            }
           } else {
             console.log("✅ SMTP server is ready to send emails");
           }
@@ -191,9 +208,9 @@ class EmailService {
   }
 
   /**
-   * Send email via SMTP
+   * Send email via SMTP with retry logic for transient errors
    */
-  private async sendViaSMTP(options: EmailOptions): Promise<boolean> {
+  private async sendViaSMTP(options: EmailOptions, retries = 2): Promise<boolean> {
     try {
       const smtpFromEmail = process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER;
       const smtpFromName = process.env.SMTP_FROM_NAME || 'DOAPP';
@@ -212,8 +229,31 @@ class EmailService {
       console.log(`✅ Email sent via SMTP to ${options.to}`);
       console.log(`📧 Message ID: ${info.messageId}`);
       return true;
-    } catch (error) {
-      console.error("SMTP error:", error);
+    } catch (error: any) {
+      const errorMessage = error.message || String(error);
+
+      // Check if it's a transient DNS/network error
+      const isTransientError =
+        errorMessage.includes('EDNS') ||
+        errorMessage.includes('queryA') ||
+        errorMessage.includes('getaddrinfo') ||
+        errorMessage.includes('ETIMEDOUT') ||
+        errorMessage.includes('ECONNRESET') ||
+        errorMessage.includes('ENOTFOUND');
+
+      if (isTransientError && retries > 0) {
+        console.warn(`⚠️  SMTP transient error, retrying in 2s... (${retries} retries left)`);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        return this.sendViaSMTP(options, retries - 1);
+      }
+
+      // Log different error types appropriately
+      if (isTransientError) {
+        console.warn(`⚠️  SMTP DNS/Network error (email not sent to ${options.to}):`, errorMessage);
+        console.warn("   This is likely a temporary network issue. Email will be retried on next action.");
+      } else {
+        console.error("❌ SMTP error:", errorMessage);
+      }
       return false;
     }
   }

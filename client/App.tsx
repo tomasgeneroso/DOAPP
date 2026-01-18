@@ -1,8 +1,9 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./hooks/useAuth";
 import { HelmetProvider } from "react-helmet-async";
 import { ToastProvider } from "./components/ui/Toast";
 import { FacebookSDK } from "./components/FacebookSDK";
+import { GoogleAnalytics } from "./components/GoogleAnalytics";
 import { OnboardingProvider } from "./hooks/useOnboarding";
 import OnboardingTooltip from "./components/onboarding/OnboardingTooltip";
 import { useEffect } from "react";
@@ -40,9 +41,9 @@ import BlogDetailScreen from "./pages/BlogDetailScreen";
 import CreateBlogScreen from "./pages/CreateBlogScreen";
 import ChatScreen from "./pages/ChatScreen";
 import CreateTicket from "./pages/CreateTicket";
+import TicketDetail from "./pages/TicketDetail";
 import CreateDispute from "./pages/CreateDispute";
 import DisputeDetail from "./pages/DisputeDetail";
-import MyDisputes from "./pages/MyDisputes";
 import HelpPage from "./pages/HelpPage";
 import PortfolioManager from "./pages/PortfolioManager";
 import CreatePortfolioPost from "./pages/CreatePortfolioPost";
@@ -73,14 +74,17 @@ import AdminAnalytics from "./pages/admin/Analytics";
 import AdminAnalyticsUsers from "./pages/admin/AnalyticsUsers";
 import AdminAnalyticsContracts from "./pages/admin/AnalyticsContracts";
 import AdminAnalyticsTickets from "./pages/admin/AnalyticsTickets";
+import AdminAnalyticsUserActivity from "./pages/admin/AnalyticsUserActivity";
+import AdminAnalyticsUserActivityDetail from "./pages/admin/AnalyticsUserActivityDetail";
 import AdminSettings from "./pages/admin/Settings";
 import AdminContracts from "./pages/admin/Contracts";
 import AdminCreateContract from "./pages/admin/CreateContract";
 import AdminTickets from "./pages/admin/Tickets";
-import TicketDetail from "./pages/admin/TicketDetail";
+import AdminTicketDetail from "./pages/admin/TicketDetail";
 import AdminCreateTicket from "./pages/admin/CreateTicket";
 import AdminDisputeManager from "./pages/admin/AdminDisputeManager";
 import AdminCreateDispute from "./pages/admin/CreateDispute";
+import AdminDisputeDetail from "./pages/admin/AdminDisputeDetail";
 import AdminWithdrawalManager from "./pages/admin/AdminWithdrawalManager";
 import FinancialTransactions from "./pages/admin/FinancialTransactions";
 import PendingPayments from "./pages/admin/PendingPayments";
@@ -105,6 +109,7 @@ export default function App() {
           <ToastProvider>
             <FacebookSDK />
             <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+              <GoogleAnalytics />
               <OnboardingProvider>
                 <OnboardingTooltip />
                 <Routes>
@@ -383,12 +388,20 @@ export default function App() {
                 }
               />
               <Route
-                path="/my-disputes"
+                path="/tickets/:id"
                 element={
                   <ProtectedRoute>
-                    <MyDisputes />
+                    <TicketDetail />
                   </ProtectedRoute>
                 }
+              />
+              <Route
+                path="/my-disputes"
+                element={<Navigate to="/help" replace />}
+              />
+              <Route
+                path="/disputes"
+                element={<Navigate to="/help" replace />}
               />
               <Route
                 path="/disputes/create"
@@ -468,17 +481,20 @@ export default function App() {
               <Route path="analytics/users" element={<AdminAnalyticsUsers />} />
               <Route path="analytics/contracts" element={<AdminAnalyticsContracts />} />
               <Route path="analytics/tickets" element={<AdminAnalyticsTickets />} />
+              <Route path="analytics/user-activity" element={<AdminAnalyticsUserActivity />} />
+              <Route path="analytics/user/:userId" element={<AdminAnalyticsUserActivityDetail />} />
               <Route path="settings" element={<AdminSettings />} />
               <Route path="contracts" element={<AdminContracts />} />
               <Route path="contracts/create" element={<AdminCreateContract />} />
               <Route path="disputes" element={<AdminDisputeManager />} />
               <Route path="disputes/create" element={<AdminCreateDispute />} />
+              <Route path="disputes/:id" element={<AdminDisputeDetail />} />
               <Route path="withdrawals" element={<AdminWithdrawalManager />} />
               <Route path="pending-payments" element={<PendingPayments />} />
               <Route path="financial-transactions" element={<FinancialTransactions />} />
               <Route path="tickets" element={<AdminTickets />} />
               <Route path="tickets/create" element={<AdminCreateTicket />} />
-              <Route path="tickets/:id" element={<TicketDetail />} />
+              <Route path="tickets/:id" element={<AdminTicketDetail />} />
               <Route path="jobs" element={<AdminJobManager />} />
               <Route path="family-codes" element={<AdminFamilyCodes />} />
               <Route path="performance" element={<AdminPerformanceMonitor />} />

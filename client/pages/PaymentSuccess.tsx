@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle, Clock, Users, FileText, ArrowRight, Crown, BarChart3, Shield, Sparkles } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
+import { analytics } from "../utils/analytics";
 
 interface PaymentConfirmation {
   token: string;
@@ -136,13 +137,24 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
           console.log("✅ Usuario refrescado con nueva membresía");
         }
 
+        const paymentAmount = data.data?.amount || data.amount || data.data?.payment?.amount || 0;
+        const transactionId = payment_id || collection_id || "";
+
+        // Track successful payment
+        analytics.paymentSuccess(
+          paymentAmount,
+          transactionId,
+          'mercadopago',
+          paymentType
+        );
+
         setConfirmation({
-          token: payment_id || collection_id || "",
+          token: transactionId,
           payerId: preference_id || "",
           status: "confirmed",
           contractId: data.data?.contractId,
           jobId: data.data?.jobId,
-          amount: data.data?.amount || data.amount || data.data?.payment?.amount || 0,
+          amount: paymentAmount,
         });
       } catch (error: any) {
         console.error("❌❌❌ Payment capture error:", error);

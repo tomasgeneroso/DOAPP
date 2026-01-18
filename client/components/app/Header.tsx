@@ -324,15 +324,6 @@ export default function Header() {
                       Mis Trabajos
                     </Link>
                     <Link
-                      to="/my-disputes"
-                      onClick={closeMenu}
-                      className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
-                      role="menuitem"
-                    >
-                      <AlertCircle className="h-4 w-4" aria-hidden="true" />
-                      Mis Disputas
-                    </Link>
-                    <Link
                       to="/settings"
                       onClick={closeMenu}
                       className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
