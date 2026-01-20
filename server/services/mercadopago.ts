@@ -114,17 +114,6 @@ class MercadoPagoPaymentService {
         throw new Error('MercadoPago is not initialized. Check your MERCADOPAGO_ACCESS_TOKEN.');
       }
 
-      // Debug log
-      console.log('🔍 [DEBUG] Creating payment with params:', {
-        amount,
-        currency,
-        description,
-        hasSuccessUrl: !!successUrl,
-        hasFailureUrl: !!cancelUrl,
-        successUrl,
-        cancelUrl,
-      });
-
       // Create preference following MercadoPago Checkout Pro documentation
       const preferenceData: any = {
         items: [
@@ -159,19 +148,11 @@ class MercadoPagoPaymentService {
         };
         // Don't use auto_return - let MercadoPago show the confirmation page
         // preferenceData.auto_return = 'approved';
-        console.log('✅ [DEBUG] Added back_urls to preference (without auto_return)');
-      } else {
-        console.warn('⚠️ [DEBUG] No successUrl provided, skipping back_urls');
       }
-
-      console.log('🔍 [DEBUG] Final preferenceData:', JSON.stringify(preferenceData, null, 2));
 
       const preference = await this.client.create({ body: preferenceData });
 
       console.log(`✅ Payment preference created with MercadoPago:`, preference.id);
-      console.log('🔍 [DEBUG] Preference status:', preference.status);
-      console.log('🔍 [DEBUG] Init point:', preference.init_point);
-      console.log('🔍 [DEBUG] Sandbox init point:', preference.sandbox_init_point);
 
       return {
         paymentId: preference.id || `mp_${Date.now()}`,

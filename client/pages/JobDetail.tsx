@@ -2611,6 +2611,7 @@ export default function JobDetail() {
                   <button
                     onClick={() => setShowBudgetModal(true)}
                     className="w-full flex items-center justify-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors"
+                    title="Aumentar o disminuir el presupuesto de este trabajo"
                   >
                     <DollarSign className="h-4 w-4" />
                     Cambiar presupuesto
@@ -2620,7 +2621,7 @@ export default function JobDetail() {
                     <button
                       onClick={handlePauseJob}
                       disabled={actionLoading || !canPauseJob()}
-                      title={!canPauseJob() ? "No puedes pausar con menos de 24h de anticipación" : ""}
+                      title={!canPauseJob() ? "No puedes pausar con menos de 24h de anticipación" : "Pausar temporalmente este trabajo para dejar de recibir postulaciones"}
                       className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-amber-600 hover:bg-amber-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {actionLoading ? (
@@ -2635,7 +2636,7 @@ export default function JobDetail() {
                     <button
                       onClick={() => setShowCancelModal(true)}
                       disabled={actionLoading || !canCancelJob()}
-                      title={!canCancelJob() ? "No puedes cancelar con menos de 24h de anticipación" : ""}
+                      title={!canCancelJob() ? "No puedes cancelar con menos de 24h de anticipación" : "Cancelar este trabajo y recibir reembolso si corresponde"}
                       className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-red-600 hover:bg-red-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <XCircle className="h-4 w-4" />

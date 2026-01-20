@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePermissions } from '../hooks/usePermissions';
-import { ArrowLeft, AlertCircle } from 'lucide-react';
+import { ArrowLeft, AlertCircle, Paperclip, X } from 'lucide-react';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const CreateTicket: React.FC = () => {
   const navigate = useNavigate();
@@ -16,6 +16,7 @@ const CreateTicket: React.FC = () => {
     message: '',
   });
 
+  const [attachments, setAttachments] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -36,6 +37,39 @@ const CreateTicket: React.FC = () => {
     });
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+
+    // Validate file types
+    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
+    const invalidFiles = files.filter(file => !validTypes.includes(file.type));
+
+    if (invalidFiles.length > 0) {
+      setError('Solo se permiten archivos JPG, PNG, WebP y PDF');
+      return;
+    }
+
+    // Validate file size (10MB max)
+    const oversizedFiles = files.filter(file => file.size > 10 * 1024 * 1024);
+    if (oversizedFiles.length > 0) {
+      setError('Los archivos no pueden superar los 10MB');
+      return;
+    }
+
+    // Limit to 5 files
+    if (attachments.length + files.length > 5) {
+      setError('Máximo 5 archivos adjuntos');
+      return;
+    }
+
+    setAttachments([...attachments, ...files]);
+    setError('');
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(attachments.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -43,13 +77,26 @@ const CreateTicket: React.FC = () => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_URL}/api/tickets`, {
+
+      // Create FormData instead of JSON
+      const formDataToSend = new FormData();
+      formDataToSend.append('subject', formData.subject);
+      formDataToSend.append('category', formData.category);
+      formDataToSend.append('priority', formData.priority);
+      formDataToSend.append('message', formData.message);
+
+      // Append attachments
+      attachments.forEach((file) => {
+        formDataToSend.append('attachments', file);
+      });
+
+      const response = await fetch(`${API_URL}/tickets`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          // Don't set Content-Type - browser will set it with boundary
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(formData),
+        body: formDataToSend,
       });
 
       const data = await response.json();
@@ -176,6 +223,60 @@ const CreateTicket: React.FC = () => {
                 className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-gray-900 dark:text-white resize-none"
                 placeholder="Describe tu problema o pregunta con el mayor detalle posible..."
               />
+            </div>
+
+            {/* Attachments */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Archivos adjuntos (opcional)
+              </label>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 transition">
+                    <Paperclip className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                    <span className="text-sm text-gray-700 dark:text-gray-300">Seleccionar archivos</span>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    JPG, PNG, WebP o PDF (máx. 10MB, hasta 5 archivos)
+                  </span>
+                </div>
+
+                {/* Attachment list */}
+                {attachments.length > 0 && (
+                  <div className="space-y-2">
+                    {attachments.map((file, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between bg-gray-50 dark:bg-gray-700 px-3 py-2 rounded-lg"
+                      >
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                          <Paperclip className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                          <span className="text-sm text-gray-700 dark:text-gray-300 truncate">
+                            {file.name}
+                          </span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+                            ({(file.size / 1024).toFixed(1)} KB)
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeAttachment(index)}
+                          className="ml-2 p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded transition"
+                        >
+                          <X className="h-4 w-4 text-gray-500 dark:text-gray-400" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Submit Button */}

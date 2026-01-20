@@ -1790,6 +1790,201 @@ class EmailService {
       console.error('Error sending banking info required email:', error);
     }
   }
+
+  /**
+   * Send ticket created notification
+   */
+  async sendTicketCreatedEmail(
+    ticketId: string,
+    ticketNumber: string,
+    subject: string,
+    userEmail: string,
+    userName: string
+  ): Promise<void> {
+    try {
+      const ticketUrl = `${config.clientUrl}/tickets/${ticketId}`;
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+              .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+              .button { display: inline-block; padding: 12px 30px; background: #0ea5e9; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+              .info-box { background: #e0f2fe; border-left: 4px solid #0ea5e9; padding: 15px; margin: 20px 0; }
+              .ticket-number { font-size: 24px; font-weight: bold; color: #0284c7; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>🎫 Ticket de Soporte Creado</h1>
+              </div>
+              <div class="content">
+                <p>Hola ${userName},</p>
+                <p>Tu ticket de soporte ha sido creado exitosamente.</p>
+                <div class="info-box">
+                  <p><strong>Número de ticket:</strong> <span class="ticket-number">${ticketNumber}</span></p>
+                  <p><strong>Asunto:</strong> ${subject}</p>
+                </div>
+                <p><strong>¿Qué sigue?</strong></p>
+                <ul>
+                  <li>Nuestro equipo revisará tu consulta</li>
+                  <li>Recibirás una respuesta lo antes posible</li>
+                  <li>Puedes agregar más información en cualquier momento</li>
+                </ul>
+                <p>Te notificaremos por email cuando haya actualizaciones en tu ticket.</p>
+                <a href="${ticketUrl}" class="button">Ver Ticket</a>
+                <p style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 14px;">
+                  Este es un correo automático, por favor no respondas. Para agregar información, usa el enlace de arriba.
+                </p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
+
+      await this.sendEmail({
+        to: userEmail,
+        subject: `Ticket ${ticketNumber} creado - ${subject}`,
+        html,
+      });
+
+      console.log(`📧 Ticket created email sent to ${userEmail}`);
+    } catch (error) {
+      console.error('Error sending ticket created email:', error);
+    }
+  }
+
+  /**
+   * Send ticket message notification
+   */
+  async sendTicketMessageEmail(
+    ticketId: string,
+    ticketNumber: string,
+    subject: string,
+    recipientEmail: string,
+    recipientName: string,
+    senderName: string,
+    message: string,
+    isAdminReply: boolean
+  ): Promise<void> {
+    try {
+      const ticketUrl = `${config.clientUrl}/tickets/${ticketId}`;
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+              .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+              .button { display: inline-block; padding: 12px 30px; background: #0ea5e9; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+              .message-box { background: white; border-left: 4px solid #0ea5e9; padding: 20px; margin: 20px 0; border-radius: 5px; }
+              .admin-badge { display: inline-block; background: #10b981; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>💬 Nuevo Mensaje en tu Ticket</h1>
+              </div>
+              <div class="content">
+                <p>Hola ${recipientName},</p>
+                <p>${isAdminReply ? '<span class="admin-badge">SOPORTE</span> ' : ''}${senderName} ha respondido en tu ticket <strong>${ticketNumber}</strong>:</p>
+                <div class="message-box">
+                  <p><strong>${subject}</strong></p>
+                  <p style="margin-top: 15px;">${message.substring(0, 300)}${message.length > 300 ? '...' : ''}</p>
+                </div>
+                <p>Haz clic en el botón para ver el mensaje completo y responder.</p>
+                <a href="${ticketUrl}" class="button">Ver Ticket</a>
+                <p style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 14px;">
+                  Este es un correo automático, por favor no respondas. Para responder, usa el enlace de arriba.
+                </p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
+
+      await this.sendEmail({
+        to: recipientEmail,
+        subject: `Nuevo mensaje en ticket ${ticketNumber}`,
+        html,
+      });
+
+      console.log(`📧 Ticket message email sent to ${recipientEmail}`);
+    } catch (error) {
+      console.error('Error sending ticket message email:', error);
+    }
+  }
+
+  /**
+   * Send dispute message notification
+   */
+  async sendDisputeMessageEmail(
+    disputeId: string,
+    recipientEmail: string,
+    recipientName: string,
+    senderName: string,
+    message: string,
+    isAdminMessage: boolean
+  ): Promise<void> {
+    try {
+      const disputeUrl = `${config.clientUrl}/disputes/${disputeId}`;
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+              .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
+              .button { display: inline-block; padding: 12px 30px; background: #f97316; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+              .message-box { background: white; border-left: 4px solid #f97316; padding: 20px; margin: 20px 0; border-radius: 5px; }
+              .admin-badge { display: inline-block; background: #10b981; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>⚠️ Nuevo Mensaje en Disputa</h1>
+              </div>
+              <div class="content">
+                <p>Hola ${recipientName},</p>
+                <p>${isAdminMessage ? '<span class="admin-badge">ADMINISTRADOR</span> ' : ''}${senderName} ha enviado un mensaje en la disputa:</p>
+                <div class="message-box">
+                  <p>${message.substring(0, 300)}${message.length > 300 ? '...' : ''}</p>
+                </div>
+                <p>Es importante que revises este mensaje y respondas si es necesario para ayudar a resolver la disputa.</p>
+                <a href="${disputeUrl}" class="button">Ver Disputa</a>
+                <p style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 14px;">
+                  Este es un correo automático, por favor no respondas. Para responder, usa el enlace de arriba.
+                </p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
+
+      await this.sendEmail({
+        to: recipientEmail,
+        subject: `Nuevo mensaje en disputa - DoApp`,
+        html,
+      });
+
+      console.log(`📧 Dispute message email sent to ${recipientEmail}`);
+    } catch (error) {
+      console.error('Error sending dispute message email:', error);
+    }
+  }
 }
 
 export default new EmailService();

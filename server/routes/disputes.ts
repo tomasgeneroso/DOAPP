@@ -554,10 +554,26 @@ router.post(
       // Reload with associations
       await dispute.reload({
         include: [
-          { model: User, as: 'initiator', attributes: ['name', 'avatar'] },
-          { model: User, as: 'defendant', attributes: ['name', 'avatar'] },
+          { model: User, as: 'initiator', attributes: ['name', 'avatar', 'email'] },
+          { model: User, as: 'defendant', attributes: ['name', 'avatar', 'email'] },
         ],
       });
+
+      // Send email notification to the other party
+      const sender = await User.findByPk(userId);
+      const recipientId = dispute.initiatedBy === userId ? dispute.against : dispute.initiatedBy;
+      const recipient = await User.findByPk(recipientId);
+
+      if (recipient?.email && sender && message) {
+        await emailService.sendDisputeMessageEmail(
+          id,
+          recipient.email,
+          recipient.name,
+          sender.name,
+          message,
+          isAdmin
+        );
+      }
 
       res.json({
         success: true,

@@ -6,6 +6,8 @@ import { Contract } from "../models/sql/Contract.model.js";
 import { protect, AuthRequest } from "../middleware/auth";
 import { checkPermission } from "../middleware/checkPermission.js";
 import { PERMISSIONS } from "../config/permissions.js";
+import emailService from "../services/email.js";
+import { uploadTicketAttachments, getFileUrl } from "../middleware/upload.js";
 
 const router = Router();
 console.log("🎫 Tickets router created successfully");
@@ -24,26 +26,51 @@ router.post(
   "/",
   protect,
   checkPermission(PERMISSIONS.TICKET_CREATE),
-  [
-    body("subject").notEmpty().withMessage("El asunto es requerido").trim(),
-    body("category").isIn(["bug", "feature", "support", "report_user", "report_contract", "dispute", "payment", "other"]).withMessage("Categoría inválida"),
-    body("priority").optional().isIn(["low", "medium", "high", "urgent"]),
-    body("message").notEmpty().withMessage("El mensaje es requerido").trim(),
-    body("relatedUser").optional().isUUID(),
-    body("relatedContract").optional().isUUID(),
-  ],
+  uploadTicketAttachments,
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
+      // Validate required fields manually after upload
+      const { subject, category, priority, message, relatedUser, relatedContract, tags } = req.body;
+
+      if (!subject || !subject.trim()) {
         res.status(400).json({
           success: false,
-          errors: errors.array(),
+          message: "El asunto es requerido",
         });
         return;
       }
 
-      const { subject, category, priority, message, relatedUser, relatedContract, tags } = req.body;
+      if (!message || !message.trim()) {
+        res.status(400).json({
+          success: false,
+          message: "El mensaje es requerido",
+        });
+        return;
+      }
+
+      const validCategories = ["bug", "feature", "support", "report_user", "report_contract", "dispute", "payment", "other"];
+      if (!category || !validCategories.includes(category)) {
+        res.status(400).json({
+          success: false,
+          message: "Categoría inválida",
+        });
+        return;
+      }
+
+      const files = (req as any).files as Express.Multer.File[];
+
+      // Process uploaded files
+      const attachments = files && files.length > 0 ? files.map((file) => {
+        let fileType: "image" | "pdf" = file.mimetype === "application/pdf" ? "pdf" : "image";
+
+        return {
+          fileName: file.originalname,
+          fileUrl: getFileUrl(file.path, req),
+          fileType,
+          fileSize: file.size,
+          uploadedAt: new Date(),
+        };
+      }) : [];
 
       // Generate ticket number
       const ticketCount = await Ticket.count();
@@ -58,11 +85,13 @@ router.post(
         relatedUser,
         relatedContract,
         tags: tags || [],
+        attachments,
         messages: [
           {
             author: req.user.id,
             message,
             isInternal: false,
+            attachments: attachments.length > 0 ? attachments : undefined,
           },
         ],
       });
@@ -76,6 +105,18 @@ router.post(
           },
         ],
       });
+
+      // Send email notification to user
+      const user = await User.findByPk(req.user.id);
+      if (user?.email) {
+        await emailService.sendTicketCreatedEmail(
+          ticket.id,
+          ticketNumber,
+          subject,
+          user.email,
+          user.name
+        );
+      }
 
       res.status(201).json({
         success: true,
@@ -211,6 +252,7 @@ router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
 router.post(
   "/:id/messages",
   protect,
+  uploadTicketAttachments,
   [body("message").notEmpty().withMessage("El mensaje es requerido").trim()],
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -224,6 +266,20 @@ router.post(
       }
 
       const ticket = await Ticket.findByPk(req.params.id);
+      const files = (req as any).files as Express.Multer.File[];
+
+      // Process uploaded files
+      const attachments = files && files.length > 0 ? files.map((file) => {
+        let fileType: "image" | "pdf" = file.mimetype === "application/pdf" ? "pdf" : "image";
+
+        return {
+          fileName: file.originalname,
+          fileUrl: getFileUrl(file.path, req),
+          fileType,
+          fileSize: file.size,
+          uploadedAt: new Date(),
+        };
+      }) : undefined;
 
       if (!ticket) {
         res.status(404).json({
@@ -254,6 +310,7 @@ router.post(
           author: req.user.id,
           message,
           isInternal: isInternal && isAdmin ? true : false, // Only admins can create internal messages
+          attachments,
           createdAt: new Date(),
         } as any
       ];
@@ -276,6 +333,28 @@ router.post(
           },
         ],
       });
+
+      // Send email notification to the other party
+      const sender = await User.findByPk(req.user.id);
+      const recipient = isOwner && ticket.assignedTo
+        ? await User.findByPk(ticket.assignedTo) // Notify admin if user replied
+        : await User.findByPk(ticket.createdBy); // Notify creator if admin replied
+
+      if (recipient?.email && sender) {
+        // Don't send email to the sender (prevent self-notification)
+        if (recipient.id !== sender.id) {
+          await emailService.sendTicketMessageEmail(
+            ticket.id,
+            ticket.ticketNumber,
+            ticket.subject,
+            recipient.email,
+            recipient.name,
+            sender.name,
+            message,
+            isAdmin
+          );
+        }
+      }
 
       res.json({
         success: true,

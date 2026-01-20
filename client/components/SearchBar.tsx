@@ -251,6 +251,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
                   ? 'bg-white dark:bg-slate-600 text-sky-600 dark:text-sky-400 shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
+              title="Buscar trabajos disponibles por categoría, ubicación o descripción"
             >
               <Briefcase className="h-4 w-4" />
               Trabajos
@@ -263,6 +264,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
                   ? 'bg-white dark:bg-slate-600 text-sky-600 dark:text-sky-400 shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
+              title="Buscar profesionales por nombre de usuario o habilidades"
             >
               <Users className="h-4 w-4" />
               Perfiles
@@ -293,6 +295,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
                   ? "border-sky-500 bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-400"
                   : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
               }`}
+              title="Filtrar por ubicación, categoría, presupuesto y más opciones"
             >
               <SlidersHorizontal className="h-5 w-5" />
               <span className="hidden sm:inline">Filtros</span>

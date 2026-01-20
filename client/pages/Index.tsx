@@ -543,6 +543,13 @@ export default function Index() {
                     <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Transferencia</span>
                   </div>
                 </div>
+
+                {/* Payment Benefits */}
+                <div className="mt-4 text-center max-w-xl">
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">
+                    <span className="font-semibold text-sky-600 dark:text-sky-400">Pagos rápidos:</span> Al usar Mercado Pago, los pagos de los trabajos se acreditarán dentro de las 48 horas posteriores a la finalización del trabajo, sin comisiones bancarias.
+                  </p>
+                </div>
               </div>
             </div>
           </div>

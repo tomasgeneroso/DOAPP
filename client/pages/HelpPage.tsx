@@ -206,6 +206,7 @@ export default function HelpPage() {
                   ? 'text-sky-600 border-b-2 border-sky-500 bg-sky-50 dark:bg-sky-900/20'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
               }`}
+              title="Disputas son reclamos relacionados a contratos y trabajos específicos"
             >
               <span className="flex items-center justify-center gap-2">
                 <AlertCircle className="h-4 w-4" />
@@ -224,6 +225,7 @@ export default function HelpPage() {
                   ? 'text-sky-600 border-b-2 border-sky-500 bg-sky-50 dark:bg-sky-900/20'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
               }`}
+              title="Tickets son para reportar errores, solicitar mejoras o hacer consultas generales"
             >
               <span className="flex items-center justify-center gap-2">
                 <Ticket className="h-4 w-4" />

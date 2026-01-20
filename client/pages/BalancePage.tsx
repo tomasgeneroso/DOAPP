@@ -398,17 +398,31 @@ export default function BalancePage() {
             </div>
           </div>
 
-          {/* Info Box */}
-          <div className="mt-8 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-xl p-6">
-            <h3 className="font-semibold text-sky-900 dark:text-sky-100 mb-2 flex items-center gap-2">
-              <SettingsIcon className="h-5 w-5" />
-              ¿Qué es el saldo a favor?
-            </h3>
-            <p className="text-sm text-sky-800 dark:text-sky-300">
-              Tu saldo a favor se genera cuando reduces el precio de un contrato o cuando recibes
-              reembolsos. Puedes usar este saldo para aumentar el precio de contratos futuros sin
-              necesidad de realizar un nuevo pago.
-            </p>
+          {/* Info Boxes */}
+          <div className="mt-8 space-y-4">
+            <div className="bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-xl p-6">
+              <h3 className="font-semibold text-sky-900 dark:text-sky-100 mb-2 flex items-center gap-2">
+                <SettingsIcon className="h-5 w-5" />
+                ¿Qué es el saldo a favor?
+              </h3>
+              <p className="text-sm text-sky-800 dark:text-sky-300">
+                Tu saldo a favor se genera cuando reduces el precio de un contrato o cuando recibes
+                reembolsos. Puedes usar este saldo para aumentar el precio de contratos futuros sin
+                necesidad de realizar un nuevo pago.
+              </p>
+            </div>
+
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-6">
+              <h3 className="font-semibold text-green-900 dark:text-green-100 mb-2 flex items-center gap-2">
+                <Banknote className="h-5 w-5" />
+                Pagos rápidos con MercadoPago
+              </h3>
+              <p className="text-sm text-green-800 dark:text-green-300">
+                Al usar Mercado Pago, los pagos de los trabajos se acreditarán dentro de las 48 horas
+                posteriores a la finalización del trabajo, <strong>sin comisiones bancarias</strong>.
+                Tu dinero llega de forma rápida y segura.
+              </p>
+            </div>
           </div>
         </div>
       </div>

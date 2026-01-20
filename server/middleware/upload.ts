@@ -295,6 +295,53 @@ export const uploadPostGallery = multer({
 }).array("gallery", 10);
 
 /**
+ * Upload middleware for ticket attachments (images and PDFs)
+ */
+const ticketStorage = multer.diskStorage({
+  destination: (req, file, callback) => {
+    const uploadPath = path.join(UPLOAD_DIR, "tickets");
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    callback(null, uploadPath);
+  },
+  filename: (req, file, callback) => {
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    callback(null, `${uniqueSuffix}-${file.originalname}`);
+  },
+});
+
+// File filter for tickets: images and PDFs only
+const ticketFileFilter = (
+  req: Express.Request,
+  file: Express.Multer.File,
+  callback: multer.FileFilterCallback
+) => {
+  const allowedMimeTypes = [
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+    "application/pdf",
+  ];
+
+  if (allowedMimeTypes.includes(file.mimetype)) {
+    callback(null, true);
+  } else {
+    callback(new Error("Solo se permiten imágenes (JPG, PNG, WebP) y archivos PDF"));
+  }
+};
+
+export const uploadTicketAttachments = multer({
+  storage: ticketStorage,
+  fileFilter: ticketFileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB max per file
+    files: 5, // Max 5 attachments per ticket
+  },
+}).array("attachments", 5);
+
+/**
  * Upload middleware for blog cover image (single)
  */
 export const uploadBlogCover = multer({
@@ -377,6 +424,7 @@ export default {
   uploadPortfolio,
   uploadMixed,
   uploadDisputeAttachments,
+  uploadTicketAttachments,
   uploadBlogCover,
   deleteFile,
   getFileUrl,

@@ -14,7 +14,7 @@ const router = express.Router();
  * Get all withdrawal requests (admin)
  * GET /api/admin/withdrawals
  */
-router.get("/", protect, requireRole(['admin', 'super_admin', 'owner']), async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { limit = 50, offset = 0, status } = req.query;
 
@@ -29,8 +29,8 @@ router.get("/", protect, requireRole(['admin', 'super_admin', 'owner']), async (
       offset: Number(offset),
       order: [['createdAt', 'DESC']],
       include: [
-        { model: User, as: 'user', attributes: ['name', 'email', 'avatar', 'balanceArs'] },
-        { model: User, as: 'processedBy', attributes: ['name', 'email'] }
+        { model: User, as: 'user', attributes: ['id', 'name', 'email', 'avatar', 'balanceArs'] },
+        { model: User, as: 'processor', attributes: ['id', 'name', 'email'] }
       ]
     });
 
@@ -74,7 +74,7 @@ router.get("/", protect, requireRole(['admin', 'super_admin', 'owner']), async (
  * Approve withdrawal request
  * POST /api/admin/withdrawals/:id/approve
  */
-router.post("/:id/approve", protect, requireRole(['admin', 'super_admin', 'owner']), async (req: AuthRequest, res: Response): Promise<void> => {
+router.post("/:id/approve", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const { adminNotes } = req.body;
@@ -134,7 +134,7 @@ router.post("/:id/approve", protect, requireRole(['admin', 'super_admin', 'owner
  * Mark withdrawal as processing
  * POST /api/admin/withdrawals/:id/processing
  */
-router.post("/:id/processing", protect, requireRole(['admin', 'super_admin', 'owner']), async (req: AuthRequest, res: Response): Promise<void> => {
+router.post("/:id/processing", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const adminId = req.user.id;
@@ -179,7 +179,7 @@ router.post("/:id/processing", protect, requireRole(['admin', 'super_admin', 'ow
  * Complete withdrawal (mark as transferred)
  * POST /api/admin/withdrawals/:id/complete
  */
-router.post("/:id/complete", protect, requireRole(['admin', 'super_admin', 'owner']), async (req: AuthRequest, res: Response): Promise<void> => {
+router.post("/:id/complete", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const { proofOfTransfer, adminNotes } = req.body;
@@ -280,7 +280,7 @@ router.post("/:id/complete", protect, requireRole(['admin', 'super_admin', 'owne
  * Reject withdrawal request
  * POST /api/admin/withdrawals/:id/reject
  */
-router.post("/:id/reject", protect, requireRole(['admin', 'super_admin', 'owner']), async (req: AuthRequest, res: Response): Promise<void> => {
+router.post("/:id/reject", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const { rejectionReason } = req.body;
@@ -348,7 +348,7 @@ router.post("/:id/reject", protect, requireRole(['admin', 'super_admin', 'owner'
  * Get withdrawal statistics
  * GET /api/admin/withdrawals/stats
  */
-router.get("/stats", protect, requireRole(['admin', 'super_admin', 'owner']), async (req: AuthRequest, res: Response): Promise<void> => {
+router.get("/stats", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { days = 30 } = req.query;
     const startDate = new Date();

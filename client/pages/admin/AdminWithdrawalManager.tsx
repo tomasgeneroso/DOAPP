@@ -88,8 +88,8 @@ export default function AdminWithdrawalManager() {
       const withdrawalsData = await withdrawalsRes.json();
 
       if (withdrawalsData.success) {
-        setWithdrawals(withdrawalsData.data.withdrawals);
-        setStats(withdrawalsData.data.stats);
+        setWithdrawals(withdrawalsData.withdrawals || []);
+        setStats(withdrawalsData.stats || null);
       }
     } catch (err: any) {
       setError(err.message || 'Error al cargar datos');

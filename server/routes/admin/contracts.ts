@@ -665,6 +665,156 @@ router.post(
   }
 );
 
+// @route   POST /api/admin/contracts/:id/change-status
+// @desc    Cambiar manualmente el estado de un contrato (con auditoría)
+// @access  Admin+
+router.post(
+  "/:id/change-status",
+  requirePermission("contracts:update"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { status, reason, linkedDisputeId } = req.body;
+
+      if (!status) {
+        res.status(400).json({
+          success: false,
+          message: "El nuevo estado es requerido",
+        });
+        return;
+      }
+
+      if (!reason || reason.trim().length < 10) {
+        res.status(400).json({
+          success: false,
+          message: "La razón del cambio es requerida (mínimo 10 caracteres)",
+        });
+        return;
+      }
+
+      const validStatuses = [
+        'pending', 'ready', 'accepted', 'in_progress',
+        'awaiting_confirmation', 'completed', 'cancelled',
+        'rejected', 'disputed'
+      ];
+
+      if (!validStatuses.includes(status)) {
+        res.status(400).json({
+          success: false,
+          message: `Estado inválido. Estados válidos: ${validStatuses.join(', ')}`,
+        });
+        return;
+      }
+
+      const contract = await Contract.findByPk(req.params.id, {
+        include: [
+          { model: User, as: "client", attributes: ["id", "name", "email"] },
+          { model: User, as: "doer", attributes: ["id", "name", "email"] },
+          { model: Job, as: "job", attributes: ["id", "title"] },
+        ],
+      });
+
+      if (!contract) {
+        res.status(404).json({
+          success: false,
+          message: "Contrato no encontrado",
+        });
+        return;
+      }
+
+      const previousStatus = contract.status;
+
+      // Update status with admin metadata
+      const statusChangeLog = {
+        from: previousStatus,
+        to: status,
+        changedBy: req.user.id,
+        changedByName: req.user.name,
+        reason,
+        linkedDisputeId: linkedDisputeId || null,
+        timestamp: new Date(),
+      };
+
+      const statusHistory = contract.statusHistory || [];
+      statusHistory.push(statusChangeLog);
+
+      await contract.update({
+        status,
+        statusHistory,
+      });
+
+      const client = contract.client as any;
+      const doer = contract.doer as any;
+      const job = contract.job as any;
+      const jobTitle = job?.title || "Contrato";
+
+      // Notificar a ambas partes
+      for (const user of [client, doer]) {
+        if (user) {
+          await Notification.create({
+            recipientId: user.id,
+            type: "info",
+            category: "contract",
+            title: "Estado del contrato actualizado",
+            message: `El estado del contrato "${jobTitle}" fue cambiado de ${previousStatus.toUpperCase()} a ${status.toUpperCase()} por un administrador. Razón: ${reason}${linkedDisputeId ? ` (Disputa vinculada: ${linkedDisputeId})` : ''}`,
+            relatedModel: "Contract",
+            relatedId: contract.id,
+            actionText: "Ver contrato",
+            data: { contractId: contract.id, previousStatus, newStatus: status, linkedDisputeId },
+            read: false,
+          });
+
+          if (user.email) {
+            await emailService.sendEmail({
+              to: user.email,
+              subject: `Estado de contrato actualizado - ${jobTitle}`,
+              html: `
+                <h2>Estado del contrato actualizado</h2>
+                <p>El estado del contrato para <strong>"${jobTitle}"</strong> ha sido actualizado por un administrador.</p>
+                <p><strong>Estado anterior:</strong> ${previousStatus.toUpperCase()}</p>
+                <p><strong>Nuevo estado:</strong> ${status.toUpperCase()}</p>
+                <p><strong>Razón:</strong> ${reason}</p>
+                ${linkedDisputeId ? `<p><strong>Disputa vinculada:</strong> <code>${linkedDisputeId}</code></p>` : ''}
+                <p>
+                  <a href="${process.env.CLIENT_URL}/contracts/${contract.id}"
+                     style="display: inline-block; padding: 12px 24px; background-color: #0284c7; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">
+                    Ver contrato
+                  </a>
+                </p>
+              `,
+            });
+          }
+        }
+      }
+
+      await logAudit({
+        req,
+        action: "change_contract_status",
+        category: "contract",
+        severity: "high",
+        description: `Admin ${req.user.name} cambió el estado del contrato ${contract.id} de ${previousStatus} a ${status}. Razón: ${reason}${linkedDisputeId ? `. Disputa vinculada: ${linkedDisputeId}` : ''}`,
+        targetModel: "Contract",
+        targetId: contract.id.toString(),
+        metadata: { previousStatus, newStatus: status, reason, linkedDisputeId },
+      });
+
+      res.json({
+        success: true,
+        message: "Estado del contrato actualizado correctamente. Las partes han sido notificadas.",
+        data: {
+          contract,
+          statusChange: statusChangeLog,
+        },
+      });
+    } catch (error: any) {
+      console.error("Error changing contract status:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor",
+      });
+    }
+  }
+);
+
 // @route   DELETE /api/admin/contracts/:id
 // @desc    Eliminar contrato permanentemente (Owner, 2+ infracciones)
 // @access  Owner only

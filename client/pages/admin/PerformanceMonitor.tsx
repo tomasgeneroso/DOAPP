@@ -361,10 +361,10 @@ export default function PerformanceMonitor() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-                  {serverData.topSlowRoutes.map((route, idx) => (
+                  {serverData.topSlowRoutes.map((route) => (
                     <>
                       <tr
-                        key={idx}
+                        key={route.route}
                         className="hover:bg-slate-50 dark:hover:bg-slate-900/30 cursor-pointer"
                         onClick={() => toggleRoute(route.route)}
                       >

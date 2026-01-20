@@ -21,11 +21,12 @@ router.get(
   authorize("owner", "super_admin", "moderator", "support"),
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { status, priority, page = 1, limit = 20 } = req.query;
+      const { status, priority, contractId, page = 1, limit = 20 } = req.query;
 
       const where: any = {};
       if (status) where.status = status;
       if (priority) where.priority = priority;
+      if (contractId) where.contractId = contractId;
 
       const disputes = await Dispute.findAll({
         where,
@@ -298,11 +299,14 @@ router.post(
       // Process resolution
       switch (resolutionType) {
         case "full_release":
-          // Release payment to doer
+          // Release payment to doer - restore to completed status (was disputed)
           await contract.update({
             status: "completed",
             paymentStatus: "released",
             escrowStatus: "released",
+            disputeStatus: "resolved",
+            clientConfirmed: true,
+            doerConfirmed: true,
           });
           if (payment) {
             await payment.update({
@@ -325,6 +329,7 @@ router.post(
             status: "cancelled",
             paymentStatus: "refunded",
             escrowStatus: "refunded",
+            disputeStatus: "resolved",
           });
           if (payment) {
             await payment.update({
@@ -359,6 +364,7 @@ router.post(
             status: "completed",
             paymentStatus: "partially_refunded",
             escrowStatus: "released", // Escrow se libera (parcialmente al doer, parcialmente reembolsado)
+            disputeStatus: "resolved",
           });
           if (payment) {
             await payment.update({
@@ -380,7 +386,10 @@ router.post(
           break;
 
         case "no_action":
-          // No changes to payment
+          // No changes to payment, but clear dispute status
+          await contract.update({
+            disputeStatus: "resolved",
+          });
           disputeUpdateData.status = "resolved_released";
           break;
       }
@@ -409,6 +418,21 @@ router.post(
         resolution,
         resolutionType
       );
+
+      // Emit socket event to notify contract update
+      const { default: socketService } = await import("../../services/socket.js");
+      await contract.reload({
+        include: [
+          { model: User, as: "client", attributes: ["id", "name", "email"] },
+          { model: User, as: "doer", attributes: ["id", "name", "email"] },
+          { model: Job, as: "job", attributes: ["id", "title"] },
+        ],
+      });
+      socketService.notifyContractUpdate(contract.id, contract.clientId, contract.doerId, {
+        contract: contract.toJSON(),
+        action: "dispute_resolved",
+        resolutionType,
+      });
 
       res.json({
         success: true,

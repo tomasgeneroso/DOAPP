@@ -201,13 +201,9 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
         cancelUrl: `${process.env.CLIENT_URL}/payment/failure?type=job_publication&jobId=${jobId}`,
       });
 
-      console.log('🔍 [DEBUG] MercadoPago payment response:', JSON.stringify(mpPayment, null, 2));
-
       if (!mpPayment.checkoutUrl) {
         throw new Error('No se pudo obtener el link de pago de MercadoPago');
       }
-
-      console.log('🌐 [DEBUG] Checkout URL:', mpPayment.checkoutUrl);
 
       // Create payment record in database
       const payment = await Payment.create({

@@ -396,20 +396,6 @@ export default function ContractDetail() {
 
       <div className="min-h-screen bg-gray-50 dark:bg-slate-900 py-8">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Debug Banner - Remove after troubleshooting */}
-          <div className="bg-purple-100 dark:bg-purple-900/30 border-2 border-purple-500 rounded-lg p-4 mb-4">
-            <h3 className="font-bold text-purple-900 dark:text-purple-300 mb-2">🔍 DEBUG INFO</h3>
-            <div className="text-sm text-purple-800 dark:text-purple-200 space-y-1">
-              <p>✅ Contrato cargado: {contract ? 'SÍ' : 'NO'}</p>
-              <p>✅ Estado: {contract.status}</p>
-              <p>✅ Cliente: {contract.client?.name || 'N/A'}</p>
-              <p>✅ Trabajador: {contract.doer?.name || 'N/A'}</p>
-              <p>✅ Precio: ${contract.price}</p>
-              <p>✅ Fecha fin: {contract.endDate ? new Date(contract.endDate).toLocaleString() : 'N/A'}</p>
-              <p className="mt-2 font-bold">Abre la consola (F12) para más detalles</p>
-            </div>
-          </div>
-
           {/* Back Button - Only visible on mobile */}
           <button
             onClick={() => navigate(-1)}
@@ -459,6 +445,7 @@ export default function ContractDetail() {
                   onClick={handleOpenChat}
                   disabled={loadingChat}
                   className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-sky-600 text-sky-600 rounded-lg hover:bg-sky-50 transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Abre el chat para comunicarte con la otra parte del contrato"
                 >
                   <MessageCircle className="h-5 w-5" />
                   {loadingChat ? "Cargando..." : "Chat"}
@@ -467,6 +454,7 @@ export default function ContractDetail() {
                   <button
                     onClick={() => navigate(`/disputes/new?contractId=${id}`)}
                     className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-orange-600 text-orange-600 rounded-lg hover:bg-orange-50 transition font-semibold"
+                    title="Reporta problemas relacionados con este contrato (trabajo no entregado, calidad, etc.)"
                   >
                     <Flag className="h-5 w-5" />
                     Reportar Problema
@@ -695,6 +683,7 @@ export default function ContractDetail() {
                             onClick={handleConfirmCompletion}
                             disabled={confirmingWork}
                             className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
+                            title="Confirma que el trabajo fue completado satisfactoriamente para liberar el pago desde el escrow"
                           >
                             {confirmingWork ? (
                               <>
@@ -1059,6 +1048,7 @@ export default function ContractDetail() {
                   <button
                     onClick={() => setShowExtensionForm(true)}
                     className="w-full bg-blue-50 dark:bg-blue-900/20 border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-lg p-4 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors flex items-center justify-center gap-2"
+                    title="Solicita más tiempo para completar el contrato (máximo 1 extensión permitida)"
                   >
                     <Clock className="h-5 w-5" />
                     Solicitar Extensión de Contrato
