@@ -158,84 +158,86 @@ async function handlePaymentWebhook(data: any, ip: string) {
 
 /**
  * Manejar pago aprobado
+ * IMPORTANTE: Todos los pagos requieren verificación manual del admin
  */
 async function handleApprovedPayment(payment: any, metadata: any) {
   const { Job } = await import('../models/sql/Job.model.js');
 
   // Check if it's a job publication payment
   if (metadata?.type === 'job_publication' || payment.paymentType === 'job_publication') {
-    payment.status = 'completed';
+    // *** CAMBIO CRÍTICO: No auto-aprobar, esperar verificación del admin ***
+    payment.status = 'pending_verification';
+    payment.mercadopagoVerifiedAt = new Date();
     await payment.save();
 
     const job = await Job.findOne({ where: { publicationPaymentId: payment.id } });
     if (job) {
-      job.status = 'open';
-      job.publicationPaid = true;
-      job.publicationPaidAt = new Date();
+      // Job stays in pending_payment status until admin approves
+      job.status = 'pending_approval';
       await job.save();
 
-      // Notificación in-app
+      // Notificación al usuario: pago recibido, pendiente de verificación
       await Notification.create({
         recipientId: payment.payerId,
-        type: "success",
+        type: "info",
         category: "payment",
-        title: "Trabajo publicado",
-        message: `Tu trabajo "${job.title}" ha sido publicado exitosamente.`,
+        title: "Pago recibido",
+        message: `Tu pago para publicar "${job.title}" fue recibido y está pendiente de verificación por un administrador.`,
         relatedModel: "Job",
         relatedId: job.id,
         sentVia: ["in_app"],
       });
 
-      // Email de confirmación
-      const user = await User.findByPk(payment.payerId);
-      if (user) {
-        await emailService.sendJobUpdateNotification(
-          payment.payerId.toString(),
-          job.title,
-          'Tu trabajo ha sido publicado exitosamente y ya está visible para los doers.',
-          job.id.toString()
-        );
+      // Notificación al admin
+      const adminUsers = await User.findAll({
+        where: {
+          role: { [Op.in]: ['admin', 'super_admin', 'owner'] }
+        }
+      });
+
+      for (const admin of adminUsers) {
+        await Notification.create({
+          recipientId: admin.id,
+          type: "warning",
+          category: "admin",
+          title: "Nuevo pago pendiente de verificación",
+          message: `Pago de MercadoPago para publicar "${job.title}" - $${payment.amount} ARS`,
+          relatedModel: "Payment",
+          relatedId: payment.id,
+          sentVia: ["in_app"],
+        });
       }
 
-      logger.payment('JOB_PUBLISHED', `Job published via webhook: ${job.id}`, {
+      logger.payment('PENDING_VERIFICATION', `Job publication payment pending admin verification: ${job.id}`, {
         paymentId: payment.id?.toString(),
         data: { jobId: job.id, jobTitle: job.title },
         userId: payment.payerId?.toString()
       });
     }
   } else {
-    // Contract escrow payment
-    payment.status = 'held_escrow';
+    // *** CAMBIO CRÍTICO: Contract escrow payment también requiere verificación ***
+    payment.status = 'pending_verification';
+    payment.mercadopagoVerifiedAt = new Date();
     await payment.save();
 
     const contract = await Contract.findByPk(payment.contractId);
     if (contract) {
-      contract.paymentStatus = 'escrow';
+      // Contract stays pending until admin verifies payment
+      contract.paymentStatus = 'pending_verification';
       contract.paymentDate = new Date();
-      contract.status = 'in_progress';
       await contract.save();
 
       const job = await Job.findByPk(contract.jobId);
       const jobTitle = job?.title || 'Contrato';
 
-      // Email de escrow a ambas partes
-      await emailService.sendPaymentEscrowEmail(
-        contract.clientId.toString(),
-        contract.doerId.toString(),
-        contract.id.toString(),
-        jobTitle,
-        payment.amount || 0,
-        'ARS'
-      );
-
-      // Notificaciones in-app
+      // Notificación a ambas partes: pago pendiente de verificación
       await Promise.all([
         Notification.create({
           recipientId: contract.clientId,
-          type: "success",
+          type: "info",
           category: "payment",
-          title: "Pago en escrow",
-          message: `Tu pago de $${payment.amount} para "${jobTitle}" está asegurado.`,
+          title: "Pago recibido",
+          message: `Tu pago de $${payment.amount} para "${jobTitle}" fue recibido y está pendiente de verificación.`,
           relatedModel: "Contract",
           relatedId: contract.id,
           sentVia: ["in_app", "push"],
@@ -244,15 +246,35 @@ async function handleApprovedPayment(payment: any, metadata: any) {
           recipientId: contract.doerId,
           type: "info",
           category: "contract",
-          title: "Pago asegurado",
-          message: `El pago de $${payment.amount} para "${jobTitle}" está en escrow. ¡Puedes comenzar!`,
+          title: "Pago pendiente de verificación",
+          message: `El pago de $${payment.amount} para "${jobTitle}" está pendiente de verificación del administrador.`,
           relatedModel: "Contract",
           relatedId: contract.id,
           sentVia: ["in_app", "push"],
         })
       ]);
 
-      logger.payment('ESCROW_HELD', `Payment held in escrow for contract: ${contract.id}`, {
+      // Notificación al admin
+      const adminUsers = await User.findAll({
+        where: {
+          role: { [Op.in]: ['admin', 'super_admin', 'owner'] }
+        }
+      });
+
+      for (const admin of adminUsers) {
+        await Notification.create({
+          recipientId: admin.id,
+          type: "warning",
+          category: "admin",
+          title: "Nuevo pago de contrato pendiente",
+          message: `Pago de MercadoPago para "${jobTitle}" - $${payment.amount} ARS`,
+          relatedModel: "Payment",
+          relatedId: payment.id,
+          sentVia: ["in_app"],
+        });
+      }
+
+      logger.payment('PENDING_VERIFICATION', `Contract payment pending admin verification: ${contract.id}`, {
         paymentId: payment.id?.toString(),
         amount: payment.amount,
         data: { contractId: contract.id, jobTitle },

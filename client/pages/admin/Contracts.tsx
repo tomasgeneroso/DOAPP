@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { FileText, Search, Filter, Eye, Ban, CheckCircle, XCircle, Plus, ArrowUpDown, ArrowUp, ArrowDown, Wifi, WifiOff, Bell, AlertTriangle, X, Calendar, Clock, Edit } from "lucide-react";
+import { FileText, Search, Filter, Eye, Ban, CheckCircle, XCircle, Plus, ArrowUpDown, ArrowUp, ArrowDown, Wifi, WifiOff, Bell, AlertTriangle, X, Calendar, Clock, Edit, Receipt, ExternalLink } from "lucide-react";
 import { useSocket } from "../../hooks/useSocket";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -14,6 +14,21 @@ interface ContractChange {
     name: string;
   };
   reason?: string;
+}
+
+interface PaymentProofInfo {
+  id: string;
+  fileUrl: string;
+  status: string;
+  uploadedAt: string;
+}
+
+interface PaymentInfo {
+  id: string;
+  status: string;
+  amount: number;
+  platformFee: number;
+  proofs?: PaymentProofInfo[];
 }
 
 interface Contract {
@@ -51,6 +66,7 @@ interface Contract {
   hasChanges?: boolean;
   priceModifications?: any[];
   extensions?: any[];
+  payment?: PaymentInfo;
 }
 
 type SortField = 'job' | 'client' | 'doer' | 'price' | 'date' | 'status' | 'payment';
@@ -615,6 +631,9 @@ export default function AdminContracts() {
                   Cambios
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Comprobante
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Acciones
                 </th>
               </tr>
@@ -622,7 +641,7 @@ export default function AdminContracts() {
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {getSortedAndFilteredContracts().length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={11} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                     No se encontraron contratos
                   </td>
                 </tr>
@@ -696,6 +715,22 @@ export default function AdminContracts() {
                         </button>
                       ) : (
                         <span className="text-gray-300 dark:text-gray-600">-</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-4">
+                      {contract.payment?.proofs && contract.payment.proofs.length > 0 ? (
+                        <a
+                          href={contract.payment.proofs[0].fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-sm text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300"
+                        >
+                          <Receipt className="h-4 w-4" />
+                          Ver
+                          <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ) : (
+                        <span className="text-xs text-gray-400 dark:text-gray-500">Sin comprobante</span>
                       )}
                     </td>
                     <td className="px-4 py-4">

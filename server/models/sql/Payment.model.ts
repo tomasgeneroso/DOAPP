@@ -29,8 +29,11 @@ import { PaymentProof } from './PaymentProof.model.js';
 
 export type PaymentStatus =
   | 'pending'
+  | 'pending_verification'
+  | 'verified'
   | 'processing'
   | 'held_escrow'
+  | 'confirmed_for_payout'  // Admin confirmed escrow, ready for worker payout
   | 'awaiting_confirmation'
   | 'disputed'
   | 'completed'
@@ -45,7 +48,8 @@ export type PaymentType =
   | 'refund'
   | 'membership'
   | 'job_publication'
-  | 'contract';
+  | 'contract'
+  | 'budget_increase';
 
 export type PaymentMethod = 'paypal' | 'mercadopago';
 
@@ -283,6 +287,43 @@ export class Payment extends Model {
 
   @BelongsTo(() => User, 'refundedBy')
   refunder?: User;
+
+  // ============================================
+  // ADMIN VERIFICATION
+  // ============================================
+
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  pendingVerification!: boolean;
+
+  @Column(DataType.DATE)
+  mercadopagoVerifiedAt?: Date;
+
+  @ForeignKey(() => User)
+  @Column(DataType.UUID)
+  approvedBy?: string;
+
+  @BelongsTo(() => User, 'approvedBy')
+  approver?: User;
+
+  @Column(DataType.DATE)
+  approvedAt?: Date;
+
+  @ForeignKey(() => User)
+  @Column(DataType.UUID)
+  escrowVerifiedBy?: string;
+
+  @BelongsTo(() => User, 'escrowVerifiedBy')
+  escrowVerifier?: User;
+
+  @Column(DataType.DATE)
+  escrowVerifiedAt?: Date;
+
+  @Column(DataType.TEXT)
+  adminNotes?: string;
+
+  @Column(DataType.DATE)
+  paidAt?: Date;
 
   // ============================================
   // METADATA

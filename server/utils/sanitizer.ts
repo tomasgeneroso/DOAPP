@@ -215,6 +215,37 @@ export function sanitizeInput(input: string, options?: {
   return sanitized.trim();
 }
 
+/**
+ * UUID validation regex
+ */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Validate UUID
+ * Returns true if the id is a valid UUID v4
+ */
+export function isValidUUID(id: any): boolean {
+  return typeof id === 'string' && id.length > 0 && UUID_REGEX.test(id);
+}
+
+/**
+ * Validate and return UUID or null
+ * Returns the UUID if valid, null otherwise
+ */
+export function validateUUID(id: any): string | null {
+  if (isValidUUID(id)) {
+    return id;
+  }
+  return null;
+}
+
+/**
+ * Check if a value is a non-empty string (useful for optional IDs)
+ */
+export function isNonEmptyString(value: any): boolean {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
 export default {
   sanitizeHTML,
   sanitizeChatMessage,
@@ -227,4 +258,7 @@ export default {
   truncateText,
   normalizeWhitespace,
   sanitizeInput,
+  isValidUUID,
+  validateUUID,
+  isNonEmptyString,
 };

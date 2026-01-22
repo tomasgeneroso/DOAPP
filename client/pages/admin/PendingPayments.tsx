@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import ExcelJS from "exceljs";
 import {
   CheckCircle,
@@ -52,6 +52,13 @@ interface WorkerPaymentInfo {
   percentageOfBudget: number | null;
 }
 
+interface PaymentProofInfo {
+  id: string;
+  fileUrl: string;
+  status: string;
+  uploadedAt: string;
+}
+
 interface ContractPaymentRow {
   contractId: string;
   contractNumber: number;
@@ -67,6 +74,12 @@ interface ContractPaymentRow {
   escrowStatus: string;
   contractStatus: string;
   workers: WorkerPaymentInfo[];
+  commissionVerified?: boolean;
+  paymentRecordStatus?: string;
+  paymentId?: string;
+  proofs?: PaymentProofInfo[];
+  // Worker payment proof (admin's proof of transfer to worker)
+  workerPaymentProofUrl?: string | null;
 }
 
 interface ReportSummary {
@@ -132,6 +145,7 @@ interface PaymentDetails {
     workerPaymentAmount?: number;
     mercadopagoId?: string;
     paidAt?: string;
+    proofs?: PaymentProofInfo[];
   };
 }
 
@@ -165,8 +179,12 @@ interface CompletedSummary {
 }
 
 export default function PendingPayments() {
-  // Tab state
-  const [activeTab, setActiveTab] = useState<"pending" | "completed">("pending");
+  // Main tab state: "app" = Pagos a la App, "workers" = Pagos a Trabajadores
+  const [activeTab, setActiveTab] = useState<"app" | "workers">("app");
+
+  // Sub-filter state for each tab
+  const [appSubFilter, setAppSubFilter] = useState<"pending" | "verified" | "escrow" | "confirmed" | "disputed">("pending");
+  const [workersSubFilter, setWorkersSubFilter] = useState<"pending" | "paid" | "disputed">("pending");
 
   const [payments, setPayments] = useState<ContractPaymentRow[]>([]);
   const [summary, setSummary] = useState<ReportSummary | null>(null);
@@ -183,6 +201,12 @@ export default function PendingPayments() {
   const [completedSummary, setCompletedSummary] = useState<CompletedSummary | null>(null);
   const [completedLoading, setCompletedLoading] = useState(false);
 
+  // Verification payments state (client → platform payments pending admin approval)
+  const [verificationPayments, setVerificationPayments] = useState<any[]>([]);
+  const [verificationLoading, setVerificationLoading] = useState(false);
+  const [approvingPaymentId, setApprovingPaymentId] = useState<string | null>(null);
+  const [rejectingPaymentId, setRejectingPaymentId] = useState<string | null>(null);
+
   // Liquidation form state
   const [bankFee, setBankFee] = useState<number>(0);
   const [taxPercentage, setTaxPercentage] = useState<number>(0);
@@ -190,11 +214,17 @@ export default function PendingPayments() {
   const [otherDeductionsDescription, setOtherDeductionsDescription] = useState("");
   const [copiedCBU, setCopiedCBU] = useState(false);
 
-  // Filters
-  const [period, setPeriod] = useState("daily");
+  // Advanced Filters
+  const [period, setPeriod] = useState("monthly");
   const [completedPeriod, setCompletedPeriod] = useState("monthly");
-  const [sortBy, setSortBy] = useState("completedAt");
-  const [sortOrder, setSortOrder] = useState("desc");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [minAmount, setMinAmount] = useState("");
+  const [maxAmount, setMaxAmount] = useState("");
+
+  // Sorting
+  const [sortBy, setSortBy] = useState("createdAt");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   const loadPayments = async () => {
     try {
@@ -209,8 +239,9 @@ export default function PendingPayments() {
 
       const data = await response.json();
       if (data.success) {
-        setPayments(data.data || []);
-        setSummary(data.summary || null);
+        // Data comes from data.report.data (backend response structure)
+        setPayments(data.report?.data || data.data || []);
+        setSummary(data.report?.summary || data.summary || null);
       }
     } catch (error) {
       console.error("Error loading payments:", error);
@@ -242,14 +273,193 @@ export default function PendingPayments() {
     }
   };
 
+  const loadVerificationPayments = async () => {
+    try {
+      setVerificationLoading(true);
+      const token = localStorage.getItem("token");
+
+      // Build query params based on sub-filter
+      const params = new URLSearchParams();
+      if (appSubFilter === "pending") {
+        params.append("status", "pending_verification");
+      } else if (appSubFilter === "verified") {
+        params.append("status", "verified");
+      } else if (appSubFilter === "escrow") {
+        params.append("status", "held_escrow");
+      } else if (appSubFilter === "confirmed") {
+        params.append("status", "confirmed_for_payout");
+      } else if (appSubFilter === "disputed") {
+        params.append("status", "disputed");
+      }
+      if (dateFrom) params.append("dateFrom", dateFrom);
+      if (dateTo) params.append("dateTo", dateTo);
+      if (minAmount) params.append("minAmount", minAmount);
+      if (maxAmount) params.append("maxAmount", maxAmount);
+      params.append("sortBy", sortBy);
+      params.append("sortOrder", sortOrder);
+
+      const response = await fetch(
+        `/api/admin/payments/pending?${params.toString()}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      const data = await response.json();
+      if (data.success) {
+        setVerificationPayments(data.data || []);
+      }
+    } catch (error) {
+      console.error("Error loading verification payments:", error);
+    } finally {
+      setVerificationLoading(false);
+    }
+  };
+
+  // Aprobar pago de verificación (Step 1: verificar comprobante)
+  const handleApproveVerificationPayment = async (paymentId: string) => {
+    if (!confirm("¿Confirmas que el comprobante de pago es válido? El pago pasará a estado 'Verificado' y luego deberás confirmar el escrow.")) return;
+
+    try {
+      setApprovingPaymentId(paymentId);
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/admin/payments/${paymentId}/approve`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          notes: "Comprobante verificado por admin",
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert("✅ Comprobante verificado. Ahora debes verificar el escrow para que el contrato pueda continuar.");
+        loadVerificationPayments();
+      } else {
+        alert(data.message || "Error al aprobar el pago");
+      }
+    } catch (error) {
+      console.error("Error approving payment:", error);
+      alert("Error al aprobar el pago");
+    } finally {
+      setApprovingPaymentId(null);
+    }
+  };
+
+  // Verificar Escrow (Step 2: mover a escrow después de verificar comprobante)
+  const handleVerifyEscrow = async (paymentId: string) => {
+    if (!confirm("¿Confirmas que el dinero está en la cuenta de la plataforma y se puede poner en escrow? El contrato podrá continuar.")) return;
+
+    try {
+      setApprovingPaymentId(paymentId);
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/admin/payments/${paymentId}/verify-escrow`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          notes: "Escrow verificado por admin",
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert("✅ Escrow verificado. El pago está asegurado y el contrato puede continuar.");
+        loadVerificationPayments();
+      } else {
+        alert(data.message || "Error al verificar escrow");
+      }
+    } catch (error) {
+      console.error("Error verifying escrow:", error);
+      alert("Error al verificar escrow");
+    } finally {
+      setApprovingPaymentId(null);
+    }
+  };
+
+  // Confirmar para Pago a Trabajador (Step 3: mover de escrow a pendiente de pago)
+  const handleConfirmForPayout = async (paymentId: string) => {
+    if (!confirm("¿Confirmas que este pago debe pasar a 'Pagos a Trabajadores (Pendiente)'? Esto indica que el trabajo fue completado y el pago al trabajador está listo para procesarse.")) return;
+
+    try {
+      setApprovingPaymentId(paymentId);
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/admin/payments/${paymentId}/confirm-for-payout`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          notes: "Confirmado para pago por admin",
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert("✅ Pago confirmado. Ahora aparece en 'Pagos a Trabajadores - Pendiente' para procesar la transferencia al trabajador.");
+        loadVerificationPayments();
+      } else {
+        alert(data.message || "Error al confirmar para pago");
+      }
+    } catch (error) {
+      console.error("Error confirming for payout:", error);
+      alert("Error al confirmar para pago");
+    } finally {
+      setApprovingPaymentId(null);
+    }
+  };
+
+  // Rechazar pago de verificación
+  const handleRejectVerificationPayment = async (paymentId: string) => {
+    const reason = prompt("Ingresa el motivo del rechazo:");
+    if (!reason) return;
+
+    try {
+      setRejectingPaymentId(paymentId);
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/admin/payments/${paymentId}/reject`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ reason }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert("Pago rechazado. Se notificará al usuario.");
+        loadVerificationPayments();
+      } else {
+        alert(data.message || "Error al rechazar el pago");
+      }
+    } catch (error) {
+      console.error("Error rejecting payment:", error);
+      alert("Error al rechazar el pago");
+    } finally {
+      setRejectingPaymentId(null);
+    }
+  };
+
   useEffect(() => {
-    if (activeTab === "pending") {
-      loadPayments();
+    if (activeTab === "app") {
+      loadVerificationPayments();
     } else {
-      loadCompletedPayments();
+      // workers tab
+      if (workersSubFilter === "paid") {
+        loadCompletedPayments();
+      } else {
+        loadPayments();
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period, completedPeriod, sortBy, sortOrder, activeTab]);
+  }, [period, completedPeriod, sortBy, sortOrder, activeTab, appSubFilter, workersSubFilter, dateFrom, dateTo, minAmount, maxAmount]);
 
   const handleViewPayment = async (contractId: string) => {
     try {
@@ -260,12 +470,18 @@ export default function PendingPayments() {
       });
 
       const data = await response.json();
+      console.log("[DEBUG] handleViewPayment response:", data);
       if (data.success) {
-        setSelectedPayment(data.paymentDetails);
+        // API returns data.data, not data.paymentDetails
+        setSelectedPayment(data.data || data.paymentDetails);
         setShowModal(true);
+      } else {
+        console.error("Error loading payment details:", data.message);
+        alert(data.message || "Error al cargar los detalles del pago");
       }
     } catch (error) {
       console.error("Error loading payment details:", error);
+      alert("Error al cargar los detalles del pago");
     } finally {
       setActionLoading(false);
     }
@@ -315,7 +531,7 @@ export default function PendingPayments() {
       if (paymentProof) {
         const formData = new FormData();
         formData.append("file", paymentProof);
-        const uploadRes = await fetch("/api/upload", {
+        const uploadRes = await fetch("/api/admin/pending-payments/upload-proof", {
           method: "POST",
           headers: { Authorization: `Bearer ${token}` },
           body: formData,
@@ -323,6 +539,8 @@ export default function PendingPayments() {
         const uploadData = await uploadRes.json();
         if (uploadData.success && uploadData.url) {
           proofUrl = uploadData.url;
+        } else {
+          throw new Error(uploadData.message || "Error al subir comprobante");
         }
       }
 
@@ -349,13 +567,17 @@ export default function PendingPayments() {
 
       const data = await response.json();
       if (data.success) {
+        // Reload the appropriate list based on current view
         loadPayments();
+        // Also reload completed payments to show the newly completed payment there
+        loadCompletedPayments();
         if (showModal) {
           setShowModal(false);
           setSelectedPayment(null);
           setPaymentProof(null);
           setAdminNotes("");
         }
+        alert("✅ Pago marcado como completado. El registro se ha movido a la pestaña 'Pagados'.");
       } else {
         alert(data.message || "Error al marcar pago");
       }
@@ -364,6 +586,36 @@ export default function PendingPayments() {
       alert("Error al marcar pago como completado");
     } finally {
       setMarkingPaidId(null);
+    }
+  };
+
+  // Fix stuck payment status - when proof exists but payment still in pending
+  const handleFixPaymentStatus = async (contractId: string) => {
+    if (!confirm("¿Corregir el estado de este pago? Esto marcará todos los payments asociados como completados.")) {
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/admin/pending-payments/${contractId}/fix-status`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert(`✅ Estado corregido. ${data.paymentsUpdated} pagos actualizados.`);
+        loadPayments();
+        loadCompletedPayments();
+      } else {
+        alert(data.message || "Error al corregir estado");
+      }
+    } catch (error) {
+      console.error("Error fixing payment status:", error);
+      alert("Error al corregir estado del pago");
     }
   };
 
@@ -481,6 +733,7 @@ export default function PendingPayments() {
 
   const getEscrowStatusBadge = (status: string) => {
     const badges: Record<string, string> = {
+      verified: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
       held_escrow: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
       released: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
       refunded: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
@@ -490,6 +743,7 @@ export default function PendingPayments() {
 
   const getEscrowStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
+      verified: "Verificado",
       held_escrow: "En Escrow",
       released: "Liberado",
       refunded: "Reembolsado",
@@ -497,7 +751,38 @@ export default function PendingPayments() {
     return labels[status] || status;
   };
 
-  if (loading) {
+  // Helper for sortable column headers
+  const handleSort = (field: string) => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(field);
+      setSortOrder("desc");
+    }
+  };
+
+  const SortableHeader = ({ field, children, className = "" }: { field: string; children: React.ReactNode; className?: string }) => (
+    <th
+      className={`px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition select-none ${className}`}
+      onClick={() => handleSort(field)}
+    >
+      <div className="flex items-center gap-1">
+        {children}
+        {sortBy === field && (
+          <span className="text-sky-500">
+            {sortOrder === "asc" ? "↑" : "↓"}
+          </span>
+        )}
+      </div>
+    </th>
+  );
+
+  // Initial loading state check - only show spinner if first load
+  const isInitialLoading = (activeTab === "app" && verificationLoading && verificationPayments.length === 0) ||
+                           (activeTab === "workers" && workersSubFilter === "pending" && loading && payments.length === 0) ||
+                           (activeTab === "workers" && workersSubFilter === "paid" && completedLoading && completedPayments.length === 0);
+
+  if (isInitialLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-12 w-12 animate-spin text-sky-500" />
@@ -512,18 +797,22 @@ export default function PendingPayments() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Pagos</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
-            Administra los pagos pendientes y el historial de pagos realizados
+            Administra los pagos entrantes y salientes de la plataforma
           </p>
         </div>
         <div className="flex gap-2">
           <button
-            onClick={() => activeTab === "pending" ? loadPayments() : loadCompletedPayments()}
+            onClick={() => {
+              if (activeTab === "app") loadVerificationPayments();
+              else if (workersSubFilter === "paid") loadCompletedPayments();
+              else loadPayments();
+            }}
             className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition"
           >
             <RefreshCw className="h-4 w-4" />
             Actualizar
           </button>
-          {activeTab === "pending" && (
+          {activeTab === "workers" && workersSubFilter === "pending" && (
             <button
               onClick={handleExportXLSX}
               className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition"
@@ -535,46 +824,520 @@ export default function PendingPayments() {
         </div>
       </div>
 
-      {/* Tabs */}
+      {/* Main Tabs */}
       <div className="border-b border-gray-200 dark:border-gray-700">
-        <nav className="-mb-px flex gap-4">
+        <nav className="-mb-px flex gap-6">
           <button
-            onClick={() => setActiveTab("pending")}
-            className={`py-3 px-4 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
-              activeTab === "pending"
-                ? "border-sky-500 text-sky-600 dark:text-sky-400"
+            onClick={() => setActiveTab("app")}
+            className={`py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
+              activeTab === "app"
+                ? "border-purple-500 text-purple-600 dark:text-purple-400"
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
             }`}
           >
-            <Clock className="h-4 w-4" />
-            Pendientes
-            {summary && summary.totalContracts > 0 && (
-              <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
-                {summary.totalContracts}
+            <DollarSign className="h-5 w-5" />
+            Pagos a la App
+            {verificationPayments.length > 0 && appSubFilter === "pending" && (
+              <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                {verificationPayments.length}
               </span>
             )}
           </button>
           <button
-            onClick={() => setActiveTab("completed")}
-            className={`py-3 px-4 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
-              activeTab === "completed"
-                ? "border-green-500 text-green-600 dark:text-green-400"
+            onClick={() => setActiveTab("workers")}
+            className={`py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
+              activeTab === "workers"
+                ? "border-sky-500 text-sky-600 dark:text-sky-400"
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
             }`}
           >
-            <History className="h-4 w-4" />
-            Pagos Realizados
-            {completedSummary && completedSummary.totalPayments > 0 && (
-              <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                {completedSummary.totalPayments}
+            <Users className="h-5 w-5" />
+            Pagos a Trabajadores
+            {summary && summary.totalContracts > 0 && workersSubFilter === "pending" && (
+              <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
+                {summary.totalContracts}
               </span>
             )}
           </button>
         </nav>
       </div>
 
-      {/* Pending Payments Tab Content */}
-      {activeTab === "pending" && (
+      {/* Sub-filters for active tab */}
+      {activeTab === "app" && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm text-gray-500 dark:text-gray-400 mr-2">Estado:</span>
+          <button
+            onClick={() => setAppSubFilter("pending")}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              appSubFilter === "pending"
+                ? "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
+            }`}
+          >
+            <span className="flex items-center gap-1">
+              <AlertCircle className="h-3.5 w-3.5" />
+              Pendiente Verificación
+            </span>
+          </button>
+          <button
+            onClick={() => setAppSubFilter("verified")}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              appSubFilter === "verified"
+                ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
+            }`}
+          >
+            <span className="flex items-center gap-1">
+              <CheckCircle className="h-3.5 w-3.5" />
+              Verificado
+            </span>
+          </button>
+          <button
+            onClick={() => setAppSubFilter("escrow")}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              appSubFilter === "escrow"
+                ? "bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
+            }`}
+          >
+            <span className="flex items-center gap-1">
+              <DollarSign className="h-3.5 w-3.5" />
+              En Escrow
+            </span>
+          </button>
+          <button
+            onClick={() => setAppSubFilter("confirmed")}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              appSubFilter === "confirmed"
+                ? "bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
+            }`}
+          >
+            <span className="flex items-center gap-1">
+              <CheckCircle className="h-3.5 w-3.5" />
+              Confirmado para Pago
+            </span>
+          </button>
+          <button
+            onClick={() => setAppSubFilter("disputed")}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              appSubFilter === "disputed"
+                ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
+            }`}
+          >
+            <span className="flex items-center gap-1">
+              <XCircle className="h-3.5 w-3.5" />
+              En Disputa
+            </span>
+          </button>
+        </div>
+      )}
+
+      {activeTab === "workers" && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-sm text-gray-500 dark:text-gray-400 mr-2">Estado:</span>
+          <button
+            onClick={() => setWorkersSubFilter("pending")}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              workersSubFilter === "pending"
+                ? "bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
+            }`}
+          >
+            <span className="flex items-center gap-1">
+              <Clock className="h-3.5 w-3.5" />
+              Pendiente de Pago
+            </span>
+          </button>
+          <button
+            onClick={() => setWorkersSubFilter("paid")}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              workersSubFilter === "paid"
+                ? "bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
+            }`}
+          >
+            <span className="flex items-center gap-1">
+              <CheckCircle className="h-3.5 w-3.5" />
+              Pagados
+            </span>
+          </button>
+          <button
+            onClick={() => setWorkersSubFilter("disputed")}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              workersSubFilter === "disputed"
+                ? "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
+            }`}
+          >
+            <span className="flex items-center gap-1">
+              <XCircle className="h-3.5 w-3.5" />
+              En Disputa
+            </span>
+          </button>
+        </div>
+      )}
+
+      {/* Advanced Filters - Collapsible */}
+      <details className="bg-white dark:bg-gray-800 rounded-lg shadow">
+        <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
+          <FileText className="h-4 w-4" />
+          Filtros Avanzados
+        </summary>
+        <div className="px-4 pb-4 pt-2 border-t border-gray-200 dark:border-gray-700">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Date From */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Desde
+              </label>
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white"
+              />
+            </div>
+            {/* Date To */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Hasta
+              </label>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white"
+              />
+            </div>
+            {/* Min Amount */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Monto Mínimo
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                <input
+                  type="number"
+                  value={minAmount}
+                  onChange={(e) => setMinAmount(e.target.value)}
+                  placeholder="0"
+                  className="w-full pl-7 pr-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white"
+                />
+              </div>
+            </div>
+            {/* Max Amount */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                Monto Máximo
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+                <input
+                  type="number"
+                  value={maxAmount}
+                  onChange={(e) => setMaxAmount(e.target.value)}
+                  placeholder="∞"
+                  className="w-full pl-7 pr-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white"
+                />
+              </div>
+            </div>
+          </div>
+          {/* Clear filters button */}
+          {(dateFrom || dateTo || minAmount || maxAmount) && (
+            <div className="mt-3 flex justify-end">
+              <button
+                onClick={() => {
+                  setDateFrom("");
+                  setDateTo("");
+                  setMinAmount("");
+                  setMaxAmount("");
+                }}
+                className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+              >
+                Limpiar filtros
+              </button>
+            </div>
+          )}
+        </div>
+      </details>
+
+      {/* App Payments Tab Content (Pagos a la App) */}
+      {activeTab === "app" && (
+        <>
+          {verificationLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-12 w-12 animate-spin text-sky-500" />
+            </div>
+          ) : (
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 dark:bg-gray-700">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Tipo
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Pagador
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Trabajador
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Concepto
+                      </th>
+                      <SortableHeader field="amount">Comisión</SortableHeader>
+                      <SortableHeader field="amount">Total Esperado</SortableHeader>
+                      <SortableHeader field="status">Estado Contrato</SortableHeader>
+                      <SortableHeader field="createdAt">Fecha</SortableHeader>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Comprobante
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {verificationPayments.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                          {appSubFilter === "pending" && "No hay pagos pendientes de verificación"}
+                          {appSubFilter === "verified" && "No hay pagos verificados pendientes de escrow"}
+                          {appSubFilter === "escrow" && "No hay pagos en escrow pendientes de confirmación"}
+                          {appSubFilter === "confirmed" && "No hay pagos confirmados para pago"}
+                          {appSubFilter === "disputed" && "No hay pagos en disputa"}
+                        </td>
+                      </tr>
+                    ) : (
+                      verificationPayments.map((payment: any) => {
+                        // Obtener datos del contrato
+                        const contractPrice = payment.contract?.price ? parseFloat(payment.contract.price) : 0;
+                        const contractCommission = payment.contract?.commission ? parseFloat(payment.contract.commission) : 0;
+
+                        // Comisión: usar del contrato (tiene el valor correcto)
+                        const commission = contractCommission || payment.platformFee || (contractPrice * 0.10);
+
+                        // Monto para el trabajador (precio del contrato)
+                        const workerAmount = contractPrice || payment.amount || 0;
+
+                        // Total esperado = precio + comisión (lo que el cliente pagó a la plataforma)
+                        const totalExpected = workerAmount + commission;
+
+                        const contractStatus = payment.contract?.status;
+                        const clientConfirmed = payment.contract?.clientConfirmed;
+                        const doerConfirmed = payment.contract?.doerConfirmed;
+
+                        // Porcentaje de comisión
+                        const commissionPercentage = workerAmount > 0 ? ((commission / workerAmount) * 100).toFixed(1) : '10';
+
+                        return (
+                        <tr key={payment.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-2">
+                              {payment.isMercadoPago ? (
+                                <span className="px-2 py-1 text-xs font-medium rounded bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                                  MercadoPago
+                                </span>
+                              ) : (
+                                <span className="px-2 py-1 text-xs font-medium rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+                                  Transferencia
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="text-sm text-gray-900 dark:text-white">
+                              {payment.payer?.name || 'N/A'}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {payment.payer?.email || 'N/A'}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="text-sm text-gray-900 dark:text-white">
+                              {payment.recipient?.name || payment.contract?.doer?.name || 'N/A'}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {payment.recipient?.email || payment.contract?.doer?.email || 'N/A'}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">
+                              {payment.displayInfo?.title || payment.contract?.job?.title || 'Pago'}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {payment.paymentType === 'job_publication' ? 'Publicación de trabajo' :
+                               payment.paymentType === 'contract_payment' ? 'Pago de contrato' :
+                               payment.paymentType}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="text-sm font-medium text-purple-600 dark:text-purple-400">
+                              ${commission?.toLocaleString('es-AR')}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {commissionPercentage}%
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="text-sm font-bold text-green-600 dark:text-green-400">
+                              ${totalExpected?.toLocaleString('es-AR')}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              Trabajador: ${workerAmount?.toLocaleString('es-AR')}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="space-y-1">
+                              {/* Estado del contrato */}
+                              <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                                contractStatus === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' :
+                                contractStatus === 'in_progress' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' :
+                                'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+                              }`}>
+                                {contractStatus === 'completed' ? 'Completado' :
+                                 contractStatus === 'in_progress' ? 'En Progreso' :
+                                 contractStatus === 'awaiting_confirmation' ? 'Esperando Confirm.' :
+                                 contractStatus || 'Pendiente'}
+                              </span>
+                              {/* Confirmaciones de trabajo */}
+                              <div className="flex items-center gap-1 text-xs mt-1">
+                                {clientConfirmed ? (
+                                  <CheckCircle className="h-3 w-3 text-green-500" />
+                                ) : (
+                                  <XCircle className="h-3 w-3 text-gray-400" />
+                                )}
+                                <span className="text-gray-600 dark:text-gray-400">Cliente</span>
+                                {doerConfirmed ? (
+                                  <CheckCircle className="h-3 w-3 text-green-500 ml-2" />
+                                ) : (
+                                  <XCircle className="h-3 w-3 text-gray-400 ml-2" />
+                                )}
+                                <span className="text-gray-600 dark:text-gray-400">Trabajador</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="text-sm text-gray-900 dark:text-white">
+                              {new Date(payment.createdAt).toLocaleDateString("es-AR")}
+                            </div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {new Date(payment.createdAt).toLocaleTimeString("es-AR", { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            {payment.proofs && payment.proofs.length > 0 ? (
+                              <a
+                                href={payment.proofs[0].fileUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-sm text-sky-600 hover:text-sky-700 dark:text-sky-400"
+                              >
+                                <Receipt className="h-4 w-4" />
+                                Ver
+                              </a>
+                            ) : payment.isMercadoPago ? (
+                              <span className="text-xs text-blue-500 dark:text-blue-400">
+                                MercadoPago
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400">Sin comprobante</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-4">
+                            <div className="flex items-center gap-2">
+                              {payment.contract?.id && (
+                                <button
+                                  onClick={() => window.location.href = `/admin/contracts?id=${payment.contract.id}`}
+                                  className="p-1.5 text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded"
+                                  title="Ver contrato"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </button>
+                              )}
+                              {/* Show approve/reject buttons for pending payments */}
+                              {appSubFilter === "pending" && (
+                                <>
+                                  <button
+                                    onClick={() => handleApproveVerificationPayment(payment.id)}
+                                    disabled={approvingPaymentId === payment.id}
+                                    className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded disabled:opacity-50"
+                                    title="Verificar comprobante"
+                                  >
+                                    {approvingPaymentId === payment.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <CheckCircle className="h-4 w-4" />
+                                    )}
+                                  </button>
+                                  <button
+                                    onClick={() => handleRejectVerificationPayment(payment.id)}
+                                    disabled={rejectingPaymentId === payment.id}
+                                    className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded disabled:opacity-50"
+                                    title="Rechazar pago"
+                                  >
+                                    {rejectingPaymentId === payment.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <XCircle className="h-4 w-4" />
+                                    )}
+                                  </button>
+                                </>
+                              )}
+                              {/* Show verify escrow button for verified payments */}
+                              {appSubFilter === "verified" && (
+                                <button
+                                  onClick={() => handleVerifyEscrow(payment.id)}
+                                  disabled={approvingPaymentId === payment.id}
+                                  className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-50 flex items-center gap-1"
+                                  title="Verificar Escrow"
+                                >
+                                  {approvingPaymentId === payment.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <DollarSign className="h-4 w-4" />
+                                      Verificar Escrow
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                              {/* Show confirm for payout button for escrow payments */}
+                              {appSubFilter === "escrow" && (
+                                <button
+                                  onClick={() => handleConfirmForPayout(payment.id)}
+                                  disabled={approvingPaymentId === payment.id}
+                                  className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg disabled:opacity-50 flex items-center gap-1"
+                                  title="Confirmar para Pago a Trabajador"
+                                >
+                                  {approvingPaymentId === payment.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <CheckCircle className="h-4 w-4" />
+                                      Confirmar para Pago
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );})
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Workers Payments Tab Content (Pagos a Trabajadores) */}
+      {activeTab === "workers" && workersSubFilter === "pending" && (
         <>
           {/* Filters */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
@@ -613,7 +1376,7 @@ export default function PendingPayments() {
                 </label>
                 <select
                   value={sortOrder}
-                  onChange={(e) => setSortOrder(e.target.value)}
+                  onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")}
                   className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 text-gray-900 dark:text-white"
                 >
                   <option value="desc">Más reciente</option>
@@ -700,10 +1463,13 @@ export default function PendingPayments() {
                   Trabajadores
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Monto
+                  Monto / Comisión
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Escrow
+                  Pago Verificado
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Comprobante
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Fecha
@@ -716,7 +1482,7 @@ export default function PendingPayments() {
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {payments.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                  <td colSpan={9} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                     No hay pagos pendientes en este período
                   </td>
                 </tr>
@@ -770,13 +1536,52 @@ export default function PendingPayments() {
                     </td>
                     <td className="px-4 py-4">
                       <div className="space-y-1">
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${getEscrowStatusBadge(payment.escrowStatus)}`}>
-                          {getEscrowStatusLabel(payment.escrowStatus)}
-                        </span>
-                        <div className="text-xs text-gray-500">
-                          Pago: {getPaymentStatusLabel(payment.paymentStatus)}
+                        {payment.commissionVerified ? (
+                          <div className="flex items-center gap-1">
+                            <CheckCircle className="h-4 w-4 text-green-500" />
+                            <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                              Verificado
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <AlertCircle className="h-4 w-4 text-amber-500" />
+                            <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                              Pendiente
+                            </span>
+                          </div>
+                        )}
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          {payment.paymentRecordStatus === 'pending_verification' && '→ Ir a Verificación'}
                         </div>
                       </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      {payment.workerPaymentProofUrl ? (
+                        <a
+                          href={payment.workerPaymentProofUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700 dark:text-green-400"
+                          title="Comprobante de pago al trabajador"
+                        >
+                          <Receipt className="h-4 w-4" />
+                          Pagado
+                        </a>
+                      ) : payment.proofs && payment.proofs.length > 0 ? (
+                        <a
+                          href={payment.proofs[0].fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-sm text-sky-600 hover:text-sky-700 dark:text-sky-400"
+                          title="Comprobante del cliente"
+                        >
+                          <Receipt className="h-4 w-4" />
+                          Cliente
+                        </a>
+                      ) : (
+                        <span className="text-xs text-gray-400">Sin comprobante</span>
+                      )}
                     </td>
                     <td className="px-4 py-4">
                       <div className="text-sm text-gray-900 dark:text-white">
@@ -795,19 +1600,38 @@ export default function PendingPayments() {
                         >
                           <Eye className="h-4 w-4" />
                         </button>
-                        {payment.paymentStatus !== 'completed' && (
+                        {payment.commissionVerified && payment.paymentStatus !== 'completed' && !payment.workerPaymentProofUrl && (
                           <button
-                            onClick={() => handleMarkAsPaid(payment.contractId)}
+                            onClick={() => handleViewPaymentWithReset(payment.contractId)}
                             disabled={markingPaidId === payment.contractId}
-                            className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded disabled:opacity-50"
-                            title="Marcar como pagado (transferencia)"
+                            className="flex items-center gap-1 px-2 py-1 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30 rounded disabled:opacity-50"
+                            title="Procesar pago al trabajador"
                           >
                             {markingPaidId === payment.contractId ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
                             ) : (
-                              <CheckCircle className="h-4 w-4" />
+                              <>
+                                <Upload className="h-4 w-4" />
+                                Pagar
+                              </>
                             )}
                           </button>
+                        )}
+                        {/* Show fix button when there's proof but payment is still pending */}
+                        {payment.workerPaymentProofUrl && payment.paymentRecordStatus !== 'completed' && (
+                          <button
+                            onClick={() => handleFixPaymentStatus(payment.contractId)}
+                            className="flex items-center gap-1 px-2 py-1 text-sm text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30 rounded"
+                            title="Corregir estado - tiene comprobante pero sigue pendiente"
+                          >
+                            <AlertCircle className="h-4 w-4" />
+                            Corregir
+                          </button>
+                        )}
+                        {!payment.commissionVerified && (
+                          <span className="text-xs text-amber-500" title="Primero debe verificarse el pago en la pestaña de Verificación">
+                            ⚠️
+                          </span>
                         )}
                       </div>
                     </td>
@@ -821,8 +1645,8 @@ export default function PendingPayments() {
         </>
       )}
 
-      {/* Completed Payments Tab Content */}
-      {activeTab === "completed" && (
+      {/* Completed Payments Tab Content (inside Workers tab with "paid" sub-filter) */}
+      {activeTab === "workers" && workersSubFilter === "paid" && (
         <>
           {/* Filters for Completed */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
@@ -848,7 +1672,7 @@ export default function PendingPayments() {
                 </label>
                 <select
                   value={sortOrder}
-                  onChange={(e) => setSortOrder(e.target.value)}
+                  onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")}
                   className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 text-gray-900 dark:text-white"
                 >
                   <option value="desc">Más reciente</option>
@@ -1037,6 +1861,30 @@ export default function PendingPayments() {
         </>
       )}
 
+      {/* Disputed Payments for Workers */}
+      {activeTab === "workers" && workersSubFilter === "disputed" && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center">
+          <div className="flex flex-col items-center gap-4">
+            <div className="p-4 bg-red-100 dark:bg-red-900/30 rounded-full">
+              <AlertCircle className="h-8 w-8 text-red-600 dark:text-red-400" />
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white">
+              Pagos en Disputa
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400 max-w-md">
+              Los pagos en disputa se gestionan desde el módulo de Disputas.
+              Allí podrás ver los detalles del caso y tomar acciones.
+            </p>
+            <a
+              href="/admin/disputes"
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition"
+            >
+              Ir a Gestión de Disputas
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* Payment Detail Modal */}
       {showModal && selectedPayment && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -1152,20 +2000,22 @@ export default function PendingPayments() {
                             <span className="font-medium">Titular:</span> {selectedPayment.worker.bankingInfo.accountHolder || 'N/A'}
                           </p>
                           {/* CBU with copy button */}
-                          <div className="flex items-center gap-2">
+                          <div className="space-y-1">
                             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">CBU/CVU:</span>
-                            <code className="flex-1 font-mono text-sm bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-3 py-1.5 rounded border border-blue-200 dark:border-blue-700">
-                              {selectedPayment.worker.bankingInfo.cbu || 'N/A'}
-                            </code>
-                            {selectedPayment.worker.bankingInfo.cbu && (
-                              <button
-                                onClick={() => copyToClipboard(selectedPayment.worker.bankingInfo?.cbu || '')}
-                                className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition"
-                                title="Copiar CBU"
-                              >
-                                {copiedCBU ? <Check className="h-5 w-5 text-green-500" /> : <Copy className="h-5 w-5" />}
-                              </button>
-                            )}
+                            <div className="flex items-center gap-2">
+                              <code className="flex-1 font-mono text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-3 py-1.5 rounded border border-blue-200 dark:border-blue-700 break-all">
+                                {selectedPayment.worker.bankingInfo.cbu || 'N/A'}
+                              </code>
+                              {selectedPayment.worker.bankingInfo.cbu && (
+                                <button
+                                  onClick={() => copyToClipboard(selectedPayment.worker.bankingInfo?.cbu || '')}
+                                  className="p-2 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition flex-shrink-0"
+                                  title="Copiar CBU"
+                                >
+                                  {copiedCBU ? <Check className="h-5 w-5 text-green-500" /> : <Copy className="h-5 w-5" />}
+                                </button>
+                              )}
+                            </div>
                           </div>
                           <p className="text-sm text-gray-700 dark:text-gray-300">
                             <span className="font-medium">Alias:</span> {selectedPayment.worker.bankingInfo.alias || 'N/A'}
@@ -1345,61 +2195,108 @@ export default function PendingPayments() {
                   {/* Bank Info Summary for Transfer */}
                   {selectedPayment.worker.bankingInfo?.cbu && (
                     <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                      <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-2">
+                      <h4 className="text-sm font-medium text-blue-800 dark:text-blue-300 mb-3">
                         📋 Datos para transferir:
                       </h4>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div className="space-y-3 text-sm">
+                        {/* CBU - Full width */}
                         <div>
-                          <span className="text-blue-600 dark:text-blue-400">CBU/CVU:</span>
-                          <div className="flex items-center gap-2 mt-1">
-                            <code className="font-mono text-blue-800 dark:text-blue-200 bg-blue-100 dark:bg-blue-800/50 px-2 py-1 rounded text-xs">
+                          <span className="text-blue-600 dark:text-blue-400 block mb-1">CBU/CVU:</span>
+                          <div className="flex items-center gap-2">
+                            <code className="flex-1 font-mono text-blue-800 dark:text-blue-200 bg-blue-100 dark:bg-blue-800/50 px-2 py-1.5 rounded text-xs break-all">
                               {selectedPayment.worker.bankingInfo.cbu}
                             </code>
                             <button
                               onClick={() => copyToClipboard(selectedPayment.worker.bankingInfo?.cbu || '')}
-                              className="p-1 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-800/50 rounded"
+                              className="p-1.5 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-800/50 rounded flex-shrink-0"
+                              title="Copiar CBU"
                             >
                               {copiedCBU ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
                             </button>
                           </div>
                         </div>
-                        <div>
-                          <span className="text-blue-600 dark:text-blue-400">Monto:</span>
-                          <div className="font-bold text-blue-800 dark:text-blue-200 mt-1">
-                            ${calculateFinalAmount().toLocaleString('es-AR', { maximumFractionDigits: 2 })} ARS
+                        {/* Other info in grid */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <span className="text-blue-600 dark:text-blue-400">Monto:</span>
+                            <div className="font-bold text-blue-800 dark:text-blue-200 mt-1">
+                              ${calculateFinalAmount().toLocaleString('es-AR', { maximumFractionDigits: 2 })} ARS
+                            </div>
                           </div>
+                          {selectedPayment.worker.bankingInfo.bankName && (
+                            <div>
+                              <span className="text-blue-600 dark:text-blue-400">Banco:</span>
+                              <div className="text-blue-800 dark:text-blue-200 mt-1">
+                                {selectedPayment.worker.bankingInfo.bankName}
+                              </div>
+                            </div>
+                          )}
+                          {selectedPayment.worker.bankingInfo.accountHolder && (
+                            <div className="col-span-2">
+                              <span className="text-blue-600 dark:text-blue-400">Titular:</span>
+                              <div className="text-blue-800 dark:text-blue-200 mt-1">
+                                {selectedPayment.worker.bankingInfo.accountHolder}
+                              </div>
+                            </div>
+                          )}
                         </div>
-                        {selectedPayment.worker.bankingInfo.bankName && (
-                          <div>
-                            <span className="text-blue-600 dark:text-blue-400">Banco:</span>
-                            <div className="text-blue-800 dark:text-blue-200 mt-1">
-                              {selectedPayment.worker.bankingInfo.bankName}
-                            </div>
-                          </div>
-                        )}
-                        {selectedPayment.worker.bankingInfo.accountHolder && (
-                          <div>
-                            <span className="text-blue-600 dark:text-blue-400">Titular:</span>
-                            <div className="text-blue-800 dark:text-blue-200 mt-1">
-                              {selectedPayment.worker.bankingInfo.accountHolder}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     </div>
                   )}
 
-                  {/* Payment Proof Upload */}
-                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
-                      <Receipt className="h-4 w-4" />
-                      Comprobante de Transferencia
+                  {/* Existing Payment Proofs */}
+                  {selectedPayment.payment?.proofs && selectedPayment.payment.proofs.length > 0 && (
+                    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                      <label className="text-sm font-medium mb-3 flex items-center gap-2 text-blue-700 dark:text-blue-300">
+                        <Receipt className="h-4 w-4" />
+                        Comprobantes Existentes ({selectedPayment.payment.proofs.length})
+                      </label>
+                      <div className="space-y-2">
+                        {selectedPayment.payment.proofs.map((proof, index) => (
+                          <div key={proof.id} className="flex items-center justify-between bg-white dark:bg-gray-800 rounded-lg p-3 border border-blue-100 dark:border-blue-800">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded bg-blue-100 dark:bg-blue-800 flex items-center justify-center text-blue-600 dark:text-blue-300 text-sm font-medium">
+                                {index + 1}
+                              </div>
+                              <div>
+                                <div className="text-sm font-medium text-gray-900 dark:text-white">
+                                  Comprobante #{index + 1}
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                  {new Date(proof.uploadedAt).toLocaleString('es-AR')}
+                                  {proof.status && ` - ${proof.status}`}
+                                </div>
+                              </div>
+                            </div>
+                            <a
+                              href={proof.fileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-1 px-3 py-1.5 bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 rounded-lg text-sm hover:bg-blue-200 dark:hover:bg-blue-700 transition"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                              Ver
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Payment Proof Upload - Add more proofs */}
+                  <div className={`rounded-lg p-4 ${paymentProof ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800' : (selectedPayment.payment?.proofs && selectedPayment.payment.proofs.length > 0 ? 'bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700' : 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800')}`}>
+                    <label className={`text-sm font-medium mb-2 flex items-center gap-2 ${paymentProof ? 'text-green-700 dark:text-green-300' : (selectedPayment.payment?.proofs && selectedPayment.payment.proofs.length > 0 ? 'text-gray-700 dark:text-gray-300' : 'text-amber-700 dark:text-amber-300')}`}>
+                      <Upload className="h-4 w-4" />
+                      {selectedPayment.payment?.proofs && selectedPayment.payment.proofs.length > 0
+                        ? 'Agregar otro comprobante (opcional)'
+                        : 'Comprobante de Transferencia'}
+                      {!(selectedPayment.payment?.proofs && selectedPayment.payment.proofs.length > 0) && <span className="text-red-500">*</span>}
                     </label>
                     <div className="flex items-center gap-3">
-                      <label className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-sky-500 dark:hover:border-sky-400 transition">
-                        <Upload className="h-5 w-5 text-gray-400" />
-                        <span className="text-sm text-gray-600 dark:text-gray-400">
-                          {paymentProof ? paymentProof.name : "Subir comprobante (opcional)"}
+                      <label className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed rounded-lg cursor-pointer transition ${paymentProof ? 'border-green-400 dark:border-green-600 hover:border-green-500' : 'border-gray-300 dark:border-gray-600 hover:border-gray-400'}`}>
+                        <Upload className={`h-5 w-5 ${paymentProof ? 'text-green-500' : 'text-gray-400'}`} />
+                        <span className={`text-sm ${paymentProof ? 'text-green-700 dark:text-green-300 font-medium' : 'text-gray-600 dark:text-gray-400'}`}>
+                          {paymentProof ? paymentProof.name : (selectedPayment.payment?.proofs && selectedPayment.payment.proofs.length > 0 ? "Click para agregar otro comprobante" : "Subir comprobante de la transferencia")}
                         </span>
                         <input
                           type="file"
@@ -1417,6 +2314,11 @@ export default function PendingPayments() {
                         </button>
                       )}
                     </div>
+                    {!(selectedPayment.payment?.proofs && selectedPayment.payment.proofs.length > 0) && !paymentProof && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                        Debes subir el comprobante de la transferencia bancaria antes de confirmar el pago.
+                      </p>
+                    )}
                   </div>
 
                   {/* Admin Notes */}
@@ -1436,7 +2338,7 @@ export default function PendingPayments() {
                   {/* Submit Button */}
                   <button
                     onClick={() => handleMarkAsPaid(selectedPayment.contract.id, true)}
-                    disabled={markingPaidId === selectedPayment.contract.id || !selectedPayment.worker.bankingInfo?.cbu}
+                    disabled={markingPaidId === selectedPayment.contract.id || !selectedPayment.worker.bankingInfo?.cbu || (!paymentProof && !(selectedPayment.payment?.proofs && selectedPayment.payment.proofs.length > 0))}
                     className="w-full flex items-center justify-center gap-2 px-4 py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-lg font-medium transition shadow-lg shadow-green-500/25"
                   >
                     {markingPaidId === selectedPayment.contract.id ? (
@@ -1450,6 +2352,11 @@ export default function PendingPayments() {
                   {!selectedPayment.worker.bankingInfo?.cbu && (
                     <p className="text-center text-sm text-red-500">
                       No se puede procesar el pago sin datos bancarios
+                    </p>
+                  )}
+                  {selectedPayment.worker.bankingInfo?.cbu && !paymentProof && !(selectedPayment.payment?.proofs && selectedPayment.payment.proofs.length > 0) && (
+                    <p className="text-center text-sm text-amber-600 dark:text-amber-400">
+                      Sube el comprobante de transferencia para habilitar el botón
                     </p>
                   )}
                 </div>

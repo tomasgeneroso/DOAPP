@@ -31,8 +31,8 @@ export interface Payment {
   recipientId: any;
   amount: number;
   currency: string;
-  status: "pending" | "processing" | "completed" | "failed" | "refunded" | "held_escrow";
-  paymentType: "contract_payment" | "escrow_deposit" | "escrow_release" | "refund";
+  status: "pending" | "pending_verification" | "processing" | "completed" | "failed" | "refunded" | "held_escrow";
+  paymentType: "contract_payment" | "escrow_deposit" | "escrow_release" | "refund" | "job_publication";
   paypalOrderId?: string;
   paypalCaptureId?: string;
   paypalPayerId?: string;

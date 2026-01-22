@@ -49,6 +49,7 @@ export function PaymentHistory({ type = "all" }: PaymentHistoryProps) {
   const getStatusText = (status: string) => {
     const statusMap: Record<string, string> = {
       pending: "Pendiente",
+      pending_verification: "Pendiente de verificación",
       processing: "Procesando",
       completed: "Completado",
       failed: "Fallido",
@@ -121,10 +122,23 @@ export function PaymentHistory({ type = "all" }: PaymentHistoryProps) {
                     )}
                   </div>
                   <p className="text-sm text-gray-600">
-                    {payment.payerId.name && payment.recipientId.name ? (
+                    {payment.paymentType === "job_publication" ? (
+                      <>
+                        Pago de publicación de trabajo
+                        {payment.description && ` - ${payment.description}`}
+                      </>
+                    ) : payment.payerId?.name && payment.recipientId?.name ? (
                       <>
                         De <span className="font-medium">{payment.payerId.name}</span> a{" "}
                         <span className="font-medium">{payment.recipientId.name}</span>
+                      </>
+                    ) : payment.payerId?.name ? (
+                      <>
+                        Pago realizado por <span className="font-medium">{payment.payerId.name}</span>
+                      </>
+                    ) : payment.recipientId?.name ? (
+                      <>
+                        Pago recibido de <span className="font-medium">{payment.recipientId.name}</span>
                       </>
                     ) : (
                       "Información de pago"

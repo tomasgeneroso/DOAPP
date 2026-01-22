@@ -2,6 +2,8 @@ import express, { Request, Response } from "express";
 import { Contract } from "../../models/sql/Contract.model.js";
 import { User } from "../../models/sql/User.model.js";
 import { Job } from "../../models/sql/Job.model.js";
+import { Payment } from "../../models/sql/Payment.model.js";
+import { PaymentProof } from "../../models/sql/PaymentProof.model.js";
 import { Notification } from "../../models/sql/Notification.model.js";
 import { protect } from "../../middleware/auth.js";
 import { requirePermission, requireRole } from "../../middleware/permissions.js";
@@ -52,7 +54,7 @@ router.get(
       const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
       const order: any = [[sortBy as string, sortOrder === "desc" ? "DESC" : "ASC"]];
 
-      const [contracts, total] = await Promise.all([
+      const [contractsRaw, total] = await Promise.all([
         Contract.findAll({
           where,
           include: [
@@ -66,6 +68,34 @@ router.get(
         }),
         Contract.count({ where }),
       ]);
+
+      // Fetch payments for each contract separately to avoid association issues
+      const contractIds = contractsRaw.map(c => c.id);
+      const payments = contractIds.length > 0 ? await Payment.findAll({
+        where: { contractId: { [Op.in]: contractIds } },
+        include: [
+          {
+            model: PaymentProof,
+            as: "proofs",
+            required: false,
+            attributes: ["id", "fileUrl", "status", "uploadedAt", "isActive"]
+          }
+        ],
+        attributes: ["id", "status", "amount", "platformFee", "contractId"]
+      }) : [];
+
+      // Map payments by contractId
+      const paymentsByContractId = new Map<string, any>();
+      for (const payment of payments) {
+        paymentsByContractId.set(payment.contractId!, payment);
+      }
+
+      // Attach payments to contracts
+      const contracts = contractsRaw.map(contract => {
+        const contractJson = contract.toJSON();
+        contractJson.payment = paymentsByContractId.get(contract.id) || null;
+        return contractJson;
+      });
 
       res.json({
         success: true,

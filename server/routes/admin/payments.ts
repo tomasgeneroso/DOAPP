@@ -8,16 +8,29 @@ import { Job } from "../../models/sql/Job.model.js";
 import { Contract } from "../../models/sql/Contract.model.js";
 import { Notification } from "../../models/sql/Notification.model.js";
 import { Op } from 'sequelize';
+import { isValidUUID } from "../../utils/sanitizer.js";
 
 const router = Router();
 
 /**
  * Get all payments pending verification (admin only)
  * GET /api/admin/payments/pending
+ * Muestra TODOS los pagos pendientes: MercadoPago y transferencias bancarias
  */
 router.get("/pending", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { status, paymentType, limit = '50', offset = '0' } = req.query;
+    const {
+      status,
+      paymentType,
+      limit = '50',
+      offset = '0',
+      dateFrom,
+      dateTo,
+      minAmount,
+      maxAmount,
+      sortBy = 'createdAt',
+      sortOrder = 'DESC'
+    } = req.query;
 
     const where: any = {};
 
@@ -36,21 +49,74 @@ router.get("/pending", protect, requireRole('admin', 'super_admin', 'owner'), as
       where.paymentType = paymentType;
     }
 
+    // Date range filter
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) {
+        where.createdAt[Op.gte] = new Date(dateFrom as string);
+      }
+      if (dateTo) {
+        // Add 1 day to include the end date
+        const endDate = new Date(dateTo as string);
+        endDate.setDate(endDate.getDate() + 1);
+        where.createdAt[Op.lt] = endDate;
+      }
+    }
+
+    // Amount range filter
+    if (minAmount || maxAmount) {
+      where.amount = {};
+      if (minAmount) {
+        where.amount[Op.gte] = parseFloat(minAmount as string);
+      }
+      if (maxAmount) {
+        where.amount[Op.lte] = parseFloat(maxAmount as string);
+      }
+    }
+
+    // Determine sort field and order
+    const validSortFields = ['createdAt', 'amount', 'status'];
+    const sortField = validSortFields.includes(sortBy as string) ? sortBy as string : 'createdAt';
+    const orderDirection = (sortOrder as string).toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
+
     const payments = await Payment.findAll({
       where,
       limit: parseInt(limit as string),
       offset: parseInt(offset as string),
-      order: [['createdAt', 'DESC']],
+      order: [[sortField, orderDirection]],
       include: [
         {
           model: User,
           as: 'payer',
-          attributes: ['id', 'username', 'email', 'name']
+          attributes: ['id', 'username', 'email', 'name', 'phone', 'dni', 'address', 'bankingInfo']
         },
         {
           model: User,
           as: 'recipient',
-          attributes: ['id', 'username', 'email', 'name']
+          attributes: ['id', 'username', 'email', 'name', 'phone', 'dni', 'address', 'bankingInfo']
+        },
+        {
+          model: Contract,
+          as: 'contract',
+          required: false,
+          attributes: ['id', 'status', 'price', 'allocatedAmount', 'clientId', 'doerId', 'jobId', 'clientConfirmed', 'doerConfirmed', 'commission', 'escrowStatus', 'paymentStatus'],
+          include: [
+            {
+              model: Job,
+              as: 'job',
+              attributes: ['id', 'title', 'description', 'category']
+            },
+            {
+              model: User,
+              as: 'client',
+              attributes: ['id', 'name', 'email', 'phone', 'bankingInfo']
+            },
+            {
+              model: User,
+              as: 'doer',
+              attributes: ['id', 'name', 'email', 'phone', 'dni', 'address', 'bankingInfo']
+            }
+          ]
         },
         {
           model: PaymentProof,
@@ -76,34 +142,63 @@ router.get("/pending", protect, requireRole('admin', 'super_admin', 'owner'), as
       if (payment.paymentType === 'job_publication' || payment.paymentType === 'budget_increase') {
         const job = await Job.findOne({
           where: { publicationPaymentId: payment.id },
-          attributes: ['id', 'title', 'status', 'price', 'category', 'pendingNewPrice', 'pendingPaymentAmount', 'priceChangeReason']
-        });
-
-        return {
-          ...paymentObj,
-          job: job?.toJSON()
-        };
-      }
-
-      if (payment.contractId) {
-        const contract = await Contract.findByPk(payment.contractId, {
-          attributes: ['id', 'title', 'status', 'price'],
+          attributes: ['id', 'title', 'status', 'price', 'category', 'pendingNewPrice', 'pendingPaymentAmount', 'priceChangeReason', 'clientId'],
           include: [
             {
-              model: Job,
-              as: 'job',
-              attributes: ['id', 'title']
+              model: User,
+              as: 'client',
+              attributes: ['id', 'name', 'email', 'phone', 'bankingInfo']
             }
           ]
         });
 
         return {
           ...paymentObj,
-          contract: contract?.toJSON()
+          job: job?.toJSON(),
+          // Información clave para el admin
+          paymentMethod: payment.mercadopagoPaymentId ? 'MercadoPago' : 'Transferencia Bancaria',
+          hasProof: paymentObj.proofs && paymentObj.proofs.length > 0,
+          isMercadoPago: !!payment.mercadopagoPaymentId,
+          displayInfo: {
+            title: job?.title || 'Publicación de trabajo',
+            type: payment.paymentType,
+            amount: payment.amount,
+            payer: paymentObj.payer,
+            status: payment.status,
+            createdAt: payment.createdAt,
+            mercadopagoId: payment.mercadopagoPaymentId
+          }
         };
       }
 
-      return paymentObj;
+      // Contract payments already have the contract included
+      if (payment.contractId) {
+        return {
+          ...paymentObj,
+          // Información clave para el admin
+          paymentMethod: payment.mercadopagoPaymentId ? 'MercadoPago' : 'Transferencia Bancaria',
+          hasProof: paymentObj.proofs && paymentObj.proofs.length > 0,
+          isMercadoPago: !!payment.mercadopagoPaymentId,
+          displayInfo: {
+            title: paymentObj.contract?.job?.title || 'Contrato',
+            type: payment.paymentType,
+            amount: payment.amount,
+            payer: paymentObj.payer,
+            recipient: paymentObj.recipient,
+            contract: paymentObj.contract,
+            status: payment.status,
+            createdAt: payment.createdAt,
+            mercadopagoId: payment.mercadopagoPaymentId
+          }
+        };
+      }
+
+      return {
+        ...paymentObj,
+        paymentMethod: payment.mercadopagoPaymentId ? 'MercadoPago' : 'Transferencia Bancaria',
+        hasProof: paymentObj.proofs && paymentObj.proofs.length > 0,
+        isMercadoPago: !!payment.mercadopagoPaymentId
+      };
     }));
 
     const total = await Payment.count({ where });
@@ -131,17 +226,45 @@ router.get("/:paymentId", protect, requireRole('admin', 'super_admin', 'owner'),
   try {
     const { paymentId } = req.params;
 
+    // Validate UUID to prevent PostgreSQL errors
+    if (!isValidUUID(paymentId)) {
+      res.status(400).json({ success: false, message: "ID de pago inválido" });
+      return;
+    }
+
     const payment = await Payment.findByPk(paymentId, {
       include: [
         {
           model: User,
           as: 'payer',
-          attributes: ['id', 'username', 'email', 'name', 'phone']
+          attributes: ['id', 'username', 'email', 'name', 'phone', 'dni', 'address', 'bankingInfo']
         },
         {
           model: User,
           as: 'recipient',
-          attributes: ['id', 'username', 'email', 'name']
+          attributes: ['id', 'username', 'email', 'name', 'phone', 'dni', 'address', 'bankingInfo']
+        },
+        {
+          model: Contract,
+          as: 'contract',
+          required: false,
+          include: [
+            {
+              model: Job,
+              as: 'job',
+              attributes: ['id', 'title', 'description', 'category', 'price']
+            },
+            {
+              model: User,
+              as: 'client',
+              attributes: ['id', 'name', 'email', 'phone', 'bankingInfo']
+            },
+            {
+              model: User,
+              as: 'doer',
+              attributes: ['id', 'name', 'email', 'phone', 'dni', 'address', 'bankingInfo']
+            }
+          ]
         },
         {
           model: PaymentProof,
@@ -173,7 +296,14 @@ router.get("/:paymentId", protect, requireRole('admin', 'super_admin', 'owner'),
     // Get related job if job publication or budget increase payment
     if (payment.paymentType === 'job_publication' || payment.paymentType === 'budget_increase') {
       const job = await Job.findOne({
-        where: { publicationPaymentId: paymentId }
+        where: { publicationPaymentId: paymentId },
+        include: [
+          {
+            model: User,
+            as: 'client',
+            attributes: ['id', 'name', 'email', 'phone', 'bankingInfo']
+          }
+        ]
       });
 
       if (job) {
@@ -181,31 +311,38 @@ router.get("/:paymentId", protect, requireRole('admin', 'super_admin', 'owner'),
       }
     }
 
-    // Get related contract if contract payment
-    if (payment.contractId) {
-      const contract = await Contract.findByPk(payment.contractId, {
-        include: [
-          {
-            model: Job,
-            as: 'job'
-          },
-          {
-            model: User,
-            as: 'client',
-            attributes: ['id', 'username', 'name']
-          },
-          {
-            model: User,
-            as: 'doer',
-            attributes: ['id', 'username', 'name']
-          }
-        ]
-      });
+    // Add payment method info
+    paymentData.paymentMethod = payment.mercadopagoPaymentId ? 'MercadoPago' : 'Transferencia Bancaria';
+    paymentData.isMercadoPago = !!payment.mercadopagoPaymentId;
+    paymentData.hasProof = paymentData.proofs && paymentData.proofs.length > 0;
 
-      if (contract) {
-        paymentData.contract = contract.toJSON();
-      }
-    }
+    // Add summary info for admin
+    paymentData.adminSummary = {
+      requiresAction: payment.status === 'pending_verification' || payment.status === 'pending',
+      paymentMethod: payment.mercadopagoPaymentId ? 'MercadoPago' : 'Transferencia Bancaria',
+      mercadopagoId: payment.mercadopagoPaymentId,
+      amount: payment.amount,
+      currency: payment.currency,
+      type: payment.paymentType,
+      status: payment.status,
+      createdAt: payment.createdAt,
+      payer: {
+        id: paymentData.payer?.id,
+        name: paymentData.payer?.name,
+        email: paymentData.payer?.email,
+        phone: paymentData.payer?.phone,
+        bankingInfo: paymentData.payer?.bankingInfo
+      },
+      recipient: paymentData.recipient ? {
+        id: paymentData.recipient?.id,
+        name: paymentData.recipient?.name,
+        email: paymentData.recipient?.email,
+        phone: paymentData.recipient?.phone,
+        dni: paymentData.recipient?.dni,
+        address: paymentData.recipient?.address,
+        bankingInfo: paymentData.recipient?.bankingInfo
+      } : null
+    };
 
     res.json({
       success: true,
@@ -218,7 +355,7 @@ router.get("/:paymentId", protect, requireRole('admin', 'super_admin', 'owner'),
 });
 
 /**
- * Approve payment proof (admin only)
+ * Approve payment proof OR MercadoPago payment (admin only)
  * POST /api/admin/payments/:paymentId/approve
  */
 router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
@@ -227,44 +364,66 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
     const { notes, proofId } = req.body;
     const adminId = req.user.id;
 
+    // Validate UUID to prevent PostgreSQL errors
+    if (!isValidUUID(paymentId)) {
+      res.status(400).json({ success: false, message: "ID de pago inválido" });
+      return;
+    }
+
     const payment = await Payment.findByPk(paymentId);
     if (!payment) {
       res.status(404).json({ success: false, message: "Pago no encontrado" });
       return;
     }
 
-    // Find active proof
-    let proof;
+    // Check if there's a proof to verify (only for bank transfers with uploaded proofs)
+    let proof = null;
     if (proofId) {
       proof = await PaymentProof.findOne({
         where: { id: proofId, paymentId, isActive: true }
       });
     } else {
+      // Try to find an active pending proof
       proof = await PaymentProof.findOne({
         where: { paymentId, isActive: true, status: 'pending' }
       });
     }
 
-    if (!proof) {
-      res.status(404).json({ success: false, message: "Comprobante no encontrado" });
-      return;
-    }
+    // If proof exists, verify it
+    if (proof) {
+      if (proof.status !== 'pending') {
+        res.status(400).json({ success: false, message: "Este comprobante ya fue procesado" });
+        return;
+      }
 
-    if (proof.status !== 'pending') {
-      res.status(400).json({ success: false, message: "Este comprobante ya fue procesado" });
-      return;
+      // Update proof
+      proof.status = 'approved';
+      proof.verifiedBy = adminId;
+      proof.verifiedAt = new Date();
+      if (notes) proof.notes = notes;
+      await proof.save();
     }
+    // If no proof exists, that's OK - we can still approve the payment directly
+    // This handles MercadoPago payments and migrated payments without proofs
 
-    // Update proof
-    proof.status = 'approved';
-    proof.verifiedBy = adminId;
-    proof.verifiedAt = new Date();
-    if (notes) proof.notes = notes;
-    await proof.save();
+    // Determine the correct status based on payment type
+    // For contract payments: go to "verified" first (two-step verification)
+    //   Step 1: pending_verification → verified (proof verified)
+    //   Step 2: verified → held_escrow (escrow confirmed by admin)
+    // For other payments (job_publication, etc.): go to completed
+    const isContractPayment = payment.paymentType === 'contract_payment' || payment.paymentType === 'escrow_deposit';
+    const newStatus = isContractPayment ? 'verified' : 'completed';
 
     // Update payment
-    payment.status = 'approved';
+    payment.status = newStatus;
+    payment.approvedBy = adminId;
+    payment.approvedAt = new Date();
+    if (notes) {
+      payment.adminNotes = notes;
+    }
     await payment.save();
+
+    console.log(`✅ [ADMIN APPROVE] Payment ${paymentId} approved with status: ${newStatus}`);
 
     // Handle job publication payment
     if (payment.paymentType === 'job_publication') {
@@ -336,11 +495,58 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
       }
     }
 
+    // Handle contract payment verification (first step - proof verification only)
+    // This step only verifies the proof but does NOT move to escrow yet
+    // Admin must use verify-escrow endpoint to complete the escrow step
+    if (payment.paymentType === 'contract_payment' || payment.paymentType === 'escrow_deposit') {
+      const contract = await Contract.findByPk(payment.contractId, {
+        include: [
+          { model: User, as: 'client', attributes: ['id', 'name', 'email'] },
+          { model: User, as: 'doer', attributes: ['id', 'name', 'email'] },
+          { model: Job, as: 'job', attributes: ['id', 'title'] }
+        ]
+      });
+
+      if (contract) {
+        const job = contract.job as any;
+        const jobTitle = job?.title || 'Contrato';
+
+        console.log(`✅ [ADMIN APPROVE] Payment ${paymentId} verified (Step 1). Awaiting escrow confirmation (Step 2).`);
+
+        // Notify both parties about proof verification (not escrow yet)
+        await Promise.all([
+          Notification.create({
+            recipientId: contract.clientId,
+            type: 'info',
+            category: 'payment',
+            title: 'Comprobante verificado',
+            message: `Tu comprobante de pago de $${payment.amount} para "${jobTitle}" fue verificado. Pendiente confirmación de escrow.`,
+            relatedModel: 'Contract',
+            relatedId: contract.id,
+            sentVia: ['in_app'],
+          }),
+          Notification.create({
+            recipientId: contract.doerId,
+            type: 'info',
+            category: 'contract',
+            title: 'Comprobante verificado',
+            message: `El comprobante de pago de $${payment.amount} para "${jobTitle}" fue verificado. Pendiente confirmación de escrow.`,
+            relatedModel: 'Contract',
+            relatedId: contract.id,
+            sentVia: ['in_app'],
+          })
+        ]);
+      }
+    }
+
     // Notify user
+    const hasMercadoPagoId = !!payment.mercadopagoPaymentId;
     await Notification.create({
       recipientId: payment.payerId,
-      title: 'Comprobante aprobado',
-      message: 'Tu comprobante de pago fue verificado y aprobado.',
+      title: hasMercadoPagoId ? 'Pago de MercadoPago aprobado' : 'Pago aprobado',
+      message: hasMercadoPagoId
+        ? 'Tu pago de MercadoPago fue verificado y aprobado por un administrador.'
+        : 'Tu pago fue verificado y aprobado por un administrador.',
       type: 'success',
       category: 'payment',
       relatedId: paymentId,
@@ -352,7 +558,7 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
       message: "Pago aprobado exitosamente",
       data: {
         payment: payment.toJSON(),
-        proof: proof.toJSON()
+        proof: proof?.toJSON()
       }
     });
   } catch (error: any) {
@@ -370,6 +576,12 @@ router.post("/:paymentId/reject", protect, requireRole('admin', 'super_admin', '
     const { paymentId } = req.params;
     const { reason, notes, proofId } = req.body;
     const adminId = req.user.id;
+
+    // Validate UUID to prevent PostgreSQL errors
+    if (!isValidUUID(paymentId)) {
+      res.status(400).json({ success: false, message: "ID de pago inválido" });
+      return;
+    }
 
     if (!reason) {
       res.status(400).json({ success: false, message: "Debe proporcionar un motivo de rechazo" });
@@ -484,6 +696,242 @@ router.post("/:paymentId/reject", protect, requireRole('admin', 'super_admin', '
   } catch (error: any) {
     console.error("Reject payment error:", error);
     res.status(500).json({ success: false, message: error.message || "Error rechazando comprobante" });
+  }
+});
+
+/**
+ * Verify Escrow - Second step of payment verification (admin only)
+ * Moves payment from 'verified' to 'held_escrow' and updates contract
+ * POST /api/admin/payments/:paymentId/verify-escrow
+ */
+router.post("/:paymentId/verify-escrow", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { paymentId } = req.params;
+    const { notes } = req.body;
+    const adminId = req.user.id;
+
+    // Validate UUID to prevent PostgreSQL errors
+    if (!isValidUUID(paymentId)) {
+      res.status(400).json({ success: false, message: "ID de pago inválido" });
+      return;
+    }
+
+    const payment = await Payment.findByPk(paymentId);
+    if (!payment) {
+      res.status(404).json({ success: false, message: "Pago no encontrado" });
+      return;
+    }
+
+    // Only allow verify-escrow from 'verified' status
+    if (payment.status !== 'verified') {
+      res.status(400).json({
+        success: false,
+        message: `No se puede verificar escrow para un pago con estado "${payment.status}". El pago debe estar en estado "verified".`
+      });
+      return;
+    }
+
+    // Only for contract payments
+    if (payment.paymentType !== 'contract_payment' && payment.paymentType !== 'escrow_deposit') {
+      res.status(400).json({
+        success: false,
+        message: "Solo se puede verificar escrow para pagos de contrato"
+      });
+      return;
+    }
+
+    // Update payment to held_escrow
+    payment.status = 'held_escrow';
+    payment.escrowVerifiedBy = adminId;
+    payment.escrowVerifiedAt = new Date();
+    if (notes) {
+      payment.adminNotes = (payment.adminNotes || '') + `\n[Escrow] ${notes}`;
+    }
+    await payment.save();
+
+    console.log(`✅ [ADMIN VERIFY-ESCROW] Payment ${paymentId} moved to held_escrow`);
+
+    // Now update the contract
+    const contract = await Contract.findByPk(payment.contractId, {
+      include: [
+        { model: User, as: 'client', attributes: ['id', 'name', 'email'] },
+        { model: User, as: 'doer', attributes: ['id', 'name', 'email'] },
+        { model: Job, as: 'job', attributes: ['id', 'title'] }
+      ]
+    });
+
+    if (contract) {
+      const job = contract.job as any;
+      const jobTitle = job?.title || 'Contrato';
+
+      // Update contract escrow status
+      contract.escrowStatus = 'held_escrow';
+      contract.paymentDate = new Date();
+
+      // Determine the correct payment status based on contract state
+      if (contract.clientConfirmed && contract.doerConfirmed) {
+        // Both confirmed - ready for worker payout
+        contract.paymentStatus = 'pending_payout';
+      } else if (contract.status === 'completed' || contract.status === 'awaiting_confirmation') {
+        // Contract completed but waiting for confirmations
+        contract.paymentStatus = 'escrow';
+      } else {
+        // Contract not yet started - set to escrow and allow to start
+        contract.paymentStatus = 'escrow';
+        if (contract.status === 'pending' || contract.status === 'ready' || contract.status === 'accepted') {
+          contract.status = 'in_progress';
+        }
+      }
+
+      await contract.save();
+
+      console.log(`✅ [ADMIN VERIFY-ESCROW] Contract ${contract.id}: escrowStatus=${contract.escrowStatus}, paymentStatus=${contract.paymentStatus}, status=${contract.status}`);
+
+      // Determine notification message based on contract state
+      let clientMessage: string;
+      let workerMessage: string;
+
+      if (contract.clientConfirmed && contract.doerConfirmed) {
+        clientMessage = `Tu pago de $${payment.amount} para "${jobTitle}" está en escrow. El pago al trabajador está listo para procesarse.`;
+        workerMessage = `El pago de $${payment.amount} para "${jobTitle}" está en escrow. Pronto recibirás tu pago.`;
+      } else {
+        clientMessage = `Tu pago de $${payment.amount} para "${jobTitle}" está asegurado en escrow.`;
+        workerMessage = `El pago de $${payment.amount} para "${jobTitle}" está asegurado en escrow. ¡Puedes comenzar a trabajar!`;
+      }
+
+      // Notify both parties
+      await Promise.all([
+        Notification.create({
+          recipientId: contract.clientId,
+          type: 'success',
+          category: 'payment',
+          title: 'Pago en Escrow',
+          message: clientMessage,
+          relatedModel: 'Contract',
+          relatedId: contract.id,
+          sentVia: ['in_app', 'push'],
+        }),
+        Notification.create({
+          recipientId: contract.doerId,
+          type: 'success',
+          category: 'contract',
+          title: 'Pago en Escrow',
+          message: workerMessage,
+          relatedModel: 'Contract',
+          relatedId: contract.id,
+          sentVia: ['in_app', 'push'],
+        })
+      ]);
+    }
+
+    res.json({
+      success: true,
+      message: "Pago verificado y movido a escrow exitosamente",
+      data: {
+        payment: payment.toJSON(),
+        contract: contract?.toJSON()
+      }
+    });
+  } catch (error: any) {
+    console.error("Verify escrow error:", error);
+    res.status(500).json({ success: false, message: error.message || "Error verificando escrow" });
+  }
+});
+
+/**
+ * Confirm for Worker Payout - Move from held_escrow to pending_payout (admin only)
+ * This endpoint is used when the admin confirms that the escrow funds should be
+ * released for worker payment (to appear in "Pagos a Trabajadores - Pendiente")
+ * POST /api/admin/payments/:paymentId/confirm-for-payout
+ */
+router.post("/:paymentId/confirm-for-payout", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { paymentId } = req.params;
+    const { notes } = req.body;
+    const adminId = req.user.id;
+
+    // Validate UUID to prevent PostgreSQL errors
+    if (!isValidUUID(paymentId)) {
+      res.status(400).json({ success: false, message: "ID de pago inválido" });
+      return;
+    }
+
+    const payment = await Payment.findByPk(paymentId);
+    if (!payment) {
+      res.status(404).json({ success: false, message: "Pago no encontrado" });
+      return;
+    }
+
+    // Only allow from 'held_escrow' status
+    if (payment.status !== 'held_escrow') {
+      res.status(400).json({
+        success: false,
+        message: `No se puede confirmar para pago un pago con estado "${payment.status}". El pago debe estar en estado "held_escrow".`
+      });
+      return;
+    }
+
+    // Only for contract payments
+    if (payment.paymentType !== 'contract_payment' && payment.paymentType !== 'escrow_deposit') {
+      res.status(400).json({
+        success: false,
+        message: "Solo se puede confirmar para pago los pagos de contrato"
+      });
+      return;
+    }
+
+    // Update payment to confirmed_for_payout (ready for worker payout)
+    payment.status = 'confirmed_for_payout';
+    if (notes) {
+      payment.adminNotes = (payment.adminNotes || '') + `\n[Confirmado para pago] ${notes}`;
+    }
+    await payment.save();
+
+    console.log(`✅ [ADMIN CONFIRM-FOR-PAYOUT] Payment ${paymentId} moved to confirmed_for_payout`);
+
+    // Now update the contract
+    const contract = await Contract.findByPk(payment.contractId, {
+      include: [
+        { model: User, as: 'client', attributes: ['id', 'name', 'email'] },
+        { model: User, as: 'doer', attributes: ['id', 'name', 'email'] },
+        { model: Job, as: 'job', attributes: ['id', 'title'] }
+      ]
+    });
+
+    if (contract) {
+      const job = contract.job as any;
+      const jobTitle = job?.title || 'Contrato';
+
+      // Update contract payment status to pending_payout
+      contract.paymentStatus = 'pending_payout';
+      await contract.save();
+
+      console.log(`✅ [ADMIN CONFIRM-FOR-PAYOUT] Contract ${contract.id}: paymentStatus=${contract.paymentStatus}`);
+
+      // Notify worker that payment is ready to be processed
+      await Notification.create({
+        recipientId: contract.doerId,
+        type: 'success',
+        category: 'payment',
+        title: 'Pago en proceso',
+        message: `El pago de $${payment.amount} para "${jobTitle}" está siendo procesado. Pronto recibirás el dinero en tu cuenta.`,
+        relatedModel: 'Contract',
+        relatedId: contract.id,
+        sentVia: ['in_app', 'push'],
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "Pago confirmado para procesamiento. Ahora aparece en 'Pagos a Trabajadores - Pendiente'.",
+      data: {
+        payment: payment.toJSON(),
+        contract: contract?.toJSON()
+      }
+    });
+  } catch (error: any) {
+    console.error("Confirm for payout error:", error);
+    res.status(500).json({ success: false, message: error.message || "Error confirmando pago" });
   }
 });
 

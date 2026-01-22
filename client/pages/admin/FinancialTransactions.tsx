@@ -16,7 +16,9 @@ import {
   BarChart3,
   ArrowUpDown,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Receipt,
+  ExternalLink
 } from "lucide-react";
 import {
   LineChart,
@@ -76,6 +78,14 @@ interface Transaction {
   isOwnBankAccount?: boolean;
   thirdPartyAccountHolder?: string;
   senderBankName?: string;
+  // Payment proofs
+  proofs?: Array<{
+    id: string;
+    fileUrl: string;
+    status: string;
+    uploadedAt: string;
+  }>;
+  hasProof?: boolean;
 }
 
 type ChartType = 'escrow' | 'recent' | 'commissions' | 'total' | null;
@@ -1562,6 +1572,54 @@ export default function FinancialTransactions() {
                   <p className="text-gray-900 dark:text-white">{selectedTransaction.description}</p>
                 </div>
               )}
+
+              {/* Payment Proof Section */}
+              <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Comprobante de Pago</p>
+                {selectedTransaction.proofs && selectedTransaction.proofs.length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedTransaction.proofs.map((proof, index) => (
+                      <a
+                        key={proof.id}
+                        href={proof.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 p-3 bg-sky-50 dark:bg-sky-900/20 rounded-lg hover:bg-sky-100 dark:hover:bg-sky-900/30 transition"
+                      >
+                        <Receipt className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-sky-700 dark:text-sky-300">
+                            Ver Comprobante {selectedTransaction.proofs!.length > 1 ? `#${index + 1}` : ''}
+                          </p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {new Date(proof.uploadedAt).toLocaleString('es-AR')} -
+                            <span className={`ml-1 ${
+                              proof.status === 'approved' ? 'text-green-600' :
+                              proof.status === 'rejected' ? 'text-red-600' :
+                              'text-amber-600'
+                            }`}>
+                              {proof.status === 'approved' ? 'Aprobado' :
+                               proof.status === 'rejected' ? 'Rechazado' :
+                               'Pendiente'}
+                            </span>
+                          </p>
+                        </div>
+                        <ExternalLink className="h-4 w-4 text-sky-500" />
+                      </a>
+                    ))}
+                  </div>
+                ) : selectedTransaction.mercadopagoPaymentId ? (
+                  <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                    <DollarSign className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <div>
+                      <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Pago vía MercadoPago</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">ID: {selectedTransaction.mercadopagoPaymentId}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400 dark:text-gray-500 italic">Sin comprobante adjunto</p>
+                )}
+              </div>
 
               {/* Info: Go to PendingPayments for approvals */}
               {selectedTransaction.status === 'pending_verification' && (

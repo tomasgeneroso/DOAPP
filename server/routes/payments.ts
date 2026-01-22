@@ -1049,11 +1049,16 @@ router.get("/my/list", protect, async (req: AuthRequest, res: Response): Promise
 
     let whereClause: any = {};
     if (type === "sent") {
+      // Include both: sent to others AND platform payments (job publications, etc)
       whereClause.payerId = userId;
     } else if (type === "received") {
       whereClause.recipientId = userId;
     } else {
-      whereClause[Op.or] = [{ payerId: userId }, { recipientId: userId }];
+      // Show all: sent to others, received, AND platform payments
+      whereClause[Op.or] = [
+        { payerId: userId },
+        { recipientId: userId }
+      ];
     }
 
     const payments = await Payment.findAll({

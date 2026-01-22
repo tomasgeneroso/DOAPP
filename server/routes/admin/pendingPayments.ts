@@ -1,14 +1,47 @@
 import express, { Response } from "express";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 import { protect, AuthRequest } from "../../middleware/auth.js";
 import { requireRole } from "../../middleware/permissions.js";
 import { Contract } from "../../models/sql/Contract.model.js";
 import { User } from "../../models/sql/User.model.js";
 import { Job } from "../../models/sql/Job.model.js";
 import { Payment } from "../../models/sql/Payment.model.js";
+import { PaymentProof } from "../../models/sql/PaymentProof.model.js";
 import { Notification } from "../../models/sql/Notification.model.js";
 import { Op } from 'sequelize';
+import { isValidUUID } from "../../utils/sanitizer.js";
 
 const router = express.Router();
+
+// Configure multer for worker payment proof uploads (admin uploads proof of bank transfer to worker)
+const workerPaymentProofStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = 'uploads/worker-payment-proofs';
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, `worker-payment-${uniqueSuffix}${path.extname(file.originalname)}`);
+  }
+});
+
+const workerPaymentProofUpload = multer({
+  storage: workerPaymentProofStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Tipo de archivo no permitido. Solo se permiten imágenes y PDFs.'));
+    }
+  }
+});
 
 interface WorkerPaymentInfo {
   workerId: string;
@@ -36,6 +69,13 @@ interface WorkerPaymentInfo {
   percentageOfBudget: number | null;
 }
 
+interface PaymentProofInfo {
+  id: string;
+  fileUrl: string;
+  status: string;
+  uploadedAt: Date;
+}
+
 interface ContractPaymentRow {
   contractId: string;
   contractNumber: number;
@@ -48,7 +88,17 @@ interface ContractPaymentRow {
   totalCommission: number;
   completedAt: Date;
   paymentStatus: string;
+  escrowStatus: string;
+  contractStatus: string;
+  // Payment record status (for admin verification tracking)
+  paymentRecordStatus: string;
+  commissionVerified: boolean;
   workers: WorkerPaymentInfo[];
+  // Payment proof info (client's payment proof)
+  paymentId?: string;
+  proofs?: PaymentProofInfo[];
+  // Worker payment proof (admin's proof of transfer to worker)
+  workerPaymentProofUrl?: string | null;
 }
 
 /**
@@ -70,6 +120,7 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
       endDate: customEnd,
       sortBy = 'completedAt',
       sortOrder = 'desc',
+      onlyVerified = 'true', // Only show contracts where commission is verified (Payment in held_escrow)
     } = req.query;
 
     // Calculate date range based on period
@@ -110,14 +161,47 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
     };
     const actualSortBy = sortByColumnMap[sortBy as string] || sortBy as string;
 
-    // Query contracts where both parties confirmed and payment is pending
-    // paymentStatus 'pending_payout' or legacy 'released' (not completed) need admin processing
+    // First, find all payments that are confirmed for payout
+    const confirmedPayments = await Payment.findAll({
+      where: {
+        status: 'confirmed_for_payout',
+        paymentType: { [Op.in]: ['contract_payment', 'escrow_deposit'] }
+      },
+      attributes: ['contractId']
+    });
+
+    const confirmedContractIds = confirmedPayments.map(p => p.contractId).filter(Boolean) as string[];
+
+    // If no confirmed payments, return empty result early (prevents UUID error)
+    if (confirmedContractIds.length === 0) {
+      res.status(200).json({
+        success: true,
+        report: {
+          period: period as string,
+          startDate,
+          endDate,
+          generatedAt: new Date(),
+          summary: {
+            totalContracts: 0,
+            totalWorkers: 0,
+            totalAmountToPay: 0,
+            totalCommissionCollected: 0,
+            averagePaymentPerWorker: 0,
+            bankBreakdown: {},
+          },
+          data: []
+        }
+      });
+      return;
+    }
+
+    // Query contracts that are ready for worker payout
+    // Show contracts where the Payment is in 'confirmed_for_payout' status
     const contracts = await Contract.findAll({
       where: {
-        status: { [Op.in]: ['completed', 'awaiting_confirmation', 'in_progress'] },
-        clientConfirmed: true,
-        doerConfirmed: true,
-        paymentStatus: { [Op.in]: ['pending_payout', 'released'] } // Pending admin payout
+        id: { [Op.in]: confirmedContractIds },
+        // Worker hasn't been paid yet (not 'completed')
+        status: { [Op.notIn]: ['cancelled', 'rejected'] }
       },
       include: [
         {
@@ -206,6 +290,41 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
       // Skip if no workers match payment method filter
       if (workers.length === 0) continue;
 
+      // Get the Payment record for this contract to check commission verification
+      const paymentRecord = await Payment.findOne({
+        where: { contractId: firstContract.id },
+        attributes: ['id', 'status', 'amount', 'platformFee'],
+        include: [
+          {
+            model: PaymentProof,
+            as: 'proofs',
+            where: { isActive: true },
+            required: false,
+            attributes: ['id', 'fileUrl', 'status', 'uploadedAt']
+          }
+        ]
+      });
+
+      // Commission is verified if Payment status is 'held_escrow', 'confirmed_for_payout', 'completed', or 'awaiting_confirmation'
+      const commissionVerifiedStatuses = ['held_escrow', 'confirmed_for_payout', 'completed', 'awaiting_confirmation', 'released'];
+      const commissionVerified = paymentRecord
+        ? commissionVerifiedStatuses.includes(paymentRecord.status)
+        : false;
+
+      // Skip if onlyVerified=true and commission is not verified
+      // This ensures contracts only appear in "Pagos a Trabajadores" after admin verified the payment
+      if (onlyVerified === 'true' && !commissionVerified) {
+        continue;
+      }
+
+      // Get proofs from the payment record
+      const paymentProofs: PaymentProofInfo[] = (paymentRecord as any)?.proofs?.map((p: any) => ({
+        id: p.id,
+        fileUrl: p.fileUrl,
+        status: p.status,
+        uploadedAt: p.uploadedAt
+      })) || [];
+
       paymentRows.push({
         contractId: firstContract.id,
         contractNumber: rowNumber++,
@@ -218,9 +337,15 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
         totalCommission,
         completedAt: firstContract.clientConfirmedAt || firstContract.updatedAt,
         paymentStatus: firstContract.paymentStatus || 'pending',
-        escrowStatus: firstContract.escrowStatus || 'held_escrow',
+        escrowStatus: firstContract.escrowStatus || 'pending',
         contractStatus: firstContract.status,
-        workers
+        paymentRecordStatus: paymentRecord?.status || 'no_payment_record',
+        commissionVerified,
+        workers,
+        paymentId: paymentRecord?.id,
+        proofs: paymentProofs,
+        // Worker payment proof (admin's proof of transfer to worker)
+        workerPaymentProofUrl: firstContract.paymentProofUrl || null,
       });
     }
 
@@ -281,112 +406,6 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
     res.status(500).json({
       success: false,
       message: error.message || "Error al generar reporte de pagos pendientes"
-    });
-  }
-});
-
-/**
- * Get detailed payment info for a specific contract
- * GET /api/admin/pending-payments/:contractId
- */
-router.get("/:contractId", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { contractId } = req.params;
-
-    const contract = await Contract.findByPk(contractId, {
-      include: [
-        {
-          model: User,
-          as: 'client',
-          attributes: ['id', 'name', 'email', 'dni', 'phone', 'address', 'legalInfo']
-        },
-        {
-          model: User,
-          as: 'doer',
-          attributes: ['id', 'name', 'email', 'dni', 'phone', 'address', 'bankingInfo', 'legalInfo']
-        },
-        {
-          model: Job,
-          as: 'job',
-          attributes: ['id', 'title', 'description', 'price', 'maxWorkers', 'selectedWorkers', 'workerAllocations', 'location']
-        }
-      ]
-    });
-
-    if (!contract) {
-      res.status(404).json({ success: false, message: "Contrato no encontrado" });
-      return;
-    }
-
-    // Get associated payment
-    const payment = await Payment.findOne({
-      where: { contractId }
-    });
-
-    const doer = contract.doer as any;
-    const client = contract.client as any;
-    const job = contract.job as any;
-
-    res.status(200).json({
-      success: true,
-      paymentDetails: {
-        contract: {
-          id: contract.id,
-          status: contract.status,
-          paymentStatus: contract.paymentStatus,
-          escrowStatus: contract.escrowStatus,
-          price: contract.price,
-          commission: contract.commission,
-          totalPrice: contract.totalPrice,
-          allocatedAmount: contract.allocatedAmount,
-          percentageOfBudget: contract.percentageOfBudget,
-          startDate: contract.startDate,
-          endDate: contract.endDate,
-          completedAt: contract.clientConfirmedAt,
-        },
-        job: {
-          id: job?.id,
-          title: job?.title,
-          description: job?.description,
-          totalBudget: job?.price,
-          maxWorkers: job?.maxWorkers,
-          selectedWorkersCount: job?.selectedWorkers?.length || 0,
-          location: job?.location
-        },
-        client: {
-          id: client?.id,
-          name: client?.name,
-          email: client?.email,
-          dni: client?.dni,
-          phone: client?.phone,
-          address: client?.address,
-          legalInfo: client?.legalInfo
-        },
-        worker: {
-          id: doer?.id,
-          name: doer?.name,
-          email: doer?.email,
-          dni: doer?.dni,
-          phone: doer?.phone,
-          address: doer?.address,
-          bankingInfo: doer?.bankingInfo,
-          legalInfo: doer?.legalInfo
-        },
-        payment: payment ? {
-          id: payment.id,
-          status: payment.status,
-          amount: payment.amount,
-          workerPaymentAmount: payment.workerPaymentAmount,
-          mercadopagoId: payment.mercadopagoPaymentId,
-          paidAt: payment.paidAt
-        } : null
-      }
-    });
-  } catch (error: any) {
-    console.error("Error fetching payment details:", error);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Error al obtener detalles del pago"
     });
   }
 });
@@ -617,6 +636,179 @@ router.get("/completed/list", protect, requireRole('admin', 'super_admin', 'owne
 });
 
 /**
+ * Upload worker payment proof (comprobante de transferencia al trabajador)
+ * POST /api/admin/pending-payments/upload-proof
+ *
+ * IMPORTANT: This route MUST be defined BEFORE parameterized routes like /:contractId
+ */
+router.post("/upload-proof", protect, requireRole('admin', 'super_admin', 'owner'), workerPaymentProofUpload.single('file'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ success: false, message: "No se subió ningún archivo" });
+      return;
+    }
+
+    const fileUrl = `/uploads/worker-payment-proofs/${req.file.filename}`;
+
+    res.status(200).json({
+      success: true,
+      url: fileUrl,
+      filename: req.file.filename,
+      originalName: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype
+    });
+  } catch (error: any) {
+    console.error("Error uploading worker payment proof:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error al subir comprobante"
+    });
+  }
+});
+
+/**
+ * Get detailed payment info for a specific contract
+ * GET /api/admin/pending-payments/:contractId
+ *
+ * IMPORTANT: This route MUST be defined AFTER all static routes like /export/csv, /completed/list, and /upload-proof
+ * to prevent Express from matching "export" or "completed" as a contractId
+ */
+router.get("/:contractId", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { contractId } = req.params;
+
+    // Validate UUID to prevent PostgreSQL errors
+    if (!isValidUUID(contractId)) {
+      res.status(400).json({ success: false, message: "ID de contrato inválido" });
+      return;
+    }
+
+    const contract = await Contract.findByPk(contractId, {
+      include: [
+        {
+          model: User,
+          as: 'client',
+          attributes: ['id', 'name', 'email', 'dni', 'phone', 'address']
+        },
+        {
+          model: User,
+          as: 'doer',
+          attributes: ['id', 'name', 'email', 'dni', 'phone', 'address', 'bankingInfo']
+        },
+        {
+          model: Job,
+          as: 'job',
+          attributes: ['id', 'title', 'description', 'price', 'maxWorkers', 'selectedWorkers', 'workerAllocations', 'location']
+        }
+      ]
+    });
+
+    if (!contract) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    const doer = contract.doer as any;
+    const client = contract.client as any;
+    const job = contract.job as any;
+
+    // Get associated payment
+    const payment = await Payment.findOne({
+      where: { contractId }
+    });
+
+    // Get proofs separately to avoid query issues
+    let proofs: any[] = [];
+    if (payment) {
+      const paymentProofs = await PaymentProof.findAll({
+        where: { paymentId: payment.id, isActive: true },
+        attributes: ['id', 'fileUrl', 'status', 'uploadedAt']
+      });
+      proofs = paymentProofs.map(p => p.toJSON());
+    }
+
+    // Calculate amounts
+    const workerAmount = contract.allocatedAmount || contract.price;
+    const commission = contract.commission || 0;
+    const netAmount = parseFloat(workerAmount.toString()) - parseFloat(commission.toString());
+
+    // Build detailed payment info
+    const paymentInfo = {
+      contract: {
+        id: contract.id,
+        status: contract.status,
+        paymentStatus: contract.paymentStatus,
+        escrowStatus: contract.escrowStatus,
+        price: parseFloat(contract.price.toString()),
+        allocatedAmount: contract.allocatedAmount ? parseFloat(contract.allocatedAmount.toString()) : null,
+        percentageOfBudget: contract.percentageOfBudget ? parseFloat(contract.percentageOfBudget.toString()) : null,
+        commission: parseFloat(commission.toString()),
+        netAmount,
+        createdAt: contract.createdAt,
+        completedAt: contract.clientConfirmedAt || contract.updatedAt,
+        paymentProcessedAt: contract.paymentProcessedAt,
+        paymentProofUrl: contract.paymentProofUrl,
+        paymentAdminNotes: contract.paymentAdminNotes,
+      },
+      job: job ? {
+        id: job.id,
+        title: job.title,
+        description: job.description,
+        totalBudget: parseFloat(job.price.toString()),
+        maxWorkers: job.maxWorkers || 1,
+        selectedWorkersCount: Array.isArray(job.selectedWorkers) ? job.selectedWorkers.length : 1,
+        location: job.location || 'No especificada',
+      } : null,
+      client: client ? {
+        id: client.id,
+        name: client.name,
+        email: client.email,
+        dni: client.dni,
+        phone: client.phone,
+        address: client.address,
+      } : null,
+      worker: doer ? {
+        id: doer.id,
+        name: doer.name,
+        email: doer.email,
+        dni: doer.dni,
+        phone: doer.phone,
+        address: doer.address,
+        bankingInfo: doer.bankingInfo ? {
+          bankName: doer.bankingInfo.bankName || null,
+          accountHolder: doer.bankingInfo.accountHolder || null,
+          accountType: doer.bankingInfo.accountType || null,
+          cbu: doer.bankingInfo.cbu || null,
+          alias: doer.bankingInfo.alias || null,
+        } : null,
+        hasBankingInfo: !!(doer.bankingInfo?.cbu || doer.bankingInfo?.alias),
+      } : null,
+      payment: payment ? {
+        id: payment.id,
+        status: payment.status,
+        amount: parseFloat(payment.amount.toString()),
+        platformFee: payment.platformFee ? parseFloat(payment.platformFee.toString()) : null,
+        createdAt: payment.createdAt,
+        paidAt: payment.paidAt,
+        proofs: proofs,
+      } : null,
+    };
+
+    res.status(200).json({
+      success: true,
+      data: paymentInfo
+    });
+  } catch (error: any) {
+    console.error("Error fetching contract payment details:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error al obtener detalles del pago"
+    });
+  }
+});
+
+/**
  * Mark payment as processed (manual bank transfer)
  * POST /api/admin/pending-payments/:contractId/mark-paid
  */
@@ -625,6 +817,12 @@ router.post("/:contractId/mark-paid", protect, requireRole('admin', 'super_admin
     const { contractId } = req.params;
     const { proofOfPayment, adminNotes, paymentMethod, deductions } = req.body;
     const adminId = req.user.id;
+
+    // Validate UUID to prevent PostgreSQL errors
+    if (!isValidUUID(contractId)) {
+      res.status(400).json({ success: false, message: "ID de contrato inválido" });
+      return;
+    }
 
     const contract = await Contract.findByPk(contractId, {
       include: [
@@ -681,7 +879,7 @@ router.post("/:contractId/mark-paid", protect, requireRole('admin', 'super_admin
       // Update or create the balance transaction as completed
       const BalanceTransaction = (await import('../../models/sql/BalanceTransaction.model.js')).default;
       const existingTransaction = await BalanceTransaction.findOne({
-        where: { relatedModel: 'Contract', relatedId: contract.id, type: 'payment' }
+        where: { relatedContractId: contract.id, type: 'payment' }
       });
 
       if (existingTransaction) {
@@ -706,8 +904,7 @@ router.post("/:contractId/mark-paid", protect, requireRole('admin', 'super_admin
           balanceAfter: newBalance,
           description: `Pago por contrato - ${job?.title || 'Trabajo'}`,
           status: 'completed',
-          relatedModel: 'Contract',
-          relatedId: contract.id,
+          relatedContractId: contract.id,
           metadata: {
             processedBy: adminId,
             processedAt: new Date(),
@@ -720,13 +917,70 @@ router.post("/:contractId/mark-paid", protect, requireRole('admin', 'super_admin
       }
     }
 
-    // Update associated payment if exists
-    const payment = await Payment.findOne({ where: { contractId } });
-    if (payment) {
-      payment.status = 'completed';
-      payment.paidAt = new Date();
-      if (adminNotes) payment.adminNotes = adminNotes;
-      await payment.save();
+    // Update associated payment if exists and create proof record
+    // Look for the payment that is in confirmed_for_payout status (ready for worker payout)
+    const payment = await Payment.findOne({
+      where: {
+        contractId,
+        status: 'confirmed_for_payout'
+      }
+    });
+
+    // If not found, try to find any payment associated with this contract
+    const anyPayment = payment || await Payment.findOne({ where: { contractId } });
+    console.log(`[mark-paid] Contract ${contractId}: Payment (confirmed_for_payout) found = ${!!payment}, Any payment found = ${!!anyPayment}, current status = ${anyPayment?.status}`);
+
+    // Use the confirmed_for_payout payment if found, otherwise use any payment
+    const paymentToUpdate = payment || anyPayment;
+
+    if (paymentToUpdate) {
+      const previousStatus = paymentToUpdate.status;
+      paymentToUpdate.status = 'completed';
+      paymentToUpdate.paidAt = new Date();
+      if (adminNotes) paymentToUpdate.adminNotes = adminNotes;
+      await paymentToUpdate.save();
+      console.log(`[mark-paid] Payment ${paymentToUpdate.id}: status changed from ${previousStatus} to ${paymentToUpdate.status}`);
+
+      // Verify the change was persisted
+      const verifyPayment = await Payment.findByPk(paymentToUpdate.id);
+      console.log(`[mark-paid] VERIFICATION: Payment ${paymentToUpdate.id} status in DB = ${verifyPayment?.status}`);
+      if (verifyPayment?.status !== 'completed') {
+        console.error(`[mark-paid] ERROR: Payment status was not updated! Expected 'completed', got '${verifyPayment?.status}'`);
+      }
+
+      // Also update any other payments for this contract that might be in confirmed_for_payout
+      const otherPayments = await Payment.findAll({
+        where: {
+          contractId,
+          status: 'confirmed_for_payout',
+          id: { [Op.ne]: paymentToUpdate.id }
+        }
+      });
+
+      for (const otherPayment of otherPayments) {
+        const otherPrevStatus = otherPayment.status;
+        otherPayment.status = 'completed';
+        otherPayment.paidAt = new Date();
+        await otherPayment.save();
+        console.log(`[mark-paid] Additional payment ${otherPayment.id}: status changed from ${otherPrevStatus} to completed`);
+      }
+
+      // Create a PaymentProof record if proof was uploaded
+      if (proofOfPayment) {
+        const proof = await PaymentProof.create({
+          paymentId: paymentToUpdate.id,
+          fileUrl: proofOfPayment,
+          status: 'approved',
+          uploadedAt: new Date(),
+          verifiedBy: adminId,
+          verifiedAt: new Date(),
+          isActive: true,
+          notes: `Comprobante de pago al trabajador - ${job?.title || 'Contrato'}`,
+        });
+        console.log(`[mark-paid] PaymentProof created: ${proof.id} for payment ${paymentToUpdate.id}`);
+      }
+    } else {
+      console.log(`[mark-paid] WARNING: No Payment record found for contract ${contractId}`);
     }
 
     // Notify worker about payment
@@ -757,6 +1011,63 @@ router.post("/:contractId/mark-paid", protect, requireRole('admin', 'super_admin
     res.status(500).json({
       success: false,
       message: error.message || "Error al marcar pago"
+    });
+  }
+});
+
+/**
+ * Fix stuck payment - marks all payments for a contract as completed
+ * POST /api/admin/pending-payments/:contractId/fix-status
+ */
+router.post("/:contractId/fix-status", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { contractId } = req.params;
+    const adminId = req.user.id;
+
+    // Validate UUID
+    if (!isValidUUID(contractId)) {
+      res.status(400).json({ success: false, message: "ID de contrato inválido" });
+      return;
+    }
+
+    // Find all payments for this contract
+    const allPayments = await Payment.findAll({ where: { contractId } });
+
+    console.log(`[fix-status] Contract ${contractId}: Found ${allPayments.length} payments`);
+    allPayments.forEach(p => {
+      console.log(`[fix-status] - Payment ${p.id}: status=${p.status}, type=${p.paymentType}`);
+    });
+
+    // Check the contract
+    const contract = await Contract.findByPk(contractId);
+    console.log(`[fix-status] Contract status: ${contract?.status}, paymentStatus: ${contract?.paymentStatus}, paymentProofUrl: ${contract?.paymentProofUrl ? 'YES' : 'NO'}`);
+
+    // Update all payments to completed
+    let updatedCount = 0;
+    for (const payment of allPayments) {
+      if (payment.status !== 'completed') {
+        const prevStatus = payment.status;
+        payment.status = 'completed';
+        payment.paidAt = new Date();
+        await payment.save();
+        console.log(`[fix-status] Payment ${payment.id}: ${prevStatus} -> completed`);
+        updatedCount++;
+      }
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Fixed ${updatedCount} payments for contract ${contractId}`,
+      paymentsFound: allPayments.length,
+      paymentsUpdated: updatedCount,
+      contractStatus: contract?.status,
+      contractPaymentStatus: contract?.paymentStatus,
+    });
+  } catch (error: any) {
+    console.error("Error fixing payment status:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error al corregir estado del pago"
     });
   }
 });
