@@ -24,6 +24,11 @@ import {
   Clock,
   History,
   ExternalLink,
+  Ban,
+  RotateCcw,
+  FileImage,
+  MessageSquare,
+  X,
 } from "lucide-react";
 
 interface WorkerPaymentInfo {
@@ -183,7 +188,7 @@ export default function PendingPayments() {
   const [activeTab, setActiveTab] = useState<"app" | "workers">("app");
 
   // Sub-filter state for each tab
-  const [appSubFilter, setAppSubFilter] = useState<"pending" | "verified" | "escrow" | "confirmed" | "disputed">("pending");
+  const [appSubFilter, setAppSubFilter] = useState<"pending" | "verified" | "escrow" | "confirmed" | "disputed" | "rejected">("pending");
   const [workersSubFilter, setWorkersSubFilter] = useState<"pending" | "paid" | "disputed">("pending");
 
   const [payments, setPayments] = useState<ContractPaymentRow[]>([]);
@@ -206,6 +211,12 @@ export default function PendingPayments() {
   const [verificationLoading, setVerificationLoading] = useState(false);
   const [approvingPaymentId, setApprovingPaymentId] = useState<string | null>(null);
   const [rejectingPaymentId, setRejectingPaymentId] = useState<string | null>(null);
+
+  // Reject modal state
+  const [rejectModalPaymentId, setRejectModalPaymentId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectFile, setRejectFile] = useState<File | null>(null);
+  const [rejectUploading, setRejectUploading] = useState(false);
 
   // Liquidation form state
   const [bankFee, setBankFee] = useState<number>(0);
@@ -290,6 +301,8 @@ export default function PendingPayments() {
         params.append("status", "confirmed_for_payout");
       } else if (appSubFilter === "disputed") {
         params.append("status", "disputed");
+      } else if (appSubFilter === "rejected") {
+        params.append("status", "rejected");
       }
       if (dateFrom) params.append("dateFrom", dateFrom);
       if (dateTo) params.append("dateTo", dateTo);
@@ -415,26 +428,63 @@ export default function PendingPayments() {
     }
   };
 
-  // Rechazar pago de verificación
-  const handleRejectVerificationPayment = async (paymentId: string) => {
-    const reason = prompt("Ingresa el motivo del rechazo:");
-    if (!reason) return;
+  // Abrir modal de rechazo
+  const handleRejectVerificationPayment = (paymentId: string) => {
+    setRejectModalPaymentId(paymentId);
+    setRejectReason("");
+    setRejectFile(null);
+  };
+
+  // Confirmar rechazo desde modal
+  const handleConfirmReject = async () => {
+    if (!rejectModalPaymentId) return;
+    if (!rejectReason.trim()) {
+      alert("Debes ingresar un motivo de rechazo");
+      return;
+    }
 
     try {
-      setRejectingPaymentId(paymentId);
+      setRejectUploading(true);
       const token = localStorage.getItem("token");
-      const response = await fetch(`/api/admin/payments/${paymentId}/reject`, {
+
+      // Si hay archivo, primero subirlo
+      let attachmentUrl = null;
+      if (rejectFile) {
+        const formData = new FormData();
+        formData.append("file", rejectFile);
+        formData.append("type", "rejection_evidence");
+
+        const uploadResponse = await fetch("/api/admin/pending-payments/upload-proof", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+
+        const uploadData = await uploadResponse.json();
+        if (uploadData.success) {
+          attachmentUrl = uploadData.fileUrl;
+        }
+      }
+
+      // Rechazar el pago
+      const response = await fetch(`/api/admin/payments/${rejectModalPaymentId}/reject`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ reason }),
+        body: JSON.stringify({
+          reason: rejectReason,
+          notes: attachmentUrl ? `Adjunto: ${attachmentUrl}` : undefined,
+        }),
       });
 
       const data = await response.json();
       if (data.success) {
-        alert("Pago rechazado. Se notificará al usuario.");
+        alert("✅ Pago rechazado. Se notificará al usuario.");
+        setRejectModalPaymentId(null);
+        setRejectReason("");
+        setRejectFile(null);
         loadVerificationPayments();
       } else {
         alert(data.message || "Error al rechazar el pago");
@@ -443,7 +493,38 @@ export default function PendingPayments() {
       console.error("Error rejecting payment:", error);
       alert("Error al rechazar el pago");
     } finally {
-      setRejectingPaymentId(null);
+      setRejectUploading(false);
+    }
+  };
+
+  // Cancelar rechazo de pago
+  const handleCancelReject = async (paymentId: string) => {
+    if (!confirm("¿Cancelar el rechazo de este pago? El pago volverá a 'Pendiente de Verificación' para ser revisado nuevamente.")) return;
+
+    try {
+      setApprovingPaymentId(paymentId);
+      const token = localStorage.getItem("token");
+      const response = await fetch(`/api/admin/payments/${paymentId}/cancel-reject`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ notes: "Rechazo cancelado por admin" }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        alert("✅ Rechazo cancelado. El pago volvió a 'Pendiente de Verificación'.");
+        loadVerificationPayments();
+      } else {
+        alert(data.message || "Error al cancelar el rechazo");
+      }
+    } catch (error) {
+      console.error("Error canceling reject:", error);
+      alert("Error al cancelar el rechazo");
+    } finally {
+      setApprovingPaymentId(null);
     }
   };
 
@@ -931,6 +1012,19 @@ export default function PendingPayments() {
               En Disputa
             </span>
           </button>
+          <button
+            onClick={() => setAppSubFilter("rejected")}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              appSubFilter === "rejected"
+                ? "bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
+            }`}
+          >
+            <span className="flex items-center gap-1">
+              <Ban className="h-3.5 w-3.5" />
+              Rechazados
+            </span>
+          </button>
         </div>
       )}
 
@@ -1095,6 +1189,11 @@ export default function PendingPayments() {
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Comprobante
                       </th>
+                      {appSubFilter === "rejected" && (
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Motivo Rechazo
+                        </th>
+                      )}
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                         Acciones
                       </th>
@@ -1103,12 +1202,13 @@ export default function PendingPayments() {
                   <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                     {verificationPayments.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                        <td colSpan={appSubFilter === "rejected" ? 11 : 10} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                           {appSubFilter === "pending" && "No hay pagos pendientes de verificación"}
                           {appSubFilter === "verified" && "No hay pagos verificados pendientes de escrow"}
                           {appSubFilter === "escrow" && "No hay pagos en escrow pendientes de confirmación"}
                           {appSubFilter === "confirmed" && "No hay pagos confirmados para pago"}
                           {appSubFilter === "disputed" && "No hay pagos en disputa"}
+                          {appSubFilter === "rejected" && "No hay pagos rechazados"}
                         </td>
                       </tr>
                     ) : (
@@ -1247,6 +1347,34 @@ export default function PendingPayments() {
                               <span className="text-xs text-gray-400">Sin comprobante</span>
                             )}
                           </td>
+                          {appSubFilter === "rejected" && (
+                            <td className="px-4 py-4">
+                              {payment.adminNotes ? (
+                                <div className="max-w-xs">
+                                  <div className="text-sm text-red-600 dark:text-red-400">
+                                    {/* Extraer razón de rechazo de adminNotes */}
+                                    {payment.adminNotes.includes('[Rechazado]')
+                                      ? payment.adminNotes.replace('[Rechazado] ', '').split('\n')[0]
+                                      : payment.adminNotes}
+                                  </div>
+                                  {/* Mostrar si hay adjunto */}
+                                  {payment.adminNotes.includes('Adjunto:') && (
+                                    <a
+                                      href={payment.adminNotes.match(/Adjunto: (https?:\/\/[^\s]+)/)?.[1] || '#'}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-xs text-sky-600 hover:text-sky-700 dark:text-sky-400 mt-1"
+                                    >
+                                      <FileImage className="h-3 w-3" />
+                                      Ver evidencia
+                                    </a>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-gray-400">Sin motivo registrado</span>
+                              )}
+                            </td>
+                          )}
                           <td className="px-4 py-4">
                             <div className="flex items-center gap-2">
                               {payment.contract?.id && (
@@ -1319,6 +1447,24 @@ export default function PendingPayments() {
                                     <>
                                       <CheckCircle className="h-4 w-4" />
                                       Confirmar para Pago
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                              {/* Show cancel reject button for rejected payments */}
+                              {appSubFilter === "rejected" && (
+                                <button
+                                  onClick={() => handleCancelReject(payment.id)}
+                                  disabled={approvingPaymentId === payment.id}
+                                  className="px-3 py-1.5 text-sm bg-amber-600 hover:bg-amber-700 text-white rounded-lg disabled:opacity-50 flex items-center gap-1"
+                                  title="Cancelar rechazo y volver a pendiente de verificación"
+                                >
+                                  {approvingPaymentId === payment.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <RotateCcw className="h-4 w-4" />
+                                      Cancelar Rechazo
                                     </>
                                   )}
                                 </button>
@@ -2371,6 +2517,116 @@ export default function PendingPayments() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Payment Modal */}
+      {rejectModalPaymentId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-lg w-full">
+            <div className="p-6">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                    <Ban className="h-5 w-5 text-red-500" />
+                    Rechazar Pago
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Ingresa el motivo del rechazo
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setRejectModalPaymentId(null);
+                    setRejectReason("");
+                    setRejectFile(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Razón del rechazo */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <MessageSquare className="inline h-4 w-4 mr-1" />
+                    Motivo del rechazo *
+                  </label>
+                  <textarea
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="Ej: El comprobante no corresponde al monto indicado..."
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 focus:border-transparent"
+                    rows={4}
+                  />
+                </div>
+
+                {/* Adjuntar archivo */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <FileImage className="inline h-4 w-4 mr-1" />
+                    Adjuntar evidencia (opcional)
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      accept="image/*,.pdf"
+                      onChange={(e) => setRejectFile(e.target.files?.[0] || null)}
+                      className="block w-full text-sm text-gray-500 dark:text-gray-400
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-lg file:border-0
+                        file:text-sm file:font-medium
+                        file:bg-gray-100 file:text-gray-700
+                        dark:file:bg-gray-700 dark:file:text-gray-300
+                        hover:file:bg-gray-200 dark:hover:file:bg-gray-600"
+                    />
+                  </div>
+                  {rejectFile && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      Archivo seleccionado: {rejectFile.name}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    Formatos: JPG, PNG, PDF. Máx 10MB.
+                  </p>
+                </div>
+              </div>
+
+              {/* Botones */}
+              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={() => {
+                    setRejectModalPaymentId(null);
+                    setRejectReason("");
+                    setRejectFile(null);
+                  }}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg"
+                  disabled={rejectUploading}
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleConfirmReject}
+                  disabled={rejectUploading || !rejectReason.trim()}
+                  className="px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {rejectUploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Rechazando...
+                    </>
+                  ) : (
+                    <>
+                      <Ban className="h-4 w-4" />
+                      Confirmar Rechazo
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>

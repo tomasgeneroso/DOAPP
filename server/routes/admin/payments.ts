@@ -568,8 +568,12 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
 });
 
 /**
- * Reject payment proof (admin only)
+ * Reject payment (admin only)
  * POST /api/admin/payments/:paymentId/reject
+ *
+ * Allows rejecting a payment with or without a proof.
+ * - If proof exists, it will be marked as rejected
+ * - Payment will be marked as rejected regardless
  */
 router.post("/:paymentId/reject", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -594,39 +598,36 @@ router.post("/:paymentId/reject", protect, requireRole('admin', 'super_admin', '
       return;
     }
 
-    // Find active proof
-    let proof;
+    // Find active proof (optional - payment can be rejected without proof)
+    let proof = null;
     if (proofId) {
       proof = await PaymentProof.findOne({
         where: { id: proofId, paymentId, isActive: true }
       });
     } else {
+      // Try to find any active pending proof
       proof = await PaymentProof.findOne({
         where: { paymentId, isActive: true, status: 'pending' }
       });
     }
 
-    if (!proof) {
-      res.status(404).json({ success: false, message: "Comprobante no encontrado" });
-      return;
+    // If proof exists and is pending, mark it as rejected
+    if (proof && proof.status === 'pending') {
+      proof.status = 'rejected';
+      proof.verifiedBy = adminId;
+      proof.verifiedAt = new Date();
+      proof.rejectionReason = reason;
+      if (notes) proof.notes = notes;
+      await proof.save();
+      console.log(`[ADMIN REJECT] Proof ${proof.id} rejected for payment ${paymentId}`);
     }
 
-    if (proof.status !== 'pending') {
-      res.status(400).json({ success: false, message: "Este comprobante ya fue procesado" });
-      return;
-    }
-
-    // Update proof
-    proof.status = 'rejected';
-    proof.verifiedBy = adminId;
-    proof.verifiedAt = new Date();
-    proof.rejectionReason = reason;
-    if (notes) proof.notes = notes;
-    await proof.save();
-
-    // Update payment
-    payment.status = 'pending_verification';
+    // Update payment status to rejected
+    payment.status = 'rejected';
+    payment.adminNotes = `[Rechazado] ${reason}${notes ? `\nNotas: ${notes}` : ''}`;
     await payment.save();
+
+    console.log(`[ADMIN REJECT] Payment ${paymentId} rejected. Reason: ${reason}`);
 
     // If job publication payment, set job back to pending_payment
     if (payment.paymentType === 'job_publication') {
@@ -674,28 +675,70 @@ router.post("/:paymentId/reject", protect, requireRole('admin', 'super_admin', '
       }
     }
 
-    // Notify user
-    await Notification.create({
-      recipientId: payment.payerId,
-      title: 'Comprobante rechazado',
-      message: `Tu comprobante de pago fue rechazado. Motivo: ${reason}. Por favor, sube un nuevo comprobante.`,
-      type: 'warning',
-      category: 'payment',
-      relatedId: paymentId,
-      relatedModel: 'Payment',
-    });
+    // Handle contract payments
+    if (payment.paymentType === 'contract_payment' || payment.paymentType === 'escrow_deposit') {
+      const contract = await Contract.findByPk(payment.contractId, {
+        include: [{ model: Job, as: 'job', attributes: ['id', 'title'] }]
+      });
+
+      if (contract) {
+        // Update contract status
+        contract.paymentStatus = 'failed';
+        await contract.save();
+
+        const job = contract.job as any;
+        const jobTitle = job?.title || 'Contrato';
+
+        // Notify both parties
+        await Promise.all([
+          Notification.create({
+            recipientId: contract.clientId,
+            type: 'warning',
+            category: 'payment',
+            title: 'Pago rechazado',
+            message: `El pago para "${jobTitle}" fue rechazado. Motivo: ${reason}. Por favor, realiza un nuevo pago.`,
+            relatedModel: 'Contract',
+            relatedId: contract.id,
+            sentVia: ['in_app', 'push'],
+          }),
+          Notification.create({
+            recipientId: contract.doerId,
+            type: 'warning',
+            category: 'contract',
+            title: 'Pago rechazado',
+            message: `El pago del cliente para "${jobTitle}" fue rechazado. El contrato está pendiente de pago.`,
+            relatedModel: 'Contract',
+            relatedId: contract.id,
+            sentVia: ['in_app'],
+          })
+        ]);
+      }
+    }
+
+    // Notify user (for non-contract payments)
+    if (payment.paymentType !== 'contract_payment' && payment.paymentType !== 'escrow_deposit') {
+      await Notification.create({
+        recipientId: payment.payerId,
+        title: 'Pago rechazado',
+        message: `Tu pago fue rechazado. Motivo: ${reason}. Por favor, sube un nuevo comprobante o realiza el pago nuevamente.`,
+        type: 'warning',
+        category: 'payment',
+        relatedId: paymentId,
+        relatedModel: 'Payment',
+      });
+    }
 
     res.json({
       success: true,
-      message: "Comprobante rechazado",
+      message: "Pago rechazado exitosamente",
       data: {
         payment: payment.toJSON(),
-        proof: proof.toJSON()
+        proof: proof?.toJSON() || null
       }
     });
   } catch (error: any) {
     console.error("Reject payment error:", error);
-    res.status(500).json({ success: false, message: error.message || "Error rechazando comprobante" });
+    res.status(500).json({ success: false, message: error.message || "Error rechazando pago" });
   }
 });
 
@@ -932,6 +975,108 @@ router.post("/:paymentId/confirm-for-payout", protect, requireRole('admin', 'sup
   } catch (error: any) {
     console.error("Confirm for payout error:", error);
     res.status(500).json({ success: false, message: error.message || "Error confirmando pago" });
+  }
+});
+
+/**
+ * Cancel payment rejection - reverts payment to pending_verification (admin only)
+ * POST /api/admin/payments/:paymentId/cancel-reject
+ */
+router.post("/:paymentId/cancel-reject", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { paymentId } = req.params;
+    const { notes } = req.body;
+    const adminId = req.user.id;
+
+    // Validate UUID to prevent PostgreSQL errors
+    if (!isValidUUID(paymentId)) {
+      res.status(400).json({ success: false, message: "ID de pago inválido" });
+      return;
+    }
+
+    const payment = await Payment.findByPk(paymentId);
+    if (!payment) {
+      res.status(404).json({ success: false, message: "Pago no encontrado" });
+      return;
+    }
+
+    // Only allow cancel-reject from 'rejected' status
+    if (payment.status !== 'rejected') {
+      res.status(400).json({
+        success: false,
+        message: `No se puede cancelar el rechazo de un pago con estado "${payment.status}". El pago debe estar en estado "rejected".`
+      });
+      return;
+    }
+
+    // Revert payment to pending_verification
+    payment.status = 'pending_verification';
+    payment.adminNotes = (payment.adminNotes || '') + `\n[Rechazo cancelado] ${notes || 'Revertido a pendiente de verificación'}`;
+    await payment.save();
+
+    console.log(`✅ [ADMIN CANCEL-REJECT] Payment ${paymentId} reverted to pending_verification`);
+
+    // If there are rejected proofs, revert them to pending
+    const rejectedProofs = await PaymentProof.findAll({
+      where: { paymentId, status: 'rejected' }
+    });
+
+    for (const proof of rejectedProofs) {
+      proof.status = 'pending';
+      proof.verifiedBy = null;
+      proof.verifiedAt = null;
+      proof.rejectionReason = null;
+      await proof.save();
+      console.log(`[ADMIN CANCEL-REJECT] Proof ${proof.id} reverted to pending`);
+    }
+
+    // Handle contract payments - revert contract status if needed
+    if (payment.paymentType === 'contract_payment' || payment.paymentType === 'escrow_deposit') {
+      const contract = await Contract.findByPk(payment.contractId, {
+        include: [{ model: Job, as: 'job', attributes: ['id', 'title'] }]
+      });
+
+      if (contract && contract.paymentStatus === 'failed') {
+        contract.paymentStatus = 'pending';
+        await contract.save();
+        console.log(`[ADMIN CANCEL-REJECT] Contract ${contract.id} payment status reverted to pending`);
+      }
+    }
+
+    // Handle job publication payment - revert job status
+    if (payment.paymentType === 'job_publication') {
+      const job = await Job.findOne({
+        where: { publicationPaymentId: paymentId }
+      });
+
+      if (job && job.status === 'pending_payment') {
+        // Job stays in pending_payment - user can upload a new proof
+        console.log(`[ADMIN CANCEL-REJECT] Job ${job.id} remains in pending_payment for new proof upload`);
+      }
+    }
+
+    // Notify user that their payment can be retried
+    await Notification.create({
+      recipientId: payment.payerId,
+      title: 'Rechazo de pago cancelado',
+      message: 'El rechazo de tu pago fue cancelado por un administrador. Puedes subir un nuevo comprobante o el pago será revisado nuevamente.',
+      type: 'info',
+      category: 'payment',
+      relatedId: paymentId,
+      relatedModel: 'Payment',
+    });
+
+    res.json({
+      success: true,
+      message: "Rechazo cancelado. El pago volvió a estado 'pendiente de verificación'.",
+      data: {
+        payment: payment.toJSON(),
+        proofsReverted: rejectedProofs.length
+      }
+    });
+  } catch (error: any) {
+    console.error("Cancel reject error:", error);
+    res.status(500).json({ success: false, message: error.message || "Error cancelando rechazo" });
   }
 });
 
