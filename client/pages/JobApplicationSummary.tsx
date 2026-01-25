@@ -26,6 +26,8 @@ export default function JobApplicationSummary() {
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [coverLetter, setCoverLetter] = useState<string>("");
+  const [proposedPrice, setProposedPrice] = useState<number | null>(null);
 
   useEffect(() => {
     const fetchJob = async () => {
@@ -34,6 +36,10 @@ export default function JobApplicationSummary() {
         const data = await response.json();
         if (data.success) {
           setJob(data.job);
+          // Set default cover letter and price
+          const price = data.job.price;
+          setProposedPrice(price);
+          setCoverLetter(`Estoy interesado en realizar este trabajo. Me comprometo a cumplir con los requisitos y entregar un trabajo de calidad.`);
         } else {
           setError(data.message || "No se pudo cargar el trabajo");
         }

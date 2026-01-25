@@ -48,21 +48,6 @@ export default function Header() {
     setIsMenuOpen(false);
   }, []);
 
-  // Fetch initial unread count
-  useEffect(() => {
-    if (user) {
-      fetchUnreadCount();
-    }
-  }, [user]);
-
-  // Register real-time unread count updates
-  useEffect(() => {
-    registerUnreadUpdateHandler((count: number) => {
-      console.log("💬 Unread count updated in header:", count);
-      setUnreadCount(count);
-    });
-  }, []);
-
   const fetchUnreadCount = useCallback(async () => {
     try {
       const response = await fetch("/api/chat/unread-count", {
@@ -77,6 +62,21 @@ export default function Header() {
       console.error("Error fetching unread count:", error);
     }
   }, []);
+
+  // Fetch initial unread count
+  useEffect(() => {
+    if (user) {
+      fetchUnreadCount();
+    }
+  }, [user, fetchUnreadCount]);
+
+  // Register real-time unread count updates
+  useEffect(() => {
+    registerUnreadUpdateHandler((count: number) => {
+      console.log("💬 Unread count updated in header:", count);
+      setUnreadCount(count);
+    });
+  }, [registerUnreadUpdateHandler]);
 
   // Cerrar menú cuando se hace clic fuera o con Escape
   useEffect(() => {
@@ -137,7 +137,7 @@ export default function Header() {
       commissionRate,
       membershipTier: user.membershipTier,
     };
-  }, [user?.freeContractsRemaining, user?.proContractsUsedThisMonth, user?.membershipTier, user?.hasFamilyPlan]);
+  }, [user, user?.freeContractsRemaining, user?.proContractsUsedThisMonth, user?.membershipTier, user?.hasFamilyPlan]);
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg">

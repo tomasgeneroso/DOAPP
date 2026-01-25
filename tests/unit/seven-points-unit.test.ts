@@ -320,7 +320,7 @@ describe('7 Points Unit Tests', () => {
     });
 
     it('should require reason for price decrease', () => {
-      const priceDecreaseReason = '';
+      const priceDecreaseReason: string = '';
       const isValid = priceDecreaseReason && priceDecreaseReason.trim().length > 0;
 
       expect(isValid).toBeFalsy();

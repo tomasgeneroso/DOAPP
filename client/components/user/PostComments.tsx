@@ -1,5 +1,5 @@
 import { getImageUrl } from '../../utils/imageUrl';
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Heart, Trash2, Send } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
@@ -37,11 +37,7 @@ export default function PostComments({ postId }: PostCommentsProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    fetchComments();
-  }, [postId]);
-
-  const fetchComments = async () => {
+  const fetchComments = useCallback(async () => {
     try {
       const response = await fetch(`/api/posts/${postId}/comments`, {
         credentials: "include",
@@ -57,7 +53,11 @@ export default function PostComments({ postId }: PostCommentsProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [postId]);
+
+  useEffect(() => {
+    fetchComments();
+  }, [fetchComments]);
 
   const handleSubmitComment = async (e: React.FormEvent) => {
     e.preventDefault();

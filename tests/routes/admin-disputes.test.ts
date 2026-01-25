@@ -1,10 +1,10 @@
 import request from 'supertest';
 import express, { Express } from 'express';
-import Dispute from '../../server/models/Dispute.js';
-import Contract from '../../server/models/Contract.js';
-import Payment from '../../server/models/Payment.js';
-import User from '../../server/models/User';
-import Job from '../../server/models/Job.js';
+import { Dispute } from '../../server/models/sql/Dispute.model.js';
+import { Contract } from '../../server/models/sql/Contract.model.js';
+import { Payment } from '../../server/models/sql/Payment.model.js';
+import { User } from '../../server/models/sql/User.model.js';
+import { Job } from '../../server/models/sql/Job.model.js';
 import jwt from 'jsonwebtoken';
 
 describe('Admin Dispute Routes', () => {
@@ -235,12 +235,12 @@ describe('Admin Dispute Routes', () => {
       expect(response.body.data.resolutionType).toBe('full_release');
 
       // Verify contract status updated
-      const updatedContract = await Contract.findById(contract._id);
+      const updatedContract = await Contract.findByPk(contract._id);
       expect(updatedContract?.status).toBe('completed');
       expect(updatedContract?.paymentStatus).toBe('released');
 
       // Verify payment status updated
-      const updatedPayment = await Payment.findById(payment._id);
+      const updatedPayment = await Payment.findByPk(payment._id);
       expect(updatedPayment?.status).toBe('completed');
     });
 
@@ -258,7 +258,7 @@ describe('Admin Dispute Routes', () => {
       expect(response.body.data.status).toBe('resolved_refunded');
 
       // Verify contract cancelled
-      const updatedContract = await Contract.findById(contract._id);
+      const updatedContract = await Contract.findByPk(contract._id);
       expect(updatedContract?.status).toBe('cancelled');
       expect(updatedContract?.paymentStatus).toBe('refunded');
 
@@ -351,12 +351,12 @@ describe('Admin Dispute Routes', () => {
   describe('GET /api/admin/disputes/stats/overview', () => {
     beforeEach(async () => {
       // Create diverse disputes
-      await Dispute.create([
+      await Dispute.bulkCreate([
         {
-          contractId: contract._id,
-          paymentId: payment._id,
-          initiatedBy: clientUser._id,
-          against: doerUser._id,
+          contractId: contract.id,
+          paymentId: payment.id,
+          initiatedBy: clientUser.id,
+          against: doerUser.id,
           reason: 'Open dispute',
           description: 'Description',
           category: 'quality_issues',
@@ -364,10 +364,10 @@ describe('Admin Dispute Routes', () => {
           priority: 'high',
         },
         {
-          contractId: contract._id,
-          paymentId: payment._id,
-          initiatedBy: doerUser._id,
-          against: clientUser._id,
+          contractId: contract.id,
+          paymentId: payment.id,
+          initiatedBy: doerUser.id,
+          against: clientUser.id,
           reason: 'In review dispute',
           description: 'Description',
           category: 'payment_issues',
@@ -375,10 +375,10 @@ describe('Admin Dispute Routes', () => {
           priority: 'urgent',
         },
         {
-          contractId: contract._id,
-          paymentId: payment._id,
-          initiatedBy: clientUser._id,
-          against: doerUser._id,
+          contractId: contract.id,
+          paymentId: payment.id,
+          initiatedBy: clientUser.id,
+          against: doerUser.id,
           reason: 'Resolved dispute',
           description: 'Description',
           category: 'other',
@@ -429,7 +429,7 @@ describe('Admin Dispute Routes', () => {
       });
 
       regularUserToken = jwt.sign(
-        { _id: regularUser._id, email: regularUser.email, role: 'client' },
+        { id: regularUser.id, email: regularUser.email, role: 'client' },
         process.env.JWT_SECRET || 'test-secret'
       );
     });

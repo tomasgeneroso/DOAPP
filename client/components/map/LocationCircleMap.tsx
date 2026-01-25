@@ -94,7 +94,7 @@ export default function LocationCircleMap({ location }: LocationCircleMapProps) 
 
     // Inicializar el mapa con Leaflet (OpenStreetMap)
     const loadMap = async () => {
-      // @ts-ignore
+      // @ts-expect-error - Leaflet adds L to window dynamically
       if (typeof window.L === 'undefined') {
         // Cargar Leaflet dinámicamente
         const script = document.createElement('script');
@@ -117,7 +117,7 @@ export default function LocationCircleMap({ location }: LocationCircleMapProps) 
     };
 
     const initializeMap = () => {
-      // @ts-ignore
+      // @ts-expect-error - Leaflet adds L to window dynamically
       const L = window.L;
 
       // Crear mapa centrado en las coordenadas

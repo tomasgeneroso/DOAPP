@@ -1,11 +1,14 @@
 import emailService from '../../server/services/email.js';
 import { User } from '../../server/models/sql/User.model.js';
+import * as sendgridMail from '@sendgrid/mail';
 
 // Mock the email providers
 jest.mock('@sendgrid/mail', () => ({
   setApiKey: jest.fn(),
   send: jest.fn().mockResolvedValue([{ statusCode: 202 }]),
 }));
+
+const sendgridMock = sendgridMail as jest.Mocked<typeof sendgridMail>;
 
 jest.mock('nodemailer', () => ({
   createTransport: jest.fn().mockReturnValue({
@@ -239,8 +242,7 @@ describe('Email Service', () => {
 
   describe('Error Handling', () => {
     it('should handle email sending failures gracefully', async () => {
-      const sendgrid = require('@sendgrid/mail');
-      sendgrid.send.mockRejectedValueOnce(new Error('Email service error'));
+      (sendgridMock.send as jest.Mock).mockRejectedValueOnce(new Error('Email service error'));
 
       await expect(
         emailService.sendContractCreatedEmail(

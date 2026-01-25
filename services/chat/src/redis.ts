@@ -3,7 +3,7 @@ import { config } from './config.js';
 
 export const redis = new Redis(config.redis.url, {
   maxRetriesPerRequest: 3,
-  retryStrategy(times) {
+  retryStrategy(times: number) {
     const delay = Math.min(times * 50, 2000);
     return delay;
   },
@@ -13,7 +13,7 @@ redis.on('connect', () => {
   console.log(`✅ [${config.serviceName}] Redis connected`);
 });
 
-redis.on('error', (err) => {
+redis.on('error', (err: Error) => {
   console.error(`❌ [${config.serviceName}] Redis error:`, err);
 });
 
@@ -28,7 +28,7 @@ export const pubsub = {
 
   subscribe(channel: string, callback: (message: unknown) => void): void {
     subscriber.subscribe(channel);
-    subscriber.on('message', (ch, message) => {
+    subscriber.on('message', (ch: string, message: string) => {
       if (ch === channel) {
         try {
           callback(JSON.parse(message));

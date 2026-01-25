@@ -25,10 +25,22 @@ export default function OnboardingTooltip() {
   const [targetElement, setTargetElement] = useState<Element | null>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
 
+  // Reset position when onboarding becomes inactive
   useEffect(() => {
     if (!isActive || !currentStepData) {
-      setPosition(null);
-      setTargetElement(null);
+      // Use timeout to avoid synchronous setState in effect
+      const resetTimer = setTimeout(() => {
+        setPosition(null);
+        setTargetElement(null);
+      }, 0);
+      return () => clearTimeout(resetTimer);
+    }
+    return undefined;
+  }, [isActive, currentStepData]);
+
+  // Position tooltip when active
+  useEffect(() => {
+    if (!isActive || !currentStepData) {
       return;
     }
 

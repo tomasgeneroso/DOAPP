@@ -68,7 +68,7 @@ export type LocationOption = typeof ARGENTINA_LOCATIONS[number];
 export const normalizeLocation = (location: string): string => {
   return location
     .toLowerCase()
-    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '') // Remove punctuation
+    .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, '') // Remove punctuation
     .replace(/\s+/g, ' ') // Normalize spaces
     .trim();
 };

@@ -328,6 +328,132 @@ router.get("/:id/completed-by-category", async (req: Request, res: Response): Pr
   }
 });
 
+// @route   GET /api/users/:id/completed-jobs
+// @desc    Get user's completed jobs with details, optionally filtered by category
+// @access  Public
+router.get("/:id/completed-jobs", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.params.id;
+    const { category, page = '1', limit = '10' } = req.query;
+
+    // Verify user exists
+    const user = await User.findByPk(userId);
+    if (!user) {
+      res.status(404).json({
+        success: false,
+        message: "Usuario no encontrado",
+      });
+      return;
+    }
+
+    // Build job where clause for category filter
+    const jobWhere: any = {};
+    if (category && category !== 'all') {
+      jobWhere.category = category;
+    }
+
+    // Get completed contracts for this user as doer
+    const { count, rows: contracts } = await Contract.findAndCountAll({
+      where: {
+        doerId: userId,
+        status: 'completed',
+      },
+      include: [
+        {
+          model: Job,
+          as: 'job',
+          where: Object.keys(jobWhere).length > 0 ? jobWhere : undefined,
+          attributes: ['id', 'title', 'category', 'description', 'price', 'startDate', 'endDate', 'images'],
+        },
+        {
+          model: User,
+          as: 'client',
+          attributes: ['id', 'name', 'avatar'],
+        },
+      ],
+      order: [['updatedAt', 'DESC']],
+      limit: Number(limit),
+      offset: (Number(page) - 1) * Number(limit),
+    });
+
+    // Get reviews for these contracts
+    const contractIds = contracts.map(c => c.id);
+    const reviews = await Review.findAll({
+      where: {
+        contractId: { [Op.in]: contractIds },
+        reviewedId: userId,
+      },
+      attributes: ['contractId', 'rating', 'workQualityRating', 'comment', 'createdAt'],
+      include: [
+        {
+          model: User,
+          as: 'reviewer',
+          attributes: ['id', 'name', 'avatar'],
+        },
+      ],
+    });
+
+    // Create a map of reviews by contract
+    const reviewsByContract: Record<string, any> = {};
+    reviews.forEach(review => {
+      reviewsByContract[review.contractId] = review;
+    });
+
+    // Format contracts with reviews
+    const formattedContracts = contracts.map(contract => {
+      const job = (contract as any).job;
+      const client = (contract as any).client;
+      const review = reviewsByContract[contract.id];
+      const categoryInfo = JOB_CATEGORIES.find(c => c.id === job?.category);
+
+      return {
+        id: contract.id,
+        completedAt: contract.completedAt || contract.updatedAt,
+        price: contract.price,
+        job: job ? {
+          id: job.id,
+          title: job.title,
+          category: job.category,
+          categoryLabel: categoryInfo?.label || job.category,
+          categoryIcon: categoryInfo?.icon || '📋',
+          description: job.description?.substring(0, 200),
+          image: job.images?.[0] || null,
+          startDate: job.startDate,
+          endDate: job.endDate,
+        } : null,
+        client: client ? {
+          id: client.id,
+          name: client.name,
+          avatar: client.avatar,
+        } : null,
+        review: review ? {
+          rating: review.workQualityRating || review.rating,
+          comment: review.comment,
+          createdAt: review.createdAt,
+          reviewer: review.reviewer,
+        } : null,
+      };
+    });
+
+    res.json({
+      success: true,
+      contracts: formattedContracts,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total: count,
+        pages: Math.ceil(count / Number(limit)),
+      },
+    });
+  } catch (error: any) {
+    console.error("Error fetching completed jobs:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Error del servidor",
+    });
+  }
+});
+
 // @route   GET /api/users/:id
 // @desc    Get public user profile by ID (legacy support)
 // @access  Public

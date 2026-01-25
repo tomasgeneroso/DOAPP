@@ -179,7 +179,7 @@ export default function SiteMap() {
     if (!mapRef.current || loading) return;
 
     const loadMap = async () => {
-      // @ts-ignore
+      // @ts-expect-error - Leaflet is loaded dynamically
       if (typeof window.L === 'undefined') {
         const script = document.createElement('script');
         script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
@@ -218,7 +218,7 @@ export default function SiteMap() {
     };
 
     const initializeMap = () => {
-      // @ts-ignore
+      // @ts-expect-error - Leaflet is loaded dynamically
       const L = window.L;
 
       if (mapInstanceRef.current) {
@@ -253,7 +253,7 @@ export default function SiteMap() {
   const updateMarkers = () => {
     if (!mapInstanceRef.current) return;
 
-    // @ts-ignore
+    // @ts-expect-error - Leaflet is loaded dynamically
     const L = window.L;
     const map = mapInstanceRef.current;
 
@@ -267,7 +267,6 @@ export default function SiteMap() {
       : jobs.filter(job => job.category === categoryFilter);
 
     // Crear grupo de clusters si está disponible
-    // @ts-ignore
     const markerClusterGroup = L.markerClusterGroup ? L.markerClusterGroup({
       maxClusterRadius: 50,
       spiderfyOnMaxZoom: true,

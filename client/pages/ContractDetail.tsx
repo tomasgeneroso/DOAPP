@@ -215,7 +215,7 @@ export default function ContractDetail() {
       const response = await api.post(`/contracts/${id}/confirm`);
       if (response.success) {
         // Update contract state
-        setContract(prev => prev ? {
+        setContract((prev: any) => prev ? {
           ...prev,
           clientConfirmed: response.contract?.clientConfirmed ?? prev.clientConfirmed,
           doerConfirmed: response.contract?.doerConfirmed ?? prev.doerConfirmed,
@@ -749,7 +749,7 @@ export default function ContractDetail() {
               <div className="space-y-3">
                 {allContracts.map((c, index) => (
                   <div
-                    key={c.id}
+                    key={c.id || c._id || `contract-${index}`}
                     className={`p-4 rounded-lg border-2 ${
                       c.clientConfirmed && c.doerConfirmed
                         ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700'
@@ -1173,9 +1173,9 @@ export default function ContractDetail() {
                 Historial de Pagos
               </h2>
               <div className="space-y-3">
-                {payments.map((payment) => (
+                {payments.map((payment, index) => (
                   <div
-                    key={payment._id}
+                    key={payment._id || payment.id || `payment-${index}`}
                     className="border border-gray-200 dark:border-gray-700 rounded-lg p-4"
                   >
                     <div className="flex items-start justify-between">

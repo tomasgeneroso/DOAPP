@@ -14,6 +14,10 @@ import {
   AlertCircle,
   CheckCircle2,
   XCircle,
+  Paperclip,
+  FileText,
+  Image,
+  ExternalLink,
 } from 'lucide-react';
 
 interface SystemMessageCardProps {
@@ -35,6 +39,17 @@ interface SystemMessageCardProps {
       autoSelected?: boolean;
       isCounterOffer?: boolean;
       contractId?: string;
+      directProposal?: {
+        title?: string;
+        description?: string;
+        location?: string;
+        category?: string;
+        proposedPrice?: number;
+        estimatedDuration?: number;
+        startDate?: string;
+        endDate?: string;
+        attachments?: string[];
+      };
     };
     createdAt: string;
   };
@@ -55,10 +70,27 @@ const parseSystemMessage = (messageText: string) => {
   const data: Record<string, string> = {};
 
   lines.forEach(line => {
-    if (line.includes('Inicio:')) data.startDate = line.replace('Inicio:', '').trim();
-    if (line.includes('Finalización')) data.endDate = line.split(':').slice(1).join(':').trim();
-    if (line.includes('Precio Acordado:')) data.price = line.replace('Precio Acordado:', '').trim();
-    if (line.includes('Ubicación:')) data.location = line.replace('Ubicación:', '').trim();
+    // Remove markdown bold markers for cleaner parsing
+    const cleanLine = line.replace(/\*\*/g, '');
+
+    if (cleanLine.includes('Inicio:')) data.startDate = cleanLine.replace('Inicio:', '').trim();
+    if (cleanLine.includes('Finalización')) data.endDate = cleanLine.split(':').slice(1).join(':').trim();
+    if (cleanLine.includes('Precio Acordado:')) data.price = cleanLine.replace('Precio Acordado:', '').trim();
+    if (cleanLine.includes('Precio propuesto:')) data.price = cleanLine.replace('Precio propuesto:', '').trim();
+    // Handle counter-offer format: "Contraoferta: $8.000 ARS (Precio original: $7.000 ARS)"
+    if (cleanLine.includes('Contraoferta:')) {
+      const match = cleanLine.match(/Contraoferta:\s*(\$[\d.,]+\s*ARS)/);
+      if (match) {
+        data.price = match[1];
+      }
+      // Also extract original price
+      const originalMatch = cleanLine.match(/Precio original:\s*(\$[\d.,]+\s*ARS)/);
+      if (originalMatch) {
+        data.originalPrice = originalMatch[1];
+      }
+    }
+    if (cleanLine.includes('Ubicación:')) data.location = cleanLine.replace('Ubicación:', '').trim();
+    if (cleanLine.includes('Duración estimada:')) data.duration = cleanLine.replace('Duración estimada:', '').trim();
   });
 
   return { header, title, content, data, lines };
@@ -131,6 +163,13 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
     if (isRejected) {
       return 'bg-gradient-to-br from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 border-red-200 dark:border-red-800';
     }
+    // Counter-offer styling
+    if (message.metadata?.isCounterOffer && isPending) {
+      if (isCurrentUser) {
+        return 'bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-900/20 dark:to-amber-900/20 border-orange-300 dark:border-orange-700';
+      }
+      return 'bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 dark:from-orange-900/20 dark:via-amber-900/20 dark:to-yellow-900/20 border-orange-300 dark:border-orange-700 ring-2 ring-orange-200/50 dark:ring-orange-800/50';
+    }
     if (!isCurrentUser && isPending) {
       return 'bg-gradient-to-br from-amber-50 via-yellow-50 to-orange-50 dark:from-amber-900/20 dark:via-yellow-900/20 dark:to-orange-900/20 border-amber-300 dark:border-amber-700 ring-2 ring-amber-200/50 dark:ring-amber-800/50';
     }
@@ -146,6 +185,14 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
       return isCurrentUser
         ? 'Propuesta de contrato enviada'
         : `${message.sender.name} te propone un contrato`;
+    }
+    // Check for counter-offer
+    const isCounterOffer = message.metadata?.isCounterOffer;
+    if (isCounterOffer) {
+      if (isCurrentUser) {
+        return 'Enviaste una contraoferta';
+      }
+      return `${message.sender.name} envió una contraoferta`;
     }
     if (isCurrentUser) {
       return 'Te postulaste a este trabajo';
@@ -296,8 +343,18 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
           </div>
         )}
 
+        {/* Counter-offer banner */}
+        {message.metadata?.isCounterOffer && (
+          <div className="px-4 py-2 bg-orange-100 dark:bg-orange-900/30 flex items-center gap-2">
+            <DollarSign className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+            <span className="text-xs font-medium text-orange-700 dark:text-orange-300">
+              Contraoferta - Precio diferente al publicado
+            </span>
+          </div>
+        )}
+
         {/* New application banner for receiver */}
-        {!isCurrentUser && isPending && !message.metadata?.autoSelected && (
+        {!isCurrentUser && isPending && !message.metadata?.autoSelected && !message.metadata?.isCounterOffer && (
           <div className="px-4 py-2 bg-amber-100 dark:bg-amber-900/30 flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 animate-pulse" />
             <span className="text-xs font-medium text-amber-700 dark:text-amber-300">
@@ -324,12 +381,67 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
             <div className="flex items-center gap-2 text-sm">
               <DollarSign className="h-4 w-4 text-green-600 flex-shrink-0" />
               <span className="font-semibold text-green-700 dark:text-green-400">{data.price}</span>
+              {data.originalPrice && (
+                <span className="text-slate-500 dark:text-slate-400 line-through text-xs">
+                  (Original: {data.originalPrice})
+                </span>
+              )}
             </div>
           )}
           {data.location && (
             <div className="flex items-center gap-2 text-sm">
               <MapPin className="h-4 w-4 text-slate-500 flex-shrink-0" />
               <span className="text-slate-700 dark:text-slate-300 truncate">{data.location}</span>
+            </div>
+          )}
+
+          {/* Attachments */}
+          {message.metadata?.directProposal?.attachments && message.metadata.directProposal.attachments.length > 0 && (
+            <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
+                <Paperclip className="h-3.5 w-3.5" />
+                <span>{message.metadata.directProposal.attachments.length} archivo(s) adjunto(s)</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {message.metadata.directProposal.attachments.map((url, index) => {
+                  const isPdf = url.toLowerCase().endsWith('.pdf');
+                  const fileName = url.split('/').pop() || `Archivo ${index + 1}`;
+
+                  return (
+                    <a
+                      key={index}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg hover:border-sky-400 dark:hover:border-sky-500 transition-colors group"
+                    >
+                      {isPdf ? (
+                        <div className="w-10 h-10 flex items-center justify-center bg-red-100 dark:bg-red-900/30 rounded">
+                          <FileText className="h-5 w-5 text-red-600 dark:text-red-400" />
+                        </div>
+                      ) : (
+                        <img
+                          src={url}
+                          alt={fileName}
+                          className="w-10 h-10 object-cover rounded"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">
+                          {isPdf ? 'Documento PDF' : 'Imagen'}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                          {fileName.substring(0, 20)}...
+                        </p>
+                      </div>
+                      <ExternalLink className="h-3.5 w-3.5 text-slate-400 group-hover:text-sky-500 flex-shrink-0" />
+                    </a>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>

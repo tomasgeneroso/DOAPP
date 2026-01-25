@@ -565,7 +565,7 @@ export default function ChatScreen() {
     setModalLoading(true);
     try {
       switch (data.type) {
-        case 'apply_direct':
+        case 'apply_direct': {
           // Aplicar directamente sin regatear
           const directProposal = await fetch('/api/proposals', {
             method: 'POST',
@@ -590,8 +590,9 @@ export default function ChatScreen() {
             alert(directData.message || 'Error al enviar aplicación');
           }
           break;
+        }
 
-        case 'apply_negotiate':
+        case 'apply_negotiate': {
           // Aplicar con negociación
           const negotiateProposal = await fetch('/api/proposals', {
             method: 'POST',
@@ -616,8 +617,9 @@ export default function ChatScreen() {
             alert(negotiateData.message || 'Error al enviar contraoferta');
           }
           break;
+        }
 
-        case 'accept_application':
+        case 'accept_application': {
           // Aceptar aplicación (crear contrato)
           // Esto normalmente se hace desde la página de propuestas
           // Aquí solo enviamos un mensaje de confirmación
@@ -634,8 +636,9 @@ export default function ChatScreen() {
           setShowContractModal(false);
           navigate(`/jobs/${data.jobId}/applications`);
           break;
+        }
 
-        case 'reject_application':
+        case 'reject_application': {
           // Rechazar aplicación
           await fetch(`/api/chat/conversations/${conversationId}/messages`, {
             method: 'POST',
@@ -649,9 +652,10 @@ export default function ChatScreen() {
           });
           setShowContractModal(false);
           break;
+        }
 
         case 'modify':
-        case 'cancel':
+        case 'cancel': {
           // Solicitar cambios o cancelación de contrato
           const changeResponse = await fetch('/api/contract-change-requests', {
             method: 'POST',
@@ -674,6 +678,7 @@ export default function ChatScreen() {
             alert(changeData.message || 'Error al enviar solicitud');
           }
           break;
+        }
       }
     } catch (error) {
       console.error('Error submitting modal:', error);
@@ -689,30 +694,70 @@ export default function ChatScreen() {
 
     setModalLoading(true);
     try {
-      const response = await fetch('/api/proposals/direct', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          recipientId: data.recipientId || otherParticipant?.id || otherParticipant?._id,
-          title: data.title,
-          description: data.description,
-          proposedPrice: data.price,
-          estimatedDuration: data.estimatedDuration || 1,
-          location: data.location,
-          category: data.category,
-          startDate: data.startDate,
-          endDate: data.endDate,
-          message: data.description,
-        }),
-      });
+      let response;
+
+      // If there are attachments, use FormData
+      if (data.attachments && data.attachments.length > 0) {
+        const formData = new FormData();
+        formData.append('recipientId', data.recipientId || otherParticipant?.id || otherParticipant?._id);
+        formData.append('title', data.title);
+        formData.append('description', data.description);
+        formData.append('proposedPrice', data.price.toString());
+        formData.append('estimatedDuration', (data.estimatedDuration || 1).toString());
+        if (data.location) formData.append('location', data.location);
+        formData.append('category', data.category);
+        if (data.startDate) formData.append('startDate', data.startDate);
+        if (data.endDate) formData.append('endDate', data.endDate);
+        formData.append('message', data.description);
+        // Pass current conversationId to use the same conversation
+        if (conversationId) formData.append('conversationId', conversationId);
+
+        // Append files
+        data.attachments.forEach((file: File) => {
+          formData.append('attachments', file);
+        });
+
+        response = await fetch('/api/proposals/direct', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        });
+      } else {
+        // No attachments, use JSON
+        response = await fetch('/api/proposals/direct', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            recipientId: data.recipientId || otherParticipant?.id || otherParticipant?._id,
+            title: data.title,
+            description: data.description,
+            proposedPrice: data.price,
+            estimatedDuration: data.estimatedDuration || 1,
+            location: data.location,
+            category: data.category,
+            startDate: data.startDate,
+            endDate: data.endDate,
+            message: data.description,
+            conversationId: conversationId, // Use the current conversation
+          }),
+        });
+      }
 
       const result = await response.json();
       if (result.success) {
         setShowDirectProposalModal(false);
-        fetchConversationData(); // Reload messages to show the new proposal
+        // Check if the backend used a different conversation
+        if (result.conversationId && result.conversationId !== conversationId) {
+          // Navigate to the correct conversation
+          navigate(`/chat/${result.conversationId}`);
+        } else {
+          fetchConversationData(); // Reload messages to show the new proposal
+        }
       } else {
         alert(result.message || 'Error al enviar la propuesta');
       }
@@ -881,7 +926,7 @@ export default function ChatScreen() {
                           </span>
                         </div>
                       </div>
-                      {myAppliedJobIds.has(job.id || job._id) ? (
+                      {myAppliedJobIds.has(job.id || job._id || '') ? (
                         <button
                           onClick={() => navigate(`/jobs/${job.id || job._id}`)}
                           className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap"
@@ -1063,18 +1108,25 @@ export default function ChatScreen() {
               </div>
             )}
 
-            {/* Messages list */}
-            {messages.map((message) => {
-              // Detect system messages with multiple conditions
-              const messageText = message.message || '';
+            {/* CODE VERSION: 2026-01-24-v2 - Messages list */}
+            {messages.map((message, idx) => {
+              // Get message text - check multiple possible field names
+              const messageText = String(message.message || (message as any).content || (message as any).text || '');
+
+              // Debug: Log first message to verify code is running
+              if (idx === 0) {
+                console.log('🔴 CODE VERSION 2026-01-24-v2 - First message:', {
+                  text: messageText.substring(0, 60),
+                  hasPipe: messageText.includes('||'),
+                  type: message.type,
+                  metadata: message.metadata,
+                });
+              }
+
+              // Detect system messages - check for || delimiter or system type/action
               const isSystemMessage =
                 message.type === 'system' ||
                 messageText.includes('||') ||
-                messageText.includes('se postuló al trabajo') ||
-                messageText.includes('envió una contraoferta') ||
-                messageText.includes('Propuesta Aceptada') ||
-                messageText.includes('Propuesta Rechazada') ||
-                messageText.includes('direct_proposal') ||
                 message.metadata?.action === 'job_application' ||
                 message.metadata?.action === 'direct_contract_proposal';
 
@@ -1090,7 +1142,7 @@ export default function ChatScreen() {
                 );
               }
 
-              // Regular message
+              // Regular chat message
               return (
                 <div
                   key={message.id || message._id}
@@ -1108,7 +1160,7 @@ export default function ChatScreen() {
                     <p className="text-sm font-medium mb-1 opacity-75">
                       {message.sender.name}
                     </p>
-                    <p className="whitespace-pre-wrap">{message.message}</p>
+                    <p className="whitespace-pre-wrap">{messageText}</p>
                     <p
                       className={`text-xs mt-2 ${
                         (message.sender.id || message.sender._id) === user?.id

@@ -11,7 +11,11 @@ import {
   Clock,
   MapPin,
   Calendar,
-  Tag
+  Tag,
+  Paperclip,
+  Image,
+  File,
+  Trash2
 } from 'lucide-react';
 
 // Tipos de modales para diferentes flujos
@@ -71,6 +75,7 @@ export function ContractModal({
   const [directEndDate, setDirectEndDate] = useState('');
   const [directEndTime, setDirectEndTime] = useState('18:00');
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
 
   // Job categories from the system
   const categories = [
@@ -82,6 +87,61 @@ export function ContractModal({
   ];
 
   if (!isOpen) return null;
+
+  // Handle file selection
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    const newFiles: File[] = [];
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+    const maxSize = 10 * 1024 * 1024; // 10MB per file
+    const maxFiles = 5;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+
+      // Check file type
+      if (!allowedTypes.includes(file.type)) {
+        alert(`El archivo "${file.name}" no es válido. Solo se permiten JPG, PNG y PDF.`);
+        continue;
+      }
+
+      // Check file size
+      if (file.size > maxSize) {
+        alert(`El archivo "${file.name}" es muy grande. Máximo 10MB por archivo.`);
+        continue;
+      }
+
+      // Check max files
+      if (attachedFiles.length + newFiles.length >= maxFiles) {
+        alert(`Máximo ${maxFiles} archivos permitidos.`);
+        break;
+      }
+
+      newFiles.push(file);
+    }
+
+    setAttachedFiles(prev => [...prev, ...newFiles]);
+    e.target.value = ''; // Reset input
+  };
+
+  const removeFile = (index: number) => {
+    setAttachedFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const getFileIcon = (file: File) => {
+    if (file.type === 'application/pdf') {
+      return <File className="h-5 w-5 text-red-500" />;
+    }
+    return <Image className="h-5 w-5 text-blue-500" />;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
 
   const handleSubmit = async () => {
     switch (modalType) {
@@ -125,7 +185,7 @@ export function ContractModal({
         });
         break;
 
-      case 'direct_proposal':
+      case 'direct_proposal': {
         // Validate all fields
         const errors: Record<string, string> = {};
 
@@ -197,8 +257,10 @@ export function ContractModal({
           startDate: startDateTime,
           endDate: endDateTime,
           estimatedDuration: 1, // Default to 1 day, backend will calculate from dates
+          attachments: attachedFiles, // Include attached files
         });
         break;
+      }
     }
   };
 
@@ -211,6 +273,7 @@ export function ContractModal({
 
   // Modal: Aplicar directamente (sin regatear)
   if (modalType === 'apply_direct') {
+    if (!jobData) return null;
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
         <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 rounded-2xl shadow-2xl max-w-md w-full p-8 border-2 border-slate-200 dark:border-slate-700">
@@ -270,6 +333,7 @@ export function ContractModal({
 
   // Modal: Aplicar con negociación (regateo)
   if (modalType === 'apply_negotiate') {
+    if (!jobData) return null;
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
         <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 rounded-2xl shadow-2xl max-w-md w-full p-8 border-2 border-slate-200 dark:border-slate-700">
@@ -356,6 +420,7 @@ export function ContractModal({
 
   // Modal: Recibir solicitud de aplicación (para dueño del trabajo)
   if (modalType === 'receive_application') {
+    if (!jobData) return null;
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
         <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 rounded-2xl shadow-2xl max-w-md w-full p-8 border-2 border-slate-200 dark:border-slate-700">
@@ -428,6 +493,7 @@ export function ContractModal({
 
   // Modal: Contrato aceptado - solicitar cambios
   if (modalType === 'contract_accepted') {
+    if (!jobData) return null;
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
         <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 rounded-2xl shadow-2xl max-w-md w-full p-8 border-2 border-slate-200 dark:border-slate-700">
@@ -757,6 +823,76 @@ export function ContractModal({
                 placeholder="Ej: Buenos Aires, Argentina"
                 className="w-full px-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-slate-900 dark:text-white"
               />
+            </div>
+
+            {/* Attachments */}
+            <div>
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                <Paperclip className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                Archivos adjuntos (opcional)
+              </label>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                Podés adjuntar hasta 5 archivos (JPG, PNG o PDF). Máx. 10MB cada uno.
+              </p>
+
+              {/* File input */}
+              <label className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-white dark:bg-slate-700 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg cursor-pointer hover:border-emerald-500 dark:hover:border-emerald-400 transition-colors">
+                <Paperclip className="h-5 w-5 text-slate-400" />
+                <span className="text-slate-600 dark:text-slate-400">
+                  Hacer clic para adjuntar archivos
+                </span>
+                <input
+                  type="file"
+                  multiple
+                  accept=".jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+              </label>
+
+              {/* File list */}
+              {attachedFiles.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  {attachedFiles.map((file, index) => (
+                    <div
+                      key={`${file.name}-${index}`}
+                      className="flex items-center gap-3 p-3 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg"
+                    >
+                      {/* File preview or icon */}
+                      {file.type.startsWith('image/') ? (
+                        <img
+                          src={URL.createObjectURL(file)}
+                          alt={file.name}
+                          className="h-10 w-10 object-cover rounded"
+                        />
+                      ) : (
+                        <div className="h-10 w-10 flex items-center justify-center bg-red-100 dark:bg-red-900/30 rounded">
+                          {getFileIcon(file)}
+                        </div>
+                      )}
+
+                      {/* File info */}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
+                          {file.name}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {formatFileSize(file.size)}
+                        </p>
+                      </div>
+
+                      {/* Remove button */}
+                      <button
+                        type="button"
+                        onClick={() => removeFile(index)}
+                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Dates with Time */}

@@ -20,7 +20,6 @@ import { Contract } from '../../server/models/sql/Contract.model';
 import { Proposal } from '../../server/models/sql/Proposal.model';
 import { Notification } from '../../server/models/sql/Notification.model';
 import { JobTask } from '../../server/models/sql/JobTask.model';
-import { Blog } from '../../server/models/sql/Blog.model';
 import { BlogPost } from '../../server/models/sql/BlogPost.model';
 import jwt from 'jsonwebtoken';
 import { config } from '../../server/config/env';
@@ -530,7 +529,7 @@ describe('Comprehensive DOAPP Integration Tests', () => {
   // ============================================
   describe('4. Multi-Worker Scenarios', () => {
     let multiWorkerJob: string;
-    let contracts: string[] = [];
+    const contracts: string[] = [];
 
     beforeAll(async () => {
       const response = await request(API_BASE)

@@ -1,16 +1,17 @@
 import { Link } from "react-router-dom";
 import { Mail, MapPin, Phone, Facebook, Twitter, Instagram, Linkedin, Globe } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+
+// Get initial language from localStorage or browser
+const getInitialLanguage = (): string => {
+  if (typeof window === 'undefined') return 'es';
+  const savedLang = localStorage.getItem("language") || navigator.language.split("-")[0];
+  return savedLang === "en" ? "en" : "es";
+};
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
-  const [currentLanguage, setCurrentLanguage] = useState<string>("es");
-
-  useEffect(() => {
-    // Get saved language or detect from browser
-    const savedLang = localStorage.getItem("language") || navigator.language.split("-")[0];
-    setCurrentLanguage(savedLang === "en" ? "en" : "es");
-  }, []);
+  const [currentLanguage, setCurrentLanguage] = useState<string>(getInitialLanguage);
 
   const handleLanguageChange = (lang: string) => {
     localStorage.setItem("language", lang);

@@ -40,7 +40,7 @@ export default function LoginScreen() {
     termsAccepted: false,
   });
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
-  const [usernameDebounce, setUsernameDebounce] = useState<NodeJS.Timeout | null>(null);
+  const [usernameDebounce, setUsernameDebounce] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [errorField, setErrorField] = useState<'email' | 'password' | null>(null);
   const [isLoading, setIsLoading] = useState(false);

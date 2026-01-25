@@ -12,9 +12,28 @@ export default function MembershipPaymentSuccess() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { refreshUser } = useAuth();
-  const [confirmation, setConfirmation] = useState<PaymentConfirmation>({
-    status: "processing",
-  });
+
+  // Get initial state from URL params
+  const getInitialState = (): PaymentConfirmation => {
+    const status = searchParams.get("status");
+    const paymentId = searchParams.get("payment_id");
+
+    if (status === "approved" && paymentId) {
+      return { status: "processing" };
+    } else if (status === "pending") {
+      return {
+        status: "processing",
+        message: "Tu pago está siendo procesado. Te notificaremos cuando se complete."
+      };
+    } else {
+      return {
+        status: "error",
+        message: "No se pudo confirmar el pago. Por favor contacta a soporte si ya realizaste el pago."
+      };
+    }
+  };
+
+  const [confirmation, setConfirmation] = useState<PaymentConfirmation>(getInitialState);
   const [countdown, setCountdown] = useState(10);
 
   useEffect(() => {
@@ -56,20 +75,8 @@ export default function MembershipPaymentSuccess() {
       };
 
       confirmPayment();
-    } else if (status === "pending") {
-      // Pago pendiente
-      setConfirmation({
-        status: "processing",
-        message: "Tu pago está siendo procesado. Te notificaremos cuando se complete."
-      });
-    } else {
-      // Error o parámetros faltantes
-      console.error("❌ Invalid payment status or missing parameters");
-      setConfirmation({
-        status: "error",
-        message: "No se pudo confirmar el pago. Por favor contacta a soporte si ya realizaste el pago."
-      });
     }
+    // Other cases (pending, error) are handled by initial state
 
     // ========================================
     // LEGACY: Código PayPal (comentado)

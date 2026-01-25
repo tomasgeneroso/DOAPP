@@ -18,7 +18,7 @@ export const JobsScreen: React.FC = () => {
   const { registerJobsRefreshHandler, registerJobUpdateHandler, isConnected } = useSocket();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
-  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { ads, recordImpression, recordClick } = useAdvertisements({
     placement: 'jobs_list',
   });

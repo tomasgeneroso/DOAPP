@@ -1,4 +1,4 @@
-import jwt, { Secret, SignOptions } from 'jsonwebtoken';
+import jwt, { Secret } from 'jsonwebtoken';
 import { config } from '../config.js';
 import { RefreshToken } from '../models/RefreshToken.model.js';
 import { sessions } from '../redis.js';
@@ -13,11 +13,11 @@ interface TokenPayload {
  * Generate access token (short-lived)
  */
 export function generateAccessToken(userId: string): string {
-  const options: SignOptions = {
-    expiresIn: config.jwt.expiresIn as string,
-  };
-
-  return jwt.sign({ id: userId }, config.jwt.secret as Secret, options);
+  return jwt.sign(
+    { id: userId },
+    config.jwt.secret as Secret,
+    { expiresIn: config.jwt.expiresIn as jwt.SignOptions['expiresIn'] }
+  );
 }
 
 /**

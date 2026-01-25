@@ -4,8 +4,12 @@ import { FB_SDK_READY_EVENT } from "../components/FacebookSDK";
 export function useFacebookLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [fbStatus, setFbStatus] = useState<'checking' | 'connected' | 'not_authorized' | 'unknown'>('checking');
-  const [sdkReady, setSdkReady] = useState(window.fbSDKInitialized || false);
+  // Initialize states based on current SDK status
+  const initialSdkReady = window.fbSDKInitialized && typeof window.FB !== "undefined";
+  const [fbStatus, setFbStatus] = useState<'checking' | 'connected' | 'not_authorized' | 'unknown'>(
+    initialSdkReady ? 'unknown' : 'checking'
+  );
+  const [sdkReady, setSdkReady] = useState(initialSdkReady);
 
   // Authenticate with backend using Facebook access token
   const authenticateWithBackend = useCallback((accessToken: string, userID: string) => {
@@ -35,35 +39,35 @@ export function useFacebookLogin() {
   }, []);
 
   // Check Facebook SDK ready on mount (without checking login status)
+  // Note: If SDK is already initialized, states are set correctly at initialization
   useEffect(() => {
+    // Skip if SDK was already initialized at mount time
+    if (initialSdkReady) {
+      return;
+    }
+
     const handleSDKReady = () => {
       console.log('📘 Facebook SDK ready event received');
       setSdkReady(true);
       setFbStatus('unknown'); // Don't check login status automatically
     };
 
-    // If already initialized, just mark as ready
-    if (window.fbSDKInitialized && typeof window.FB !== "undefined") {
-      setSdkReady(true);
-      setFbStatus('unknown');
-    } else {
-      // Listen for the SDK ready event
-      window.addEventListener(FB_SDK_READY_EVENT, handleSDKReady);
+    // Listen for the SDK ready event
+    window.addEventListener(FB_SDK_READY_EVENT, handleSDKReady);
 
-      // Timeout after 15 seconds
-      const timeout = setTimeout(() => {
-        if (!window.fbSDKInitialized) {
-          console.warn('⚠️ Facebook SDK initialization timeout');
-          setFbStatus('unknown');
-        }
-      }, 15000);
+    // Timeout after 15 seconds
+    const timeout = setTimeout(() => {
+      if (!window.fbSDKInitialized) {
+        console.warn('⚠️ Facebook SDK initialization timeout');
+        setFbStatus('unknown');
+      }
+    }, 15000);
 
-      return () => {
-        window.removeEventListener(FB_SDK_READY_EVENT, handleSDKReady);
-        clearTimeout(timeout);
-      };
-    }
-  }, []); // Remove statusChangeCallback dependency
+    return () => {
+      window.removeEventListener(FB_SDK_READY_EVENT, handleSDKReady);
+      clearTimeout(timeout);
+    };
+  }, [initialSdkReady]); // Only depend on initialSdkReady
 
   const loginWithFacebook = useCallback(() => {
     setIsLoading(true);

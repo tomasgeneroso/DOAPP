@@ -144,18 +144,21 @@ router.get("/user/:userId", async (req, res): Promise<void> => {
     const reviews = await Review.findAll({
       where: {
         reviewedId: userId,
-        isVisible: true,
+        [Op.or]: [
+          { isVisible: true },
+          { isVisible: null },
+        ],
       },
       include: [
         {
           model: User,
           as: "reviewer",
-          attributes: ["name", "avatar"],
+          attributes: ["id", "name", "avatar"],
         },
         {
           model: Contract,
           as: "contract",
-          attributes: ["type"],
+          attributes: ["id", "type"],
         },
       ],
       order: [["createdAt", "DESC"]],
@@ -166,7 +169,10 @@ router.get("/user/:userId", async (req, res): Promise<void> => {
     const total = await Review.count({
       where: {
         reviewedId: userId,
-        isVisible: true,
+        [Op.or]: [
+          { isVisible: true },
+          { isVisible: null },
+        ],
       },
     });
 
@@ -174,7 +180,10 @@ router.get("/user/:userId", async (req, res): Promise<void> => {
     const statsResult = await Review.findAll({
       where: {
         reviewedId: userId,
-        isVisible: true,
+        [Op.or]: [
+          { isVisible: true },
+          { isVisible: null },
+        ],
       },
       attributes: [
         [sequelize.fn("AVG", sequelize.col("rating")), "avgRating"],

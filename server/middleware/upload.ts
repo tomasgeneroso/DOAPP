@@ -45,9 +45,10 @@ const DOCUMENT_DIR = path.join(UPLOAD_DIR, "documents");
 const PORTFOLIO_DIR = path.join(UPLOAD_DIR, "portfolio");
 const DISPUTE_DIR = path.join(UPLOAD_DIR, "disputes");
 const BLOG_DIR = path.join(UPLOAD_DIR, "blogs");
+const PROPOSALS_DIR = path.join(UPLOAD_DIR, "proposals");
 
 // Ensure directories exist
-[UPLOAD_DIR, AVATAR_DIR, DOCUMENT_DIR, PORTFOLIO_DIR, DISPUTE_DIR, BLOG_DIR].forEach((dir) => {
+[UPLOAD_DIR, AVATAR_DIR, DOCUMENT_DIR, PORTFOLIO_DIR, DISPUTE_DIR, BLOG_DIR, PROPOSALS_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -342,6 +343,54 @@ export const uploadTicketAttachments = multer({
 }).array("attachments", 5);
 
 /**
+ * Storage configuration for proposal attachments
+ */
+const proposalStorage = multer.diskStorage({
+  destination: (req, file, callback) => {
+    if (!fs.existsSync(PROPOSALS_DIR)) {
+      fs.mkdirSync(PROPOSALS_DIR, { recursive: true });
+    }
+    callback(null, PROPOSALS_DIR);
+  },
+  filename: (req, file, callback) => {
+    const uniqueName = generateUniqueFilename(sanitizeFilename(file.originalname));
+    callback(null, uniqueName);
+  },
+});
+
+// File filter for proposals: images and PDFs only
+const proposalFileFilter = (
+  req: Express.Request,
+  file: Express.Multer.File,
+  callback: multer.FileFilterCallback
+) => {
+  const allowedMimeTypes = [
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "application/pdf",
+  ];
+
+  if (allowedMimeTypes.includes(file.mimetype)) {
+    callback(null, true);
+  } else {
+    callback(new Error("Solo se permiten imágenes (JPG, PNG) y archivos PDF"));
+  }
+};
+
+/**
+ * Upload middleware for proposal attachments (images and PDFs)
+ */
+export const uploadProposalAttachments = multer({
+  storage: proposalStorage,
+  fileFilter: proposalFileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB max per file
+    files: 5, // Max 5 attachments per proposal
+  },
+}).array("attachments", 5);
+
+/**
  * Upload middleware for blog cover image (single)
  */
 export const uploadBlogCover = multer({
@@ -425,6 +474,7 @@ export default {
   uploadMixed,
   uploadDisputeAttachments,
   uploadTicketAttachments,
+  uploadProposalAttachments,
   uploadBlogCover,
   deleteFile,
   getFileUrl,
@@ -436,4 +486,5 @@ export default {
   PORTFOLIO_DIR,
   DISPUTE_DIR,
   BLOG_DIR,
+  PROPOSALS_DIR,
 };

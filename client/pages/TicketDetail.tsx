@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -84,11 +84,7 @@ export default function TicketDetail() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (id) loadTicket();
-  }, [id]);
-
-  const loadTicket = async () => {
+  const loadTicket = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/tickets/${id}`, {
@@ -106,7 +102,11 @@ export default function TicketDetail() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, token]);
+
+  useEffect(() => {
+    if (id) loadTicket();
+  }, [id, loadTicket]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();

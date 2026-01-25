@@ -55,6 +55,8 @@ export default function ProposalDetail() {
   const { user } = useAuth();
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const { token } = useAuth();
 
   useEffect(() => {
     if (id) {
@@ -117,6 +119,70 @@ export default function ProposalDetail() {
         return <XCircle className="h-6 w-6" />;
       default:
         return <Clock className="h-6 w-6" />;
+    }
+  };
+
+  const handleAccept = async () => {
+    if (!proposal || !token) return;
+
+    if (!confirm('¿Aceptar esta propuesta? Se creará el contrato automáticamente.')) return;
+
+    setActionLoading(true);
+    try {
+      const response = await fetch(`/api/proposals/${proposal._id}/approve`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        if (data.contractId) {
+          navigate(`/contracts/${data.contractId}/summary`);
+        } else {
+          loadProposal();
+        }
+      } else {
+        alert(data.message || 'Error al aceptar la propuesta');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Error al procesar la solicitud');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!proposal || !token) return;
+
+    const reason = prompt('¿Por qué rechazas esta propuesta? (opcional)');
+    if (reason === null) return; // User cancelled
+
+    setActionLoading(true);
+    try {
+      const response = await fetch(`/api/proposals/${proposal._id}/reject`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ reason }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        loadProposal();
+      } else {
+        alert(data.message || 'Error al rechazar la propuesta');
+      }
+    } catch (error) {
+      console.error('Error:', error);
+      alert('Error al procesar la solicitud');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -259,14 +325,14 @@ export default function ProposalDetail() {
                   <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
                     Freelancer
                   </p>
-                  <div className="flex items-center gap-3">
+                  <Link to={`/users/${proposal.freelancer._id}`} className="flex items-center gap-3 group">
                     <img
                       src={proposal.freelancer.avatar}
                       alt={proposal.freelancer.name}
                       className="h-10 w-10 rounded-full object-cover"
                     />
                     <div className="flex-1">
-                      <p className="font-medium text-slate-900 dark:text-white">
+                      <p className="font-medium text-slate-900 dark:text-white group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">
                         {proposal.freelancer.name}
                       </p>
                       {proposal.freelancer.rating && (
@@ -275,7 +341,7 @@ export default function ProposalDetail() {
                         </p>
                       )}
                     </div>
-                  </div>
+                  </Link>
                   {/* Multiple Ratings for Freelancer */}
                   <div className="mt-3">
                     <MultipleRatings user={proposal.freelancer as any} />
@@ -283,16 +349,16 @@ export default function ProposalDetail() {
                 </div>
                 <div>
                   <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">Cliente</p>
-                  <div className="flex items-center gap-3">
+                  <Link to={`/users/${proposal.client._id}`} className="flex items-center gap-3 group">
                     <img
                       src={proposal.client.avatar}
                       alt={proposal.client.name}
                       className="h-10 w-10 rounded-full object-cover"
                     />
-                    <p className="font-medium text-slate-900 dark:text-white">
+                    <p className="font-medium text-slate-900 dark:text-white group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">
                       {proposal.client.name}
                     </p>
-                  </div>
+                  </Link>
                 </div>
               </div>
             </div>
@@ -349,8 +415,35 @@ export default function ProposalDetail() {
             </div>
           )}
 
+          {/* Actions for Client when Pending */}
+          {isClient && proposal.status === 'pending' && (
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 mb-6">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4 text-center">
+                {proposal.isCounterOffer ? '¿Aceptar esta contraoferta?' : '¿Seleccionar a este profesional?'}
+              </h2>
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={handleAccept}
+                  disabled={actionLoading}
+                  className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+                >
+                  <CheckCircle className="h-5 w-5" />
+                  {actionLoading ? 'Procesando...' : 'Aceptar'}
+                </button>
+                <button
+                  onClick={handleReject}
+                  disabled={actionLoading}
+                  className="flex items-center gap-2 px-8 py-3 bg-white dark:bg-slate-700 border-2 border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <XCircle className="h-5 w-5" />
+                  Rechazar
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Actions */}
-          <div className="flex gap-3 justify-center">
+          <div className="flex gap-3 justify-center flex-wrap">
             <Link
               to={`/jobs/${proposal.job._id}`}
               className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition font-semibold"
@@ -358,6 +451,13 @@ export default function ProposalDetail() {
               <FileText className="h-5 w-5" />
               Ver Trabajo
             </Link>
+            <button
+              onClick={() => navigate(`/chat/${proposal.freelancer._id}`)}
+              className="flex items-center gap-2 px-6 py-3 bg-sky-500 hover:bg-sky-600 text-white rounded-lg transition font-semibold"
+            >
+              <MessageCircle className="h-5 w-5" />
+              Enviar Mensaje
+            </button>
           </div>
         </div>
       </div>

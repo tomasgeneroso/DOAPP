@@ -102,24 +102,36 @@ export default function PaymentMethodSelector({
 
   // Fetch USDT conversion when Binance is selected
   useEffect(() => {
-    if (selectedMethod === 'binance' && currency === 'ARS') {
-      setLoadingConversion(true);
-      fetch(`/api/payments/conversion/usdt?amount=${amount}`)
-        .then(res => res.json())
-        .then(data => {
-          if (data.success) {
-            setUsdtAmount(data.conversion.amountUSDT);
-            setUsdtRate(data.conversion.rate);
-            setBinanceInfo(data.binanceInfo);
-          }
-        })
-        .catch(error => {
-          console.error('Error fetching USDT conversion:', error);
-        })
-        .finally(() => {
-          setLoadingConversion(false);
-        });
+    if (selectedMethod !== 'binance' || currency !== 'ARS') {
+      return;
     }
+
+    let cancelled = false;
+
+    const fetchConversion = async () => {
+      try {
+        const res = await fetch(`/api/payments/conversion/usdt?amount=${amount}`);
+        const data = await res.json();
+        if (!cancelled && data.success) {
+          setUsdtAmount(data.conversion.amountUSDT);
+          setUsdtRate(data.conversion.rate);
+          setBinanceInfo(data.binanceInfo);
+        }
+      } catch (error) {
+        console.error('Error fetching USDT conversion:', error);
+      } finally {
+        if (!cancelled) {
+          setLoadingConversion(false);
+        }
+      }
+    };
+
+    setLoadingConversion(true);
+    fetchConversion();
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedMethod, amount, currency]);
 
   return (

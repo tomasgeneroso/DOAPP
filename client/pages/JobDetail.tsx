@@ -282,6 +282,18 @@ export default function JobDetail() {
           },
         });
         const data = await response.json();
+        console.log('📋 Proposals fetched:', {
+          success: data.success,
+          count: data.proposals?.length,
+          proposals: data.proposals?.map((p: any) => ({
+            id: p.id,
+            isCounterOffer: p.isCounterOffer,
+            proposedPrice: p.proposedPrice,
+            originalJobPrice: p.originalJobPrice,
+            status: p.status,
+            freelancerName: p.freelancer?.name,
+          })),
+        });
         if (data.success) {
           setProposals(data.proposals || []);
         }
@@ -1207,20 +1219,20 @@ export default function JobDetail() {
                           <div>
                             <p className="text-xs text-gray-500 dark:text-gray-400">Cliente</p>
                             <Link
-                              to={`/profile/${getClientInfo(job).id}`}
+                              to={`/profile/${getClientInfo(job?.client)?.id || ''}`}
                               className="font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hover:underline"
                             >
-                              {getClientInfo(job).name}
+                              {getClientInfo(job?.client)?.name || 'Cliente'}
                             </Link>
                           </div>
                           <div>
                             <p className="text-xs text-gray-500 dark:text-gray-400">Trabajador</p>
                             {job.doer ? (
                               <Link
-                                to={`/profile/${job.doer.id || job.doer._id}`}
+                                to={`/profile/${typeof job.doer === 'string' ? job.doer : (job.doer.id || job.doer._id)}`}
                                 className="font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hover:underline"
                               >
-                                {job.doer.name}
+                                {typeof job.doer === 'string' ? 'Ver perfil' : job.doer.name}
                               </Link>
                             ) : contractData?.doerId ? (
                               <Link
@@ -2481,7 +2493,11 @@ export default function JobDetail() {
                       {proposals.map((proposal: any) => (
                         <div
                           key={proposal.id}
-                          className="rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 p-4 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                          className={`rounded-xl border p-4 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors ${
+                            proposal.isCounterOffer
+                              ? 'border-orange-300 dark:border-orange-600 bg-orange-50 dark:bg-orange-900/20'
+                              : 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50'
+                          }`}
                         >
                           <div className="flex items-start gap-3">
                             {/* Avatar - Clickeable */}
@@ -2599,6 +2615,17 @@ export default function JobDetail() {
                             <p className="mt-3 text-sm text-slate-600 dark:text-slate-300 line-clamp-2">
                               "{proposal.coverLetter}"
                             </p>
+                          )}
+
+                          {/* View Full Proposal Link for Counter-offers */}
+                          {proposal.isCounterOffer && (
+                            <Link
+                              to={`/proposals/${proposal.id}`}
+                              className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300"
+                            >
+                              Ver detalle de la contraoferta
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </Link>
                           )}
                         </div>
                       ))}

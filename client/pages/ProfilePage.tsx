@@ -33,7 +33,12 @@ import {
   Share2,
   Link2,
   Send,
-  X
+  X,
+  ChevronRight,
+  ArrowLeft,
+  Quote,
+  ExternalLink,
+  Heart
 } from 'lucide-react';
 
 export default function ProfilePage() {
@@ -49,7 +54,9 @@ export default function ProfilePage() {
   const [createPostType, setCreatePostType] = useState<'post' | 'article'>('post');
   const [selectedPostForComments, setSelectedPostForComments] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'posts' | 'articles'>('posts');
+  const [mainTab, setMainTab] = useState<'jobs' | 'posts'>('jobs');
   const [completedJobs, setCompletedJobs] = useState<any[]>([]);
+  const [completedJobsLoading, setCompletedJobsLoading] = useState(false);
   const [completedByCategory, setCompletedByCategory] = useState<Array<{
     id: string;
     label: string;
@@ -57,6 +64,10 @@ export default function ProfilePage() {
     count: number;
     averageRating: number | null;
   }>>([]);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [userReviews, setUserReviews] = useState<any[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [showReviewsModal, setShowReviewsModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [showAvatarUpload, setShowAvatarUpload] = useState(false);
   const [showCoverUpload, setShowCoverUpload] = useState(false);
@@ -143,23 +154,28 @@ export default function ProfilePage() {
     }
   };
 
-  const fetchCompletedJobs = async (userIdToFetch?: string) => {
-    const idToUse = userIdToFetch || userId;
+  const fetchCompletedJobs = async (userIdToFetch?: string, category?: string | null) => {
+    const idToUse = userIdToFetch || user?.id || user?._id || userId;
     if (!idToUse) return;
 
     try {
-      // Fetch completed jobs by category (new endpoint)
-      const categoryResponse = await fetch(`/api/users/${idToUse}/completed-by-category`, {
-        credentials: 'include',
-      });
-      const categoryData = await categoryResponse.json();
+      setCompletedJobsLoading(true);
 
-      if (categoryData.success) {
-        setCompletedByCategory(categoryData.categories || []);
+      // Fetch completed jobs by category stats (for sidebar)
+      if (!category) {
+        const categoryResponse = await fetch(`/api/users/${idToUse}/completed-by-category`, {
+          credentials: 'include',
+        });
+        const categoryData = await categoryResponse.json();
+
+        if (categoryData.success) {
+          setCompletedByCategory(categoryData.categories || []);
+        }
       }
 
-      // Also fetch individual contracts for legacy compatibility
-      const response = await fetch(`/api/contracts?doer=${idToUse}&status=completed&limit=10`, {
+      // Fetch completed jobs list with optional category filter
+      const categoryParam = category ? `&category=${category}` : '';
+      const response = await fetch(`/api/users/${idToUse}/completed-jobs?limit=20${categoryParam}`, {
         credentials: 'include',
       });
       const data = await response.json();
@@ -169,6 +185,40 @@ export default function ProfilePage() {
       }
     } catch (err: any) {
       console.error('Error fetching completed jobs:', err);
+    } finally {
+      setCompletedJobsLoading(false);
+    }
+  };
+
+  const fetchUserReviews = async (userIdToFetch?: string) => {
+    const idToUse = userIdToFetch || user?.id || user?._id || userId;
+    if (!idToUse) return;
+
+    try {
+      setReviewsLoading(true);
+      const response = await fetch(`/api/reviews/user/${idToUse}?limit=50`, {
+        credentials: 'include',
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        setUserReviews(data.data || []);
+      }
+    } catch (err: any) {
+      console.error('Error fetching reviews:', err);
+    } finally {
+      setReviewsLoading(false);
+    }
+  };
+
+  const handleCategoryClick = (categoryId: string) => {
+    if (selectedCategory === categoryId) {
+      // Deselect if clicking same category
+      setSelectedCategory(null);
+      fetchCompletedJobs(user?.id || user?._id, null);
+    } else {
+      setSelectedCategory(categoryId);
+      fetchCompletedJobs(user?.id || user?._id, categoryId);
     }
   };
 
@@ -645,10 +695,36 @@ export default function ProfilePage() {
             <div className="lg:col-span-1 space-y-6">
               {/* Ratings Card */}
               <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">
-                  Puntuaciones
-                </h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                    Puntuaciones
+                  </h2>
+                  {(user.reviewsCount || 0) > 0 && (
+                    <button
+                      onClick={() => {
+                        fetchUserReviews();
+                        setShowReviewsModal(true);
+                      }}
+                      className="text-sm text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1"
+                    >
+                      Ver reseñas
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
                 <MultipleRatings user={user} showAll={true} />
+                {(user.reviewsCount || 0) > 0 && (
+                  <button
+                    onClick={() => {
+                      fetchUserReviews();
+                      setShowReviewsModal(true);
+                    }}
+                    className="mt-4 w-full py-2 px-4 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Quote className="w-4 h-4" />
+                    Ver {user.reviewsCount} opiniones
+                  </button>
+                )}
               </div>
 
               {/* Referral Code Card - Only show on own profile */}
@@ -715,45 +791,70 @@ export default function ProfilePage() {
                   Trabajos Completados por Categoría
                 </h2>
                 {completedByCategory.length === 0 ? (
-                  <p className="text-center text-slate-500 dark:text-slate-400 py-8">
-                    No hay trabajos completados aún.
-                  </p>
+                  <div className="text-center py-8">
+                    <div className="w-12 h-12 rounded-full bg-orange-100 dark:bg-orange-900/20 mx-auto mb-3 flex items-center justify-center">
+                      <Star className="w-6 h-6 text-orange-500" />
+                    </div>
+                    <p className="text-slate-600 dark:text-slate-400">
+                      {currentUser && (currentUser._id === userId || currentUser.id === userId)
+                        ? '¡Cada categoría que domines aparecerá acá!'
+                        : 'Las especialidades irán apareciendo con cada trabajo.'}
+                    </p>
+                  </div>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2">
+                    {/* All categories button */}
+                    <button
+                      onClick={() => {
+                        setSelectedCategory(null);
+                        fetchCompletedJobs(user?.id || user?._id, null);
+                      }}
+                      className={`w-full flex items-center justify-between p-3 rounded-lg transition-colors ${
+                        selectedCategory === null
+                          ? 'bg-sky-100 dark:bg-sky-900/30 border-2 border-sky-500'
+                          : 'bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">📋</span>
+                        <span className="font-semibold text-slate-900 dark:text-white">
+                          Todos los trabajos
+                        </span>
+                      </div>
+                      <ChevronRight className="w-5 h-5 text-slate-400" />
+                    </button>
+
                     {completedByCategory.map((category) => (
-                      <div
+                      <button
                         key={category.id}
-                        className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-700/50"
+                        onClick={() => handleCategoryClick(category.id)}
+                        className={`w-full flex items-center justify-between p-3 rounded-lg transition-colors ${
+                          selectedCategory === category.id
+                            ? 'bg-sky-100 dark:bg-sky-900/30 border-2 border-sky-500'
+                            : 'bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700'
+                        }`}
                       >
                         <div className="flex items-center gap-3">
                           <span className="text-2xl">{category.icon}</span>
-                          <div>
+                          <div className="text-left">
                             <span className="font-semibold text-slate-900 dark:text-white">
                               {category.label}
                             </span>
                             <span className="ml-2 text-sm text-sky-600 dark:text-sky-400 font-medium">
                               ({category.count})
                             </span>
+                            {category.averageRating !== null && (
+                              <div className="flex items-center gap-1 mt-1">
+                                <Star className="w-3 h-3 text-amber-400 fill-current" />
+                                <span className="text-xs text-slate-600 dark:text-slate-400">
+                                  {category.averageRating.toFixed(1)}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
-                        {category.averageRating !== null && (
-                          <div className="flex items-center gap-1">
-                            {[1, 2, 3, 4, 5].map((star) => (
-                              <Star
-                                key={star}
-                                className={`w-4 h-4 ${
-                                  star <= Math.round(category.averageRating!)
-                                    ? 'text-amber-400 fill-current'
-                                    : 'text-slate-300 dark:text-slate-600'
-                                }`}
-                              />
-                            ))}
-                            <span className="ml-1 text-sm text-slate-600 dark:text-slate-400">
-                              {category.averageRating.toFixed(1)}
-                            </span>
-                          </div>
-                        )}
-                      </div>
+                        <ChevronRight className="w-5 h-5 text-slate-400" />
+                      </button>
                     ))}
                   </div>
                 )}
@@ -798,68 +899,239 @@ export default function ProfilePage() {
               )}
             </div>
 
-            {/* Right Column - Posts, Portfolio, Activity */}
+            {/* Right Column - Content with Tabs */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Posts Section */}
+              {/* Tabs */}
+              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-2 flex gap-2">
+                <button
+                  onClick={() => setMainTab('jobs')}
+                  className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
+                    mainTab === 'jobs'
+                      ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400'
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  <Briefcase className="w-4 h-4" />
+                  Trabajos Realizados
+                </button>
+                <button
+                  onClick={() => setMainTab('posts')}
+                  className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 ${
+                    mainTab === 'posts'
+                      ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400'
+                      : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  <FileText className="w-4 h-4" />
+                  Publicaciones
+                </button>
+              </div>
+
+              {/* Completed Jobs Section */}
+              {mainTab === 'jobs' && (
               <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
                 {/* Header */}
                 <div className="p-6 border-b border-slate-200 dark:border-slate-700">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-                    <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                      Publicaciones
-                    </h2>
-
-                    {/* Create Buttons (own profile only) */}
-                    {currentUser && (currentUser._id === userId || currentUser.id === userId) && (
-                      <div className="flex gap-3">
-                        <Button
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      {selectedCategory && (
+                        <button
                           onClick={() => {
-                            setCreatePostType('post');
-                            setShowCreatePost(true);
+                            setSelectedCategory(null);
+                            fetchCompletedJobs(user?.id || user?._id, null);
                           }}
-                          variant="primary"
+                          className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                         >
-                          <Grid className="w-4 h-4 mr-2" />
-                          Crear Post
-                        </Button>
-                        <Button
-                          onClick={() => {
-                            setCreatePostType('article');
-                            setShowCreatePost(true);
-                          }}
-                          variant="secondary"
-                        >
-                          <FileText className="w-4 h-4 mr-2" />
-                          Crear Artículo
-                        </Button>
+                          <ArrowLeft className="w-5 h-5 text-slate-600 dark:text-slate-400" />
+                        </button>
+                      )}
+                      <div>
+                        <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                          {selectedCategory
+                            ? completedByCategory.find(c => c.id === selectedCategory)?.label || 'Trabajos'
+                            : 'Trabajos Realizados'}
+                        </h2>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                          {selectedCategory
+                            ? `Mostrando trabajos de ${completedByCategory.find(c => c.id === selectedCategory)?.label}`
+                            : `${completedJobs.length} trabajos completados`}
+                        </p>
                       </div>
-                    )}
+                    </div>
                   </div>
+                </div>
 
-                  {/* View Mode Toggle */}
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setViewMode('posts')}
-                      className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-                        viewMode === 'posts'
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
-                      }`}
-                    >
-                      <Grid className="w-4 h-4 inline mr-2" />
-                      Posts
-                    </button>
-                    <button
-                      onClick={() => setViewMode('articles')}
-                      className={`flex-1 py-2 px-4 rounded-lg font-medium transition-colors ${
-                        viewMode === 'articles'
-                          ? 'bg-purple-600 text-white'
-                          : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
-                      }`}
-                    >
-                      <FileText className="w-4 h-4 inline mr-2" />
-                      Artículos
-                    </button>
+                {/* Completed Jobs List */}
+                <div className="p-6">
+                  {completedJobsLoading ? (
+                    <div className="text-center py-12">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500 mx-auto"></div>
+                      <p className="mt-4 text-slate-600 dark:text-slate-400">Cargando trabajos...</p>
+                    </div>
+                  ) : completedJobs.length === 0 ? (
+                    <div className="text-center py-12">
+                      <Briefcase className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+                        {selectedCategory
+                          ? `Explorando ${completedByCategory.find(c => c.id === selectedCategory)?.label || 'esta categoría'}...`
+                          : currentUser && (currentUser._id === userId || currentUser.id === userId)
+                            ? '¡Tu portafolio está esperando!'
+                            : 'El comienzo de una gran historia'}
+                      </h3>
+                      <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto">
+                        {selectedCategory
+                          ? 'Aún no hay trabajos completados en esta categoría. ¡Pero seguro pronto habrá!'
+                          : currentUser && (currentUser._id === userId || currentUser.id === userId)
+                            ? 'Completá tu primer trabajo y empezá a construir tu reputación. Cada proyecto es una oportunidad para brillar.'
+                            : 'Este profesional está listo para demostrar su talento. ¡Podés ser el primero en contratarlo!'}
+                      </p>
+                      {currentUser && (currentUser._id === userId || currentUser.id === userId) && !selectedCategory && (
+                        <Link
+                          to="/"
+                          className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-medium transition-all shadow-sm"
+                        >
+                          <Briefcase className="w-4 h-4" />
+                          Explorar trabajos disponibles
+                        </Link>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {completedJobs.map((contract) => (
+                        <div
+                          key={contract.id}
+                          className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-sky-300 dark:hover:border-sky-600 transition-colors"
+                        >
+                          <div className="flex gap-4">
+                            {/* Job Image */}
+                            {contract.job?.image && (
+                              <div className="flex-shrink-0">
+                                <img
+                                  src={getImageUrl(contract.job.image)}
+                                  alt={contract.job.title}
+                                  className="w-24 h-24 object-cover rounded-lg"
+                                />
+                              </div>
+                            )}
+
+                            {/* Job Info */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <h3 className="font-semibold text-slate-900 dark:text-white text-lg">
+                                    {contract.job?.title || 'Trabajo completado'}
+                                  </h3>
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-lg">{contract.job?.categoryIcon || '📋'}</span>
+                                    <span className="text-sm text-slate-600 dark:text-slate-400">
+                                      {contract.job?.categoryLabel || contract.job?.category}
+                                    </span>
+                                  </div>
+                                </div>
+                                {contract.review && (
+                                  <div className="flex items-center gap-1 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded-lg">
+                                    <Star className="w-4 h-4 text-amber-500 fill-current" />
+                                    <span className="font-semibold text-amber-700 dark:text-amber-400">
+                                      {contract.review.rating?.toFixed(1)}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Client Info */}
+                              {contract.client && (
+                                <div className="flex items-center gap-2 mt-3">
+                                  <img
+                                    src={getImageUrl(contract.client.avatar)}
+                                    alt={contract.client.name}
+                                    className="w-6 h-6 rounded-full"
+                                  />
+                                  <span className="text-sm text-slate-600 dark:text-slate-400">
+                                    Cliente: {contract.client.name}
+                                  </span>
+                                </div>
+                              )}
+
+                              {/* Review Comment */}
+                              {contract.review?.comment && (
+                                <div className="mt-3 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                                  <div className="flex items-start gap-2">
+                                    <Quote className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
+                                    <p className="text-sm text-slate-600 dark:text-slate-400 italic line-clamp-2">
+                                      "{contract.review.comment}"
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Footer */}
+                              <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
+                                <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400">
+                                  <span className="flex items-center gap-1">
+                                    <Calendar className="w-4 h-4" />
+                                    {new Date(contract.completedAt).toLocaleDateString('es-AR', {
+                                      year: 'numeric',
+                                      month: 'short',
+                                    })}
+                                  </span>
+                                  <span className="font-semibold text-green-600 dark:text-green-400">
+                                    ${contract.price?.toLocaleString('es-AR')}
+                                  </span>
+                                </div>
+                                <Link
+                                  to={`/jobs/${contract.job?.id}`}
+                                  className="text-sm text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1"
+                                >
+                                  Ver trabajo
+                                  <ExternalLink className="w-3 h-3" />
+                                </Link>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              )}
+
+              {/* Posts Section */}
+              {mainTab === 'posts' && (
+              <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+                {/* Header */}
+                <div className="p-6 border-b border-slate-200 dark:border-slate-700">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                        Publicaciones
+                      </h2>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                        {posts.length} publicaciones
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setViewMode('posts')}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          viewMode === 'posts'
+                            ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400'
+                            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        Posts
+                      </button>
+                      <button
+                        onClick={() => setViewMode('articles')}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                          viewMode === 'articles'
+                            ? 'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400'
+                            : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        Artículos
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -868,41 +1140,108 @@ export default function ProfilePage() {
                   {postsLoading ? (
                     <div className="text-center py-12">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500 mx-auto"></div>
-                      <p className="mt-4 text-slate-600 dark:text-slate-400">Cargando...</p>
+                      <p className="mt-4 text-slate-600 dark:text-slate-400">Cargando publicaciones...</p>
                     </div>
                   ) : posts.length === 0 ? (
                     <div className="text-center py-12">
-                      <Award className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
+                      <FileText className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
                       <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-                        {viewMode === 'posts' ? 'No hay publicaciones' : 'No hay artículos'}
-                      </h3>
-                      <p className="text-slate-600 dark:text-slate-400">
                         {currentUser && (currentUser._id === userId || currentUser.id === userId)
-                          ? 'Crea tu primera publicación para compartir tu trabajo.'
-                          : 'Este usuario aún no ha publicado contenido.'}
+                          ? viewMode === 'articles'
+                            ? '¡Compartí tu conocimiento!'
+                            : '¡Tu voz importa!'
+                          : viewMode === 'articles'
+                            ? 'Próximamente...'
+                            : 'Sin publicaciones por ahora'}
+                      </h3>
+                      <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto">
+                        {currentUser && (currentUser._id === userId || currentUser.id === userId)
+                          ? viewMode === 'articles'
+                            ? 'Escribí tu primer artículo y posicionáte como experto en tu área. Los clientes valoran a los profesionales que comparten su experiencia.'
+                            : 'Contá qué estás haciendo, compartí tu día a día y conectá con la comunidad. ¡Tu contenido puede inspirar a otros!'
+                          : viewMode === 'articles'
+                            ? 'Este profesional aún no ha escrito artículos, pero seguro tiene mucho para contar.'
+                            : 'Cuando comparta algo, lo vas a ver acá.'}
                       </p>
+                      {currentUser && (currentUser._id === userId || currentUser.id === userId) && (
+                        <button
+                          onClick={() => {
+                            setCreatePostType(viewMode === 'articles' ? 'article' : 'post');
+                            setShowCreatePost(true);
+                          }}
+                          className="mt-4 px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-medium transition-all shadow-sm inline-flex items-center gap-2"
+                        >
+                          <Plus className="w-4 h-4" />
+                          {viewMode === 'articles' ? 'Escribir mi primer artículo' : 'Crear mi primer post'}
+                        </button>
+                      )}
                     </div>
                   ) : (
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                       {posts.map((post) => (
-                        <div key={post._id}>
-                          <PostCard
-                            post={post}
-                            onComment={(postId) => setSelectedPostForComments(
-                              selectedPostForComments === postId ? null : postId
+                        <div
+                          key={post.id || post._id}
+                          className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-sky-300 dark:hover:border-sky-600 transition-colors"
+                        >
+                          <div className="flex gap-4">
+                            {/* Post Image */}
+                            {post.images?.[0] && (
+                              <div className="flex-shrink-0">
+                                <img
+                                  src={getImageUrl(post.images[0])}
+                                  alt={post.title || 'Post'}
+                                  className="w-24 h-24 object-cover rounded-lg"
+                                />
+                              </div>
                             )}
-                          />
-                          {selectedPostForComments === post._id && (
-                            <div className="mt-4 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-                              <PostComments postId={post._id} />
+
+                            {/* Post Content */}
+                            <div className="flex-1 min-w-0">
+                              {post.title && (
+                                <h3 className="font-semibold text-slate-900 dark:text-white text-lg mb-2">
+                                  {post.title}
+                                </h3>
+                              )}
+                              <p className="text-slate-600 dark:text-slate-400 text-sm line-clamp-3">
+                                {post.content}
+                              </p>
+
+                              {/* Footer */}
+                              <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
+                                <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400">
+                                  <span className="flex items-center gap-1">
+                                    <Heart className="w-4 h-4" />
+                                    {post.likesCount || 0}
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <MessageCircle className="w-4 h-4" />
+                                    {post.commentsCount || 0}
+                                  </span>
+                                  <span>
+                                    {new Date(post.createdAt).toLocaleDateString('es-AR', {
+                                      year: 'numeric',
+                                      month: 'short',
+                                      day: 'numeric',
+                                    })}
+                                  </span>
+                                </div>
+                                <Link
+                                  to={`/posts/${post.id || post._id}`}
+                                  className="text-sm text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1"
+                                >
+                                  Ver más
+                                  <ExternalLink className="w-3 h-3" />
+                                </Link>
+                              </div>
                             </div>
-                          )}
+                          </div>
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
               </div>
+              )}
             </div>
           </div>
         </div>
@@ -1039,6 +1378,152 @@ export default function ProfilePage() {
             className="fixed inset-0 z-40"
             onClick={() => setShowShareMenu(false)}
           />
+        )}
+
+        {/* Reviews Modal */}
+        {showReviewsModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+              {/* Header */}
+              <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
+                <div>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                    Reseñas de {user?.name}
+                  </h3>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                    {userReviews.length} opiniones de clientes
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowReviewsModal(false)}
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5 text-slate-500" />
+                </button>
+              </div>
+
+              {/* Reviews List */}
+              <div className="overflow-y-auto max-h-[60vh] p-6">
+                {reviewsLoading ? (
+                  <div className="flex justify-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
+                  </div>
+                ) : userReviews.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-900/20 mx-auto mb-4 flex items-center justify-center">
+                      <Star className="w-8 h-8 text-amber-500" />
+                    </div>
+                    <h4 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+                      {currentUser && (currentUser._id === userId || currentUser.id === userId)
+                        ? '¡Tu primera reseña está por llegar!'
+                        : 'Las primeras opiniones están en camino'}
+                    </h4>
+                    <p className="text-slate-600 dark:text-slate-400 max-w-sm mx-auto">
+                      {currentUser && (currentUser._id === userId || currentUser.id === userId)
+                        ? 'Cada trabajo completado es una oportunidad para recibir una reseña. ¡Seguí trabajando y las estrellas vendrán solas!'
+                        : 'Cuando este profesional complete trabajos, acá vas a encontrar las opiniones de sus clientes.'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {userReviews.map((review) => (
+                      <div
+                        key={review.id || review._id}
+                        className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl"
+                      >
+                        {/* Review Header */}
+                        <div className="flex items-start justify-between gap-4 mb-3">
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={getImageUrl(review.reviewer?.avatar)}
+                              alt={review.reviewer?.name}
+                              className="w-10 h-10 rounded-full object-cover"
+                            />
+                            <div>
+                              <p className="font-semibold text-slate-900 dark:text-white">
+                                {review.reviewer?.name || 'Usuario'}
+                              </p>
+                              <p className="text-xs text-slate-500 dark:text-slate-400">
+                                {new Date(review.createdAt).toLocaleDateString('es-AR', {
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric',
+                                })}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 bg-amber-50 dark:bg-amber-900/20 px-3 py-1.5 rounded-lg">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Star
+                                key={star}
+                                className={`w-4 h-4 ${
+                                  star <= (review.rating || 0)
+                                    ? 'text-amber-500 fill-current'
+                                    : 'text-slate-300 dark:text-slate-600'
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Individual Ratings */}
+                        {(review.communication || review.professionalism || review.quality || review.timeliness) && (
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+                            {review.communication && (
+                              <div className="text-center p-2 bg-white dark:bg-slate-800 rounded-lg">
+                                <p className="text-xs text-slate-500 dark:text-slate-400">Comunicación</p>
+                                <p className="font-semibold text-slate-900 dark:text-white">{review.communication}</p>
+                              </div>
+                            )}
+                            {review.professionalism && (
+                              <div className="text-center p-2 bg-white dark:bg-slate-800 rounded-lg">
+                                <p className="text-xs text-slate-500 dark:text-slate-400">Profesionalismo</p>
+                                <p className="font-semibold text-slate-900 dark:text-white">{review.professionalism}</p>
+                              </div>
+                            )}
+                            {review.quality && (
+                              <div className="text-center p-2 bg-white dark:bg-slate-800 rounded-lg">
+                                <p className="text-xs text-slate-500 dark:text-slate-400">Calidad</p>
+                                <p className="font-semibold text-slate-900 dark:text-white">{review.quality}</p>
+                              </div>
+                            )}
+                            {review.timeliness && (
+                              <div className="text-center p-2 bg-white dark:bg-slate-800 rounded-lg">
+                                <p className="text-xs text-slate-500 dark:text-slate-400">Puntualidad</p>
+                                <p className="font-semibold text-slate-900 dark:text-white">{review.timeliness}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Review Comment */}
+                        {review.comment && (
+                          <div className="flex items-start gap-2">
+                            <Quote className="w-4 h-4 text-slate-400 flex-shrink-0 mt-1" />
+                            <p className="text-slate-700 dark:text-slate-300 italic">
+                              "{review.comment}"
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Response from reviewed user */}
+                        {review.response && (
+                          <div className="mt-3 ml-6 p-3 bg-sky-50 dark:bg-sky-900/20 rounded-lg border-l-4 border-sky-500">
+                            <p className="text-xs font-semibold text-sky-700 dark:text-sky-400 mb-1">
+                              Respuesta de {user?.name}:
+                            </p>
+                            <p className="text-sm text-slate-700 dark:text-slate-300">
+                              {review.response}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </>

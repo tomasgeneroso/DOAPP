@@ -8,6 +8,7 @@ import { ChatMessage } from "../models/sql/ChatMessage.model.js";
 import { User } from "../models/sql/User.model.js";
 import { Notification } from "../models/sql/Notification.model.js";
 import { protect } from "../middleware/auth.js";
+import { uploadProposalAttachments, getFileUrl } from "../middleware/upload.js";
 import type { AuthRequest } from "../types/index.js";
 import emailService from "../services/email.js";
 import { config } from "../config/env.js";
@@ -490,7 +491,19 @@ router.post(
           attributes: ['id', 'name', 'avatar'],
         }],
       });
-      socketService.getIO().to(`conversation:${conversation.id}`).emit('message:new', applicationMessage);
+
+      // Debug: Log what's being emitted
+      const messageToEmit = applicationMessage.toJSON();
+      console.log('📤 Emitting proposal message via socket:', {
+        id: messageToEmit.id,
+        type: messageToEmit.type,
+        hasMessage: !!messageToEmit.message,
+        messagePreview: messageToEmit.message?.substring(0, 50),
+        metadata: messageToEmit.metadata,
+        isCounterOffer: messageToEmit.metadata?.isCounterOffer,
+      });
+
+      socketService.getIO().to(`conversation:${conversation.id}`).emit('message:new', messageToEmit);
 
       // Actualizar conversación
       conversation.lastMessage = isCounterOffer ? "Nueva contraoferta recibida" : "Nueva aplicación recibida";
@@ -1678,41 +1691,47 @@ router.post(
 router.post(
   "/direct",
   protect,
-  [
-    body("recipientId").isUUID().withMessage("ID de destinatario inválido"),
-    body("title").notEmpty().isLength({ min: 5, max: 200 }).withMessage("El título debe tener entre 5 y 200 caracteres"),
-    body("description").notEmpty().isLength({ min: 10, max: 2000 }).withMessage("La descripción debe tener entre 10 y 2000 caracteres"),
-    body("proposedPrice").isNumeric().withMessage("El precio debe ser numérico"),
-    body("estimatedDuration").isInt({ min: 1 }).withMessage("La duración debe ser al menos 1 día"),
-    body("location").optional().isLength({ max: 100 }),
-    body("category").optional().isLength({ max: 50 }),
-    body("startDate").optional().isISO8601(),
-    body("endDate").optional().isISO8601(),
-    body("message").optional().isLength({ max: 1000 }),
-  ],
+  uploadProposalAttachments, // Handle file uploads first
   async (req: AuthRequest, res: Response): Promise<void> => {
-    try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-        res.status(400).json({
-          success: false,
-          errors: errors.array(),
-        });
-        return;
-      }
+    // Manual validation since we can't use express-validator with multipart
+    const { recipientId, title, description, proposedPrice, estimatedDuration, location, category, startDate, endDate, message, conversationId: providedConversationId } = req.body;
+    const validationErrors: string[] = [];
 
-      const {
-        recipientId,
-        title,
-        description,
-        proposedPrice,
-        estimatedDuration,
-        location,
-        category,
-        startDate,
-        endDate,
-        message,
-      } = req.body;
+    if (!recipientId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(recipientId)) {
+      validationErrors.push("ID de destinatario inválido");
+    }
+    if (!title || title.trim().length < 5 || title.trim().length > 200) {
+      validationErrors.push("El título debe tener entre 5 y 200 caracteres");
+    }
+    if (!description || description.trim().length < 10 || description.trim().length > 2000) {
+      validationErrors.push("La descripción debe tener entre 10 y 2000 caracteres");
+    }
+    if (!proposedPrice || isNaN(parseFloat(proposedPrice))) {
+      validationErrors.push("El precio debe ser numérico");
+    }
+    if (estimatedDuration && (isNaN(parseInt(estimatedDuration)) || parseInt(estimatedDuration) < 1)) {
+      validationErrors.push("La duración debe ser al menos 1 día");
+    }
+
+    if (validationErrors.length > 0) {
+      res.status(400).json({
+        success: false,
+        errors: validationErrors.map(msg => ({ msg })),
+      });
+      return;
+    }
+
+    try {
+      // Process uploaded files
+      const uploadedFiles = req.files as Express.Multer.File[] | undefined;
+      const attachmentUrls: string[] = [];
+
+      if (uploadedFiles && uploadedFiles.length > 0) {
+        for (const file of uploadedFiles) {
+          const fileUrl = getFileUrl(file.path, req);
+          attachmentUrls.push(fileUrl);
+        }
+      }
 
       // Verificar que el destinatario existe
       const recipient = await User.findByPk(recipientId);
@@ -1733,15 +1752,32 @@ router.post(
         return;
       }
 
-      // Crear o buscar conversación existente
-      let conversation = await Conversation.findOne({
-        where: {
-          participants: {
-            [Op.contains]: [req.user.id, recipientId],
+      // Use provided conversationId if available, otherwise create or find a conversation
+      let conversation: Conversation | null = null;
+
+      if (providedConversationId) {
+        // Use the conversation the user is currently viewing
+        conversation = await Conversation.findByPk(providedConversationId);
+        // Verify user is a participant
+        if (conversation) {
+          const participantIds = conversation.participants.map(p => p?.toString() || '');
+          if (!participantIds.includes(req.user.id)) {
+            conversation = null; // User not in this conversation, find/create one
+          }
+        }
+      }
+
+      if (!conversation) {
+        // Find or create a direct conversation between the users
+        conversation = await Conversation.findOne({
+          where: {
+            participants: {
+              [Op.contains]: [req.user.id, recipientId],
+            },
+            type: "direct",
           },
-          type: "direct",
-        },
-      });
+        });
+      }
 
       if (!conversation) {
         conversation = await Conversation.create({
@@ -1756,7 +1792,7 @@ router.post(
         clientId: req.user.id, // El que propone es el cliente
         coverLetter: message || `Propuesta de contrato: ${title}`,
         proposedPrice: parseFloat(proposedPrice),
-        estimatedDuration: parseInt(estimatedDuration),
+        estimatedDuration: parseInt(estimatedDuration) || 1,
         status: 'pending',
         isDirectProposal: true,
         conversationId: conversation.id,
@@ -1766,6 +1802,7 @@ router.post(
         directCategory: category,
         directStartDate: startDate ? new Date(startDate) : undefined,
         directEndDate: endDate ? new Date(endDate) : undefined,
+        attachments: attachmentUrls.length > 0 ? attachmentUrls : undefined,
       });
 
       // Crear mensaje del sistema en el chat
@@ -1784,9 +1821,10 @@ router.post(
             location,
             category,
             proposedPrice: parseFloat(proposedPrice),
-            estimatedDuration: parseInt(estimatedDuration),
+            estimatedDuration: parseInt(estimatedDuration) || 1,
             startDate,
             endDate,
+            attachments: attachmentUrls, // Include attachments in metadata
           },
         },
       });
@@ -1801,6 +1839,7 @@ router.post(
       });
 
       // Emit system message to conversation participants via socket
+      console.log(`📤 Emitting direct proposal message to conversation:${conversation.id}`);
       socketService.getIO().to(`conversation:${conversation.id}`).emit('message:new', systemMessage);
 
       // Actualizar conversación

@@ -25,6 +25,7 @@ export interface CaptureOrderResponse {
 }
 
 export interface Payment {
+  id?: string;
   _id: string;
   contractId: any;
   payerId: any;

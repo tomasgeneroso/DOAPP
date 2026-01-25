@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { paymentApi, Payment } from "@/lib/paymentApi";
 import { ArrowDownCircle, ArrowUpCircle, Clock, CheckCircle, XCircle } from "lucide-react";
 
@@ -12,11 +12,7 @@ export function PaymentHistory({ type = "all" }: PaymentHistoryProps) {
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState<any>(null);
 
-  useEffect(() => {
-    loadPayments();
-  }, [type, page]);
-
-  const loadPayments = async () => {
+  const loadPayments = useCallback(async () => {
     try {
       setLoading(true);
       const result = await paymentApi.getMyPayments(type, page, 10);
@@ -27,7 +23,11 @@ export function PaymentHistory({ type = "all" }: PaymentHistoryProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [type, page]);
+
+  useEffect(() => {
+    loadPayments();
+  }, [loadPayments]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {

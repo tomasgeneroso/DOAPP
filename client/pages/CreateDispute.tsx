@@ -228,7 +228,7 @@ const CreateDispute: React.FC = () => {
                         <button
                           key={contractId}
                           type="button"
-                          onClick={() => setSelectedContract(contractId)}
+                          onClick={() => setSelectedContract(contractId || '')}
                           className={`w-full p-4 rounded-lg border-2 transition text-left ${
                             selectedContract === contractId
                               ? 'border-red-500 bg-red-50 dark:bg-red-900/20'

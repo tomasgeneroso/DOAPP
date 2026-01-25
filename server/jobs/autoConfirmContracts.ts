@@ -82,18 +82,18 @@ export function startAutoConfirmContractsJob() {
             // Crear transacción de balance como pendiente (el admin debe verificar y procesar el pago)
             if (workerPaymentAmount > 0 && doer) {
               const doerUser = await User.findByPk(doer.id);
-              const previousBalance = parseFloat(doerUser?.balance as any) || 0;
+              const currentBalance = parseFloat(doerUser?.balance as any) || 0;
 
               // Crear transacción pendiente (no se acredita aún)
+              // Note: balanceAfter = balanceBefore because status is 'pending' - actual credit happens when admin processes
               await BalanceTransaction.create({
                 userId: doer.id,
                 type: 'payment',
                 amount: workerPaymentAmount,
-                previousBalance: previousBalance,
-                newBalance: previousBalance, // No se acredita hasta que admin procese
+                balanceBefore: currentBalance,
+                balanceAfter: currentBalance + workerPaymentAmount, // Expected balance after processing
                 description: `Pago pendiente por trabajo completado: ${job?.title || 'Contrato'}`,
-                relatedModel: 'Contract',
-                relatedId: contract.id,
+                relatedContractId: contract.id,
                 status: 'pending', // Pendiente de procesamiento por admin
               });
             }

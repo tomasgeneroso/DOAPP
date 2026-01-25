@@ -22,9 +22,11 @@ const MAX_RECONNECT_DELAY = 30000;
 const RECONNECT_BACKOFF_MULTIPLIER = 2;
 
 interface Message {
+  id?: string;
   _id: string;
   conversationId: string;
   sender: {
+    id?: string;
     _id: string;
     name: string;
     avatar?: string;
@@ -94,7 +96,7 @@ export function useSocket() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [typingUsers, setTypingUsers] = useState<Map<string, TypingStatus>>(new Map());
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
 
   // Cleanup on unmount
@@ -165,6 +167,15 @@ export function useSocket() {
 
     // Message handlers
     socketInstance.on("message:new", (message: Message) => {
+      // Debug logging for socket messages - TEMPORARY
+      console.log('🔔 Socket message:new received:', {
+        id: (message as any).id || message._id,
+        type: message.type,
+        hasMessage: !!(message as any).message,
+        messageField: (message as any).message?.substring?.(0, 50),
+        metadata: (message as any).metadata,
+        fullMessage: message,
+      });
       if (mountedRef.current) {
         setMessages((prev) => [...prev, message]);
       }

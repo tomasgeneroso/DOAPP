@@ -14,6 +14,7 @@ interface ContractChange {
     name: string;
   };
   reason?: string;
+  linkedDisputeId?: string;
 }
 
 interface PaymentProofInfo {

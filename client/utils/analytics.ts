@@ -30,7 +30,7 @@ export function initGA(measurementId: string) {
   // Initialize dataLayer if not exists
   window.dataLayer = window.dataLayer || [];
   window.gtag = function gtag(...args: any[]) {
-    window.dataLayer!.push(arguments);
+    window.dataLayer!.push(args);
   };
 
   // Load Google Analytics script

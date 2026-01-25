@@ -8,7 +8,11 @@ import {
   ReactNode,
 } from "react";
 import type { User, RegisterData } from "@/types";
-import { initializeNotifications, shouldShowNotificationModal, markNotificationAsked } from "@/lib/firebase";
+import {
+  initializeNotifications,
+  shouldShowNotificationModal,
+  markNotificationAsked,
+} from "@/lib/firebase";
 import NotificationPermissionModal from "@/components/NotificationPermissionModal";
 
 interface AuthContextType {
@@ -16,8 +20,8 @@ interface AuthContextType {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (data: RegisterData) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
+  register: (data: RegisterData) => Promise<User>;
   logout: () => void;
   refreshUser: () => Promise<void>;
 }
@@ -30,30 +34,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [isRetryPrompt, setIsRetryPrompt] = useState(false);
-  const [retryTimeoutId, setRetryTimeoutId] = useState<NodeJS.Timeout | null>(null);
+  const [retryTimeoutId, setRetryTimeoutId] = useState<ReturnType<
+    typeof setTimeout
+  > | null>(null);
 
   useEffect(() => {
     // Check for cookie token on mount and validate it
     const validateToken = async () => {
-      console.log('🔐 Validating cookie token...');
+      console.log("🔐 Validating cookie token...");
 
       try {
         // El token está en la cookie httpOnly, solo necesitamos validarlo
         const response = await fetch("/api/auth/me", {
-          credentials: 'include', // Envía automáticamente las cookies
+          credentials: "include", // Envía automáticamente las cookies
         });
 
-        console.log('📡 /api/auth/me response:', response.status);
+        console.log("📡 /api/auth/me response:", response.status);
 
         if (response.ok) {
           const data = await response.json();
-          console.log('✅ User validated from cookie:', data.user?._id, data.user?.name);
+          console.log(
+            "✅ User validated from cookie:",
+            data.user?._id,
+            data.user?.name,
+          );
           // Guardar token en localStorage para Socket.io
           if (data.token) {
             localStorage.setItem("token", data.token);
           }
           setUser({ ...data.user });
-          setToken(data.token || 'cookie'); // Indicador de que usamos cookies
+          setToken(data.token || "cookie"); // Indicador de que usamos cookies
 
           // Mostrar modal de notificaciones si es necesario (después de 30 segundos)
           setTimeout(() => {
@@ -63,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             }
           }, 30000); // 30 segundos de delay para que el usuario explore la app primero
         } else {
-          console.warn('⚠️ No valid session cookie found');
+          console.warn("⚠️ No valid session cookie found");
           localStorage.removeItem("token");
           setUser(null);
           setToken(null);
@@ -75,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       setIsLoading(false);
-      console.log('✅ Auth loading complete');
+      console.log("✅ Auth loading complete");
     };
 
     validateToken();
@@ -88,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: {
           "Content-Type": "application/json",
         },
-        credentials: 'include', // Importante: permite enviar y recibir cookies
+        credentials: "include", // Importante: permite enviar y recibir cookies
         body: JSON.stringify({ email, password }),
       });
 
@@ -97,7 +107,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!response.ok) {
         // Manejar errores de validación
         if (data.errors && Array.isArray(data.errors)) {
-          const errorMessages = data.errors.map((err: any) => err.msg).join(", ");
+          const errorMessages = data.errors
+            .map((err: any) => err.msg)
+            .join(", ");
           throw new Error(errorMessages);
         }
         // Crear error con campo específico si está disponible
@@ -113,7 +125,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("token", data.token);
       setToken(data.token);
       setUser({ ...data.user });
-      console.log('✅ Login exitoso, usuario:', data.user.name);
+      console.log("✅ Login exitoso, usuario:", data.user.name);
 
       // Mostrar modal de notificaciones si es necesario (después de 30 segundos)
       setTimeout(() => {
@@ -122,6 +134,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setIsRetryPrompt(false);
         }
       }, 30000); // 30 segundos de delay para que el usuario explore la app primero
+
+      return data.user as User;
     } catch (error) {
       console.error("Login error:", error);
       throw error;
@@ -135,7 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: {
           "Content-Type": "application/json",
         },
-        credentials: 'include', // Permite enviar y recibir cookies
+        credentials: "include", // Permite enviar y recibir cookies
         body: JSON.stringify(data),
       });
 
@@ -144,7 +158,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!response.ok) {
         // Manejar errores de validación
         if (responseData.errors && Array.isArray(responseData.errors)) {
-          const errorMessages = responseData.errors.map((err: any) => err.msg).join(", ");
+          const errorMessages = responseData.errors
+            .map((err: any) => err.msg)
+            .join(", ");
           throw new Error(errorMessages);
         }
         throw new Error(responseData.message || "Error al registrarse");
@@ -155,7 +171,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("token", responseData.token);
       setToken(responseData.token);
       setUser({ ...responseData.user });
-      console.log('✅ Registro exitoso, usuario:', responseData.user.name);
+      console.log("✅ Registro exitoso, usuario:", responseData.user.name);
+
+      return responseData.user as User;
     } catch (error) {
       console.error("Register error:", error);
       throw error;
@@ -167,7 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Llamar al endpoint de logout para limpiar la cookie en el servidor
       await fetch("/api/auth/logout", {
         method: "POST",
-        credentials: 'include',
+        credentials: "include",
       });
     } catch (error) {
       console.error("Error during logout:", error);
@@ -176,14 +194,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem("token");
       setUser(null);
       setToken(null);
-      console.log('✅ Logout exitoso');
+      console.log("✅ Logout exitoso");
     }
   }, []);
 
   const refreshUser = useCallback(async () => {
     try {
       const response = await fetch("/api/auth/me", {
-        credentials: 'include', // Usa la cookie automáticamente
+        credentials: "include", // Usa la cookie automáticamente
       });
 
       const data = await response.json();
@@ -195,9 +213,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         // Create a new object to force re-render
         setUser({ ...data.user });
-        console.log('✅ User refreshed:', data.user.name);
-        console.log('📊 Free contracts remaining:', data.user.freeContractsRemaining);
-        console.log('📊 PRO contracts used this month:', data.user.proContractsUsedThisMonth);
+        console.log("✅ User refreshed:", data.user.name);
+        console.log(
+          "📊 Free contracts remaining:",
+          data.user.freeContractsRemaining,
+        );
+        console.log(
+          "📊 PRO contracts used this month:",
+          data.user.proContractsUsedThisMonth,
+        );
       }
     } catch (error) {
       console.error("Error refreshing user:", error);
@@ -219,9 +243,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const success = await initializeNotifications();
 
     if (success) {
-      console.log('✅ Notifications enabled successfully');
+      console.log("✅ Notifications enabled successfully");
     } else {
-      console.log('⚠️ Failed to enable notifications');
+      console.log("⚠️ Failed to enable notifications");
     }
   };
 
@@ -232,10 +256,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // If this is the first time (not retry), schedule a retry in 1 minute
     if (!isRetryPrompt) {
-      console.log('⏰ Scheduling notification retry in 1 minute...');
+      console.log("⏰ Scheduling notification retry in 1 minute...");
       const timeoutId = setTimeout(() => {
         if (shouldShowNotificationModal()) {
-          console.log('🔔 Showing notification modal again (retry)');
+          console.log("🔔 Showing notification modal again (retry)");
           setShowNotificationModal(true);
           setIsRetryPrompt(true);
         }
@@ -244,7 +268,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setRetryTimeoutId(timeoutId);
     } else {
       // Second decline, don't ask again for 24 hours
-      console.log('⏸️ User declined notifications twice, will ask again in 24 hours');
+      console.log(
+        "⏸️ User declined notifications twice, will ask again in 24 hours",
+      );
     }
   };
 
@@ -258,16 +284,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [retryTimeoutId]);
 
   // Memoize context value to prevent unnecessary re-renders
-  const contextValue = useMemo(() => ({
-    user,
-    token,
-    isAuthenticated: !!user,
-    isLoading,
-    login,
-    register,
-    logout,
-    refreshUser,
-  }), [user, token, isLoading, login, register, logout, refreshUser]);
+  const contextValue = useMemo(
+    () => ({
+      user,
+      token,
+      isAuthenticated: !!user,
+      isLoading,
+      login,
+      register,
+      logout,
+      refreshUser,
+    }),
+    [user, token, isLoading, login, register, logout, refreshUser],
+  );
 
   return (
     <AuthContext.Provider value={contextValue}>

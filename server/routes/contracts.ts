@@ -403,7 +403,16 @@ router.get("/all-by-job/:jobId", protect, async (req: AuthRequest, res: Response
     const isWorker = job.selectedWorkers?.includes(userId) || job.doerId?.toString() === userId;
     const isAdmin = isAdminUser(req.user);
 
+    // Also check if user has any contract as doer for this job
+    let hasContractAsDoer = false;
     if (!isClient && !isWorker && !isAdmin) {
+      const userContract = await Contract.findOne({
+        where: { jobId: req.params.jobId, doerId: userId }
+      });
+      hasContractAsDoer = !!userContract;
+    }
+
+    if (!isClient && !isWorker && !isAdmin && !hasContractAsDoer) {
       res.status(403).json({
         success: false,
         message: "No tienes permiso para ver los contratos de este trabajo",

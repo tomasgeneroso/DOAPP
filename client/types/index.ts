@@ -83,7 +83,7 @@ export interface Job {
 
 export interface User {
   _id: string;
-  id?: string; // Alias for _id
+  id?: string; // Alias for _id (PostgreSQL UUID)
   name: string;
   username?: string;
   email: string;
@@ -337,6 +337,7 @@ export interface BalanceTransaction {
 
 export interface WithdrawalRequest {
   _id: string;
+  id?: string; // Alias for _id
   user: User | string;
   amount: number;
   bankingInfo: {

@@ -167,6 +167,11 @@ export class Proposal extends Model {
   @Column(DataType.DATE)
   directEndDate?: Date;
 
+  // Attachments for direct proposals (images, PDFs)
+  @Default([])
+  @Column(DataType.JSONB)
+  attachments?: string[];
+
   // ============================================
   // REJECTION/CANCELLATION REASONS
   // ============================================

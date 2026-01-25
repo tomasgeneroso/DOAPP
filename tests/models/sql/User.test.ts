@@ -36,7 +36,7 @@ describe('User Model', () => {
       });
 
       expect(user.password).not.toBe(plainPassword);
-      expect(user.password.length).toBeGreaterThan(20);
+      expect(user.password!.length).toBeGreaterThan(20);
     });
 
     it('should normalize email to lowercase', async () => {
