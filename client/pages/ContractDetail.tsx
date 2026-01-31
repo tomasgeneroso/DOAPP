@@ -28,6 +28,7 @@ import {
   WifiOff,
   ClipboardList,
   Camera,
+  Briefcase,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 
@@ -441,6 +442,14 @@ export default function ContractDetail() {
                 </div>
               </div>
               <div className="flex gap-3">
+                <Link
+                  to={`/jobs/${contract.job?.id || contract.job?._id || contract.jobId?.id || contract.jobId?._id || contract.jobId}`}
+                  className="flex items-center gap-2 px-6 py-3 bg-sky-600 text-white rounded-lg hover:bg-sky-700 dark:bg-sky-700 dark:hover:bg-sky-600 transition font-semibold shadow-sm"
+                  title="Ver el trabajo asociado a este contrato"
+                >
+                  <Briefcase className="h-5 w-5" />
+                  Ver Trabajo
+                </Link>
                 <button
                   onClick={handleOpenChat}
                   disabled={loadingChat}

@@ -1390,10 +1390,185 @@ router.post("/:id/approve-modification", protect, async (req: AuthRequest, res: 
  * Cancel contract (up to 2 days before start)
  * POST /api/contracts/:id/cancel
  */
-router.post("/:id/cancel", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+/**
+ * POST /api/contracts/:id/request-cancellation
+ * Request contract cancellation - requires admin approval
+ * While pending, the job publication is paused
+ */
+router.post("/:id/request-cancellation", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { reason } = req.body;
+    const { reason, category } = req.body;
+    const userId = req.user.id;
+
+    if (!reason || reason.trim().length < 10) {
+      res.status(400).json({
+        success: false,
+        message: "Debes proporcionar una razón detallada (mínimo 10 caracteres)"
+      });
+      return;
+    }
+
+    const contract = await Contract.findByPk(id, {
+      include: [{ model: Job, as: 'job' }]
+    });
+
+    if (!contract) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    // Verify user is part of the contract
+    const isClient = contract.clientId.toString() === userId.toString();
+    const isDoer = contract.doerId.toString() === userId.toString();
+
+    if (!isClient && !isDoer) {
+      res.status(403).json({ success: false, message: "No tienes permiso para solicitar cancelación de este contrato" });
+      return;
+    }
+
+    // Can't cancel completed contracts
+    if (contract.status === 'completed' || contract.status === 'cancelled') {
+      res.status(400).json({
+        success: false,
+        message: "No se puede solicitar cancelación de un contrato completado o ya cancelado"
+      });
+      return;
+    }
+
+    // Check if there's already a pending cancellation request
+    const { ContractCancellationRequest } = await import('../models/sql/ContractCancellationRequest.model.js');
+    const existingRequest = await ContractCancellationRequest.findOne({
+      where: {
+        contractId: id,
+        status: 'pending'
+      }
+    });
+
+    if (existingRequest) {
+      res.status(400).json({
+        success: false,
+        message: "Ya existe una solicitud de cancelación pendiente para este contrato"
+      });
+      return;
+    }
+
+    const job = contract.job as any;
+    const otherPartyId = isClient ? contract.doerId : contract.clientId;
+
+    // Determine priority based on contract status and timing
+    let priority: 'low' | 'medium' | 'high' | 'urgent' = 'medium';
+    const daysUntilStart = Math.ceil((new Date(contract.startDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+
+    if (contract.status === 'in_progress') {
+      priority = 'urgent'; // Contract already in progress
+    } else if (daysUntilStart <= 1) {
+      priority = 'urgent'; // Less than 1 day
+    } else if (daysUntilStart <= 3) {
+      priority = 'high'; // Less than 3 days
+    }
+
+    // Create cancellation request
+    const cancellationRequest = await ContractCancellationRequest.create({
+      contractId: id,
+      jobId: contract.jobId,
+      requestedBy: userId,
+      otherPartyId: otherPartyId,
+      reason: reason.trim(),
+      category: category || 'other',
+      requestType: 'full_cancellation',
+      priority,
+      previousJobStatus: job?.status || null,
+      previousContractStatus: contract.status,
+      statusHistory: [{
+        status: 'pending',
+        changedAt: new Date(),
+        changedBy: userId,
+        note: 'Solicitud creada'
+      }]
+    });
+
+    // Pause the job publication while cancellation is pending
+    if (job && !['completed', 'cancelled'].includes(job.status)) {
+      job.status = 'paused';
+      job.pausedReason = 'Solicitud de cancelación de contrato pendiente';
+      job.pausedAt = new Date();
+      await job.save();
+    }
+
+    // Create notifications for both parties
+    const { Notification } = await import('../models/sql/Notification.model.js');
+
+    // Notify other party
+    await Notification.create({
+      recipientId: otherPartyId,
+      type: 'warning',
+      category: 'contract',
+      title: 'Solicitud de cancelación de contrato',
+      message: `Se ha solicitado cancelar el contrato para "${job?.title || 'Contrato'}". Un administrador revisará la solicitud.`,
+      relatedModel: 'Contract',
+      relatedId: id,
+      actionText: 'Ver contrato',
+      data: { contractId: id, cancellationRequestId: cancellationRequest.id },
+      read: false,
+    });
+
+    // Notify admins
+    const admins = await User.findAll({
+      where: {
+        adminRole: ['owner', 'super_admin', 'admin', 'support']
+      }
+    });
+
+    for (const admin of admins) {
+      await Notification.create({
+        recipientId: admin.id,
+        type: 'warning',
+        category: 'contract',
+        title: `[${priority.toUpperCase()}] Solicitud de cancelación`,
+        message: `Nueva solicitud de cancelación para contrato - ${job?.title || 'Sin título'}`,
+        relatedModel: 'ContractCancellationRequest',
+        relatedId: cancellationRequest.id,
+        actionText: 'Revisar solicitud',
+        data: { contractId: id, cancellationRequestId: cancellationRequest.id, priority },
+        read: false,
+      });
+    }
+
+    // Socket notifications
+    socketService.notifyContractUpdate(
+      id,
+      contract.clientId.toString(),
+      contract.doerId.toString(),
+      {
+        action: 'cancellation_requested',
+        contract,
+        cancellationRequest
+      }
+    );
+
+    socketService.notifyDashboardRefresh(contract.clientId.toString());
+    socketService.notifyDashboardRefresh(contract.doerId.toString());
+
+    res.json({
+      success: true,
+      message: "Solicitud de cancelación enviada. Un administrador la revisará.",
+      cancellationRequest,
+      jobPaused: true
+    });
+  } catch (error: any) {
+    console.error('Error requesting contract cancellation:', error);
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+  }
+});
+
+/**
+ * GET /api/contracts/:id/cancellation-request
+ * Get the current cancellation request for a contract
+ */
+router.get("/:id/cancellation-request", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
     const userId = req.user.id;
 
     const contract = await Contract.findByPk(id);
@@ -1402,54 +1577,45 @@ router.post("/:id/cancel", protect, async (req: AuthRequest, res: Response): Pro
       return;
     }
 
-    // Verificar que el usuario sea parte del contrato
+    // Verify user has access
     const isClient = contract.clientId.toString() === userId.toString();
     const isDoer = contract.doerId.toString() === userId.toString();
+    const isAdmin = isAdminUser(req.user);
 
-    if (!isClient && !isDoer) {
-      res.status(403).json({ success: false, message: "No tienes permiso para cancelar este contrato" });
+    if (!isClient && !isDoer && !isAdmin) {
+      res.status(403).json({ success: false, message: "No tienes permiso para ver esta información" });
       return;
     }
 
-    // Verificar que falten al menos 2 días para el inicio
-    const daysUntilStart = Math.ceil((new Date(contract.startDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-    if (daysUntilStart < 2) {
-      res.status(400).json({
-        success: false,
-        message: "No se puede cancelar el contrato: faltan menos de 2 días para el inicio"
-      });
-      return;
-    }
-
-    // Si el contrato ya está en progreso, no se puede cancelar sin penalización
-    if (contract.status === 'in_progress' || contract.status === 'completed') {
-      res.status(400).json({
-        success: false,
-        message: "No se puede cancelar un contrato en progreso o completado. Debes crear una disputa."
-      });
-      return;
-    }
-
-    contract.status = 'cancelled';
-    contract.cancellationReason = reason;
-    contract.cancelledBy = userId;
-
-    // Si hay pago en escrow, reembolsar
-    if (contract.paymentStatus === 'escrow' || contract.paymentStatus === 'held') {
-      contract.paymentStatus = 'refunded';
-    }
-
-    await contract.save();
+    const { ContractCancellationRequest } = await import('../models/sql/ContractCancellationRequest.model.js');
+    const cancellationRequest = await ContractCancellationRequest.findOne({
+      where: { contractId: id },
+      order: [['createdAt', 'DESC']],
+      include: [
+        { model: User, as: 'requester', attributes: ['id', 'name', 'email', 'avatar'] },
+        { model: User, as: 'otherParty', attributes: ['id', 'name', 'email', 'avatar'] },
+        { model: User, as: 'assignedAdmin', attributes: ['id', 'name', 'email'] },
+        { model: User, as: 'resolver', attributes: ['id', 'name', 'email'] },
+      ]
+    });
 
     res.json({
       success: true,
-      message: "Contrato cancelado exitosamente",
-      contract,
+      cancellationRequest
     });
   } catch (error: any) {
-    console.error('Error cancelling contract:', error);
+    console.error('Error getting cancellation request:', error);
     res.status(500).json({ success: false, message: error.message || "Error del servidor" });
   }
+});
+
+router.post("/:id/cancel", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  // Redirect to request-cancellation for proper admin approval flow
+  res.status(400).json({
+    success: false,
+    message: "Para cancelar un contrato, debes usar la solicitud de cancelación que será revisada por un administrador.",
+    redirectTo: `/api/contracts/${req.params.id}/request-cancellation`
+  });
 });
 
 /**

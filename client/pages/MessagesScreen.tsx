@@ -345,9 +345,23 @@ export default function MessagesScreen() {
             {filteredConversations.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full px-4 text-center">
                 <MessageCircle className="h-16 w-16 text-slate-300 dark:text-slate-600 mb-4" />
-                <p className="text-slate-600 dark:text-slate-400">
-                  {searchQuery ? "No se encontraron conversaciones" : "No tienes conversaciones"}
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+                  {searchQuery ? "Sin resultados" : "¡Empezá a conectar!"}
+                </h3>
+                <p className="text-slate-600 dark:text-slate-400 text-sm mb-4">
+                  {searchQuery
+                    ? "No se encontraron conversaciones con ese criterio"
+                    : "Cuando te comuniques con otros usuarios o apliques a trabajos, tus conversaciones aparecerán acá"}
                 </p>
+                {!searchQuery && (
+                  <a
+                    href="/"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-medium transition-colors text-sm"
+                  >
+                    <Briefcase className="w-4 h-4" />
+                    Explorar trabajos
+                  </a>
+                )}
               </div>
             ) : (
               filteredConversations.map((conversation) => {

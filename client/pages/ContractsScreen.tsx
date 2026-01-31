@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useSocket } from "../hooks/useSocket";
-import { Briefcase, Calendar, DollarSign, User, Clock, ArrowUpDown, ArrowUp, ArrowDown, Wifi, WifiOff, Flag } from "lucide-react";
+import { Briefcase, Calendar, DollarSign, User, Clock, ArrowUpDown, ArrowUp, ArrowDown, Wifi, WifiOff, Flag, Search, Plus } from "lucide-react";
 
 interface Contract {
   id: string;
@@ -288,9 +288,32 @@ export default function ContractsScreen() {
         {filteredContracts.length === 0 ? (
           <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
             <Briefcase className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-            <p className="text-slate-600 dark:text-slate-400">
-              No tienes contratos {filter === "all" ? "" : filter === "active" ? "activos" : "completados"} en este momento
+            <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
+              {filter === "all" ? "¡Tu primer contrato te espera!" : filter === "active" ? "Sin contratos activos" : "Sin contratos completados"}
+            </h3>
+            <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto mb-4">
+              {filter === "all"
+                ? "Explora los trabajos disponibles y postúlate, o publica tu propio trabajo para recibir propuestas."
+                : filter === "active"
+                  ? "Cuando tengas contratos en curso, aparecerán aquí."
+                  : "Los contratos que completes se mostrarán aquí como parte de tu historial."}
             </p>
+            <div className="flex flex-wrap gap-3 justify-center">
+              <Link
+                to="/"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-medium transition-colors"
+              >
+                <Search className="w-4 h-4" />
+                Explorar trabajos
+              </Link>
+              <Link
+                to="/create-job"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-medium transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Publicar trabajo
+              </Link>
+            </div>
           </div>
         ) : (
           <>

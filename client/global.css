@@ -17,6 +17,22 @@
     overflow-x: hidden;
   }
 
+  /* UI más compacta en desktop (75% del tamaño original) */
+  @media (min-width: 769px) {
+    body {
+      zoom: 0.75;
+      /* Fallback para Firefox que no soporta zoom */
+      -moz-transform: scale(0.75);
+      -moz-transform-origin: top left;
+    }
+    /* Compensar el ancho en Firefox */
+    @supports (-moz-appearance: none) {
+      body {
+        width: 133.33%; /* 100% / 0.75 */
+      }
+    }
+  }
+
   body {
     @apply bg-[#F5F5F5] dark:bg-[#121212] text-[#212121] dark:text-white;
     transition: background-color 0.3s ease, color 0.3s ease;

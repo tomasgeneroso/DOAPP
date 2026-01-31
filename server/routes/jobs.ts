@@ -20,6 +20,7 @@ import { cacheService, generateCacheKey } from "../services/cacheService.js";
 import tasksRoutes from "./tasks.js";
 import { checkAndProcessUserExpiredJobs } from "../jobs/autoCancelExpiredJobs.js";
 import { calculateCommission } from "../services/commissionService.js";
+import { canJobsOverlap, getCategoryById } from "../../shared/constants/categories.js";
 
 const router = express.Router();
 
@@ -778,6 +779,64 @@ router.post(
         return;
       }
 
+      // Check for overlapping jobs with same category type
+      const newJobCategory = req.body.category;
+      const newJobStartDate = new Date(req.body.startDate);
+      const newJobEndDate = endDateFlexible ? null : new Date(req.body.endDate);
+
+      // Find user's existing active jobs (open, in_progress)
+      const existingJobs = await Job.findAll({
+        where: {
+          clientId: req.user.id,
+          status: {
+            [Op.in]: ['open', 'in_progress', 'pending_payment', 'pending_approval']
+          }
+        },
+        attributes: ['id', 'title', 'category', 'startDate', 'endDate', 'endDateFlexible']
+      });
+
+      // Check for date overlap with same category type
+      for (const existingJob of existingJobs) {
+        const existingStartDate = new Date(existingJob.startDate);
+        const existingEndDate = existingJob.endDateFlexible ? null : (existingJob.endDate ? new Date(existingJob.endDate) : null);
+
+        // Check if dates overlap
+        let datesOverlap = false;
+
+        // If either job has flexible end date, check if start dates are on the same day
+        if (endDateFlexible || existingJob.endDateFlexible) {
+          // For flexible jobs, check if start dates overlap (same day)
+          const newStart = newJobStartDate.toDateString();
+          const existingStart = existingStartDate.toDateString();
+          datesOverlap = newStart === existingStart;
+        } else if (newJobEndDate && existingEndDate) {
+          // Both have fixed dates - check proper overlap
+          // Overlap: newStart <= existingEnd AND newEnd >= existingStart
+          datesOverlap = newJobStartDate <= existingEndDate && newJobEndDate >= existingStartDate;
+        }
+
+        if (datesOverlap) {
+          // Check if categories can overlap (only different types can overlap)
+          if (!canJobsOverlap(newJobCategory, existingJob.category)) {
+            const existingCategoryInfo = getCategoryById(existingJob.category);
+            const newCategoryInfo = getCategoryById(newJobCategory);
+
+            res.status(400).json({
+              success: false,
+              message: `No puedes crear un trabajo de ${newCategoryInfo?.label || newJobCategory} que se superponga con tu trabajo "${existingJob.title}" (${existingCategoryInfo?.label || existingJob.category}). Los trabajos presenciales no pueden superponerse entre sí. Solo puedes superponer un trabajo presencial con uno remoto (tecnología).`,
+              overlappingJob: {
+                id: existingJob.id,
+                title: existingJob.title,
+                category: existingJob.category,
+                startDate: existingJob.startDate,
+                endDate: existingJob.endDate
+              }
+            });
+            return;
+          }
+        }
+      }
+
       const jobData = {
         title: req.body.title,
         summary: req.body.summary,
@@ -1016,6 +1075,70 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
         // Only allow date fields to be updated when dates are expired
         // (unless new valid dates are provided, then allow all fields)
         console.log(`📅 Job ${job.id} has expired dates, updating with new dates: ${startDate} - ${endDate}`);
+      }
+    }
+
+    // Check for overlapping jobs if dates or category changed
+    const finalCategory = req.body.category || job.category;
+    const finalStartDate = req.body.startDate ? new Date(req.body.startDate) : new Date(job.startDate);
+    const finalEndDateFlexible = newEndDateFlexible !== undefined ? newEndDateFlexible : jobEndDateFlexible;
+    const finalEndDate = finalEndDateFlexible ? null : (req.body.endDate ? new Date(req.body.endDate) : (job.endDate ? new Date(job.endDate) : null));
+
+    // Only check overlap if dates or category have changed
+    const datesChanged = req.body.startDate || req.body.endDate || newEndDateFlexible !== undefined;
+    const categoryChanged = req.body.category && req.body.category !== job.category;
+
+    if (datesChanged || categoryChanged) {
+      // Find user's OTHER existing active jobs (exclude current job)
+      const existingJobs = await Job.findAll({
+        where: {
+          clientId: req.user.id,
+          id: { [Op.ne]: job.id }, // Exclude current job
+          status: {
+            [Op.in]: ['open', 'in_progress', 'pending_payment', 'pending_approval']
+          }
+        },
+        attributes: ['id', 'title', 'category', 'startDate', 'endDate', 'endDateFlexible']
+      });
+
+      // Check for date overlap with same category type
+      for (const existingJob of existingJobs) {
+        const existingStartDate = new Date(existingJob.startDate);
+        const existingEndDate = existingJob.endDateFlexible ? null : (existingJob.endDate ? new Date(existingJob.endDate) : null);
+
+        // Check if dates overlap
+        let datesOverlap = false;
+
+        // If either job has flexible end date, check if start dates are on the same day
+        if (finalEndDateFlexible || existingJob.endDateFlexible) {
+          const newStart = finalStartDate.toDateString();
+          const existingStart = existingStartDate.toDateString();
+          datesOverlap = newStart === existingStart;
+        } else if (finalEndDate && existingEndDate) {
+          // Both have fixed dates - check proper overlap
+          datesOverlap = finalStartDate <= existingEndDate && finalEndDate >= existingStartDate;
+        }
+
+        if (datesOverlap) {
+          // Check if categories can overlap (only different types can overlap)
+          if (!canJobsOverlap(finalCategory, existingJob.category)) {
+            const existingCategoryInfo = getCategoryById(existingJob.category);
+            const newCategoryInfo = getCategoryById(finalCategory);
+
+            res.status(400).json({
+              success: false,
+              message: `No puedes modificar este trabajo porque se superpondría con tu trabajo "${existingJob.title}" (${existingCategoryInfo?.label || existingJob.category}). Los trabajos presenciales no pueden superponerse entre sí.`,
+              overlappingJob: {
+                id: existingJob.id,
+                title: existingJob.title,
+                category: existingJob.category,
+                startDate: existingJob.startDate,
+                endDate: existingJob.endDate
+              }
+            });
+            return;
+          }
+        }
       }
     }
 
@@ -2631,7 +2754,7 @@ router.post("/:id/accept-price-decrease", protect, async (req: AuthRequest, res:
     const userProposal = await Proposal.findOne({
       where: {
         jobId: job.id,
-        doerId: req.user.id,
+        freelancerId: req.user.id,
         status: { [Op.in]: ['pending', 'approved'] }
       }
     });
@@ -2834,7 +2957,7 @@ router.post("/:id/reject-price-decrease", protect, async (req: AuthRequest, res:
     const userProposal = await Proposal.findOne({
       where: {
         jobId: job.id,
-        doerId: req.user.id,
+        freelancerId: req.user.id,
         status: { [Op.in]: ['pending', 'approved'] }
       }
     });

@@ -1,8 +1,8 @@
 import { useAuth } from "../hooks/useAuth";
 import { Helmet } from "react-helmet-async";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { MapPin, Calendar, Clock, Star, Briefcase, CheckCircle } from "lucide-react";
+import { MapPin, Calendar, Clock, Star, Briefcase, CheckCircle, Plus } from "lucide-react";
 import type { Job, User as UserType } from "@/types";
 import SearchBar, { SearchFilters } from "../components/SearchBar";
 import { useAdvertisements } from "../hooks/useAdvertisements";
@@ -15,6 +15,7 @@ import { fetchWithAuth } from "../utils/fetchWithAuth";
 
 export default function Index() {
   const { user, isLoading } = useAuth();
+  const location = useLocation();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [users, setUsers] = useState<UserType[]>([]);
   const [myJobs, setMyJobs] = useState<Job[]>([]);
@@ -55,6 +56,18 @@ export default function Index() {
       registerJobsRefreshHandler(() => {});
     };
   }, [registerJobsRefreshHandler, handleJobsRefresh]);
+
+  // Scroll to anchor when page loads with hash
+  useEffect(() => {
+    if (location.hash) {
+      const element = document.getElementById(location.hash.substring(1));
+      if (element) {
+        setTimeout(() => {
+          element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+      }
+    }
+  }, [location.hash, jobsLoading]);
 
   const fetchMyJobs = async () => {
     if (!user?.id) {
@@ -751,7 +764,7 @@ export default function Index() {
 
         {/* Lista de trabajos disponibles */}
         {searchType === 'jobs' && (
-          <div className="mt-10 sm:mt-16 px-2" data-onboarding="jobs-list">
+          <div id="trabajos-disponibles" className="mt-10 sm:mt-16 px-2" data-onboarding="jobs-list">
             <div className="flex items-center justify-between mb-6 sm:mb-8">
               <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
                 Trabajos Disponibles
@@ -763,10 +776,30 @@ export default function Index() {
                 <div className="h-12 w-12 animate-spin rounded-full border-4 border-solid border-sky-500 border-t-transparent"></div>
               </div>
             ) : jobs.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-gray-500">
-                  No hay trabajos disponibles en este momento.
+              <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8">
+                <Briefcase className="h-16 w-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
+                  ¡Sé el primero en publicar!
+                </h3>
+                <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto mb-6">
+                  Todavía no hay trabajos publicados. Aprovechá la oportunidad de ser el primero en ofrecer tus servicios o publicar lo que necesitás.
                 </p>
+                {user ? (
+                  <Link
+                    to="/create-job"
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-xl font-medium transition-all shadow-sm"
+                  >
+                    <Plus className="w-5 h-5" />
+                    Publicar primer trabajo
+                  </Link>
+                ) : (
+                  <Link
+                    to="/register"
+                    className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white rounded-xl font-medium transition-all shadow-sm"
+                  >
+                    Registrarse para publicar
+                  </Link>
+                )}
               </div>
             ) : (
               <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 auto-rows-[minmax(200px,auto)] grid-flow-dense">

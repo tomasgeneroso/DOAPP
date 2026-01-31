@@ -15,8 +15,10 @@ import {
   Loader2,
   ArrowLeft,
   AlertTriangle,
+  HelpCircle,
+  MessageSquare,
 } from "lucide-react";
-import { JOB_CATEGORIES, JOB_TAGS } from "../../shared/constants/categories";
+import { JOB_CATEGORIES, JOB_TAGS, canJobsOverlap, getCategoryById } from "../../shared/constants/categories";
 import { CustomDateInput } from "@/components/ui/CustomDatePicker";
 import LocationAutocomplete from "@/components/ui/LocationAutocomplete";
 import FileUploadWithPreview from "@/components/ui/FileUploadWithPreview";
@@ -78,6 +80,8 @@ export default function EditJobScreen() {
   const [hasExpiredDates, setHasExpiredDates] = useState(false);
   const [originalEndDate, setOriginalEndDate] = useState("");
   const [endDateFlexible, setEndDateFlexible] = useState(false);
+  const [overlapWarning, setOverlapWarning] = useState<{ message: string; jobTitle: string } | null>(null);
+  const [userJobs, setUserJobs] = useState<any[]>([]);
 
   // Check if user has updated dates to valid future dates
   const datesAreValid = () => {
@@ -184,6 +188,74 @@ export default function EditJobScreen() {
       fetchJob();
     }
   }, [id, token, user]);
+
+  // Fetch user's other jobs for overlap validation
+  useEffect(() => {
+    const fetchUserJobs = async () => {
+      if (!token || !user) return;
+      try {
+        const response = await fetch(`/api/jobs/my-jobs`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await response.json();
+        if (data.success) {
+          // Filter out the current job and only keep active ones
+          const activeJobs = (data.jobs || []).filter((job: any) =>
+            job.id !== id &&
+            job._id !== id &&
+            ['open', 'in_progress', 'pending_payment', 'pending_approval'].includes(job.status)
+          );
+          setUserJobs(activeJobs);
+        }
+      } catch (err) {
+        console.error('Error fetching user jobs:', err);
+      }
+    };
+    fetchUserJobs();
+  }, [token, user, id]);
+
+  // Check for date overlaps when dates or category change
+  useEffect(() => {
+    if (!startDate || !selectedCategory || userJobs.length === 0) {
+      setOverlapWarning(null);
+      return;
+    }
+
+    const newStart = new Date(startDate);
+    const newEnd = endDateFlexible ? null : (endDate ? new Date(endDate) : null);
+
+    for (const existingJob of userJobs) {
+      const existingStart = new Date(existingJob.startDate);
+      const existingEnd = existingJob.endDateFlexible ? null : (existingJob.endDate ? new Date(existingJob.endDate) : null);
+
+      // Check if dates overlap
+      let datesOverlap = false;
+
+      if (endDateFlexible || existingJob.endDateFlexible) {
+        // For flexible jobs, check if start dates are on the same day
+        datesOverlap = newStart.toDateString() === existingStart.toDateString();
+      } else if (newEnd && existingEnd) {
+        // Both have fixed dates - check proper overlap
+        datesOverlap = newStart <= existingEnd && newEnd >= existingStart;
+      }
+
+      if (datesOverlap) {
+        // Check if categories can overlap
+        if (!canJobsOverlap(selectedCategory, existingJob.category)) {
+          const existingCategoryInfo = getCategoryById(existingJob.category);
+          const newCategoryInfo = getCategoryById(selectedCategory);
+
+          setOverlapWarning({
+            message: `Los trabajos de ${newCategoryInfo?.label || selectedCategory} no pueden superponerse con trabajos de ${existingCategoryInfo?.label || existingJob.category}. Solo se permite superposición entre trabajos presenciales y remotos (tecnología).`,
+            jobTitle: existingJob.title
+          });
+          return;
+        }
+      }
+    }
+
+    setOverlapWarning(null);
+  }, [startDate, endDate, endDateFlexible, selectedCategory, userJobs]);
 
   const handleAddTag = (tag: string) => {
     if (tag && !selectedTags.includes(tag) && selectedTags.length < 10) {
@@ -599,6 +671,23 @@ export default function EditJobScreen() {
               </div>
             </div>
 
+            {/* Overlap Warning */}
+            {overlapWarning && (
+              <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-red-800 dark:text-red-200">
+                      Conflicto de horario con "{overlapWarning.jobTitle}"
+                    </p>
+                    <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                      {overlapWarning.message}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Existing Images */}
             {existingImages.length > 0 && (
               <FormField label="Imágenes existentes" icon={ImageIcon}>
@@ -641,6 +730,38 @@ export default function EditJobScreen() {
 
           {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
+          {/* Help Section - Report problems or request modifications */}
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 p-4">
+            <div className="flex items-start gap-3">
+              <HelpCircle className="h-5 w-5 text-sky-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h3 className="font-medium text-gray-900 dark:text-white text-sm">
+                  ¿Necesitás ayuda con este trabajo?
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
+                  Si tenés problemas con el contrato, necesitás hacer modificaciones que no podés realizar vos mismo,
+                  o tenés algún inconveniente con el trabajador, podés abrir un ticket de soporte.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Link
+                    to={`/tickets/new?jobId=${id}&type=support`}
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-900/30 hover:bg-sky-200 dark:hover:bg-sky-900/50 rounded-lg transition-colors"
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                    Reportar problema
+                  </Link>
+                  <Link
+                    to="/help"
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg transition-colors"
+                  >
+                    <HelpCircle className="h-4 w-4" />
+                    Centro de ayuda
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div className="flex items-center justify-end gap-x-6">
             <Link
               to={`/jobs/${id}`}
@@ -650,10 +771,10 @@ export default function EditJobScreen() {
             </Link>
             <button
               type="submit"
-              disabled={isSubmitting || fieldsDisabled}
+              disabled={isSubmitting || fieldsDisabled || !!overlapWarning}
               className="rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-sky-500/30 hover:from-sky-600 hover:to-sky-700 hover:shadow-sky-500/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
             >
-              {isSubmitting ? "Guardando..." : fieldsDisabled ? "Actualiza las fechas primero" : "Guardar cambios"}
+              {isSubmitting ? "Guardando..." : overlapWarning ? "Resolvé el conflicto de horario" : fieldsDisabled ? "Actualiza las fechas primero" : "Guardar cambios"}
             </button>
           </div>
         </form>

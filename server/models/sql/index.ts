@@ -38,6 +38,8 @@ export { Role } from './Role.model.js';
 // CONTRACT MANAGEMENT
 // ============================================
 export { ContractChangeRequest } from './ContractChangeRequest.model.js';
+export { ContractCancellationRequest } from './ContractCancellationRequest.model.js';
+export type { CancellationRequestStatus, CancellationRequestPriority } from './ContractCancellationRequest.model.js';
 
 // ============================================
 // MEMBERSHIP & REFERRALS

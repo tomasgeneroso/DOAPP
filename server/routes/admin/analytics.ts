@@ -803,4 +803,399 @@ router.get(
   }
 );
 
+// ============================================================
+// ADMIN ACTIVITY SUMMARY - Role-based prioritized activities
+// ============================================================
+
+/**
+ * Define role permissions for different activity types
+ * Each role can see specific activities based on their responsibilities
+ */
+const ROLE_ACTIVITIES: Record<string, string[]> = {
+  owner: ['*'], // Can see everything
+  super_admin: ['*'], // Can see everything
+  admin: ['tickets', 'disputes', 'contracts', 'jobs', 'users', 'cancellation_requests', 'pending_payments'],
+  support: ['tickets', 'disputes', 'cancellation_requests'],
+  marketing: ['jobs', 'users', 'analytics', 'advertisements'],
+  dpo: ['users', 'audit_logs', 'data_requests'],
+};
+
+/**
+ * Priority weights for different activity types
+ * Higher = more urgent
+ */
+const PRIORITY_WEIGHTS: Record<string, number> = {
+  urgent: 100,
+  high: 75,
+  medium: 50,
+  low: 25,
+};
+
+interface ActivityItem {
+  id: string;
+  type: string;
+  category: string;
+  title: string;
+  description: string;
+  priority: 'urgent' | 'high' | 'medium' | 'low';
+  priorityScore: number;
+  createdAt: Date;
+  data: any;
+  actionUrl: string;
+}
+
+// @route   GET /api/admin/analytics/activity-summary
+// @desc    Get prioritized activity summary based on admin role
+// @access  Admin+
+router.get(
+  "/activity-summary",
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const adminRole = req.user.adminRole || 'admin';
+      const allowedActivities = ROLE_ACTIVITIES[adminRole] || ROLE_ACTIVITIES.admin;
+      const canSeeAll = allowedActivities.includes('*');
+
+      const activities: ActivityItem[] = [];
+      const now = new Date();
+
+      // Helper function to check if activity type is allowed
+      const canSee = (type: string) => canSeeAll || allowedActivities.includes(type);
+
+      // 1. CANCELLATION REQUESTS (support, admin, owner, super_admin)
+      if (canSee('cancellation_requests')) {
+        const { ContractCancellationRequest } = await import("../../models/sql/ContractCancellationRequest.model.js");
+        const pendingCancellations = await ContractCancellationRequest.findAll({
+          where: { status: 'pending' },
+          include: [
+            { model: Job, as: 'job', attributes: ['id', 'title'] },
+            { model: User, as: 'requester', attributes: ['id', 'name'] },
+          ],
+          order: [
+            [literal("CASE priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END"), 'ASC'],
+            ['createdAt', 'ASC']
+          ],
+          limit: 20,
+        });
+
+        for (const req of pendingCancellations) {
+          const reqData = req as any;
+          const hoursOld = (now.getTime() - new Date(req.createdAt).getTime()) / (1000 * 60 * 60);
+          let adjustedPriority = req.priority as 'urgent' | 'high' | 'medium' | 'low';
+
+          // Escalate priority if too old
+          if (hoursOld > 48 && adjustedPriority !== 'urgent') {
+            adjustedPriority = 'urgent';
+          } else if (hoursOld > 24 && ['low', 'medium'].includes(adjustedPriority)) {
+            adjustedPriority = 'high';
+          }
+
+          activities.push({
+            id: req.id,
+            type: 'cancellation_request',
+            category: 'contracts',
+            title: `Solicitud de cancelación: ${reqData.job?.title || 'Contrato'}`,
+            description: `${reqData.requester?.name} solicitó cancelar contrato - ${req.reason.substring(0, 100)}${req.reason.length > 100 ? '...' : ''}`,
+            priority: adjustedPriority,
+            priorityScore: PRIORITY_WEIGHTS[adjustedPriority] + (hoursOld * 0.5), // Add time bonus
+            createdAt: req.createdAt,
+            data: { requestId: req.id, contractId: req.contractId, category: req.category },
+            actionUrl: `/admin/contracts/cancellation-requests/${req.id}`,
+          });
+        }
+      }
+
+      // 2. OPEN TICKETS (support, admin, owner, super_admin)
+      if (canSee('tickets')) {
+        const openTickets = await Ticket.findAll({
+          where: { status: { [Op.in]: ['open', 'in_progress'] } },
+          include: [{ model: User, as: 'user', attributes: ['id', 'name'] }],
+          order: [
+            [literal("CASE priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END"), 'ASC'],
+            ['createdAt', 'ASC']
+          ],
+          limit: 20,
+        });
+
+        for (const ticket of openTickets) {
+          const ticketData = ticket as any;
+          const hoursOld = (now.getTime() - new Date(ticket.createdAt).getTime()) / (1000 * 60 * 60);
+          let adjustedPriority = ticket.priority as 'urgent' | 'high' | 'medium' | 'low';
+
+          if (hoursOld > 48 && adjustedPriority !== 'urgent') {
+            adjustedPriority = 'urgent';
+          } else if (hoursOld > 24 && ['low', 'medium'].includes(adjustedPriority)) {
+            adjustedPriority = 'high';
+          }
+
+          activities.push({
+            id: ticket.id,
+            type: 'ticket',
+            category: 'support',
+            title: `Ticket: ${ticket.subject}`,
+            description: `De ${ticketData.user?.name || 'Usuario'} - Categoría: ${ticket.category}`,
+            priority: adjustedPriority,
+            priorityScore: PRIORITY_WEIGHTS[adjustedPriority] + (hoursOld * 0.3),
+            createdAt: ticket.createdAt,
+            data: { ticketId: ticket.id, category: ticket.category, status: ticket.status },
+            actionUrl: `/admin/tickets/${ticket.id}`,
+          });
+        }
+      }
+
+      // 3. OPEN DISPUTES (support, admin, owner, super_admin)
+      if (canSee('disputes')) {
+        const openDisputes = await Dispute.findAll({
+          where: { status: { [Op.in]: ['open', 'in_review'] } },
+          include: [
+            { model: User, as: 'complainant', attributes: ['id', 'name'] },
+            { model: Contract, as: 'contract', include: [{ model: Job, as: 'job', attributes: ['id', 'title'] }] },
+          ],
+          order: [['createdAt', 'ASC']],
+          limit: 20,
+        });
+
+        for (const dispute of openDisputes) {
+          const disputeData = dispute as any;
+          const hoursOld = (now.getTime() - new Date(dispute.createdAt).getTime()) / (1000 * 60 * 60);
+
+          // Disputes are always high priority, escalate to urgent if old
+          let priority: 'urgent' | 'high' | 'medium' | 'low' = 'high';
+          if (hoursOld > 48) priority = 'urgent';
+
+          activities.push({
+            id: dispute.id,
+            type: 'dispute',
+            category: 'disputes',
+            title: `Disputa: ${disputeData.contract?.job?.title || 'Contrato'}`,
+            description: `De ${disputeData.complainant?.name || 'Usuario'} - ${dispute.reason?.substring(0, 80) || 'Sin razón'}${dispute.reason?.length > 80 ? '...' : ''}`,
+            priority,
+            priorityScore: PRIORITY_WEIGHTS[priority] + (hoursOld * 0.8), // Disputes get higher time bonus
+            createdAt: dispute.createdAt,
+            data: { disputeId: dispute.id, contractId: dispute.contractId, status: dispute.status },
+            actionUrl: `/admin/disputes/${dispute.id}`,
+          });
+        }
+      }
+
+      // 4. PENDING CONTRACT APPROVALS (admin, owner, super_admin)
+      if (canSee('contracts')) {
+        const pendingContracts = await Contract.findAll({
+          where: { status: { [Op.in]: ['pending', 'in_review'] } },
+          include: [
+            { model: Job, as: 'job', attributes: ['id', 'title'] },
+            { model: User, as: 'client', attributes: ['id', 'name'] },
+          ],
+          order: [['createdAt', 'ASC']],
+          limit: 15,
+        });
+
+        for (const contract of pendingContracts) {
+          const contractData = contract as any;
+          const hoursOld = (now.getTime() - new Date(contract.createdAt).getTime()) / (1000 * 60 * 60);
+
+          activities.push({
+            id: contract.id,
+            type: 'contract_approval',
+            category: 'contracts',
+            title: `Aprobar contrato: ${contractData.job?.title || 'Sin título'}`,
+            description: `Cliente: ${contractData.client?.name || 'Usuario'} - $${contract.price}`,
+            priority: hoursOld > 24 ? 'high' : 'medium',
+            priorityScore: PRIORITY_WEIGHTS[hoursOld > 24 ? 'high' : 'medium'] + (hoursOld * 0.2),
+            createdAt: contract.createdAt,
+            data: { contractId: contract.id, jobId: contract.jobId, price: contract.price },
+            actionUrl: `/admin/contracts/${contract.id}`,
+          });
+        }
+      }
+
+      // 5. PENDING JOB APPROVALS (admin, owner, super_admin)
+      if (canSee('jobs')) {
+        const pendingJobs = await Job.findAll({
+          where: { status: 'pending_approval' },
+          include: [{ model: User, as: 'client', attributes: ['id', 'name'] }],
+          order: [['createdAt', 'ASC']],
+          limit: 15,
+        });
+
+        for (const job of pendingJobs) {
+          const jobData = job as any;
+          const hoursOld = (now.getTime() - new Date(job.createdAt).getTime()) / (1000 * 60 * 60);
+
+          activities.push({
+            id: job.id,
+            type: 'job_approval',
+            category: 'jobs',
+            title: `Aprobar trabajo: ${job.title}`,
+            description: `De ${jobData.client?.name || 'Usuario'} - $${job.price}`,
+            priority: hoursOld > 24 ? 'high' : 'medium',
+            priorityScore: PRIORITY_WEIGHTS[hoursOld > 24 ? 'high' : 'medium'] + (hoursOld * 0.2),
+            createdAt: job.createdAt,
+            data: { jobId: job.id, price: job.price, category: job.category },
+            actionUrl: `/admin/jobs/${job.id}`,
+          });
+        }
+      }
+
+      // 6. PENDING PAYMENTS (admin, owner, super_admin)
+      if (canSee('pending_payments')) {
+        const pendingPayments = await Payment.findAll({
+          where: { status: 'pending_verification' },
+          include: [
+            { model: Contract, as: 'contract', include: [{ model: Job, as: 'job', attributes: ['id', 'title'] }] },
+          ],
+          order: [['createdAt', 'ASC']],
+          limit: 15,
+        });
+
+        for (const payment of pendingPayments) {
+          const paymentData = payment as any;
+          const hoursOld = (now.getTime() - new Date(payment.createdAt).getTime()) / (1000 * 60 * 60);
+
+          activities.push({
+            id: payment.id,
+            type: 'payment_verification',
+            category: 'payments',
+            title: `Verificar pago: ${paymentData.contract?.job?.title || 'Contrato'}`,
+            description: `Monto: $${payment.amount} - Esperando verificación`,
+            priority: hoursOld > 48 ? 'high' : 'medium',
+            priorityScore: PRIORITY_WEIGHTS[hoursOld > 48 ? 'high' : 'medium'] + (hoursOld * 0.3),
+            createdAt: payment.createdAt,
+            data: { paymentId: payment.id, amount: payment.amount, contractId: payment.contractId },
+            actionUrl: `/admin/payments/${payment.id}`,
+          });
+        }
+      }
+
+      // 7. PENDING WITHDRAWALS (admin, owner, super_admin - but only owner can see amounts)
+      if (canSee('pending_payments')) {
+        const { WithdrawalRequest } = await import("../../models/sql/WithdrawalRequest.model.js");
+        const pendingWithdrawals = await WithdrawalRequest.findAll({
+          where: { status: { [Op.in]: ['pending', 'approved', 'processing'] } },
+          include: [{ model: User, as: 'user', attributes: ['id', 'name'] }],
+          order: [['createdAt', 'ASC']],
+          limit: 15,
+        });
+
+        for (const withdrawal of pendingWithdrawals) {
+          const withdrawalData = withdrawal as any;
+          const hoursOld = (now.getTime() - new Date(withdrawal.createdAt).getTime()) / (1000 * 60 * 60);
+
+          let statusText = 'Pendiente revisión';
+          if (withdrawal.status === 'approved') statusText = 'Aprobado, pendiente proceso';
+          if (withdrawal.status === 'processing') statusText = 'En proceso de transferencia';
+
+          activities.push({
+            id: withdrawal.id,
+            type: 'withdrawal',
+            category: 'payments',
+            title: `Retiro: ${withdrawalData.user?.name || 'Usuario'}`,
+            description: `$${withdrawal.amount} - ${statusText}`,
+            priority: withdrawal.status === 'processing' ? 'high' : (hoursOld > 48 ? 'high' : 'medium'),
+            priorityScore: PRIORITY_WEIGHTS[withdrawal.status === 'processing' ? 'high' : (hoursOld > 48 ? 'high' : 'medium')] + (hoursOld * 0.4),
+            createdAt: withdrawal.createdAt,
+            data: { withdrawalId: withdrawal.id, amount: withdrawal.amount, status: withdrawal.status },
+            actionUrl: `/admin/withdrawals/${withdrawal.id}`,
+          });
+        }
+      }
+
+      // Sort all activities by priority score (descending)
+      activities.sort((a, b) => b.priorityScore - a.priorityScore);
+
+      // Group by priority for the response
+      const groupedActivities = {
+        urgent: activities.filter(a => a.priority === 'urgent'),
+        high: activities.filter(a => a.priority === 'high'),
+        medium: activities.filter(a => a.priority === 'medium'),
+        low: activities.filter(a => a.priority === 'low'),
+      };
+
+      // Count by type
+      const countsByType = activities.reduce((acc, activity) => {
+        acc[activity.type] = (acc[activity.type] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+
+      res.json({
+        success: true,
+        data: {
+          adminRole,
+          allowedActivityTypes: canSeeAll ? 'all' : allowedActivities,
+          totalPendingActivities: activities.length,
+          countsByPriority: {
+            urgent: groupedActivities.urgent.length,
+            high: groupedActivities.high.length,
+            medium: groupedActivities.medium.length,
+            low: groupedActivities.low.length,
+          },
+          countsByType,
+          activities: activities.slice(0, 50), // Limit to 50 items
+          groupedActivities: {
+            urgent: groupedActivities.urgent.slice(0, 10),
+            high: groupedActivities.high.slice(0, 15),
+            medium: groupedActivities.medium.slice(0, 15),
+            low: groupedActivities.low.slice(0, 10),
+          },
+        },
+      });
+    } catch (error: any) {
+      console.error("Error fetching activity summary:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor",
+      });
+    }
+  }
+);
+
+// @route   GET /api/admin/analytics/activity-summary/by-role
+// @desc    Get activity visibility configuration by role
+// @access  Admin+
+router.get(
+  "/activity-summary/by-role",
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const roleDescriptions: Record<string, { activities: string[], description: string }> = {
+        owner: {
+          activities: ['Todo'],
+          description: 'Acceso completo a todas las actividades, incluyendo balance de empresa y configuración crítica.'
+        },
+        super_admin: {
+          activities: ['Todo'],
+          description: 'Acceso completo a todas las actividades administrativas.'
+        },
+        admin: {
+          activities: ['Tickets', 'Disputas', 'Contratos', 'Trabajos', 'Usuarios', 'Solicitudes de cancelación', 'Pagos pendientes'],
+          description: 'Gestión general de la plataforma, usuarios y contratos.'
+        },
+        support: {
+          activities: ['Tickets', 'Disputas', 'Solicitudes de cancelación'],
+          description: 'Atención al cliente y resolución de problemas.'
+        },
+        marketing: {
+          activities: ['Trabajos', 'Usuarios', 'Analytics', 'Anuncios'],
+          description: 'Marketing, analytics y gestión de contenido promocional.'
+        },
+        dpo: {
+          activities: ['Usuarios', 'Logs de auditoría', 'Solicitudes de datos'],
+          description: 'Protección de datos, GDPR y auditoría de seguridad.'
+        },
+      };
+
+      res.json({
+        success: true,
+        data: {
+          currentRole: req.user.adminRole,
+          roleConfigurations: roleDescriptions,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor",
+      });
+    }
+  }
+);
+
 export default router;

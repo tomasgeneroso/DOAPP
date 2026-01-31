@@ -7,6 +7,13 @@ import fsSync from "fs";
  * Image Optimization Service
  * Uses Sharp library for image processing
  * Provides automatic compression and format optimization
+ *
+ * Features:
+ * - One-click optimization (lossless/lossy)
+ * - WebP and AVIF conversion
+ * - Lazy loading placeholders (LQIP)
+ * - Responsive image generation
+ * - Automatic format selection based on browser support
  */
 class ImageOptimizationService {
   private readonly maxWidth = 1920;
@@ -19,6 +26,14 @@ class ImageOptimizationService {
   private readonly MAX_AVATAR_SIZE = 200 * 1024; // 200KB after optimization
   private readonly MAX_PORTFOLIO_SIZE = 500 * 1024; // 500KB after optimization
   private readonly MAX_DOCUMENT_SIZE = 2 * 1024 * 1024; // 2MB
+
+  // Optimization statistics
+  private stats = {
+    totalOptimized: 0,
+    totalBytesSaved: 0,
+    webpConverted: 0,
+    avifConverted: 0,
+  };
 
   /**
    * Get total storage used by uploads
@@ -358,6 +373,324 @@ class ImageOptimizationService {
       console.error("Batch optimization error:", error.message);
       throw new Error("Failed to batch optimize images");
     }
+  }
+
+  /**
+   * One-click optimization - automatically choose best settings
+   */
+  async oneClickOptimize(
+    inputPath: string,
+    mode: 'lossless' | 'lossy' | 'aggressive' = 'lossy'
+  ): Promise<{
+    path: string;
+    originalSize: number;
+    optimizedSize: number;
+    savedBytes: number;
+    savedPercent: string;
+    format: string;
+  }> {
+    try {
+      const originalStat = await fs.stat(inputPath);
+      const originalSize = originalStat.size;
+      const metadata = await sharp(inputPath).metadata();
+
+      const qualitySettings = {
+        lossless: { jpeg: 100, webp: 100, png: 9 },
+        lossy: { jpeg: 85, webp: 85, png: 8 },
+        aggressive: { jpeg: 70, webp: 70, png: 6 },
+      };
+
+      const quality = qualitySettings[mode];
+      const ext = path.extname(inputPath).toLowerCase();
+      const baseName = path.basename(inputPath, ext);
+      const dir = path.dirname(inputPath);
+      const optimizedPath = path.join(dir, `${baseName}_optimized${ext}`);
+
+      let pipeline = sharp(inputPath);
+
+      // Resize if larger than max dimensions
+      if (metadata.width && metadata.height) {
+        if (metadata.width > this.maxWidth || metadata.height > this.maxHeight) {
+          pipeline = pipeline.resize(this.maxWidth, this.maxHeight, {
+            fit: 'inside',
+            withoutEnlargement: true,
+          });
+        }
+      }
+
+      // Apply format-specific optimization
+      if (metadata.format === 'jpeg' || metadata.format === 'jpg') {
+        pipeline = pipeline.jpeg({
+          quality: quality.jpeg,
+          progressive: true,
+          mozjpeg: true,
+        });
+      } else if (metadata.format === 'png') {
+        pipeline = pipeline.png({
+          compressionLevel: quality.png,
+          palette: mode === 'aggressive',
+        });
+      } else if (metadata.format === 'webp') {
+        pipeline = pipeline.webp({
+          quality: quality.webp,
+          lossless: mode === 'lossless',
+        });
+      }
+
+      const info = await pipeline.toFile(optimizedPath);
+
+      const savedBytes = originalSize - info.size;
+      const savedPercent = ((savedBytes / originalSize) * 100).toFixed(1);
+
+      // Update stats
+      this.stats.totalOptimized++;
+      this.stats.totalBytesSaved += savedBytes;
+
+      // Replace original with optimized if smaller
+      if (info.size < originalSize) {
+        await fs.rename(optimizedPath, inputPath);
+      } else {
+        await fs.unlink(optimizedPath);
+      }
+
+      return {
+        path: inputPath,
+        originalSize,
+        optimizedSize: Math.min(info.size, originalSize),
+        savedBytes: Math.max(0, savedBytes),
+        savedPercent: savedBytes > 0 ? savedPercent + '%' : '0%',
+        format: metadata.format || 'unknown',
+      };
+    } catch (error: any) {
+      console.error("One-click optimization error:", error.message);
+      throw new Error("Failed to optimize image");
+    }
+  }
+
+  /**
+   * Convert to AVIF format (best compression, modern browsers)
+   */
+  async convertToAVIF(
+    inputPath: string,
+    outputPath?: string
+  ): Promise<{
+    path: string;
+    size: number;
+    savedPercent: string;
+  }> {
+    try {
+      const originalStat = await fs.stat(inputPath);
+      const avifPath = outputPath || inputPath.replace(path.extname(inputPath), ".avif");
+
+      const info = await sharp(inputPath)
+        .avif({
+          quality: 80,
+          effort: 4, // 0-9, higher = slower but better compression
+        })
+        .toFile(avifPath);
+
+      const savedPercent = (((originalStat.size - info.size) / originalStat.size) * 100).toFixed(1);
+
+      this.stats.avifConverted++;
+
+      return {
+        path: avifPath,
+        size: info.size,
+        savedPercent: savedPercent + '%',
+      };
+    } catch (error: any) {
+      console.error("AVIF conversion error:", error.message);
+      throw new Error("Failed to convert to AVIF");
+    }
+  }
+
+  /**
+   * Generate responsive image set (srcset)
+   */
+  async generateResponsiveSet(
+    inputPath: string,
+    outputDir: string
+  ): Promise<Array<{ path: string; width: number; size: number }>> {
+    const widths = [320, 640, 768, 1024, 1280, 1920];
+    const results: Array<{ path: string; width: number; size: number }> = [];
+    const ext = path.extname(inputPath);
+    const baseName = path.basename(inputPath, ext);
+
+    try {
+      const metadata = await sharp(inputPath).metadata();
+
+      for (const width of widths) {
+        // Skip if original is smaller than target width
+        if (metadata.width && width > metadata.width) continue;
+
+        const outputPath = path.join(outputDir, `${baseName}-${width}w${ext}`);
+
+        const info = await sharp(inputPath)
+          .resize(width, null, {
+            fit: 'inside',
+            withoutEnlargement: true,
+          })
+          .jpeg({
+            quality: 85,
+            progressive: true,
+          })
+          .toFile(outputPath);
+
+        results.push({
+          path: outputPath,
+          width,
+          size: info.size,
+        });
+      }
+
+      return results;
+    } catch (error: any) {
+      console.error("Responsive set generation error:", error.message);
+      throw new Error("Failed to generate responsive image set");
+    }
+  }
+
+  /**
+   * Generate Low Quality Image Placeholder (LQIP) for lazy loading
+   */
+  async generateLQIP(inputPath: string): Promise<{
+    base64: string;
+    width: number;
+    height: number;
+  }> {
+    try {
+      const buffer = await sharp(inputPath)
+        .resize(20, 20, {
+          fit: 'inside',
+        })
+        .blur(2)
+        .jpeg({
+          quality: 50,
+        })
+        .toBuffer();
+
+      const metadata = await sharp(inputPath).metadata();
+
+      return {
+        base64: `data:image/jpeg;base64,${buffer.toString('base64')}`,
+        width: metadata.width || 0,
+        height: metadata.height || 0,
+      };
+    } catch (error: any) {
+      console.error("LQIP generation error:", error.message);
+      throw new Error("Failed to generate LQIP");
+    }
+  }
+
+  /**
+   * Generate BlurHash placeholder
+   */
+  async generateBlurPlaceholder(
+    inputPath: string,
+    size: number = 4
+  ): Promise<{ placeholder: string; width: number; height: number }> {
+    try {
+      // Create a tiny blurred version
+      const buffer = await sharp(inputPath)
+        .resize(size, size, {
+          fit: 'fill',
+        })
+        .blur(1)
+        .raw()
+        .toBuffer();
+
+      const metadata = await sharp(inputPath).metadata();
+
+      // Convert to base64 mini-image
+      const tinyImage = await sharp(buffer, {
+        raw: {
+          width: size,
+          height: size,
+          channels: 3,
+        },
+      })
+        .jpeg({ quality: 30 })
+        .toBuffer();
+
+      return {
+        placeholder: `data:image/jpeg;base64,${tinyImage.toString('base64')}`,
+        width: metadata.width || 0,
+        height: metadata.height || 0,
+      };
+    } catch (error: any) {
+      console.error("Blur placeholder error:", error.message);
+      throw new Error("Failed to generate blur placeholder");
+    }
+  }
+
+  /**
+   * Get optimization statistics
+   */
+  getOptimizationStats(): {
+    totalOptimized: number;
+    totalBytesSaved: number;
+    totalBytesSavedFormatted: string;
+    webpConverted: number;
+    avifConverted: number;
+  } {
+    return {
+      ...this.stats,
+      totalBytesSavedFormatted: this.formatBytes(this.stats.totalBytesSaved),
+    };
+  }
+
+  /**
+   * Optimize all images in uploads directory (one-click for entire site)
+   */
+  async optimizeAllUploads(
+    mode: 'lossless' | 'lossy' | 'aggressive' = 'lossy'
+  ): Promise<{
+    processed: number;
+    totalSaved: number;
+    totalSavedFormatted: string;
+    errors: string[];
+  }> {
+    const uploadDir = path.join(process.cwd(), 'uploads');
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
+    let processed = 0;
+    let totalSaved = 0;
+    const errors: string[] = [];
+
+    const processDirectory = async (dir: string) => {
+      try {
+        const entries = await fs.readdir(dir, { withFileTypes: true });
+
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry.name);
+
+          if (entry.isDirectory()) {
+            await processDirectory(fullPath);
+          } else if (entry.isFile()) {
+            const ext = path.extname(entry.name).toLowerCase();
+            if (imageExtensions.includes(ext)) {
+              try {
+                const result = await this.oneClickOptimize(fullPath, mode);
+                processed++;
+                totalSaved += result.savedBytes;
+              } catch (err: any) {
+                errors.push(`${entry.name}: ${err.message}`);
+              }
+            }
+          }
+        }
+      } catch (err: any) {
+        errors.push(`Directory ${dir}: ${err.message}`);
+      }
+    };
+
+    await processDirectory(uploadDir);
+
+    return {
+      processed,
+      totalSaved,
+      totalSavedFormatted: this.formatBytes(totalSaved),
+      errors,
+    };
   }
 }
 

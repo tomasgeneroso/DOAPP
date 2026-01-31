@@ -284,12 +284,12 @@ router.get("/:id",
         {
           model: User,
           as: 'freelancer',
-          attributes: ['name', 'email', 'avatar', 'rating', 'reviewsCount', 'completedJobs']
+          attributes: ['id', 'name', 'email', 'avatar', 'rating', 'reviewsCount', 'completedJobs']
         },
         {
           model: User,
           as: 'client',
-          attributes: ['name', 'email', 'avatar']
+          attributes: ['id', 'name', 'email', 'avatar']
         }
       ]
     });
@@ -314,9 +314,28 @@ router.get("/:id",
       return;
     }
 
+    // Transform to include _id aliases for frontend compatibility
+    const proposalData = proposal.toJSON() as any;
+    const transformedProposal = {
+      ...proposalData,
+      _id: proposalData.id,
+      freelancer: proposalData.freelancer ? {
+        ...proposalData.freelancer,
+        _id: proposalData.freelancer.id
+      } : null,
+      client: proposalData.client ? {
+        ...proposalData.client,
+        _id: proposalData.client.id
+      } : null,
+      job: proposalData.job ? {
+        ...proposalData.job,
+        _id: proposalData.job.id
+      } : null,
+    };
+
     res.json({
       success: true,
-      proposal,
+      proposal: transformedProposal,
     });
   } catch (error: any) {
     res.status(500).json({

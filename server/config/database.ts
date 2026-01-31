@@ -122,6 +122,7 @@ async function registerModels() {
   const { default: Portfolio } = await import('../models/sql/Portfolio.model.js');
   const { default: Role } = await import('../models/sql/Role.model.js');
   const { default: ContractChangeRequest } = await import('../models/sql/ContractChangeRequest.model.js');
+  const { ContractCancellationRequest } = await import('../models/sql/ContractCancellationRequest.model.js');
   const { default: Membership } = await import('../models/sql/Membership.model.js');
   const { default: Referral } = await import('../models/sql/Referral.model.js');
   const { default: BalanceTransaction } = await import('../models/sql/BalanceTransaction.model.js');
@@ -162,6 +163,7 @@ async function registerModels() {
     Portfolio,
     Role,
     ContractChangeRequest,
+    ContractCancellationRequest,
     Membership,
     Referral,
     BalanceTransaction,

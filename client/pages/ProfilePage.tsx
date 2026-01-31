@@ -85,6 +85,14 @@ export default function ProfilePage() {
   const profileIdentifier = username || userId;
   const isUsernameRoute = !!username;
 
+  // Helper function to check if viewing own profile
+  const isOwnProfile = () => {
+    if (!currentUser || !user) return false;
+    const currentUserId = currentUser.id || currentUser._id;
+    const profileUserId = user.id || user._id;
+    return currentUserId === profileUserId;
+  };
+
   useEffect(() => {
     fetchUserProfile();
     fetchReferralStats();
@@ -224,7 +232,11 @@ export default function ProfilePage() {
 
   const fetchReferralStats = async () => {
     // Solo cargar si es el perfil propio
-    if (!currentUser || (currentUser._id !== userId && currentUser.id !== userId)) return;
+    if (!currentUser) return;
+    const isOwn =
+      (userId && (currentUser._id === userId || currentUser.id === userId)) ||
+      (username && currentUser.username === username);
+    if (!isOwn) return;
 
     try {
       const response = await fetch('/api/referrals/stats', {
@@ -495,7 +507,7 @@ export default function ProfilePage() {
               style={{ backgroundImage: user.coverImage ? `url(${getImageUrl(user.coverImage)})` : undefined }}
             >
               {/* Upload Cover Button (own profile only) */}
-              {currentUser && (currentUser._id === userId || currentUser.id === userId) && (
+              {isOwnProfile() && (
                 <div className="absolute top-4 left-4">
                   <input
                     type="file"
@@ -548,7 +560,7 @@ export default function ProfilePage() {
                   )}
 
                   {/* Upload Avatar Button (own profile only) */}
-                  {currentUser && (currentUser._id === userId || currentUser.id === userId) && (
+                  {isOwnProfile() && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity">
                       <input
                         type="file"
@@ -635,7 +647,7 @@ export default function ProfilePage() {
                       </div>
 
                       {/* Chat & Report Buttons (if not own profile) */}
-                      {currentUser && currentUser._id !== userId && currentUser.id !== userId && (
+                      {currentUser && !isOwnProfile() && (
                         <>
                           <Button
                             onClick={handleStartChat}
@@ -728,7 +740,7 @@ export default function ProfilePage() {
               </div>
 
               {/* Referral Code Card - Only show on own profile */}
-              {currentUser && (currentUser._id === userId || currentUser.id === userId) && referralStats && (
+              {isOwnProfile() && referralStats && (
                 <div className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl shadow-sm p-6 text-white">
                   <div className="flex items-center gap-3 mb-4">
                     <Gift className="h-6 w-6" />
@@ -796,7 +808,7 @@ export default function ProfilePage() {
                       <Star className="w-6 h-6 text-orange-500" />
                     </div>
                     <p className="text-slate-600 dark:text-slate-400">
-                      {currentUser && (currentUser._id === userId || currentUser.id === userId)
+                      {isOwnProfile()
                         ? '¡Cada categoría que domines aparecerá acá!'
                         : 'Las especialidades irán apareciendo con cada trabajo.'}
                     </p>
@@ -861,7 +873,7 @@ export default function ProfilePage() {
               </div>
 
               {/* Mis Trabajos Publicados - solo en perfil propio */}
-              {currentUser && (currentUser._id === userId || currentUser.id === userId) && (
+              {isOwnProfile() && (
                 <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                     <Briefcase className="h-5 w-5 text-sky-500" />
@@ -880,7 +892,7 @@ export default function ProfilePage() {
               )}
 
               {/* Mis Contrataciones - solo en perfil propio */}
-              {currentUser && (currentUser._id === userId || currentUser.id === userId) && (
+              {isOwnProfile() && (
                 <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                     <CheckCircle className="h-5 w-5 text-green-500" />
@@ -974,25 +986,34 @@ export default function ProfilePage() {
                       <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
                         {selectedCategory
                           ? `Explorando ${completedByCategory.find(c => c.id === selectedCategory)?.label || 'esta categoría'}...`
-                          : currentUser && (currentUser._id === userId || currentUser.id === userId)
+                          : isOwnProfile()
                             ? '¡Tu portafolio está esperando!'
                             : 'El comienzo de una gran historia'}
                       </h3>
                       <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto">
                         {selectedCategory
                           ? 'Aún no hay trabajos completados en esta categoría. ¡Pero seguro pronto habrá!'
-                          : currentUser && (currentUser._id === userId || currentUser.id === userId)
+                          : isOwnProfile()
                             ? 'Completá tu primer trabajo y empezá a construir tu reputación. Cada proyecto es una oportunidad para brillar.'
                             : 'Este profesional está listo para demostrar su talento. ¡Podés ser el primero en contratarlo!'}
                       </p>
-                      {currentUser && (currentUser._id === userId || currentUser.id === userId) && !selectedCategory && (
-                        <Link
-                          to="/"
-                          className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-medium transition-all shadow-sm"
-                        >
-                          <Briefcase className="w-4 h-4" />
-                          Explorar trabajos disponibles
-                        </Link>
+                      {isOwnProfile() && !selectedCategory && (
+                        <div className="flex flex-wrap gap-3 mt-4 justify-center">
+                          <Link
+                            to="/#trabajos-disponibles"
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-medium transition-all shadow-sm"
+                          >
+                            <Briefcase className="w-4 h-4" />
+                            Explorar trabajos disponibles
+                          </Link>
+                          <Link
+                            to="/my-jobs"
+                            className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-medium transition-all shadow-sm"
+                          >
+                            <FileText className="w-4 h-4" />
+                            Ver mis publicaciones
+                          </Link>
+                        </div>
                       )}
                     </div>
                   ) : (
@@ -1133,6 +1154,31 @@ export default function ProfilePage() {
                       </button>
                     </div>
                   </div>
+                  {/* Create buttons - only on own profile */}
+                  {isOwnProfile() && (
+                    <div className="flex gap-2 mt-4">
+                      <button
+                        onClick={() => {
+                          setCreatePostType('post');
+                          setShowCreatePost(true);
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-medium transition-colors text-sm"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Crear Post
+                      </button>
+                      <button
+                        onClick={() => {
+                          setCreatePostType('article');
+                          setShowCreatePost(true);
+                        }}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-lg font-medium transition-colors text-sm"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Escribir Artículo
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Posts List */}
@@ -1146,7 +1192,7 @@ export default function ProfilePage() {
                     <div className="text-center py-12">
                       <FileText className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
                       <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-                        {currentUser && (currentUser._id === userId || currentUser.id === userId)
+                        {isOwnProfile()
                           ? viewMode === 'articles'
                             ? '¡Compartí tu conocimiento!'
                             : '¡Tu voz importa!'
@@ -1155,7 +1201,7 @@ export default function ProfilePage() {
                             : 'Sin publicaciones por ahora'}
                       </h3>
                       <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto">
-                        {currentUser && (currentUser._id === userId || currentUser.id === userId)
+                        {isOwnProfile()
                           ? viewMode === 'articles'
                             ? 'Escribí tu primer artículo y posicionáte como experto en tu área. Los clientes valoran a los profesionales que comparten su experiencia.'
                             : 'Contá qué estás haciendo, compartí tu día a día y conectá con la comunidad. ¡Tu contenido puede inspirar a otros!'
@@ -1163,7 +1209,7 @@ export default function ProfilePage() {
                             ? 'Este profesional aún no ha escrito artículos, pero seguro tiene mucho para contar.'
                             : 'Cuando comparta algo, lo vas a ver acá.'}
                       </p>
-                      {currentUser && (currentUser._id === userId || currentUser.id === userId) && (
+                      {isOwnProfile() && (
                         <button
                           onClick={() => {
                             setCreatePostType(viewMode === 'articles' ? 'article' : 'post');
@@ -1185,10 +1231,10 @@ export default function ProfilePage() {
                         >
                           <div className="flex gap-4">
                             {/* Post Image */}
-                            {post.images?.[0] && (
+                            {post.gallery?.[0]?.url && (
                               <div className="flex-shrink-0">
                                 <img
-                                  src={getImageUrl(post.images[0])}
+                                  src={getImageUrl(post.gallery[0].url)}
                                   alt={post.title || 'Post'}
                                   className="w-24 h-24 object-cover rounded-lg"
                                 />
@@ -1202,9 +1248,7 @@ export default function ProfilePage() {
                                   {post.title}
                                 </h3>
                               )}
-                              <p className="text-slate-600 dark:text-slate-400 text-sm line-clamp-3">
-                                {post.content}
-                              </p>
+                              <p className="text-slate-600 dark:text-slate-400 text-sm line-clamp-3" dangerouslySetInnerHTML={{ __html: post.description?.replace(/<[^>]+>/g, ' ').substring(0, 200) || '' }} />
 
                               {/* Footer */}
                               <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
@@ -1414,12 +1458,12 @@ export default function ProfilePage() {
                       <Star className="w-8 h-8 text-amber-500" />
                     </div>
                     <h4 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-                      {currentUser && (currentUser._id === userId || currentUser.id === userId)
+                      {isOwnProfile()
                         ? '¡Tu primera reseña está por llegar!'
                         : 'Las primeras opiniones están en camino'}
                     </h4>
                     <p className="text-slate-600 dark:text-slate-400 max-w-sm mx-auto">
-                      {currentUser && (currentUser._id === userId || currentUser.id === userId)
+                      {isOwnProfile()
                         ? 'Cada trabajo completado es una oportunidad para recibir una reseña. ¡Seguí trabajando y las estrellas vendrán solas!'
                         : 'Cuando este profesional complete trabajos, acá vas a encontrar las opiniones de sus clientes.'}
                     </p>

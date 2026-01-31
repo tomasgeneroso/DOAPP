@@ -1,13 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { usePermissions } from '../hooks/usePermissions';
-import { ArrowLeft, AlertCircle, Paperclip, X } from 'lucide-react';
+import { ArrowLeft, AlertCircle, Paperclip, X, ExternalLink } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const CreateTicket: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { hasPermission, PERMISSIONS } = usePermissions();
+
+  // Get query params for job-related tickets
+  const jobId = searchParams.get('jobId');
+  const ticketType = searchParams.get('type');
+  const contractId = searchParams.get('contractId');
 
   const [formData, setFormData] = useState({
     subject: '',
@@ -15,6 +21,7 @@ const CreateTicket: React.FC = () => {
     priority: 'medium',
     message: '',
   });
+  const [relatedJobTitle, setRelatedJobTitle] = useState<string | null>(null);
 
   const [attachments, setAttachments] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
@@ -29,6 +36,55 @@ const CreateTicket: React.FC = () => {
       });
     }
   }, [hasPermission, navigate, PERMISSIONS]);
+
+  // Fetch job info and pre-fill form when jobId is provided
+  useEffect(() => {
+    const fetchJobInfo = async () => {
+      if (!jobId) return;
+
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`${API_URL}/jobs/${jobId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        const data = await response.json();
+
+        if (data.success && data.job) {
+          setRelatedJobTitle(data.job.title);
+
+          // Pre-fill form based on ticket type
+          if (ticketType === 'support') {
+            setFormData(prev => ({
+              ...prev,
+              subject: `Problema con trabajo: ${data.job.title}`,
+              category: 'support',
+              message: `Referencia: Trabajo ID ${jobId}\nTítulo: ${data.job.title}\n\nDescribe tu problema o lo que necesitas modificar:\n`,
+            }));
+          } else if (ticketType === 'report_contract') {
+            setFormData(prev => ({
+              ...prev,
+              subject: `Reporte de contrato - ${data.job.title}`,
+              category: 'report_contract',
+              message: `Referencia: Trabajo ID ${jobId}\nTítulo: ${data.job.title}\n${contractId ? `Contrato ID: ${contractId}\n` : ''}\nDescribe el problema con el contrato:\n`,
+            }));
+          } else if (ticketType === 'payment') {
+            setFormData(prev => ({
+              ...prev,
+              subject: `Problema de pago - ${data.job.title}`,
+              category: 'payment',
+              message: `Referencia: Trabajo ID ${jobId}\nTítulo: ${data.job.title}\n\nDescribe el problema de pago:\n`,
+            }));
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching job info:', err);
+      }
+    };
+
+    fetchJobInfo();
+  }, [jobId, ticketType, contractId]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData({
@@ -85,6 +141,14 @@ const CreateTicket: React.FC = () => {
       formDataToSend.append('priority', formData.priority);
       formDataToSend.append('message', formData.message);
 
+      // Append related job/contract info if present
+      if (jobId) {
+        formDataToSend.append('relatedJobId', jobId);
+      }
+      if (contractId) {
+        formDataToSend.append('relatedContractId', contractId);
+      }
+
       // Append attachments
       attachments.forEach((file) => {
         formDataToSend.append('attachments', file);
@@ -133,6 +197,29 @@ const CreateTicket: React.FC = () => {
             ¿Necesitas ayuda? Crea un ticket de soporte y nuestro equipo te ayudará.
           </p>
         </div>
+
+        {/* Related Job Info */}
+        {jobId && relatedJobTitle && (
+          <div className="bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg p-4 mb-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-sky-800 dark:text-sky-200">
+                  Ticket relacionado con trabajo:
+                </p>
+                <p className="text-sky-700 dark:text-sky-300 font-semibold mt-1">
+                  {relatedJobTitle}
+                </p>
+              </div>
+              <Link
+                to={`/jobs/${jobId}`}
+                className="flex items-center gap-1 text-sm text-sky-600 dark:text-sky-400 hover:underline"
+              >
+                Ver trabajo
+                <ExternalLink className="h-3 w-3" />
+              </Link>
+            </div>
+          </div>
+        )}
 
         {/* Error Alert */}
         {error && (

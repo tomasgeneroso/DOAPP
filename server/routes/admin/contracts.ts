@@ -904,4 +904,493 @@ router.delete(
   }
 );
 
+// ============================================================
+// CANCELLATION REQUESTS
+// ============================================================
+
+// @route   GET /api/admin/contracts/cancellation-requests
+// @desc    Get all cancellation requests with filters
+// @access  Admin+
+router.get(
+  "/cancellation-requests",
+  requirePermission("contracts:read"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const {
+        page = "1",
+        limit = "20",
+        status,
+        priority,
+        assignedTo,
+        sortBy = "createdAt",
+        sortOrder = "desc",
+      } = req.query;
+
+      const { ContractCancellationRequest } = await import("../../models/sql/ContractCancellationRequest.model.js");
+
+      const where: any = {};
+      if (status) where.status = status;
+      if (priority) where.priority = priority;
+      if (assignedTo) where.assignedTo = assignedTo;
+
+      const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
+      const order: any = [[sortBy as string, sortOrder === "desc" ? "DESC" : "ASC"]];
+
+      const [requests, total] = await Promise.all([
+        ContractCancellationRequest.findAll({
+          where,
+          include: [
+            { model: Contract, as: 'contract', include: [{ model: Job, as: 'job', attributes: ['id', 'title'] }] },
+            { model: User, as: 'requester', attributes: ['id', 'name', 'email', 'avatar'] },
+            { model: User, as: 'otherParty', attributes: ['id', 'name', 'email', 'avatar'] },
+            { model: User, as: 'assignedAdmin', attributes: ['id', 'name', 'email'] },
+          ],
+          order,
+          offset,
+          limit: parseInt(limit as string),
+        }),
+        ContractCancellationRequest.count({ where }),
+      ]);
+
+      res.json({
+        success: true,
+        data: requests,
+        pagination: {
+          page: parseInt(page as string),
+          limit: parseInt(limit as string),
+          total,
+          pages: Math.ceil(total / parseInt(limit as string)),
+        },
+      });
+    } catch (error: any) {
+      console.error("Error fetching cancellation requests:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor",
+      });
+    }
+  }
+);
+
+// @route   GET /api/admin/contracts/cancellation-requests/:id
+// @desc    Get cancellation request details
+// @access  Admin+
+router.get(
+  "/cancellation-requests/:id",
+  requirePermission("contracts:read"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { ContractCancellationRequest } = await import("../../models/sql/ContractCancellationRequest.model.js");
+
+      const request = await ContractCancellationRequest.findByPk(req.params.id, {
+        include: [
+          {
+            model: Contract,
+            as: 'contract',
+            include: [
+              { model: Job, as: 'job' },
+              { model: User, as: 'client', attributes: ['id', 'name', 'email', 'avatar'] },
+              { model: User, as: 'doer', attributes: ['id', 'name', 'email', 'avatar'] },
+            ]
+          },
+          { model: User, as: 'requester', attributes: ['id', 'name', 'email', 'avatar'] },
+          { model: User, as: 'otherParty', attributes: ['id', 'name', 'email', 'avatar'] },
+          { model: User, as: 'assignedAdmin', attributes: ['id', 'name', 'email'] },
+          { model: User, as: 'resolver', attributes: ['id', 'name', 'email'] },
+        ],
+      });
+
+      if (!request) {
+        res.status(404).json({
+          success: false,
+          message: "Solicitud de cancelación no encontrada",
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: request,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor",
+      });
+    }
+  }
+);
+
+// @route   POST /api/admin/contracts/cancellation-requests/:id/assign
+// @desc    Assign cancellation request to admin
+// @access  Admin+
+router.post(
+  "/cancellation-requests/:id/assign",
+  requirePermission("contracts:update"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { adminId } = req.body;
+      const assignToId = adminId || req.user.id;
+
+      const { ContractCancellationRequest } = await import("../../models/sql/ContractCancellationRequest.model.js");
+
+      const request = await ContractCancellationRequest.findByPk(req.params.id);
+
+      if (!request) {
+        res.status(404).json({
+          success: false,
+          message: "Solicitud de cancelación no encontrada",
+        });
+        return;
+      }
+
+      // Verify target admin exists and has admin role
+      const targetAdmin = await User.findByPk(assignToId);
+      if (!targetAdmin || !targetAdmin.adminRole) {
+        res.status(400).json({
+          success: false,
+          message: "El usuario asignado debe ser un administrador",
+        });
+        return;
+      }
+
+      await request.assignToAdmin(assignToId);
+
+      // Add to status history
+      const statusHistory = request.statusHistory || [];
+      statusHistory.push({
+        status: request.status,
+        changedAt: new Date(),
+        changedBy: req.user.id,
+        note: `Asignado a ${targetAdmin.name}`
+      });
+      request.statusHistory = statusHistory;
+      await request.save();
+
+      await logAudit({
+        req,
+        action: "assign_cancellation_request",
+        category: "contract",
+        severity: "low",
+        description: `Admin ${req.user.name} asignó solicitud de cancelación ${request.id} a ${targetAdmin.name}`,
+        targetModel: "ContractCancellationRequest",
+        targetId: request.id,
+        metadata: { assignedTo: assignToId },
+      });
+
+      res.json({
+        success: true,
+        message: `Solicitud asignada a ${targetAdmin.name}`,
+        data: request,
+      });
+    } catch (error: any) {
+      console.error("Error assigning cancellation request:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor",
+      });
+    }
+  }
+);
+
+// @route   POST /api/admin/contracts/cancellation-requests/:id/approve
+// @desc    Approve cancellation request - cancels the contract
+// @access  Admin+
+router.post(
+  "/cancellation-requests/:id/approve",
+  requirePermission("contracts:update"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { resolutionNote, refundApproved, refundAmount } = req.body;
+
+      const { ContractCancellationRequest } = await import("../../models/sql/ContractCancellationRequest.model.js");
+
+      const request = await ContractCancellationRequest.findByPk(req.params.id, {
+        include: [
+          { model: Contract, as: 'contract', include: [{ model: Job, as: 'job' }] },
+          { model: User, as: 'requester', attributes: ['id', 'name', 'email'] },
+          { model: User, as: 'otherParty', attributes: ['id', 'name', 'email'] },
+        ],
+      });
+
+      if (!request) {
+        res.status(404).json({
+          success: false,
+          message: "Solicitud de cancelación no encontrada",
+        });
+        return;
+      }
+
+      if (request.status !== 'pending') {
+        res.status(400).json({
+          success: false,
+          message: `No se puede aprobar una solicitud con estado "${request.status}"`,
+        });
+        return;
+      }
+
+      const contract = request.contract as any;
+      const job = contract?.job as any;
+      const requester = request.requester as any;
+      const otherParty = request.otherParty as any;
+
+      // Approve the request
+      await request.approve(req.user.id, resolutionNote || 'Solicitud aprobada', refundApproved, refundAmount);
+
+      // Cancel the contract
+      await contract.update({
+        status: 'cancelled',
+        cancellationReason: request.reason,
+        cancelledBy: request.requestedBy,
+      });
+
+      // Handle refund if approved
+      if (refundApproved && (contract.paymentStatus === 'escrow' || contract.paymentStatus === 'held')) {
+        contract.paymentStatus = 'refunded';
+        await contract.save();
+      }
+
+      // Update job status - return to previous status or cancel if appropriate
+      if (job) {
+        if (request.previousJobStatus && ['open', 'pending_approval'].includes(request.previousJobStatus)) {
+          job.status = request.previousJobStatus;
+          job.pausedReason = null;
+          job.pausedAt = null;
+        } else {
+          job.status = 'cancelled';
+        }
+        await job.save();
+      }
+
+      // Notify both parties
+      for (const user of [requester, otherParty]) {
+        if (user) {
+          await Notification.create({
+            recipientId: user.id,
+            type: 'info',
+            category: 'contract',
+            title: 'Solicitud de cancelación aprobada',
+            message: `La solicitud de cancelación para "${job?.title || 'Contrato'}" ha sido aprobada. El contrato ha sido cancelado.`,
+            relatedModel: 'Contract',
+            relatedId: contract.id,
+            actionText: 'Ver detalles',
+            data: { contractId: contract.id, cancellationRequestId: request.id },
+            read: false,
+          });
+
+          if (user.email) {
+            await emailService.sendEmail({
+              to: user.email,
+              subject: `Cancelación aprobada - ${job?.title || 'Contrato'}`,
+              html: `
+                <h2>Solicitud de cancelación aprobada</h2>
+                <p>La solicitud de cancelación para <strong>"${job?.title || 'Contrato'}"</strong> ha sido aprobada.</p>
+                <p>El contrato ha sido cancelado.</p>
+                ${resolutionNote ? `<p><strong>Nota del administrador:</strong> ${resolutionNote}</p>` : ''}
+                ${refundApproved ? `<p><strong>Reembolso aprobado:</strong> ${refundAmount ? `$${refundAmount}` : 'Total'}</p>` : ''}
+              `,
+            });
+          }
+        }
+      }
+
+      await logAudit({
+        req,
+        action: "approve_cancellation_request",
+        category: "contract",
+        severity: "high",
+        description: `Admin ${req.user.name} aprobó solicitud de cancelación ${request.id}. Contrato ${contract.id} cancelado.`,
+        targetModel: "ContractCancellationRequest",
+        targetId: request.id,
+        metadata: { contractId: contract.id, refundApproved, refundAmount, resolutionNote },
+      });
+
+      res.json({
+        success: true,
+        message: "Solicitud de cancelación aprobada. El contrato ha sido cancelado.",
+        data: request,
+      });
+    } catch (error: any) {
+      console.error("Error approving cancellation request:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor",
+      });
+    }
+  }
+);
+
+// @route   POST /api/admin/contracts/cancellation-requests/:id/reject
+// @desc    Reject cancellation request - restore previous status
+// @access  Admin+
+router.post(
+  "/cancellation-requests/:id/reject",
+  requirePermission("contracts:update"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { resolutionNote } = req.body;
+
+      if (!resolutionNote || resolutionNote.trim().length < 10) {
+        res.status(400).json({
+          success: false,
+          message: "Debe proporcionar una razón detallada para el rechazo (mínimo 10 caracteres)",
+        });
+        return;
+      }
+
+      const { ContractCancellationRequest } = await import("../../models/sql/ContractCancellationRequest.model.js");
+
+      const request = await ContractCancellationRequest.findByPk(req.params.id, {
+        include: [
+          { model: Contract, as: 'contract', include: [{ model: Job, as: 'job' }] },
+          { model: User, as: 'requester', attributes: ['id', 'name', 'email'] },
+          { model: User, as: 'otherParty', attributes: ['id', 'name', 'email'] },
+        ],
+      });
+
+      if (!request) {
+        res.status(404).json({
+          success: false,
+          message: "Solicitud de cancelación no encontrada",
+        });
+        return;
+      }
+
+      if (request.status !== 'pending') {
+        res.status(400).json({
+          success: false,
+          message: `No se puede rechazar una solicitud con estado "${request.status}"`,
+        });
+        return;
+      }
+
+      const contract = request.contract as any;
+      const job = contract?.job as any;
+      const requester = request.requester as any;
+      const otherParty = request.otherParty as any;
+
+      // Reject the request
+      await request.reject(req.user.id, resolutionNote);
+
+      // Restore previous statuses
+      if (request.previousContractStatus && contract) {
+        await contract.update({ status: request.previousContractStatus });
+      }
+
+      if (request.previousJobStatus && job) {
+        job.status = request.previousJobStatus;
+        job.pausedReason = null;
+        job.pausedAt = null;
+        await job.save();
+      }
+
+      // Notify both parties
+      for (const user of [requester, otherParty]) {
+        if (user) {
+          await Notification.create({
+            recipientId: user.id,
+            type: 'warning',
+            category: 'contract',
+            title: 'Solicitud de cancelación rechazada',
+            message: `La solicitud de cancelación para "${job?.title || 'Contrato'}" ha sido rechazada. El contrato continúa activo.`,
+            relatedModel: 'Contract',
+            relatedId: contract.id,
+            actionText: 'Ver contrato',
+            data: { contractId: contract.id, cancellationRequestId: request.id, rejectionReason: resolutionNote },
+            read: false,
+          });
+
+          if (user.email) {
+            await emailService.sendEmail({
+              to: user.email,
+              subject: `Cancelación rechazada - ${job?.title || 'Contrato'}`,
+              html: `
+                <h2>Solicitud de cancelación rechazada</h2>
+                <p>La solicitud de cancelación para <strong>"${job?.title || 'Contrato'}"</strong> ha sido rechazada.</p>
+                <p><strong>Razón:</strong> ${resolutionNote}</p>
+                <p>El contrato continúa activo y se ha restaurado a su estado anterior.</p>
+                <p>
+                  <a href="${process.env.CLIENT_URL}/contracts/${contract.id}"
+                     style="display: inline-block; padding: 12px 24px; background-color: #0284c7; color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">
+                    Ver contrato
+                  </a>
+                </p>
+              `,
+            });
+          }
+        }
+      }
+
+      await logAudit({
+        req,
+        action: "reject_cancellation_request",
+        category: "contract",
+        severity: "medium",
+        description: `Admin ${req.user.name} rechazó solicitud de cancelación ${request.id}. Razón: ${resolutionNote}`,
+        targetModel: "ContractCancellationRequest",
+        targetId: request.id,
+        metadata: { contractId: contract.id, resolutionNote },
+      });
+
+      res.json({
+        success: true,
+        message: "Solicitud de cancelación rechazada. Los estados han sido restaurados.",
+        data: request,
+      });
+    } catch (error: any) {
+      console.error("Error rejecting cancellation request:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor",
+      });
+    }
+  }
+);
+
+// @route   POST /api/admin/contracts/cancellation-requests/:id/add-note
+// @desc    Add admin note to cancellation request
+// @access  Admin+
+router.post(
+  "/cancellation-requests/:id/add-note",
+  requirePermission("contracts:update"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { note } = req.body;
+
+      if (!note || note.trim().length < 5) {
+        res.status(400).json({
+          success: false,
+          message: "La nota debe tener al menos 5 caracteres",
+        });
+        return;
+      }
+
+      const { ContractCancellationRequest } = await import("../../models/sql/ContractCancellationRequest.model.js");
+
+      const request = await ContractCancellationRequest.findByPk(req.params.id);
+
+      if (!request) {
+        res.status(404).json({
+          success: false,
+          message: "Solicitud de cancelación no encontrada",
+        });
+        return;
+      }
+
+      await request.addNote(req.user.id, note.trim());
+
+      res.json({
+        success: true,
+        message: "Nota añadida correctamente",
+        data: request,
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor",
+      });
+    }
+  }
+);
+
 export default router;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
@@ -22,7 +22,7 @@ import {
   Settings,
   ArrowRight,
 } from "lucide-react";
-import { JOB_CATEGORIES, JOB_TAGS } from "../../shared/constants/categories";
+import { JOB_CATEGORIES, JOB_TAGS, canJobsOverlap, getCategoryById } from "../../shared/constants/categories";
 import { CustomDateInput } from "@/components/ui/CustomDatePicker";
 import LocationAutocomplete from "@/components/ui/LocationAutocomplete";
 import StreetAutocomplete from "@/components/ui/StreetAutocomplete";
@@ -59,7 +59,7 @@ function FormField({
 
 export default function CreateContractScreen() {
   const navigate = useNavigate();
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, token } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -78,6 +78,12 @@ export default function CreateContractScreen() {
   const [showBankingModal, setShowBankingModal] = useState(false);
   const [pendingFormData, setPendingFormData] = useState<FormData | null>(null);
 
+  // Date overlap validation state
+  const [startDate, setStartDate] = useState<Date | null>(null);
+  const [endDate, setEndDate] = useState<Date | null>(null);
+  const [overlapWarning, setOverlapWarning] = useState<{ message: string; jobTitle: string } | null>(null);
+  const [userJobs, setUserJobs] = useState<any[]>([]);
+
   // Check if user has banking info configured
   const hasBankingInfo = !!(
     user?.bankingInfo?.cbu ||
@@ -86,6 +92,67 @@ export default function CreateContractScreen() {
 
   // Check if user opted out of banking prompts
   const dontAskBankingInfo = user?.dontAskBankingInfo || false;
+
+  // Fetch user's jobs for overlap validation
+  useEffect(() => {
+    const fetchUserJobs = async () => {
+      if (!token || !user) return;
+      try {
+        const response = await fetch(`/api/jobs/my-jobs`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await response.json();
+        if (data.success) {
+          const activeJobs = (data.jobs || []).filter((job: any) =>
+            ['open', 'in_progress', 'pending_payment', 'pending_approval'].includes(job.status)
+          );
+          setUserJobs(activeJobs);
+        }
+      } catch (err) {
+        console.error('Error fetching user jobs:', err);
+      }
+    };
+    fetchUserJobs();
+  }, [token, user]);
+
+  // Check for date overlaps when dates or category change
+  useEffect(() => {
+    if (!startDate || !selectedCategory || userJobs.length === 0) {
+      setOverlapWarning(null);
+      return;
+    }
+
+    const newStart = startDate;
+    const newEnd = endDateFlexible ? null : endDate;
+
+    for (const existingJob of userJobs) {
+      const existingStart = new Date(existingJob.startDate);
+      const existingEnd = existingJob.endDateFlexible ? null : (existingJob.endDate ? new Date(existingJob.endDate) : null);
+
+      let datesOverlap = false;
+
+      if (endDateFlexible || existingJob.endDateFlexible) {
+        datesOverlap = newStart.toDateString() === existingStart.toDateString();
+      } else if (newEnd && existingEnd) {
+        datesOverlap = newStart <= existingEnd && newEnd >= existingStart;
+      }
+
+      if (datesOverlap) {
+        if (!canJobsOverlap(selectedCategory, existingJob.category)) {
+          const existingCategoryInfo = getCategoryById(existingJob.category);
+          const newCategoryInfo = getCategoryById(selectedCategory);
+
+          setOverlapWarning({
+            message: `Los trabajos de ${newCategoryInfo?.label || selectedCategory} no pueden superponerse con trabajos de ${existingCategoryInfo?.label || existingJob.category}. Solo se permite superposición entre trabajos presenciales y remotos (tecnología).`,
+            jobTitle: existingJob.title
+          });
+          return;
+        }
+      }
+    }
+
+    setOverlapWarning(null);
+  }, [startDate, endDate, endDateFlexible, selectedCategory, userJobs]);
 
   const handleAddTag = (tag: string) => {
     if (tag && !selectedTags.includes(tag) && selectedTags.length < 10) {
@@ -455,6 +522,7 @@ export default function CreateContractScreen() {
                     required
                     placeholder="Selecciona fecha y hora de inicio"
                     minDate={new Date()}
+                    onDateChange={(date) => setStartDate(date)}
                   />
                 </FormField>
               </div>
@@ -467,6 +535,7 @@ export default function CreateContractScreen() {
                       required
                       placeholder="Selecciona fecha y hora de fin"
                       minDate={new Date()}
+                      onDateChange={(date) => setEndDate(date)}
                     />
                   )}
                   <label className="flex items-center gap-2 mt-2 cursor-pointer">
@@ -491,6 +560,23 @@ export default function CreateContractScreen() {
                 </FormField>
               </div>
             </div>
+
+            {/* Overlap Warning */}
+            {overlapWarning && (
+              <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-red-800 dark:text-red-200">
+                      Conflicto de horario con "{overlapWarning.jobTitle}"
+                    </p>
+                    <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                      {overlapWarning.message}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Single Delivery Option */}
             <FormField
@@ -648,10 +734,10 @@ export default function CreateContractScreen() {
             </Link>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !!overlapWarning}
               className="rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-sky-500/30 hover:from-sky-600 hover:to-sky-700 hover:shadow-sky-500/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
             >
-              {isSubmitting ? "Publicando..." : "Publicar trabajo"}
+              {isSubmitting ? "Publicando..." : overlapWarning ? "Resolvé el conflicto de horario" : "Publicar trabajo"}
             </button>
           </div>
         </form>

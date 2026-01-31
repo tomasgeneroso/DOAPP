@@ -19,6 +19,7 @@ import {
   securityHeaders,
   apiLimiter,
 } from "./middleware/security.js";
+import { wafMiddleware } from "./middleware/waf.js";
 // TEMPORARILY DISABLED - DEBUGGING
 // import { startEscalateExpiredChangeRequestsJob } from "./jobs/escalateExpiredChangeRequests.js";
 import { startResetProMembershipCountersJob } from "./jobs/resetProMembershipCounters.js";
@@ -158,6 +159,9 @@ app.use(
     credentials: true,
   })
 );
+
+// WAF - Web Application Firewall (aplicar temprano para bloquear ataques)
+app.use(wafMiddleware);
 
 // Performance monitoring middleware (must be early to capture all requests)
 app.use(performanceMiddleware());

@@ -39,6 +39,7 @@ import ReferralsScreen from "./pages/ReferralsScreen";
 import BlogsScreen from "./pages/BlogsScreen";
 import BlogDetailScreen from "./pages/BlogDetailScreen";
 import CreateBlogScreen from "./pages/CreateBlogScreen";
+import PostDetail from "./pages/PostDetail";
 import ChatScreen from "./pages/ChatScreen";
 import CreateTicket from "./pages/CreateTicket";
 import TicketDetail from "./pages/TicketDetail";
@@ -378,6 +379,7 @@ export default function App() {
               <Route path="/blog" element={<BlogsScreen />} />
               <Route path="/blog/create" element={<CreateBlogScreen />} />
               <Route path="/blog/:slug" element={<BlogDetailScreen />} />
+              <Route path="/posts/:id" element={<PostDetail />} />
               <Route path="/sitemap" element={<SiteMap />} />
               <Route
                 path="/tickets/new"

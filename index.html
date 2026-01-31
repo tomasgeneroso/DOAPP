@@ -9,6 +9,27 @@
     <link rel="canonical" href="https://doapparg.site/" />
     <meta name="theme-color" content="#0ea5e9" />
 
+    <!-- DNS Prefetch para recursos externos (carga más rápida) -->
+    <link rel="dns-prefetch" href="//fonts.googleapis.com" />
+    <link rel="dns-prefetch" href="//fonts.gstatic.com" />
+    <link rel="dns-prefetch" href="//www.googletagmanager.com" />
+    <link rel="dns-prefetch" href="//api.mercadopago.com" />
+    <link rel="dns-prefetch" href="//sdk.mercadopago.com" />
+    <link rel="dns-prefetch" href="//www.google-analytics.com" />
+
+    <!-- Preconnect para recursos críticos -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- Preload de recursos críticos (above-the-fold) -->
+    <link rel="preload" href="/client/main.tsx" as="script" type="module" />
+
+    <!-- Prefetch de rutas comunes (carga diferida inteligente) -->
+    <link rel="prefetch" href="/api/jobs" as="fetch" crossorigin />
+
+    <!-- Early Hints simulado con preload -->
+    <link rel="modulepreload" href="/client/main.tsx" />
+
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="DoApp" />

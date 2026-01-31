@@ -23,6 +23,7 @@ export default function OnboardingTooltip() {
 
   const [position, setPosition] = useState<TooltipPosition | null>(null);
   const [targetElement, setTargetElement] = useState<Element | null>(null);
+  const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
 
   // Reset position when onboarding becomes inactive
@@ -32,13 +33,14 @@ export default function OnboardingTooltip() {
       const resetTimer = setTimeout(() => {
         setPosition(null);
         setTargetElement(null);
+        setTargetRect(null);
       }, 0);
       return () => clearTimeout(resetTimer);
     }
     return undefined;
   }, [isActive, currentStepData]);
 
-  // Position tooltip when active
+  // Position tooltip when active or step changes
   useEffect(() => {
     if (!isActive || !currentStepData) {
       return;
@@ -61,6 +63,7 @@ export default function OnboardingTooltip() {
       setTargetElement(target);
 
       const rect = target.getBoundingClientRect();
+      setTargetRect(rect);
       const tooltipWidth = 350;
       const tooltipHeight = 200;
       const padding = 16;
@@ -117,8 +120,11 @@ export default function OnboardingTooltip() {
       }
     };
 
-    // Initial positioning with delay
-    const timer = setTimeout(findAndPositionTooltip, 150);
+    // Reset position before recalculating for smoother transition
+    setPosition(null);
+
+    // Initial positioning with delay to allow DOM updates
+    const timer = setTimeout(findAndPositionTooltip, 200);
 
     // Reposition on resize only (not on scroll to prevent jitter)
     window.addEventListener('resize', findAndPositionTooltip);
@@ -127,7 +133,7 @@ export default function OnboardingTooltip() {
       clearTimeout(timer);
       window.removeEventListener('resize', findAndPositionTooltip);
     };
-  }, [isActive, currentStepData]);
+  }, [isActive, currentStepData, currentStep]);
 
   if (!isActive || !currentStepData || !position) {
     return null;
@@ -146,14 +152,15 @@ export default function OnboardingTooltip() {
       />
 
       {/* Highlight the target element */}
-      {targetElement && (
+      {targetElement && targetRect && (
         <div
-          className="fixed z-[9999] pointer-events-none"
+          key={`highlight-${currentStep}`}
+          className="fixed z-[9999] pointer-events-none transition-all duration-300"
           style={{
-            top: targetElement.getBoundingClientRect().top - 4,
-            left: targetElement.getBoundingClientRect().left - 4,
-            width: targetElement.getBoundingClientRect().width + 8,
-            height: targetElement.getBoundingClientRect().height + 8,
+            top: targetRect.top - 4,
+            left: targetRect.left - 4,
+            width: targetRect.width + 8,
+            height: targetRect.height + 8,
             boxShadow: '0 0 0 4px rgb(14, 165, 233), 0 0 0 9999px rgba(0, 0, 0, 0.8)',
             borderRadius: '8px',
           }}

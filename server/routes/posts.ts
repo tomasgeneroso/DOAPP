@@ -83,7 +83,7 @@ router.get("/:id", async (req: Request, res: Response): Promise<void> => {
         },
         {
           association: 'contract',
-          attributes: ['title', 'status'],
+          attributes: ['id', 'status', 'price'],
         },
       ],
     });

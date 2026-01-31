@@ -16,9 +16,11 @@ import {
 import MultipleRatings from "../components/user/MultipleRatings";
 
 interface Proposal {
-  _id: string;
+  _id?: string;
+  id?: string;
   job: {
-    _id: string;
+    _id?: string;
+    id?: string;
     title: string;
     summary: string;
     price: number;
@@ -26,17 +28,19 @@ interface Proposal {
     category: string;
   };
   freelancer: {
-    _id: string;
+    _id?: string;
+    id?: string;
     name: string;
-    avatar: string;
+    avatar?: string;
     rating?: number;
     reviewsCount?: number;
     completedJobs?: number;
   };
   client: {
-    _id: string;
+    _id?: string;
+    id?: string;
     name: string;
-    avatar: string;
+    avatar?: string;
   };
   proposedPrice: number;
   estimatedDuration: number;
@@ -212,8 +216,11 @@ export default function ProposalDetail() {
     );
   }
 
-  const isFreelancer = proposal.freelancer._id === user?._id;
-  const isClient = proposal.client._id === user?._id;
+  const currentUserId = user?._id || user?.id;
+  const freelancerId = proposal.freelancer._id || proposal.freelancer.id;
+  const clientId = proposal.client._id || proposal.client.id;
+  const isFreelancer = freelancerId === currentUserId;
+  const isClient = clientId === currentUserId;
   const otherParty = isFreelancer ? proposal.client : proposal.freelancer;
 
   return (

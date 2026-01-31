@@ -287,7 +287,7 @@ export default function MyJobsScreen() {
   useEffect(() => {
     const now = new Date();
     proposals.forEach(proposal => {
-      if (proposal.status === 'approved' &&
+      if (proposal.status === 'approved' && proposal.job &&
           proposal.job.endDate && new Date(proposal.job.endDate) <= now &&
           (proposal.job.status === 'open' || proposal.job.status === 'in_progress') &&
           !proposalContracts[proposal.job.id]) {
@@ -469,6 +469,7 @@ export default function MyJobsScreen() {
 
   const getFilteredProposals = () => {
     return proposals.filter((proposal) => {
+      if (!proposal.job) return false; // Skip proposals with null job
       if (proposalFilter === "pending") return proposal.status === "pending";
       if (proposalFilter === "approved") return proposal.status === "approved";
       if (proposalFilter === "rejected") return proposal.status === "rejected";
@@ -495,8 +496,8 @@ export default function MyJobsScreen() {
   const pendingProposalsCount = proposals.filter(p => p.status === "pending").length;
   const approvedProposalsCount = proposals.filter(p => p.status === "approved").length;
   const rejectedProposalsCount = proposals.filter(p => p.status === "rejected").length;
-  const completedProposalsCount = proposals.filter(p => p.job.status === "completed").length;
-  const disputedProposalsCount = proposals.filter(p => p.job.status === "disputed").length;
+  const completedProposalsCount = proposals.filter(p => p.job?.status === "completed").length;
+  const disputedProposalsCount = proposals.filter(p => p.job?.status === "disputed").length;
 
   // Transform data for calendar - real-time synced with jobs/proposals state
   const calendarJobs = mainTab === "published"
