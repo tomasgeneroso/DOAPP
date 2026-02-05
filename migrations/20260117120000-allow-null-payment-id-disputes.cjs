@@ -3,31 +3,41 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    // Allow null for payment_id in disputes table
-    // This enables creating disputes for contracts that don't have associated payments
-    await queryInterface.changeColumn('disputes', 'payment_id', {
-      type: Sequelize.UUID,
-      allowNull: true,
-      references: {
-        model: 'payments',
-        key: 'id',
-      },
-      onUpdate: 'CASCADE',
-      onDelete: 'SET NULL',
-    });
+    // Check if payment_id column exists
+    const tableInfo = await queryInterface.describeTable('disputes');
+
+    if (!tableInfo.payment_id) {
+      // Add the column if it doesn't exist
+      await queryInterface.addColumn('disputes', 'payment_id', {
+        type: Sequelize.UUID,
+        allowNull: true,
+        references: {
+          model: 'payments',
+          key: 'id',
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL',
+      });
+    } else {
+      // Change the column if it exists
+      await queryInterface.changeColumn('disputes', 'payment_id', {
+        type: Sequelize.UUID,
+        allowNull: true,
+        references: {
+          model: 'payments',
+          key: 'id',
+        },
+        onUpdate: 'CASCADE',
+        onDelete: 'SET NULL',
+      });
+    }
   },
 
   async down(queryInterface, Sequelize) {
-    // Revert to not allowing null
-    await queryInterface.changeColumn('disputes', 'payment_id', {
-      type: Sequelize.UUID,
-      allowNull: false,
-      references: {
-        model: 'payments',
-        key: 'id',
-      },
-      onUpdate: 'CASCADE',
-      onDelete: 'CASCADE',
-    });
+    // Remove the column
+    const tableInfo = await queryInterface.describeTable('disputes');
+    if (tableInfo.payment_id) {
+      await queryInterface.removeColumn('disputes', 'payment_id');
+    }
   }
 };
