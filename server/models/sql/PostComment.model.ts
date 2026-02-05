@@ -20,6 +20,7 @@ import { Post } from './Post.model.js';
 @Table({
   tableName: 'post_comments',
   timestamps: true,
+  underscored: true,
   indexes: [
     {
       fields: ['post', 'createdAt'],

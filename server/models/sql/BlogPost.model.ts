@@ -22,6 +22,7 @@ import { User } from './User.model.js';
 @Table({
   tableName: 'blog_posts',
   timestamps: true,
+  underscored: true,
   indexes: [
     {
       fields: ['slug'],

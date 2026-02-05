@@ -32,6 +32,7 @@ export interface IGalleryItem {
 @Table({
   tableName: 'posts',
   timestamps: true,
+  underscored: true,
   indexes: [
     {
       fields: ['author', 'createdAt'],
