@@ -170,8 +170,8 @@ router.post(
       // Set token in httpOnly cookie
       res.cookie('token', token, {
         httpOnly: true,
-        secure: false, // Temporalmente false hasta instalar SSL
-        sameSite: 'lax', // Protección CSRF
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
         maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
       });
 
@@ -311,9 +311,9 @@ router.post(
 
       // Set token in httpOnly cookie (más seguro que localStorage)
       res.cookie('token', token, {
-        httpOnly: true, // No accesible desde JavaScript del cliente
-        secure: false, // Temporalmente false hasta instalar SSL
-        sameSite: 'lax', // Protección CSRF
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
         maxAge: 30 * 24 * 60 * 60 * 1000 // 30 días
       });
 
@@ -1168,7 +1168,7 @@ router.post("/logout", protect, async (req: AuthRequest, res: Response): Promise
     // Clear httpOnly cookie
     res.clearCookie('token', {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax'
     });
 
