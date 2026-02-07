@@ -288,8 +288,8 @@ export default function AdminLayout() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto bg-slate-50 dark:bg-slate-900 min-h-screen">
-        <div className="p-6 min-h-full">
+      <main className="flex-1 overflow-auto bg-slate-50 dark:bg-slate-900">
+        <div className="p-6 min-h-[calc(100vh-1px)]">
           <Outlet />
         </div>
       </main>

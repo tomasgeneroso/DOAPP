@@ -29,9 +29,11 @@ export default function Layout() {
       <ErrorBoundary>
         <Header />
       </ErrorBoundary>
-      <main id="main-content" className="flex-1" tabIndex={-1}>
+      <main id="main-content" className="flex-1 flex flex-col" tabIndex={-1}>
         <ErrorBoundary>
-          <Outlet />
+          <div className="flex-1">
+            <Outlet />
+          </div>
         </ErrorBoundary>
       </main>
       <ErrorBoundary>
