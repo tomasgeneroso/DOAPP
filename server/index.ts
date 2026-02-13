@@ -143,6 +143,9 @@ const __dirname = path.dirname(__filename);
 // Inicializar Express
 const app: Express = express();
 
+// Trust proxy (behind Nginx/Cloudflare)
+app.set('trust proxy', 1);
+
 // Conectar a PostgreSQL
 await initDatabase();
 
