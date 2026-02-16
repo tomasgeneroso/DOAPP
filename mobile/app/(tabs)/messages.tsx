@@ -19,7 +19,7 @@ import { LogoIcon } from '../../components/ui/Logo';
 
 export default function MessagesScreen() {
   const router = useRouter();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,12 +27,13 @@ export default function MessagesScreen() {
 
   // Redirect to login if not authenticated
   useEffect(() => {
+    if (authLoading) return;
     if (!isAuthenticated) {
       router.replace('/(auth)/login');
       return;
     }
     fetchConversations();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, authLoading]);
 
   const fetchConversations = async () => {
     try {
@@ -79,8 +80,8 @@ export default function MessagesScreen() {
     return null;
   };
 
-  // Show nothing while redirecting
-  if (!isAuthenticated) {
+  // Show nothing while loading or redirecting
+  if (authLoading || !isAuthenticated) {
     return null;
   }
 

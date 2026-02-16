@@ -152,7 +152,7 @@ export default function AdminLayout() {
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-900">
       {/* Sidebar */}
-      <aside className="w-64 min-h-screen bg-white dark:bg-slate-800 shadow-md border-r border-slate-200 dark:border-slate-700 flex-shrink-0">
+      <aside className="w-64 bg-white dark:bg-slate-800 shadow-md border-r border-slate-200 dark:border-slate-700 flex-shrink-0">
         <div className="p-4 sticky top-0 h-screen overflow-y-auto">
           {/* Header with connection status */}
           <div className="flex items-center justify-between mb-6">

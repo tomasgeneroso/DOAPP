@@ -22,7 +22,7 @@ import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constant
 export default function EditProfileScreen() {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
-  const { user, refreshUser, isAuthenticated } = useAuth();
+  const { user, refreshUser, isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
@@ -32,6 +32,7 @@ export default function EditProfileScreen() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (authLoading) return;
     if (!isAuthenticated) {
       router.replace('/(auth)/login');
       return;
@@ -44,7 +45,7 @@ export default function EditProfileScreen() {
       setPhone(user.phone || '');
       setCity(user.address?.city || '');
     }
-  }, [user, isAuthenticated]);
+  }, [user, isAuthenticated, authLoading]);
 
   const handleSave = async () => {
     if (!name.trim()) {

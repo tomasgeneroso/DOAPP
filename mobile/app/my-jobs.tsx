@@ -22,7 +22,7 @@ type TabType = 'published' | 'applied';
 export default function MyJobsScreen() {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [publishedJobs, setPublishedJobs] = useState<Job[]>([]);
   const [appliedJobs, setAppliedJobs] = useState<Job[]>([]);
@@ -58,12 +58,13 @@ export default function MyJobsScreen() {
   };
 
   useEffect(() => {
+    if (authLoading) return;
     if (!isAuthenticated) {
       router.replace('/(auth)/login');
       return;
     }
     fetchJobs();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, authLoading]);
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('es-AR', {

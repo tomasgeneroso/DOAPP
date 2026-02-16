@@ -14,11 +14,11 @@
   "dependencies": {
     "@expo/metro-runtime": "^6.1.2",
     "@react-native-async-storage/async-storage": "^2.2.0",
-    "socket.io-client": "^4.7.5",
-    "expo": "~54.0.30",
-    "expo-constants": "^18.0.12",
+    "expo": "~54.0.33",
+    "expo-clipboard": "~8.0.8",
+    "expo-constants": "~18.0.13",
     "expo-linking": "^8.0.11",
-    "expo-router": "^6.0.21",
+    "expo-router": "~6.0.23",
     "expo-secure-store": "^15.0.8",
     "expo-status-bar": "~3.0.9",
     "lucide-react-native": "^0.562.0",
@@ -28,8 +28,9 @@
     "react-native-gesture-handler": "~2.28.0",
     "react-native-safe-area-context": "^5.6.2",
     "react-native-screens": "~4.16.0",
-    "react-native-svg": "^15.15.1",
-    "react-native-web": "^0.21.0"
+    "react-native-svg": "^15.12.1",
+    "react-native-web": "^0.21.0",
+    "socket.io-client": "^4.7.5"
   },
   "devDependencies": {
     "@types/react": "~19.0.0",

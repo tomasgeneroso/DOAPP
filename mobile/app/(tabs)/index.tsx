@@ -133,61 +133,53 @@ export default function HomeScreen() {
       <Text style={[styles.howItWorksTitle, { color: themeColors.text.primary }]}>¿Necesitás un servicio?</Text>
       <Text style={[styles.howItWorksSubtitle, { color: themeColors.text.secondary }]}>Publicá tu trabajo y encontrá profesionales</Text>
 
-      <View style={styles.stepsContainer}>
-        <View style={styles.step}>
-          <View style={[styles.stepIcon, { backgroundColor: colors.primary[500] }]}>
-            <PlusCircle size={24} color="#fff" strokeWidth={2} />
+      <View style={styles.stepsGrid}>
+        <View style={styles.stepsRow}>
+          <View style={styles.stepGridItem}>
+            <View style={[styles.stepIcon, { backgroundColor: colors.primary[500] }]}>
+              <PlusCircle size={24} color="#fff" strokeWidth={2} />
+            </View>
+            <View style={styles.stepNumber}>
+              <Text style={styles.stepNumberText}>1</Text>
+            </View>
+            <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Publicá</Text>
+            <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Publicá tu servicio con los detalles que necesitás</Text>
           </View>
-          <View style={styles.stepNumber}>
-            <Text style={styles.stepNumberText}>1</Text>
+
+          <View style={styles.stepGridItem}>
+            <View style={[styles.stepIcon, { backgroundColor: colors.secondary[500] }]}>
+              <MessageCircle size={24} color="#fff" strokeWidth={2} />
+            </View>
+            <View style={[styles.stepNumber, { backgroundColor: colors.secondary[600] }]}>
+              <Text style={styles.stepNumberText}>2</Text>
+            </View>
+            <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Elegí</Text>
+            <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Recibí propuestas y elegí al mejor perfil</Text>
           </View>
-          <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Publicá</Text>
-          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Publicá tu servicio con los detalles que necesitás</Text>
         </View>
 
-        <View style={styles.stepArrow}>
-          <ArrowRight size={20} color={themeColors.text.muted} />
-        </View>
+        <View style={styles.stepsRow}>
+          <View style={styles.stepGridItem}>
+            <View style={[styles.stepIcon, { backgroundColor: '#8b5cf6' }]}>
+              <Lock size={24} color="#fff" strokeWidth={2} />
+            </View>
+            <View style={[styles.stepNumber, { backgroundColor: '#8b5cf6' }]}>
+              <Text style={styles.stepNumberText}>3</Text>
+            </View>
+            <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Pagá Seguro</Text>
+            <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Tu dinero queda en garantía hasta completar</Text>
+          </View>
 
-        <View style={styles.step}>
-          <View style={[styles.stepIcon, { backgroundColor: colors.secondary[500] }]}>
-            <MessageCircle size={24} color="#fff" strokeWidth={2} />
+          <View style={styles.stepGridItem}>
+            <View style={[styles.stepIcon, { backgroundColor: colors.success[500] }]}>
+              <CheckCircle size={24} color="#fff" strokeWidth={2} />
+            </View>
+            <View style={[styles.stepNumber, { backgroundColor: colors.success[600] }]}>
+              <Text style={styles.stepNumberText}>4</Text>
+            </View>
+            <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>¡Listo!</Text>
+            <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Confirmá el servicio prestado y el pago se libera automáticamente</Text>
           </View>
-          <View style={[styles.stepNumber, { backgroundColor: colors.secondary[600] }]}>
-            <Text style={styles.stepNumberText}>2</Text>
-          </View>
-          <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Elegí</Text>
-          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Recibí propuestas y elegí al mejor perfil</Text>
-        </View>
-
-        <View style={styles.stepArrow}>
-          <ArrowRight size={20} color={themeColors.text.muted} />
-        </View>
-
-        <View style={styles.step}>
-          <View style={[styles.stepIcon, { backgroundColor: '#8b5cf6' }]}>
-            <Lock size={24} color="#fff" strokeWidth={2} />
-          </View>
-          <View style={[styles.stepNumber, { backgroundColor: '#8b5cf6' }]}>
-            <Text style={styles.stepNumberText}>3</Text>
-          </View>
-          <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Pagá Seguro</Text>
-          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Tu dinero queda en garantía hasta completar</Text>
-        </View>
-
-        <View style={styles.stepArrow}>
-          <ArrowRight size={20} color={themeColors.text.muted} />
-        </View>
-
-        <View style={styles.step}>
-          <View style={[styles.stepIcon, { backgroundColor: colors.success[500] }]}>
-            <CheckCircle size={24} color="#fff" strokeWidth={2} />
-          </View>
-          <View style={[styles.stepNumber, { backgroundColor: colors.success[600] }]}>
-            <Text style={styles.stepNumberText}>4</Text>
-          </View>
-          <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>¡Listo!</Text>
-          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Confirmá el servicio prestado y el pago se libera automáticamente</Text>
         </View>
       </View>
     </View>
@@ -198,61 +190,53 @@ export default function HomeScreen() {
       <Text style={[styles.howItWorksTitle, { color: themeColors.text.primary }]}>¿Ofrecés servicios?</Text>
       <Text style={[styles.howItWorksSubtitle, { color: themeColors.text.secondary }]}>Encontrá trabajos, mostrá tu portfolio y empezá a ganar</Text>
 
-      <View style={styles.stepsContainer}>
-        <View style={styles.step}>
-          <View style={[styles.stepIcon, { backgroundColor: colors.primary[500] }]}>
-            <Search size={24} color="#fff" strokeWidth={2} />
+      <View style={styles.stepsGrid}>
+        <View style={styles.stepsRow}>
+          <View style={styles.stepGridItem}>
+            <View style={[styles.stepIcon, { backgroundColor: colors.primary[500] }]}>
+              <Search size={24} color="#fff" strokeWidth={2} />
+            </View>
+            <View style={styles.stepNumber}>
+              <Text style={styles.stepNumberText}>1</Text>
+            </View>
+            <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Buscá</Text>
+            <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Explorá trabajos que se ajusten a tus habilidades</Text>
           </View>
-          <View style={styles.stepNumber}>
-            <Text style={styles.stepNumberText}>1</Text>
+
+          <View style={styles.stepGridItem}>
+            <View style={[styles.stepIcon, { backgroundColor: colors.secondary[500] }]}>
+              <MessageCircle size={24} color="#fff" strokeWidth={2} />
+            </View>
+            <View style={[styles.stepNumber, { backgroundColor: colors.secondary[600] }]}>
+              <Text style={styles.stepNumberText}>2</Text>
+            </View>
+            <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Aplicá</Text>
+            <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Enviá tu propuesta con tu mejor oferta</Text>
           </View>
-          <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Buscá</Text>
-          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Explorá trabajos que se ajusten a tus habilidades</Text>
         </View>
 
-        <View style={styles.stepArrow}>
-          <ArrowRight size={20} color={themeColors.text.muted} />
-        </View>
+        <View style={styles.stepsRow}>
+          <View style={styles.stepGridItem}>
+            <View style={[styles.stepIcon, { backgroundColor: '#8b5cf6' }]}>
+              <Briefcase size={24} color="#fff" strokeWidth={2} />
+            </View>
+            <View style={[styles.stepNumber, { backgroundColor: '#8b5cf6' }]}>
+              <Text style={styles.stepNumberText}>3</Text>
+            </View>
+            <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Trabajá</Text>
+            <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Realizá el trabajo con tranquilidad</Text>
+          </View>
 
-        <View style={styles.step}>
-          <View style={[styles.stepIcon, { backgroundColor: colors.secondary[500] }]}>
-            <MessageCircle size={24} color="#fff" strokeWidth={2} />
+          <View style={styles.stepGridItem}>
+            <View style={[styles.stepIcon, { backgroundColor: colors.success[500] }]}>
+              <CheckCircle size={24} color="#fff" strokeWidth={2} />
+            </View>
+            <View style={[styles.stepNumber, { backgroundColor: colors.success[600] }]}>
+              <Text style={styles.stepNumberText}>4</Text>
+            </View>
+            <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Cobrá</Text>
+            <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Recibí tu pago de forma segura y garantizada</Text>
           </View>
-          <View style={[styles.stepNumber, { backgroundColor: colors.secondary[600] }]}>
-            <Text style={styles.stepNumberText}>2</Text>
-          </View>
-          <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Aplicá</Text>
-          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Enviá tu propuesta con tu mejor oferta</Text>
-        </View>
-
-        <View style={styles.stepArrow}>
-          <ArrowRight size={20} color={themeColors.text.muted} />
-        </View>
-
-        <View style={styles.step}>
-          <View style={[styles.stepIcon, { backgroundColor: '#8b5cf6' }]}>
-            <Briefcase size={24} color="#fff" strokeWidth={2} />
-          </View>
-          <View style={[styles.stepNumber, { backgroundColor: '#8b5cf6' }]}>
-            <Text style={styles.stepNumberText}>3</Text>
-          </View>
-          <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Trabajá</Text>
-          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Realizá el trabajo con tranquilidad</Text>
-        </View>
-
-        <View style={styles.stepArrow}>
-          <ArrowRight size={20} color={themeColors.text.muted} />
-        </View>
-
-        <View style={styles.step}>
-          <View style={[styles.stepIcon, { backgroundColor: colors.success[500] }]}>
-            <CheckCircle size={24} color="#fff" strokeWidth={2} />
-          </View>
-          <View style={[styles.stepNumber, { backgroundColor: colors.success[600] }]}>
-            <Text style={styles.stepNumberText}>4</Text>
-          </View>
-          <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Cobrá</Text>
-          <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Recibí tu pago de forma segura y garantizada</Text>
         </View>
       </View>
     </View>
@@ -675,22 +659,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: spacing.lg,
   },
-  stepsContainer: {
+  stepsGrid: {
+    gap: spacing.md,
+  },
+  stepsRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    alignItems: 'flex-start',
+    gap: spacing.md,
   },
-  step: {
-    width: '20%',
-    minWidth: 70,
+  stepGridItem: {
+    flex: 1,
     alignItems: 'center',
-    marginBottom: spacing.lg,
+    padding: spacing.sm,
     position: 'relative',
-  },
-  stepArrow: {
-    paddingTop: spacing.lg,
-    paddingHorizontal: spacing.xs,
   },
   stepIcon: {
     width: 48,

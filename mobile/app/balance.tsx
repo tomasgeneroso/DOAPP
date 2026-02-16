@@ -33,7 +33,7 @@ type TabType = 'transactions' | 'withdrawals';
 export default function BalanceScreen() {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [balance, setBalance] = useState(0);
   const [pendingBalance, setPendingBalance] = useState(0);
@@ -81,12 +81,13 @@ export default function BalanceScreen() {
   };
 
   useEffect(() => {
+    if (authLoading) return;
     if (!isAuthenticated) {
       router.replace('/(auth)/login');
       return;
     }
     fetchData();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, authLoading]);
 
   const handleWithdraw = async () => {
     const amount = parseFloat(withdrawAmount);

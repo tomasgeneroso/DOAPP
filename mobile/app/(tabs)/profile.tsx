@@ -16,7 +16,7 @@ import { LogoIcon } from '../../components/ui/Logo';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user, logout, isAuthenticated, isLoading } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
 
   const handleLogout = () => {
@@ -38,15 +38,15 @@ export default function ProfileScreen() {
     );
   };
 
-  // Redirect to login if not authenticated
+  // Redirect to login if not authenticated (after loading completes)
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isLoading && !isAuthenticated) {
       router.replace('/(auth)/login');
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isLoading]);
 
-  // Show nothing while redirecting
-  if (!isAuthenticated) {
+  // Show nothing while loading or redirecting
+  if (isLoading || !isAuthenticated) {
     return null;
   }
 

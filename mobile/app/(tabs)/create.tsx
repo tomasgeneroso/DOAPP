@@ -8,17 +8,17 @@ import { LogoIcon } from '../../components/ui/Logo';
 
 export default function CreateScreen() {
   const router = useRouter();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
 
-  // Redirect to login if not authenticated
+  // Redirect to login if not authenticated (after loading completes)
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isLoading && !isAuthenticated) {
       router.replace('/(auth)/login');
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, isLoading]);
 
-  // Show nothing while redirecting
-  if (!isAuthenticated) {
+  // Show nothing while loading or redirecting
+  if (isLoading || !isAuthenticated) {
     return null;
   }
 

@@ -22,7 +22,7 @@ type TabType = 'as_client' | 'as_worker';
 export default function ContractsScreen() {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,12 +49,13 @@ export default function ContractsScreen() {
   };
 
   useEffect(() => {
+    if (authLoading) return;
     if (!isAuthenticated) {
       router.replace('/(auth)/login');
       return;
     }
     fetchContracts();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, authLoading]);
 
   const filteredContracts = contracts.filter((contract) => {
     const client = contract.client as UserType;

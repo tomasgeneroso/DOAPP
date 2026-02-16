@@ -21,7 +21,7 @@ import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../const
 export default function ProposalsScreen() {
   const router = useRouter();
   const { colors: themeColors } = useTheme();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
 
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,12 +48,13 @@ export default function ProposalsScreen() {
   };
 
   useEffect(() => {
+    if (authLoading) return;
     if (!isAuthenticated) {
       router.replace('/(auth)/login');
       return;
     }
     fetchProposals();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, authLoading]);
 
   const handleWithdraw = (proposalId: string) => {
     Alert.alert(
