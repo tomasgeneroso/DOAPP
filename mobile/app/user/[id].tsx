@@ -196,7 +196,7 @@ export default function UserProfileScreen() {
           <View style={styles.ratingContainer}>
             <Star size={18} color={colors.warning[500]} fill={colors.warning[500]} />
             <Text style={[styles.ratingText, { color: themeColors.text.primary }]}>
-              {(user.rating || 5).toFixed(1)}
+              {Number(user.rating || 5).toFixed(1)}
             </Text>
             <Text style={[styles.reviewsText, { color: themeColors.text.secondary }]}>
               ({user.reviewsCount || 0} opiniones)
@@ -250,7 +250,7 @@ export default function UserProfileScreen() {
           </View>
           <View style={[styles.statCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
             <Star size={24} color={colors.warning[500]} />
-            <Text style={[styles.statValue, { color: themeColors.text.primary }]}>{(user.rating || 5).toFixed(1)}</Text>
+            <Text style={[styles.statValue, { color: themeColors.text.primary }]}>{Number(user.rating || 5).toFixed(1)}</Text>
             <Text style={[styles.statLabel, { color: themeColors.text.secondary }]}>Calificación</Text>
           </View>
         </View>
@@ -265,7 +265,7 @@ export default function UserProfileScreen() {
                 <Text style={[styles.ratingLabel, { color: themeColors.text.secondary }]}>Calidad del trabajo</Text>
                 <View style={styles.ratingStars}>
                   <Star size={14} color={colors.warning[500]} fill={colors.warning[500]} />
-                  <Text style={[styles.ratingValue, { color: themeColors.text.primary }]}>{user.workQualityRating.toFixed(1)}</Text>
+                  <Text style={[styles.ratingValue, { color: themeColors.text.primary }]}>{Number(user.workQualityRating).toFixed(1)}</Text>
                 </View>
               </View>
             )}
@@ -275,7 +275,7 @@ export default function UserProfileScreen() {
                 <Text style={[styles.ratingLabel, { color: themeColors.text.secondary }]}>Como trabajador</Text>
                 <View style={styles.ratingStars}>
                   <Star size={14} color={colors.warning[500]} fill={colors.warning[500]} />
-                  <Text style={[styles.ratingValue, { color: themeColors.text.primary }]}>{user.workerRating.toFixed(1)}</Text>
+                  <Text style={[styles.ratingValue, { color: themeColors.text.primary }]}>{Number(user.workerRating).toFixed(1)}</Text>
                 </View>
               </View>
             )}
@@ -285,7 +285,7 @@ export default function UserProfileScreen() {
                 <Text style={[styles.ratingLabel, { color: themeColors.text.secondary }]}>Cumplimiento de contrato</Text>
                 <View style={styles.ratingStars}>
                   <Star size={14} color={colors.warning[500]} fill={colors.warning[500]} />
-                  <Text style={[styles.ratingValue, { color: themeColors.text.primary }]}>{user.contractRating.toFixed(1)}</Text>
+                  <Text style={[styles.ratingValue, { color: themeColors.text.primary }]}>{Number(user.contractRating).toFixed(1)}</Text>
                 </View>
               </View>
             )}

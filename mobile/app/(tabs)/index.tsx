@@ -280,7 +280,7 @@ export default function HomeScreen() {
           <View style={styles.ratingContainer}>
             <Star size={14} color={colors.warning[500]} fill={colors.warning[500]} strokeWidth={2} />
             <Text style={[styles.ratingText, { color: themeColors.text.secondary }]}>
-              {(client.rating || 5).toFixed(1)} ({client.reviewsCount || 0})
+              {Number(client.rating || 5).toFixed(1)} ({client.reviewsCount || 0})
             </Text>
           </View>
         )}

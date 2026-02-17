@@ -104,7 +104,7 @@ export default function ProfileScreen() {
             <View style={styles.ratingRow}>
               <Text style={styles.starIcon}>⭐</Text>
               <Text style={styles.ratingText}>
-                {(user?.rating || 5).toFixed(1)} · {user?.reviewsCount || 0} opiniones
+                {Number(user?.rating || 5).toFixed(1)} · {user?.reviewsCount || 0} opiniones
               </Text>
             </View>
           </View>

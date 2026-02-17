@@ -18,6 +18,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { updateProfile } from '../services/auth';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
+import LocationAutocomplete from '../components/ui/LocationAutocomplete';
 
 export default function EditProfileScreen() {
   const router = useRouter();
@@ -229,23 +230,15 @@ export default function EditProfileScreen() {
               />
             </View>
 
-            <View style={styles.inputGroup}>
+            <View style={[styles.inputGroup, { zIndex: 10 }]}>
               <Text style={[styles.label, { color: themeColors.text.primary }]}>
                 Ciudad
               </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: themeColors.slate[50],
-                    borderColor: themeColors.border,
-                    color: themeColors.text.primary,
-                  },
-                ]}
-                placeholder="Buenos Aires"
-                placeholderTextColor={themeColors.text.muted}
+              <LocationAutocomplete
                 value={city}
                 onChangeText={setCity}
+                placeholder="Ej: Córdoba Capital, Córdoba"
+                themeColors={themeColors}
               />
             </View>
           </View>

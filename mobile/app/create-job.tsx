@@ -27,6 +27,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { createJob, getCategories } from '../services/jobs';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
+import LocationAutocomplete from '../components/ui/LocationAutocomplete';
 
 export default function CreateJobScreen() {
   const router = useRouter();
@@ -74,30 +75,40 @@ export default function CreateJobScreen() {
 
     setLoading(true);
     try {
+      const desc = description.trim();
+      // Convert DD/MM/YYYY to ISO 8601 (YYYY-MM-DD)
+      const toISO = (dateStr: string): string => {
+        const parts = dateStr.split('/');
+        if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        return dateStr; // Already ISO or other format
+      };
       const jobData = {
         title: title.trim(),
-        description: description.trim(),
+        summary: desc.length > 150 ? desc.substring(0, 150) + '...' : desc,
+        description: desc,
         category,
         price: parseFloat(price),
         budget: parseFloat(price),
         location: location.trim(),
         neighborhood: neighborhood.trim() || undefined,
-        startDate,
-        endDate: endDateFlexible ? undefined : endDate || undefined,
+        startDate: toISO(startDate),
+        endDate: endDateFlexible ? undefined : (endDate ? toISO(endDate) : undefined),
         endDateFlexible,
         maxWorkers: parseInt(maxWorkers) || 1,
       };
 
       const response = await createJob(jobData);
 
-      if (response.success && response.data) {
+      // Backend returns job at root level, not under data
+      const job = response.data?.job || (response as any).job;
+      if (response.success && job) {
         Alert.alert(
           'Trabajo creado',
-          'Tu trabajo ha sido creado. Ahora debes pagar la publicación para que sea visible.',
+          'Tu trabajo ha sido creado exitosamente.',
           [
             {
               text: 'Ver trabajo',
-              onPress: () => router.replace(`/job/${response.data!.job._id}`),
+              onPress: () => router.replace(`/job/${job.id || job._id}`),
             },
           ]
         );
@@ -137,7 +148,7 @@ export default function CreateJobScreen() {
           <View style={[styles.infoBanner, { backgroundColor: themeColors.primary[50] }]}>
             <Text style={[styles.infoBannerText, { color: themeColors.primary[600] }]}>
               Los trabajos requieren el pago de una comisión para ser publicados.
-              Tu dinero estará protegido en escrow hasta que el trabajo se complete.
+              Una vez publicado, tu dinero estará protegido en la plataforma hasta que el trabajo se complete.
             </Text>
           </View>
 
@@ -274,45 +285,29 @@ export default function CreateJobScreen() {
             </View>
 
             {/* Location */}
-            <View style={styles.inputGroup}>
+            <View style={[styles.inputGroup, { zIndex: 20 }]}>
               <Text style={[styles.label, { color: themeColors.text.primary }]}>
                 <MapPin size={16} color={themeColors.text.secondary} /> Ciudad/Localidad *
               </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: themeColors.slate[50],
-                    borderColor: errors.location ? colors.danger[500] : themeColors.border,
-                    color: themeColors.text.primary,
-                  },
-                ]}
-                placeholder="Ej: Buenos Aires"
-                placeholderTextColor={themeColors.text.muted}
+              <LocationAutocomplete
                 value={location}
                 onChangeText={setLocation}
+                placeholder="Ej: Córdoba Capital, Córdoba"
+                error={errors.location}
+                themeColors={themeColors}
               />
-              {errors.location && <Text style={styles.errorText}>{errors.location}</Text>}
             </View>
 
             {/* Neighborhood */}
-            <View style={styles.inputGroup}>
+            <View style={[styles.inputGroup, { zIndex: 10 }]}>
               <Text style={[styles.label, { color: themeColors.text.primary }]}>
                 Barrio (opcional)
               </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: themeColors.slate[50],
-                    borderColor: themeColors.border,
-                    color: themeColors.text.primary,
-                  },
-                ]}
-                placeholder="Ej: Palermo"
-                placeholderTextColor={themeColors.text.muted}
+              <LocationAutocomplete
                 value={neighborhood}
                 onChangeText={setNeighborhood}
+                placeholder="Ej: Palermo"
+                themeColors={themeColors}
               />
             </View>
 

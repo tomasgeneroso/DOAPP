@@ -16,9 +16,12 @@ interface AuthResponse {
 export async function login(credentials: LoginCredentials): Promise<ApiResponse<AuthResponse>> {
   const response = await post<AuthResponse>('/auth/login', credentials, false);
 
-  if (response.success && response.data) {
-    await setToken(response.data.token);
-    await setUser(response.data.user);
+  // Backend returns token/user at root level, not under data
+  const authData = response.data || (response as any);
+  if (response.success && authData.token) {
+    await setToken(authData.token);
+    await setUser(authData.user);
+    response.data = { token: authData.token, user: authData.user };
   }
 
   return response;
@@ -30,9 +33,12 @@ export async function login(credentials: LoginCredentials): Promise<ApiResponse<
 export async function register(data: RegisterData): Promise<ApiResponse<AuthResponse>> {
   const response = await post<AuthResponse>('/auth/register', data, false);
 
-  if (response.success && response.data) {
-    await setToken(response.data.token);
-    await setUser(response.data.user);
+  // Backend returns token/user at root level, not under data
+  const authData = response.data || (response as any);
+  if (response.success && authData.token) {
+    await setToken(authData.token);
+    await setUser(authData.user);
+    response.data = { token: authData.token, user: authData.user };
   }
 
   return response;
@@ -57,7 +63,15 @@ export async function logout(): Promise<void> {
  * Obtener perfil del usuario actual
  */
 export async function getMe(): Promise<ApiResponse<{ user: User }>> {
-  return get<{ user: User }>('/auth/me');
+  const response = await get<{ user: User }>('/auth/me');
+  // Backend returns user at root level, not under data
+  if (response.success && !response.data) {
+    const raw = response as any;
+    if (raw.user) {
+      response.data = { user: raw.user };
+    }
+  }
+  return response;
 }
 
 /**

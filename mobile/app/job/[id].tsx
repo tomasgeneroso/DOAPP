@@ -363,7 +363,7 @@ export default function JobDetailScreen() {
               <View style={styles.clientRating}>
                 <Star size={14} color={colors.warning[500]} fill={colors.warning[500]} />
                 <Text style={[styles.clientRatingText, { color: themeColors.text.secondary }]}>
-                  {client.rating?.toFixed(1) || 'Nuevo'} ({client.reviewsCount || 0} reseñas)
+                  {client.rating ? Number(client.rating).toFixed(1) : 'Nuevo'} ({client.reviewsCount || 0} reseñas)
                 </Text>
               </View>
             </View>

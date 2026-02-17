@@ -37,9 +37,11 @@ export default function MessagesScreen() {
 
   const fetchConversations = async () => {
     try {
-      const response = await get<{ conversations: Conversation[] }>('/chat/conversations');
-      if (response.success && response.data) {
-        setConversations(response.data.conversations);
+      const response = await get<Conversation[]>('/chat/conversations');
+      if (response.success) {
+        // Backend returns data as array directly, or nested under data
+        const convs = Array.isArray(response.data) ? response.data : (response as any).data || [];
+        setConversations(convs);
       }
     } catch (error) {
       console.error('Error fetching conversations:', error);
