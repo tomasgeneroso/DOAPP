@@ -158,7 +158,27 @@ app.use(helmet({
 // CORS
 app.use(
   cors({
-    origin: config.clientUrl,
+    origin: function (origin, callback) {
+      // Allow requests with no origin (mobile apps, curl, etc)
+      if (!origin) return callback(null, true);
+
+      const allowedOrigins = [
+        config.clientUrl,
+        // Development origins for Expo web
+        'http://localhost:8081',
+        'http://localhost:19006',
+        'http://localhost:5173',
+      ].filter(Boolean);
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else if (config.nodeEnv === 'development') {
+        // In development, allow all origins
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
   })
 );
@@ -296,33 +316,9 @@ app.use(errorHandler);
 // Puerto
 const PORT = config.port;
 
-// Crear servidor HTTP o HTTPS según configuración
-let httpServer;
-let isHttps = false;
-
-// En desarrollo, intentar usar HTTPS si existen los certificados SSL
-if (config.nodeEnv === 'development') {
-  const sslKeyPath = path.join(process.cwd(), 'ssl', 'key.pem');
-  const sslCertPath = path.join(process.cwd(), 'ssl', 'cert.pem');
-
-  if (fs.existsSync(sslKeyPath) && fs.existsSync(sslCertPath)) {
-    const httpsOptions = {
-      key: fs.readFileSync(sslKeyPath),
-      cert: fs.readFileSync(sslCertPath),
-    };
-    httpServer = createHttpsServer(httpsOptions, app);
-    isHttps = true;
-    console.log('🔒 HTTPS enabled with self-signed certificate');
-  } else {
-    httpServer = createServer(app);
-    isHttps = false;
-    console.log('⚠️  Running on HTTP (SSL certificates not found)');
-  }
-} else {
-  // En producción, usar HTTP (el proxy/load balancer manejará HTTPS)
-  httpServer = createServer(app);
-  isHttps = false;
-}
+// Crear servidor HTTP - en producción Nginx/Cloudflare maneja HTTPS
+const httpServer = createServer(app);
+const isHttps = false;
 
 // Inicializar Socket.io
 const socketService = new SocketService(httpServer);
