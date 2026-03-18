@@ -1,5 +1,5 @@
 import { User, LoginCredentials, RegisterData, ApiResponse } from '../types';
-import { post, get, setToken, setUser, clearAuth, getToken, getUser } from './api';
+import { post, get, put, setToken, setUser, clearAuth, getToken, getUser } from './api';
 
 /**
  * Servicio de autenticación
@@ -112,7 +112,18 @@ export async function resetPassword(token: string, password: string): Promise<Ap
  * Actualizar perfil del usuario
  */
 export async function updateProfile(data: Partial<User>): Promise<ApiResponse<{ user: User }>> {
-  const response = await post<{ user: User }>('/auth/profile', data);
+  const response = await put<{ user: User }>('/auth/update', data);
+
+  const user = (response as any).user;
+  if (response.success && user) {
+    await setUser(user);
+  }
+
+  return response;
+}
+
+export async function updateSettings(data: Record<string, any>): Promise<ApiResponse<{ user: User }>> {
+  const response = await put<{ user: User }>('/auth/settings', data);
 
   if (response.success && response.data) {
     await setUser(response.data.user);

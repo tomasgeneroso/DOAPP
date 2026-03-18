@@ -376,7 +376,7 @@ export default function FinancialTransactions() {
             pieData: [
               { name: 'Contratos (8%)', value: 8, color: '#8b5cf6' },
               { name: 'PRO (3%)', value: 3, color: '#3b82f6' },
-              { name: 'SUPER PRO (2%)', value: 2, color: '#10b981' }
+              { name: 'SUPER PRO (1%)', value: 1, color: '#10b981' }
             ]
           };
           break;
@@ -1195,7 +1195,7 @@ export default function FinancialTransactions() {
                   <button
                     onClick={() => handleSort('commission')}
                     className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-300 transition-colors"
-                    title="Tipo de membresía del usuario y porcentaje de comisión aplicado (FREE: 8%, PRO: 3%, SUPER PRO: 2%)"
+                    title="Tipo de membresía del usuario y porcentaje de comisión aplicado (FREE: 8%, PRO: 3%, SUPER PRO: 1%)"
                   >
                     Suscripción
                     <SortIcon field="commission" />

@@ -34,7 +34,7 @@ export interface AdminUser {
   twoFactorEnabled: boolean;
   membershipTier?: "free" | "pro" | "super_pro";
   freeContractsRemaining?: number;
-  proContractsUsedThisMonth?: number;
+  monthlyContractsUsed?: number;
   currentCommissionRate?: number;
   balance?: number;
   createdAt: string;

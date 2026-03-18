@@ -10,6 +10,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,7 +26,7 @@ import {
 } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
-import { createJob, getCategories } from '../services/jobs';
+import { createJob, createJobPaymentOrder, getCategories } from '../services/jobs';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
 import LocationAutocomplete from '../components/ui/LocationAutocomplete';
 
@@ -33,6 +34,14 @@ export default function CreateJobScreen() {
   const router = useRouter();
   const { isDarkMode, colors: themeColors } = useTheme();
   const { isAuthenticated } = useAuth();
+
+  const handleGoBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
+  };
 
   const categories = getCategories();
 
@@ -50,6 +59,24 @@ export default function CreateJobScreen() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showCategories, setShowCategories] = useState(false);
 
+  // Validate DD/MM/YYYY date and check it's a real future date
+  const isValidDate = (dateStr: string): boolean => {
+    const match = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!match) return false;
+    const [, dd, mm, yyyy] = match;
+    const day = parseInt(dd), month = parseInt(mm), year = parseInt(yyyy);
+    if (month < 1 || month > 12 || day < 1 || day > 31 || year < 2024 || year > 2100) return false;
+    const date = new Date(year, month - 1, day);
+    return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
+  };
+
+  // Auto-format date input: add "/" after DD and MM
+  // Simple date filter: only allow digits and slashes, max 10 chars
+  const handleDateInput = (text: string, setter: (v: string) => void) => {
+    const cleaned = text.replace(/[^\d/]/g, '').substring(0, 10);
+    setter(cleaned);
+  };
+
   const validate = () => {
     const newErrors: Record<string, string> = {};
 
@@ -57,9 +84,12 @@ export default function CreateJobScreen() {
     if (!description.trim()) newErrors.description = 'La descripción es requerida';
     if (!category) newErrors.category = 'Selecciona una categoría';
     if (!price || isNaN(parseFloat(price))) newErrors.price = 'Ingresa un precio válido';
-    if (parseFloat(price) < 1000) newErrors.price = 'El precio mínimo es $1,000 ARS';
+    else if (parseFloat(price) < 1000) newErrors.price = 'El precio mínimo es $1,000 ARS';
+    else if (parseFloat(price) > 999999999) newErrors.price = 'El precio máximo es $999,999,999 ARS';
     if (!location.trim()) newErrors.location = 'La ubicación es requerida';
     if (!startDate.trim()) newErrors.startDate = 'La fecha de inicio es requerida';
+    else if (!isValidDate(startDate)) newErrors.startDate = 'Fecha inválida. Usá formato DD/MM/AAAA (ej: 25/03/2026)';
+    if (endDate && !endDateFlexible && !isValidDate(endDate)) newErrors.endDate = 'Fecha inválida. Usá formato DD/MM/AAAA';
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -101,19 +131,82 @@ export default function CreateJobScreen() {
 
       // Backend returns job at root level, not under data
       const job = response.data?.job || (response as any).job;
+      const requiresPayment = (response as any).requiresPayment;
+
+      // Helper: works on both web and native
+      const showAlert = (title: string, message: string, onOk?: () => void) => {
+        if (Platform.OS === 'web') {
+          window.alert(`${title}\n\n${message}`);
+          onOk?.();
+        } else {
+          Alert.alert(title, message, [{ text: 'OK', onPress: onOk }]);
+        }
+      };
+
+      const openUrl = (url: string) => {
+        if (Platform.OS === 'web') {
+          window.open(url, '_blank') || (window.location.href = url);
+        } else {
+          Linking.openURL(url);
+        }
+      };
+
       if (response.success && job) {
-        Alert.alert(
-          'Trabajo creado',
-          'Tu trabajo ha sido creado exitosamente.',
-          [
-            {
-              text: 'Ver trabajo',
-              onPress: () => router.replace(`/job/${job.id || job._id}`),
-            },
-          ]
-        );
+        if (requiresPayment === false) {
+          // Job published for free (user has free contracts)
+          showAlert('Trabajo publicado', 'Tu trabajo ha sido publicado exitosamente.', () => {
+            router.replace(`/job/${job.id || job._id}`);
+          });
+        } else {
+          // Job created as draft, needs payment
+
+          try {
+            const paymentResponse = await createJobPaymentOrder(job.id || job._id, 'mercadopago');
+
+
+            if (paymentResponse.success && (paymentResponse as any).requiresPayment === false) {
+              // Free contract detected at payment step
+              showAlert('Trabajo publicado', 'Tu trabajo ha sido publicado con un contrato gratuito.', () => {
+                router.replace(`/job/${job.id || job._id}`);
+              });
+            } else if (paymentResponse.success && (paymentResponse as any).approvalUrl) {
+              // Open MercadoPago checkout
+              const checkoutUrl = (paymentResponse as any).approvalUrl;
+              const amount = (paymentResponse as any).amount;
+
+
+              if (Platform.OS === 'web') {
+                const proceed = window.confirm(
+                  `Pago requerido\n\nPara publicar tu trabajo necesitás pagar $${amount?.toLocaleString('es-AR') || ''} ARS.\n\n¿Abrir MercadoPago para completar el pago?`
+                );
+                if (proceed) {
+                  openUrl(checkoutUrl);
+                }
+              } else {
+                Alert.alert(
+                  'Pago requerido',
+                  `Para publicar tu trabajo necesitás pagar $${amount?.toLocaleString('es-AR') || ''} ARS.`,
+                  [
+                    { text: 'Cancelar', style: 'cancel' },
+                    { text: 'Pagar con MercadoPago', onPress: () => openUrl(checkoutUrl) },
+                  ]
+                );
+              }
+            } else {
+              // No approvalUrl in payment response
+              showAlert('Trabajo creado', 'Tu trabajo fue creado pero requiere pago para ser publicado.', () => {
+                router.replace('/(tabs)');
+              });
+            }
+          } catch (payError: any) {
+            console.error('Payment error:', payError.message);
+            showAlert('Trabajo creado', 'Tu trabajo fue creado pero hubo un error al procesar el pago.', () => {
+              router.replace(`/job/${job.id || job._id}`);
+            });
+          }
+        }
       } else {
-        Alert.alert('Error', response.message || 'No se pudo crear el trabajo');
+        showAlert('Error', (response as any).message || 'No se pudo crear el trabajo');
       }
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Error de conexión');
@@ -126,7 +219,7 @@ export default function CreateJobScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
       {/* Header */}
       <View style={[styles.topBar, { borderBottomColor: themeColors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
           <ArrowLeft size={24} color={themeColors.text.primary} />
         </TouchableOpacity>
         <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]}>
@@ -328,7 +421,9 @@ export default function CreateJobScreen() {
                 placeholder="DD/MM/AAAA"
                 placeholderTextColor={themeColors.text.muted}
                 value={startDate}
-                onChangeText={setStartDate}
+                onChangeText={(t) => handleDateInput(t, setStartDate)}
+                keyboardType="numeric"
+                maxLength={10}
               />
               {errors.startDate && <Text style={styles.errorText}>{errors.startDate}</Text>}
             </View>
@@ -350,7 +445,9 @@ export default function CreateJobScreen() {
                 placeholder="DD/MM/AAAA"
                 placeholderTextColor={themeColors.text.muted}
                 value={endDate}
-                onChangeText={setEndDate}
+                onChangeText={(t) => handleDateInput(t, setEndDate)}
+                keyboardType="numeric"
+                maxLength={10}
                 editable={!endDateFlexible}
               />
 

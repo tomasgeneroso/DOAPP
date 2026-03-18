@@ -193,7 +193,7 @@ export default function DisputeDetailScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
         <View style={[styles.topBar, { borderBottomColor: themeColors.border }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/help')} style={styles.backButton}>
             <ArrowLeft size={24} color={themeColors.text.primary} />
           </TouchableOpacity>
           <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]}>
@@ -212,7 +212,7 @@ export default function DisputeDetailScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
         <View style={[styles.topBar, { borderBottomColor: themeColors.border }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/help')} style={styles.backButton}>
             <ArrowLeft size={24} color={themeColors.text.primary} />
           </TouchableOpacity>
           <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]}>
@@ -246,7 +246,7 @@ export default function DisputeDetailScreen() {
       >
         {/* Header */}
         <View style={[styles.topBar, { borderBottomColor: themeColors.border }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/help')} style={styles.backButton}>
             <ArrowLeft size={24} color={themeColors.text.primary} />
           </TouchableOpacity>
           <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]}>

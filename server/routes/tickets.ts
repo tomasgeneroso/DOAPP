@@ -3,6 +3,7 @@ import { body, validationResult } from "express-validator";
 import { Ticket } from "../models/sql/Ticket.model.js";
 import { User } from "../models/sql/User.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
+import { Job } from "../models/sql/Job.model.js";
 import { protect, AuthRequest } from "../middleware/auth";
 import { checkPermission } from "../middleware/checkPermission.js";
 import { PERMISSIONS } from "../config/permissions.js";
@@ -92,6 +93,7 @@ router.post(
             message,
             isInternal: false,
             attachments: attachments.length > 0 ? attachments : undefined,
+            createdAt: new Date(),
           },
         ],
       });
@@ -207,7 +209,14 @@ router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
         {
           model: Contract,
           as: 'contract',
-          attributes: ['id', 'job'],
+          attributes: ['id', 'status', 'price'],
+          include: [
+            {
+              model: Job,
+              as: 'job',
+              attributes: ['id', 'title'],
+            },
+          ],
         },
       ],
     });

@@ -153,7 +153,7 @@ export default function TicketDetailScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
         <View style={[styles.topBar, { borderBottomColor: themeColors.border }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/help')} style={styles.backButton}>
             <ArrowLeft size={24} color={themeColors.text.primary} />
           </TouchableOpacity>
           <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]}>
@@ -172,7 +172,7 @@ export default function TicketDetailScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
         <View style={[styles.topBar, { borderBottomColor: themeColors.border }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/help')} style={styles.backButton}>
             <ArrowLeft size={24} color={themeColors.text.primary} />
           </TouchableOpacity>
           <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]}>
@@ -210,7 +210,7 @@ export default function TicketDetailScreen() {
       >
         {/* Header */}
         <View style={[styles.topBar, { borderBottomColor: themeColors.border }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/help')} style={styles.backButton}>
             <ArrowLeft size={24} color={themeColors.text.primary} />
           </TouchableOpacity>
           <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]}>
@@ -316,12 +316,20 @@ export default function TicketDetailScreen() {
                           </View>
                         )}
                         <Text style={[styles.messageDate, { color: themeColors.text.muted }]}>
-                          {new Date(msg.createdAt).toLocaleDateString('es-AR', {
-                            day: 'numeric',
-                            month: 'short',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                          {msg.createdAt && !isNaN(new Date(msg.createdAt).getTime())
+                            ? new Date(msg.createdAt).toLocaleDateString('es-AR', {
+                                day: 'numeric',
+                                month: 'short',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })
+                            : new Date(ticket.createdAt).toLocaleDateString('es-AR', {
+                                day: 'numeric',
+                                month: 'short',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })
+                          }
                         </Text>
                       </View>
                       <Text style={[styles.messageText, { color: themeColors.text.secondary }]}>

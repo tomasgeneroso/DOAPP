@@ -220,7 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
         console.log(
           "📊 PRO contracts used this month:",
-          data.user.proContractsUsedThisMonth,
+          data.user.monthlyContractsUsed,
         );
       }
     } catch (error) {

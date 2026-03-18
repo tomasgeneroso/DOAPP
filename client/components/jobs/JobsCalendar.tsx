@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect, memo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ChevronLeft,
@@ -11,6 +11,11 @@ import {
   MapPin,
   Clock,
   DollarSign,
+  Download,
+  ExternalLink,
+  Share2,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { JOB_CATEGORIES } from '../../../shared/constants/categories';
 
@@ -27,13 +32,168 @@ interface CalendarJob {
   proposalStatus?: string;
 }
 
+interface AvailabilitySlot {
+  day: number;
+  start: string;
+  end: string;
+}
+
 interface JobsCalendarProps {
   jobs: CalendarJob[];
   title?: string;
   showFilters?: boolean;
+  availabilitySlots?: AvailabilitySlot[];
+  onAddAvailability?: (day: number, start: string, end: string) => void;
+  onRemoveAvailability?: (day: number, index: number) => void;
 }
 
 type ViewMode = 'month' | 'week' | 'day' | 'list';
+
+const HOUR_HEIGHT = 60; // px per hour row
+
+// --- Google Calendar & iCal helpers ---
+
+function formatDateForGoogleCal(dateStr: string): string {
+  return new Date(dateStr).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+}
+
+function buildGoogleCalendarUrl(job: { title: string; startDate: string; endDate?: string; description?: string; location?: string; price?: number }): string {
+  const start = formatDateForGoogleCal(job.startDate);
+  const end = formatDateForGoogleCal(job.endDate || job.startDate);
+  const description = [job.description || '', job.price ? `\nPrecio: $${job.price.toLocaleString('es-AR')} ARS` : ''].join('').trim();
+  const params = new URLSearchParams({ action: 'TEMPLATE', text: job.title, dates: `${start}/${end}`, details: description });
+  if (job.location) params.set('location', job.location);
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+function escapeIcsText(text: string): string {
+  return text.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+}
+
+function generateIcsEvents(jobs: Array<{ id: string; title: string; startDate: string; endDate?: string; description?: string; location?: string; price?: number }>): string {
+  const now = formatDateForGoogleCal(new Date().toISOString());
+  const events = jobs.map(job => {
+    const start = formatDateForGoogleCal(job.startDate);
+    const end = formatDateForGoogleCal(job.endDate || job.startDate);
+    const desc = escapeIcsText([job.description || '', job.price ? `Precio: $${job.price.toLocaleString('es-AR')} ARS` : ''].filter(Boolean).join('\n'));
+    return [
+      'BEGIN:VEVENT',
+      `UID:job-${job.id}@doapp.com`,
+      `DTSTAMP:${now}`,
+      `DTSTART:${start}`,
+      `DTEND:${end}`,
+      `SUMMARY:${escapeIcsText(job.title)}`,
+      `DESCRIPTION:${desc}`,
+      job.location ? `LOCATION:${escapeIcsText(job.location)}` : '',
+      'STATUS:CONFIRMED',
+      'BEGIN:VALARM',
+      'TRIGGER:-PT1H',
+      'ACTION:DISPLAY',
+      'DESCRIPTION:Recordatorio de trabajo',
+      'END:VALARM',
+      'END:VEVENT',
+    ].filter(Boolean).join('\r\n');
+  });
+
+  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//DOAPP//Job Calendar//ES', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:DOAPP - Trabajos', ...events, 'END:VCALENDAR'].join('\r\n');
+}
+
+const ICS_DAY_NAMES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+const DAY_LABELS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+function getNextDayOfWeek(dayOfWeek: number): Date {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diff = (dayOfWeek - today.getDay() + 7) % 7 || 7;
+  const next = new Date(today);
+  next.setDate(today.getDate() + diff);
+  return next;
+}
+
+function generateAvailabilityIcsEvents(slots: AvailabilitySlot[]): string[] {
+  const now = formatDateForGoogleCal(new Date().toISOString());
+  return slots.map((slot, i) => {
+    const refDate = getNextDayOfWeek(slot.day);
+    const [startH, startM] = slot.start.split(':').map(Number);
+    const [endH, endM] = slot.end.split(':').map(Number);
+    const dtStart = new Date(refDate);
+    dtStart.setHours(startH, startM, 0, 0);
+    const dtEnd = new Date(refDate);
+    dtEnd.setHours(endH, endM, 0, 0);
+    return [
+      'BEGIN:VEVENT',
+      `UID:availability-${slot.day}-${slot.start}-${slot.end}-${i}@doapp.com`,
+      `DTSTAMP:${now}`,
+      `DTSTART:${formatDateForGoogleCal(dtStart.toISOString())}`,
+      `DTEND:${formatDateForGoogleCal(dtEnd.toISOString())}`,
+      `RRULE:FREQ=WEEKLY;BYDAY=${ICS_DAY_NAMES[slot.day]}`,
+      `SUMMARY:Disponible (${DAY_LABELS[slot.day]} ${slot.start}-${slot.end})`,
+      'DESCRIPTION:Horario de disponibilidad - DOAPP',
+      'STATUS:CONFIRMED',
+      'TRANSP:TRANSPARENT',
+      'END:VEVENT',
+    ].join('\r\n');
+  });
+}
+
+function buildAvailabilityGoogleCalendarUrl(slot: AvailabilitySlot): string {
+  const refDate = getNextDayOfWeek(slot.day);
+  const [startH, startM] = slot.start.split(':').map(Number);
+  const [endH, endM] = slot.end.split(':').map(Number);
+  const dtStart = new Date(refDate);
+  dtStart.setHours(startH, startM, 0, 0);
+  const dtEnd = new Date(refDate);
+  dtEnd.setHours(endH, endM, 0, 0);
+  const start = formatDateForGoogleCal(dtStart.toISOString());
+  const end = formatDateForGoogleCal(dtEnd.toISOString());
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: `Disponible (${DAY_LABELS[slot.day]} ${slot.start}-${slot.end})`,
+    dates: `${start}/${end}`,
+    details: 'Horario de disponibilidad - DOAPP',
+    recur: `RRULE:FREQ=WEEKLY;BYDAY=${ICS_DAY_NAMES[slot.day]}`,
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+function generateCombinedIcs(
+  jobs: Array<{ id: string; title: string; startDate: string; endDate?: string; description?: string; location?: string; price?: number }>,
+  slots: AvailabilitySlot[]
+): string {
+  const now = formatDateForGoogleCal(new Date().toISOString());
+  const jobEvents = jobs.map(job => {
+    const start = formatDateForGoogleCal(job.startDate);
+    const end = formatDateForGoogleCal(job.endDate || job.startDate);
+    const desc = escapeIcsText([job.description || '', job.price ? `Precio: $${job.price.toLocaleString('es-AR')} ARS` : ''].filter(Boolean).join('\n'));
+    return [
+      'BEGIN:VEVENT', `UID:job-${job.id}@doapp.com`, `DTSTAMP:${now}`,
+      `DTSTART:${start}`, `DTEND:${end}`,
+      `SUMMARY:${escapeIcsText(job.title)}`, `DESCRIPTION:${desc}`,
+      job.location ? `LOCATION:${escapeIcsText(job.location)}` : '',
+      'STATUS:CONFIRMED',
+      'BEGIN:VALARM', 'TRIGGER:-PT1H', 'ACTION:DISPLAY', 'DESCRIPTION:Recordatorio de trabajo', 'END:VALARM',
+      'END:VEVENT',
+    ].filter(Boolean).join('\r\n');
+  });
+  const availEvents = generateAvailabilityIcsEvents(slots);
+  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//DOAPP//Job Calendar//ES', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:DOAPP - Trabajos y Disponibilidad', ...jobEvents, ...availEvents, 'END:VCALENDAR'].join('\r\n');
+}
+
+function downloadIcsBlob(content: string, filename: string): void {
+  const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function downloadIcsFile(jobs: Array<{ id: string; title: string; startDate: string; endDate?: string; description?: string; location?: string; price?: number }>, filename: string): void {
+  downloadIcsBlob(generateIcsEvents(jobs), filename);
+}
 
 const CATEGORY_COLORS: Record<string, string> = {
   plomeria: 'bg-blue-500',
@@ -55,16 +215,76 @@ const CATEGORY_COLORS: Record<string, string> = {
   otros: 'bg-gray-500',
 };
 
-export default function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = true }: JobsCalendarProps) {
+function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = true, availabilitySlots = [], onAddAvailability, onRemoveAvailability }: JobsCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [selectedJob, setSelectedJob] = useState<CalendarJob | null>(null);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [showSyncMenu, setShowSyncMenu] = useState(false);
 
   // Filters
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<string>('');
   const [timeRange, setTimeRange] = useState<'all' | 'morning' | 'afternoon' | 'evening'>('all');
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  // Context menu for right-click on calendar cells
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    dayOfWeek: number;
+    date?: Date;
+    hour?: number;
+    existingSlots: AvailabilitySlot[];
+  } | null>(null);
+
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
+
+  const handleCellContextMenu = useCallback((e: React.MouseEvent, dayOfWeek: number, date?: Date, hour?: number) => {
+    e.preventDefault();
+    const existingSlots = availabilitySlots.filter(s => s.day === dayOfWeek);
+    const zoom = window.innerWidth > 769 ? 0.75 : 1;
+    const x = e.clientX / zoom;
+    const y = e.clientY / zoom;
+    const maxW = window.innerWidth / zoom - 250;
+    const maxH = window.innerHeight / zoom - 200;
+    setContextMenu({
+      x: Math.min(x, maxW),
+      y: Math.min(y, maxH),
+      dayOfWeek,
+      date,
+      hour,
+      existingSlots,
+    });
+  }, [availabilitySlots]);
+
+  // Close context menu on click outside / Escape
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handleClick = (e: MouseEvent) => {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        setContextMenu(null);
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setContextMenu(null);
+    };
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleKey);
+    };
+  }, [contextMenu]);
+
+  // Auto-scroll to 6 AM when switching to week/day view
+  useEffect(() => {
+    if (scrollContainerRef.current && (viewMode === 'day' || viewMode === 'week')) {
+      scrollContainerRef.current.scrollTop = 6 * HOUR_HEIGHT;
+    }
+  }, [viewMode]);
 
   // Get unique locations from jobs
   const locations = useMemo(() => {
@@ -259,22 +479,35 @@ export default function JobsCalendar({ jobs, title = "Calendario de Trabajos", s
 
             const dayJobs = getJobsForDate(date);
             const today = isToday(date);
+            const dayOfWeek = date.getDay();
+            const dayAvailability = availabilitySlots.filter(s => s.day === dayOfWeek);
 
             return (
               <div
                 key={date.toISOString()}
-                className={`min-h-[100px] p-1 border-b border-r border-slate-200 dark:border-slate-700 ${
-                  today ? 'bg-sky-50 dark:bg-sky-900/20' : ''
+                onContextMenu={(e) => handleCellContextMenu(e, dayOfWeek, date)}
+                className={`min-h-[100px] p-1 border-b border-r border-slate-200 dark:border-slate-700 cursor-context-menu ${
+                  today ? 'bg-sky-50 dark:bg-sky-900/20' : dayAvailability.length > 0 ? 'bg-emerald-50/50 dark:bg-emerald-900/10' : ''
                 }`}
               >
-                <div className={`text-right text-sm mb-1 ${
-                  today
-                    ? 'font-bold text-sky-600 dark:text-sky-400'
-                    : 'text-slate-600 dark:text-slate-400'
-                }`}>
-                  {date.getDate()}
+                <div className="flex items-center justify-between mb-1">
+                  {dayAvailability.length > 0 ? (
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" title="Disponible" />
+                  ) : <div />}
+                  <span className={`text-sm ${
+                    today
+                      ? 'font-bold text-sky-600 dark:text-sky-400'
+                      : 'text-slate-600 dark:text-slate-400'
+                  }`}>
+                    {date.getDate()}
+                  </span>
                 </div>
-                <div className="space-y-0.5 overflow-y-auto max-h-[70px]">
+                {dayAvailability.length > 0 && (
+                  <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mb-0.5 truncate">
+                    {dayAvailability.map(s => `${s.start}-${s.end}`).join(', ')}
+                  </div>
+                )}
+                <div className="space-y-0.5 overflow-y-auto max-h-[55px]">
                   {dayJobs.slice(0, 3).map(job => renderJobPill(job, true))}
                   {dayJobs.length > 3 && (
                     <div className="text-xs text-slate-500 dark:text-slate-400 text-center">
@@ -293,58 +526,116 @@ export default function JobsCalendar({ jobs, title = "Calendario de Trabajos", s
   // Render week view
   const renderWeekView = () => {
     const days = getWeekDays();
-    const hours = Array.from({ length: 18 }, (_, i) => i + 6); // 6 AM to 11 PM
+    const hours = Array.from({ length: 24 }, (_, i) => i); // 0-23 full day
 
     return (
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-        {/* Day headers */}
-        <div className="grid grid-cols-8 border-b border-slate-200 dark:border-slate-700">
-          <div className="p-2" /> {/* Empty corner */}
-          {days.map(day => (
-            <div
-              key={day.toISOString()}
-              className={`p-2 text-center border-l border-slate-200 dark:border-slate-700 ${
-                isToday(day) ? 'bg-sky-50 dark:bg-sky-900/20' : ''
-              }`}
-            >
-              <div className="text-xs text-slate-500 dark:text-slate-400">
-                {day.toLocaleDateString('es-AR', { weekday: 'short' })}
+        <div ref={scrollContainerRef} className="max-h-[600px] overflow-y-auto">
+          {/* Day headers - sticky inside scroll container */}
+          <div className="flex border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10 bg-white dark:bg-slate-800">
+            <div className="w-[60px] flex-shrink-0 p-2" />
+            {days.map(day => (
+              <div
+                key={day.toISOString()}
+                className={`flex-1 p-2 text-center border-l border-slate-200 dark:border-slate-700 ${
+                  isToday(day) ? 'bg-sky-50 dark:bg-sky-900/20' : ''
+                }`}
+              >
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  {day.toLocaleDateString('es-AR', { weekday: 'short' })}
+                </div>
+                <div className={`text-lg font-semibold ${
+                  isToday(day) ? 'text-sky-600 dark:text-sky-400' : 'text-slate-900 dark:text-white'
+                }`}>
+                  {day.getDate()}
+                </div>
               </div>
-              <div className={`text-lg font-semibold ${
-                isToday(day) ? 'text-sky-600 dark:text-sky-400' : 'text-slate-900 dark:text-white'
-              }`}>
-                {day.getDate()}
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
 
-        {/* Time grid */}
-        <div className="max-h-[600px] overflow-y-auto">
-          {hours.map(hour => (
-            <div key={hour} className="grid grid-cols-8 border-b border-slate-100 dark:border-slate-700/50">
-              <div className="p-2 text-xs text-slate-500 dark:text-slate-400 text-right pr-3">
-                {hour.toString().padStart(2, '0')}:00
-              </div>
-              {days.map(day => {
-                const dayJobs = getJobsForDate(day).filter(job => {
-                  const jobHour = new Date(job.startDate).getHours();
-                  return jobHour === hour;
-                });
-
-                return (
-                  <div
-                    key={`${day.toISOString()}-${hour}`}
-                    className={`min-h-[60px] p-1 border-l border-slate-200 dark:border-slate-700 ${
-                      isToday(day) ? 'bg-sky-50/50 dark:bg-sky-900/10' : ''
-                    }`}
-                  >
-                    {dayJobs.map(job => renderJobPill(job, true))}
-                  </div>
-                );
-              })}
+          {/* Time grid with day columns */}
+          <div className="flex">
+            {/* Time labels column */}
+            <div className="w-[60px] flex-shrink-0">
+              {hours.map(hour => (
+                <div
+                  key={hour}
+                  style={{ height: HOUR_HEIGHT }}
+                  className="flex items-start justify-end pr-2 pt-1 text-xs text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-700/50"
+                >
+                  {hour.toString().padStart(2, '0')}:00
+                </div>
+              ))}
             </div>
-          ))}
+
+            {/* Day columns with job overlays */}
+            {days.map(day => {
+              const dayJobs = getJobsForDate(day);
+              const dayOfWeek = day.getDay();
+
+              return (
+                <div key={day.toISOString()} className="flex-1 relative border-l border-slate-200 dark:border-slate-700">
+                  {/* Hour cells background */}
+                  {hours.map(hour => {
+                    const isAvailable = availabilitySlots.some(slot => {
+                      if (slot.day !== dayOfWeek) return false;
+                      const startH = parseInt(slot.start.split(':')[0], 10);
+                      const endH = parseInt(slot.end.split(':')[0], 10);
+                      return hour >= startH && hour < endH;
+                    });
+
+                    return (
+                      <div
+                        key={hour}
+                        style={{ height: HOUR_HEIGHT }}
+                        onContextMenu={(e) => handleCellContextMenu(e, dayOfWeek, day, hour)}
+                        className={`border-b border-slate-100 dark:border-slate-700/50 cursor-context-menu ${
+                          isAvailable
+                            ? 'bg-emerald-50 dark:bg-emerald-900/20'
+                            : isToday(day)
+                            ? 'bg-sky-50/50 dark:bg-sky-900/10'
+                            : ''
+                        }`}
+                      />
+                    );
+                  })}
+
+                  {/* Jobs overlay - absolutely positioned to span duration */}
+                  {dayJobs.map(job => {
+                    const start = new Date(job.startDate);
+                    const end = job.endDate ? new Date(job.endDate) : new Date(start.getTime() + 3600000);
+
+                    const dayStart = new Date(day);
+                    dayStart.setHours(0, 0, 0, 0);
+                    const dayEnd = new Date(day);
+                    dayEnd.setHours(23, 59, 59, 999);
+
+                    const effectiveStart = start < dayStart ? dayStart : start;
+                    const effectiveEnd = end > dayEnd ? dayEnd : end;
+
+                    const startMinutes = effectiveStart.getHours() * 60 + effectiveStart.getMinutes();
+                    const endMinutes = effectiveEnd.getHours() * 60 + effectiveEnd.getMinutes();
+                    const topPx = (startMinutes / 60) * HOUR_HEIGHT;
+                    const heightPx = Math.max(((endMinutes - startMinutes) / 60) * HOUR_HEIGHT, 28);
+
+                    const categoryInfo = getCategoryInfo(job.category);
+
+                    return (
+                      <button
+                        key={job.id}
+                        onClick={() => setSelectedJob(job)}
+                        className={`absolute left-0.5 right-0.5 ${getCategoryColor(job.category)} text-white rounded px-1 py-0.5 text-[10px] hover:opacity-90 transition-opacity overflow-hidden z-[1] leading-tight cursor-pointer`}
+                        style={{ top: topPx, height: heightPx }}
+                        title={`${job.title} - ${effectiveStart.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}${job.endDate ? ` a ${effectiveEnd.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}` : ''}`}
+                      >
+                        <div className="truncate font-medium">{categoryInfo?.icon} {job.title}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     );
@@ -353,7 +644,7 @@ export default function JobsCalendar({ jobs, title = "Calendario de Trabajos", s
   // Render day view
   const renderDayView = () => {
     const dayJobs = getJobsForDate(currentDate);
-    const hours = Array.from({ length: 18 }, (_, i) => i + 6);
+    const hours = Array.from({ length: 24 }, (_, i) => i); // 0-23 full day
 
     return (
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
@@ -366,24 +657,77 @@ export default function JobsCalendar({ jobs, title = "Calendario de Trabajos", s
           </p>
         </div>
 
-        <div className="max-h-[600px] overflow-y-auto">
-          {hours.map(hour => {
-            const hourJobs = dayJobs.filter(job => {
-              const jobHour = new Date(job.startDate).getHours();
-              return jobHour === hour;
-            });
+        <div ref={scrollContainerRef} className="max-h-[600px] overflow-y-auto">
+          <div className="relative">
+            {/* Hour grid background */}
+            {hours.map(hour => {
+              const dayOfWeek = currentDate.getDay();
+              const isAvailable = availabilitySlots.some(slot => {
+                if (slot.day !== dayOfWeek) return false;
+                const startH = parseInt(slot.start.split(':')[0], 10);
+                const endH = parseInt(slot.end.split(':')[0], 10);
+                return hour >= startH && hour < endH;
+              });
 
-            return (
-              <div key={hour} className="flex border-b border-slate-100 dark:border-slate-700/50">
-                <div className="w-20 p-3 text-sm text-slate-500 dark:text-slate-400 text-right border-r border-slate-200 dark:border-slate-700">
-                  {hour.toString().padStart(2, '0')}:00
+              return (
+                <div key={hour} className="flex border-b border-slate-100 dark:border-slate-700/50" style={{ height: HOUR_HEIGHT }}>
+                  <div className="w-20 flex-shrink-0 pt-1 pr-3 text-sm text-slate-500 dark:text-slate-400 text-right border-r border-slate-200 dark:border-slate-700">
+                    {hour.toString().padStart(2, '0')}:00
+                  </div>
+                  <div
+                    onContextMenu={(e) => handleCellContextMenu(e, dayOfWeek, currentDate, hour)}
+                    className={`flex-1 cursor-context-menu ${isAvailable ? 'bg-emerald-50 dark:bg-emerald-900/20' : ''}`}
+                  />
                 </div>
-                <div className="flex-1 p-2 space-y-2 min-h-[60px]">
-                  {hourJobs.map(job => renderJobPill(job))}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+
+            {/* Jobs overlay - absolutely positioned to span duration */}
+            <div className="absolute top-0 bottom-0 pointer-events-none" style={{ left: '5rem', right: 0 }}>
+              {dayJobs.map(job => {
+                const start = new Date(job.startDate);
+                const end = job.endDate ? new Date(job.endDate) : new Date(start.getTime() + 3600000);
+
+                const dayStart = new Date(currentDate);
+                dayStart.setHours(0, 0, 0, 0);
+                const dayEnd = new Date(currentDate);
+                dayEnd.setHours(23, 59, 59, 999);
+
+                const effectiveStart = start < dayStart ? dayStart : start;
+                const effectiveEnd = end > dayEnd ? dayEnd : end;
+
+                const startMinutes = effectiveStart.getHours() * 60 + effectiveStart.getMinutes();
+                const endMinutes = effectiveEnd.getHours() * 60 + effectiveEnd.getMinutes();
+                const topPx = (startMinutes / 60) * HOUR_HEIGHT;
+                const heightPx = Math.max(((endMinutes - startMinutes) / 60) * HOUR_HEIGHT, 40);
+
+                const categoryInfo = getCategoryInfo(job.category);
+
+                return (
+                  <button
+                    key={job.id}
+                    onClick={() => setSelectedJob(job)}
+                    className={`absolute left-1 right-1 ${getCategoryColor(job.category)} text-white rounded-lg p-2 pointer-events-auto hover:opacity-90 transition-opacity overflow-hidden z-[1] cursor-pointer`}
+                    style={{ top: topPx, height: heightPx }}
+                  >
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span>{categoryInfo?.icon}</span>
+                      <span className="font-medium truncate text-sm">{job.title}</span>
+                    </div>
+                    {heightPx >= 50 && (
+                      <div className="flex items-center gap-1 text-xs opacity-90">
+                        <Clock className="h-3 w-3" />
+                        <span>
+                          {effectiveStart.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                          {job.endDate && ` - ${effectiveEnd.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`}
+                        </span>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -519,6 +863,105 @@ export default function JobsCalendar({ jobs, title = "Calendario de Trabajos", s
               <Filter className="h-4 w-4" />
             </button>
           )}
+
+          {/* Sync / Export dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowSyncMenu(!showSyncMenu)}
+              className={`p-2 rounded-lg border ${
+                showSyncMenu
+                  ? 'bg-sky-500 text-white border-sky-500'
+                  : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+              }`}
+              title="Sincronizar calendario"
+            >
+              <Share2 className="h-4 w-4" />
+            </button>
+
+            {showSyncMenu && (
+              <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl z-50 overflow-hidden">
+                <div className="p-3 border-b border-slate-200 dark:border-slate-700">
+                  <h4 className="font-semibold text-sm text-slate-900 dark:text-white">Sincronizar calendario</h4>
+                </div>
+                <div className="p-2 space-y-1">
+                  {/* Exportar todo (trabajos + disponibilidad) */}
+                  <button
+                    onClick={() => {
+                      downloadIcsBlob(generateCombinedIcs(filteredJobs, availabilitySlots), 'doapp-calendario.ics');
+                      setShowSyncMenu(false);
+                    }}
+                    className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-left transition-colors"
+                  >
+                    <Download className="h-4 w-4 text-slate-500" />
+                    <div>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">Exportar todo (.ics)</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Trabajos + disponibilidad</p>
+                    </div>
+                  </button>
+                  {/* Exportar solo trabajos */}
+                  <button
+                    onClick={() => {
+                      downloadIcsFile(filteredJobs, 'doapp-trabajos.ics');
+                      setShowSyncMenu(false);
+                    }}
+                    className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-left transition-colors"
+                  >
+                    <CalendarIcon className="h-4 w-4 text-slate-500" />
+                    <div>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">Solo trabajos (.ics)</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{filteredJobs.length} trabajo{filteredJobs.length !== 1 ? 's' : ''}</p>
+                    </div>
+                  </button>
+                  {/* Exportar solo disponibilidad */}
+                  {availabilitySlots.length > 0 && (
+                    <button
+                      onClick={() => {
+                        const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//DOAPP//Job Calendar//ES', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:DOAPP - Disponibilidad', ...generateAvailabilityIcsEvents(availabilitySlots), 'END:VCALENDAR'].join('\r\n');
+                        downloadIcsBlob(ics, 'doapp-disponibilidad.ics');
+                        setShowSyncMenu(false);
+                      }}
+                      className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-left transition-colors"
+                    >
+                      <Clock className="h-4 w-4 text-emerald-500" />
+                      <div>
+                        <p className="text-sm font-medium text-slate-900 dark:text-white">Solo disponibilidad (.ics)</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{availabilitySlots.length} horario{availabilitySlots.length !== 1 ? 's' : ''} recurrente{availabilitySlots.length !== 1 ? 's' : ''}</p>
+                      </div>
+                    </button>
+                  )}
+                  {/* Separador */}
+                  <div className="border-t border-slate-200 dark:border-slate-700 my-1" />
+                  {/* Suscripción al feed */}
+                  <button
+                    onClick={async () => {
+                      try {
+                        const token = localStorage.getItem('token');
+                        const res = await fetch('/api/jobs/calendar/subscription-url', {
+                          headers: { Authorization: `Bearer ${token}` },
+                          credentials: 'include',
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                          await navigator.clipboard.writeText(data.data.feedUrl);
+                          alert('URL del feed copiada al portapapeles.\n\nEn Google Calendar:\n1. Click en "+" al lado de "Otros calendarios"\n2. Seleccionar "Desde una URL"\n3. Pegar la URL copiada');
+                        }
+                      } catch {
+                        alert('Error al obtener la URL del feed');
+                      }
+                      setShowSyncMenu(false);
+                    }}
+                    className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-left transition-colors"
+                  >
+                    <ExternalLink className="h-4 w-4 text-slate-500" />
+                    <div>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">Suscribirse al feed</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Sincronización automática</p>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -656,6 +1099,29 @@ export default function JobsCalendar({ jobs, title = "Calendario de Trabajos", s
         </div>
       )}
 
+      {/* Availability legend with Google Calendar links */}
+      {availabilitySlots.length > 0 && viewMode !== 'list' && (
+        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 rounded bg-emerald-100 dark:bg-emerald-900/40 border border-emerald-300 dark:border-emerald-700" />
+            <span>Tu disponibilidad</span>
+          </div>
+          {availabilitySlots.map((slot, i) => (
+            <a
+              key={i}
+              href={buildAvailabilityGoogleCalendarUrl(slot)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors"
+              title={`Agregar ${DAY_LABELS[slot.day]} ${slot.start}-${slot.end} a Google Calendar`}
+            >
+              <CalendarIcon className="h-3 w-3" />
+              {DAY_LABELS[slot.day].substring(0, 3)} {slot.start}-{slot.end}
+            </a>
+          ))}
+        </div>
+      )}
+
       {/* Calendar View */}
       {viewMode === 'month' && renderMonthView()}
       {viewMode === 'week' && renderWeekView()}
@@ -732,6 +1198,26 @@ export default function JobsCalendar({ jobs, title = "Calendario de Trabajos", s
                 )}
               </div>
 
+              {/* Calendar sync */}
+              <div className="flex gap-2">
+                <a
+                  href={buildGoogleCalendarUrl(selectedJob)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 flex items-center justify-center gap-2 py-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors text-sm"
+                >
+                  <CalendarIcon className="h-4 w-4" />
+                  Google Calendar
+                </a>
+                <button
+                  onClick={() => downloadIcsFile([selectedJob], `doapp-${selectedJob.id}.ics`)}
+                  className="flex items-center justify-center gap-2 px-4 py-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors text-sm"
+                  title="Descargar .ics"
+                >
+                  <Download className="h-4 w-4" />
+                </button>
+              </div>
+
               {/* Action */}
               <Link
                 to={`/jobs/${selectedJob.id}`}
@@ -743,6 +1229,106 @@ export default function JobsCalendar({ jobs, title = "Calendario de Trabajos", s
           </div>
         </div>
       )}
+
+      {/* Context Menu */}
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          className="fixed bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl z-[100] overflow-hidden w-56"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          role="menu"
+        >
+          <div className="p-1.5">
+            {/* Add availability */}
+            {onAddAvailability && contextMenu.existingSlots.length === 0 && (
+              <button
+                onClick={() => {
+                  const start = contextMenu.hour !== undefined ? `${String(contextMenu.hour).padStart(2, '0')}:00` : '09:00';
+                  const endH = contextMenu.hour !== undefined ? contextMenu.hour + 1 : 18;
+                  const end = `${String(Math.min(endH, 23)).padStart(2, '0')}:00`;
+                  onAddAvailability(contextMenu.dayOfWeek, start, end);
+                  closeContextMenu();
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 text-left transition-colors"
+              >
+                <Plus className="h-4 w-4 text-emerald-500" />
+                <span className="text-sm text-slate-700 dark:text-slate-200">
+                  {contextMenu.hour !== undefined
+                    ? `Disponible ${String(contextMenu.hour).padStart(2, '0')}:00-${String(Math.min(contextMenu.hour + 1, 23)).padStart(2, '0')}:00`
+                    : 'Marcar disponible'}
+                </span>
+              </button>
+            )}
+
+            {/* Add more availability (when day already has slots) */}
+            {onAddAvailability && contextMenu.existingSlots.length > 0 && contextMenu.hour !== undefined && (
+              <button
+                onClick={() => {
+                  const start = `${String(contextMenu.hour).padStart(2, '0')}:00`;
+                  const end = `${String(Math.min((contextMenu.hour || 0) + 1, 23)).padStart(2, '0')}:00`;
+                  onAddAvailability(contextMenu.dayOfWeek, start, end);
+                  closeContextMenu();
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 text-left transition-colors"
+              >
+                <Plus className="h-4 w-4 text-emerald-500" />
+                <span className="text-sm text-slate-700 dark:text-slate-200">
+                  Agregar {String(contextMenu.hour).padStart(2, '0')}:00-{String(Math.min(contextMenu.hour + 1, 23)).padStart(2, '0')}:00
+                </span>
+              </button>
+            )}
+
+            {/* Remove availability for each existing slot */}
+            {onRemoveAvailability && contextMenu.existingSlots.map((slot, i) => (
+              <button
+                key={i}
+                onClick={() => {
+                  const globalIndex = availabilitySlots.findIndex(s => s.day === slot.day && s.start === slot.start && s.end === slot.end);
+                  if (globalIndex !== -1) onRemoveAvailability(slot.day, globalIndex);
+                  closeContextMenu();
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-left transition-colors"
+              >
+                <Trash2 className="h-4 w-4 text-red-500" />
+                <span className="text-sm text-slate-700 dark:text-slate-200">
+                  Quitar {slot.start}-{slot.end}
+                </span>
+              </button>
+            ))}
+
+            {/* View navigation */}
+            {contextMenu.date && viewMode === 'month' && (
+              <>
+                <div className="border-t border-slate-100 dark:border-slate-700 my-1" />
+                <button
+                  onClick={() => {
+                    if (contextMenu.date) setCurrentDate(contextMenu.date);
+                    setViewMode('week');
+                    closeContextMenu();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-left transition-colors"
+                >
+                  <Grid3X3 className="h-4 w-4 text-slate-400" />
+                  <span className="text-sm text-slate-700 dark:text-slate-200">Ver semana</span>
+                </button>
+                <button
+                  onClick={() => {
+                    if (contextMenu.date) setCurrentDate(contextMenu.date);
+                    setViewMode('day');
+                    closeContextMenu();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-left transition-colors"
+                >
+                  <CalendarIcon className="h-4 w-4 text-slate-400" />
+                  <span className="text-sm text-slate-700 dark:text-slate-200">Ver día</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
+export default memo(JobsCalendar);

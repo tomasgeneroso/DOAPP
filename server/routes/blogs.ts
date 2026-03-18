@@ -391,6 +391,7 @@ router.get("/my-posts", protect, async (req: AuthRequest, res: Response): Promis
       },
     });
   } catch (error: any) {
+    console.error("Error in GET /blogs/my-posts:", error.message, error.original?.message || '');
     res.status(500).json({
       success: false,
       message: error.message || "Error del servidor",

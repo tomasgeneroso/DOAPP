@@ -34,15 +34,18 @@ export default function SearchScreen() {
   const searchJobs = useCallback(async (query: string, category?: string) => {
     setLoading(true);
     try {
-      const response = await getJobs({
-        search: query,
-        category: category || undefined,
+      const filters: any = {
         status: 'open',
         limit: 20,
-      });
+      };
+      if (query.trim()) filters.query = query;
+      if (category) filters.category = category;
 
-      if (response.success && response.data) {
-        setJobs(response.data);
+      const response = await getJobs(filters);
+      const jobsList = (response as any).jobs || response.data || [];
+
+      if (response.success) {
+        setJobs(jobsList);
       }
     } catch (error) {
       console.error('Error searching jobs:', error);
@@ -51,16 +54,17 @@ export default function SearchScreen() {
     }
   }, []);
 
+  // Load jobs on mount
+  useEffect(() => {
+    searchJobs('', undefined);
+  }, []);
+
   // Auto-search when query or category changes
   useEffect(() => {
-    if (searchQuery.trim() || selectedCategory) {
-      const timer = setTimeout(() => {
-        searchJobs(searchQuery, selectedCategory || undefined);
-      }, 500); // Debounce 500ms
-      return () => clearTimeout(timer);
-    } else {
-      setJobs([]);
-    }
+    const timer = setTimeout(() => {
+      searchJobs(searchQuery, selectedCategory || undefined);
+    }, 500); // Debounce 500ms
+    return () => clearTimeout(timer);
   }, [searchQuery, selectedCategory, searchJobs]);
 
   const handleCategorySelect = (category: string) => {
@@ -245,18 +249,14 @@ export default function SearchScreen() {
           contentContainerStyle={[styles.resultsContent, { backgroundColor: themeColors.background }]}
           showsVerticalScrollIndicator={false}
         />
-      ) : searchQuery || selectedCategory ? (
-        <View style={[styles.emptyContainer, { backgroundColor: themeColors.background }]}>
-          <Text style={styles.emptyIcon}>🔍</Text>
-          <Text style={[styles.emptyTitle, dynamicStyles.text]}>No encontramos resultados</Text>
-          <Text style={[styles.emptyText, dynamicStyles.textSecondary]}>Probá con otros términos o categorías</Text>
-        </View>
       ) : (
         <View style={[styles.emptyContainer, { backgroundColor: themeColors.background }]}>
-          <Text style={styles.emptyIcon}>💡</Text>
-          <Text style={[styles.emptyTitle, dynamicStyles.text]}>Buscá trabajos</Text>
+          <Text style={styles.emptyIcon}>{searchQuery || selectedCategory ? '🔍' : '💡'}</Text>
+          <Text style={[styles.emptyTitle, dynamicStyles.text]}>
+            {searchQuery || selectedCategory ? 'No encontramos resultados' : 'No hay trabajos disponibles'}
+          </Text>
           <Text style={[styles.emptyText, dynamicStyles.textSecondary]}>
-            Ingresá una palabra clave o seleccioná una categoría
+            {searchQuery || selectedCategory ? 'Probá con otros términos o categorías' : 'Volvé a intentar más tarde'}
           </Text>
         </View>
       )}

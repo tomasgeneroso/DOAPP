@@ -10,13 +10,24 @@ import {
 import { MapPin } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 
-// Ubicaciones principales de Argentina por provincia
+// Ciudades y barrios de Argentina por provincia
 const LOCATIONS = [
+  // CABA - Barrios
   "Palermo, CABA", "Recoleta, CABA", "Belgrano, CABA", "Caballito, CABA",
   "Villa Urquiza, CABA", "Núñez, CABA", "Almagro, CABA", "Flores, CABA",
   "Villa Crespo, CABA", "Colegiales, CABA", "San Telmo, CABA", "Puerto Madero, CABA",
   "Retiro, CABA", "Microcentro, CABA", "Once, CABA", "Balvanera, CABA",
   "Villa Devoto, CABA", "Saavedra, CABA", "Villa del Parque, CABA", "Parque Patricios, CABA",
+  "La Boca, CABA", "Barracas, CABA", "Boedo, CABA", "San Cristóbal, CABA",
+  "Constitución, CABA", "Monserrat, CABA", "San Nicolás, CABA", "Chacarita, CABA",
+  "Villa Ortúzar, CABA", "Paternal, CABA", "Villa Luro, CABA", "Liniers, CABA",
+  "Mataderos, CABA", "Floresta, CABA", "Versalles, CABA", "Villa Real, CABA",
+  "Monte Castro, CABA", "Villa Pueyrredón, CABA", "Agronomía, CABA", "Parque Chas, CABA",
+  "Villa Santa Rita, CABA", "Villa General Mitre, CABA", "Vélez Sársfield, CABA",
+  "Parque Avellaneda, CABA", "Villa Soldati, CABA", "Villa Lugano, CABA",
+  "Villa Riachuelo, CABA", "Pompeya, CABA", "Parque Chacabuco, CABA",
+
+  // Buenos Aires - Ciudades y barrios GBA
   "La Plata, Buenos Aires", "Mar del Plata, Buenos Aires", "Bahía Blanca, Buenos Aires",
   "Vicente López, Buenos Aires", "San Isidro, Buenos Aires", "Tigre, Buenos Aires",
   "San Fernando, Buenos Aires", "Quilmes, Buenos Aires", "Avellaneda, Buenos Aires",
@@ -27,32 +38,126 @@ const LOCATIONS = [
   "Merlo, Buenos Aires", "Pilar, Buenos Aires", "Escobar, Buenos Aires",
   "San Miguel, Buenos Aires", "José C. Paz, Buenos Aires",
   "Zárate, Buenos Aires", "Campana, Buenos Aires", "Luján, Buenos Aires",
+  "Olivos, Buenos Aires", "Martínez, Buenos Aires", "Acassuso, Buenos Aires",
+  "Béccar, Buenos Aires", "Florida, Buenos Aires", "Munro, Buenos Aires",
+  "Castelar, Buenos Aires", "El Palomar, Buenos Aires", "Ciudadela, Buenos Aires",
+  "San Justo, Buenos Aires", "Temperley, Buenos Aires", "Adrogué, Buenos Aires",
+  "Berazategui, Buenos Aires", "Florencio Varela, Buenos Aires",
+  "Ezeiza, Buenos Aires", "Cañuelas, Buenos Aires", "Tandil, Buenos Aires",
+  "Olavarría, Buenos Aires", "Necochea, Buenos Aires", "Junín, Buenos Aires",
+  "Pergamino, Buenos Aires", "San Nicolás, Buenos Aires",
+
+  // Córdoba - Capital y barrios
   "Córdoba Capital, Córdoba", "Villa Carlos Paz, Córdoba", "Río Cuarto, Córdoba",
   "Alta Gracia, Córdoba", "Villa María, Córdoba", "San Francisco, Córdoba",
   "Jesús María, Córdoba", "La Falda, Córdoba", "Cosquín, Córdoba",
+  "Nueva Córdoba, Córdoba", "Güemes, Córdoba", "Alberdi, Córdoba",
+  "General Paz, Córdoba", "Alta Córdoba, Córdoba", "Cerro de las Rosas, Córdoba",
+  "Argüello, Córdoba", "Villa Belgrano, Córdoba", "Jardín Espinosa, Córdoba",
+  "Cofico, Córdoba", "San Vicente, Córdoba", "Barrio Juniors, Córdoba",
+  "Villa Allende, Córdoba", "Unquillo, Córdoba", "Bell Ville, Córdoba",
+  "Río Tercero, Córdoba", "Villa Dolores, Córdoba", "Mina Clavero, Córdoba",
+  "Carlos Paz, Córdoba", "Dean Funes, Córdoba",
+
+  // Santa Fe - Ciudades y barrios
   "Rosario, Santa Fe", "Santa Fe Capital, Santa Fe", "Rafaela, Santa Fe",
   "Venado Tuerto, Santa Fe", "Reconquista, Santa Fe",
+  "Villa Gobernador Gálvez, Santa Fe", "Casilda, Santa Fe",
+  "Fisherton, Rosario", "Pichincha, Rosario", "Centro, Rosario",
+  "Echesortu, Rosario", "Arroyito, Rosario", "Alberdi, Rosario",
+  "Macrocentro, Rosario", "Abasto, Rosario", "Barrio Martín, Rosario",
+  "Santo Tomé, Santa Fe", "San Lorenzo, Santa Fe", "Esperanza, Santa Fe",
+
+  // Mendoza - Ciudades y barrios
   "Mendoza Capital, Mendoza", "San Rafael, Mendoza", "Godoy Cruz, Mendoza",
   "Luján de Cuyo, Mendoza", "Maipú, Mendoza", "Guaymallén, Mendoza",
+  "Las Heras, Mendoza", "San Martín, Mendoza", "Tunuyán, Mendoza",
+  "Quinta Sección, Mendoza", "Sexta Sección, Mendoza", "Dorrego, Mendoza",
+  "Chacras de Coria, Mendoza", "Vistalba, Mendoza", "Rivadavia, Mendoza",
+
+  // Tucumán - Ciudades y barrios
   "San Miguel de Tucumán, Tucumán", "Yerba Buena, Tucumán", "Tafí Viejo, Tucumán",
+  "Concepción, Tucumán", "Banda del Río Salí, Tucumán",
+  "Barrio Norte, Tucumán", "Barrio Sur, Tucumán", "Centro, Tucumán",
+  "Marcos Paz, Tucumán", "Villa Luján, Tucumán",
+
+  // Entre Ríos
   "Paraná, Entre Ríos", "Concordia, Entre Ríos", "Gualeguaychú, Entre Ríos",
-  "Salta Capital, Salta", "Tartagal, Salta",
-  "Posadas, Misiones", "Oberá, Misiones", "Puerto Iguazú, Misiones",
+  "Concepción del Uruguay, Entre Ríos", "Villaguay, Entre Ríos",
+  "Victoria, Entre Ríos", "Colón, Entre Ríos", "Chajarí, Entre Ríos",
+
+  // Salta - Ciudades y barrios
+  "Salta Capital, Salta", "San Ramón de la Nueva Orán, Salta", "Tartagal, Salta",
+  "Metán, Salta", "Cafayate, Salta",
+  "Centro, Salta", "Tres Cerritos, Salta", "Grand Bourg, Salta",
+  "Limache, Salta", "Villa San Lorenzo, Salta",
+
+  // Misiones
+  "Posadas, Misiones", "Oberá, Misiones", "Eldorado, Misiones",
+  "Puerto Iguazú, Misiones", "Apóstoles, Misiones", "Jardín América, Misiones",
+
+  // Chaco
   "Resistencia, Chaco", "Presidencia Roque Sáenz Peña, Chaco",
+  "Barranqueras, Chaco", "Villa Ángela, Chaco", "Charata, Chaco",
+
+  // Corrientes
   "Corrientes Capital, Corrientes", "Goya, Corrientes", "Paso de los Libres, Corrientes",
+  "Mercedes, Corrientes", "Curuzú Cuatiá, Corrientes", "Monte Caseros, Corrientes",
+
+  // Santiago del Estero
   "Santiago del Estero Capital, Santiago del Estero", "La Banda, Santiago del Estero",
+  "Termas de Río Hondo, Santiago del Estero", "Añatuya, Santiago del Estero",
+
+  // Jujuy - Ciudades y barrios
   "San Salvador de Jujuy, Jujuy", "San Pedro de Jujuy, Jujuy",
+  "Libertador General San Martín, Jujuy", "Palpalá, Jujuy",
+  "Humahuaca, Jujuy", "Tilcara, Jujuy",
+  "Centro, Jujuy", "Alto Padilla, Jujuy", "Los Perales, Jujuy",
+
+  // Catamarca
   "San Fernando del Valle de Catamarca, Catamarca",
-  "La Rioja Capital, La Rioja", "Chilecito, La Rioja",
-  "San Juan Capital, San Juan", "Rawson, San Juan",
+  "Valle Viejo, Catamarca", "Fray Mamerto Esquiú, Catamarca",
+
+  // La Rioja
+  "La Rioja Capital, La Rioja", "Chilecito, La Rioja", "Aimogasta, La Rioja",
+
+  // San Juan - Ciudades y barrios
+  "San Juan Capital, San Juan", "Rawson, San Juan", "Chimbas, San Juan",
+  "Rivadavia, San Juan", "Santa Lucía, San Juan", "Pocito, San Juan",
+  "Caucete, San Juan",
+
+  // San Luis
   "San Luis Capital, San Luis", "Villa Mercedes, San Luis",
+  "Merlo, San Luis", "Juana Koslay, San Luis", "La Punta, San Luis",
+
+  // Neuquén - Ciudades y barrios
   "Neuquén Capital, Neuquén", "San Martín de los Andes, Neuquén", "Zapala, Neuquén",
-  "Viedma, Río Negro", "San Carlos de Bariloche, Río Negro", "Cipolletti, Río Negro",
-  "Rawson, Chubut", "Comodoro Rivadavia, Chubut", "Trelew, Chubut", "Puerto Madryn, Chubut",
+  "Cutral-Có, Neuquén", "Centenario, Neuquén", "Plottier, Neuquén",
+  "Villa La Angostura, Neuquén", "Junín de los Andes, Neuquén",
+
+  // Río Negro
+  "Viedma, Río Negro", "San Carlos de Bariloche, Río Negro",
+  "General Roca, Río Negro", "Cipolletti, Río Negro",
+  "Allen, Río Negro", "El Bolsón, Río Negro", "Choele Choel, Río Negro",
+  "Centro Cívico, Bariloche", "Melipal, Bariloche", "Km 5, Bariloche",
+
+  // Chubut
+  "Rawson, Chubut", "Comodoro Rivadavia, Chubut", "Trelew, Chubut",
+  "Puerto Madryn, Chubut", "Esquel, Chubut", "Rada Tilly, Chubut",
+
+  // Santa Cruz
   "Río Gallegos, Santa Cruz", "Caleta Olivia, Santa Cruz",
-  "Ushuaia, Tierra del Fuego", "Río Grande, Tierra del Fuego",
-  "Formosa Capital, Formosa", "Clorinda, Formosa",
-  "Santa Rosa, La Pampa", "General Pico, La Pampa",
+  "Pico Truncado, Santa Cruz", "Puerto Deseado, Santa Cruz",
+  "El Calafate, Santa Cruz",
+
+  // Tierra del Fuego
+  "Ushuaia, Tierra del Fuego", "Río Grande, Tierra del Fuego", "Tolhuin, Tierra del Fuego",
+
+  // Formosa
+  "Formosa Capital, Formosa", "Clorinda, Formosa", "Pirané, Formosa",
+
+  // La Pampa
+  "Santa Rosa, La Pampa", "General Pico, La Pampa", "Toay, La Pampa",
 ];
 
 function searchLocations(query: string, limit = 6): string[] {

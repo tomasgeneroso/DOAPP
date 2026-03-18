@@ -45,7 +45,7 @@ export default function JobPayment() {
 
   // Calculate commission based on user tier
   const getCommissionRate = () => {
-    if (user?.membershipTier === 'super_pro') return 2;
+    if (user?.membershipTier === 'super_pro') return 1;
     if (user?.membershipTier === 'pro') return 3;
     return 8; // FREE users
   };
@@ -62,7 +62,7 @@ export default function JobPayment() {
     }
 
     // Check if user has monthly free contracts (PRO: 1, SUPER PRO: 2)
-    const proContractsUsed = user?.proContractsUsedThisMonth || 0;
+    const proContractsUsed = user?.monthlyContractsUsed || 0;
     let monthlyFreeLimit = 0;
     if (user?.membershipTier === 'super_pro') monthlyFreeLimit = 2;
     else if (user?.membershipTier === 'pro') monthlyFreeLimit = 1;
@@ -89,7 +89,7 @@ export default function JobPayment() {
   const freeContractsLimit = 3; // Default initial free contracts
 
   // Monthly free contracts info
-  const proContractsUsed = user?.proContractsUsedThisMonth || 0;
+  const proContractsUsed = user?.monthlyContractsUsed || 0;
   let monthlyFreeLimit = 0;
   if (user?.membershipTier === 'super_pro') monthlyFreeLimit = 2;
   else if (user?.membershipTier === 'pro') monthlyFreeLimit = 1;
@@ -617,7 +617,7 @@ export default function JobPayment() {
               <ul className="list-disc list-inside space-y-1 ml-2">
                 <li><strong>Usuario FREE:</strong> 8% del presupuesto</li>
                 <li><strong>Usuario PRO:</strong> 3% del presupuesto</li>
-                <li><strong>Usuario SUPER PRO:</strong> 2% del presupuesto</li>
+                <li><strong>Usuario SUPER PRO:</strong> 1% del presupuesto</li>
               </ul>
               <p className="pt-2">
                 <strong>Nota:</strong> Para contratos menores a $8,000 ARS, se aplica una comisión mínima de $1,000 ARS.

@@ -380,10 +380,10 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
                   </div>
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                      Comisión reducida al {membershipPlan === 'super_pro' ? '2%' : '3%'}
+                      Comisión reducida al {membershipPlan === 'super_pro' ? '1%' : '3%'}
                     </h3>
                     <p className="text-gray-600 dark:text-gray-300">
-                      A partir de ahora, pagarás solo {membershipPlan === 'super_pro' ? '2%' : '3%'} de comisión en tus próximos 3 contratos mensuales. {membershipPlan === 'super_pro' ? '¡La tarifa más baja de la plataforma!' : '¡Ahorra 5% vs el plan Free!'}
+                      A partir de ahora, pagarás solo {membershipPlan === 'super_pro' ? '1%' : '3%'} de comisión en tus próximos 3 contratos mensuales. {membershipPlan === 'super_pro' ? '¡La tarifa más baja de la plataforma!' : '¡Ahorra 5% vs el plan Free!'}
                     </p>
                   </div>
                 </div>

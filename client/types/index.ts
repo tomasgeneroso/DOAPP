@@ -148,7 +148,6 @@ export interface User {
   monthlyContractsUsed?: number;
   monthlyFreeContractsLimit?: number;
   earnedBonusContract?: boolean;
-  proContractsUsedThisMonth?: number;
   invitationCodesRemaining?: number;
   invitationCodesUsed?: number;
   invitedUsers?: string[];
@@ -160,6 +159,13 @@ export interface User {
   // Family/Friends plan
   familyCodeId?: string;
   hasFamilyPlan?: boolean;
+  // Availability schedule
+  availabilitySchedule?: {
+    timezone?: string;
+    slots: Array<{ day: number; start: string; end: string }>;
+    exceptions?: Array<{ date: string; available: boolean; reason?: string }>;
+  };
+  isAvailabilityPublic?: boolean;
 }
 
 export interface RegisterData {
@@ -231,6 +237,23 @@ export interface Contract {
   doerConfirmed?: boolean;
   clientConfirmedAt?: string;
   doerConfirmedAt?: string;
+  // Confirmation review fields
+  confirmationProposedBy?: string;
+  proposedStartTime?: string;
+  proposedEndTime?: string;
+  confirmationNotes?: string;
+  confirmationRejectionReason?: string;
+  confirmationHistory?: Array<{
+    proposedBy: string;
+    proposedAt: string;
+    proposedStartTime: string;
+    proposedEndTime: string;
+    notes?: string;
+    action: 'proposed' | 'confirmed' | 'rejected';
+    respondedBy?: string;
+    respondedAt?: string;
+    rejectionReason?: string;
+  }>;
   notes?: string;
   cancellationReason?: string;
   cancelledBy?: string;

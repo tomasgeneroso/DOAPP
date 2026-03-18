@@ -194,7 +194,7 @@ router.post(
           permissions: user.permissions,
           membershipTier: user.membershipTier,
           hasMembership: user.hasMembership,
-          balance: user.balance,
+          balance: user.balanceArs,
         },
       });
     } catch (error: any) {
@@ -334,9 +334,11 @@ router.post(
         membershipTier: user.membershipTier,
         hasMembership: user.hasMembership,
         isPremiumVerified: user.isPremiumVerified,
-        monthlyContractsUsed: user.monthlyContractsUsed,
+        monthlyContractsUsed: user.proContractsUsedThisMonth,
         monthlyFreeContractsLimit: user.monthlyFreeContractsLimit,
-        balance: user.balance,
+        balance: user.balanceArs,
+        availabilitySchedule: user.availabilitySchedule,
+        isAvailabilityPublic: user.isAvailabilityPublic,
       };
 
       const response: any = {
@@ -427,6 +429,8 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         familyCodeId: user?.familyCodeId,
         dni: user?.dni,
         needsDni: !user?.dni && (!!user?.googleId || !!user?.facebookId), // True if OAuth user without DNI
+        availabilitySchedule: user?.availabilitySchedule,
+        isAvailabilityPublic: user?.isAvailabilityPublic,
       },
     });
   } catch (error: any) {
@@ -608,6 +612,8 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
       legalInfo,
       interests,
       notificationPreferences,
+      availabilitySchedule,
+      isAvailabilityPublic,
     } = req.body;
 
     // Obtener usuario actual para comparar cambios
@@ -688,6 +694,8 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
     if (legalInfo) updateData.legalInfo = legalInfo;
     if (interests) updateData.interests = interests;
     if (notificationPreferences) updateData.notificationPreferences = notificationPreferences;
+    if (availabilitySchedule !== undefined) updateData.availabilitySchedule = availabilitySchedule;
+    if (isAvailabilityPublic !== undefined) updateData.isAvailabilityPublic = isAvailabilityPublic;
 
     const user = await User.findByPk(req.user.id as string);
     if (user) {
@@ -742,6 +750,8 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
         legalInfo: updatedUser?.legalInfo,
         interests: updatedUser?.interests,
         notificationPreferences: updatedUser?.notificationPreferences,
+        availabilitySchedule: updatedUser?.availabilitySchedule,
+        isAvailabilityPublic: updatedUser?.isAvailabilityPublic,
       },
     });
   } catch (error: any) {

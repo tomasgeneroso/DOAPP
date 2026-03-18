@@ -31,15 +31,15 @@ class EscrowAutomationService {
       const now = new Date();
       const autoReleaseDelay = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
 
-      // Find contracts waiting for approval for more than 7 days
+      // Find contracts awaiting_confirmation for more than 7 days without escrow release
       const eligibleContracts = await Contract.findAll({
         where: {
-          status: "waiting_approval",
-          workCompletedAt: {
+          status: "awaiting_confirmation",
+          awaitingConfirmationAt: {
             [Op.ne]: null,
             [Op.lte]: new Date(now.getTime() - autoReleaseDelay),
           },
-          escrowReleased: false,
+          escrowStatus: "held_escrow",
         },
         include: [
           { model: User, as: "client", attributes: ["id", "name", "email"] },
@@ -64,16 +64,16 @@ class EscrowAutomationService {
     try {
       await contract.update({
         status: "completed",
-        escrowReleased: true,
-        escrowReleasedAt: new Date(),
-        escrowAutoReleased: true, // Flag to indicate it was auto-released
+        escrowStatus: "released",
+        clientConfirmed: true,
+        doerConfirmed: true,
       });
 
       console.log(`✅ Auto-released escrow for contract ${contract.id}`);
 
       // Notify both parties
-      const clientMessage = `El pago del contrato "${contract.title}" ha sido liberado automáticamente después de 7 días sin objeciones.`;
-      const doerMessage = `Has recibido el pago del contrato "${contract.title}". El escrow fue liberado automáticamente.`;
+      const clientMessage = `El pago del contrato ha sido liberado automáticamente después de 7 días sin objeciones.`;
+      const doerMessage = `Has recibido el pago del contrato. El escrow fue liberado automáticamente.`;
 
       // Notify client
       if (contract.client) {
@@ -89,7 +89,7 @@ class EscrowAutomationService {
 
         await emailService.sendToUser(
           contract.client.id,
-          "Pago liberado - " + contract.title,
+          "Pago liberado",
           `<p>${clientMessage}</p>`
         );
       }
@@ -108,7 +108,7 @@ class EscrowAutomationService {
 
         await emailService.sendToUser(
           contract.doer.id,
-          "Pago recibido - " + contract.title,
+          "Pago recibido",
           `<p>${doerMessage}</p>`
         );
       }
@@ -129,13 +129,13 @@ class EscrowAutomationService {
       // Find contracts waiting for approval between 5-7 days
       const contractsNeedingReminder = await Contract.findAll({
         where: {
-          status: "waiting_approval",
-          workCompletedAt: {
+          status: "awaiting_confirmation",
+          awaitingConfirmationAt: {
             [Op.ne]: null,
             [Op.gte]: new Date(now.getTime() - autoReleaseDelay),
             [Op.lte]: new Date(now.getTime() - reminderThreshold),
           },
-          escrowReleased: false,
+          escrowStatus: "held_escrow",
         },
         include: [
           { model: User, as: "client", attributes: ["id", "name", "email"] },
@@ -147,12 +147,12 @@ class EscrowAutomationService {
 
       for (const contract of contractsNeedingReminder) {
         // Calculate time until auto-release
-        const workCompletedTime = new Date(contract.workCompletedAt!).getTime();
-        const autoReleaseTime = workCompletedTime + autoReleaseDelay;
+        const awaitingTime = new Date(contract.awaitingConfirmationAt!).getTime();
+        const autoReleaseTime = awaitingTime + autoReleaseDelay;
         const timeRemaining = autoReleaseTime - now.getTime();
         const daysRemaining = Math.ceil(timeRemaining / (24 * 60 * 60 * 1000));
 
-        const message = `El trabajo para "${contract.title}" está esperando tu aprobación. El pago se liberará automáticamente en ${daysRemaining} días si no hay objeciones.`;
+        const message = `Tu contrato está esperando confirmación. El pago se liberará automáticamente en ${daysRemaining} días si no hay objeciones.`;
 
         if (contract.client) {
           // Send push notification
@@ -169,7 +169,7 @@ class EscrowAutomationService {
           // Send email
           await emailService.sendToUser(
             contract.client.id,
-            "Aprobación pendiente - " + contract.title,
+            "Confirmación pendiente",
             `<p>${message}</p>`
           );
         }
@@ -201,7 +201,7 @@ class EscrowAutomationService {
 
       for (const contract of overdueContracts) {
         // Notify both parties
-        const message = `El contrato "${contract.title}" ha excedido su fecha límite.`;
+        const message = `Tu contrato ha excedido su fecha límite.`;
 
         // Notify client
         if (contract.client) {

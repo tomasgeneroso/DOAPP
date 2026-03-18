@@ -459,8 +459,8 @@ router.get(
       const proCount = await Membership.count({ where: { status: "active", plan: "PRO" } });
       const superProCount = await Membership.count({ where: { status: "active", plan: "SUPER_PRO" } });
 
-      // Estimated monthly membership revenue (5.99 * PRO + 8.99 * SUPER_PRO in EUR)
-      const estimatedMonthlyMembershipRevenue = proCount * 5.99 + superProCount * 8.99;
+      // Estimated monthly membership revenue (4999 * PRO + 8999 * SUPER_PRO in ARS)
+      const estimatedMonthlyMembershipRevenue = proCount * 4999 + superProCount * 8999;
 
       // Advertisement revenue - Note: This assumes pricing.totalPaid is stored as JSON
       const adRevenueData = await Promoter.findAll({

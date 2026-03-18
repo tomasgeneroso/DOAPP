@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, FileText, Calendar, DollarSign, User, ChevronRight } from 'lucide-react-native';
+import { ArrowLeft, FileText, Calendar, DollarSign, User, ChevronRight, Plus, Search } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { getContracts } from '../../services/contracts';
@@ -125,7 +125,7 @@ export default function ContractsScreen() {
     return (
       <TouchableOpacity
         style={[styles.contractCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
-        onPress={() => router.push(`/contracts/${item._id}`)}
+        onPress={() => router.push(`/contracts/${item.id || item._id}`)}
       >
         <View style={styles.contractHeader}>
           <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
@@ -180,7 +180,7 @@ export default function ContractsScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
         <View style={[styles.topBar, { borderBottomColor: themeColors.border }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')} style={styles.backButton}>
             <ArrowLeft size={24} color={themeColors.text.primary} />
           </TouchableOpacity>
           <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]}>
@@ -199,13 +199,15 @@ export default function ContractsScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
       {/* Header */}
       <View style={[styles.topBar, { borderBottomColor: themeColors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')} style={styles.backButton}>
           <ArrowLeft size={24} color={themeColors.text.primary} />
         </TouchableOpacity>
         <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]}>
           Mis contratos
         </Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity onPress={() => router.push('/create-job')} style={styles.backButton}>
+          <Plus size={24} color={themeColors.primary[600]} />
+        </TouchableOpacity>
       </View>
 
       {/* Tabs */}
@@ -241,7 +243,7 @@ export default function ContractsScreen() {
       <FlatList
         data={filteredContracts}
         renderItem={renderContract}
-        keyExtractor={(item) => item._id}
+        keyExtractor={(item) => item.id || item._id}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -255,9 +257,22 @@ export default function ContractsScreen() {
             </Text>
             <Text style={[styles.emptyText, { color: themeColors.text.muted }]}>
               {activeTab === 'as_client'
-                ? 'Cuando contrates a alguien, tus contratos aparecerán aquí'
-                : 'Cuando te contraten, tus contratos aparecerán aquí'}
+                ? 'Publicá un trabajo, recibí propuestas y creá un contrato al aceptar una'
+                : 'Aplicá a trabajos y cuando te acepten se creará un contrato'}
             </Text>
+            <TouchableOpacity
+              style={[styles.emptyActionBtn, { backgroundColor: themeColors.primary[600] }]}
+              onPress={() => router.push(activeTab === 'as_client' ? '/create-job' : '/(tabs)')}
+            >
+              {activeTab === 'as_client' ? (
+                <Plus size={18} color="#fff" />
+              ) : (
+                <Search size={18} color="#fff" />
+              )}
+              <Text style={styles.emptyActionText}>
+                {activeTab === 'as_client' ? 'Publicar trabajo' : 'Buscar trabajos'}
+              </Text>
+            </TouchableOpacity>
           </View>
         }
       />
@@ -386,5 +401,19 @@ const styles = StyleSheet.create({
     fontSize: fontSize.base,
     textAlign: 'center',
     paddingHorizontal: spacing.xl,
+    marginBottom: spacing.lg,
+  },
+  emptyActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.lg,
+  },
+  emptyActionText: {
+    color: '#fff',
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.semibold,
   },
 });

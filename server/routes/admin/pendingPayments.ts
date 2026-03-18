@@ -12,6 +12,7 @@ import { PaymentProof } from "../../models/sql/PaymentProof.model.js";
 import { Notification } from "../../models/sql/Notification.model.js";
 import { Op } from 'sequelize';
 import { isValidUUID } from "../../utils/sanitizer.js";
+import { generateWorkerPaymentInvoice } from "../../services/invoiceService.js";
 
 const router = express.Router();
 
@@ -999,6 +1000,11 @@ router.post("/:contractId/mark-paid", protect, requireRole('admin', 'super_admin
         jobTitle: job?.title,
       },
     });
+
+    // Generate worker payment invoice (async, don't block response)
+    generateWorkerPaymentInvoice(contract.id).catch(err =>
+      console.error('[Invoice] Failed to generate worker invoice:', err.message)
+    );
 
     res.status(200).json({
       success: true,

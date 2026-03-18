@@ -171,7 +171,7 @@ describe('7 Points Unit Tests', () => {
       const tiers = [
         { name: 'free', rate: 8, expected: 4000 },
         { name: 'pro', rate: 3, expected: 1500 },
-        { name: 'super_pro', rate: 2, expected: 1000 },
+        { name: 'super_pro', rate: 1, expected: 1000 },
         { name: 'referral', rate: 3, expected: 1500 },
       ];
 
@@ -423,7 +423,7 @@ describe('7 Points Unit Tests', () => {
       const membershipRates = {
         free: 8,
         pro: 3,
-        super_pro: 2,
+        super_pro: 1,
         family: 0,
         referral: 3,
       };

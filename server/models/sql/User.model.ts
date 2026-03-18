@@ -66,6 +66,24 @@ interface LegalInfo {
   vatNumber?: string;
 }
 
+export interface AvailabilitySlot {
+  day: number;      // 0=Domingo, 1=Lunes ... 6=Sábado
+  start: string;    // HH:mm
+  end: string;      // HH:mm
+}
+
+export interface AvailabilityException {
+  date: string;     // YYYY-MM-DD
+  available: boolean;
+  reason?: string;
+}
+
+export interface AvailabilitySchedule {
+  timezone?: string;
+  slots: AvailabilitySlot[];
+  exceptions?: AvailabilityException[];
+}
+
 @Table({
   tableName: 'users',
   timestamps: true,
@@ -303,6 +321,17 @@ export class User extends Model {
   legalInfo?: LegalInfo;
 
   // ============================================
+  // AVAILABILITY SCHEDULE
+  // ============================================
+
+  @Column(DataType.JSONB)
+  availabilitySchedule?: AvailabilitySchedule;
+
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  isAvailabilityPublic!: boolean;
+
+  // ============================================
   // MEMBERSHIP
   // ============================================
 
@@ -495,7 +524,7 @@ export class User extends Model {
     this.membershipTier = tier;
     this.membershipExpiresAt = endDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // Default 30 days
     // Set commission rate based on tier
-    this.currentCommissionRate = tier === 'pro' ? 3 : 2; // PRO: 3%, SUPER_PRO: 2%
+    this.currentCommissionRate = tier === 'pro' ? 3 : 1; // PRO: 3%, SUPER_PRO: 1%
     await this.save();
   }
 

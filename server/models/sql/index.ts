@@ -8,6 +8,7 @@
 // CORE MODELS
 // ============================================
 export { User } from './User.model.js';
+export type { AvailabilitySchedule, AvailabilitySlot, AvailabilityException } from './User.model.js';
 export { Job } from './Job.model.js';
 export { JobTask } from './JobTask.model.js';
 export { Contract } from './Contract.model.js';
@@ -52,6 +53,8 @@ export { Referral } from './Referral.model.js';
 // ============================================
 export { BalanceTransaction } from './BalanceTransaction.model.js';
 export { WithdrawalRequest } from './WithdrawalRequest.model.js';
+export { Invoice } from './Invoice.model.js';
+export type { InvoiceType, InvoiceStatus, InvoiceMetadata } from './Invoice.model.js';
 
 // ============================================
 // AUTHENTICATION

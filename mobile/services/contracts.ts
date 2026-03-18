@@ -39,8 +39,21 @@ export async function createContract(data: {
 /**
  * Confirmar contrato (bidireccional)
  */
-export async function confirmContract(id: string): Promise<ApiResponse<{ contract: Contract }>> {
-  return post<{ contract: Contract }>(`/contracts/${id}/confirm`, {});
+export async function confirmContract(id: string, data?: {
+  proposedStartTime?: string;
+  proposedEndTime?: string;
+  notes?: string;
+}): Promise<ApiResponse<{ contract: Contract }>> {
+  return post<{ contract: Contract }>(`/contracts/${id}/confirm`, data || {});
+}
+
+/**
+ * Rechazar confirmación del contrato (crea disputa automática)
+ */
+export async function rejectConfirmation(id: string, data: {
+  reason: string;
+}): Promise<ApiResponse<{ contract: Contract; dispute: any }>> {
+  return post<{ contract: Contract; dispute: any }>(`/contracts/${id}/reject-confirmation`, data);
 }
 
 /**

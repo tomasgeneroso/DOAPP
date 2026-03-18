@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   StyleSheet,
   Switch,
   Alert,
+  TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,15 +25,24 @@ import {
   Mail,
   Lock,
   Trash2,
+  Building2,
+  MapPin,
+  Save,
 } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
+import { updateSettings } from '../services/auth';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
+
+type SettingsTab = 'general' | 'banking' | 'address';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { isDarkMode, themeMode, setThemeMode, colors: themeColors } = useTheme();
-  const { logout } = useAuth();
+  const { logout, user, refreshUser } = useAuth();
+
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+  const [saving, setSaving] = useState(false);
 
   const [notifications, setNotifications] = useState({
     push: true,
@@ -40,6 +51,62 @@ export default function SettingsScreen() {
     jobs: true,
     contracts: true,
   });
+
+  // Banking info
+  const [bankingInfo, setBankingInfo] = useState({
+    cbu: user?.bankingInfo?.cbu || '',
+    alias: user?.bankingInfo?.alias || '',
+    bankName: user?.bankingInfo?.bankName || '',
+    accountHolder: user?.bankingInfo?.accountHolder || '',
+    accountType: user?.bankingInfo?.accountType || 'savings',
+  });
+
+  // Address
+  const [address, setAddress] = useState({
+    street: user?.address?.street || '',
+    city: user?.address?.city || '',
+    state: user?.address?.state || '',
+    postalCode: user?.address?.postalCode || '',
+    country: user?.address?.country || 'Argentina',
+  });
+
+  const saveBankingInfo = async () => {
+    if (bankingInfo.cbu && bankingInfo.cbu.length !== 22) {
+      Alert.alert('Error', 'El CBU debe tener 22 digitos');
+      return;
+    }
+    setSaving(true);
+    try {
+      const res = await updateSettings({ bankingInfo });
+      if (res.success) {
+        if (refreshUser) await refreshUser();
+        Alert.alert('Guardado', 'Informacion bancaria actualizada');
+      } else {
+        Alert.alert('Error', (res as any).message || 'No se pudo guardar');
+      }
+    } catch {
+      Alert.alert('Error', 'Error de conexion');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveAddress = async () => {
+    setSaving(true);
+    try {
+      const res = await updateSettings({ address });
+      if (res.success) {
+        if (refreshUser) await refreshUser();
+        Alert.alert('Guardado', 'Direccion actualizada');
+      } else {
+        Alert.alert('Error', (res as any).message || 'No se pudo guardar');
+      }
+    } catch {
+      Alert.alert('Error', 'Error de conexion');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -80,7 +147,7 @@ export default function SettingsScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
       {/* Header */}
       <View style={[styles.topBar, { borderBottomColor: themeColors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/profile')} style={styles.backButton}>
           <ArrowLeft size={24} color={themeColors.text.primary} />
         </TouchableOpacity>
         <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]}>
@@ -89,10 +156,158 @@ export default function SettingsScreen() {
         <View style={{ width: 40 }} />
       </View>
 
+      {/* Tab Selector */}
+      <View style={[styles.tabRow, { borderBottomColor: themeColors.border }]}>
+        {([
+          { key: 'general' as SettingsTab, label: 'General' },
+          { key: 'banking' as SettingsTab, label: 'Bancaria' },
+          { key: 'address' as SettingsTab, label: 'Direccion' },
+        ]).map((tab) => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[styles.tab, activeTab === tab.key && { borderBottomColor: colors.primary[600] }]}
+            onPress={() => setActiveTab(tab.key)}
+          >
+            <Text style={[styles.tabText, { color: activeTab === tab.key ? colors.primary[600] : themeColors.text.muted }]}>
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* Banking Tab */}
+        {activeTab === 'banking' && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: themeColors.text.muted }]}>Informacion bancaria</Text>
+            <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: themeColors.text.secondary }]}>CBU (22 digitos)</Text>
+                <TextInput
+                  style={[styles.textInput, { color: themeColors.text.primary, borderColor: themeColors.border }]}
+                  value={bankingInfo.cbu}
+                  onChangeText={(v) => setBankingInfo({ ...bankingInfo, cbu: v.replace(/\D/g, '').slice(0, 22) })}
+                  keyboardType="numeric"
+                  placeholder="0000000000000000000000"
+                  placeholderTextColor={themeColors.text.muted}
+                  maxLength={22}
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: themeColors.text.secondary }]}>Alias</Text>
+                <TextInput
+                  style={[styles.textInput, { color: themeColors.text.primary, borderColor: themeColors.border }]}
+                  value={bankingInfo.alias}
+                  onChangeText={(v) => setBankingInfo({ ...bankingInfo, alias: v })}
+                  placeholder="mi.alias.mp"
+                  placeholderTextColor={themeColors.text.muted}
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: themeColors.text.secondary }]}>Nombre del banco</Text>
+                <TextInput
+                  style={[styles.textInput, { color: themeColors.text.primary, borderColor: themeColors.border }]}
+                  value={bankingInfo.bankName}
+                  onChangeText={(v) => setBankingInfo({ ...bankingInfo, bankName: v })}
+                  placeholder="Mercado Pago, Brubank, etc."
+                  placeholderTextColor={themeColors.text.muted}
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: themeColors.text.secondary }]}>Titular de la cuenta</Text>
+                <TextInput
+                  style={[styles.textInput, { color: themeColors.text.primary, borderColor: themeColors.border }]}
+                  value={bankingInfo.accountHolder}
+                  onChangeText={(v) => setBankingInfo({ ...bankingInfo, accountHolder: v })}
+                  placeholder="Nombre completo"
+                  placeholderTextColor={themeColors.text.muted}
+                />
+              </View>
+              <TouchableOpacity
+                style={[styles.saveBtn, { backgroundColor: colors.primary[600] }, saving && { opacity: 0.6 }]}
+                onPress={saveBankingInfo}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Save size={16} color="#fff" />
+                    <Text style={styles.saveBtnText}>Guardar</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Address Tab */}
+        {activeTab === 'address' && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: themeColors.text.muted }]}>Direccion</Text>
+            <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: themeColors.text.secondary }]}>Calle y numero</Text>
+                <TextInput
+                  style={[styles.textInput, { color: themeColors.text.primary, borderColor: themeColors.border }]}
+                  value={address.street}
+                  onChangeText={(v) => setAddress({ ...address, street: v })}
+                  placeholder="Av. Corrientes 1234"
+                  placeholderTextColor={themeColors.text.muted}
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: themeColors.text.secondary }]}>Ciudad</Text>
+                <TextInput
+                  style={[styles.textInput, { color: themeColors.text.primary, borderColor: themeColors.border }]}
+                  value={address.city}
+                  onChangeText={(v) => setAddress({ ...address, city: v })}
+                  placeholder="Buenos Aires"
+                  placeholderTextColor={themeColors.text.muted}
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: themeColors.text.secondary }]}>Provincia</Text>
+                <TextInput
+                  style={[styles.textInput, { color: themeColors.text.primary, borderColor: themeColors.border }]}
+                  value={address.state}
+                  onChangeText={(v) => setAddress({ ...address, state: v })}
+                  placeholder="CABA"
+                  placeholderTextColor={themeColors.text.muted}
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={[styles.inputLabel, { color: themeColors.text.secondary }]}>Codigo postal</Text>
+                <TextInput
+                  style={[styles.textInput, { color: themeColors.text.primary, borderColor: themeColors.border }]}
+                  value={address.postalCode}
+                  onChangeText={(v) => setAddress({ ...address, postalCode: v })}
+                  placeholder="C1043"
+                  placeholderTextColor={themeColors.text.muted}
+                />
+              </View>
+              <TouchableOpacity
+                style={[styles.saveBtn, { backgroundColor: colors.primary[600] }, saving && { opacity: 0.6 }]}
+                onPress={saveAddress}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Save size={16} color="#fff" />
+                    <Text style={styles.saveBtnText}>Guardar</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {activeTab === 'general' && <>
         {/* Appearance */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: themeColors.text.muted }]}>
@@ -353,6 +568,7 @@ export default function SettingsScreen() {
         <Text style={[styles.version, { color: themeColors.text.muted }]}>
           DoApp v1.0.0
         </Text>
+        </>}
       </ScrollView>
     </SafeAreaView>
   );
@@ -431,5 +647,51 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     textAlign: 'center',
     marginTop: spacing.lg,
+  },
+  tabRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    borderBottomWidth: 2,
+    borderBottomColor: 'transparent',
+  },
+  tabText: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+  },
+  inputGroup: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  inputLabel: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.medium,
+    marginBottom: spacing.xs,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontSize: fontSize.base,
+  },
+  saveBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginVertical: spacing.md,
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.lg,
+  },
+  saveBtnText: {
+    color: '#fff',
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
   },
 });

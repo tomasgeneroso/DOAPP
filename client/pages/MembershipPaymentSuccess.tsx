@@ -218,7 +218,7 @@ export default function MembershipPaymentSuccess() {
             <div className="text-center">
               <p className="text-gray-600 dark:text-gray-300 mb-2">Tu inversión mensual</p>
               <p className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-sky-600">
-                €5.99
+                $4.999
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
                 Renovación automática mensual
@@ -241,10 +241,10 @@ export default function MembershipPaymentSuccess() {
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                  ⚡ Comisión reducida al 2%
+                  ⚡ Comisión reducida al 1%
                 </h3>
                 <p className="text-gray-600 dark:text-gray-300 text-sm">
-                  Ahorrá un 4% en cada transacción. Tus primeros 3 contratos mensuales solo tendrán 2% de comisión.
+                  Ahorrá un 7% en cada transacción. Tus primeros 3 contratos mensuales solo tendrán 1% de comisión.
                 </p>
               </div>
             </div>
@@ -334,7 +334,7 @@ export default function MembershipPaymentSuccess() {
               <li className="flex items-start gap-2">
                 <CheckCircle className="w-5 h-5 text-sky-600 dark:text-sky-400 flex-shrink-0 mt-0.5" />
                 <span>
-                  <strong>Empezá a publicar trabajos</strong> con solo 2% de comisión
+                  <strong>Empezá a publicar trabajos</strong> con solo 1% de comisión
                 </span>
               </li>
               <li className="flex items-start gap-2">

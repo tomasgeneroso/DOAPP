@@ -139,15 +139,8 @@ router.post(
  */
 router.get("/pricing", async (req, res) => {
   try {
-    // Importar servicio de conversión de moneda para calcular ARS desde EUR
-    const currencyExchange = (await import('../services/currencyExchange.js')).default;
-
-    const proPriceEUR = 5.99;
-    const superProPriceEUR = 8.99;
-
-    // Convertir EUR a ARS usando el servicio de conversión
-    const proPriceARS = await currencyExchange.convertEURtoARS(proPriceEUR);
-    const superProPriceARS = await currencyExchange.convertEURtoARS(superProPriceEUR);
+    const proPriceARS = 4999;
+    const superProPriceARS = 8999;
 
     res.json({
       success: true,
@@ -156,33 +149,19 @@ router.get("/pricing", async (req, res) => {
           name: 'Free',
           price: 0,
           currency: 'ARS',
+          commissionRate: 8,
           benefits: [
             '3 contratos gratis (primeros 1000 usuarios)',
-            'Comisión basada en volumen mensual',
+            'Comisión fija del 8%',
             '3 códigos de invitación',
           ],
-          // Información detallada del sistema de comisiones por volumen
-          volumeCommissions: {
-            description: 'Cuando agotes tus contratos gratis, se aplica comisión según tu volumen mensual de contratos:',
-            tiers: [
-              { minVolume: 0, maxVolume: 50000, rate: 6, description: '$0 - $50,000/mes' },
-              { minVolume: 50000, maxVolume: 150000, rate: 4, description: '$50,000 - $150,000/mes' },
-              { minVolume: 150000, maxVolume: 200000, rate: 3, description: '$150,000 - $200,000/mes' },
-              { minVolume: 200000, maxVolume: null, rate: 2, description: '+$200,000/mes' },
-            ],
-            minimumCommission: 1000,
-            notes: [
-              'Comisión mínima: $1,000 ARS por contrato',
-              'El volumen se calcula sumando todos tus contratos del mes',
-              'A mayor volumen, menor comisión',
-            ],
-          },
         },
         pro: {
           name: 'PRO Mensual',
-          price: proPriceEUR, // Precio en EUR para referencia
-          priceARS: Math.round(proPriceARS), // Precio en ARS para MercadoPago
+          price: proPriceARS,
+          priceARS: proPriceARS,
           currency: 'ARS',
+          commissionRate: 3,
           benefits: [
             '1 contrato mensual sin comisión (0%)',
             '2 contratos gratis iniciales únicos',
@@ -197,13 +176,14 @@ router.get("/pricing", async (req, res) => {
         },
         superPro: {
           name: 'SUPER PRO',
-          price: superProPriceEUR,
-          priceARS: Math.round(superProPriceARS),
+          price: superProPriceARS,
+          priceARS: superProPriceARS,
           currency: 'ARS',
+          commissionRate: 1,
           benefits: [
             'Todos los beneficios de PRO',
             '2 contratos mensuales sin comisión (0%)',
-            'Contratos adicionales: 2% de comisión',
+            'Contratos adicionales: 1% de comisión',
             'Estadísticas avanzadas de perfil',
             'Analytics de visitas y conversaciones',
             'Insights de contratos completados',
@@ -233,7 +213,6 @@ router.post("/upgrade-to-pro", protect, async (req: AuthRequest, res: Response):
   try {
     const userId = req.user.id || req.user._id?.toString();
     const { User } = await import('../models/sql/User.model.js');
-    const currencyExchange = (await import('../services/currencyExchange.js')).default;
 
     const user = await User.findByPk(userId);
     if (!user) {
@@ -256,9 +235,7 @@ router.post("/upgrade-to-pro", protect, async (req: AuthRequest, res: Response):
     // ========================================
     // Crear preferencia de pago con MercadoPago
     // ========================================
-    const proPriceEUR = 5.99;
-    const proPriceARS = await currencyExchange.convertEURtoARS(proPriceEUR);
-    const finalPrice = Math.round(proPriceARS);
+    const finalPrice = 4999; // $4,999 ARS/mes
 
     const mercadopagoService = (await import('../services/mercadopago.js')).default;
 
@@ -384,17 +361,12 @@ router.post("/create-payment", protect, async (req: AuthRequest, res: Response):
     }
 
     // ========================================
-    // NUEVO: Calcular precio usando EUR -> ARS (MercadoPago)
+    // Precios fijos en ARS
     // ========================================
-    const currencyExchange = (await import('../services/currencyExchange.js')).default;
-    const proPriceEUR = 5.99;
-    const superProPriceEUR = 8.99;
+    const proPriceARS = 4999;    // $4,999 ARS/mes
+    const superProPriceARS = 8999; // $8,999 ARS/mes
 
-    // Convertir EUR a ARS
-    const proPriceARS = await currencyExchange.convertEURtoARS(proPriceEUR);
-    const superProPriceARS = await currencyExchange.convertEURtoARS(superProPriceEUR);
-
-    let finalPrice = Math.round(proPriceARS);
+    let finalPrice = proPriceARS;
     let description = 'Membresía DOAPP PRO - Mensual';
     let membershipPlan = 'PRO'; // 'PRO' or 'SUPER_PRO'
 

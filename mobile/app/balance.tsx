@@ -9,6 +9,8 @@ import {
   RefreshControl,
   TextInput,
   Alert,
+  Platform,
+  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,14 +23,17 @@ import {
   CheckCircle,
   XCircle,
   CreditCard,
+  FileText,
+  Download,
 } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { getBalance, getTransactions, requestWithdrawal, getWithdrawals } from '../services/balance';
-import { BalanceTransaction, WithdrawalRequest } from '../types';
+import { get } from '../services/api';
+import { BalanceTransaction, WithdrawalRequest, Invoice } from '../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
 
-type TabType = 'transactions' | 'withdrawals';
+type TabType = 'transactions' | 'withdrawals' | 'invoices';
 
 export default function BalanceScreen() {
   const router = useRouter();
@@ -39,6 +44,7 @@ export default function BalanceScreen() {
   const [pendingBalance, setPendingBalance] = useState(0);
   const [transactions, setTransactions] = useState<BalanceTransaction[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('transactions');
@@ -49,10 +55,11 @@ export default function BalanceScreen() {
 
   const fetchData = async () => {
     try {
-      const [balanceRes, transactionsRes, withdrawalsRes] = await Promise.all([
+      const [balanceRes, transactionsRes, withdrawalsRes, invoicesRes] = await Promise.all([
         getBalance(),
         getTransactions(),
         getWithdrawals(),
+        get<{ success: boolean; data: { invoices: Invoice[] } }>('/payments/invoices').catch(() => null),
       ]);
 
       if (balanceRes.success && balanceRes.data) {
@@ -66,6 +73,10 @@ export default function BalanceScreen() {
 
       if (withdrawalsRes.success && withdrawalsRes.data) {
         setWithdrawals(withdrawalsRes.data.withdrawals || []);
+      }
+
+      if (invoicesRes?.success && invoicesRes?.data) {
+        setInvoices(invoicesRes.data.invoices || []);
       }
     } catch (error) {
       console.error('Error fetching balance data:', error);
@@ -181,11 +192,35 @@ export default function BalanceScreen() {
     return statusMap[status] || status;
   };
 
+  const getInvoiceTypeText = (type: string) => {
+    const typeMap: Record<string, string> = {
+      client_payment: 'Pago de servicio',
+      worker_payment: 'Pago recibido',
+      commission: 'Comisión',
+      withdrawal: 'Retiro',
+    };
+    return typeMap[type] || type;
+  };
+
+  const handleDownloadInvoice = async (invoiceId: string) => {
+    try {
+      const { API_URL } = await import('../services/api');
+      const url = `${API_URL}/payments/invoices/${invoiceId}/download`;
+      if (Platform.OS === 'web') {
+        window.open(url, '_blank');
+      } else {
+        Linking.openURL(url);
+      }
+    } catch (error) {
+      console.error('Error downloading invoice:', error);
+    }
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
         <View style={[styles.topBar, { borderBottomColor: themeColors.border }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/profile')} style={styles.backButton}>
             <ArrowLeft size={24} color={themeColors.text.primary} />
           </TouchableOpacity>
           <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]}>
@@ -204,7 +239,7 @@ export default function BalanceScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
       {/* Header */}
       <View style={[styles.topBar, { borderBottomColor: themeColors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/profile')} style={styles.backButton}>
           <ArrowLeft size={24} color={themeColors.text.primary} />
         </TouchableOpacity>
         <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]}>
@@ -341,6 +376,19 @@ export default function BalanceScreen() {
               Retiros
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'invoices' && { borderBottomColor: colors.primary[600] }]}
+            onPress={() => setActiveTab('invoices')}
+          >
+            <Text
+              style={[
+                styles.tabText,
+                { color: activeTab === 'invoices' ? themeColors.primary[600] : themeColors.text.muted },
+              ]}
+            >
+              Facturas
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Transactions List */}
@@ -420,6 +468,56 @@ export default function BalanceScreen() {
                       Razón: {withdrawal.rejectionReason}
                     </Text>
                   )}
+                </View>
+              ))
+            )}
+          </View>
+        )}
+
+        {/* Invoices List */}
+        {activeTab === 'invoices' && (
+          <View style={styles.listContainer}>
+            {invoices.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <FileText size={48} color={themeColors.text.muted} />
+                <Text style={[styles.emptyText, { color: themeColors.text.muted }]}>
+                  No hay facturas
+                </Text>
+              </View>
+            ) : (
+              invoices.map((invoice) => (
+                <View
+                  key={invoice.id}
+                  style={[styles.invoiceItem, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
+                >
+                  <View style={styles.invoiceHeader}>
+                    <View style={[styles.txIconContainer, { backgroundColor: themeColors.slate[50] }]}>
+                      <FileText size={20} color={colors.primary[600]} />
+                    </View>
+                    <View style={styles.invoiceContent}>
+                      <Text style={[styles.invoiceNumber, { color: themeColors.text.primary }]}>
+                        {invoice.invoiceNumber}
+                      </Text>
+                      <Text style={[styles.invoiceType, { color: themeColors.text.secondary }]}>
+                        {getInvoiceTypeText(invoice.type)}
+                      </Text>
+                      <Text style={[styles.txDate, { color: themeColors.text.muted }]}>
+                        {formatDate(invoice.createdAt)}
+                      </Text>
+                    </View>
+                    <View style={styles.invoiceRight}>
+                      <Text style={[styles.invoiceTotal, { color: themeColors.text.primary }]}>
+                        {formatPrice(invoice.total)}
+                      </Text>
+                      <TouchableOpacity
+                        style={styles.downloadButton}
+                        onPress={() => handleDownloadInvoice(invoice.id)}
+                      >
+                        <Download size={16} color={colors.primary[600]} />
+                        <Text style={styles.downloadText}>PDF</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
                 </View>
               ))
             )}
@@ -645,5 +743,48 @@ const styles = StyleSheet.create({
   rejectionReason: {
     fontSize: fontSize.sm,
     marginTop: spacing.sm,
+  },
+  invoiceItem: {
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+  },
+  invoiceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  invoiceContent: {
+    flex: 1,
+  },
+  invoiceNumber: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    marginBottom: 2,
+  },
+  invoiceType: {
+    fontSize: fontSize.xs,
+    marginBottom: 2,
+  },
+  invoiceRight: {
+    alignItems: 'flex-end',
+    gap: spacing.xs,
+  },
+  invoiceTotal: {
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.semibold,
+  },
+  downloadButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    backgroundColor: colors.primary[50],
+    borderRadius: borderRadius.md,
+  },
+  downloadText: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.medium,
+    color: colors.primary[600],
   },
 });

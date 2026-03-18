@@ -9,6 +9,7 @@ import type { AuthRequest } from "../types/index.js";
 import { socketService } from "../index.js";
 import { Op } from 'sequelize';
 import { calculateCommission } from "../services/commissionService.js";
+import cacheService from "../services/cacheService.js";
 
 const router = express.Router();
 
@@ -122,7 +123,7 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
         {
           model: Job,
           as: 'job',
-          attributes: ['title', 'summary', 'location']
+          attributes: ['id', 'title', 'summary', 'location']
         },
         {
           model: User,
@@ -590,9 +591,9 @@ router.post(
         await client.save();
       }
 
-      // Calcular comisión basada en el volumen mensual del usuario
-      // $0 - $50,000/mes: 6% | $50,000 - $150,000: 4% | $150,000 - $200,000: 3% | +$200,000: 2%
-      // Plan Familia: 0% | Mínimo de comisión: $1,000 ARS
+      // Calcular comisión basada en el plan del usuario
+      // FREE: 8% | PRO: 3% | SUPER PRO: 1% | Plan Familia: 0%
+      // Mínimo de comisión: $1,000 ARS
       const commissionResult = await calculateCommission(req.user.id, price, {
         isFreeContract,
       });
@@ -981,14 +982,18 @@ router.put("/:id/cancel", protect, async (req: AuthRequest, res: Response): Prom
 
 /**
  * POST /api/contracts/:id/confirm
- * Confirmar que el servicio fue realizado correctamente
- * Cliente o Doer pueden confirmar
+ * Confirmar trabajo y proponer horas reales.
+ * Flujo secuencial:
+ *   1. Cualquier parte propone horas (startTime, endTime) → awaiting_confirmation
+ *   2. La otra parte confirma (acepta las horas) → completed
+ * Regla: el trabajador solo puede confirmar después de que transcurrió 30% de la duración del contrato.
+ * Gracia: 5 horas para que la otra parte responda (auto-confirm).
  */
 router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
     const userId = req.user.id.toString();
-    const { review } = req.body; // Opcional: agregar review al confirmar
+    const { proposedStartTime, proposedEndTime, notes } = req.body;
 
     const contract = await Contract.findByPk(id);
     if (!contract) {
@@ -1004,174 +1009,78 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
       return;
     }
 
-    // Marcar confirmación
-    if (isClient) {
-      contract.clientConfirmed = true;
-      contract.clientConfirmedAt = new Date();
-    } else {
-      contract.doerConfirmed = true;
-      contract.doerConfirmedAt = new Date();
+    // Doer: verificar que pasó al menos 30% de la duración del contrato
+    if (isDoer && !contract.doerConfirmed) {
+      if (!contract.canDoerConfirm()) {
+        const totalMs = new Date(contract.endDate).getTime() - new Date(contract.startDate).getTime();
+        const minMs = totalMs * 0.3;
+        const minDate = new Date(new Date(contract.startDate).getTime() + minMs);
+        res.status(400).json({
+          success: false,
+          message: `Debes esperar hasta ${minDate.toLocaleString('es-AR')} para confirmar (30% del tiempo del contrato).`,
+        });
+        return;
+      }
     }
 
-    // Si ambas partes confirmaron, marcar pago como pendiente de pago por admin
-    if (contract.clientConfirmed && contract.doerConfirmed) {
-      contract.status = 'completed';
-      contract.paymentStatus = 'pending_payout'; // Pendiente de pago por admin (no 'released' automático)
-      contract.escrowStatus = 'released'; // Escrow liberado, pero pago pendiente
-      contract.actualEndDate = new Date();
+    // === CASO 1: Primera parte confirma (propone horas) ===
+    const otherPartyConfirmed = isClient ? contract.doerConfirmed : contract.clientConfirmed;
+    const thisPartyConfirmed = isClient ? contract.clientConfirmed : contract.doerConfirmed;
 
-      // Verificar si el trabajador tiene datos bancarios para recibir el pago
-      const doer = await User.findByPk(contract.doerId);
-      const hasBankingInfo = doer?.bankingInfo?.cbu || doer?.bankingInfo?.alias;
+    if (thisPartyConfirmed && !otherPartyConfirmed) {
+      res.status(400).json({ success: false, message: "Ya has confirmado. Esperando respuesta de la otra parte." });
+      return;
+    }
 
-      // Si no tiene datos bancarios, enviar notificación para que los complete
-      if (!hasBankingInfo) {
-        const Notification = (await import('../models/sql/Notification.model.js')).default;
-        await Notification.create({
-          recipientId: contract.doerId,
-          type: 'warning',
-          category: 'payment',
-          title: 'Datos bancarios requeridos',
-          message: 'Para recibir tu pago, necesitamos que completes tus datos bancarios (CBU/CVU). Por favor actualiza tu información de pago en la configuración de tu perfil.',
-          relatedModel: 'Contract',
-          relatedId: contract.id,
-          sentVia: ['in_app', 'email', 'push'],
-          data: {
-            requiresBankingInfo: true,
-            contractId: contract.id,
-            amount: contract.allocatedAmount || contract.price,
-          },
-        });
+    if (!otherPartyConfirmed) {
+      // Primera parte proponiendo horas
+      const startTime = proposedStartTime ? new Date(proposedStartTime) : contract.startDate;
+      const endTime = proposedEndTime ? new Date(proposedEndTime) : contract.endDate;
 
-        // Enviar email específico
-        const emailService = (await import('../services/email.js')).default;
-        await emailService.sendBankingInfoRequiredEmail(
-          contract.doerId.toString(),
-          contract.id.toString(),
-          contract.allocatedAmount || contract.price
-        );
-
-        console.log(`⚠️ Trabajador ${contract.doerId} no tiene datos bancarios. Notificación enviada.`);
+      if (endTime <= startTime) {
+        res.status(400).json({ success: false, message: "La hora de fin debe ser posterior a la hora de inicio" });
+        return;
       }
 
-      // Buscar el pago y liberarlo
-      const Payment = (await import('../models/sql/Payment.model.js')).default;
-      const payment = await Payment.findOne({ where: { contractId: id } });
+      // Guardar propuesta
+      contract.confirmationProposedBy = userId;
+      contract.proposedStartTime = startTime;
+      contract.proposedEndTime = endTime;
+      contract.confirmationNotes = notes || null;
 
-      // Determinar el monto a pagar al trabajador
-      // Para trabajos multi-trabajador, usar el allocatedAmount del contrato
-      // Para trabajos de un solo trabajador, usar el precio del contrato
-      const paymentAmount = contract.allocatedAmount
-        ? parseFloat(contract.allocatedAmount.toString())
-        : contract.price;
-
-      if (payment) {
-        payment.status = 'completed';
-        payment.escrowReleasedAt = new Date();
-        payment.payerConfirmed = contract.clientConfirmed;
-        payment.recipientConfirmed = contract.doerConfirmed;
-        // Guardar el monto real que se paga a este trabajador
-        payment.workerPaymentAmount = paymentAmount;
-        await payment.save();
-
-        // TODO: Transferir fondos al destinatario usando MercadoPago
-        // Para multi-trabajador: payment.workerPaymentAmount es el monto a transferir
-        console.log(`💰 Liberando pago de $${paymentAmount.toLocaleString()} ARS al trabajador ${contract.doerId}`);
+      // Marcar confirmación de esta parte
+      if (isClient) {
+        contract.clientConfirmed = true;
+        contract.clientConfirmedAt = new Date();
+      } else {
+        contract.doerConfirmed = true;
+        contract.doerConfirmedAt = new Date();
       }
 
-      // Send completion email
-      const emailService = (await import('../services/email.js')).default;
-      const job = await Job.findByPk(contract.jobId);
-      await emailService.sendContractCompletedEmail(
-        contract.clientId.toString(),
-        contract.doerId.toString(),
-        contract.id.toString(),
-        job?.title || 'Contrato',
-        paymentAmount,
-        'ARS'
-      );
-
-      // Si es un trabajo multi-trabajador, crear registro de pago pendiente
-      if (job && (job.maxWorkers || 1) > 1) {
-        const BalanceTransaction = (await import('../models/sql/BalanceTransaction.model.js')).default;
-
-        // Obtener el balance actual del trabajador
-        const worker = await User.findByPk(contract.doerId);
-        const currentBalance = worker?.availableBalance || 0;
-        const newBalance = currentBalance + paymentAmount;
-
-        // Registrar el pago pendiente al trabajador
-        await BalanceTransaction.create({
-          userId: contract.doerId,
-          type: 'payment',
-          amount: paymentAmount,
-          balanceBefore: currentBalance,
-          balanceAfter: newBalance,
-          description: `Pago por contrato #${contract.id} - ${job.title}`,
-          status: 'pending', // Pendiente de transferencia real
-          relatedModel: 'Contract',
-          relatedId: contract.id,
-          metadata: {
-            jobId: job.id,
-            contractId: contract.id,
-            jobTitle: job.title,
-            isMultiWorker: true,
-            totalWorkers: job.maxWorkers,
-            percentageOfBudget: contract.percentageOfBudget || (paymentAmount / job.price * 100),
-          },
-        });
-
-        // Actualizar el balance del trabajador
-        if (worker) {
-          worker.availableBalance = newBalance;
-          await worker.save();
-        }
-
-        console.log(`📝 Registrado pago pendiente de $${paymentAmount.toLocaleString()} ARS para trabajador ${contract.doerId} (trabajo multi-trabajador)`);
-
-        // Para trabajos multi-trabajador: verificar si TODOS los contratos están completados
-        const allJobContracts = await Contract.findAll({ where: { jobId: job.id } });
-        const allContractsCompleted = allJobContracts.every(c => c.clientConfirmed && c.doerConfirmed);
-
-        if (allContractsCompleted) {
-          job.status = 'completed';
-          await job.save();
-          console.log(`✅ Todos los contratos del trabajo ${job.id} completados. Job marcado como completed.`);
-
-          // Notificar actualización del trabajo
-          socketService.notifyJobUpdate(job.id.toString(), job.clientId?.toString() || '', {
-            action: 'job_completed',
-            job
-          });
-        }
-      } else if (job) {
-        // Para trabajos de un solo trabajador: marcar el job como completado directamente
-        job.status = 'completed';
-        await job.save();
-        console.log(`✅ Contrato único del trabajo ${job.id} completado. Job marcado como completed.`);
-
-        // Notificar actualización del trabajo
-        socketService.notifyJobUpdate(job.id.toString(), job.clientId?.toString() || '', {
-          action: 'job_completed',
-          job
-        });
-      }
-    } else {
       contract.status = 'awaiting_confirmation';
-      // Set timestamp for auto-confirm after 2 hours
-      if (!contract.awaitingConfirmationAt) {
-        contract.awaitingConfirmationAt = new Date();
-      }
+      contract.awaitingConfirmationAt = new Date();
 
-      // Send awaiting confirmation email to the other party
+      // Agregar al historial
+      const history = contract.confirmationHistory || [];
+      history.push({
+        proposedBy: userId,
+        proposedAt: new Date(),
+        proposedStartTime: startTime,
+        proposedEndTime: endTime,
+        notes: notes || undefined,
+        action: 'proposed',
+      });
+      contract.confirmationHistory = history;
+
+      await contract.save();
+
+      // Notificar a la otra parte
       const emailService = (await import('../services/email.js')).default;
       const job = await Job.findByPk(contract.jobId);
-
       const otherPartyId = isClient ? contract.doerId.toString() : contract.clientId.toString();
       const currentUser = await User.findByPk(userId);
-      const otherPartyUser = await User.findByPk(otherPartyId);
 
-      if (currentUser && otherPartyUser) {
+      if (currentUser) {
         await emailService.sendContractAwaitingConfirmationEmail(
           otherPartyId,
           currentUser.name,
@@ -1180,35 +1089,315 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
           !isClient
         );
       }
+
+      // Notificar via socket
+      socketService.notifyContractUpdate(
+        contract.id.toString(),
+        contract.clientId.toString(),
+        contract.doerId.toString(),
+        { action: 'hours_proposed', contract, confirmedBy: userId }
+      );
+      socketService.notifyDashboardRefresh(contract.clientId.toString());
+      socketService.notifyDashboardRefresh(contract.doerId.toString());
+
+      // Invalidar cache
+      cacheService.delPattern('contracts:*');
+
+      res.json({
+        success: true,
+        message: 'Horas confirmadas. Esperando que la otra parte revise y confirme.',
+        contract,
+      });
+      return;
+    }
+
+    // === CASO 2: Segunda parte confirma (acepta las horas propuestas) ===
+    if (isClient) {
+      contract.clientConfirmed = true;
+      contract.clientConfirmedAt = new Date();
+    } else {
+      contract.doerConfirmed = true;
+      contract.doerConfirmedAt = new Date();
+    }
+
+    // Agregar al historial
+    const history = contract.confirmationHistory || [];
+    history.push({
+      proposedBy: contract.confirmationProposedBy || '',
+      proposedAt: contract.awaitingConfirmationAt || new Date(),
+      proposedStartTime: contract.proposedStartTime || contract.startDate,
+      proposedEndTime: contract.proposedEndTime || contract.endDate,
+      action: 'confirmed',
+      respondedBy: userId,
+      respondedAt: new Date(),
+    });
+    contract.confirmationHistory = history;
+
+    // Ambos confirmaron → completar contrato
+    contract.status = 'completed';
+    contract.paymentStatus = 'pending_payout';
+    contract.escrowStatus = 'released';
+    contract.actualStartDate = contract.proposedStartTime || contract.startDate;
+    contract.actualEndDate = contract.proposedEndTime || contract.endDate;
+
+    // Verificar datos bancarios del trabajador
+    const doer = await User.findByPk(contract.doerId);
+    const hasBankingInfo = doer?.bankingInfo?.cbu || doer?.bankingInfo?.alias;
+
+    if (!hasBankingInfo) {
+      const Notification = (await import('../models/sql/Notification.model.js')).default;
+      await Notification.create({
+        recipientId: contract.doerId,
+        type: 'warning',
+        category: 'payment',
+        title: 'Datos bancarios requeridos',
+        message: 'Para recibir tu pago, necesitamos que completes tus datos bancarios (CBU/CVU). Por favor actualiza tu información de pago en la configuración de tu perfil.',
+        relatedModel: 'Contract',
+        relatedId: contract.id,
+        sentVia: ['in_app', 'email', 'push'],
+        data: {
+          requiresBankingInfo: true,
+          contractId: contract.id,
+          amount: contract.allocatedAmount || contract.price,
+        },
+      });
+
+      const emailService2 = (await import('../services/email.js')).default;
+      await emailService2.sendBankingInfoRequiredEmail(
+        contract.doerId.toString(),
+        contract.id.toString(),
+        contract.allocatedAmount || contract.price
+      );
+    }
+
+    // Liberar pago
+    const Payment = (await import('../models/sql/Payment.model.js')).default;
+    const payment = await Payment.findOne({ where: { contractId: id } });
+
+    const paymentAmount = contract.allocatedAmount
+      ? parseFloat(contract.allocatedAmount.toString())
+      : contract.price;
+
+    if (payment) {
+      payment.status = 'completed';
+      payment.escrowReleasedAt = new Date();
+      payment.payerConfirmed = contract.clientConfirmed;
+      payment.recipientConfirmed = contract.doerConfirmed;
+      payment.workerPaymentAmount = paymentAmount;
+      await payment.save();
+      console.log(`💰 Liberando pago de $${paymentAmount.toLocaleString()} ARS al trabajador ${contract.doerId}`);
+    }
+
+    // Email de completado
+    const emailService = (await import('../services/email.js')).default;
+    const job = await Job.findByPk(contract.jobId);
+    await emailService.sendContractCompletedEmail(
+      contract.clientId.toString(),
+      contract.doerId.toString(),
+      contract.id.toString(),
+      job?.title || 'Contrato',
+      paymentAmount,
+      'ARS'
+    );
+
+    // Balance y job completion
+    if (job && (job.maxWorkers || 1) > 1) {
+      const BalanceTransaction = (await import('../models/sql/BalanceTransaction.model.js')).default;
+      const worker = await User.findByPk(contract.doerId);
+      const currentBalance = worker?.availableBalance || 0;
+      const newBalance = currentBalance + paymentAmount;
+
+      await BalanceTransaction.create({
+        userId: contract.doerId,
+        type: 'payment',
+        amount: paymentAmount,
+        balanceBefore: currentBalance,
+        balanceAfter: newBalance,
+        description: `Pago por contrato #${contract.id} - ${job.title}`,
+        status: 'pending',
+        relatedModel: 'Contract',
+        relatedId: contract.id,
+        metadata: {
+          jobId: job.id,
+          contractId: contract.id,
+          jobTitle: job.title,
+          isMultiWorker: true,
+          totalWorkers: job.maxWorkers,
+          percentageOfBudget: contract.percentageOfBudget || (paymentAmount / job.price * 100),
+        },
+      });
+
+      if (worker) {
+        worker.availableBalance = newBalance;
+        await worker.save();
+      }
+
+      const allJobContracts = await Contract.findAll({ where: { jobId: job.id } });
+      const allContractsCompleted = allJobContracts.every(c => c.clientConfirmed && c.doerConfirmed);
+
+      if (allContractsCompleted) {
+        job.status = 'completed';
+        await job.save();
+        socketService.notifyJobUpdate(job.id.toString(), job.clientId?.toString() || '', {
+          action: 'job_completed',
+          job
+        });
+      }
+    } else if (job) {
+      job.status = 'completed';
+      await job.save();
+      socketService.notifyJobUpdate(job.id.toString(), job.clientId?.toString() || '', {
+        action: 'job_completed',
+        job
+      });
     }
 
     await contract.save();
 
-    // Send real-time notifications via Socket.io
+    // Socket notifications
     socketService.notifyContractUpdate(
       contract.id.toString(),
       contract.clientId.toString(),
       contract.doerId.toString(),
-      {
-        action: contract.clientConfirmed && contract.doerConfirmed ? 'both_confirmed' : 'confirmation_pending',
-        contract,
-        confirmedBy: userId
-      }
+      { action: 'both_confirmed', contract, confirmedBy: userId }
     );
-
-    // Notify dashboard refresh
     socketService.notifyDashboardRefresh(contract.clientId.toString());
     socketService.notifyDashboardRefresh(contract.doerId.toString());
 
+    // Invalidar cache
+    cacheService.delPattern('contracts:*');
+
     res.json({
       success: true,
-      message: contract.clientConfirmed && contract.doerConfirmed
-        ? '¡Contrato completado! El pago ha sido liberado.'
-        : 'Confirmación registrada. Esperando confirmación de la otra parte.',
+      message: '¡Contrato completado! El pago ha sido liberado.',
       contract,
     });
   } catch (error: any) {
     console.error('Error confirming contract:', error);
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+  }
+});
+
+/**
+ * POST /api/contracts/:id/reject-confirmation
+ * La otra parte rechaza la propuesta de horas → crea disputa automáticamente
+ */
+router.post("/:id/reject-confirmation", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id.toString();
+    const { reason } = req.body;
+
+    if (!reason || !reason.trim()) {
+      res.status(400).json({ success: false, message: "Debes proporcionar un motivo de rechazo" });
+      return;
+    }
+
+    const contract = await Contract.findByPk(id);
+    if (!contract) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    const isClient = contract.clientId.toString() === userId;
+    const isDoer = contract.doerId.toString() === userId;
+
+    if (!isClient && !isDoer) {
+      res.status(403).json({ success: false, message: "No eres parte de este contrato" });
+      return;
+    }
+
+    if (contract.status !== 'awaiting_confirmation') {
+      res.status(400).json({ success: false, message: "El contrato no está esperando confirmación" });
+      return;
+    }
+
+    // Solo puede rechazar la parte que NO propuso las horas
+    if (contract.confirmationProposedBy === userId) {
+      res.status(400).json({ success: false, message: "No puedes rechazar tu propia propuesta" });
+      return;
+    }
+
+    // Guardar rechazo
+    contract.confirmationRejectionReason = reason.trim();
+    contract.status = 'disputed';
+
+    // Agregar al historial
+    const history = contract.confirmationHistory || [];
+    history.push({
+      proposedBy: contract.confirmationProposedBy || '',
+      proposedAt: contract.awaitingConfirmationAt || new Date(),
+      proposedStartTime: contract.proposedStartTime || contract.startDate,
+      proposedEndTime: contract.proposedEndTime || contract.endDate,
+      action: 'rejected',
+      respondedBy: userId,
+      respondedAt: new Date(),
+      rejectionReason: reason.trim(),
+    });
+    contract.confirmationHistory = history;
+    await contract.save();
+
+    // Auto-crear disputa
+    const Dispute = (await import('../models/sql/Dispute.model.js')).default;
+    const Payment = (await import('../models/sql/Payment.model.js')).default;
+    const Notification = (await import('../models/sql/Notification.model.js')).default;
+
+    const payment = await Payment.findOne({ where: { contractId: id } });
+    const job = await Job.findByPk(contract.jobId);
+
+    const againstUserId = contract.confirmationProposedBy === contract.clientId.toString()
+      ? contract.clientId
+      : contract.doerId;
+
+    const dispute = await Dispute.create({
+      contractId: id,
+      paymentId: payment?.id || null,
+      initiatedBy: userId,
+      against: againstUserId,
+      reason: `Rechazo de confirmación: ${reason.trim()}`,
+      detailedDescription: `La confirmación del contrato "${job?.title || 'Contrato'}" fue rechazada. Horas propuestas: ${contract.proposedStartTime?.toLocaleString('es-AR')} - ${contract.proposedEndTime?.toLocaleString('es-AR')}. Motivo del rechazo: ${reason.trim()}`,
+      category: 'quality_issues',
+      status: 'open',
+      priority: 'medium',
+      evidence: [],
+      messages: [],
+    });
+
+    // Notificar a la otra parte
+    const otherPartyId = isClient ? contract.doerId.toString() : contract.clientId.toString();
+    await Notification.create({
+      recipientId: otherPartyId,
+      type: 'warning',
+      category: 'contract',
+      title: 'Confirmación rechazada - Disputa abierta',
+      message: `Tu confirmación de horas fue rechazada. Se ha abierto una disputa automáticamente. Motivo: ${reason.trim()}`,
+      relatedModel: 'Dispute',
+      relatedId: dispute.id,
+      sentVia: ['in_app', 'push'],
+      data: { contractId: id, disputeId: dispute.id },
+    });
+
+    // Socket notifications
+    socketService.notifyContractUpdate(
+      contract.id.toString(),
+      contract.clientId.toString(),
+      contract.doerId.toString(),
+      { action: 'confirmation_rejected', contract, dispute, rejectedBy: userId }
+    );
+    socketService.notifyDashboardRefresh(contract.clientId.toString());
+    socketService.notifyDashboardRefresh(contract.doerId.toString());
+
+    // Invalidar cache
+    cacheService.delPattern('contracts:*');
+
+    res.json({
+      success: true,
+      message: 'Confirmación rechazada. Se ha creado una disputa automáticamente.',
+      contract,
+      dispute,
+    });
+  } catch (error: any) {
+    console.error('Error rejecting confirmation:', error);
     res.status(500).json({ success: false, message: error.message || "Error del servidor" });
   }
 });

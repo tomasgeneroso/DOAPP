@@ -203,42 +203,84 @@ export default function ContractDetail() {
   // Handle work confirmation
   const [confirmingWork, setConfirmingWork] = useState(false);
   const [showConfirmationSuccessModal, setShowConfirmationSuccessModal] = useState(false);
+  // Confirmation hour proposal state
+  const [showHoursForm, setShowHoursForm] = useState(false);
+  const [proposedStart, setProposedStart] = useState('');
+  const [proposedEnd, setProposedEnd] = useState('');
+  const [confirmationNotes, setConfirmationNotes] = useState('');
+  // Rejection state
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
 
-  const handleConfirmCompletion = async () => {
-    if (!id) return;
-
-    if (!confirm("¿Confirmas que el trabajo se ha completado satisfactoriamente?")) {
+  const handleProposeHours = async () => {
+    if (!id || !proposedStart || !proposedEnd) {
+      alert("Debes indicar hora de inicio y fin");
+      return;
+    }
+    if (new Date(proposedEnd) <= new Date(proposedStart)) {
+      alert("La hora de fin debe ser posterior a la de inicio");
       return;
     }
 
     setConfirmingWork(true);
     try {
+      const response = await api.post(`/contracts/${id}/confirm`, {
+        proposedStartTime: proposedStart,
+        proposedEndTime: proposedEnd,
+        notes: confirmationNotes || undefined,
+      });
+      if (response.success) {
+        setShowHoursForm(false);
+        setShowConfirmationSuccessModal(true);
+        loadContract();
+      }
+    } catch (error: any) {
+      alert(error.response?.data?.message || "Error al confirmar");
+    } finally {
+      setConfirmingWork(false);
+    }
+  };
+
+  const handleConfirmCompletion = async () => {
+    if (!id) return;
+    if (!confirm("¿Confirmas que las horas reportadas son correctas y el trabajo fue completado?")) return;
+
+    setConfirmingWork(true);
+    try {
       const response = await api.post(`/contracts/${id}/confirm`);
       if (response.success) {
-        // Update contract state
-        setContract((prev: any) => prev ? {
-          ...prev,
-          clientConfirmed: response.contract?.clientConfirmed ?? prev.clientConfirmed,
-          doerConfirmed: response.contract?.doerConfirmed ?? prev.doerConfirmed,
-          status: response.contract?.status ?? prev.status,
-        } : null);
-
-        // Show success message
         setShowConfirmationSuccessModal(true);
-
-        // Reload contract to get latest data
         loadContract();
-
-        // Reload all contracts for multi-worker jobs
         if (contract?.job?.id || contract?.jobId) {
           const jobId = contract.job?.id || contract.jobId;
-          if (jobId) {
-            loadAllContracts(jobId);
-          }
+          if (jobId) loadAllContracts(jobId);
         }
       }
     } catch (error: any) {
       alert(error.response?.data?.message || "Error al confirmar finalización del trabajo");
+    } finally {
+      setConfirmingWork(false);
+    }
+  };
+
+  const handleRejectConfirmation = async () => {
+    if (!id || !rejectionReason.trim()) {
+      alert("Debes proporcionar un motivo de rechazo");
+      return;
+    }
+
+    setConfirmingWork(true);
+    try {
+      const response = await api.post(`/contracts/${id}/reject-confirmation`, {
+        reason: rejectionReason.trim(),
+      });
+      if (response.success) {
+        setShowRejectModal(false);
+        alert("Confirmación rechazada. Se ha creado una disputa automáticamente.");
+        loadContract();
+      }
+    } catch (error: any) {
+      alert(error.response?.data?.message || "Error al rechazar");
     } finally {
       setConfirmingWork(false);
     }
@@ -622,124 +664,149 @@ export default function ContractDetail() {
                   </div>
                 </div>
 
-                {/* Confirmación de trabajo completado */}
+                {/* Verificación de Trabajo */}
                 {['in_progress', 'awaiting_confirmation', 'completed'].includes(contract.status) && (
                   <div className="border-t pt-3">
-                    <p className="text-xs text-gray-500 mb-2 font-medium">Confirmación de Trabajo Completado</p>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {contract.clientConfirmed ? (
-                            <CheckCircle className="h-5 w-5 text-green-600" />
-                          ) : (
-                            <AlertCircle className="h-5 w-5 text-yellow-600" />
-                          )}
-                          <span className="text-sm">
-                            {contract.client?.name || 'Cliente'}: {contract.clientConfirmed ? 'Confirmado' : 'Pendiente'}
-                          </span>
-                        </div>
-                        {contract.clientConfirmedAt && (
-                          <span className="text-xs text-gray-400">
-                            {new Date(contract.clientConfirmedAt).toLocaleDateString()}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {contract.doerConfirmed ? (
-                            <CheckCircle className="h-5 w-5 text-green-600" />
-                          ) : (
-                            <AlertCircle className="h-5 w-5 text-yellow-600" />
-                          )}
-                          <span className="text-sm">
-                            {contract.doer?.name || 'Trabajador'}: {contract.doerConfirmed ? 'Confirmado' : 'Pendiente'}
-                          </span>
-                        </div>
-                        {contract.doerConfirmedAt && (
-                          <span className="text-xs text-gray-400">
-                            {new Date(contract.doerConfirmedAt).toLocaleDateString()}
-                          </span>
-                        )}
+                    <p className="text-xs text-gray-500 mb-2 font-medium">Verificación de Trabajo</p>
+
+                    {/* Siempre mostrar horario original */}
+                    <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 mb-3">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 font-medium">Horario original del contrato</p>
+                      <div className="flex gap-4 text-sm">
+                        <span>Inicio: {new Date(contract.startDate).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                        <span>Fin: {new Date(contract.endDate).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                     </div>
 
-                    {/* Mensaje de estado */}
-                    {contract.clientConfirmed && contract.doerConfirmed ? (
-                      <div className="mt-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
-                        <p className="text-sm text-green-700 dark:text-green-300 font-medium">
-                          ✓ Ambas partes han confirmado. Contrato completado.
+                    {/* Horas propuestas (si existen) */}
+                    {contract.proposedStartTime && (
+                      <div className="bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg p-3 mb-3">
+                        <p className="text-xs text-sky-600 dark:text-sky-400 mb-1 font-medium">
+                          Horas reportadas por {contract.confirmationProposedBy === contract.clientId ? (contract.client?.name || 'Cliente') : (contract.doer?.name || 'Trabajador')}
                         </p>
+                        <div className="flex gap-4 text-sm">
+                          <span>Inicio: {new Date(contract.proposedStartTime).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                          <span>Fin: {new Date(contract.proposedEndTime!).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                        {contract.confirmationNotes && (
+                          <p className="text-xs text-gray-500 mt-1">Notas: {contract.confirmationNotes}</p>
+                        )}
                       </div>
-                    ) : contract.status === 'awaiting_confirmation' && (
-                      <div className="mt-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
-                        <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                          Esperando confirmación de {!contract.clientConfirmed && !contract.doerConfirmed ? 'ambas partes' :
-                            !contract.clientConfirmed ? 'cliente' : 'trabajador'}.
+                    )}
+
+                    {/* Estado: Ambos confirmaron */}
+                    {contract.clientConfirmed && contract.doerConfirmed && (
+                      <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+                        <p className="text-sm text-green-700 dark:text-green-300 font-medium flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4" />
+                          Ambas partes han confirmado. Contrato completado.
                         </p>
                       </div>
                     )}
 
-                    {/* Botón de confirmación - Habilitado 5 minutos antes del fin del trabajo hasta que se confirme */}
-                    {contract.status === 'in_progress' && contract.endDate && (() => {
-                      const now = new Date();
-                      const endDate = new Date(contract.endDate);
-                      const fiveMinutesBefore = new Date(endDate.getTime() - 5 * 60 * 1000);
-                      return now >= fiveMinutesBefore;
-                    })() && (
-                      <div className="mt-3">
-                        {((isClient && !contract.clientConfirmed) || (isDoer && !contract.doerConfirmed)) && (
+                    {/* Estado: in_progress — nadie confirmó aún */}
+                    {contract.status === 'in_progress' && !contract.clientConfirmed && !contract.doerConfirmed && (
+                      <>
+                        {/* Verificar si el doer puede confirmar (30% del tiempo) */}
+                        {isDoer && (() => {
+                          const totalDuration = new Date(contract.endDate).getTime() - new Date(contract.startDate).getTime();
+                          const elapsed = Date.now() - new Date(contract.startDate).getTime();
+                          return elapsed < totalDuration * 0.3;
+                        })() && (
+                          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3 mb-3">
+                            <p className="text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                              <Clock className="h-4 w-4" />
+                              Podrás confirmar las horas después del {new Date(new Date(contract.startDate).getTime() + (new Date(contract.endDate).getTime() - new Date(contract.startDate).getTime()) * 0.3).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} (30% del tiempo)
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Formulario de propuesta de horas */}
+                        {!showHoursForm ? (
                           <button
-                            onClick={handleConfirmCompletion}
-                            disabled={confirmingWork}
-                            className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
-                            title="Confirma que el trabajo fue completado satisfactoriamente para liberar el pago desde el escrow"
+                            onClick={() => {
+                              setProposedStart(contract.startDate?.slice(0, 16) || '');
+                              setProposedEnd(contract.endDate?.slice(0, 16) || '');
+                              setShowHoursForm(true);
+                            }}
+                            disabled={isDoer && (() => {
+                              const totalDuration = new Date(contract.endDate).getTime() - new Date(contract.startDate).getTime();
+                              const elapsed = Date.now() - new Date(contract.startDate).getTime();
+                              return elapsed < totalDuration * 0.3;
+                            })()}
+                            className="w-full bg-sky-600 hover:bg-sky-700 disabled:bg-gray-400 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
                           >
-                            {confirmingWork ? (
-                              <>
-                                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                Confirmando...
-                              </>
-                            ) : (
-                              <>
-                                <CheckCircle className="h-5 w-5" />
-                                Confirmar Finalización del Trabajo
-                              </>
-                            )}
+                            <Clock className="h-5 w-5" />
+                            Confirmar / Cambiar Horas Trabajadas
                           </button>
-                        )}
-                        {isClient && contract.clientConfirmed && !contract.doerConfirmed && (
-                          <div className="bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg p-3">
-                            <p className="text-sm text-sky-700 dark:text-sky-300 text-center">
-                              ✓ Has confirmado. Esperando confirmación del trabajador...
-                            </p>
+                        ) : (
+                          <div className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-4 space-y-3">
+                            <p className="text-sm font-medium">Indica las horas reales trabajadas</p>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">Inicio real</label>
+                                <input type="datetime-local" value={proposedStart} onChange={(e) => setProposedStart(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-sm" />
+                              </div>
+                              <div>
+                                <label className="block text-xs text-gray-500 mb-1">Fin real</label>
+                                <input type="datetime-local" value={proposedEnd} onChange={(e) => setProposedEnd(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-sm" />
+                              </div>
+                            </div>
+                            <textarea placeholder="Notas adicionales (opcional)" value={confirmationNotes} onChange={(e) => setConfirmationNotes(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-sm resize-none" rows={2} />
+                            <div className="flex gap-2">
+                              <button onClick={handleProposeHours} disabled={confirmingWork} className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2">
+                                {confirmingWork ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                                Confirmar Horas
+                              </button>
+                              <button onClick={() => setShowHoursForm(false)} className="px-4 py-2.5 bg-slate-200 dark:bg-slate-600 rounded-lg text-sm">Cancelar</button>
+                            </div>
                           </div>
                         )}
-                        {isDoer && contract.doerConfirmed && !contract.clientConfirmed && (
-                          <div className="bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg p-3">
-                            <p className="text-sm text-sky-700 dark:text-sky-300 text-center">
-                              ✓ Has confirmado. Esperando confirmación del cliente...
-                            </p>
-                          </div>
-                        )}
-                      </div>
+                      </>
                     )}
-                    {contract.status === 'in_progress' && contract.endDate && (() => {
-                      const now = new Date();
-                      const endDate = new Date(contract.endDate);
-                      const fiveMinutesBefore = new Date(endDate.getTime() - 5 * 60 * 1000);
-                      return now < fiveMinutesBefore;
-                    })() && (
-                      <div className="mt-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3">
-                        <p className="text-sm text-amber-700 dark:text-amber-300 text-center flex items-center justify-center gap-2">
-                          <Clock className="h-4 w-4" />
-                          El botón de confirmar finalización se habilitará 5 minutos antes del fin: {new Date(new Date(contract.endDate).getTime() - 5 * 60 * 1000).toLocaleString('es-AR', {
-                            day: 'numeric',
-                            month: 'long',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </p>
+
+                    {/* Estado: awaiting_confirmation — una parte propuso, la otra debe revisar */}
+                    {contract.status === 'awaiting_confirmation' && (
+                      <>
+                        {/* Soy quien propuso → esperando revisión */}
+                        {contract.confirmationProposedBy === user?.id && (
+                          <div className="bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg p-3">
+                            <p className="text-sm text-sky-700 dark:text-sky-300 text-center">
+                              Has confirmado tus horas. Esperando que la otra parte revise y confirme. (Auto-confirmación en 5 horas)
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Soy quien debe revisar → botones confirmar/rechazar */}
+                        {contract.confirmationProposedBy !== user?.id && (isClient || isDoer) && (
+                          <div className="space-y-2">
+                            <button onClick={handleConfirmCompletion} disabled={confirmingWork} className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
+                              {confirmingWork ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <CheckCircle className="h-5 w-5" />}
+                              Confirmar y Liberar Pago
+                            </button>
+                            <button onClick={() => setShowRejectModal(true)} disabled={confirmingWork} className="w-full bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
+                              <AlertCircle className="h-5 w-5" />
+                              Rechazar y Abrir Disputa
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Modal de rechazo */}
+                    {showRejectModal && (
+                      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+                        <div className="bg-white dark:bg-slate-800 rounded-xl max-w-md w-full p-6 space-y-4">
+                          <h3 className="text-lg font-semibold">Rechazar Confirmación</h3>
+                          <p className="text-sm text-gray-500">Al rechazar, se creará una disputa automáticamente para que un administrador resuelva.</p>
+                          <textarea placeholder="Motivo del rechazo (requerido)" value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 text-sm resize-none" rows={3} />
+                          <div className="flex gap-2">
+                            <button onClick={handleRejectConfirmation} disabled={confirmingWork || !rejectionReason.trim()} className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-semibold py-2.5 rounded-lg">
+                              {confirmingWork ? 'Procesando...' : 'Rechazar y Crear Disputa'}
+                            </button>
+                            <button onClick={() => setShowRejectModal(false)} className="px-4 py-2.5 bg-slate-200 dark:bg-slate-600 rounded-lg text-sm">Cancelar</button>
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>

@@ -266,19 +266,23 @@ export default function RegisterScreen() {
               </View>
 
               {/* Terms checkbox */}
-              <TouchableOpacity
-                style={styles.termsContainer}
-                onPress={() => setTermsAccepted(!termsAccepted)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>
-                  {termsAccepted && <Text style={styles.checkmark}>✓</Text>}
-                </View>
-                <Text style={styles.termsText}>
-                  Acepto los{' '}
+              <View style={styles.termsContainer}>
+                <TouchableOpacity
+                  onPress={() => setTermsAccepted(!termsAccepted)}
+                  activeOpacity={0.7}
+                  style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+                >
+                  <View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>
+                    {termsAccepted && <Text style={styles.checkmark}>✓</Text>}
+                  </View>
+                  <Text style={styles.termsText}>
+                    Acepto los{' '}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => router.push('/legal/terms' as any)} activeOpacity={0.7}>
                   <Text style={styles.termsLink}>Términos y Condiciones</Text>
-                </Text>
-              </TouchableOpacity>
+                </TouchableOpacity>
+              </View>
 
               <TouchableOpacity
                 style={[styles.button, loading && styles.buttonDisabled]}

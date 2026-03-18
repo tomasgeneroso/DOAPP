@@ -9,6 +9,7 @@ import { Contract } from "../../models/sql/Contract.model.js";
 import { Notification } from "../../models/sql/Notification.model.js";
 import { Op } from 'sequelize';
 import { isValidUUID } from "../../utils/sanitizer.js";
+import { generateClientPaymentInvoice } from "../../services/invoiceService.js";
 
 const router = Router();
 
@@ -424,6 +425,11 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
     await payment.save();
 
     console.log(`✅ [ADMIN APPROVE] Payment ${paymentId} approved with status: ${newStatus}`);
+
+    // Generate client payment invoice (async, don't block)
+    generateClientPaymentInvoice(paymentId).catch(err =>
+      console.error('[Invoice] Failed to generate client invoice:', err.message)
+    );
 
     // Handle job publication payment
     if (payment.paymentType === 'job_publication') {

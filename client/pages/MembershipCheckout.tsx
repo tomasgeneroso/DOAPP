@@ -147,7 +147,7 @@ export default function MembershipCheckout() {
       price: pricing?.pro?.priceARS ? pricing.pro.priceARS * 3 * 0.89 : 0,
       priceARS: pricing?.pro?.priceARS ? pricing.pro.priceARS * 3 * 0.89 : 0,
       period: 'cada 3 meses',
-      savings: '$1.98',
+      savings: '$1.650',
       benefits: [
         { icon: TrendingUp, title: '1 contrato mensual SIN comisión (0%)', description: 'Publica 1 trabajo al mes completamente gratis' },
         { icon: Crown, title: '2 contratos gratis iniciales únicos', description: 'Solo para los primeros 1000 usuarios totales de la app' },
@@ -168,7 +168,7 @@ export default function MembershipCheckout() {
         { icon: Crown, title: 'Todos los beneficios de PRO', description: 'Incluye todos los beneficios del plan PRO: verificación, badge dorado, prioridad en búsquedas' },
         { icon: TrendingUp, title: '2 contratos mensuales SIN comisión (0%)', description: 'Publica 2 trabajos al mes completamente gratis' },
         { icon: Crown, title: '2 contratos gratis iniciales únicos', description: 'Solo para los primeros 1000 usuarios totales de la app' },
-        { icon: Check, title: 'Contratos adicionales: 2% de comisión', description: 'La comisión más baja de la plataforma - ahorra 6% vs Free (8%) y 1% vs PRO (3%)' },
+        { icon: Check, title: 'Contratos adicionales: 1% de comisión', description: 'La comisión más baja de la plataforma - ahorra 7% vs Free (8%) y 2% vs PRO (3%)' },
         { icon: BarChart3, title: 'Dashboard exclusivo con métricas avanzadas', description: 'Panel personalizado con gráficos interactivos, KPIs y seguimiento de rendimiento en tiempo real' },
         { icon: BarChart3, title: 'Estadísticas de visitas a tu perfil', description: 'Detalle completo de quién visita tu perfil: nombre, frecuencia, fecha de última visita y procedencia' },
         { icon: TrendingUp, title: 'Analytics de conversaciones', description: 'Analiza con quién conversas, si tuviste contratos completados con ellos, tasa de conversión a contrato' },
@@ -320,7 +320,7 @@ export default function MembershipCheckout() {
                       {plan === 'super_pro' ? 'Plan SUPER PRO' : 'Plan PRO'}
                     </p>
                     <p className="text-3xl font-bold text-white">
-                      {plan === 'super_pro' ? '2%' : '3%'}
+                      {plan === 'super_pro' ? '1%' : '3%'}
                     </p>
                     <p className="text-xs text-white opacity-90 mt-1">de comisión</p>
                   </div>

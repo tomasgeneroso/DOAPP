@@ -93,7 +93,19 @@ interface ExtensionRecord {
   notes?: string;
 }
 
-export type { Delivery, PriceModification, ExtensionRecord };
+interface ConfirmationHistoryEntry {
+  proposedBy: string; // UUID
+  proposedAt: Date;
+  proposedStartTime: Date;
+  proposedEndTime: Date;
+  notes?: string;
+  action: 'proposed' | 'confirmed' | 'rejected';
+  respondedBy?: string; // UUID
+  respondedAt?: Date;
+  rejectionReason?: string;
+}
+
+export type { Delivery, PriceModification, ExtensionRecord, ConfirmationHistoryEntry };
 
 @Table({
   tableName: 'contracts',
@@ -360,6 +372,30 @@ export class Contract extends Model {
   @Default(false)
   @Column(DataType.BOOLEAN)
   confirmationReminderSent!: boolean;
+
+  // Who proposed the current hours (UUID of client or doer)
+  @Column(DataType.UUID)
+  confirmationProposedBy?: string;
+
+  // Proposed actual start/end times
+  @Column(DataType.DATE)
+  proposedStartTime?: Date;
+
+  @Column(DataType.DATE)
+  proposedEndTime?: Date;
+
+  // Notes from the proposer
+  @Column(DataType.TEXT)
+  confirmationNotes?: string;
+
+  // Rejection reason if the other party rejects
+  @Column(DataType.TEXT)
+  confirmationRejectionReason?: string;
+
+  // History of confirmation proposals
+  @Default([])
+  @Column(DataType.JSONB)
+  confirmationHistory!: ConfirmationHistoryEntry[];
 
   // ============================================
   // MODIFICATION REQUEST (JSONB)
@@ -718,7 +754,19 @@ export class Contract extends Model {
   }
 
   /**
-   * Confirm completion by client or doer
+   * Check if enough time has passed for the doer to confirm (30% of contract duration)
+   */
+  canDoerConfirm(): boolean {
+    if (!this.startDate || !this.endDate) return true;
+    const totalDuration = new Date(this.endDate).getTime() - new Date(this.startDate).getTime();
+    const elapsed = Date.now() - new Date(this.startDate).getTime();
+    return elapsed >= totalDuration * 0.3;
+  }
+
+  /**
+   * Confirm completion by client or doer (new sequential flow)
+   * Step 1: Either party proposes hours → status stays in_progress or goes to awaiting_confirmation
+   * Step 2: Other party confirms → completed, or rejects → disputed
    */
   async confirmCompletion(userId: string): Promise<boolean> {
     if (userId === this.clientId) {
@@ -734,7 +782,8 @@ export class Contract extends Model {
     // If both confirmed, mark as completed
     if (this.clientConfirmed && this.doerConfirmed) {
       this.status = 'completed';
-      this.actualEndDate = new Date();
+      this.actualStartDate = this.proposedStartTime || this.startDate;
+      this.actualEndDate = this.proposedEndTime || this.endDate;
     }
 
     await this.save();

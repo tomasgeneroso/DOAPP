@@ -214,6 +214,9 @@ router.get("/:id/profile", async (req: Request, res: Response): Promise<void> =>
         skills: user.skills || [],
         phone: user.phone,
         createdAt: user.createdAt,
+        // Only include availability if user set it to public
+        availabilitySchedule: user.isAvailabilityPublic ? user.availabilitySchedule : undefined,
+        isAvailabilityPublic: user.isAvailabilityPublic,
       },
     });
   } catch (error: any) {

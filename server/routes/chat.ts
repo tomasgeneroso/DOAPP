@@ -267,10 +267,51 @@ router.post(
       }
 
       const userId = req.user.id;
-      const { participantId, message } = req.body;
+      const { participantId, message, jobId } = req.body;
+
+      // Don't allow chatting with yourself
+      if (userId === participantId) {
+        res.status(400).json({
+          success: false,
+          message: "No puedes iniciar una conversación contigo mismo",
+        });
+        return;
+      }
+
+      // Validate participant exists
+      const participant = await User.findByPk(participantId, {
+        attributes: ['id', 'name'],
+      });
+      if (!participant) {
+        res.status(404).json({
+          success: false,
+          message: "Usuario no encontrado",
+        });
+        return;
+      }
+
+      // Validate job if provided
+      let job: any = null;
+      if (jobId) {
+        job = await Job.findByPk(jobId, {
+          attributes: ['id', 'title', 'price', 'status', 'location', 'category', 'clientId'],
+          include: [{
+            model: User,
+            as: 'client',
+            attributes: ['id', 'name'],
+          }],
+        });
+        if (!job) {
+          res.status(404).json({
+            success: false,
+            message: "Trabajo no encontrado",
+          });
+          return;
+        }
+      }
 
       // Check if conversation already exists
-      const existingConversation = await Conversation.findOne({
+      let conversation = await Conversation.findOne({
         where: {
           participants: {
             [Op.contains]: [userId, participantId],
@@ -279,24 +320,63 @@ router.post(
         },
       });
 
-      if (existingConversation) {
-        res.json({
-          success: true,
-          data: existingConversation,
-          message: "Conversación ya existe",
+      let isNew = false;
+      if (!conversation) {
+        isNew = true;
+        // Create new conversation with job context
+        conversation = await Conversation.create({
+          participants: [userId, participantId],
+          type: "direct",
+          jobId: jobId || null,
+          metadata: job ? { jobTitle: job.title } : undefined,
         });
-        return;
+      } else if (jobId && !conversation.jobId) {
+        // Update existing conversation with job context if not already set
+        conversation.jobId = jobId;
+        conversation.metadata = {
+          ...conversation.metadata,
+          jobTitle: job?.title || null,
+        };
+        await conversation.save();
       }
 
-      // Create new conversation
-      const conversation = await Conversation.create({
-        participants: [userId, participantId],
-        type: "direct",
-      });
+      let unreadIncrement = 0;
 
-      // Create initial message if provided
+      // Create job attachment system message if job provided
+      if (job) {
+        const senderName = req.user.name || 'Usuario';
+        const isJobOwner = job.clientId === userId;
+        const systemHeader = isJobOwner
+          ? `${senderName} compartió su trabajo publicado`
+          : `${senderName} adjuntó un trabajo`;
+        const systemContent = `📋 ${job.title}\n💰 $${Number(job.price).toLocaleString('es-AR')}${job.location ? `\n📍 ${job.location}` : ''}${job.category ? `\n🏷️ ${job.category}` : ''}`;
+
+        await ChatMessage.create({
+          conversationId: conversation.id,
+          senderId: userId,
+          message: `${systemHeader}||${job.title}||${systemContent}`,
+          type: 'system',
+          metadata: {
+            action: 'job_attachment',
+            jobId: job.id,
+            jobTitle: job.title,
+            jobPrice: Number(job.price),
+            jobLocation: job.location || null,
+            jobCategory: job.category || null,
+            jobStatus: job.status,
+            jobClientId: job.clientId,
+            jobClientName: job.client?.name || null,
+          },
+        });
+
+        conversation.lastMessage = `📋 ${job.title}`;
+        conversation.lastMessageAt = new Date();
+        unreadIncrement++;
+      }
+
+      // Create text message if provided
       if (message) {
-        const chatMessage = await ChatMessage.create({
+        await ChatMessage.create({
           conversationId: conversation.id,
           senderId: userId,
           message,
@@ -304,18 +384,49 @@ router.post(
 
         conversation.lastMessage = message.substring(0, 200);
         conversation.lastMessageAt = new Date();
+        unreadIncrement++;
+      }
+
+      // Update unread count
+      if (unreadIncrement > 0) {
         if (!conversation.unreadCount) {
           conversation.unreadCount = {};
         }
-        conversation.unreadCount[participantId.toString()] = 1;
+        const currentUnread = conversation.unreadCount[participantId.toString()] || 0;
+        conversation.unreadCount[participantId.toString()] = currentUnread + unreadIncrement;
         await conversation.save();
+
+        // Notify via socket
+        try {
+          const io = getIO();
+          if (io) {
+            io.to(`user:${participantId}`).emit('chat:message', {
+              conversationId: conversation.id,
+            });
+          }
+        } catch (socketError) {
+          console.error('Socket emit error:', socketError);
+        }
       }
 
-      const populatedConversation = await Conversation.findByPk(conversation.id);
+      // Load participant info for response
+      const participantUsers = await User.findAll({
+        where: { id: { [Op.in]: conversation.participants } },
+        attributes: ['id', 'name', 'avatar', 'username'],
+      });
 
-      res.status(201).json({
+      const conversationData = conversation.toJSON();
+      conversationData.participants = participantUsers.map((u: any) => ({
+        id: u.id,
+        _id: u.id,
+        name: u.name,
+        avatar: u.avatar,
+        username: u.username,
+      }));
+
+      res.status(isNew ? 201 : 200).json({
         success: true,
-        data: populatedConversation,
+        data: conversationData,
       });
     } catch (error: any) {
       console.error("Create conversation error:", error);
@@ -521,21 +632,20 @@ router.get("/conversations/:id/messages", protect, async (req: AuthRequest, res:
 router.post(
   "/conversations/:id/messages",
   protect,
-  [body("content").notEmpty().withMessage("El contenido del mensaje es requerido")],
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
+      const { id: conversationId } = req.params;
+      const userId = req.user.id;
+      const { content, jobId } = req.body;
+
+      // Require either content or jobId
+      if (!content && !jobId) {
         res.status(400).json({
           success: false,
-          errors: errors.array(),
+          message: "Se requiere contenido del mensaje o un trabajo adjunto",
         });
         return;
       }
-
-      const { id: conversationId } = req.params;
-      const userId = req.user.id;
-      const { content } = req.body;
 
       // Verify conversation exists
       const conversation = await Conversation.findByPk(conversationId);
@@ -559,15 +669,65 @@ router.post(
         return;
       }
 
-      // Create message
-      const message = await ChatMessage.create({
-        conversationId,
-        senderId: userId,
-        message: content,
-      });
+      const createdMessages: any[] = [];
+
+      // If jobId provided, create a system message with job attachment first
+      if (jobId) {
+        const job = await Job.findByPk(jobId, {
+          attributes: ['id', 'title', 'price', 'status', 'location', 'category', 'clientId'],
+          include: [{
+            model: User,
+            as: 'client',
+            attributes: ['id', 'name'],
+          }],
+        });
+
+        if (job) {
+          const senderName = req.user.name || 'Usuario';
+          const isJobOwner = job.clientId === userId;
+          const systemHeader = isJobOwner
+            ? `${senderName} compartió su trabajo publicado`
+            : `${senderName} adjuntó un trabajo`;
+          const systemContent = `📋 ${job.title}\n💰 $${Number(job.price).toLocaleString('es-AR')}${job.location ? `\n📍 ${job.location}` : ''}${job.category ? `\n🏷️ ${job.category}` : ''}`;
+
+          const jobMessage = await ChatMessage.create({
+            conversationId,
+            senderId: userId,
+            message: `${systemHeader}||${job.title}||${systemContent}`,
+            type: 'system',
+            metadata: {
+              action: 'job_attachment',
+              jobId: job.id,
+              jobTitle: job.title,
+              jobPrice: Number(job.price),
+              jobLocation: job.location || null,
+              jobCategory: job.category || null,
+              jobStatus: job.status,
+              jobClientId: job.clientId,
+              jobClientName: job.client?.name || null,
+            },
+          });
+          createdMessages.push(jobMessage);
+        }
+      }
+
+      // Create text message if content provided
+      let message: any = null;
+      if (content) {
+        message = await ChatMessage.create({
+          conversationId,
+          senderId: userId,
+          message: content,
+        });
+        createdMessages.push(message);
+      } else {
+        // Use the job message as the main message
+        message = createdMessages[0];
+      }
 
       // Update conversation last message
-      conversation.lastMessage = content.substring(0, 100);
+      const lastContent = content ? content.substring(0, 100) : (jobId ? `📋 Trabajo adjunto` : '');
+      conversation.lastMessage = lastContent;
       conversation.lastMessageAt = new Date();
       await conversation.save();
 
@@ -603,9 +763,23 @@ router.post(
         // Don't fail the request if socket fails
       }
 
+      // Populate and emit all created messages
+      const allPopulated: any[] = [];
+      for (const msg of createdMessages) {
+        const populated = await ChatMessage.findByPk(msg.id, {
+          include: [{
+            model: User,
+            as: 'sender',
+            attributes: ['id', 'name', 'avatar'],
+          }],
+        });
+        if (populated) allPopulated.push(populated);
+      }
+
       res.status(201).json({
         success: true,
         message: populatedMessage,
+        messages: allPopulated.length > 1 ? allPopulated : undefined,
       });
     } catch (error: any) {
       console.error("Send message error:", error);

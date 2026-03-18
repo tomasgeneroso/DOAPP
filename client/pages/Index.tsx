@@ -610,12 +610,12 @@ export default function Index() {
         {/* Trabajo en Proceso - Only show for authenticated users */}
         {user && <WorkInProgress />}
 
-        {/* Mis Trabajos Publicados */}
+        {/* Mis Publicaciones */}
         {user && myJobs.length > 0 && (
           <div className="mt-10 sm:mt-16 px-2">
             <div className="flex items-center justify-between mb-6 sm:mb-8">
               <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-                Mis Trabajos Publicados
+                Mis Publicaciones
               </h2>
               <Link
                 to="/my-jobs"

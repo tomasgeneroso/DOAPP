@@ -105,7 +105,7 @@ router.get("/summary", protect, async (req: AuthRequest, res: Response): Promise
     const userId = req.user.id;
 
     const user = await User.findByPk(userId, {
-      attributes: ['balance']
+      attributes: ['balanceArs']
     });
     if (!user) {
       res.status(404).json({ success: false, message: "Usuario no encontrado" });
@@ -115,8 +115,8 @@ router.get("/summary", protect, async (req: AuthRequest, res: Response): Promise
     // Calculate totals by type using raw SQL aggregation
     const stats = await sequelize.query(
       `SELECT type, SUM(amount) as total, COUNT(*) as count
-       FROM "BalanceTransactions"
-       WHERE "userId" = :userId
+       FROM "balance_transactions"
+       WHERE "user_id" = :userId
        GROUP BY type`,
       {
         replacements: { userId },
@@ -139,7 +139,7 @@ router.get("/summary", protect, async (req: AuthRequest, res: Response): Promise
     });
 
     const summary = {
-      currentBalance: user.balance,
+      currentBalance: user.balanceArs,
       totalRefunds: stats.find((s: any) => s.type === 'refund')?.total || 0,
       totalPayments: Math.abs(stats.find((s: any) => s.type === 'payment')?.total || 0),
       totalBonuses: stats.find((s: any) => s.type === 'bonus')?.total || 0,
@@ -202,10 +202,10 @@ router.post("/withdraw", protect, async (req: AuthRequest, res: Response): Promi
     }
 
     // Check balance
-    if (user.balance < amount) {
+    if (user.balanceArs < amount) {
       res.status(400).json({
         success: false,
-        message: `Saldo insuficiente. Saldo disponible: $${user.balance.toLocaleString("es-AR")}`
+        message: `Saldo insuficiente. Saldo disponible: $${user.balanceArs.toLocaleString("es-AR")}`
       });
       return;
     }
@@ -238,8 +238,8 @@ router.post("/withdraw", protect, async (req: AuthRequest, res: Response): Promi
         alias: bankingInfo.alias,
       },
       status: 'pending',
-      balanceBeforeWithdrawal: user.balance,
-      balanceAfterWithdrawal: user.balance - amount,
+      balanceBeforeWithdrawal: user.balanceArs,
+      balanceAfterWithdrawal: user.balanceArs - amount,
       metadata: {
         ipAddress: req.ip,
         userAgent: req.get('user-agent'),
@@ -294,7 +294,7 @@ router.get("/withdrawals", protect, async (req: AuthRequest, res: Response): Pro
       include: [
         {
           model: User,
-          as: 'processedBy',
+          as: 'processor',
           attributes: ['name', 'email']
         }
       ]

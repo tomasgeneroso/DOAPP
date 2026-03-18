@@ -214,7 +214,7 @@ export default function Dashboard() {
 
   // Calculate free contracts info
   const freeContractsRemaining = user?.freeContractsRemaining || 0;
-  const proContractsUsed = user?.proContractsUsedThisMonth || 0;
+  const proContractsUsed = user?.monthlyContractsUsed || 0;
   let monthlyFreeLimit = 0;
   if (user?.membershipTier === 'super_pro') monthlyFreeLimit = 2;
   else if (user?.membershipTier === 'pro') monthlyFreeLimit = 1;
@@ -424,8 +424,8 @@ export default function Dashboard() {
                       <p className="text-xs text-slate-500 dark:text-slate-400">Más popular</p>
                     </div>
                     <div className="text-center mb-4">
-                      <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">€5.99</div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">por mes</p>
+                      <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">$4.999</div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">ARS/mes</p>
                     </div>
                     <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300 mb-4">
                       <li className="flex items-start gap-2">
@@ -459,9 +459,9 @@ export default function Dashboard() {
                       <p className="text-xs text-slate-500 dark:text-slate-400">Mejor valor</p>
                     </div>
                     <div className="text-center mb-4">
-                      <div className="text-3xl font-bold text-green-600 dark:text-green-400">€15.99</div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">cada 3 meses</p>
-                      <p className="text-xs text-green-600 dark:text-green-400 font-semibold mt-1">€5.33/mes</p>
+                      <div className="text-3xl font-bold text-green-600 dark:text-green-400">$13.347</div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">ARS cada 3 meses</p>
+                      <p className="text-xs text-green-600 dark:text-green-400 font-semibold mt-1">$4.449/mes</p>
                     </div>
                     <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300 mb-4">
                       <li className="flex items-start gap-2">
@@ -495,13 +495,13 @@ export default function Dashboard() {
                       <p className="text-xs text-slate-500 dark:text-slate-400">Máximo ahorro</p>
                     </div>
                     <div className="text-center mb-4">
-                      <div className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-600 to-purple-600">€8.99</div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">por mes</p>
+                      <div className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-600 to-purple-600">$8.999</div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">ARS/mes</p>
                     </div>
                     <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300 mb-4">
                       <li className="flex items-start gap-2">
                         <CheckCircle className="w-4 h-4 text-pink-500 flex-shrink-0 mt-0.5" />
-                        <span><strong>2% de comisión</strong></span>
+                        <span><strong>1% de comisión</strong></span>
                       </li>
                       <li className="flex items-start gap-2">
                         <CheckCircle className="w-4 h-4 text-pink-500 flex-shrink-0 mt-0.5" />
@@ -751,11 +751,11 @@ export default function Dashboard() {
                         SUPER PRO
                       </p>
                       <p className="mt-1 text-sm opacity-70">
-                        Solo 2% de comisión + Analytics
+                        Solo 1% de comisión + Analytics
                       </p>
                       <p className="mt-2 text-sm opacity-80 flex items-center gap-1">
                         <Crown className="h-4 w-4 text-yellow-300" />
-                        €8.99/mes - Mejora tu plan
+                        $8.999/mes - Mejora tu plan
                       </p>
                     </div>
                     <Sparkles className="h-16 w-16 opacity-20" />
@@ -782,7 +782,7 @@ export default function Dashboard() {
                       Ver Dashboard Premium
                     </p>
                     <p className="mt-1 text-sm opacity-70">
-                      2% de comisión + Analytics avanzados
+                      1% de comisión + Analytics avanzados
                     </p>
                     <p className="mt-2 text-sm opacity-80 flex items-center gap-1">
                       <Crown className="h-4 w-4 text-yellow-300" />

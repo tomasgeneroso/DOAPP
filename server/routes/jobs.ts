@@ -21,6 +21,7 @@ import tasksRoutes from "./tasks.js";
 import { checkAndProcessUserExpiredJobs } from "../jobs/autoCancelExpiredJobs.js";
 import { calculateCommission } from "../services/commissionService.js";
 import { canJobsOverlap, getCategoryById } from "../../shared/constants/categories.js";
+import crypto from 'crypto';
 
 const router = express.Router();
 
@@ -625,6 +626,156 @@ router.get("/debug-by-code/:code", protect, async (req: AuthRequest, res: Respon
   }
 });
 
+// --- iCal Calendar Feed (must be before /:id route) ---
+
+function escapeIcsText(text: string): string {
+  return text.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+}
+
+function formatIcsDate(date: Date): string {
+  return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+}
+
+function generateCalendarToken(userId: string): string {
+  return crypto.createHash('sha256').update(`${userId}-${process.env.JWT_SECRET || 'doapp-secret'}-calendar`).digest('hex').substring(0, 32);
+}
+
+// Get subscription URL for authenticated user
+router.get("/calendar/subscription-url", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const token = generateCalendarToken(req.user!.id);
+    const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get('host')}`;
+    const feedUrl = `${baseUrl}/api/jobs/calendar/feed/${token}.ics`;
+
+    res.json({
+      success: true,
+      data: {
+        feedUrl,
+        instructions: 'En Google Calendar: click en "+" al lado de "Otros calendarios" > "Desde una URL" > pegar esta URL',
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// Public iCal feed (authenticated by token in URL)
+router.get("/calendar/feed/:token.ics", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token } = req.params;
+
+    const users = await User.findAll({ attributes: ['id', 'name', 'availabilitySchedule'] });
+    const user = users.find(u => generateCalendarToken(u.id) === token);
+
+    if (!user) {
+      res.status(404).send('Calendar not found');
+      return;
+    }
+
+    const clientJobs = await Job.findAll({
+      where: {
+        clientId: user.id,
+        status: { [Op.in]: ['open', 'in_progress', 'completed', 'pending_approval'] },
+      },
+    });
+
+    const workerContracts = await Contract.findAll({
+      where: {
+        doerId: user.id,
+        status: { [Op.in]: ['accepted', 'in_progress', 'awaiting_confirmation', 'completed'] },
+      },
+      include: [{ model: Job, as: 'job' }],
+    });
+
+    const now = formatIcsDate(new Date());
+    const events: string[] = [];
+
+    for (const job of clientJobs) {
+      const start = formatIcsDate(new Date(job.startDate));
+      const end = formatIcsDate(new Date(job.endDate || job.startDate));
+      const desc = escapeIcsText(`Estado: ${job.status}\nPrecio: $${(job.price || 0).toLocaleString('es-AR')} ARS`);
+
+      events.push([
+        'BEGIN:VEVENT', `UID:job-${job.id}@doapp.com`, `DTSTAMP:${now}`,
+        `DTSTART:${start}`, `DTEND:${end}`,
+        `SUMMARY:[Cliente] ${escapeIcsText(job.title)}`, `DESCRIPTION:${desc}`,
+        job.location ? `LOCATION:${escapeIcsText(job.location)}` : '',
+        'STATUS:CONFIRMED',
+        'BEGIN:VALARM', 'TRIGGER:-PT1H', 'ACTION:DISPLAY', 'DESCRIPTION:Recordatorio de trabajo', 'END:VALARM',
+        'END:VEVENT',
+      ].filter(Boolean).join('\r\n'));
+    }
+
+    for (const contract of workerContracts) {
+      const job = (contract as any).job;
+      if (!job) continue;
+      const start = formatIcsDate(new Date(job.startDate));
+      const end = formatIcsDate(new Date(job.endDate || job.startDate));
+      const desc = escapeIcsText(`Contrato: ${contract.status}\nMonto: $${(contract.price || 0).toLocaleString('es-AR')} ARS`);
+
+      events.push([
+        'BEGIN:VEVENT', `UID:contract-${contract.id}@doapp.com`, `DTSTAMP:${now}`,
+        `DTSTART:${start}`, `DTEND:${end}`,
+        `SUMMARY:[Trabajo] ${escapeIcsText(job.title)}`, `DESCRIPTION:${desc}`,
+        job.location ? `LOCATION:${escapeIcsText(job.location)}` : '',
+        'STATUS:CONFIRMED',
+        'BEGIN:VALARM', 'TRIGGER:-PT2H', 'ACTION:DISPLAY', 'DESCRIPTION:Recordatorio de trabajo', 'END:VALARM',
+        'END:VEVENT',
+      ].filter(Boolean).join('\r\n'));
+    }
+
+    // Add availability slots as recurring weekly events
+    const ICS_DAYS = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+    const DAY_NAMES = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const schedule = (user as any).availabilitySchedule;
+    if (schedule?.slots?.length) {
+      for (let i = 0; i < schedule.slots.length; i++) {
+        const slot = schedule.slots[i];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const diff = ((slot.day - today.getDay()) + 7) % 7 || 7;
+        const refDate = new Date(today);
+        refDate.setDate(today.getDate() + diff);
+        const [startH, startM] = slot.start.split(':').map(Number);
+        const [endH, endM] = slot.end.split(':').map(Number);
+        const dtStart = new Date(refDate);
+        dtStart.setHours(startH, startM, 0, 0);
+        const dtEnd = new Date(refDate);
+        dtEnd.setHours(endH, endM, 0, 0);
+        events.push([
+          'BEGIN:VEVENT',
+          `UID:availability-${user.id}-${slot.day}-${slot.start}-${i}@doapp.com`,
+          `DTSTAMP:${now}`,
+          `DTSTART:${formatIcsDate(dtStart)}`,
+          `DTEND:${formatIcsDate(dtEnd)}`,
+          `RRULE:FREQ=WEEKLY;BYDAY=${ICS_DAYS[slot.day]}`,
+          `SUMMARY:Disponible (${DAY_NAMES[slot.day]} ${slot.start}-${slot.end})`,
+          'DESCRIPTION:Horario de disponibilidad - DOAPP',
+          'STATUS:CONFIRMED',
+          'TRANSP:TRANSPARENT',
+          'END:VEVENT',
+        ].join('\r\n'));
+      }
+    }
+
+    const ics = [
+      'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//DOAPP//Job Calendar//ES',
+      'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+      `X-WR-CALNAME:DOAPP - ${escapeIcsText(user.name)}`,
+      'X-WR-TIMEZONE:America/Argentina/Buenos_Aires',
+      'REFRESH-INTERVAL;VALUE=DURATION:PT1H', 'X-PUBLISHED-TTL:PT1H',
+      ...events, 'END:VCALENDAR',
+    ].join('\r\n');
+
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=1800');
+    res.send(ics);
+  } catch (error: any) {
+    console.error('Error generating calendar feed:', error);
+    res.status(500).send('Error generating calendar');
+  }
+});
+
 // @route   GET /api/jobs/:id
 // @desc    Obtener trabajo por ID
 // @access  Public
@@ -709,7 +860,13 @@ router.post(
     body("title").trim().notEmpty().withMessage("El título es requerido"),
     body("summary").trim().notEmpty().withMessage("El resumen es requerido"),
     body("description").trim().notEmpty().withMessage("La descripción es requerida"),
-    body("price").isNumeric().withMessage("El precio debe ser un número"),
+    body("price").isNumeric().withMessage("El precio debe ser un número")
+      .custom((value) => {
+        const num = Number(value);
+        if (num < 1000) throw new Error('El precio mínimo es $1,000 ARS');
+        if (num > 999999999) throw new Error('El precio máximo es $999,999,999 ARS');
+        return true;
+      }),
     body("location").trim().notEmpty().withMessage("La ubicación es requerida"),
     body("startDate").isISO8601().withMessage("Fecha de inicio inválida"),
     body("endDate").optional().isISO8601().withMessage("Fecha de fin inválida"),
@@ -744,7 +901,9 @@ router.post(
       const proContractsUsed = user.proContractsUsedThisMonth || 0;
       const hasMonthlyFreeContracts = proContractsUsed < monthlyFreeLimit;
 
-      const canPublishForFree = hasFreeInitialContracts || hasMonthlyFreeContracts;
+      // In development, auto-publish all jobs without payment
+      const isDev = process.env.NODE_ENV !== 'production';
+      const canPublishForFree = isDev || hasFreeInitialContracts || hasMonthlyFreeContracts;
 
       // Process uploaded images
       const uploadedFiles = req.files as Express.Multer.File[];
@@ -3218,6 +3377,52 @@ router.delete("/:id/cancel-price-decrease", protect, async (req: AuthRequest, re
 
 // Mount tasks routes - /api/jobs/:jobId/tasks
 router.use("/:jobId/tasks", tasksRoutes);
+
+// Single job .ics download
+router.get("/:id/calendar.ics", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const job = await Job.findByPk(req.params.id);
+    if (!job) {
+      res.status(404).json({ success: false, message: 'Trabajo no encontrado' });
+      return;
+    }
+
+    const now = formatIcsDate(new Date());
+    const start = formatIcsDate(new Date(job.startDate));
+    const end = formatIcsDate(new Date(job.endDate || job.startDate));
+    const desc = escapeIcsText([job.description || '', `Precio: $${(job.price || 0).toLocaleString('es-AR')} ARS`].filter(Boolean).join('\n'));
+
+    const ics = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//DOAPP//Job Calendar//ES',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      `UID:job-${job.id}@doapp.com`,
+      `DTSTAMP:${now}`,
+      `DTSTART:${start}`,
+      `DTEND:${end}`,
+      `SUMMARY:${escapeIcsText(job.title)}`,
+      `DESCRIPTION:${desc}`,
+      job.location ? `LOCATION:${escapeIcsText(job.location)}` : '',
+      'STATUS:CONFIRMED',
+      'BEGIN:VALARM',
+      'TRIGGER:-PT1H',
+      'ACTION:DISPLAY',
+      'DESCRIPTION:Recordatorio de trabajo',
+      'END:VALARM',
+      'END:VEVENT',
+      'END:VCALENDAR',
+    ].filter(Boolean).join('\r\n');
+
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="doapp-job-${job.id}.ics"`);
+    res.send(ics);
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 
 export default router;
  

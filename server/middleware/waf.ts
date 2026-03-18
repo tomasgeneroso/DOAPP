@@ -343,7 +343,7 @@ interface ThreatIntelligence {
 
 const ipStates = new Map<string, IPState>();
 const blacklistedIPs = new Set<string>();
-const whitelistedIPs = new Set<string>(['127.0.0.1', '::1']);
+const whitelistedIPs = new Set<string>(['127.0.0.1', '::1', '172.20.10.3', '172.31.224.1']);
 const honeypotHits = new Map<string, number>(); // IP -> hit count
 
 // Threat intelligence (simulated - in production, fetch from external sources)
@@ -610,17 +610,23 @@ export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
     return next();
   }
 
+  // Skip WAF entirely in development - only enforce in production
+  if (process.env.NODE_ENV !== 'production') {
+    return next();
+  }
+
   wafStats.totalRequests++;
   const ip = getClientIP(req);
   const userAgent = req.headers['user-agent'] || '';
 
-  // 1. Check whitelist
-  if (whitelistedIPs.has(ip)) {
+  // 1. Check whitelist (normalize IPv6-mapped IPv4 like ::ffff:127.0.0.1)
+  const normalizedIP = ip.replace(/^::ffff:/, '');
+  if (whitelistedIPs.has(ip) || whitelistedIPs.has(normalizedIP)) {
     return next();
   }
 
   // 2. Check blacklist
-  if (blacklistedIPs.has(ip)) {
+  if (blacklistedIPs.has(ip) || blacklistedIPs.has(normalizedIP)) {
     wafStats.blockedRequests++;
     logWafEvent(req, 'BLACKLIST', 'IP is blacklisted', true);
     return res.status(403).json({

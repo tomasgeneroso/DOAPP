@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useSocket } from "../hooks/useSocket";
@@ -11,6 +11,7 @@ import {
   FileText,
   Upload,
   Eye,
+  EyeOff,
   MapPin,
   Tag,
   Wifi,
@@ -22,6 +23,11 @@ import {
   AlertTriangle,
   Share2,
   Loader2,
+  Plus,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  ExternalLink,
 } from "lucide-react";
 import JobsCalendar from "../components/jobs/JobsCalendar";
 
@@ -66,11 +72,52 @@ interface Proposal {
   };
 }
 
+interface AvailabilitySlot {
+  day: number;
+  start: string;
+  end: string;
+}
+
+const DAY_NAMES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+const DAY_NAMES_FULL = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+const ICS_DAY_CODES = ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'];
+
+function getNextDayOfWeek(dayOfWeek: number): Date {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diff = (dayOfWeek - today.getDay() + 7) % 7 || 7;
+  const next = new Date(today);
+  next.setDate(today.getDate() + diff);
+  return next;
+}
+
+function buildAvailabilityGoogleCalUrl(slot: AvailabilitySlot): string | null {
+  const timeRe = /^\d{2}:\d{2}$/;
+  if (!timeRe.test(slot.start) || !timeRe.test(slot.end)) return null;
+  const refDate = getNextDayOfWeek(slot.day);
+  const [startH, startM] = slot.start.split(':').map(Number);
+  const [endH, endM] = slot.end.split(':').map(Number);
+  if ([startH, startM, endH, endM].some(n => isNaN(n))) return null;
+  const dtStart = new Date(refDate);
+  dtStart.setHours(startH, startM, 0, 0);
+  const dtEnd = new Date(refDate);
+  dtEnd.setHours(endH, endM, 0, 0);
+  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: `Disponible (${DAY_NAMES_FULL[slot.day]} ${slot.start}-${slot.end})`,
+    dates: `${fmt(dtStart)}/${fmt(dtEnd)}`,
+    details: 'Horario de disponibilidad - DOAPP',
+    recur: `RRULE:FREQ=WEEKLY;BYDAY=${ICS_DAY_CODES[slot.day]}`,
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
 type MainTab = "published" | "applied";
 type ViewMode = "list" | "calendar";
 
 export default function MyJobsScreen() {
-  const { user, token } = useAuth();
+  const { user, token, refreshUser } = useAuth();
   const { isConnected, registerJobUpdateHandler, registerMyJobsRefreshHandler, registerJobsRefreshHandler, registerNewProposalHandler } = useSocket();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -95,6 +142,18 @@ export default function MyJobsScreen() {
   const [errorMessage, setErrorMessage] = useState("");
   const [jobContracts, setJobContracts] = useState<Record<string, { id: string; clientConfirmed: boolean; doerConfirmed: boolean; status: string }>>({});
   const [proposalContracts, setProposalContracts] = useState<Record<string, { id: string; clientConfirmed: boolean; doerConfirmed: boolean; status: string }>>({});
+
+  // Availability state
+  const [showAvailability, setShowAvailability] = useState(false);
+  const [availabilitySlots, setAvailabilitySlots] = useState<AvailabilitySlot[]>([]);
+  const [isAvailabilityPublic, setIsAvailabilityPublic] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [savingAvailability, setSavingAvailability] = useState(false);
+  const [showAvailabilitySuccessModal, setShowAvailabilitySuccessModal] = useState(false);
+  const availabilityDirty = useRef(false);
+  const availabilitySlotsRef = useRef<AvailabilitySlot[]>([]);
+  const isAvailabilityPublicRef = useRef(false);
+  const availabilityLocallyModified = useRef(false);
 
   const fetchMyJobs = useCallback(async () => {
     try {
@@ -304,6 +363,118 @@ export default function MyJobsScreen() {
     fetchMyProposals();
   }, [fetchMyProposals]);
 
+  // On mount: refresh user to get fresh data from server
+  useEffect(() => {
+    refreshUser().catch(() => {});
+    return () => { availabilityLocallyModified.current = false; };
+  }, []);
+
+  // Sync from user context (always, unless user has made local changes)
+  useEffect(() => {
+    if (user && !availabilityLocallyModified.current) {
+      const slots = user.availabilitySchedule?.slots || [];
+      const isPublic = user.isAvailabilityPublic || false;
+      setAvailabilitySlots(slots);
+      setIsAvailabilityPublic(isPublic);
+      availabilitySlotsRef.current = slots;
+      isAvailabilityPublicRef.current = isPublic;
+    }
+  }, [user]);
+
+  const getSlotsForDay = (day: number) => availabilitySlots.filter((s) => s.day === day);
+
+  // Save to server and update auth context
+  const saveToServer = useCallback(async (slots: AvailabilitySlot[], isPublic: boolean) => {
+    setSavingAvailability(true);
+    try {
+      const response = await fetch('/api/auth/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        credentials: 'include',
+        body: JSON.stringify({
+          availabilitySchedule: { timezone: 'America/Argentina/Buenos_Aires', slots, exceptions: [] },
+          isAvailabilityPublic: isPublic,
+        }),
+      });
+      const data = await response.json();
+      if (!data.success) {
+        setErrorMessage(data.message || 'Error al guardar disponibilidad');
+        setShowErrorModal(true);
+      }
+    } catch {
+      setErrorMessage('Error de conexión al guardar disponibilidad');
+      setShowErrorModal(true);
+    } finally {
+      setSavingAvailability(false);
+    }
+  }, [token]);
+
+  const addSlot = (day: number) => {
+    availabilityLocallyModified.current = true;
+    const next = [...availabilitySlotsRef.current, { day, start: '09:00', end: '18:00' }];
+    availabilitySlotsRef.current = next;
+    setAvailabilitySlots(next);
+    saveToServer(next, isAvailabilityPublicRef.current);
+  };
+
+  const removeSlot = (day: number, index: number) => {
+    availabilityLocallyModified.current = true;
+    const dayIndexes: number[] = [];
+    availabilitySlotsRef.current.forEach((s, i) => { if (s.day === day) dayIndexes.push(i); });
+    const globalIndex = dayIndexes[index];
+    const next = availabilitySlotsRef.current.filter((_, i) => i !== globalIndex);
+    availabilitySlotsRef.current = next;
+    setAvailabilitySlots(next);
+    saveToServer(next, isAvailabilityPublicRef.current);
+  };
+
+  const updateSlotTime = (day: number, slotIndex: number, field: 'start' | 'end', value: string) => {
+    availabilityLocallyModified.current = true;
+    availabilityDirty.current = true;
+    const filtered = value.replace(/[^0-9:]/g, '').slice(0, 5);
+    const dayIndexes: number[] = [];
+    availabilitySlotsRef.current.forEach((s, i) => { if (s.day === day) dayIndexes.push(i); });
+    const globalIndex = dayIndexes[slotIndex];
+    const next = availabilitySlotsRef.current.map((s, i) => (i === globalIndex ? { ...s, [field]: filtered } : s));
+    availabilitySlotsRef.current = next;
+    setAvailabilitySlots(next);
+  };
+
+  const toggleAvailabilityPublic = () => {
+    availabilityLocallyModified.current = true;
+    const nextPublic = !isAvailabilityPublicRef.current;
+    isAvailabilityPublicRef.current = nextPublic;
+    setIsAvailabilityPublic(nextPublic);
+    saveToServer(availabilitySlotsRef.current, nextPublic);
+  };
+
+  // Calendar context menu callbacks
+  const handleCalendarAddAvailability = useCallback((day: number, start: string, end: string) => {
+    availabilityLocallyModified.current = true;
+    const next = [...availabilitySlotsRef.current, { day, start, end }];
+    availabilitySlotsRef.current = next;
+    setAvailabilitySlots(next);
+    saveToServer(next, isAvailabilityPublicRef.current);
+  }, [saveToServer]);
+
+  const handleCalendarRemoveAvailability = useCallback((day: number, globalIndex: number) => {
+    availabilityLocallyModified.current = true;
+    const next = availabilitySlotsRef.current.filter((_, i) => i !== globalIndex);
+    availabilitySlotsRef.current = next;
+    setAvailabilitySlots(next);
+    saveToServer(next, isAvailabilityPublicRef.current);
+  }, [saveToServer]);
+
+  // Debounced save only for time input changes
+  useEffect(() => {
+    if (!availabilityDirty.current) return;
+    const timer = setTimeout(() => {
+      availabilityDirty.current = false;
+      saveToServer(availabilitySlotsRef.current, isAvailabilityPublicRef.current);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [availabilitySlots, saveToServer]);
+
   // Register socket handlers for real-time updates
   useEffect(() => {
     // Handler for individual job updates
@@ -499,8 +670,8 @@ export default function MyJobsScreen() {
   const completedProposalsCount = proposals.filter(p => p.job?.status === "completed").length;
   const disputedProposalsCount = proposals.filter(p => p.job?.status === "disputed").length;
 
-  // Transform data for calendar - real-time synced with jobs/proposals state
-  const calendarJobs = mainTab === "published"
+  // Transform data for calendar - memoized to prevent unnecessary re-renders
+  const calendarJobs = useMemo(() => mainTab === "published"
     ? filteredJobs.map(job => ({
         id: job.id,
         title: job.title,
@@ -523,7 +694,8 @@ export default function MyJobsScreen() {
         endDate: p.job.endDate,
         status: p.job.status,
         proposalStatus: p.status,
-      }));
+      })),
+  [filteredJobs, filteredProposals, mainTab]);
 
   if (loading && loadingProposals) {
     return (
@@ -543,7 +715,7 @@ export default function MyJobsScreen() {
         <div className="mb-8 flex items-start justify-between">
           <div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-              Mis Trabajos
+              Agenda Do
             </h1>
             <p className="mt-2 text-slate-600 dark:text-slate-400">
               Administra tus trabajos publicados y postulaciones
@@ -585,6 +757,137 @@ export default function MyJobsScreen() {
           </div>
         </div>
 
+        {/* Availability Schedule */}
+        <div className="mb-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+          <button
+            onClick={() => setShowAvailability(!showAvailability)}
+            className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <Clock className="h-5 w-5 text-sky-500" />
+              <span className="font-semibold text-slate-900 dark:text-white">Disponibilidad</span>
+              <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${isAvailabilityPublic ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
+                {isAvailabilityPublic ? <><Eye className="h-3 w-3" /> Pública</> : <><EyeOff className="h-3 w-3" /> Privada</>}
+              </span>
+            </div>
+            {showAvailability ? <ChevronUp className="h-5 w-5 text-slate-400" /> : <ChevronDown className="h-5 w-5 text-slate-400" />}
+          </button>
+
+          {showAvailability && (
+            <div className="px-5 pb-5 border-t border-slate-100 dark:border-slate-700">
+              {/* Public toggle */}
+              <div className="flex items-center justify-between py-3">
+                <span className="text-sm text-slate-600 dark:text-slate-400">Visible en tu perfil público</span>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isAvailabilityPublic}
+                    onChange={toggleAvailabilityPublic}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-sky-300 dark:peer-focus:ring-sky-800 rounded-full peer dark:bg-slate-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-sky-500"></div>
+                </label>
+              </div>
+
+              {/* Day selector */}
+              <div className="flex gap-2 mb-4">
+                {DAY_NAMES.map((name, index) => {
+                  const hasSlots = getSlotsForDay(index).length > 0;
+                  const isSelected = selectedDay === index;
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => setSelectedDay(isSelected ? null : index)}
+                      className={`flex-1 py-2 text-xs font-medium rounded-lg border transition-colors ${
+                        isSelected
+                          ? 'bg-sky-500 text-white border-sky-500'
+                          : hasSlots
+                          ? 'bg-sky-50 text-sky-700 border-sky-300 dark:bg-sky-900/20 dark:text-sky-400 dark:border-sky-700'
+                          : 'bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-700 dark:text-slate-400 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-650'
+                      }`}
+                    >
+                      {name}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Slots for selected day */}
+              {selectedDay !== null && (
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-medium text-slate-900 dark:text-white">{DAY_NAMES_FULL[selectedDay]}</span>
+                    <button
+                      onClick={() => addSlot(selectedDay)}
+                      className="flex items-center gap-1 text-xs font-medium text-sky-600 hover:text-sky-700 bg-sky-50 dark:bg-sky-900/20 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Agregar horario
+                    </button>
+                  </div>
+
+                  {getSlotsForDay(selectedDay).length === 0 ? (
+                    <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-3">Sin horarios configurados</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {getSlotsForDay(selectedDay).map((slot, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={slot.start}
+                            onChange={(e) => updateSlotTime(selectedDay, i, 'start', e.target.value)}
+                            placeholder="09:00"
+                            maxLength={5}
+                            className="w-24 text-center px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                          />
+                          <span className="text-slate-400 text-sm">a</span>
+                          <input
+                            type="text"
+                            value={slot.end}
+                            onChange={(e) => updateSlotTime(selectedDay, i, 'end', e.target.value)}
+                            placeholder="18:00"
+                            maxLength={5}
+                            className="w-24 text-center px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                          />
+                          {buildAvailabilityGoogleCalUrl(slot) ? (
+                          <a
+                            href={buildAvailabilityGoogleCalUrl(slot)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded-lg transition-colors"
+                            title="Agregar a Google Calendar"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                          ) : (
+                          <span className="p-2 text-slate-300 dark:text-slate-600 cursor-default">
+                            <ExternalLink className="h-4 w-4" />
+                          </span>
+                          )}
+                          <button
+                            onClick={() => removeSlot(selectedDay, i)}
+                            className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Auto-save indicator */}
+              {savingAvailability && (
+                <div className="flex items-center justify-center gap-2 py-2 text-slate-500 dark:text-slate-400 text-sm">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Guardando...
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Main Tabs */}
         <div className="mb-6 flex gap-2 border-b border-slate-200 dark:border-slate-700">
           <button
@@ -616,6 +919,9 @@ export default function MyJobsScreen() {
           <JobsCalendar
             jobs={calendarJobs}
             title={mainTab === "published" ? "Calendario de Publicaciones" : "Calendario de Postulaciones"}
+            availabilitySlots={availabilitySlots}
+            onAddAvailability={handleCalendarAddAvailability}
+            onRemoveAvailability={handleCalendarRemoveAvailability}
           />
         )}
 
@@ -1232,6 +1538,34 @@ export default function MyJobsScreen() {
               <button
                 onClick={() => setShowConfirmationSuccessModal(false)}
                 className="rounded-xl bg-gradient-to-r from-green-500 to-green-600 px-8 py-3 font-semibold text-white shadow-lg transition-all hover:from-green-600 hover:to-green-700"
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Availability Saved Modal */}
+      {showAvailabilitySuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-sky-600 bg-slate-900 p-6 shadow-2xl">
+            <div className="mb-4 flex flex-col items-center text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-sky-500/20 mb-4">
+                <CheckCircle className="h-10 w-10 text-sky-500" />
+              </div>
+              <h3 className="text-2xl font-bold text-white mb-2">
+                Disponibilidad guardada
+              </h3>
+              <p className="text-slate-300">
+                Tu agenda de disponibilidad se actualizó correctamente.
+              </p>
+            </div>
+
+            <div className="flex justify-center">
+              <button
+                onClick={() => setShowAvailabilitySuccessModal(false)}
+                className="rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 px-8 py-3 font-semibold text-white shadow-lg transition-all hover:from-sky-600 hover:to-sky-700"
               >
                 Entendido
               </button>

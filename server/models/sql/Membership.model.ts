@@ -18,8 +18,8 @@ import { Payment } from './Payment.model.js';
  * Membership Model - PostgreSQL/Sequelize
  *
  * Sistema de membresía mensual con:
- * - PRO: €5.99/mes - 3 contratos/mes al 3% comisión
- * - SUPER_PRO: €8.99/mes - 3 contratos/mes al 2% comisión + analytics
+ * - PRO: $4,999 ARS/mes - 3 contratos/mes al 3% comisión
+ * - SUPER_PRO: $8,999 ARS/mes - 3 contratos/mes al 1% comisión + analytics
  * - Tracking de contratos usados
  * - Integración MercadoPago subscriptions
  * - Auto-renovación
@@ -126,7 +126,7 @@ export class Membership extends Model {
 
   @AllowNull(false)
   @Column(DataType.DECIMAL(10, 2))
-  priceUSD!: number; // €5.99 o €8.99
+  priceUSD!: number; // Legacy field - now using ARS pricing ($4,999 or $8,999)
 
   @AllowNull(false)
   @Column(DataType.DECIMAL(12, 2))
@@ -184,7 +184,7 @@ export class Membership extends Model {
 
   @Default(3.0)
   @Column(DataType.DECIMAL(5, 2))
-  reducedCommissionPercentage!: number; // 3% PRO, 2% SUPER_PRO después de agotar gratis
+  reducedCommissionPercentage!: number; // 3% PRO, 1% SUPER_PRO después de agotar gratis
 
   // ============================================
   // CANCELLATION
@@ -227,7 +227,7 @@ export class Membership extends Model {
       instance.reducedCommissionPercentage = 3.0;
       instance.freeContractsTotal = 3;
     } else if (instance.plan === 'SUPER_PRO') {
-      instance.reducedCommissionPercentage = 2.0;
+      instance.reducedCommissionPercentage = 1.0;
       instance.freeContractsTotal = 3;
     }
 

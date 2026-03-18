@@ -16,7 +16,7 @@ export async function getProposalsByJob(jobId: string): Promise<ApiResponse<{ pr
  * Obtener mis propuestas
  */
 export async function getMyProposals(): Promise<ApiResponse<{ proposals: Proposal[] }>> {
-  return get<{ proposals: Proposal[] }>('/proposals/my-proposals');
+  return get<{ proposals: Proposal[] }>('/proposals?type=sent');
 }
 
 /**

@@ -105,7 +105,7 @@ export default function Header() {
     if (!user) return null;
 
     const freeContractsRemaining = user.freeContractsRemaining || 0;
-    const proContractsUsed = user.proContractsUsedThisMonth || 0;
+    const proContractsUsed = user.monthlyContractsUsed || 0;
     let monthlyFreeLimit = 0;
     if (user.membershipTier === 'super_pro') monthlyFreeLimit = 2;
     else if (user.membershipTier === 'pro') monthlyFreeLimit = 1;
@@ -125,7 +125,7 @@ export default function Header() {
 
     let commissionRate = 8;
     if (user.hasFamilyPlan) commissionRate = 0;
-    else if (user.membershipTier === 'super_pro') commissionRate = 2;
+    else if (user.membershipTier === 'super_pro') commissionRate = 1;
     else if (user.membershipTier === 'pro') commissionRate = 3;
 
     if (user.hasFamilyPlan) {
@@ -137,7 +137,7 @@ export default function Header() {
       commissionRate,
       membershipTier: user.membershipTier,
     };
-  }, [user, user?.freeContractsRemaining, user?.proContractsUsedThisMonth, user?.membershipTier, user?.hasFamilyPlan]);
+  }, [user, user?.freeContractsRemaining, user?.monthlyContractsUsed, user?.membershipTier, user?.hasFamilyPlan]);
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg">
@@ -321,7 +321,7 @@ export default function Header() {
                       role="menuitem"
                     >
                       <Briefcase className="h-4 w-4" aria-hidden="true" />
-                      Mis Trabajos
+                      Agenda Do
                     </Link>
                     <Link
                       to="/settings"

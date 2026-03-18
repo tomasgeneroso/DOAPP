@@ -12,11 +12,12 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Send, User, Key, Copy, Check } from 'lucide-react-native';
+import { ArrowLeft, Send, User, Key, Copy, Check, Briefcase, MapPin, DollarSign, ExternalLink, X } from 'lucide-react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
-import { getMessages, sendMessage, markAsRead, getConversation } from '../../services/chat';
+import { getMessages, sendMessage, sendMessageWithJob, markAsRead, getConversation } from '../../services/chat';
+import { getJobs } from '../../services/jobs';
 import { Message, User as UserType, Conversation } from '../../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 
@@ -36,6 +37,12 @@ export default function ChatScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [copiedJobCode, setCopiedJobCode] = useState(false);
+
+  // Inline job attachment
+  const [showJobPicker, setShowJobPicker] = useState(false);
+  const [inlineJobs, setInlineJobs] = useState<any[]>([]);
+  const [loadingInlineJobs, setLoadingInlineJobs] = useState(false);
+  const [selectedJob, setSelectedJob] = useState<any>(null);
 
   // Get job code (first 8 chars of UUID in uppercase)
   const getJobCode = (jobId: string | undefined): string => {
@@ -99,21 +106,53 @@ export default function ChatScreen() {
     fetchConversation();
   }, [id]);
 
+  const toggleJobPicker = async () => {
+    if (!showJobPicker) {
+      setLoadingInlineJobs(true);
+      try {
+        const response = await getJobs({ status: 'open', limit: 50 });
+        const jobsList = (response as any).jobs || response.data || [];
+        setInlineJobs(jobsList);
+      } catch (error) {
+        console.error('Error fetching jobs:', error);
+      } finally {
+        setLoadingInlineJobs(false);
+      }
+    }
+    setShowJobPicker(!showJobPicker);
+  };
+
   const handleSend = async () => {
-    if (!messageText.trim() || sending) return;
+    if ((!messageText.trim() && !selectedJob) || sending) return;
 
     setSending(true);
     const text = messageText.trim();
     setMessageText('');
 
     try {
-      const response = await sendMessage(id!, { content: text, type: 'text' });
+      if (selectedJob) {
+        // Send with job attachment via HTTP
+        const body: any = { jobId: selectedJob.id || selectedJob._id };
+        if (text) body.content = text;
 
-      if (response.success && response.data) {
-        setMessages((prev) => [response.data!.message, ...prev]);
-        flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+        const response = await sendMessageWithJob(id!, body);
+        if (response.success) {
+          const allMsgs = (response as any).messages || [response.data?.message || (response as any).message];
+          setMessages((prev) => [...allMsgs.reverse(), ...prev]);
+          flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+        } else {
+          setMessageText(text);
+        }
+        setSelectedJob(null);
+        setShowJobPicker(false);
       } else {
-        setMessageText(text); // Restore message on error
+        const response = await sendMessage(id!, { content: text, type: 'text' });
+        if (response.success && response.data) {
+          setMessages((prev) => [response.data!.message, ...prev]);
+          flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+        } else {
+          setMessageText(text);
+        }
       }
     } catch (error) {
       setMessageText(text);
@@ -173,6 +212,63 @@ export default function ChatScreen() {
     const isOwn = senderId === userId;
     const showDate = shouldShowDate(index);
     const messageContent = getMessageContent(item);
+
+    // Job attachment system message - special card rendering
+    if (item.type === 'system' && item.metadata?.action === 'job_attachment') {
+      const meta = item.metadata;
+      return (
+        <View>
+          {showDate && (
+            <View style={chatStyles.dateSeparator}>
+              <Text style={[chatStyles.dateText, { color: themeColors.text.muted }]}>{formatDate(item.createdAt)}</Text>
+            </View>
+          )}
+          <View style={[{ alignItems: isOwn ? 'flex-end' : 'flex-start', marginBottom: spacing.md }]}>
+            <View style={[chatStyles.jobAttachmentCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+              <View style={[chatStyles.jobAttachmentHeader, { backgroundColor: colors.primary[50], borderBottomColor: themeColors.border }]}>
+                <Briefcase size={14} color={colors.primary[600]} strokeWidth={2} />
+                <Text style={[chatStyles.jobAttachmentLabel, { color: colors.primary[600] }]}>
+                  {isOwn ? 'Compartiste un trabajo' : `${sender?.name || 'Usuario'} compartió un trabajo`}
+                </Text>
+              </View>
+              <View style={{ padding: spacing.md }}>
+                <Text style={[chatStyles.jobAttachmentTitle, { color: themeColors.text.primary }]}>{meta.jobTitle}</Text>
+                <View style={{ gap: 4, marginTop: spacing.sm }}>
+                  <View style={chatStyles.jobAttachmentRow}>
+                    <DollarSign size={13} color={colors.success[500]} strokeWidth={2} />
+                    <Text style={[chatStyles.jobAttachmentMeta, { color: themeColors.text.secondary }]}>
+                      ${Number(meta.jobPrice).toLocaleString('es-AR')}
+                    </Text>
+                  </View>
+                  {meta.jobLocation && (
+                    <View style={chatStyles.jobAttachmentRow}>
+                      <MapPin size={13} color={colors.danger[400]} strokeWidth={2} />
+                      <Text style={[chatStyles.jobAttachmentMeta, { color: themeColors.text.secondary }]}>{meta.jobLocation}</Text>
+                    </View>
+                  )}
+                  {meta.jobCategory && (
+                    <View style={chatStyles.jobAttachmentRow}>
+                      <Briefcase size={13} color={colors.primary[400]} strokeWidth={2} />
+                      <Text style={[chatStyles.jobAttachmentMeta, { color: themeColors.text.secondary }]}>{meta.jobCategory}</Text>
+                    </View>
+                  )}
+                </View>
+                <TouchableOpacity
+                  onPress={() => router.push(`/job/${meta.jobId}`)}
+                  style={[chatStyles.jobAttachmentBtn, { backgroundColor: colors.primary[50] }]}
+                >
+                  <ExternalLink size={14} color={colors.primary[600]} strokeWidth={2} />
+                  <Text style={[chatStyles.jobAttachmentBtnText, { color: colors.primary[600] }]}>Ver trabajo</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ paddingHorizontal: spacing.md, paddingBottom: spacing.sm }}>
+                <Text style={[{ fontSize: 10, color: themeColors.text.muted, textAlign: 'right' }]}>{formatTime(item.createdAt)}</Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      );
+    }
 
     // System message - special styling
     if (item.type === 'system') {
@@ -374,7 +470,7 @@ export default function ChatScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
         <View style={[styles.topBar, { borderBottomColor: themeColors.border }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')} style={styles.backButton}>
             <ArrowLeft size={24} color={themeColors.text.primary} />
           </TouchableOpacity>
           <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]}>
@@ -393,7 +489,7 @@ export default function ChatScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['top']}>
       {/* Header */}
       <View style={[styles.topBar, { borderBottomColor: themeColors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')} style={styles.backButton}>
           <ArrowLeft size={24} color={themeColors.text.primary} />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
@@ -451,8 +547,61 @@ export default function ChatScreen() {
           }
         />
 
+        {/* Job Picker */}
+        {showJobPicker && (
+          <View style={[chatStyles.inlineJobPicker, { backgroundColor: themeColors.card, borderTopColor: themeColors.border }]}>
+            <View style={chatStyles.inlineJobPickerHeader}>
+              <Text style={[{ fontSize: fontSize.xs, fontWeight: fontWeight.medium, color: themeColors.text.secondary }]}>Adjuntar trabajo</Text>
+              <TouchableOpacity onPress={() => { setShowJobPicker(false); setSelectedJob(null); }}>
+                <X size={16} color={themeColors.text.muted} strokeWidth={2} />
+              </TouchableOpacity>
+            </View>
+            {loadingInlineJobs ? (
+              <ActivityIndicator size="small" color={colors.primary[500]} style={{ padding: spacing.md }} />
+            ) : inlineJobs.length > 0 ? (
+              <FlatList
+                data={inlineJobs}
+                keyExtractor={(item) => item.id || item._id}
+                style={{ maxHeight: 160 }}
+                renderItem={({ item: job }) => (
+                  <TouchableOpacity
+                    onPress={() => { setSelectedJob(job); setShowJobPicker(false); }}
+                    style={[chatStyles.inlineJobItem, { borderBottomColor: themeColors.border }]}
+                  >
+                    <Text style={[{ fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: themeColors.text.primary }]} numberOfLines={1}>{job.title}</Text>
+                    <Text style={[{ fontSize: fontSize.xs, color: themeColors.text.muted, marginTop: 2 }]}>
+                      ${Number(job.price).toLocaleString('es-AR')}{job.location && ` · ${job.location}`}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              />
+            ) : (
+              <Text style={[{ fontSize: fontSize.sm, color: themeColors.text.muted, textAlign: 'center', padding: spacing.md }]}>No hay trabajos disponibles</Text>
+            )}
+          </View>
+        )}
+
+        {/* Selected Job Preview */}
+        {selectedJob && !showJobPicker && (
+          <View style={[chatStyles.inlineJobPreview, { backgroundColor: themeColors.card, borderTopColor: themeColors.border }]}>
+            <Briefcase size={16} color={colors.primary[500]} strokeWidth={2} />
+            <Text style={[{ flex: 1, fontSize: fontSize.xs, fontWeight: fontWeight.medium, color: themeColors.text.primary }]} numberOfLines={1}>
+              {selectedJob.title}
+            </Text>
+            <TouchableOpacity onPress={() => setSelectedJob(null)}>
+              <X size={14} color={themeColors.text.muted} strokeWidth={2} />
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Input */}
         <View style={[styles.inputContainer, { backgroundColor: themeColors.card, borderTopColor: themeColors.border }]}>
+          <TouchableOpacity
+            onPress={toggleJobPicker}
+            style={[chatStyles.attachBtn, showJobPicker || selectedJob ? { backgroundColor: colors.primary[50] } : {}]}
+          >
+            <Briefcase size={20} color={showJobPicker || selectedJob ? colors.primary[600] : themeColors.text.muted} strokeWidth={2} />
+          </TouchableOpacity>
           <TextInput
             style={[
               styles.input,
@@ -472,10 +621,10 @@ export default function ChatScreen() {
           <TouchableOpacity
             style={[
               styles.sendButton,
-              (!messageText.trim() || sending) && styles.sendButtonDisabled,
+              (!messageText.trim() && !selectedJob || sending) && styles.sendButtonDisabled,
             ]}
             onPress={handleSend}
-            disabled={!messageText.trim() || sending}
+            disabled={(!messageText.trim() && !selectedJob) || sending}
           >
             {sending ? (
               <ActivityIndicator size="small" color="#fff" />
@@ -488,6 +637,89 @@ export default function ChatScreen() {
     </SafeAreaView>
   );
 }
+
+const chatStyles = StyleSheet.create({
+  dateSeparator: {
+    alignItems: 'center',
+    marginVertical: spacing.md,
+  },
+  dateText: {
+    fontSize: fontSize.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  jobAttachmentCard: {
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    overflow: 'hidden',
+    maxWidth: '80%' as any,
+  },
+  jobAttachmentHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+  },
+  jobAttachmentLabel: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.medium,
+  },
+  jobAttachmentTitle: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+  },
+  jobAttachmentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  jobAttachmentMeta: {
+    fontSize: fontSize.xs,
+  },
+  jobAttachmentBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+    marginTop: spacing.md,
+  },
+  jobAttachmentBtnText: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.medium,
+  },
+  attachBtn: {
+    padding: spacing.sm,
+    borderRadius: borderRadius.full,
+  },
+  inlineJobPicker: {
+    borderTopWidth: 1,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+  },
+  inlineJobPickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  inlineJobItem: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.xs,
+    borderBottomWidth: 1,
+  },
+  inlineJobPreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderTopWidth: 1,
+  },
+});
 
 const styles = StyleSheet.create({
   container: {

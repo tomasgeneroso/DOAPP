@@ -14,6 +14,9 @@ interface JobFilters {
   page?: number;
   limit?: number;
   search?: string;
+  query?: string;
+  sortBy?: string;
+  tags?: string;
 }
 
 /**
@@ -51,10 +54,10 @@ export async function getMyJobs(): Promise<ApiResponse<{ jobs: Job[] }>> {
 }
 
 /**
- * Obtener trabajos del usuario como trabajador
+ * Obtener trabajos donde el usuario aplicó como trabajador (via proposals)
  */
 export async function getWorkerJobs(): Promise<ApiResponse<{ jobs: Job[] }>> {
-  return get<{ jobs: Job[] }>('/jobs/worker-jobs');
+  return get<{ jobs: Job[] }>('/proposals?type=sent');
 }
 
 /**
@@ -93,10 +96,35 @@ export async function cancelJob(id: string, reason?: string): Promise<ApiRespons
 }
 
 /**
- * Pagar publicación de trabajo
+ * Pagar publicación de trabajo (legacy)
  */
 export async function payJobPublication(id: string): Promise<ApiResponse<{ preferenceId: string; initPoint: string }>> {
   return post<{ preferenceId: string; initPoint: string }>(`/jobs/${id}/pay`, {});
+}
+
+/**
+ * Crear orden de pago para publicación de trabajo
+ * Maneja: contratos gratis, MercadoPago, transferencia bancaria
+ */
+export async function createJobPaymentOrder(jobId: string, paymentMethod: 'mercadopago' | 'bank_transfer' = 'mercadopago'): Promise<ApiResponse<{
+  requiresPayment?: boolean;
+  approvalUrl?: string;
+  paymentId?: string;
+  amount?: number;
+  job?: Job;
+  bankDetails?: {
+    accountHolder: string;
+    cuit: string;
+    bank: string;
+    cbu: string;
+    alias: string;
+  };
+}>> {
+  return post('/payments/create-order', {
+    jobId,
+    paymentType: 'job_publication',
+    paymentMethod,
+  });
 }
 
 /**

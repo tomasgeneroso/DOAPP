@@ -16,6 +16,12 @@ import {
   ArrowLeft,
   Phone,
   Video,
+  PenSquare,
+  X,
+  MapPin,
+  DollarSign,
+  ExternalLink,
+  Loader2,
 } from "lucide-react";
 
 interface Conversation {
@@ -97,6 +103,26 @@ export default function MessagesScreen() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [localMessages, setLocalMessages] = useState<Message[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
+
+  // Inline job attachment in active chat
+  const [showInlineJobPicker, setShowInlineJobPicker] = useState(false);
+  const [inlineJobs, setInlineJobs] = useState<Array<{ id: string; title: string; price: number; location?: string; category?: string; status: string; clientId: string }>>([]);
+  const [loadingInlineJobs, setLoadingInlineJobs] = useState(false);
+  const [inlineSelectedJob, setInlineSelectedJob] = useState<any>(null);
+
+  // New message modal state
+  const [showNewMessageModal, setShowNewMessageModal] = useState(false);
+  const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [searchedUsers, setSearchedUsers] = useState<Array<{ id: string; name: string; avatar?: string; username?: string }>>([]);
+  const [searchingUsers, setSearchingUsers] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<{ id: string; name: string; avatar?: string; username?: string } | null>(null);
+  const [availableJobs, setAvailableJobs] = useState<Array<{ id: string; title: string; price: number; location?: string; category?: string; status: string; clientId: string }>>([]);
+  const [selectedJob, setSelectedJob] = useState<any>(null);
+  const [newConversationMessage, setNewConversationMessage] = useState("");
+  const [creatingConversation, setCreatingConversation] = useState(false);
+  const [showJobPicker, setShowJobPicker] = useState(false);
+  const [loadingJobs, setLoadingJobs] = useState(false);
+  const userSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Combine socket messages with local messages (socket messages take priority for new ones)
   const messages = [...localMessages, ...(socketMessages as unknown as Message[]).filter(
@@ -193,6 +219,181 @@ export default function MessagesScreen() {
     } finally {
       setLoadingMessages(false);
     }
+  };
+
+  // Search users for new conversation
+  const searchUsers = async (query: string) => {
+    if (query.length < 2) {
+      setSearchedUsers([]);
+      return;
+    }
+    setSearchingUsers(true);
+    try {
+      const response = await fetch(`/api/users/search?q=${encodeURIComponent(query)}&limit=10`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (data.success) {
+        const userId = user?.id || user?._id;
+        setSearchedUsers((data.users || []).filter((u: any) => u.id !== userId));
+      }
+    } catch (error) {
+      console.error("Error searching users:", error);
+    } finally {
+      setSearchingUsers(false);
+    }
+  };
+
+  // Debounced user search
+  const handleUserSearchChange = (value: string) => {
+    setUserSearchQuery(value);
+    if (userSearchTimerRef.current) clearTimeout(userSearchTimerRef.current);
+    userSearchTimerRef.current = setTimeout(() => searchUsers(value), 400);
+  };
+
+  // Fetch open jobs (own + all open)
+  const fetchAvailableJobs = async () => {
+    setLoadingJobs(true);
+    try {
+      const response = await fetch(`/api/jobs?status=open&limit=50`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (data.success) {
+        setAvailableJobs(data.jobs || []);
+      }
+    } catch (error) {
+      console.error("Error fetching jobs:", error);
+    } finally {
+      setLoadingJobs(false);
+    }
+  };
+
+  // Select user and show job picker
+  const handleSelectUser = (selectedUser: any) => {
+    setSelectedUser(selectedUser);
+    setUserSearchQuery("");
+    setSearchedUsers([]);
+    fetchAvailableJobs();
+  };
+
+  // Create new conversation
+  const handleCreateConversation = async () => {
+    if (!selectedUser) return;
+    if (!newConversationMessage.trim() && !selectedJob) return;
+
+    setCreatingConversation(true);
+    try {
+      const body: any = {
+        participantId: selectedUser.id,
+      };
+      if (selectedJob) body.jobId = selectedJob.id;
+      if (newConversationMessage.trim()) body.message = newConversationMessage.trim();
+
+      const response = await fetch("/api/chat/conversations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+      const data = await response.json();
+      if (data.success && data.data) {
+        const convId = data.data.id || data.data._id;
+        setShowNewMessageModal(false);
+        setSelectedUser(null);
+        setSelectedJob(null);
+        setNewConversationMessage("");
+        setShowJobPicker(false);
+        await fetchConversations();
+        navigate(`/messages/${convId}`);
+      }
+    } catch (error) {
+      console.error("Error creating conversation:", error);
+    } finally {
+      setCreatingConversation(false);
+    }
+  };
+
+  // Fetch jobs for inline attachment
+  const fetchInlineJobs = async () => {
+    setLoadingInlineJobs(true);
+    try {
+      const response = await fetch(`/api/jobs?status=open&limit=50`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      if (data.success) {
+        setInlineJobs(data.jobs || []);
+      }
+    } catch (error) {
+      console.error("Error fetching jobs:", error);
+    } finally {
+      setLoadingInlineJobs(false);
+    }
+  };
+
+  const toggleInlineJobPicker = () => {
+    if (!showInlineJobPicker) {
+      fetchInlineJobs();
+    }
+    setShowInlineJobPicker(!showInlineJobPicker);
+  };
+
+  // Enhanced send message with job attachment support
+  const handleSendMessageWithJob = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if ((!newMessage.trim() && !inlineSelectedJob) || sending || !activeConversation) return;
+
+    setSending(true);
+    try {
+      if (inlineSelectedJob) {
+        // Send via HTTP to support job attachment
+        const body: any = {};
+        if (newMessage.trim()) body.content = newMessage.trim();
+        if (inlineSelectedJob) body.jobId = inlineSelectedJob.id;
+
+        const response = await fetch(`/api/chat/conversations/${getId(activeConversation)}/messages`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(body),
+        });
+        const data = await response.json();
+        if (data.success) {
+          // Add all messages (job attachment + text if both)
+          const newMsgs = data.messages || [data.message];
+          setLocalMessages(prev => [...prev, ...newMsgs]);
+        }
+        setInlineSelectedJob(null);
+        setShowInlineJobPicker(false);
+      } else {
+        // Use socket for regular text messages
+        socketSendMessage({
+          conversationId: getId(activeConversation),
+          message: newMessage,
+          type: "text",
+        });
+      }
+      setNewMessage("");
+    } catch (error) {
+      console.error("Error sending message:", error);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const closeNewMessageModal = () => {
+    setShowNewMessageModal(false);
+    setSelectedUser(null);
+    setSelectedJob(null);
+    setNewConversationMessage("");
+    setUserSearchQuery("");
+    setSearchedUsers([]);
+    setShowJobPicker(false);
   };
 
   const handleSelectConversation = (conversation: Conversation) => {
@@ -322,9 +523,18 @@ export default function MessagesScreen() {
               <h1 className="text-xl font-semibold text-slate-900 dark:text-white">
                 Mensajes
               </h1>
-              <button className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors">
-                <MoreVertical className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setShowNewMessageModal(true)}
+                  className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors"
+                  title="Nuevo mensaje"
+                >
+                  <PenSquare className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+                </button>
+                <button className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors">
+                  <MoreVertical className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                </button>
+              </div>
             </div>
 
             {/* Search */}
@@ -510,6 +720,63 @@ export default function MessagesScreen() {
                       formatMessageDate(messages[index - 1].createdAt) !==
                         formatMessageDate(message.createdAt);
 
+                    // Job attachment system message
+                    if (message.type === 'system' && message.metadata?.action === 'job_attachment') {
+                      const meta = message.metadata;
+                      return (
+                        <div key={getId(message) || index}>
+                          {showDate && (
+                            <div className="flex justify-center my-4">
+                              <span className="px-3 py-1 bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-400 text-xs rounded-lg shadow-sm">
+                                {formatMessageDate(message.createdAt)}
+                              </span>
+                            </div>
+                          )}
+                          <div className={`flex ${isCurrentUser ? "justify-end" : "justify-start"}`}>
+                            <div className="max-w-[75%] rounded-xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+                              <div className="px-4 py-2 bg-sky-50 dark:bg-sky-900/30 border-b border-slate-200 dark:border-slate-700">
+                                <p className="text-xs text-sky-600 dark:text-sky-400 font-medium flex items-center gap-1">
+                                  <Briefcase className="h-3 w-3" />
+                                  {isCurrentUser ? 'Compartiste un trabajo' : `${message.sender?.name || 'Usuario'} compartió un trabajo`}
+                                </p>
+                              </div>
+                              <div className="p-4">
+                                <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-2">{meta.jobTitle}</h4>
+                                <div className="space-y-1">
+                                  <p className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                                    <DollarSign className="h-3 w-3 text-green-500" />
+                                    ${Number(meta.jobPrice).toLocaleString('es-AR')}
+                                  </p>
+                                  {meta.jobLocation && (
+                                    <p className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                                      <MapPin className="h-3 w-3 text-red-400" />
+                                      {meta.jobLocation}
+                                    </p>
+                                  )}
+                                  {meta.jobCategory && (
+                                    <p className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
+                                      <Briefcase className="h-3 w-3 text-purple-400" />
+                                      {meta.jobCategory}
+                                    </p>
+                                  )}
+                                </div>
+                                <button
+                                  onClick={() => navigate(`/job/${meta.jobId}`)}
+                                  className="mt-3 w-full py-1.5 text-xs font-medium text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/20 hover:bg-sky-100 dark:hover:bg-sky-900/40 rounded-lg transition-colors flex items-center justify-center gap-1"
+                                >
+                                  <ExternalLink className="h-3 w-3" />
+                                  Ver trabajo
+                                </button>
+                              </div>
+                              <div className="px-4 pb-2 text-right">
+                                <span className="text-xs text-slate-400">{formatTime(message.createdAt)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+
                     return (
                       <div key={getId(message) || index}>
                         {showDate && (
@@ -551,9 +818,54 @@ export default function MessagesScreen() {
                 </div>
               </div>
 
+              {/* Inline Job Picker */}
+              {showInlineJobPicker && (
+                <div className="border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Adjuntar trabajo publicado</p>
+                    <button onClick={() => { setShowInlineJobPicker(false); setInlineSelectedJob(null); }} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full">
+                      <X className="h-3.5 w-3.5 text-slate-400" />
+                    </button>
+                  </div>
+                  {loadingInlineJobs ? (
+                    <div className="flex justify-center py-3">
+                      <Loader2 className="h-5 w-5 animate-spin text-sky-500" />
+                    </div>
+                  ) : (
+                    <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                      {inlineJobs.length > 0 ? inlineJobs.map((job) => (
+                        <button
+                          key={job.id}
+                          onClick={() => { setInlineSelectedJob(job); setShowInlineJobPicker(false); }}
+                          className={`w-full text-left p-2.5 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-b border-slate-100 dark:border-slate-700 last:border-b-0 ${inlineSelectedJob?.id === job.id ? 'bg-sky-50 dark:bg-sky-900/20' : ''}`}
+                        >
+                          <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{job.title}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">${Number(job.price).toLocaleString('es-AR')}{job.location && ` · ${job.location}`}</p>
+                        </button>
+                      )) : (
+                        <p className="text-sm text-slate-500 text-center py-3">No hay trabajos disponibles</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Inline Selected Job Preview */}
+              {inlineSelectedJob && !showInlineJobPicker && (
+                <div className="border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2">
+                  <div className="flex items-center gap-2 p-2 bg-sky-50 dark:bg-sky-900/20 rounded-lg">
+                    <Briefcase className="h-4 w-4 text-sky-500 flex-shrink-0" />
+                    <p className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate flex-1">{inlineSelectedJob.title}</p>
+                    <button onClick={() => setInlineSelectedJob(null)} className="p-0.5 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-full">
+                      <X className="h-3.5 w-3.5 text-slate-400" />
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Message Input */}
               <div className="p-4 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700">
-                <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+                <form onSubmit={handleSendMessageWithJob} className="flex items-center gap-2">
                   <button
                     type="button"
                     className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
@@ -563,9 +875,11 @@ export default function MessagesScreen() {
 
                   <button
                     type="button"
-                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
+                    onClick={toggleInlineJobPicker}
+                    className={`p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors ${showInlineJobPicker || inlineSelectedJob ? 'text-sky-500' : ''}`}
+                    title="Adjuntar trabajo"
                   >
-                    <Paperclip className="h-5 w-5 text-slate-600 dark:text-slate-400" />
+                    <Briefcase className="h-5 w-5 text-current" />
                   </button>
 
                   <input
@@ -578,7 +892,7 @@ export default function MessagesScreen() {
 
                   <button
                     type="submit"
-                    disabled={!newMessage.trim() || sending}
+                    disabled={(!newMessage.trim() && !inlineSelectedJob) || sending}
                     className="p-2 bg-sky-500 hover:bg-sky-600 disabled:bg-slate-300 dark:disabled:bg-slate-600 text-white rounded-full transition-colors disabled:cursor-not-allowed"
                   >
                     <Send className="h-5 w-5" />
@@ -600,6 +914,185 @@ export default function MessagesScreen() {
           )}
         </div>
       </div>
+
+      {/* New Message Modal */}
+      {showNewMessageModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={closeNewMessageModal}>
+          <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col shadow-xl" onClick={(e) => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Nuevo mensaje</h2>
+              <button onClick={closeNewMessageModal} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full">
+                <X className="h-5 w-5 text-slate-500" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Step 1: User Search */}
+              {!selectedUser ? (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    Buscar usuario
+                  </label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                    <input
+                      type="text"
+                      value={userSearchQuery}
+                      onChange={(e) => handleUserSearchChange(e.target.value)}
+                      placeholder="Buscar por nombre o @usuario..."
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-100 dark:bg-slate-700 border-none rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                      autoFocus
+                    />
+                  </div>
+
+                  {/* Search Results */}
+                  {searchingUsers ? (
+                    <div className="flex justify-center py-6">
+                      <Loader2 className="h-6 w-6 animate-spin text-sky-500" />
+                    </div>
+                  ) : searchedUsers.length > 0 ? (
+                    <div className="mt-2 max-h-60 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                      {searchedUsers.map((u) => (
+                        <button
+                          key={u.id}
+                          onClick={() => handleSelectUser(u)}
+                          className="w-full flex items-center gap-3 p-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                        >
+                          {u.avatar ? (
+                            <img src={u.avatar} alt={u.name} className="h-10 w-10 rounded-full object-cover" />
+                          ) : (
+                            <div className="h-10 w-10 rounded-full bg-sky-100 dark:bg-sky-900 flex items-center justify-center">
+                              <UserIcon className="h-5 w-5 text-sky-600" />
+                            </div>
+                          )}
+                          <div className="text-left">
+                            <p className="text-sm font-medium text-slate-900 dark:text-white">{u.name}</p>
+                            {u.username && <p className="text-xs text-slate-500">@{u.username}</p>}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : userSearchQuery.length >= 2 ? (
+                    <p className="text-sm text-slate-500 text-center py-4">No se encontraron usuarios</p>
+                  ) : null}
+                </div>
+              ) : (
+                <>
+                  {/* Selected User */}
+                  <div className="flex items-center gap-3 p-3 bg-sky-50 dark:bg-sky-900/20 rounded-lg">
+                    {selectedUser.avatar ? (
+                      <img src={selectedUser.avatar} alt={selectedUser.name} className="h-10 w-10 rounded-full object-cover" />
+                    ) : (
+                      <div className="h-10 w-10 rounded-full bg-sky-100 dark:bg-sky-900 flex items-center justify-center">
+                        <UserIcon className="h-5 w-5 text-sky-600" />
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">{selectedUser.name}</p>
+                      {selectedUser.username && <p className="text-xs text-slate-500">@{selectedUser.username}</p>}
+                    </div>
+                    <button onClick={() => { setSelectedUser(null); setSelectedJob(null); }} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-full">
+                      <X className="h-4 w-4 text-slate-500" />
+                    </button>
+                  </div>
+
+                  {/* Job Attachment */}
+                  {selectedJob ? (
+                    <div className="p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-sky-600 dark:text-sky-400 font-medium mb-1 flex items-center gap-1">
+                            <Briefcase className="h-3 w-3" /> Trabajo adjunto
+                          </p>
+                          <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{selectedJob.title}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            ${Number(selectedJob.price).toLocaleString('es-AR')}
+                            {selectedJob.location && ` · ${selectedJob.location}`}
+                          </p>
+                        </div>
+                        <button onClick={() => setSelectedJob(null)} className="p-1 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-full ml-2">
+                          <X className="h-4 w-4 text-slate-500" />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowJobPicker(!showJobPicker)}
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded-lg transition-colors w-full"
+                    >
+                      <Briefcase className="h-4 w-4" />
+                      Adjuntar un trabajo publicado
+                    </button>
+                  )}
+
+                  {/* Job Picker */}
+                  {showJobPicker && !selectedJob && (
+                    <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700">
+                      {loadingJobs ? (
+                        <div className="flex justify-center py-4">
+                          <Loader2 className="h-5 w-5 animate-spin text-sky-500" />
+                        </div>
+                      ) : availableJobs.length > 0 ? (
+                        availableJobs.map((job) => (
+                          <button
+                            key={job.id}
+                            onClick={() => { setSelectedJob(job); setShowJobPicker(false); }}
+                            className="w-full text-left p-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-b border-slate-100 dark:border-slate-700 last:border-b-0"
+                          >
+                            <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{job.title}</p>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              ${Number(job.price).toLocaleString('es-AR')}
+                              {job.location && ` · ${job.location}`}
+                              {job.category && ` · ${job.category}`}
+                            </p>
+                          </button>
+                        ))
+                      ) : (
+                        <p className="text-sm text-slate-500 text-center py-4">No hay trabajos disponibles</p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Message Input */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                      Mensaje {!selectedJob && <span className="text-slate-400">(requerido)</span>}
+                    </label>
+                    <textarea
+                      value={newConversationMessage}
+                      onChange={(e) => setNewConversationMessage(e.target.value)}
+                      placeholder="Escribí tu mensaje..."
+                      rows={3}
+                      className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-700 border-none rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            {selectedUser && (
+              <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+                <button
+                  onClick={handleCreateConversation}
+                  disabled={creatingConversation || (!newConversationMessage.trim() && !selectedJob)}
+                  className="w-full py-2.5 bg-sky-500 hover:bg-sky-600 disabled:bg-slate-300 dark:disabled:bg-slate-600 text-white rounded-lg font-medium transition-colors disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  {creatingConversation ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4" />
+                      Enviar mensaje
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }

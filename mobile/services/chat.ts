@@ -52,14 +52,31 @@ export async function markAsRead(conversationId: string): Promise<ApiResponse<{ 
 }
 
 /**
- * Iniciar conversación con usuario
+ * Enviar mensaje con trabajo adjunto
+ */
+export async function sendMessageWithJob(conversationId: string, data: {
+  content?: string;
+  jobId: string;
+}): Promise<ApiResponse<{ message: Message; messages?: Message[] }>> {
+  return post<{ message: Message; messages?: Message[] }>(`/chat/conversations/${conversationId}/messages`, data);
+}
+
+/**
+ * Iniciar conversación con usuario (con soporte para adjuntar trabajo)
  */
 export async function startConversation(data: {
   participantId: string;
   jobId?: string;
-  initialMessage?: string;
+  message?: string;
 }): Promise<ApiResponse<{ conversation: Conversation }>> {
   return post<{ conversation: Conversation }>('/chat/conversations', data);
+}
+
+/**
+ * Buscar usuarios para nueva conversación
+ */
+export async function searchUsers(query: string): Promise<ApiResponse<{ users: any[] }>> {
+  return get<{ users: any[] }>(`/users/search?q=${encodeURIComponent(query)}&limit=10`);
 }
 
 /**

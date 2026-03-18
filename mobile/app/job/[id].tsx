@@ -42,6 +42,14 @@ export default function JobDetailScreen() {
   const { isDarkMode, colors: themeColors } = useTheme();
   const { user, isAuthenticated } = useAuth();
 
+  const handleGoBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
+  };
+
   const [job, setJob] = useState<Job | null>(null);
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,8 +80,8 @@ export default function JobDetailScreen() {
 
     try {
       const response = await getJob(id);
-      if (response.success && response.data) {
-        setJob(response.data.job);
+      if (response.success) {
+        setJob((response as any).job || response.data?.job);
       }
     } catch (error) {
       console.error('Error fetching job:', error);
@@ -220,7 +228,7 @@ export default function JobDetailScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
         <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
             <ArrowLeft size={24} color={themeColors.text.primary} />
           </TouchableOpacity>
         </View>
@@ -231,7 +239,7 @@ export default function JobDetailScreen() {
           </Text>
           <TouchableOpacity
             style={styles.retryButton}
-            onPress={() => router.back()}
+            onPress={handleGoBack}
           >
             <Text style={styles.retryButtonText}>Volver</Text>
           </TouchableOpacity>
@@ -246,7 +254,7 @@ export default function JobDetailScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
       {/* Header */}
       <View style={[styles.topBar, { borderBottomColor: themeColors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
           <ArrowLeft size={24} color={themeColors.text.primary} />
         </TouchableOpacity>
         <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]} numberOfLines={1}>

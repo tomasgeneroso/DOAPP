@@ -126,12 +126,17 @@ export default function OnboardingTooltip() {
     // Initial positioning with delay to allow DOM updates
     const timer = setTimeout(findAndPositionTooltip, 200);
 
-    // Reposition on resize only (not on scroll to prevent jitter)
+    // Reposition on resize and scroll so tooltip follows the target
+    const handleScroll = () => {
+      requestAnimationFrame(findAndPositionTooltip);
+    };
     window.addEventListener('resize', findAndPositionTooltip);
+    window.addEventListener('scroll', handleScroll, true);
 
     return () => {
       clearTimeout(timer);
       window.removeEventListener('resize', findAndPositionTooltip);
+      window.removeEventListener('scroll', handleScroll, true);
     };
   }, [isActive, currentStepData, currentStep]);
 

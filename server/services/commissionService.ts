@@ -3,22 +3,19 @@
  *
  * Sistema de comisiones:
  *
- * 1. USUARIOS FREE (con contratos disponibles - primeros 1000 usuarios):
- *    Comisiones basadas en volumen mensual de contratos (en ARS):
- *    - $0 - $50,000:        6% comisión
- *    - $50,000 - $150,000:  4% comisión
- *    - $150,000 - $200,000: 3% comisión
- *    - +$200,000:           2% comisión
+ * 1. USUARIOS FREE:
+ *    - 8% comisión fija
+ *    - Contratos gratuitos (primeros 1000 usuarios): 0% comisión
  *
- * 2. USUARIOS PRO (€5.99/mes):
+ * 2. USUARIOS PRO ($4,999 ARS/mes):
  *    - 3% comisión fija (3 contratos mensuales)
  *
- * 3. USUARIOS SUPER PRO (€8.99/mes):
- *    - 2% comisión fija (3 contratos mensuales)
+ * 3. USUARIOS SUPER PRO ($8,999 ARS/mes):
+ *    - 1% comisión fija (3 contratos mensuales)
  *
  * Excepciones:
  * - Plan Familia: 0% comisión
- * - Contratos gratuitos (sin contratos disponibles): 0% comisión
+ * - Contratos gratuitos: 0% comisión
  *
  * Mínimo de comisión: $1,000 ARS
  */
@@ -27,13 +24,10 @@ import { Op } from 'sequelize';
 import { Contract } from '../models/sql/Contract.model.js';
 import { User } from '../models/sql/User.model.js';
 
-// Commission tiers based on monthly volume (in ARS)
-const COMMISSION_TIERS = [
-  { maxVolume: 50000, rate: 6 },      // $0 - $50,000: 6%
-  { maxVolume: 150000, rate: 4 },     // $50,000 - $150,000: 4%
-  { maxVolume: 200000, rate: 3 },     // $150,000 - $200,000: 3%
-  { maxVolume: Infinity, rate: 2 },   // +$200,000: 2%
-];
+// Fixed commission rates
+const FREE_COMMISSION_RATE = 8;       // 8% for free users
+const PRO_COMMISSION_RATE = 3;        // 3% for PRO
+const SUPER_PRO_COMMISSION_RATE = 1;  // 1% for SUPER PRO
 
 const MINIMUM_COMMISSION = 1000; // $1,000 ARS minimum
 
@@ -97,27 +91,10 @@ export async function getUserMonthlyVolume(userId: string): Promise<number> {
 }
 
 /**
- * Get the commission rate based on monthly volume
+ * Get the commission rate for free users (flat 8%)
  */
-export function getCommissionRateByVolume(monthlyVolume: number): { rate: number; tierDescription: string } {
-  for (const tier of COMMISSION_TIERS) {
-    if (monthlyVolume < tier.maxVolume) {
-      let description = '';
-      if (tier.maxVolume === 50000) {
-        description = '$0 - $50,000/mes';
-      } else if (tier.maxVolume === 150000) {
-        description = '$50,000 - $150,000/mes';
-      } else if (tier.maxVolume === 200000) {
-        description = '$150,000 - $200,000/mes';
-      } else {
-        description = '+$200,000/mes';
-      }
-      return { rate: tier.rate, tierDescription: description };
-    }
-  }
-
-  // Default to highest tier (lowest rate)
-  return { rate: 2, tierDescription: '+$200,000/mes' };
+export function getCommissionRateByVolume(_monthlyVolume: number): { rate: number; tierDescription: string } {
+  return { rate: FREE_COMMISSION_RATE, tierDescription: 'FREE (8% fijo)' };
 }
 
 /**
@@ -139,14 +116,14 @@ export async function calculateCommission(
   // Get user to check for membership, family plan, etc.
   const user = await User.findByPk(userId);
   if (!user) {
-    // Default to 6% if user not found
-    const calculatedCommission = contractPrice * 0.06;
+    // Default to 8% if user not found
+    const calculatedCommission = contractPrice * (FREE_COMMISSION_RATE / 100);
     const commission = Math.max(calculatedCommission, MINIMUM_COMMISSION);
     return {
-      rate: 6,
+      rate: FREE_COMMISSION_RATE,
       commission,
       monthlyVolume: 0,
-      tierDescription: '$0 - $50,000/mes',
+      tierDescription: 'FREE (8% fijo)',
       isFamilyPlan: false,
       isFreeContract: false,
       minimumApplied: commission === MINIMUM_COMMISSION && calculatedCommission < MINIMUM_COMMISSION,
@@ -185,10 +162,10 @@ export async function calculateCommission(
 
   // 3. PRO membership = 3% fixed commission
   if (membershipType === 'pro') {
-    const calculatedCommission = contractPrice * 0.03;
+    const calculatedCommission = contractPrice * (PRO_COMMISSION_RATE / 100);
     const commission = Math.max(calculatedCommission, MINIMUM_COMMISSION);
     return {
-      rate: 3,
+      rate: PRO_COMMISSION_RATE,
       commission,
       monthlyVolume: 0,
       tierDescription: 'PRO (3% fijo)',
@@ -198,15 +175,15 @@ export async function calculateCommission(
     };
   }
 
-  // 4. SUPER PRO membership = 2% fixed commission
+  // 4. SUPER PRO membership = 1% fixed commission
   if (membershipType === 'super_pro') {
-    const calculatedCommission = contractPrice * 0.02;
+    const calculatedCommission = contractPrice * (SUPER_PRO_COMMISSION_RATE / 100);
     const commission = Math.max(calculatedCommission, MINIMUM_COMMISSION);
     return {
-      rate: 2,
+      rate: SUPER_PRO_COMMISSION_RATE,
       commission,
       monthlyVolume: 0,
-      tierDescription: 'SUPER PRO (2% fijo)',
+      tierDescription: 'SUPER PRO (1% fijo)',
       isFamilyPlan: false,
       isFreeContract: false,
       minimumApplied: commission === MINIMUM_COMMISSION && calculatedCommission < MINIMUM_COMMISSION,
@@ -227,19 +204,17 @@ export async function calculateCommission(
     };
   }
 
-  // 6. FREE user WITHOUT available contracts = volume-based commission
-  // Cuando se agotan los contratos gratis, se aplica comisión por volumen
+  // 6. FREE user WITHOUT available contracts = flat 8% commission
   const monthlyVolume = options.currentVolume ?? await getUserMonthlyVolume(userId);
-  const { rate, tierDescription } = getCommissionRateByVolume(monthlyVolume);
-  const calculatedCommission = contractPrice * (rate / 100);
+  const calculatedCommission = contractPrice * (FREE_COMMISSION_RATE / 100);
   const commission = Math.max(calculatedCommission, MINIMUM_COMMISSION);
   const minimumApplied = commission === MINIMUM_COMMISSION && calculatedCommission < MINIMUM_COMMISSION;
 
   return {
-    rate,
+    rate: FREE_COMMISSION_RATE,
     commission,
     monthlyVolume,
-    tierDescription: `FREE: ${tierDescription}`,
+    tierDescription: 'FREE (8% fijo)',
     isFamilyPlan: false,
     isFreeContract: false,
     minimumApplied,
@@ -266,40 +241,44 @@ export async function getUserCommissionRate(userId: string): Promise<{
     };
   }
 
+  const membershipType = user?.membershipType || 'free';
   const monthlyVolume = await getUserMonthlyVolume(userId);
-  const { rate, tierDescription } = getCommissionRateByVolume(monthlyVolume);
 
-  // Find next tier
-  let nextTier: { volume: number; rate: number } | null = null;
-  for (const tier of COMMISSION_TIERS) {
-    if (monthlyVolume < tier.maxVolume) {
-      // Current tier found, next tier is the next one
-      const nextTierIndex = COMMISSION_TIERS.indexOf(tier) + 1;
-      if (nextTierIndex < COMMISSION_TIERS.length) {
-        const next = COMMISSION_TIERS[nextTierIndex];
-        nextTier = { volume: tier.maxVolume, rate: next.rate };
-      }
-      break;
-    }
+  if (membershipType === 'super_pro') {
+    return {
+      rate: SUPER_PRO_COMMISSION_RATE,
+      monthlyVolume,
+      tierDescription: 'SUPER PRO (1% fijo)',
+      nextTier: null,
+    };
   }
 
+  if (membershipType === 'pro') {
+    return {
+      rate: PRO_COMMISSION_RATE,
+      monthlyVolume,
+      tierDescription: 'PRO (3% fijo)',
+      nextTier: { volume: 0, rate: SUPER_PRO_COMMISSION_RATE }, // Suggest SUPER PRO
+    };
+  }
+
+  // Free user
   return {
-    rate,
+    rate: FREE_COMMISSION_RATE,
     monthlyVolume,
-    tierDescription,
-    nextTier,
+    tierDescription: 'FREE (8% fijo)',
+    nextTier: { volume: 0, rate: PRO_COMMISSION_RATE }, // Suggest PRO
   };
 }
 
 /**
- * Get all commission tiers (for API/frontend display)
+ * Get all commission plans (for API/frontend display)
  */
 export function getCommissionTiers() {
   return [
-    { minVolume: 0, maxVolume: 50000, rate: 6, description: '$0 - $50,000/mes' },
-    { minVolume: 50000, maxVolume: 150000, rate: 4, description: '$50,000 - $150,000/mes' },
-    { minVolume: 150000, maxVolume: 200000, rate: 3, description: '$150,000 - $200,000/mes' },
-    { minVolume: 200000, maxVolume: null, rate: 2, description: '+$200,000/mes' },
+    { plan: 'free', rate: FREE_COMMISSION_RATE, price: 0, description: 'FREE - 8% fijo' },
+    { plan: 'pro', rate: PRO_COMMISSION_RATE, price: 4999, description: 'PRO - 3% fijo ($4,999/mes)' },
+    { plan: 'super_pro', rate: SUPER_PRO_COMMISSION_RATE, price: 8999, description: 'SUPER PRO - 1% fijo ($8,999/mes)' },
   ];
 }
 

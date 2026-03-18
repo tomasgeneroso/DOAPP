@@ -7,6 +7,7 @@ import { BalanceTransaction } from "../../models/sql/BalanceTransaction.model.js
 import emailService from "../../services/email.js";
 import fcmService from "../../services/fcm.js";
 import { Op } from 'sequelize';
+import { generateWithdrawalReceipt } from "../../services/invoiceService.js";
 
 const router = express.Router();
 
@@ -259,6 +260,11 @@ router.post("/:id/complete", protect, requireRole('admin', 'super_admin', 'owner
       body: `Tu retiro de $${withdrawal.amount.toLocaleString("es-AR")} ha sido transferido exitosamente.`,
       data: { type: 'withdrawal_completed', withdrawalId: withdrawal.id.toString() }
     });
+
+    // Generate withdrawal receipt (async, don't block)
+    generateWithdrawalReceipt(withdrawal.id).catch(err =>
+      console.error('[Invoice] Failed to generate withdrawal receipt:', err.message)
+    );
 
     res.status(200).json({
       success: true,

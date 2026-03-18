@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  TextInput,
+  Platform,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -21,10 +23,11 @@ import {
   MessageCircle,
   Clock,
   Shield,
+  XCircle,
 } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
-import { getContract, confirmContract } from '../../services/contracts';
+import { getContract, confirmContract, rejectConfirmation } from '../../services/contracts';
 import { Contract, Job, User as UserType } from '../../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 
@@ -38,6 +41,16 @@ export default function ContractDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  // Confirmation hours form
+  const [showHoursForm, setShowHoursForm] = useState(false);
+  const [proposedStartDate, setProposedStartDate] = useState('');
+  const [proposedStartTime, setProposedStartTime] = useState('');
+  const [proposedEndDate, setProposedEndDate] = useState('');
+  const [proposedEndTime, setProposedEndTime] = useState('');
+  const [confirmNotes, setConfirmNotes] = useState('');
+  // Rejection
+  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
 
   const fetchContract = async () => {
     if (!id) return;
@@ -64,10 +77,56 @@ export default function ContractDetailScreen() {
     fetchContract();
   }, [id]);
 
-  const handleConfirm = async () => {
+  const handleOpenHoursForm = () => {
+    if (contract) {
+      const start = new Date(contract.startDate);
+      const end = new Date(contract.endDate);
+      setProposedStartDate(start.toISOString().split('T')[0]);
+      setProposedStartTime(start.toTimeString().slice(0, 5));
+      setProposedEndDate(end.toISOString().split('T')[0]);
+      setProposedEndTime(end.toTimeString().slice(0, 5));
+      setConfirmNotes('');
+      setShowHoursForm(true);
+    }
+  };
+
+  const handleProposeHours = async () => {
+    if (!proposedStartDate || !proposedStartTime || !proposedEndDate || !proposedEndTime) {
+      Alert.alert('Error', 'Debes indicar fecha y hora de inicio y fin');
+      return;
+    }
+    const startISO = `${proposedStartDate}T${proposedStartTime}:00`;
+    const endISO = `${proposedEndDate}T${proposedEndTime}:00`;
+    if (new Date(endISO) <= new Date(startISO)) {
+      Alert.alert('Error', 'La hora de fin debe ser posterior a la de inicio');
+      return;
+    }
+
+    setConfirming(true);
+    try {
+      const response = await confirmContract(id!, {
+        proposedStartTime: startISO,
+        proposedEndTime: endISO,
+        notes: confirmNotes || undefined,
+      });
+      if (response.success) {
+        setShowHoursForm(false);
+        Alert.alert('Confirmado', 'Tus horas han sido registradas. Esperando revisión.');
+        fetchContract();
+      } else {
+        Alert.alert('Error', response.message || 'No se pudo confirmar');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Error de conexión');
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  const handleConfirmOtherParty = () => {
     Alert.alert(
-      'Confirmar finalización',
-      '¿Estás seguro de que el trabajo ha sido completado satisfactoriamente?',
+      'Confirmar trabajo',
+      '¿Confirmas que las horas reportadas son correctas y el trabajo fue completado?',
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -77,7 +136,7 @@ export default function ContractDetailScreen() {
             try {
               const response = await confirmContract(id!);
               if (response.success) {
-                Alert.alert('Confirmado', 'Tu confirmación ha sido registrada');
+                Alert.alert('Completado', 'Contrato completado. El pago ha sido liberado.');
                 fetchContract();
               } else {
                 Alert.alert('Error', response.message || 'No se pudo confirmar');
@@ -91,6 +150,28 @@ export default function ContractDetailScreen() {
         },
       ]
     );
+  };
+
+  const handleReject = async () => {
+    if (!rejectionReason.trim()) {
+      Alert.alert('Error', 'Debes proporcionar un motivo');
+      return;
+    }
+    setConfirming(true);
+    try {
+      const response = await rejectConfirmation(id!, { reason: rejectionReason.trim() });
+      if (response.success) {
+        setShowRejectForm(false);
+        Alert.alert('Rechazado', 'Se ha creado una disputa automáticamente.');
+        fetchContract();
+      } else {
+        Alert.alert('Error', response.message || 'No se pudo rechazar');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Error de conexión');
+    } finally {
+      setConfirming(false);
+    }
   };
 
   const formatPrice = (price: number) => {
@@ -146,7 +227,7 @@ export default function ContractDetailScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
         <View style={[styles.topBar, { borderBottomColor: themeColors.border }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/contracts')} style={styles.backButton}>
             <ArrowLeft size={24} color={themeColors.text.primary} />
           </TouchableOpacity>
           <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]}>
@@ -165,7 +246,7 @@ export default function ContractDetailScreen() {
     return (
       <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
         <View style={[styles.topBar, { borderBottomColor: themeColors.border }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/contracts')} style={styles.backButton}>
             <ArrowLeft size={24} color={themeColors.text.primary} />
           </TouchableOpacity>
           <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]}>
@@ -189,15 +270,23 @@ export default function ContractDetailScreen() {
   const userId = user?._id || user?.id;
   const isClient = client?._id === userId || client?.id === userId;
   const isDoer = doer?._id === userId || doer?.id === userId;
-  const canConfirm =
-    contract.status === 'awaiting_confirmation' &&
-    ((isClient && !contract.clientConfirmed) || (isDoer && !contract.doerConfirmed));
+  // Can this party propose hours? (first to confirm)
+  const canProposeHours = contract.status === 'in_progress' && !contract.clientConfirmed && !contract.doerConfirmed;
+  // Can this party review the other's proposal?
+  const canReview = contract.status === 'awaiting_confirmation' && contract.confirmationProposedBy !== userId && (isClient || isDoer);
+  // Is doer past 30% threshold?
+  const doerCanConfirmYet = (() => {
+    if (!isDoer || !contract.startDate || !contract.endDate) return true;
+    const totalDuration = new Date(contract.endDate).getTime() - new Date(contract.startDate).getTime();
+    const elapsed = Date.now() - new Date(contract.startDate).getTime();
+    return elapsed >= totalDuration * 0.3;
+  })();
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
       {/* Header */}
       <View style={[styles.topBar, { borderBottomColor: themeColors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/contracts')} style={styles.backButton}>
           <ArrowLeft size={24} color={themeColors.text.primary} />
         </TouchableOpacity>
         <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]}>
@@ -343,61 +432,168 @@ export default function ContractDetailScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Confirmation */}
-        {contract.status === 'awaiting_confirmation' && (
-          <View style={[styles.section, { backgroundColor: colors.warning[50], borderColor: colors.warning[200] }]}>
-            <Text style={[styles.confirmTitle, { color: colors.warning[700] }]}>
-              Confirmaciones requeridas
-            </Text>
-            <Text style={[styles.confirmText, { color: colors.warning[600] }]}>
-              Ambas partes deben confirmar que el trabajo fue completado satisfactoriamente.
+        {/* Verificación de Trabajo */}
+        {['in_progress', 'awaiting_confirmation', 'completed'].includes(contract.status) && (
+          <View style={[styles.section, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+            <Text style={[styles.sectionTitle, { color: themeColors.text.primary }]}>
+              Verificación de Trabajo
             </Text>
 
-            <View style={styles.confirmStatus}>
-              <View style={styles.confirmItem}>
-                {contract.clientConfirmed ? (
-                  <CheckCircle size={20} color={colors.success[500]} />
-                ) : (
-                  <Clock size={20} color={colors.warning[500]} />
-                )}
-                <Text style={[styles.confirmItemText, { color: colors.warning[700] }]}>
-                  Cliente: {contract.clientConfirmed ? 'Confirmado' : 'Pendiente'}
-                </Text>
-              </View>
-
-              <View style={styles.confirmItem}>
-                {contract.doerConfirmed ? (
-                  <CheckCircle size={20} color={colors.success[500]} />
-                ) : (
-                  <Clock size={20} color={colors.warning[500]} />
-                )}
-                <Text style={[styles.confirmItemText, { color: colors.warning[700] }]}>
-                  Trabajador: {contract.doerConfirmed ? 'Confirmado' : 'Pendiente'}
-                </Text>
-              </View>
+            {/* Horario original siempre visible */}
+            <View style={[styles.originalHours, { backgroundColor: themeColors.slate[100] }]}>
+              <Text style={[styles.originalHoursLabel, { color: themeColors.text.muted }]}>
+                Horario original del contrato
+              </Text>
+              <Text style={[styles.originalHoursText, { color: themeColors.text.primary }]}>
+                {new Date(contract.startDate).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} - {new Date(contract.endDate).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+              </Text>
             </View>
+
+            {/* Horas propuestas */}
+            {contract.proposedStartTime && (
+              <View style={[styles.proposedHours, { backgroundColor: colors.primary[50], borderColor: colors.primary[200] }]}>
+                <Text style={[styles.proposedHoursLabel, { color: colors.primary[700] }]}>
+                  Horas reportadas por {contract.confirmationProposedBy === (client?._id || client?.id) ? (client?.name || 'Cliente') : (doer?.name || 'Trabajador')}
+                </Text>
+                <Text style={[styles.proposedHoursText, { color: colors.primary[800] }]}>
+                  {new Date(contract.proposedStartTime).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} - {new Date(contract.proposedEndTime!).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                </Text>
+                {contract.confirmationNotes ? (
+                  <Text style={[styles.confirmNotesText, { color: colors.primary[600] }]}>
+                    Notas: {contract.confirmationNotes}
+                  </Text>
+                ) : null}
+              </View>
+            )}
+
+            {/* Completado */}
+            {contract.clientConfirmed && contract.doerConfirmed && (
+              <View style={[styles.completedBanner, { backgroundColor: colors.success[50], borderColor: colors.success[200] }]}>
+                <CheckCircle size={18} color={colors.success[600]} />
+                <Text style={{ color: colors.success[700], fontSize: fontSize.sm, fontWeight: fontWeight.medium, flex: 1 }}>
+                  Ambas partes han confirmado. Contrato completado.
+                </Text>
+              </View>
+            )}
+
+            {/* in_progress: nadie confirmó — boton para proponer horas */}
+            {canProposeHours && !showHoursForm && (
+              <>
+                {isDoer && !doerCanConfirmYet && (
+                  <View style={[styles.warningBanner, { backgroundColor: colors.warning[50], borderColor: colors.warning[200] }]}>
+                    <Clock size={16} color={colors.warning[600]} />
+                    <Text style={{ color: colors.warning[700], fontSize: fontSize.sm, flex: 1 }}>
+                      Podrás confirmar después del {new Date(new Date(contract.startDate).getTime() + (new Date(contract.endDate).getTime() - new Date(contract.startDate).getTime()) * 0.3).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} (30% del tiempo)
+                    </Text>
+                  </View>
+                )}
+                <TouchableOpacity
+                  style={[styles.confirmButton, (isDoer && !doerCanConfirmYet) && styles.buttonDisabled]}
+                  onPress={handleOpenHoursForm}
+                  disabled={isDoer && !doerCanConfirmYet}
+                >
+                  <Clock size={20} color="#fff" />
+                  <Text style={styles.confirmButtonText}>Confirmar / Cambiar Horas</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {/* Formulario de horas */}
+            {showHoursForm && (
+              <View style={[styles.hoursForm, { backgroundColor: themeColors.background, borderColor: themeColors.border }]}>
+                <Text style={[styles.hoursFormTitle, { color: themeColors.text.primary }]}>
+                  Indica las horas reales trabajadas
+                </Text>
+                <View style={styles.hoursRow}>
+                  <View style={styles.hoursField}>
+                    <Text style={[styles.hoursLabel, { color: themeColors.text.muted }]}>Fecha inicio</Text>
+                    <TextInput style={[styles.hoursInput, { borderColor: themeColors.border, color: themeColors.text.primary }]} value={proposedStartDate} onChangeText={setProposedStartDate} placeholder="YYYY-MM-DD" placeholderTextColor={themeColors.text.muted} />
+                  </View>
+                  <View style={styles.hoursField}>
+                    <Text style={[styles.hoursLabel, { color: themeColors.text.muted }]}>Hora inicio</Text>
+                    <TextInput style={[styles.hoursInput, { borderColor: themeColors.border, color: themeColors.text.primary }]} value={proposedStartTime} onChangeText={setProposedStartTime} placeholder="HH:MM" placeholderTextColor={themeColors.text.muted} />
+                  </View>
+                </View>
+                <View style={styles.hoursRow}>
+                  <View style={styles.hoursField}>
+                    <Text style={[styles.hoursLabel, { color: themeColors.text.muted }]}>Fecha fin</Text>
+                    <TextInput style={[styles.hoursInput, { borderColor: themeColors.border, color: themeColors.text.primary }]} value={proposedEndDate} onChangeText={setProposedEndDate} placeholder="YYYY-MM-DD" placeholderTextColor={themeColors.text.muted} />
+                  </View>
+                  <View style={styles.hoursField}>
+                    <Text style={[styles.hoursLabel, { color: themeColors.text.muted }]}>Hora fin</Text>
+                    <TextInput style={[styles.hoursInput, { borderColor: themeColors.border, color: themeColors.text.primary }]} value={proposedEndTime} onChangeText={setProposedEndTime} placeholder="HH:MM" placeholderTextColor={themeColors.text.muted} />
+                  </View>
+                </View>
+                <TextInput style={[styles.hoursInput, styles.notesInput, { borderColor: themeColors.border, color: themeColors.text.primary }]} value={confirmNotes} onChangeText={setConfirmNotes} placeholder="Notas (opcional)" placeholderTextColor={themeColors.text.muted} multiline />
+                <View style={styles.hoursActions}>
+                  <TouchableOpacity style={[styles.confirmButton, { flex: 1 }, confirming && styles.buttonDisabled]} onPress={handleProposeHours} disabled={confirming}>
+                    {confirming ? <ActivityIndicator color="#fff" /> : (
+                      <>
+                        <CheckCircle size={18} color="#fff" />
+                        <Text style={styles.confirmButtonText}>Confirmar Horas</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.cancelFormButton, { borderColor: themeColors.border }]} onPress={() => setShowHoursForm(false)}>
+                    <Text style={{ color: themeColors.text.secondary, fontSize: fontSize.sm }}>Cancelar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* awaiting_confirmation: soy quien propuso → esperando */}
+            {contract.status === 'awaiting_confirmation' && contract.confirmationProposedBy === userId && (
+              <View style={[styles.infoBanner, { backgroundColor: colors.primary[50], borderColor: colors.primary[200] }]}>
+                <Clock size={16} color={colors.primary[600]} />
+                <Text style={{ color: colors.primary[700], fontSize: fontSize.sm, flex: 1 }}>
+                  Has confirmado tus horas. Esperando revisión de la otra parte. (Auto-confirmación en 5 horas)
+                </Text>
+              </View>
+            )}
+
+            {/* awaiting_confirmation: soy quien debe revisar → confirmar/rechazar */}
+            {canReview && !showRejectForm && (
+              <View style={styles.reviewActions}>
+                <TouchableOpacity style={[styles.confirmButton, confirming && styles.buttonDisabled]} onPress={handleConfirmOtherParty} disabled={confirming}>
+                  {confirming ? <ActivityIndicator color="#fff" /> : (
+                    <>
+                      <CheckCircle size={20} color="#fff" />
+                      <Text style={styles.confirmButtonText}>Confirmar y Liberar Pago</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.rejectButton} onPress={() => { setRejectionReason(''); setShowRejectForm(true); }}>
+                  <XCircle size={20} color="#fff" />
+                  <Text style={styles.rejectButtonText}>Rechazar y Abrir Disputa</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Formulario de rechazo */}
+            {showRejectForm && (
+              <View style={[styles.hoursForm, { backgroundColor: themeColors.background, borderColor: colors.danger[200] }]}>
+                <Text style={[styles.hoursFormTitle, { color: colors.danger[700] }]}>
+                  Motivo del rechazo
+                </Text>
+                <Text style={{ color: themeColors.text.muted, fontSize: fontSize.xs, marginBottom: spacing.sm }}>
+                  Se creará una disputa automáticamente para que un administrador resuelva.
+                </Text>
+                <TextInput style={[styles.hoursInput, styles.notesInput, { borderColor: colors.danger[300], color: themeColors.text.primary }]} value={rejectionReason} onChangeText={setRejectionReason} placeholder="Describe el motivo del rechazo" placeholderTextColor={themeColors.text.muted} multiline />
+                <View style={styles.hoursActions}>
+                  <TouchableOpacity style={[styles.rejectButton, { flex: 1 }, (confirming || !rejectionReason.trim()) && styles.buttonDisabled]} onPress={handleReject} disabled={confirming || !rejectionReason.trim()}>
+                    {confirming ? <ActivityIndicator color="#fff" /> : <Text style={styles.rejectButtonText}>Rechazar y Crear Disputa</Text>}
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.cancelFormButton, { borderColor: themeColors.border }]} onPress={() => setShowRejectForm(false)}>
+                    <Text style={{ color: themeColors.text.secondary, fontSize: fontSize.sm }}>Cancelar</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
           </View>
         )}
 
         {/* Actions */}
         <View style={styles.actions}>
-          {canConfirm && (
-            <TouchableOpacity
-              style={[styles.confirmButton, confirming && styles.buttonDisabled]}
-              onPress={handleConfirm}
-              disabled={confirming}
-            >
-              {confirming ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <CheckCircle size={20} color="#fff" />
-                  <Text style={styles.confirmButtonText}>Confirmar finalización</Text>
-                </>
-              )}
-            </TouchableOpacity>
-          )}
-
           <TouchableOpacity
             style={[styles.chatButton, { borderColor: themeColors.primary[600] }]}
             onPress={() => {
@@ -592,5 +788,127 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.7,
+  },
+  originalHours: {
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    marginBottom: spacing.md,
+  },
+  originalHoursLabel: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.medium,
+    marginBottom: spacing.xs,
+  },
+  originalHoursText: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+  },
+  proposedHours: {
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    marginBottom: spacing.md,
+  },
+  proposedHoursLabel: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.medium,
+    marginBottom: spacing.xs,
+  },
+  proposedHoursText: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+  },
+  confirmNotesText: {
+    fontSize: fontSize.xs,
+    marginTop: spacing.xs,
+  },
+  completedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    marginBottom: spacing.md,
+  },
+  warningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    marginBottom: spacing.md,
+  },
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    marginTop: spacing.md,
+  },
+  hoursForm: {
+    padding: spacing.lg,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    marginTop: spacing.md,
+    gap: spacing.md,
+  },
+  hoursFormTitle: {
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.semibold,
+  },
+  hoursRow: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  hoursField: {
+    flex: 1,
+  },
+  hoursLabel: {
+    fontSize: fontSize.xs,
+    marginBottom: spacing.xs,
+  },
+  hoursInput: {
+    borderWidth: 1,
+    borderRadius: borderRadius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontSize: fontSize.sm,
+  },
+  notesInput: {
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
+  hoursActions: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    alignItems: 'center',
+  },
+  cancelFormButton: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderWidth: 1,
+    borderRadius: borderRadius.lg,
+  },
+  reviewActions: {
+    gap: spacing.md,
+    marginTop: spacing.md,
+  },
+  rejectButton: {
+    height: 52,
+    backgroundColor: colors.danger[500],
+    borderRadius: borderRadius.lg,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  rejectButtonText: {
+    color: '#fff',
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.semibold,
   },
 });

@@ -8,9 +8,9 @@ import emailService from '../services/email.js';
 import { Op } from 'sequelize';
 
 /**
- * Cron job para auto-confirmar contratos después de 2 horas en estado awaiting_confirmation
+ * Cron job para auto-confirmar contratos después de 5 horas en estado awaiting_confirmation
  *
- * Si ambas partes no confirman dentro de 2 horas, el contrato se confirma automáticamente
+ * Si la otra parte no responde dentro de 5 horas, el contrato se confirma automáticamente
  * y el pago se libera al trabajador.
  *
  * Se ejecuta cada 5 minutos.
@@ -22,14 +22,14 @@ export function startAutoConfirmContractsJob() {
       console.log('🔍 [CRON] Verificando contratos pendientes de confirmación...');
 
       const now = new Date();
-      const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+      const fiveHoursAgo = new Date(now.getTime() - 5 * 60 * 60 * 1000);
 
-      // Buscar contratos en awaiting_confirmation que llevan más de 2 horas
+      // Buscar contratos en awaiting_confirmation que llevan más de 5 horas
       const contractsToAutoConfirm = await Contract.findAll({
         where: {
           status: 'awaiting_confirmation',
           awaitingConfirmationAt: {
-            [Op.lte]: twoHoursAgo,
+            [Op.lte]: fiveHoursAgo,
           },
           // Al menos uno no ha confirmado
           [Op.or]: [
@@ -77,6 +77,9 @@ export function startAutoConfirmContractsJob() {
             contract.completedAt = now;
             contract.paymentStatus = 'pending_payout'; // Pendiente de pago por admin (no automático)
             contract.escrowStatus = 'released';
+            // Usar horas propuestas si existen, sino las originales
+            contract.actualStartDate = contract.proposedStartTime || contract.startDate;
+            contract.actualEndDate = contract.proposedEndTime || contract.endDate;
             await contract.save();
 
             // Crear transacción de balance como pendiente (el admin debe verificar y procesar el pago)
@@ -104,7 +107,7 @@ export function startAutoConfirmContractsJob() {
               type: 'info',
               category: 'contracts',
               title: 'Contrato confirmado automáticamente',
-              message: `El contrato para "${job?.title || 'trabajo'}" ha sido confirmado automáticamente después de 2 horas. El pago está siendo procesado.`,
+              message: `El contrato para "${job?.title || 'trabajo'}" ha sido confirmado automáticamente después de 5 horas. El pago está siendo procesado.`,
               relatedModel: 'Contract',
               relatedId: contract.id,
               actionText: 'Ver contrato',
@@ -140,7 +143,7 @@ export function startAutoConfirmContractsJob() {
                 subject: `✅ Contrato confirmado automáticamente: ${job?.title || 'Trabajo'}`,
                 html: `
                   <h2>Contrato confirmado automáticamente</h2>
-                  <p>El contrato para <strong>"${job?.title || 'trabajo'}"</strong> ha sido confirmado automáticamente después de 2 horas sin respuesta.</p>
+                  <p>El contrato para <strong>"${job?.title || 'trabajo'}"</strong> ha sido confirmado automáticamente después de 5 horas sin respuesta.</p>
                   <p>El pago de <strong>$${workerPaymentAmount?.toLocaleString('es-AR')} ARS</strong> está siendo procesado y será transferido al trabajador.</p>
                   <p style="color: #666; font-size: 12px;">
                     Si tienes algún problema con el trabajo realizado, puedes abrir una disputa dentro de las próximas 24 horas.

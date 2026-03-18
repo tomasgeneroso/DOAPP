@@ -208,12 +208,12 @@ export const JobsScreen: React.FC = () => {
 
       {/* Contenido */}
       <div className="px-5 pb-24">
-        {/* Mis Trabajos Publicados */}
+        {/* Mis Publicaciones */}
         {!loading && myJobs.length > 0 && (
           <div className="mb-8">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                Mis Trabajos Publicados
+                Mis Publicaciones
               </h2>
               {myJobs.length > 3 && (
                 <button

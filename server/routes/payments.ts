@@ -14,6 +14,9 @@ import { Op } from 'sequelize';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import { Invoice } from '../models/sql/Invoice.model.js';
+import { getUserInvoices, getInvoiceById } from '../services/invoiceService.js';
+import fs from 'fs';
 import logger from "../services/logger.js";
 import { socketService } from "../index.js";
 import { calculateCommission } from "../services/commissionService.js";
@@ -362,7 +365,9 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
     }
 
     // Validate contract
-    const contract = await Contract.findByPk(contractId);
+    const contract = await Contract.findByPk(contractId, {
+      include: [{ model: Job, as: 'job', attributes: ['id', 'title'] }],
+    });
     if (!contract) {
       res.status(404).json({ success: false, message: "Contract not found" });
       return;
@@ -388,7 +393,7 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
     const paypalOrder = await paypalService.createOrder({
       amount: totalAmount.toFixed(2),
       currency: "USD",
-      description: description || `Payment for contract ${contract.title}`,
+      description: description || `Payment for contract ${(contract as any).job?.title || contract.id}`,
       contractId: contractId,
     });
 
@@ -993,47 +998,6 @@ router.post("/:paymentId/refund", protect, async (req: AuthRequest, res: Respons
     res.json({ success: true, data: { payment, refundId: refundResult.refundId } });
   } catch (error: any) {
     console.error("Refund payment error:", error);
-    res.status(500).json({ success: false, message: error.message });
-  }
-});
-
-/**
- * Get payment details
- * GET /api/payments/:paymentId
- */
-router.get("/:paymentId", protect, async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { paymentId } = req.params;
-    const userId = req.user.id;
-
-    const payment = await Payment.findByPk(paymentId, {
-      include: [
-        { model: User, as: 'payer', attributes: ['name', 'email', 'avatar'] },
-        { model: User, as: 'recipient', attributes: ['name', 'email', 'avatar'] },
-        { model: Contract, as: 'contract', attributes: ['title', 'description'] }
-      ]
-    });
-
-    if (!payment) {
-      res.status(404).json({ success: false, message: "Payment not found" });
-      return;
-    }
-
-    // Verify user is part of the payment
-    if (
-      payment.payerId !== userId &&
-      payment.recipientId !== userId
-    ) {
-      const user = await User.findByPk(userId);
-      if (!user?.adminRole) {
-        res.status(403).json({ success: false, message: "Unauthorized" });
-        return;
-      }
-    }
-
-    res.json({ success: true, data: payment });
-  } catch (error: any) {
-    console.error("Get payment error:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
@@ -1917,6 +1881,140 @@ router.get("/proofs/pending", protect, requireRole('admin', 'super_admin', 'owne
   } catch (error: any) {
     console.error("Get pending proofs error:", error);
     res.status(500).json({ success: false, message: error.message || "Error obteniendo comprobantes pendientes" });
+  }
+});
+
+// ============================================
+// INVOICE ENDPOINTS
+// ============================================
+
+/**
+ * List all invoices for the authenticated user
+ * GET /api/payments/invoices
+ */
+router.get("/invoices", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const invoices = await getUserInvoices(req.user.id);
+    res.json({
+      success: true,
+      invoices: invoices.map(inv => ({
+        id: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        type: inv.type,
+        amount: inv.amount,
+        commission: inv.commission,
+        total: inv.total,
+        currency: inv.currency,
+        status: inv.status,
+        metadata: inv.metadata,
+        createdAt: inv.createdAt,
+      })),
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || "Error obteniendo facturas" });
+  }
+});
+
+/**
+ * Download invoice PDF
+ * GET /api/payments/invoices/:id/download
+ */
+router.get("/invoices/:id/download", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const invoice = await getInvoiceById(req.params.id, req.user.id);
+    if (!invoice) {
+      res.status(404).json({ success: false, message: "Factura no encontrada" });
+      return;
+    }
+
+    if (!invoice.pdfUrl || !fs.existsSync(invoice.pdfUrl)) {
+      res.status(404).json({ success: false, message: "Archivo PDF no encontrado" });
+      return;
+    }
+
+    const filename = `factura_${invoice.invoiceNumber}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    fs.createReadStream(invoice.pdfUrl).pipe(res);
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || "Error descargando factura" });
+  }
+});
+
+/**
+ * Get invoice for a specific payment
+ * GET /api/payments/:paymentId/invoice
+ */
+router.get("/:paymentId/invoice", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const invoice = await Invoice.findOne({
+      where: { paymentId: req.params.paymentId, userId: req.user.id },
+    });
+
+    if (!invoice) {
+      res.status(404).json({ success: false, message: "Factura no encontrada para este pago" });
+      return;
+    }
+
+    res.json({
+      success: true,
+      invoice: {
+        id: invoice.id,
+        invoiceNumber: invoice.invoiceNumber,
+        type: invoice.type,
+        amount: invoice.amount,
+        commission: invoice.commission,
+        total: invoice.total,
+        currency: invoice.currency,
+        status: invoice.status,
+        pdfUrl: `/api/payments/invoices/${invoice.id}/download`,
+        metadata: invoice.metadata,
+        createdAt: invoice.createdAt,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || "Error obteniendo factura" });
+  }
+});
+
+/**
+ * Get payment details (MUST be last - catch-all :paymentId param)
+ * GET /api/payments/:paymentId
+ */
+router.get("/:paymentId", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { paymentId } = req.params;
+    const userId = req.user.id;
+
+    const payment = await Payment.findByPk(paymentId, {
+      include: [
+        { model: User, as: 'payer', attributes: ['name', 'email', 'avatar'] },
+        { model: User, as: 'recipient', attributes: ['name', 'email', 'avatar'] },
+        { model: Contract, as: 'contract', attributes: ['id', 'status', 'price'], include: [{ model: Job, as: 'job', attributes: ['id', 'title'] }] }
+      ]
+    });
+
+    if (!payment) {
+      res.status(404).json({ success: false, message: "Payment not found" });
+      return;
+    }
+
+    // Verify user is part of the payment
+    if (
+      payment.payerId !== userId &&
+      payment.recipientId !== userId
+    ) {
+      const user = await User.findByPk(userId);
+      if (!user?.adminRole) {
+        res.status(403).json({ success: false, message: "Unauthorized" });
+        return;
+      }
+    }
+
+    res.json({ success: true, data: payment });
+  } catch (error: any) {
+    console.error("Get payment error:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

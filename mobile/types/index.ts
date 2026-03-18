@@ -80,11 +80,45 @@ export interface User {
   referralCode?: string;
   freeContractsRemaining?: number;
   totalReferrals?: number;
+  membershipType?: 'free' | 'pro' | 'super_pro';
   membershipTier?: 'free' | 'pro' | 'super_pro';
   hasMembership?: boolean;
   balance?: number;
   isBanned?: boolean;
   banReason?: string;
+  availabilitySchedule?: AvailabilitySchedule;
+  isAvailabilityPublic?: boolean;
+}
+
+export interface AvailabilitySlot {
+  day: number;      // 0=Domingo, 1=Lunes ... 6=Sábado
+  start: string;    // HH:mm
+  end: string;      // HH:mm
+}
+
+export interface AvailabilityException {
+  date: string;     // YYYY-MM-DD
+  available: boolean;
+  reason?: string;
+}
+
+export interface AvailabilitySchedule {
+  timezone?: string;
+  slots: AvailabilitySlot[];
+  exceptions?: AvailabilityException[];
+}
+
+export interface Invoice {
+  id: string;
+  invoiceNumber: string;
+  type: 'client_payment' | 'worker_payment' | 'commission' | 'withdrawal';
+  amount: number;
+  commission: number;
+  total: number;
+  currency: string;
+  status: 'generated' | 'sent' | 'void';
+  metadata?: Record<string, any>;
+  createdAt: string;
 }
 
 export interface Address {
@@ -117,6 +151,7 @@ export interface NotificationPreferences {
 
 export interface Contract {
   _id: string;
+  id?: string;
   job: Job | string;
   client: User | string;
   doer: User | string;
@@ -134,6 +169,23 @@ export interface Contract {
   doerConfirmed?: boolean;
   clientConfirmedAt?: string;
   doerConfirmedAt?: string;
+  // Confirmation review fields
+  confirmationProposedBy?: string;
+  proposedStartTime?: string;
+  proposedEndTime?: string;
+  confirmationNotes?: string;
+  confirmationRejectionReason?: string;
+  confirmationHistory?: Array<{
+    proposedBy: string;
+    proposedAt: string;
+    proposedStartTime: string;
+    proposedEndTime: string;
+    notes?: string;
+    action: 'proposed' | 'confirmed' | 'rejected';
+    respondedBy?: string;
+    respondedAt?: string;
+    rejectionReason?: string;
+  }>;
   notes?: string;
   cancellationReason?: string;
   hasBeenExtended?: boolean;

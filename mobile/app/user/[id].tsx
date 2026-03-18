@@ -10,10 +10,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { ArrowLeft, Star, MapPin, Calendar, Briefcase, CheckCircle, Award, MessageCircle } from 'lucide-react-native';
+import { ArrowLeft, Star, MapPin, Calendar, Briefcase, CheckCircle, Award, MessageCircle, Clock } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import { useTheme } from '../../context/ThemeContext';
 import { get } from '../../services/api';
+
+const DAY_NAMES_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
 interface UserProfile {
   id: string;
@@ -36,6 +38,12 @@ interface UserProfile {
   skills?: string[];
   isVerified?: boolean;
   createdAt?: string;
+  availabilitySchedule?: {
+    timezone?: string;
+    slots: { day: number; start: string; end: string }[];
+    exceptions?: { date: string; available: boolean; reason?: string }[];
+  };
+  isAvailabilityPublic?: boolean;
 }
 
 export default function UserProfileScreen() {
@@ -107,7 +115,7 @@ export default function UserProfileScreen() {
       <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={[styles.header, { backgroundColor: themeColors.card, borderBottomColor: themeColors.border }]}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')} style={styles.backButton}>
             <ArrowLeft size={24} color={themeColors.text.primary} />
           </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>Perfil</Text>
@@ -134,7 +142,7 @@ export default function UserProfileScreen() {
 
       {/* Header */}
       <View style={[styles.header, { backgroundColor: themeColors.card, borderBottomColor: themeColors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)')} style={styles.backButton}>
           <ArrowLeft size={24} color={themeColors.text.primary} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: themeColors.text.primary }]} numberOfLines={1}>
@@ -303,6 +311,36 @@ export default function UserProfileScreen() {
                 </View>
               ))}
             </View>
+          </View>
+        )}
+
+        {/* Availability Schedule */}
+        {user.isAvailabilityPublic && user.availabilitySchedule && user.availabilitySchedule.slots.length > 0 && (
+          <View style={[styles.availabilityCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+            <View style={styles.availabilityTitleRow}>
+              <Clock size={18} color={themeColors.primary[600]} />
+              <Text style={[styles.availabilityTitle, { color: themeColors.text.primary }]}>Disponibilidad</Text>
+            </View>
+            {[1, 2, 3, 4, 5, 6, 0].map((day) => {
+              const slots = user.availabilitySchedule!.slots.filter((s) => s.day === day);
+              if (slots.length === 0) return null;
+              return (
+                <View key={day} style={styles.availabilityDayRow}>
+                  <Text style={[styles.availabilityDayName, { color: themeColors.text.primary }]}>
+                    {DAY_NAMES_SHORT[day]}
+                  </Text>
+                  <View style={styles.availabilitySlots}>
+                    {slots.map((slot, i) => (
+                      <View key={i} style={[styles.availabilitySlotChip, { backgroundColor: colors.primary[50] }]}>
+                        <Text style={styles.availabilitySlotText}>
+                          {slot.start} - {slot.end}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </View>
+              );
+            })}
           </View>
         )}
       </ScrollView>
@@ -570,5 +608,50 @@ const styles = StyleSheet.create({
   },
   skillText: {
     fontSize: fontSize.sm,
+  },
+  availabilityCard: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.lg,
+    padding: spacing.lg,
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+  },
+  availabilityTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  availabilityTitle: {
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.semibold,
+  },
+  availabilityDayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+  },
+  availabilityDayName: {
+    width: 40,
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+  },
+  availabilitySlots: {
+    flex: 1,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+  },
+  availabilitySlotChip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+    borderRadius: borderRadius.md,
+  },
+  availabilitySlotText: {
+    fontSize: fontSize.xs,
+    color: colors.primary[700],
+    fontWeight: fontWeight.medium,
   },
 });

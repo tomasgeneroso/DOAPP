@@ -368,7 +368,7 @@ export default function ContractSummary() {
                 <div className="mt-6 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
                   <div className="text-sm">
                     <p className="font-semibold text-purple-900 dark:text-purple-100 mb-2">
-                      {user.membershipTier === 'super_pro' && '🌟 Membresía SUPER PRO - Comisión 2%'}
+                      {user.membershipTier === 'super_pro' && '🌟 Membresía SUPER PRO - Comisión 1%'}
                       {user.membershipTier === 'pro' && '👑 Membresía PRO - Comisión 3%'}
                       {(!user.membershipTier || user.membershipTier === 'free') && '💼 Usuario FREE - Comisión 8%'}
                     </p>
@@ -377,7 +377,7 @@ export default function ContractSummary() {
                       {user.membershipTier === 'pro' && 'Tienes una comisión reducida gracias a tu membresía.'}
                       {(!user.membershipTier || user.membershipTier === 'free') && (
                         <>
-                          Actualiza a PRO (3%) o SUPER PRO (2%) para reducir tus comisiones.{' '}
+                          Actualiza a PRO (3%) o SUPER PRO (1%) para reducir tus comisiones.{' '}
                           <Link to="/settings?tab=membership" className="underline font-semibold">
                             Ver planes
                           </Link>

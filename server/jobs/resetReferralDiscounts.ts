@@ -79,8 +79,8 @@ export function startResetReferralDiscountsJob() {
                   <h3 style="margin-top: 0;">¿Quieres mantener comisiones reducidas?</h3>
                   <p>Suscríbete a uno de nuestros planes:</p>
                   <ul>
-                    <li><strong>PRO (€5.99/mes)</strong>: 3% de comisión</li>
-                    <li><strong>SUPER PRO (€8.99/mes)</strong>: 2% de comisión</li>
+                    <li><strong>PRO ($4.999/mes)</strong>: 3% de comisión</li>
+                    <li><strong>SUPER PRO ($8.999/mes)</strong>: 1% de comisión</li>
                   </ul>
                   <a href="${process.env.CLIENT_URL}/settings?tab=membership"
                      style="display: inline-block; padding: 12px 24px; background-color: white; color: #667eea; text-decoration: none; border-radius: 8px; font-weight: bold; margin-top: 10px;">

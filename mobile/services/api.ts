@@ -7,12 +7,13 @@ import { ApiResponse, PaginatedResponse } from '../types';
 // En desarrollo web, usa el servidor local para evitar CORS
 // En producción o mobile, usa la URL de producción
 const getApiUrl = () => {
-  if (process.env.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL;
-  }
-  // En web development, usar servidor local
+  // En web development, siempre usar localhost (browser corre en la misma máquina)
   if (Platform.OS === 'web' && __DEV__) {
     return 'http://localhost:3001/api';
+  }
+  // En mobile nativo, usar la IP del servidor (env var o producción)
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
   }
   return 'https://doapparg.site/api';
 };
@@ -136,6 +137,7 @@ async function getHeaders(includeAuth: boolean = true): Promise<HeadersInit> {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
+    'Accept-Encoding': 'identity',
   };
 
   if (includeAuth) {
@@ -167,7 +169,18 @@ async function request<T>(
       },
     });
 
-    const data = await response.json();
+    const text = await response.text();
+    let data: any;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      console.error('API: non-JSON response:', text.substring(0, 200));
+      return {
+        success: false,
+        message: 'Error del servidor',
+        error: 'PARSE_ERROR',
+      };
+    }
 
     if (!response.ok) {
       return {
@@ -250,6 +263,7 @@ export async function upload<T>(
     const token = await getToken();
     const headers: HeadersInit = {
       'Accept': 'application/json',
+      'Accept-Encoding': 'identity',
     };
 
     if (includeAuth && token) {
@@ -262,7 +276,18 @@ export async function upload<T>(
       body: formData,
     });
 
-    const data = await response.json();
+    const text = await response.text();
+    let data: any;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      console.error('Upload: non-JSON response:', text.substring(0, 200));
+      return {
+        success: false,
+        message: 'Error del servidor (respuesta no válida)',
+        error: 'PARSE_ERROR',
+      };
+    }
 
     if (!response.ok) {
       return {

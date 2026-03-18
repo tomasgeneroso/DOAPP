@@ -291,13 +291,13 @@ export default function AdminDashboard() {
                             name: 'PRO',
                             value: companyBalance.revenue?.memberships?.proCount || 0,
                             color: '#8b5cf6',
-                            price: '€5.99/mes'
+                            price: '$4.999/mes'
                           },
                           {
                             name: 'SUPER PRO',
                             value: companyBalance.revenue?.memberships?.superProCount || 0,
                             color: '#f59e0b',
-                            price: '€8.99/mes'
+                            price: '$8.999/mes'
                           },
                         ]}
                         cx="50%"
@@ -341,12 +341,12 @@ export default function AdminDashboard() {
                       data={[
                         {
                           name: 'PRO',
-                          ingresos: (companyBalance.revenue?.memberships?.proCount || 0) * 5.99,
+                          ingresos: (companyBalance.revenue?.memberships?.proCount || 0) * 4999,
                           cantidad: companyBalance.revenue?.memberships?.proCount || 0
                         },
                         {
                           name: 'SUPER PRO',
-                          ingresos: (companyBalance.revenue?.memberships?.superProCount || 0) * 8.99,
+                          ingresos: (companyBalance.revenue?.memberships?.superProCount || 0) * 8999,
                           cantidad: companyBalance.revenue?.memberships?.superProCount || 0
                         },
                       ]}
@@ -357,7 +357,7 @@ export default function AdminDashboard() {
                       <YAxis type="category" dataKey="name" tick={{ fill: '#9ca3af', fontSize: 12 }} width={80} />
                       <Tooltip
                         formatter={(value: number, name: string) => {
-                          if (name === 'ingresos') return [`€${value.toFixed(2)}`, 'Ingresos/mes'];
+                          if (name === 'ingresos') return [`$${value.toLocaleString('es-AR')}`, 'Ingresos/mes'];
                           return [value, 'Cantidad'];
                         }}
                         contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
@@ -368,15 +368,15 @@ export default function AdminDashboard() {
                   </ResponsiveContainer>
                   <div className="mt-4 grid grid-cols-2 gap-4 text-center">
                     <div className="bg-purple-100 dark:bg-purple-900/30 rounded-lg p-3">
-                      <p className="text-xs text-gray-600 dark:text-gray-400">PRO (€5.99/mes)</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">PRO ($4.999/mes)</p>
                       <p className="text-lg font-bold text-purple-700 dark:text-purple-400">
-                        €{((companyBalance.revenue?.memberships?.proCount || 0) * 5.99).toFixed(2)}
+                        ${((companyBalance.revenue?.memberships?.proCount || 0) * 4999).toLocaleString('es-AR')}
                       </p>
                     </div>
                     <div className="bg-amber-100 dark:bg-amber-900/30 rounded-lg p-3">
-                      <p className="text-xs text-gray-600 dark:text-gray-400">SUPER PRO (€8.99/mes)</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">SUPER PRO ($8.999/mes)</p>
                       <p className="text-lg font-bold text-amber-700 dark:text-amber-400">
-                        €{((companyBalance.revenue?.memberships?.superProCount || 0) * 8.99).toFixed(2)}
+                        ${((companyBalance.revenue?.memberships?.superProCount || 0) * 8999).toLocaleString('es-AR')}
                       </p>
                     </div>
                   </div>
@@ -387,12 +387,12 @@ export default function AdminDashboard() {
               <div className="mt-4 bg-gradient-to-r from-purple-500/10 to-amber-500/10 dark:from-purple-900/30 dark:to-amber-900/30 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Ingreso Mensual Estimado Total (EUR)</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">Ingreso Mensual Estimado Total (ARS)</p>
                     <p className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-amber-600 bg-clip-text text-transparent">
-                      €{(
-                        ((companyBalance.revenue?.memberships?.proCount || 0) * 5.99) +
-                        ((companyBalance.revenue?.memberships?.superProCount || 0) * 8.99)
-                      ).toFixed(2)}
+                      ${(
+                        ((companyBalance.revenue?.memberships?.proCount || 0) * 4999) +
+                        ((companyBalance.revenue?.memberships?.superProCount || 0) * 8999)
+                      ).toLocaleString('es-AR')}
                     </p>
                   </div>
                   <div className="text-right">

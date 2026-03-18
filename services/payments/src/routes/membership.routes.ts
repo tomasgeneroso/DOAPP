@@ -12,8 +12,8 @@ const getUserId = (req: Request): string | null => {
 
 // Pricing in EUR
 const MEMBERSHIP_PRICING = {
-  pro: { price: 5.99, contractsPerMonth: 3, commissionRate: 3 },
-  super_pro: { price: 8.99, contractsPerMonth: 3, commissionRate: 2 },
+  pro: { price: 4999, contractsPerMonth: 3, commissionRate: 3 },
+  super_pro: { price: 8999, contractsPerMonth: 3, commissionRate: 1 },
 };
 
 // ===========================================
@@ -36,7 +36,7 @@ router.get('/pricing', async (req: Request, res: Response): Promise<void> => {
       super_pro: {
         ...MEMBERSHIP_PRICING.super_pro,
         features: [
-          '3 contratos/mes con 2% de comisión',
+          '3 contratos/mes con 1% de comisión',
           'Badge de usuario SUPER PRO',
           'Máxima prioridad en búsquedas',
           'Analytics avanzados',

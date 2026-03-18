@@ -67,6 +67,7 @@ export default function NewTicketScreen() {
       const response = await post('/tickets', formData);
 
       if (response.success) {
+        setFormData({ subject: '', category: 'support', priority: 'medium', message: '' });
         Alert.alert(
           'Ticket creado',
           'Tu ticket ha sido creado correctamente. Te responderemos pronto.',
@@ -91,7 +92,7 @@ export default function NewTicketScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
       {/* Header */}
       <View style={[styles.topBar, { borderBottomColor: themeColors.border }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/help')} style={styles.backButton}>
           <ArrowLeft size={24} color={themeColors.text.primary} />
         </TouchableOpacity>
         <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]}>

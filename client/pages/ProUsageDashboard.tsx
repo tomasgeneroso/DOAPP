@@ -149,7 +149,7 @@ export default function ProUsageDashboard() {
         </h2>
         <div className="mb-4">
           <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
-            <span>Contratos con {user?.membershipTier === 'super_pro' ? '2%' : '3%'} de comisión</span>
+            <span>Contratos con {user?.membershipTier === 'super_pro' ? '1%' : '3%'} de comisión</span>
             <span>{usage.contractsUsed} de {usage.contractsLimit}</span>
           </div>
           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4 overflow-hidden">
@@ -239,7 +239,7 @@ export default function ProUsageDashboard() {
                   ? 'text-purple-600 dark:text-purple-400'
                   : 'text-blue-600 dark:text-blue-400'
               }`} />
-              <span>3 contratos mensuales con solo {user?.membershipTier === 'super_pro' ? '2%' : '3%'} de comisión (vs 8% normal)</span>
+              <span>3 contratos mensuales con solo {user?.membershipTier === 'super_pro' ? '1%' : '3%'} de comisión (vs 8% normal)</span>
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
@@ -307,7 +307,7 @@ export default function ProUsageDashboard() {
           <ul className="space-y-2 text-sm text-purple-800 dark:text-purple-200 mb-4">
             <li className="flex items-start gap-2">
               <CheckCircle className="w-5 h-5 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5" />
-              <span><strong>Solo 2% de comisión</strong> en tus 3 contratos/mes</span>
+              <span><strong>Solo 1% de comisión</strong> en tus 3 contratos/mes</span>
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle className="w-5 h-5 text-purple-600 dark:text-purple-400 flex-shrink-0 mt-0.5" />
@@ -326,10 +326,10 @@ export default function ProUsageDashboard() {
           <div className="flex items-center justify-between pt-3 border-t border-purple-200 dark:border-purple-800">
             <div>
               <p className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600">
-                €8.99
+                $8.999
               </p>
               <p className="text-xs text-purple-600 dark:text-purple-400">
-                por mes
+                ARS/mes
               </p>
             </div>
             <Button
