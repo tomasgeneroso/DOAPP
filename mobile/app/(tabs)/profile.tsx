@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, Link } from 'expo-router';
+import Constants from 'expo-constants';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
@@ -306,7 +307,7 @@ export default function ProfileScreen() {
         </TouchableOpacity>
 
         {/* App Version */}
-        <Text style={[styles.versionText, { color: themeColors.text.muted }]}>DoApp v2.0.0</Text>
+        <Text style={[styles.versionText, { color: themeColors.text.muted }]}>DoApp v{Constants.expoConfig?.version || '2.0.0'}</Text>
       </ScrollView>
     </SafeAreaView>
   );

@@ -9,9 +9,11 @@ import {
   Alert,
   TextInput,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Constants from 'expo-constants';
 import {
   ArrowLeft,
   Bell,
@@ -565,9 +567,14 @@ export default function SettingsScreen() {
         </View>
 
         {/* Version */}
-        <Text style={[styles.version, { color: themeColors.text.muted }]}>
-          DoApp v1.0.0
-        </Text>
+        <View style={styles.versionContainer}>
+          <Text style={[styles.version, { color: themeColors.text.muted }]}>
+            DoApp v{Constants.expoConfig?.version || '2.0.0'}
+          </Text>
+          <Text style={[styles.versionDetail, { color: themeColors.text.muted }]}>
+            {Platform.OS === 'ios' ? 'iOS' : Platform.OS === 'android' ? 'Android' : 'Web'} • Expo {Constants.expoConfig?.sdkVersion || ''}
+          </Text>
+        </View>
         </>}
       </ScrollView>
     </SafeAreaView>
@@ -643,10 +650,18 @@ const styles = StyleSheet.create({
     height: 1,
     marginLeft: spacing.lg + 28,
   },
+  versionContainer: {
+    alignItems: 'center',
+    marginTop: spacing.lg,
+    gap: 4,
+  },
   version: {
     fontSize: fontSize.sm,
     textAlign: 'center',
-    marginTop: spacing.lg,
+  },
+  versionDetail: {
+    fontSize: fontSize.xs,
+    textAlign: 'center',
   },
   tabRow: {
     flexDirection: 'row',
