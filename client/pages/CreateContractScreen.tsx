@@ -21,6 +21,7 @@ import {
   CreditCard,
   Settings,
   ArrowRight,
+  Shield,
 } from "lucide-react";
 import { JOB_CATEGORIES, JOB_TAGS, canJobsOverlap, getCategoryById } from "../../shared/constants/categories";
 import { CustomDateInput } from "@/components/ui/CustomDatePicker";
@@ -70,6 +71,7 @@ export default function CreateContractScreen() {
   const [maxWorkers, setMaxWorkers] = useState(1);
   const [endDateFlexible, setEndDateFlexible] = useState(false);
   const [singleDelivery, setSingleDelivery] = useState(true);
+  const [requiresSecurityCode, setRequiresSecurityCode] = useState(false);
   const [addressStreet, setAddressStreet] = useState("");
   const [addressNumber, setAddressNumber] = useState("");
   const [addressDetails, setAddressDetails] = useState("");
@@ -193,6 +195,7 @@ export default function CreateContractScreen() {
     submitData.append("remoteOk", formDataFromForm.get("remoteOk") === "on" ? "true" : "false");
     submitData.append("maxWorkers", maxWorkers.toString());
     submitData.append("singleDelivery", singleDelivery.toString());
+    submitData.append("requiresSecurityCode", requiresSecurityCode.toString());
 
     selectedFiles.forEach((file) => {
       submitData.append("images", file);
@@ -673,6 +676,26 @@ export default function CreateContractScreen() {
                   </p>
                 </div>
               )}
+            </FormField>
+
+            {/* Security Code Option */}
+            <FormField label="Código de seguridad" icon={Shield}>
+              <label className="flex items-start gap-3 cursor-pointer p-3 rounded-xl border-2 border-gray-200 dark:border-gray-600 hover:border-sky-300 dark:hover:border-sky-600 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={requiresSecurityCode}
+                  onChange={(e) => setRequiresSecurityCode(e.target.checked)}
+                  className="w-5 h-5 mt-0.5 rounded border-gray-300 dark:border-slate-600 text-sky-600 focus:ring-sky-500 dark:bg-slate-700"
+                />
+                <div>
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    Verificar identidad del trabajador en el encuentro
+                  </span>
+                  <p className="text-sm text-gray-500 dark:text-slate-400 mt-1">
+                    El trabajador recibirá un código que deberá mostrarte al llegar. Vos ingresás el código para confirmar que es la persona correcta.
+                  </p>
+                </div>
+              </label>
             </FormField>
 
             <FormField

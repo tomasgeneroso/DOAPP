@@ -1009,7 +1009,7 @@ export default function ChatScreen() {
               </div>
             )}
 
-            {/* Pairing Code Display for Worker */}
+            {/* Security Code Display for Worker */}
             {isSelectedWorker && contractData?.pairingCode && (
               <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-xl p-5 border-2 border-purple-200 dark:border-purple-700 shadow-md">
                 <div className="flex items-start gap-4">
@@ -1018,10 +1018,10 @@ export default function ChatScreen() {
                   </div>
                   <div className="flex-1">
                     <h4 className="font-bold text-purple-900 dark:text-purple-100 text-lg mb-1">
-                      Código de Pareamiento
+                      Tu Código de Seguridad
                     </h4>
                     <p className="text-sm text-purple-700 dark:text-purple-300 mb-3">
-                      Muestra este código al cliente cuando llegues al lugar de trabajo
+                      Mostrá este código al cliente cuando llegues para que verifique tu identidad
                     </p>
                     <div className="flex items-center gap-3">
                       <div className="flex-1 bg-white dark:bg-slate-800 rounded-lg p-3 border-2 border-purple-300 dark:border-purple-600">

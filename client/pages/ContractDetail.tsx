@@ -178,7 +178,7 @@ export default function ContractDetail() {
     setPairingMessage("");
     try {
       const response = await api.post(`/contracts/${id}/confirm-pairing`, {
-        code: pairingCode.toUpperCase()
+        code: pairingCode.trim()
       });
       if (response.data.success) {
         setPairingMessage("¡Código confirmado exitosamente!");
@@ -296,6 +296,9 @@ export default function ContractDetail() {
 
   const canGeneratePairingCode = () => {
     if (!contract) return false;
+    // Only the worker (doer) can generate, and only if the job requires it
+    if (!contract.job?.requiresSecurityCode) return false;
+    if (!isDoer) return false;
     const hoursUntilStart = getTimeUntilStart();
     return (
       contract.status === 'accepted' &&
@@ -310,10 +313,9 @@ export default function ContractDetail() {
 
   const shouldShowPairingSection = () => {
     if (!contract) return false;
+    // Only show if the job requires security code
+    if (!contract.job?.requiresSecurityCode) return false;
 
-    // Show if both parties accepted and:
-    // 1. We're within 24 hours before start (for generation)
-    // 2. OR a code has been generated (show until contract ends)
     const hoursUntilStart = getTimeUntilStart();
     const bothAccepted = contract.termsAcceptedByClient && contract.termsAcceptedByDoer;
 
@@ -928,19 +930,21 @@ export default function ContractDetail() {
             </div>
           )}
 
-          {/* Pairing Code Section */}
+          {/* Security Code Section */}
           {shouldShowPairingSection() && (
-            <div className="bg-gradient-to-r from-sky-50 to-blue-50 dark:from-sky-900/20 dark:to-blue-900/20 rounded-lg shadow-lg p-6 mb-6 border-2 border-sky-200 dark:border-sky-800">
+            <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-lg shadow-lg p-6 mb-6 border-2 border-purple-200 dark:border-purple-800">
               <div className="flex items-center gap-3 mb-4">
-                <div className="bg-sky-600 p-3 rounded-lg">
+                <div className="bg-purple-600 p-3 rounded-lg">
                   <Key className="h-6 w-6 text-white" />
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                    Código de Pareamiento
+                    Código de Seguridad
                   </h2>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Ambas partes deben confirmar el código para iniciar el contrato
+                    {isDoer
+                      ? "Generá el código y mostráselo al cliente cuando llegues"
+                      : "Pedile el código al trabajador cuando llegue para verificar su identidad"}
                   </p>
                 </div>
               </div>
@@ -955,143 +959,105 @@ export default function ContractDetail() {
                 </div>
               )}
 
+              {/* Worker: Generate Code Button */}
               {!contract.pairingCode && canGeneratePairingCode() && (
                 <div className="bg-white dark:bg-gray-800 rounded-lg p-4 mb-4">
                   <p className="text-gray-700 dark:text-gray-300 mb-3">
-                    El contrato comienza en menos de 24 horas. Genera el código de pareamiento para confirmar el inicio.
+                    El contrato comienza en menos de 24 horas. Generá tu código de seguridad para mostrárselo al cliente.
                   </p>
                   <button
                     onClick={handleGeneratePairingCode}
                     disabled={loadingPairing}
-                    className="px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {loadingPairing ? "Generando..." : "Generar Código"}
+                    {loadingPairing ? "Generando..." : "Generar Mi Código"}
                   </button>
+                </div>
+              )}
+
+              {/* Client waiting for worker to generate */}
+              {!contract.pairingCode && isClient && (
+                <div className="bg-white dark:bg-gray-800 rounded-lg p-4 mb-4">
+                  <div className="flex items-center gap-3">
+                    <AlertCircle className="h-5 w-5 text-amber-500" />
+                    <p className="text-gray-700 dark:text-gray-300">
+                      Esperando a que el trabajador genere su código de seguridad...
+                    </p>
+                  </div>
                 </div>
               )}
 
               {contract.pairingCode && (
                 <>
-                  {/* Display Code */}
-                  <div className="bg-white dark:bg-gray-800 rounded-lg p-6 mb-4">
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                      Código de Pareamiento:
-                    </p>
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1 bg-gray-100 dark:bg-gray-700 p-4 rounded-lg">
-                        <p className="text-3xl font-mono font-bold text-sky-600 dark:text-sky-400 text-center tracking-widest">
-                          {contract.pairingCode}
-                        </p>
-                      </div>
-                      <button
-                        onClick={handleCopyCode}
-                        className="p-3 bg-sky-100 dark:bg-sky-900/30 hover:bg-sky-200 dark:hover:bg-sky-900/50 rounded-lg transition"
-                        title="Copiar código"
-                      >
-                        <Copy className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-                      </button>
-                    </div>
-                    {contract.pairingExpiry && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
-                        Expira: {new Date(contract.pairingExpiry).toLocaleString()}
+                  {/* Worker view: Show their code */}
+                  {isDoer && (
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-6 mb-4">
+                      <p className="text-sm text-purple-600 dark:text-purple-400 font-medium mb-2">
+                        Tu código de seguridad:
                       </p>
-                    )}
-                  </div>
-
-                  {/* Confirmation Status */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div className={`p-4 rounded-lg border-2 ${
-                      contract.clientConfirmedPairing
-                        ? "bg-green-50 dark:bg-green-900/20 border-green-500"
-                        : "bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600"
-                    }`}>
                       <div className="flex items-center gap-3">
-                        {contract.clientConfirmedPairing ? (
-                          <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
-                        ) : (
-                          <AlertCircle className="h-6 w-6 text-gray-400" />
-                        )}
-                        <div>
-                          <p className="font-semibold text-gray-900 dark:text-white">
-                            {contract.client?.name || "Cliente"}
+                        <div className="flex-1 bg-purple-50 dark:bg-purple-900/30 p-4 rounded-lg border-2 border-purple-200 dark:border-purple-700">
+                          <p className="text-3xl font-mono font-bold text-purple-700 dark:text-purple-300 text-center tracking-widest">
+                            {contract.pairingCode}
                           </p>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {contract.clientConfirmedPairing ? "✓ Confirmado" : "Pendiente"}
-                          </p>
-                          {contract.clientPairingConfirmedAt && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              {new Date(contract.clientPairingConfirmedAt).toLocaleString()}
-                            </p>
-                          )}
                         </div>
+                        <button
+                          onClick={handleCopyCode}
+                          className="p-3 bg-purple-100 dark:bg-purple-900/30 hover:bg-purple-200 dark:hover:bg-purple-900/50 rounded-lg transition"
+                          title="Copiar código"
+                        >
+                          <Copy className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                        </button>
                       </div>
+                      <p className="text-sm text-purple-600 dark:text-purple-400 mt-3">
+                        Mostrá este código al cliente cuando llegues al lugar de trabajo.
+                      </p>
+                      {contract.pairingExpiry && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                          Expira: {new Date(contract.pairingExpiry).toLocaleString()}
+                        </p>
+                      )}
                     </div>
+                  )}
 
-                    <div className={`p-4 rounded-lg border-2 ${
-                      contract.doerConfirmedPairing
-                        ? "bg-green-50 dark:bg-green-900/20 border-green-500"
-                        : "bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600"
-                    }`}>
-                      <div className="flex items-center gap-3">
-                        {contract.doerConfirmedPairing ? (
-                          <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
-                        ) : (
-                          <AlertCircle className="h-6 w-6 text-gray-400" />
-                        )}
-                        <div>
-                          <p className="font-semibold text-gray-900 dark:text-white">
-                            {contract.doer?.name || "Proveedor"}
-                          </p>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {contract.doerConfirmedPairing ? "✓ Confirmado" : "Pendiente"}
-                          </p>
-                          {contract.doerPairingConfirmedAt && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              {new Date(contract.doerPairingConfirmedAt).toLocaleString()}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Input Code (if current user hasn't confirmed yet) */}
-                  {((isClient && !contract.clientConfirmedPairing) || (isDoer && !contract.doerConfirmedPairing)) && (
-                    <div className="bg-white dark:bg-gray-800 rounded-lg p-4">
+                  {/* Client view: Enter the code */}
+                  {isClient && !contract.clientConfirmedPairing && (
+                    <div className="bg-white dark:bg-gray-800 rounded-lg p-4 mb-4">
                       <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                        Ingresa el código para confirmar:
+                        Ingresá el código que te muestra el trabajador:
                       </p>
                       <div className="flex gap-3">
                         <input
                           type="text"
                           value={pairingCode}
-                          onChange={(e) => setPairingCode(e.target.value.toUpperCase())}
-                          placeholder="Ingresa el código"
-                          maxLength={10}
-                          className="flex-1 px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-gray-900 dark:text-white font-mono text-lg"
+                          onChange={(e) => setPairingCode(e.target.value.replace(/\D/g, ''))}
+                          placeholder="Ingresá el código de 6 dígitos"
+                          maxLength={6}
+                          inputMode="numeric"
+                          className="flex-1 px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-gray-900 dark:text-white font-mono text-lg text-center tracking-widest"
                         />
                         <button
                           onClick={handleConfirmPairing}
-                          disabled={loadingPairing || !pairingCode || pairingCode.length !== 10}
-                          className="px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                          disabled={loadingPairing || !pairingCode || pairingCode.length !== 6}
+                          className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                         >
-                          {loadingPairing ? "Confirmando..." : "Confirmar"}
+                          {loadingPairing ? "Verificando..." : "Verificar"}
                         </button>
                       </div>
                     </div>
                   )}
 
                   {/* Success Message */}
-                  {contract.clientConfirmedPairing && contract.doerConfirmedPairing && (
+                  {contract.clientConfirmedPairing && (
                     <div className="bg-green-100 dark:bg-green-900/20 border-2 border-green-500 rounded-lg p-4">
                       <div className="flex items-center gap-3">
                         <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400 flex-shrink-0" />
                         <div>
                           <p className="font-semibold text-green-800 dark:text-green-200">
-                            ¡Ambas partes han confirmado!
+                            ¡Identidad verificada!
                           </p>
                           <p className="text-sm text-green-700 dark:text-green-300">
-                            El contrato ha iniciado. Pueden comenzar a trabajar.
+                            El código fue confirmado. El contrato ha comenzado.
                           </p>
                         </div>
                       </div>

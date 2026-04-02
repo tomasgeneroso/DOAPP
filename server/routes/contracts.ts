@@ -2176,16 +2176,38 @@ router.post("/:id/reject-extension", protect, async (req: AuthRequest, res: Resp
 });
 
 /**
- * Generate pairing code for contract
+ * Generate security code for contract (only doer/worker can generate)
+ * The worker shows this code to the client at the meeting
  * POST /api/contracts/:id/generate-pairing
  */
 router.post("/:id/generate-pairing", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const contract = await Contract.findByPk(id);
+    const userId = req.user.id;
+    const contract = await Contract.findByPk(id, {
+      include: [{ model: Job, as: 'job' }]
+    });
 
     if (!contract) {
       res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    // Verificar que el job requiere código de seguridad
+    if (!contract.job?.requiresSecurityCode) {
+      res.status(400).json({
+        success: false,
+        message: "Este trabajo no requiere código de seguridad"
+      });
+      return;
+    }
+
+    // Solo el trabajador puede generar el código
+    if (contract.doerId.toString() !== userId.toString()) {
+      res.status(403).json({
+        success: false,
+        message: "Solo el trabajador puede generar el código de seguridad"
+      });
       return;
     }
 
@@ -2208,20 +2230,21 @@ router.post("/:id/generate-pairing", protect, async (req: AuthRequest, res: Resp
       return;
     }
 
-    // Generar código de 10 caracteres (alfanumérico)
-    const code = Array.from({ length: 10 }, () =>
-      'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]
-    ).join('');
+    // Generar código de 6 dígitos numérico (más fácil de comunicar verbalmente)
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
 
     contract.pairingCode = code;
     contract.pairingGeneratedAt = new Date();
     contract.pairingExpiry = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72 horas para confirmar
+    // El trabajador genera el código, se marca como que ya lo tiene
+    contract.doerConfirmedPairing = true;
+    contract.doerPairingConfirmedAt = new Date();
 
     await contract.save();
 
     res.json({
       success: true,
-      message: "Código de pareamiento generado",
+      message: "Código de seguridad generado. Mostralo al cliente cuando llegues.",
       pairingCode: code,
       expiresAt: contract.pairingExpiry,
     });
@@ -2232,7 +2255,8 @@ router.post("/:id/generate-pairing", protect, async (req: AuthRequest, res: Resp
 });
 
 /**
- * Confirm pairing code
+ * Confirm security code (only client can confirm)
+ * The client enters the code the worker showed them
  * POST /api/contracts/:id/confirm-pairing
  */
 router.post("/:id/confirm-pairing", protect, async (req: AuthRequest, res: Response): Promise<void> => {
@@ -2252,18 +2276,16 @@ router.post("/:id/confirm-pairing", protect, async (req: AuthRequest, res: Respo
       return;
     }
 
-    // Verificar que el usuario sea parte del contrato
+    // Solo el cliente puede confirmar el código
     const isClient = contract.clientId.toString() === userId.toString();
-    const isDoer = contract.doerId.toString() === userId.toString();
-
-    if (!isClient && !isDoer) {
-      res.status(403).json({ success: false, message: "No tienes permiso" });
+    if (!isClient) {
+      res.status(403).json({ success: false, message: "Solo el cliente puede confirmar el código de seguridad" });
       return;
     }
 
     // Verificar que existe un código
     if (!contract.pairingCode) {
-      res.status(400).json({ success: false, message: "No hay código de pareamiento generado" });
+      res.status(400).json({ success: false, message: "El trabajador aún no generó el código de seguridad" });
       return;
     }
 
@@ -2271,49 +2293,38 @@ router.post("/:id/confirm-pairing", protect, async (req: AuthRequest, res: Respo
     if (contract.pairingExpiry && new Date() > contract.pairingExpiry) {
       res.status(400).json({
         success: false,
-        message: "El código de pareamiento ha expirado. Genera uno nuevo."
+        message: "El código ha expirado. Pedile al trabajador que genere uno nuevo."
       });
+      return;
+    }
+
+    // Verificar que no haya confirmado ya
+    if (contract.clientConfirmedPairing) {
+      res.status(400).json({ success: false, message: "Ya confirmaste el código de seguridad" });
       return;
     }
 
     // Verificar que el código sea correcto
-    if (contract.pairingCode !== code.toUpperCase()) {
+    if (contract.pairingCode !== code.trim()) {
       res.status(400).json({ success: false, message: "Código incorrecto" });
       return;
     }
 
-    // Marcar como confirmado por esta parte
-    if (isClient && !contract.clientConfirmedPairing) {
-      contract.clientConfirmedPairing = true;
-      contract.clientPairingConfirmedAt = new Date();
-    } else if (isDoer && !contract.doerConfirmedPairing) {
-      contract.doerConfirmedPairing = true;
-      contract.doerPairingConfirmedAt = new Date();
-    } else {
-      res.status(400).json({ success: false, message: "Ya confirmaste el pareamiento" });
-      return;
-    }
+    // Marcar como confirmado por el cliente
+    contract.clientConfirmedPairing = true;
+    contract.clientPairingConfirmedAt = new Date();
 
-    // Si ambos confirmaron, iniciar el contrato
-    if (contract.clientConfirmedPairing && contract.doerConfirmedPairing) {
-      contract.status = 'in_progress';
-      contract.actualStartDate = new Date();
+    // Iniciar el contrato inmediatamente
+    contract.status = 'in_progress';
+    contract.actualStartDate = new Date();
 
-      await contract.save();
+    await contract.save();
 
-      res.json({
-        success: true,
-        message: "¡Pareamiento confirmado! El contrato ha comenzado.",
-        contract,
-      });
-    } else {
-      await contract.save();
-      res.json({
-        success: true,
-        message: "Pareamiento confirmado. Esperando confirmación de la otra parte.",
-        contract,
-      });
-    }
+    res.json({
+      success: true,
+      message: "¡Código verificado! Identidad del trabajador confirmada. El contrato ha comenzado.",
+      contract,
+    });
   } catch (error: any) {
     console.error('Error confirming pairing:', error);
     res.status(500).json({ success: false, message: error.message || "Error del servidor" });

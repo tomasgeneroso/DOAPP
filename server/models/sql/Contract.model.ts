@@ -612,10 +612,10 @@ export class Contract extends Model {
   }
 
   /**
-   * Check if pairing is complete
+   * Check if pairing is complete (client confirmed the worker's code)
    */
   isPairingComplete(): boolean {
-    return this.clientConfirmedPairing && this.doerConfirmedPairing;
+    return this.clientConfirmedPairing;
   }
 
   /**

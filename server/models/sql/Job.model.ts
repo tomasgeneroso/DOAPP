@@ -357,6 +357,14 @@ export class Job extends Model {
   remainingBudget?: number;
 
   // ============================================
+  // SECURITY CODE (optional, client verifies worker at meeting)
+  // ============================================
+
+  @Default(false)
+  @Column(DataType.BOOLEAN)
+  requiresSecurityCode!: boolean;
+
+  // ============================================
   // REMINDER NOTIFICATIONS
   // ============================================
 

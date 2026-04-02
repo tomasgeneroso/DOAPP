@@ -1019,6 +1019,7 @@ router.post(
         maxWorkers, // New: support for multiple workers (1-5)
         selectedWorkers: [], // Initialize empty array
         singleDelivery, // If true, single final delivery; if false, per-task due dates
+        requiresSecurityCode: req.body.requiresSecurityCode === 'true',
       };
 
       const job = await Job.create(jobData);
@@ -1173,6 +1174,11 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
       } catch (e) {
         updateData.tags = [];
       }
+    }
+
+    // Handle requiresSecurityCode
+    if (req.body.requiresSecurityCode !== undefined) {
+      updateData.requiresSecurityCode = req.body.requiresSecurityCode === 'true' || req.body.requiresSecurityCode === true;
     }
 
     // Handle endDateFlexible
