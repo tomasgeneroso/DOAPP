@@ -331,4 +331,40 @@ export function startAutoSelectWorkerJob() {
   });
 
   console.log('✅ [CRON] Job de activación de trabajos iniciado (cada 15 minutos)');
+
+  // Cron job para iniciar contratos con código de seguridad verificado antes de la hora de inicio
+  // Cuando el cliente verificó el código antes de la hora, el contrato queda en "accepted"
+  // y debe pasar a "in_progress" cuando llega la hora de inicio
+  cron.schedule('*/5 * * * *', async () => {
+    try {
+      const now = new Date();
+
+      const contractsToActivate = await Contract.findAll({
+        where: {
+          status: 'accepted',
+          clientConfirmedPairing: true,
+          startDate: { [Op.lte]: now },
+        },
+      });
+
+      if (contractsToActivate.length === 0) return;
+
+      console.log(`⏰ [CRON] Encontrados ${contractsToActivate.length} contratos verificados para activar`);
+
+      for (const contract of contractsToActivate) {
+        try {
+          contract.status = 'in_progress';
+          contract.actualStartDate = now;
+          await contract.save();
+          console.log(`✅ [CRON] Contrato ${contract.id} activado a in_progress (código de seguridad verificado previamente)`);
+        } catch (error) {
+          console.error(`❌ [CRON] Error activando contrato ${contract.id}:`, error);
+        }
+      }
+    } catch (error) {
+      console.error('❌ [CRON] Error en job de activación de contratos verificados:', error);
+    }
+  });
+
+  console.log('✅ [CRON] Job de activación de contratos verificados iniciado (cada 5 minutos)');
 }

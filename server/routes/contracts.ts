@@ -2314,17 +2314,29 @@ router.post("/:id/confirm-pairing", protect, async (req: AuthRequest, res: Respo
     contract.clientConfirmedPairing = true;
     contract.clientPairingConfirmedAt = new Date();
 
-    // Iniciar el contrato inmediatamente
-    contract.status = 'in_progress';
-    contract.actualStartDate = new Date();
+    // Solo iniciar el contrato si ya llegó la hora de inicio o ya pasó
+    const now = new Date();
+    const startDate = new Date(contract.startDate);
+    if (now >= startDate) {
+      contract.status = 'in_progress';
+      contract.actualStartDate = now;
 
-    await contract.save();
+      await contract.save();
 
-    res.json({
-      success: true,
-      message: "¡Código verificado! Identidad del trabajador confirmada. El contrato ha comenzado.",
-      contract,
-    });
+      res.json({
+        success: true,
+        message: "¡Código verificado! Identidad del trabajador confirmada. El contrato ha comenzado.",
+        contract,
+      });
+    } else {
+      await contract.save();
+
+      res.json({
+        success: true,
+        message: `¡Código verificado! Identidad del trabajador confirmada. El contrato iniciará automáticamente el ${startDate.toLocaleString('es-AR')}.`,
+        contract,
+      });
+    }
   } catch (error: any) {
     console.error('Error confirming pairing:', error);
     res.status(500).json({ success: false, message: error.message || "Error del servidor" });
