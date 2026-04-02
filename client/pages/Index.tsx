@@ -302,7 +302,7 @@ export default function Index() {
               ? "Cargando..."
               : user
               ? "¿Listo para empezar un nuevo proyecto o buscar oportunidades? Estás en el lugar correcto."
-              : "Publicá trabajos y contratá profesionales con garantía de pago. El dinero queda protegido en escrow hasta que confirmés el trabajo completado. Sin riesgos, sin estafas."}
+              : "Publicá trabajos y contratá profesionales con garantía de pago."}
           </p>
           {!user && !isLoading && (
             <p className="mx-auto mt-3 sm:mt-4 max-w-2xl text-sm sm:text-base leading-6 sm:leading-7 text-gray-500 dark:text-slate-500 px-2">
