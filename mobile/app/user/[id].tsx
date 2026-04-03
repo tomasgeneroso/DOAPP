@@ -10,10 +10,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { ArrowLeft, Star, MapPin, Calendar, Briefcase, CheckCircle, Award, MessageCircle, Clock } from 'lucide-react-native';
+import { ArrowLeft, Star, MapPin, Calendar, Briefcase, CheckCircle, Award, MessageCircle, Clock, Hammer, UserCheck, Quote } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import { useTheme } from '../../context/ThemeContext';
 import { get } from '../../services/api';
+import { getUserReviews, ReviewItem } from '../../services/reviews';
 
 const DAY_NAMES_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
@@ -54,12 +55,27 @@ export default function UserProfileScreen() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [reviews, setReviews] = useState<ReviewItem[]>([]);
+  const [reviewFilter, setReviewFilter] = useState<'all' | 'as_worker' | 'as_client'>('all');
 
   useEffect(() => {
     if (id) {
       fetchUserProfile();
+      fetchReviews();
     }
   }, [id]);
+
+  const fetchReviews = async () => {
+    if (!id) return;
+    try {
+      const response = await getUserReviews(id, 50);
+      if (response.success && response.data) {
+        setReviews(Array.isArray(response.data) ? response.data : (response.data as any).data || (response.data as any) || []);
+      }
+    } catch {
+      // Reviews are optional, don't block the page
+    }
+  };
 
   const fetchUserProfile = async () => {
     try {
@@ -311,6 +327,132 @@ export default function UserProfileScreen() {
                 </View>
               ))}
             </View>
+          </View>
+        )}
+
+        {/* Reviews Section */}
+        {reviews.length > 0 && (
+          <View style={[styles.ratingsCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+            <Text style={[styles.ratingsTitle, { color: themeColors.text.primary }]}>
+              Opiniones ({reviews.length})
+            </Text>
+
+            {/* Filter Tabs */}
+            <View style={{ flexDirection: 'row', marginBottom: spacing.md, gap: spacing.xs }}>
+              {([
+                { key: 'all' as const, label: 'Todas' },
+                { key: 'as_worker' as const, label: 'Como trabajador' },
+                { key: 'as_client' as const, label: 'Como cliente' },
+              ]).map((tab) => (
+                <TouchableOpacity
+                  key={tab.key}
+                  onPress={() => setReviewFilter(tab.key)}
+                  style={{
+                    paddingHorizontal: spacing.md,
+                    paddingVertical: spacing.xs,
+                    borderRadius: borderRadius.full,
+                    backgroundColor: reviewFilter === tab.key ? colors.primary[600] : (isDarkMode ? colors.slate[700] : colors.slate[100]),
+                  }}
+                >
+                  <Text style={{
+                    fontSize: fontSize.xs,
+                    fontWeight: fontWeight.medium,
+                    color: reviewFilter === tab.key ? '#fff' : themeColors.text.secondary,
+                  }}>
+                    {tab.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Review Items */}
+            {reviews
+              .filter((r) => {
+                if (reviewFilter === 'all') return true;
+                if (reviewFilter === 'as_worker') return r.reviewerRole === 'client';
+                return r.reviewerRole === 'doer';
+              })
+              .slice(0, 10)
+              .map((review) => (
+                <View key={review.id} style={{ marginBottom: spacing.lg, paddingBottom: spacing.lg, borderBottomWidth: 1, borderBottomColor: themeColors.border }}>
+                  {/* Job info */}
+                  {review.contract?.job && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.sm }}>
+                      <Briefcase size={12} color={colors.primary[500]} />
+                      <Text style={{ fontSize: fontSize.xs, color: themeColors.text.secondary, flex: 1 }} numberOfLines={1}>
+                        {review.contract.job.title}
+                      </Text>
+                      <View style={{
+                        paddingHorizontal: spacing.sm,
+                        paddingVertical: 2,
+                        borderRadius: borderRadius.full,
+                        backgroundColor: review.reviewerRole === 'client' ? colors.primary[50] : colors.success[50],
+                      }}>
+                        <Text style={{
+                          fontSize: 10,
+                          color: review.reviewerRole === 'client' ? colors.primary[700] : colors.success[700],
+                          fontWeight: fontWeight.medium,
+                        }}>
+                          {review.reviewerRole === 'client' ? 'Trabajo realizado' : 'Trabajo creado'}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
+
+                  {/* Reviewer + rating */}
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                      <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: colors.primary[100], justifyContent: 'center', alignItems: 'center' }}>
+                        <Text style={{ fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.primary[700] }}>
+                          {(review.reviewer?.name || '?')[0].toUpperCase()}
+                        </Text>
+                      </View>
+                      <View>
+                        <Text style={{ fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: themeColors.text.primary }}>
+                          {review.reviewer?.name || 'Usuario'}
+                        </Text>
+                        <Text style={{ fontSize: 10, color: themeColors.text.muted }}>
+                          {new Date(review.createdAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star key={s} size={14} color={s <= review.rating ? '#f59e0b' : colors.slate[300]} fill={s <= review.rating ? '#f59e0b' : 'none'} />
+                      ))}
+                    </View>
+                  </View>
+
+                  {/* Specific ratings */}
+                  {(review.communication || review.professionalism || review.quality || review.timeliness) && (
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginBottom: spacing.sm }}>
+                      {review.communication ? <Text style={{ fontSize: 10, color: themeColors.text.muted, backgroundColor: isDarkMode ? colors.slate[700] : colors.slate[100], paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: borderRadius.full }}>Comunicación {review.communication}/5</Text> : null}
+                      {review.professionalism ? <Text style={{ fontSize: 10, color: themeColors.text.muted, backgroundColor: isDarkMode ? colors.slate[700] : colors.slate[100], paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: borderRadius.full }}>Profesionalismo {review.professionalism}/5</Text> : null}
+                      {review.quality ? <Text style={{ fontSize: 10, color: themeColors.text.muted, backgroundColor: isDarkMode ? colors.slate[700] : colors.slate[100], paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: borderRadius.full }}>Calidad {review.quality}/5</Text> : null}
+                      {review.timeliness ? <Text style={{ fontSize: 10, color: themeColors.text.muted, backgroundColor: isDarkMode ? colors.slate[700] : colors.slate[100], paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: borderRadius.full }}>Puntualidad {review.timeliness}/5</Text> : null}
+                    </View>
+                  )}
+
+                  {/* Comment */}
+                  {review.comment && (
+                    <Text style={{ fontSize: fontSize.sm, color: themeColors.text.secondary, fontStyle: 'italic' }}>
+                      "{review.comment}"
+                    </Text>
+                  )}
+
+                  {/* Response */}
+                  {review.response && (
+                    <View style={{ marginTop: spacing.sm, marginLeft: spacing.lg, padding: spacing.sm, backgroundColor: colors.primary[50], borderRadius: borderRadius.lg, borderLeftWidth: 3, borderLeftColor: colors.primary[500] }}>
+                      <Text style={{ fontSize: 10, fontWeight: fontWeight.semibold, color: colors.primary[700], marginBottom: 2 }}>
+                        Respuesta de {user?.name}:
+                      </Text>
+                      <Text style={{ fontSize: fontSize.xs, color: themeColors.text.secondary }}>
+                        {review.response}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              ))}
           </View>
         )}
 

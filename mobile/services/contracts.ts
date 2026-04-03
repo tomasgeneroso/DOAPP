@@ -100,3 +100,17 @@ export async function modifyContractPrice(id: string, data: {
 }): Promise<ApiResponse<{ contract: Contract }>> {
   return put<{ contract: Contract }>(`/contracts/${id}/modify-price`, data);
 }
+
+/**
+ * Generar código de seguridad (solo el trabajador)
+ */
+export async function generateSecurityCode(id: string): Promise<ApiResponse<{ pairingCode: string; expiresAt: string }>> {
+  return post<{ pairingCode: string; expiresAt: string }>(`/contracts/${id}/generate-pairing`, {});
+}
+
+/**
+ * Confirmar código de seguridad (solo el cliente)
+ */
+export async function confirmSecurityCode(id: string, code: string): Promise<ApiResponse<{ contract: Contract }>> {
+  return post<{ contract: Contract }>(`/contracts/${id}/confirm-pairing`, { code });
+}

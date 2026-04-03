@@ -24,10 +24,15 @@ import {
   Clock,
   Shield,
   XCircle,
+  Key,
+  Star,
+  Copy,
 } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
-import { getContract, confirmContract, rejectConfirmation } from '../../services/contracts';
+import { getContract, confirmContract, rejectConfirmation, generateSecurityCode, confirmSecurityCode } from '../../services/contracts';
+import { checkReview } from '../../services/reviews';
+import ReviewModal from '../../components/contracts/ReviewModal';
 import { Contract, Job, User as UserType } from '../../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 
@@ -51,6 +56,12 @@ export default function ContractDetailScreen() {
   // Rejection
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
+  // Security code
+  const [securityCodeInput, setSecurityCodeInput] = useState('');
+  const [securityCodeLoading, setSecurityCodeLoading] = useState(false);
+  // Review
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [hasReviewed, setHasReviewed] = useState(false);
 
   const fetchContract = async () => {
     if (!id) return;
@@ -76,6 +87,64 @@ export default function ContractDetailScreen() {
   useEffect(() => {
     fetchContract();
   }, [id]);
+
+  // Check if user already reviewed
+  useEffect(() => {
+    if (id && contract?.status === 'completed') {
+      checkReview(id).then((res) => {
+        if (res.success && res.data) {
+          setHasReviewed(res.data.hasReviewed);
+        }
+      }).catch(() => {});
+    }
+  }, [id, contract?.status]);
+
+  const handleGenerateSecurityCode = async () => {
+    if (!id) return;
+    setSecurityCodeLoading(true);
+    try {
+      const response = await generateSecurityCode(id);
+      if (response.success) {
+        Alert.alert('Código generado', 'Mostráselo al cliente cuando llegues.');
+        fetchContract();
+      } else {
+        Alert.alert('Error', response.message || 'No se pudo generar');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Error de conexión');
+    } finally {
+      setSecurityCodeLoading(false);
+    }
+  };
+
+  const handleConfirmSecurityCode = async () => {
+    if (!id || securityCodeInput.length !== 6) return;
+    setSecurityCodeLoading(true);
+    try {
+      const response = await confirmSecurityCode(id, securityCodeInput.trim());
+      if (response.success) {
+        Alert.alert('Verificado', response.message || 'Identidad del trabajador confirmada.');
+        setSecurityCodeInput('');
+        fetchContract();
+      } else {
+        Alert.alert('Error', response.message || 'Código incorrecto');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Error de conexión');
+    } finally {
+      setSecurityCodeLoading(false);
+    }
+  };
+
+  const handleCopyCode = (code: string) => {
+    // React Native doesn't have clipboard by default, use expo-clipboard
+    import('expo-clipboard').then((Clipboard) => {
+      Clipboard.setStringAsync(code);
+      Alert.alert('Copiado', 'Código copiado al portapapeles');
+    }).catch(() => {
+      Alert.alert('Info', `Tu código es: ${code}`);
+    });
+  };
 
   const handleOpenHoursForm = () => {
     if (contract) {
@@ -592,6 +661,149 @@ export default function ContractDetailScreen() {
           </View>
         )}
 
+        {/* Security Code Section */}
+        {(contract as any).job?.requiresSecurityCode && ['accepted', 'in_progress'].includes(contract.status) && (
+          <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: '#a855f7' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.md }}>
+              <View style={{ backgroundColor: '#a855f7', padding: spacing.sm, borderRadius: borderRadius.lg }}>
+                <Key size={20} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.sectionTitle, { color: themeColors.text.primary, marginBottom: 0 }]}>
+                  Código de Seguridad
+                </Text>
+                <Text style={{ fontSize: fontSize.xs, color: themeColors.text.muted }}>
+                  {isDoer ? 'Generá el código y mostráselo al cliente' : 'Pedile el código al trabajador'}
+                </Text>
+              </View>
+            </View>
+
+            {/* Worker: Generate or show code */}
+            {isDoer && !(contract as any).pairingCode && (
+              <TouchableOpacity
+                style={[styles.confirmButton, { backgroundColor: '#a855f7' }]}
+                onPress={handleGenerateSecurityCode}
+                disabled={securityCodeLoading}
+              >
+                {securityCodeLoading ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Key size={18} color="#fff" />
+                    <Text style={styles.confirmButtonText}>Generar Mi Código</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            )}
+
+            {isDoer && (contract as any).pairingCode && (
+              <View>
+                <Text style={{ fontSize: fontSize.xs, color: '#a855f7', fontWeight: fontWeight.medium, marginBottom: spacing.xs }}>
+                  Tu código de seguridad:
+                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+                  <View style={{ flex: 1, backgroundColor: '#f3e8ff', padding: spacing.lg, borderRadius: borderRadius.lg, borderWidth: 2, borderColor: '#c084fc' }}>
+                    <Text style={{ fontSize: fontSize['2xl'], fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', fontWeight: fontWeight.bold, color: '#7c3aed', textAlign: 'center', letterSpacing: 6 }}>
+                      {(contract as any).pairingCode}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={{ padding: spacing.md, backgroundColor: '#f3e8ff', borderRadius: borderRadius.lg }}
+                    onPress={() => handleCopyCode((contract as any).pairingCode)}
+                  >
+                    <Copy size={20} color="#7c3aed" />
+                  </TouchableOpacity>
+                </View>
+                <Text style={{ fontSize: fontSize.xs, color: '#a855f7', marginTop: spacing.sm }}>
+                  Mostrá este código al cliente cuando llegues.
+                </Text>
+              </View>
+            )}
+
+            {/* Client: Enter code */}
+            {isClient && !(contract as any).clientConfirmedPairing && (contract as any).pairingCode && (
+              <View>
+                <Text style={{ fontSize: fontSize.sm, color: themeColors.text.secondary, marginBottom: spacing.sm, fontWeight: fontWeight.medium }}>
+                  Ingresá el código que te muestra el trabajador:
+                </Text>
+                <View style={{ flexDirection: 'row', gap: spacing.md }}>
+                  <TextInput
+                    style={{
+                      flex: 1,
+                      borderWidth: 1,
+                      borderColor: themeColors.border,
+                      borderRadius: borderRadius.lg,
+                      padding: spacing.md,
+                      fontSize: fontSize.xl,
+                      color: themeColors.text.primary,
+                      textAlign: 'center',
+                      letterSpacing: 6,
+                      fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+                    }}
+                    value={securityCodeInput}
+                    onChangeText={(v) => setSecurityCodeInput(v.replace(/\D/g, '').slice(0, 6))}
+                    keyboardType="number-pad"
+                    maxLength={6}
+                    placeholder="------"
+                    placeholderTextColor={themeColors.text.muted}
+                  />
+                  <TouchableOpacity
+                    style={[styles.confirmButton, { backgroundColor: '#a855f7', paddingHorizontal: spacing.xl, height: 52 }]}
+                    onPress={handleConfirmSecurityCode}
+                    disabled={securityCodeLoading || securityCodeInput.length !== 6}
+                  >
+                    {securityCodeLoading ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <Text style={styles.confirmButtonText}>Verificar</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {isClient && !((contract as any).pairingCode) && (
+              <View style={{ backgroundColor: colors.warning[50], padding: spacing.md, borderRadius: borderRadius.lg }}>
+                <Text style={{ fontSize: fontSize.sm, color: colors.warning[700] }}>
+                  Esperando a que el trabajador genere su código...
+                </Text>
+              </View>
+            )}
+
+            {(contract as any).clientConfirmedPairing && (
+              <View style={{ backgroundColor: colors.success[50], padding: spacing.md, borderRadius: borderRadius.lg, flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
+                <CheckCircle size={18} color={colors.success[600]} />
+                <Text style={{ fontSize: fontSize.sm, color: colors.success[700], fontWeight: fontWeight.medium }}>
+                  Identidad verificada
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Review Prompt */}
+        {contract.status === 'completed' && !hasReviewed && (
+          <TouchableOpacity
+            style={[styles.card, { backgroundColor: '#fffbeb', borderColor: '#f59e0b' }]}
+            onPress={() => setShowReviewModal(true)}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+              <View style={{ backgroundColor: '#f59e0b', padding: spacing.sm, borderRadius: borderRadius.lg }}>
+                <Star size={20} color="#fff" fill="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: fontSize.base, fontWeight: fontWeight.bold, color: '#92400e' }}>
+                  ¡Trabajo completado!
+                </Text>
+                <Text style={{ fontSize: fontSize.sm, color: '#b45309' }}>
+                  Dejá tu opinión sobre {isClient ? (doer?.name || 'el trabajador') : (client?.name || 'el cliente')}
+                </Text>
+              </View>
+              <Star size={24} color="#f59e0b" />
+            </View>
+          </TouchableOpacity>
+        )}
+
         {/* Actions */}
         <View style={styles.actions}>
           <TouchableOpacity
@@ -607,6 +819,25 @@ export default function ContractDetailScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Review Modal */}
+      <ReviewModal
+        visible={showReviewModal}
+        onClose={() => setShowReviewModal(false)}
+        onSuccess={() => {
+          setShowReviewModal(false);
+          setHasReviewed(true);
+        }}
+        contractId={id!}
+        otherUserName={isClient ? (doer?.name || 'Trabajador') : (client?.name || 'Cliente')}
+        jobTitle={jobData?.title || 'Trabajo'}
+        jobStartDate={contract.startDate}
+        jobEndDate={contract.endDate}
+        actualStartDate={(contract as any).actualStartDate}
+        actualEndDate={(contract as any).actualEndDate}
+        role={isClient ? 'client' : 'doer'}
+        themeColors={themeColors}
+      />
     </SafeAreaView>
   );
 }

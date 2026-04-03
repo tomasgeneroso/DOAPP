@@ -2242,6 +2242,20 @@ router.post("/:id/generate-pairing", protect, async (req: AuthRequest, res: Resp
 
     await contract.save();
 
+    // Notify the client that the worker generated their security code
+    try {
+      const { Notification } = await import('../models/sql/Notification.model.js');
+      await Notification.create({
+        userId: contract.clientId,
+        type: 'info',
+        title: 'Código de seguridad generado',
+        message: 'El trabajador generó su código de seguridad. Pedíselo cuando llegue al encuentro.',
+        metadata: { contractId: contract.id },
+      });
+    } catch (notifErr) {
+      console.error('Error sending security code notification:', notifErr);
+    }
+
     res.json({
       success: true,
       message: "Código de seguridad generado. Mostralo al cliente cuando llegues.",
@@ -2317,20 +2331,37 @@ router.post("/:id/confirm-pairing", protect, async (req: AuthRequest, res: Respo
     // Solo iniciar el contrato si ya llegó la hora de inicio o ya pasó
     const now = new Date();
     const startDate = new Date(contract.startDate);
-    if (now >= startDate) {
+    const started = now >= startDate;
+    if (started) {
       contract.status = 'in_progress';
       contract.actualStartDate = now;
+    }
 
-      await contract.save();
+    await contract.save();
 
+    // Notify the worker that the client verified the code
+    try {
+      const { Notification } = await import('../models/sql/Notification.model.js');
+      await Notification.create({
+        userId: contract.doerId,
+        type: 'success',
+        title: 'Identidad verificada',
+        message: started
+          ? 'El cliente verificó tu código de seguridad. El contrato ha comenzado.'
+          : 'El cliente verificó tu código de seguridad. El contrato iniciará en la fecha programada.',
+        metadata: { contractId: contract.id },
+      });
+    } catch (notifErr) {
+      console.error('Error sending verification notification:', notifErr);
+    }
+
+    if (started) {
       res.json({
         success: true,
         message: "¡Código verificado! Identidad del trabajador confirmada. El contrato ha comenzado.",
         contract,
       });
     } else {
-      await contract.save();
-
       res.json({
         success: true,
         message: `¡Código verificado! Identidad del trabajador confirmada. El contrato iniciará automáticamente el ${startDate.toLocaleString('es-AR')}.`,
