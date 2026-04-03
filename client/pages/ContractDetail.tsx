@@ -11,6 +11,7 @@ import ContractExtensionApproval from "@/components/contracts/ContractExtensionA
 import TaskClaimModal from "@/components/contracts/TaskClaimModal";
 import TaskClaimResponse from "@/components/contracts/TaskClaimResponse";
 import TaskEvidenceUploadModal from "@/components/contracts/TaskEvidenceUploadModal";
+import ReviewModal from "@/components/contracts/ReviewModal";
 import {
   ArrowLeft,
   Calendar,
@@ -29,6 +30,7 @@ import {
   ClipboardList,
   Camera,
   Briefcase,
+  Star,
 } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 
@@ -51,6 +53,8 @@ export default function ContractDetail() {
   const [showEvidenceModal, setShowEvidenceModal] = useState(false);
   const [allContracts, setAllContracts] = useState<any[]>([]);
   const [loadingAllContracts, setLoadingAllContracts] = useState(false);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [hasReviewed, setHasReviewed] = useState(false);
 
   const loadContract = useCallback(async () => {
     try {
@@ -107,6 +111,17 @@ export default function ContractDetail() {
       }
     }
   }, [contract?.jobId, loadAllContracts]);
+
+  // Check if user has already reviewed this contract
+  useEffect(() => {
+    if (id && contract?.status === 'completed') {
+      api.get(`/reviews/check/${id}`)
+        .then((res: any) => {
+          setHasReviewed(res.hasReviewed || res.data?.hasReviewed);
+        })
+        .catch(() => {});
+    }
+  }, [id, contract?.status]);
 
   // Register socket handler for real-time contract updates
   useEffect(() => {
@@ -930,6 +945,34 @@ export default function ContractDetail() {
             </div>
           )}
 
+          {/* Review Prompt - show when contract is completed and user hasn't reviewed */}
+          {contract.status === 'completed' && !hasReviewed && (isClient || isDoer) && (
+            <div className="bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20 rounded-lg shadow-lg p-6 mb-6 border-2 border-amber-200 dark:border-amber-700">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="bg-amber-500 p-3 rounded-lg">
+                    <Star className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+                      ¡Trabajo completado!
+                    </h2>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Dejá tu opinión sobre {isClient ? (contract.doer?.name || 'el trabajador') : (contract.client?.name || 'el cliente')}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowReviewModal(true)}
+                  className="px-5 py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-semibold transition whitespace-nowrap flex items-center gap-2"
+                >
+                  <Star className="h-4 w-4" />
+                  Dejar opinión
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Security Code Section */}
           {shouldShowPairingSection() && (
             <div className="bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-lg shadow-lg p-6 mb-6 border-2 border-purple-200 dark:border-purple-800">
@@ -1300,6 +1343,25 @@ export default function ContractDetail() {
           }}
         />
       )}
+
+      {/* Review Modal */}
+      <ReviewModal
+        isOpen={showReviewModal}
+        onClose={() => setShowReviewModal(false)}
+        onSuccess={() => {
+          setShowReviewModal(false);
+          setHasReviewed(true);
+        }}
+        contractId={contract.id || contract._id}
+        otherUserName={isClient ? (contract.doer?.name || 'Trabajador') : (contract.client?.name || 'Cliente')}
+        otherUserAvatar={isClient ? contract.doer?.avatar : contract.client?.avatar}
+        jobTitle={contract.job?.title || contract.jobId?.title || 'Trabajo'}
+        jobStartDate={contract.startDate}
+        jobEndDate={contract.endDate}
+        actualStartDate={contract.actualStartDate}
+        actualEndDate={contract.actualEndDate}
+        role={isClient ? 'client' : 'doer'}
+      />
     </>
   );
 }

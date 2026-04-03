@@ -2,6 +2,7 @@ import { Router, Response } from "express";
 import { protect, AuthRequest } from "../middleware/auth";
 import { Review } from "../models/sql/Review.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
+import { Job } from "../models/sql/Job.model.js";
 import { User } from "../models/sql/User.model.js";
 import { Notification } from "../models/sql/Notification.model.js";
 import { body, validationResult } from "express-validator";
@@ -9,6 +10,28 @@ import { Op } from "sequelize";
 import sequelize from "../config/database.js";
 
 const router = Router();
+
+/**
+ * Check if user has already reviewed a contract
+ * GET /api/reviews/check/:contractId
+ */
+router.get("/check/:contractId", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { contractId } = req.params;
+    const userId = req.user.id;
+
+    const existing = await Review.findOne({
+      where: { contractId, reviewerId: userId },
+    });
+
+    res.json({
+      success: true,
+      hasReviewed: !!existing,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+  }
+});
 
 /**
  * Create a review for a completed contract
@@ -158,12 +181,29 @@ router.get("/user/:userId", async (req, res): Promise<void> => {
         {
           model: Contract,
           as: "contract",
-          attributes: ["id", "type"],
+          attributes: ["id", "clientId", "doerId", "startDate", "endDate", "actualStartDate", "actualEndDate"],
+          include: [
+            {
+              model: Job,
+              as: "job",
+              attributes: ["id", "title", "category", "startDate", "endDate"],
+            },
+          ],
         },
       ],
       order: [["createdAt", "DESC"]],
       limit: Number(limit),
       offset: (Number(page) - 1) * Number(limit),
+    });
+
+    // Add reviewerRole to each review (was the reviewer the client or the doer?)
+    const enrichedReviews = reviews.map((r) => {
+      const plain = r.toJSON() as any;
+      if (plain.contract) {
+        plain.reviewerRole =
+          plain.reviewerId === plain.contract.clientId ? 'client' : 'doer';
+      }
+      return plain;
     });
 
     const total = await Review.count({
@@ -207,7 +247,7 @@ router.get("/user/:userId", async (req, res): Promise<void> => {
 
     res.json({
       success: true,
-      data: reviews,
+      data: enrichedReviews,
       stats,
       pagination: {
         page: Number(page),

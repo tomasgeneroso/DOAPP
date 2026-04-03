@@ -38,7 +38,10 @@ import {
   ArrowLeft,
   Quote,
   ExternalLink,
-  Heart
+  Heart,
+  Clock,
+  Hammer,
+  UserCheck,
 } from 'lucide-react';
 
 export default function ProfilePage() {
@@ -68,6 +71,7 @@ export default function ProfilePage() {
   const [userReviews, setUserReviews] = useState<any[]>([]);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [showReviewsModal, setShowReviewsModal] = useState(false);
+  const [reviewRoleFilter, setReviewRoleFilter] = useState<'all' | 'as_worker' | 'as_client'>('all');
   const [showReportModal, setShowReportModal] = useState(false);
   const [showAvatarUpload, setShowAvatarUpload] = useState(false);
   const [showCoverUpload, setShowCoverUpload] = useState(false);
@@ -1432,10 +1436,10 @@ export default function ProfilePage() {
               <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
                 <div>
                   <h3 className="text-xl font-bold text-slate-900 dark:text-white">
-                    Reseñas de {user?.name}
+                    Opiniones de {user?.name}
                   </h3>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                    {userReviews.length} opiniones de clientes
+                    {userReviews.length} opiniones
                   </p>
                 </div>
                 <button
@@ -1446,8 +1450,39 @@ export default function ProfilePage() {
                 </button>
               </div>
 
+              {/* Role Filter Tabs */}
+              <div className="flex border-b border-slate-200 dark:border-slate-700 px-6">
+                {[
+                  { key: 'all' as const, label: 'Todas' },
+                  { key: 'as_worker' as const, label: 'Como trabajador', icon: Hammer },
+                  { key: 'as_client' as const, label: 'Como cliente', icon: UserCheck },
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setReviewRoleFilter(tab.key)}
+                    className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                      reviewRoleFilter === tab.key
+                        ? 'border-sky-500 text-sky-600 dark:text-sky-400'
+                        : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                    }`}
+                  >
+                    {tab.icon && <tab.icon className="w-4 h-4" />}
+                    {tab.label}
+                    <span className="text-xs bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded-full">
+                      {tab.key === 'all'
+                        ? userReviews.length
+                        : userReviews.filter((r: any) =>
+                            tab.key === 'as_worker'
+                              ? r.reviewerRole === 'client'
+                              : r.reviewerRole === 'doer'
+                          ).length}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
               {/* Reviews List */}
-              <div className="overflow-y-auto max-h-[60vh] p-6">
+              <div className="overflow-y-auto max-h-[55vh] p-6">
                 {reviewsLoading ? (
                   <div className="flex justify-center py-12">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
@@ -1459,22 +1494,69 @@ export default function ProfilePage() {
                     </div>
                     <h4 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
                       {isOwnProfile()
-                        ? '¡Tu primera reseña está por llegar!'
+                        ? '¡Tu primera opinión está por llegar!'
                         : 'Las primeras opiniones están en camino'}
                     </h4>
                     <p className="text-slate-600 dark:text-slate-400 max-w-sm mx-auto">
                       {isOwnProfile()
-                        ? 'Cada trabajo completado es una oportunidad para recibir una reseña. ¡Seguí trabajando y las estrellas vendrán solas!'
-                        : 'Cuando este profesional complete trabajos, acá vas a encontrar las opiniones de sus clientes.'}
+                        ? 'Cada trabajo completado es una oportunidad para recibir una opinión.'
+                        : 'Cuando este profesional complete trabajos, acá vas a encontrar las opiniones.'}
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-6">
-                    {userReviews.map((review) => (
+                    {userReviews
+                      .filter((review: any) => {
+                        if (reviewRoleFilter === 'all') return true;
+                        if (reviewRoleFilter === 'as_worker') return review.reviewerRole === 'client';
+                        return review.reviewerRole === 'doer';
+                      })
+                      .map((review: any) => (
                       <div
                         key={review.id || review._id}
                         className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl"
                       >
+                        {/* Job Details Banner */}
+                        {review.contract?.job && (
+                          <div className="flex items-start gap-2 mb-3 pb-3 border-b border-slate-200 dark:border-slate-600">
+                            <Briefcase className="w-4 h-4 text-sky-500 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-slate-900 dark:text-white text-sm truncate">
+                                {review.contract.job.title}
+                              </p>
+                              <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                                {(review.contract.actualStartDate || review.contract.startDate) && (
+                                  <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                                    <Calendar className="w-3 h-3" />
+                                    {new Date(review.contract.actualStartDate || review.contract.startDate).toLocaleDateString('es-AR', {
+                                      day: 'numeric', month: 'short', year: 'numeric',
+                                    })}
+                                  </span>
+                                )}
+                                {review.contract.actualStartDate && review.contract.actualEndDate && (
+                                  <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                                    <Clock className="w-3 h-3" />
+                                    {new Date(review.contract.actualStartDate).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                                    {' - '}
+                                    {new Date(review.contract.actualEndDate).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                )}
+                                <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${
+                                  review.reviewerRole === 'client'
+                                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                                    : 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                                }`}>
+                                  {review.reviewerRole === 'client' ? (
+                                    <><Hammer className="w-3 h-3" /> Trabajo realizado</>
+                                  ) : (
+                                    <><UserCheck className="w-3 h-3" /> Trabajo creado</>
+                                  )}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Review Header */}
                         <div className="flex items-start justify-between gap-4 mb-3">
                           <div className="flex items-center gap-3">
@@ -1516,25 +1598,25 @@ export default function ProfilePage() {
                             {review.communication && (
                               <div className="text-center p-2 bg-white dark:bg-slate-800 rounded-lg">
                                 <p className="text-xs text-slate-500 dark:text-slate-400">Comunicación</p>
-                                <p className="font-semibold text-slate-900 dark:text-white">{review.communication}</p>
+                                <p className="font-semibold text-slate-900 dark:text-white">{review.communication}/5</p>
                               </div>
                             )}
                             {review.professionalism && (
                               <div className="text-center p-2 bg-white dark:bg-slate-800 rounded-lg">
                                 <p className="text-xs text-slate-500 dark:text-slate-400">Profesionalismo</p>
-                                <p className="font-semibold text-slate-900 dark:text-white">{review.professionalism}</p>
+                                <p className="font-semibold text-slate-900 dark:text-white">{review.professionalism}/5</p>
                               </div>
                             )}
                             {review.quality && (
                               <div className="text-center p-2 bg-white dark:bg-slate-800 rounded-lg">
                                 <p className="text-xs text-slate-500 dark:text-slate-400">Calidad</p>
-                                <p className="font-semibold text-slate-900 dark:text-white">{review.quality}</p>
+                                <p className="font-semibold text-slate-900 dark:text-white">{review.quality}/5</p>
                               </div>
                             )}
                             {review.timeliness && (
                               <div className="text-center p-2 bg-white dark:bg-slate-800 rounded-lg">
                                 <p className="text-xs text-slate-500 dark:text-slate-400">Puntualidad</p>
-                                <p className="font-semibold text-slate-900 dark:text-white">{review.timeliness}</p>
+                                <p className="font-semibold text-slate-900 dark:text-white">{review.timeliness}/5</p>
                               </div>
                             )}
                           </div>
