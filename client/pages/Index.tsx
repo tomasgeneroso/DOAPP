@@ -1,4 +1,5 @@
 import { useAuth } from "../hooks/useAuth";
+import { t } from "../hooks/useLanguage";
 import { Helmet } from "react-helmet-async";
 import { Link, useLocation } from "react-router-dom";
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -299,10 +300,10 @@ export default function Index() {
           </h1>
           <p className="mx-auto mt-4 sm:mt-6 max-w-2xl text-base sm:text-lg leading-7 sm:leading-8 text-gray-600 dark:text-slate-400 px-2">
             {isLoading
-              ? "Cargando..."
+              ? t('index.loading')
               : user
-              ? "¿Listo para empezar un nuevo proyecto o buscar oportunidades? Estás en el lugar correcto."
-              : "Publicá trabajos y contratá profesionales con garantía de pago."}
+              ? t('index.heroSubtitleLoggedIn')
+              : t('index.heroSubtitle')}
           </p>
           {!user && !isLoading && (
             <p className="mx-auto mt-3 sm:mt-4 max-w-2xl text-sm sm:text-base leading-6 sm:leading-7 text-gray-500 dark:text-slate-500 px-2">
