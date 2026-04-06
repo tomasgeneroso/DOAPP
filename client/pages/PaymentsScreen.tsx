@@ -12,22 +12,22 @@ export default function PaymentsScreen() {
         <title>Mis Pagos - Do</title>
       </Helmet>
 
-      <div className="min-h-screen bg-gray-50 py-8">
+      <div className="min-h-screen bg-gray-50 dark:bg-slate-900 py-8">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Header */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
               <Wallet className="h-8 w-8 text-sky-600" />
               Historial de Pagos
             </h1>
-            <p className="text-gray-600 mt-2">
+            <p className="text-gray-600 dark:text-slate-400 mt-2">
               Gestiona y revisa todos tus pagos y transacciones
             </p>
           </div>
 
           {/* Filter Tabs */}
-          <div className="bg-white rounded-lg shadow mb-6">
-            <div className="border-b border-gray-200">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow mb-6">
+            <div className="border-b border-gray-200 dark:border-slate-700">
               <nav className="flex -mb-px">
                 <button
                   onClick={() => setFilter("all")}

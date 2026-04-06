@@ -314,7 +314,7 @@ export default function AdminContracts() {
   };
 
   const getSortedAndFilteredContracts = () => {
-    let result = [...filteredContracts];
+    const result = [...filteredContracts];
 
     if (sortField && sortDirection) {
       result.sort((a, b) => {

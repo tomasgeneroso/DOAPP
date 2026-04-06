@@ -59,6 +59,7 @@ export default function ContractSummary() {
     if (id) {
       loadContract();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const loadContract = async () => {

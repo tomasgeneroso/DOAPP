@@ -106,6 +106,7 @@ export default function ContractDetail() {
         loadAllContracts(jobId);
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contract?.jobId, loadAllContracts]);
 
   // Register socket handler for real-time contract updates

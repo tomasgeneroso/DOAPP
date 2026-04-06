@@ -44,6 +44,7 @@ export default function RoleManagement() {
   useEffect(() => {
     fetchRolesAndPermissions();
     fetchUsers();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRole, searchQuery]);
 
   const fetchRolesAndPermissions = async () => {

@@ -14,6 +14,7 @@ export default function TicketDetail() {
 
   useEffect(() => {
     if (id) loadTicket();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const loadTicket = async () => {

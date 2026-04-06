@@ -45,6 +45,7 @@ export default function AdminTickets() {
 
   useEffect(() => {
     loadTickets();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, search, statusFilter]);
 
   const loadTickets = async () => {

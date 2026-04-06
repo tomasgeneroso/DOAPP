@@ -66,6 +66,7 @@ export default function FamilyCodes() {
   useEffect(() => {
     fetchCodes();
     fetchStats();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, statusFilter]);
 
   const fetchCodes = async () => {

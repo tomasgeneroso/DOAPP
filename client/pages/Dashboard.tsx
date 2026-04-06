@@ -82,6 +82,7 @@ export default function Dashboard() {
       console.log("💼 Job update detected, refreshing dashboard...");
       fetchDashboardStats();
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const fetchDashboardStats = async () => {

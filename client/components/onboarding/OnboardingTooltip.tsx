@@ -121,7 +121,7 @@ export default function OnboardingTooltip() {
     };
 
     // Reset position before recalculating for smoother transition
-    setPosition(null);
+    const resetTimer = setTimeout(() => setPosition(null), 0);
 
     // Initial positioning with delay to allow DOM updates
     const timer = setTimeout(findAndPositionTooltip, 200);
@@ -134,6 +134,7 @@ export default function OnboardingTooltip() {
     window.addEventListener('scroll', handleScroll, true);
 
     return () => {
+      clearTimeout(resetTimer);
       clearTimeout(timer);
       window.removeEventListener('resize', findAndPositionTooltip);
       window.removeEventListener('scroll', handleScroll, true);

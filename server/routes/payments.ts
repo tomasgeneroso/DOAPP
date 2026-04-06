@@ -1037,7 +1037,7 @@ router.get("/my/list", protect, async (req: AuthRequest, res: Response): Promise
           include: [{
             model: Job,
             as: 'job',
-            attributes: ['title']
+            attributes: ['id', 'title']
           }]
         }
       ],
@@ -1046,11 +1046,33 @@ router.get("/my/list", protect, async (req: AuthRequest, res: Response): Promise
       offset: (Number(page) - 1) * Number(limit)
     });
 
+    // For job_publication payments, find the associated job
+    const paymentsData = payments.map((p: any) => p.toJSON());
+    const jobPubPaymentIds = paymentsData
+      .filter((p: any) => p.paymentType === 'job_publication' && !p.contract)
+      .map((p: any) => p.id);
+
+    if (jobPubPaymentIds.length > 0) {
+      const jobs = await Job.findAll({
+        where: { publicationPaymentId: { [Op.in]: jobPubPaymentIds } },
+        attributes: ['id', 'title', 'publicationPaymentId'],
+      });
+      const jobByPaymentId = new Map(jobs.map((j: any) => [j.publicationPaymentId, j]));
+      for (const p of paymentsData) {
+        if (p.paymentType === 'job_publication' && !p.contract) {
+          const job = jobByPaymentId.get(p.id);
+          if (job) {
+            p.relatedJob = { id: job.id, title: job.title };
+          }
+        }
+      }
+    }
+
     const total = await Payment.count({ where: whereClause });
 
     res.json({
       success: true,
-      data: payments,
+      data: paymentsData,
       pagination: {
         page: Number(page),
         limit: Number(limit),

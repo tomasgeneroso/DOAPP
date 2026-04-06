@@ -773,6 +773,66 @@ export default function UserSettings() {
                       </div>
                     </div>
                   </div>
+
+                  {/* FAQ - Cómo funciona DOAPP */}
+                  <div className="mt-8">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                      Preguntas Frecuentes
+                    </h3>
+                    <div className="space-y-3">
+                      {[
+                        {
+                          q: "¿Cómo funciona DOAPP?",
+                          a: "DOAPP conecta clientes que necesitan servicios con trabajadores independientes. El cliente publica un trabajo, los trabajadores aplican con propuestas, el cliente elige al mejor perfil, y el pago queda protegido en nuestra plataforma hasta que ambas partes confirmen que el trabajo se completó.",
+                        },
+                        {
+                          q: "¿Cómo se protege mi dinero?",
+                          a: "Cuando pagás por un trabajo, el dinero queda retenido de forma segura en nuestra plataforma. Solo se libera al trabajador cuando ambas partes confirman que el servicio fue completado correctamente. Si hay un problema, podés abrir una disputa.",
+                        },
+                        {
+                          q: "¿Cuánto cobra DOAPP de comisión?",
+                          a: "Plan FREE: 8% de comisión. Plan PRO ($4.999/mes): 3%. Plan SUPER PRO ($8.999/mes): 1%. Los primeros 1000 usuarios reciben 3 contratos gratis sin comisión.",
+                        },
+                        {
+                          q: "¿Cómo publico un trabajo?",
+                          a: "Hacé clic en 'Publicar trabajo' en el menú superior. Completá el título, descripción, presupuesto y fechas. Luego realizá el pago de publicación y un administrador aprobará tu trabajo para que sea visible.",
+                        },
+                        {
+                          q: "¿Cómo me postulo a un trabajo?",
+                          a: "Explorá los trabajos disponibles en la página principal. Cuando encuentres uno que te interese, hacé clic en 'Aplicar' y enviá tu propuesta con un mensaje y precio sugerido.",
+                        },
+                        {
+                          q: "¿Cómo cobro por mi trabajo?",
+                          a: "Al completar un trabajo, ambas partes confirman la finalización. El pago se acredita en tu balance de DOAPP. Podés retirarlo a tu cuenta bancaria (CBU) con un mínimo de $1.000 ARS.",
+                        },
+                        {
+                          q: "¿Qué hago si hay un problema con un trabajo?",
+                          a: "Podés abrir una disputa desde el detalle del contrato. Un administrador revisará el caso y tomará una decisión justa basándose en la evidencia de ambas partes. Mientras tanto, el dinero queda retenido.",
+                        },
+                        {
+                          q: "¿Cómo funciona el sistema de confirmación?",
+                          a: "Cuando el trabajo está listo, ambas partes deben confirmar. Si una de las partes no confirma dentro de las 2 horas, el sistema lo confirma automáticamente y se libera el pago.",
+                        },
+                      ].map((faq, i) => (
+                        <details
+                          key={i}
+                          className="group bg-slate-50 dark:bg-slate-700/50 rounded-lg overflow-hidden"
+                        >
+                          <summary className="flex items-center justify-between cursor-pointer p-4 text-sm font-medium text-gray-900 dark:text-white hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                            {faq.q}
+                            <svg className="h-4 w-4 text-gray-500 group-open:rotate-180 transition-transform flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </summary>
+                          <div className="px-4 pb-4">
+                            <p className="text-sm text-gray-600 dark:text-slate-400 leading-relaxed">
+                              {faq.a}
+                            </p>
+                          </div>
+                        </details>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
 

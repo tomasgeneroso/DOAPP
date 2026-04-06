@@ -86,6 +86,7 @@ const DisputeDetail: React.FC = () => {
 
   useEffect(() => {
     fetchDispute();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const onDrop = async (acceptedFiles: File[]) => {

@@ -27,6 +27,7 @@ export default function MembershipCheckout() {
     console.log('📦 Plan seleccionado:', plan);
     loadPricing();
     checkUpgradeEligibility();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const checkUpgradeEligibility = async () => {

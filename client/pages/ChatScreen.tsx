@@ -166,6 +166,7 @@ export default function ChatScreen() {
       // Reemplazar el state actual sin el jobContext para evitar que aparezca en refresh
       window.history.replaceState({}, document.title);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -182,6 +183,7 @@ export default function ChatScreen() {
         leaveConversation(conversationId);
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, isConnected]);
 
   // Polling como fallback - actualiza cada 5 segundos si socket no está conectado
@@ -196,6 +198,7 @@ export default function ChatScreen() {
     }, pollInterval);
 
     return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, isConnected]);
 
   // Fetch solo mensajes (más ligero que fetchConversationData)

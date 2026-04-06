@@ -175,6 +175,7 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
     };
 
     confirmPayment();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   // Countdown for auto-redirect

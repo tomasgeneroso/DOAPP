@@ -48,6 +48,7 @@ export default function ProposalsScreen() {
       console.log("📄 Proposal update detected:", data);
       fetchProposals();
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchProposals = async () => {

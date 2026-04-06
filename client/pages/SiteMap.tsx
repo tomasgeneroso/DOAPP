@@ -247,6 +247,7 @@ export default function SiteMap() {
         mapInstanceRef.current = null;
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
 
   // Update markers when jobs or filter changes
@@ -365,6 +366,7 @@ export default function SiteMap() {
     if (!mapLoading && jobs.length > 0) {
       updateMarkers();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobs, categoryFilter, mapLoading]);
 
   // Get unique categories

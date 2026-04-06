@@ -41,7 +41,7 @@ export default function Header() {
   }, [logout, navigate]);
 
   const toggleMenu = useCallback(() => {
-    setIsMenuOpen(prev => !prev);
+    setIsMenuOpen((prev) => !prev);
   }, []);
 
   const closeMenu = useCallback(() => {
@@ -51,7 +51,7 @@ export default function Header() {
   const fetchUnreadCount = useCallback(async () => {
     try {
       const response = await fetch("/api/chat/unread-count", {
-        credentials: 'include',
+        credentials: "include",
       });
       const data = await response.json();
       if (data.success) {
@@ -66,7 +66,7 @@ export default function Header() {
   // Fetch initial unread count
   useEffect(() => {
     if (user) {
-      fetchUnreadCount();
+      fetchUnreadCount(); // eslint-disable-line react-hooks/set-state-in-effect -- async fetch, not direct setState
     }
   }, [user, fetchUnreadCount]);
 
@@ -87,7 +87,7 @@ export default function Header() {
     };
 
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && isMenuOpen) {
+      if (event.key === "Escape" && isMenuOpen) {
         setIsMenuOpen(false);
       }
     };
@@ -107,15 +107,18 @@ export default function Header() {
     const freeContractsRemaining = user.freeContractsRemaining || 0;
     const proContractsUsed = user.monthlyContractsUsed || 0;
     let monthlyFreeLimit = 0;
-    if (user.membershipTier === 'super_pro') monthlyFreeLimit = 2;
-    else if (user.membershipTier === 'pro') monthlyFreeLimit = 1;
-    const monthlyFreeRemaining = Math.max(0, monthlyFreeLimit - proContractsUsed);
+    if (user.membershipTier === "super_pro") monthlyFreeLimit = 2;
+    else if (user.membershipTier === "pro") monthlyFreeLimit = 1;
+    const monthlyFreeRemaining = Math.max(
+      0,
+      monthlyFreeLimit - proContractsUsed,
+    );
     const totalFreeRemaining = freeContractsRemaining + monthlyFreeRemaining;
-    const isFreeUser = !user.membershipTier || user.membershipTier === 'free';
+    const isFreeUser = !user.membershipTier || user.membershipTier === "free";
 
     if (totalFreeRemaining > 0) {
       return {
-        type: 'free' as const,
+        type: "free" as const,
         totalFreeRemaining,
         freeContractsRemaining,
         monthlyFreeRemaining,
@@ -125,24 +128,28 @@ export default function Header() {
 
     let commissionRate = 8;
     if (user.hasFamilyPlan) commissionRate = 0;
-    else if (user.membershipTier === 'super_pro') commissionRate = 1;
-    else if (user.membershipTier === 'pro') commissionRate = 3;
+    else if (user.membershipTier === "super_pro") commissionRate = 1;
+    else if (user.membershipTier === "pro") commissionRate = 3;
 
     if (user.hasFamilyPlan) {
-      return { type: 'family' as const };
+      return { type: "family" as const };
     }
 
     return {
-      type: 'commission' as const,
+      type: "commission" as const,
       commissionRate,
       membershipTier: user.membershipTier,
     };
-  }, [user, user?.freeContractsRemaining, user?.monthlyContractsUsed, user?.membershipTier, user?.hasFamilyPlan]);
+  }, [user]);
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg">
       <div className="w-full max-w-[100vw] mx-auto flex h-16 items-center justify-between px-3 sm:px-4">
-        <Link to="/" className="flex items-center gap-2 sm:gap-3 group flex-shrink-0" data-onboarding="logo">
+        <Link
+          to="/"
+          className="flex items-center gap-2 sm:gap-3 group flex-shrink-0"
+          data-onboarding="logo"
+        >
           {/* Logo Icon */}
           <div className="relative flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-xl sm:rounded-2xl bg-gradient-to-br from-sky-500 via-sky-600 to-blue-600 shadow-lg shadow-sky-500/30 transition-all duration-300 group-hover:shadow-xl group-hover:shadow-sky-500/50 group-hover:scale-105">
             <span className="text-lg sm:text-2xl font-black text-white tracking-tight">
@@ -160,22 +167,30 @@ export default function Header() {
           {user ? (
             <>
               {/* Free Contracts Counter - memoized calculation */}
-              {contractsBadge?.type === 'free' && (
+              {contractsBadge?.type === "free" && (
                 <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
                   <FileText className="h-4 w-4 text-green-600 dark:text-green-400" />
                   <div className="flex flex-col">
                     {contractsBadge.isFreeUser ? (
                       <span className="text-xs font-semibold text-green-700 dark:text-green-300">
-                        {contractsBadge.totalFreeRemaining} contrato{contractsBadge.totalFreeRemaining !== 1 ? 's' : ''} gratis disponible{contractsBadge.totalFreeRemaining !== 1 ? 's' : ''}
+                        {contractsBadge.totalFreeRemaining} contrato
+                        {contractsBadge.totalFreeRemaining !== 1 ? "s" : ""}{" "}
+                        gratis disponible
+                        {contractsBadge.totalFreeRemaining !== 1 ? "s" : ""}
                       </span>
                     ) : (
                       <>
                         <span className="text-xs font-semibold text-green-700 dark:text-green-300">
-                          {contractsBadge.totalFreeRemaining} contrato{contractsBadge.totalFreeRemaining !== 1 ? 's' : ''} gratis
+                          {contractsBadge.totalFreeRemaining} contrato
+                          {contractsBadge.totalFreeRemaining !== 1 ? "s" : ""}{" "}
+                          gratis
                         </span>
                         {contractsBadge.freeContractsRemaining > 0 && (
                           <span className="text-[10px] text-green-600 dark:text-green-400">
-                            {contractsBadge.freeContractsRemaining} inicial{contractsBadge.freeContractsRemaining !== 1 ? 'es' : ''}
+                            {contractsBadge.freeContractsRemaining} inicial
+                            {contractsBadge.freeContractsRemaining !== 1
+                              ? "es"
+                              : ""}
                           </span>
                         )}
                         {contractsBadge.monthlyFreeRemaining > 0 && (
@@ -188,7 +203,7 @@ export default function Header() {
                   </div>
                 </div>
               )}
-              {contractsBadge?.type === 'family' && (
+              {contractsBadge?.type === "family" && (
                 <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-pink-50 dark:bg-pink-900/20 border border-pink-200 dark:border-pink-800">
                   <Heart className="h-4 w-4 text-pink-600 dark:text-pink-400 fill-pink-500" />
                   <div className="flex flex-col">
@@ -201,7 +216,7 @@ export default function Header() {
                   </div>
                 </div>
               )}
-              {contractsBadge?.type === 'commission' && (
+              {contractsBadge?.type === "commission" && (
                 <Link
                   to="/membership/pricing"
                   className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors cursor-pointer"
@@ -212,7 +227,11 @@ export default function Header() {
                       Comisión {contractsBadge.commissionRate}%
                     </span>
                     <span className="text-[10px] text-orange-600 dark:text-orange-400">
-                      {contractsBadge.membershipTier === 'super_pro' ? 'SUPER PRO' : contractsBadge.membershipTier === 'pro' ? 'PRO' : 'FREE'}
+                      {contractsBadge.membershipTier === "super_pro"
+                        ? "SUPER PRO"
+                        : contractsBadge.membershipTier === "pro"
+                          ? "PRO"
+                          : "FREE"}
                     </span>
                   </div>
                 </Link>
@@ -254,7 +273,7 @@ export default function Header() {
               <MessageCircle className="h-5 w-5 text-slate-600 dark:text-slate-300" />
               {unreadCount > 0 && (
                 <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-bold text-white animate-pulse">
-                  {unreadCount > 9 ? '9+' : unreadCount}
+                  {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
               )}
             </Link>
@@ -263,7 +282,11 @@ export default function Header() {
           {user && <NotificationDropdown />}
 
           {user ? (
-            <div className="relative" ref={menuRef} data-onboarding="profile-menu">
+            <div
+              className="relative"
+              ref={menuRef}
+              data-onboarding="profile-menu"
+            >
               <button
                 onClick={toggleMenu}
                 className="flex items-center gap-2 rounded-full bg-slate-100 dark:bg-slate-800 p-2 text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
@@ -271,11 +294,24 @@ export default function Header() {
                 aria-expanded={isMenuOpen}
                 aria-haspopup="menu"
               >
-                <img
-                  src={user.avatar}
-                  alt={user.name}
-                  className="h-8 w-8 rounded-full object-cover"
-                />
+                {user.avatar ? (
+                  <img
+                    src={user.avatar}
+                    alt={user.name}
+                    className="h-8 w-8 rounded-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = "none";
+                      (
+                        e.target as HTMLImageElement
+                      ).nextElementSibling?.classList.remove("hidden");
+                    }}
+                  />
+                ) : null}
+                <div
+                  className={`h-8 w-8 rounded-full bg-sky-500 flex items-center justify-center text-white text-sm font-semibold ${user.avatar ? "hidden" : ""}`}
+                >
+                  {user.name?.charAt(0)?.toUpperCase() || "?"}
+                </div>
                 <span className="hidden font-medium text-slate-700 dark:text-slate-300 md:block">
                   {user.name}
                 </span>
@@ -351,14 +387,20 @@ export default function Header() {
                       Códigos de Invitación
                       {user.invitationCodesRemaining &&
                         user.invitationCodesRemaining > 0 && (
-                          <span className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-purple-500 px-1.5 text-xs font-bold text-white" aria-label={`${user.invitationCodesRemaining} códigos disponibles`}>
+                          <span
+                            className="ml-auto flex h-5 min-w-[20px] items-center justify-center rounded-full bg-purple-500 px-1.5 text-xs font-bold text-white"
+                            aria-label={`${user.invitationCodesRemaining} códigos disponibles`}
+                          >
                             {user.invitationCodesRemaining}
                           </span>
                         )}
                     </Link>
                     {user.adminRole && (
                       <>
-                        <hr className="my-1 border-slate-200 dark:border-slate-700" role="separator" />
+                        <hr
+                          className="my-1 border-slate-200 dark:border-slate-700"
+                          role="separator"
+                        />
                         <Link
                           to="/admin"
                           onClick={closeMenu}
@@ -370,7 +412,10 @@ export default function Header() {
                         </Link>
                       </>
                     )}
-                    <hr className="my-1 border-slate-200 dark:border-slate-700" role="separator" />
+                    <hr
+                      className="my-1 border-slate-200 dark:border-slate-700"
+                      role="separator"
+                    />
                     <button
                       onClick={handleLogout}
                       className="flex w-full items-center gap-3 px-4 py-3 text-sm text-red-600 dark:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"

@@ -125,6 +125,7 @@ export default function AdminJobManager() {
   useEffect(() => {
     fetchJobs();
     fetchStats();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter]);
 
   const fetchJobs = async () => {
@@ -297,7 +298,7 @@ export default function AdminJobManager() {
   };
 
   const getSortedAndFilteredJobs = () => {
-    let result = jobs.filter((job) => {
+    const result = jobs.filter((job) => {
       const matchesSearch =
         searchQuery === "" ||
         job.id.toLowerCase().includes(searchQuery.toLowerCase()) ||

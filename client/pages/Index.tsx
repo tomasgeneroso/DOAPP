@@ -171,6 +171,7 @@ export default function Index() {
 
   useEffect(() => {
     fetchJobs();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Track if we've already checked for expired jobs this session
@@ -202,6 +203,7 @@ export default function Index() {
     };
 
     checkExpiredJobs();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, isLoading]);
 
   // Fetch my jobs only when user is loaded
@@ -209,6 +211,7 @@ export default function Index() {
     if (user && !isLoading) {
       fetchMyJobs();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, isLoading]);
 
   const handleSearch = (filters: SearchFilters) => {
@@ -279,7 +282,7 @@ export default function Index() {
         <title>DoApp - Plataforma Freelance Argentina | Pagos Seguros con Escrow</title>
         <meta
           name="description"
-          content="DoApp es la plataforma freelance argentina donde publicás trabajos o encontrás oportunidades. Pagos seguros con escrow, tu dinero protegido hasta confirmar el trabajo. Comisiones desde 2%. Registrate gratis."
+          content="DoApp es la plataforma freelance argentina donde publicás trabajos o encontrás oportunidades. Pagos seguros, tu dinero protegido hasta confirmar el trabajo. Comisiones desde 1%. Registrate gratis."
         />
         <meta property="og:url" content="https://doapparg.site/" />
         <meta property="og:image" content="https://doapparg.site/og-image.png" />
@@ -302,7 +305,7 @@ export default function Index() {
               ? "Cargando..."
               : user
               ? "¿Listo para empezar un nuevo proyecto o buscar oportunidades? Estás en el lugar correcto."
-              : "Publicá trabajos y contratá profesionales con garantía de pago. El dinero queda protegido en escrow hasta que confirmés el trabajo completado. Sin riesgos, sin estafas."}
+              : "Publicá trabajos y contratá profesionales con garantía de pago. El dinero queda protegido en nuestra plataforma hasta que confirmés el trabajo completado. Sin riesgos, sin estafas."}
           </p>
           {!user && !isLoading && (
             <p className="mx-auto mt-3 sm:mt-4 max-w-2xl text-sm sm:text-base leading-6 sm:leading-7 text-gray-500 dark:text-slate-500 px-2">
@@ -329,7 +332,8 @@ export default function Index() {
           )}
         </div>
 
-        {/* How it works - Para Clientes */}
+        {/* How it works (solo para visitantes) */}
+        {!user && (<>
         <div className="mt-8 sm:mt-12 max-w-6xl mx-auto px-2">
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6 sm:p-8 border border-slate-200 dark:border-slate-700">
             <h2 className="text-xl sm:text-2xl font-bold text-center text-gray-900 dark:text-white mb-2">
@@ -400,7 +404,7 @@ export default function Index() {
                   Pagá Seguro
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Tu dinero queda en garantía hasta que el trabajo se complete
+                  Tu dinero queda protegido en nuestra plataforma hasta que el trabajo se complete
                 </p>
                 <div className="hidden md:block absolute top-8 -right-4 text-purple-400">
                   <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
@@ -567,6 +571,7 @@ export default function Index() {
             </div>
           </div>
         </div>
+        </>)}
 
         {/* Search Bar */}
         <div className="mt-8 sm:mt-12 max-w-4xl mx-auto px-2" data-onboarding="search">
@@ -597,7 +602,7 @@ export default function Index() {
                     En DoApp, cada contrato queda protegido:
                   </p>
                   <p className="text-[11px] sm:text-xs text-sky-700 dark:text-sky-400 mt-1">
-                    el dinero se mantiene en garantía hasta que ambas partes
+                    el dinero se mantiene protegido en nuestra plataforma hasta que ambas partes
                     confirman que el trabajo fue entregado. Así, vos y el
                     profesional están seguros en todo momento.
                   </p>

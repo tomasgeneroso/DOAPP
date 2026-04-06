@@ -33,7 +33,8 @@ export const DateTimePicker = forwardRef<HTMLInputElement, DateTimePickerProps>(
 
     useEffect(() => {
       if (value !== undefined) {
-        setInternalValue(value);
+        const t = setTimeout(() => setInternalValue(value), 0);
+        return () => clearTimeout(t);
       }
     }, [value]);
 

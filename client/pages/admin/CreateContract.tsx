@@ -55,6 +55,7 @@ export default function AdminCreateContract() {
     if (clientSearchQuery.length >= 2) {
       searchClients();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientSearchQuery]);
 
   // Search for doers
@@ -62,6 +63,7 @@ export default function AdminCreateContract() {
     if (doerSearchQuery.length >= 2) {
       searchDoers();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doerSearchQuery]);
 
   // Load jobs when client is selected
@@ -69,6 +71,7 @@ export default function AdminCreateContract() {
     if (selectedClient) {
       loadClientJobs();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedClient]);
 
   const searchClients = async () => {

@@ -29,7 +29,9 @@ export function useSearchHistory(): UseSearchHistoryReturn {
     try {
       const stored = localStorage.getItem(storageKey);
       if (stored) {
-        setHistory(JSON.parse(stored));
+        const parsed = JSON.parse(stored);
+        const t = setTimeout(() => setHistory(parsed), 0);
+        return () => clearTimeout(t);
       }
     } catch (e) {
       console.error('Error loading search history:', e);

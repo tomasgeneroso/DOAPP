@@ -96,12 +96,14 @@ export default function ProfilePage() {
   useEffect(() => {
     fetchUserProfile();
     fetchReferralStats();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profileIdentifier, currentUser]);
 
   useEffect(() => {
     if (user?._id || user?.id) {
       fetchPosts();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?._id, user?.id, viewMode]);
 
   const fetchPosts = async () => {
@@ -392,6 +394,7 @@ export default function ProfilePage() {
       searchUsersToShare(shareSearchQuery);
     }, 300);
     return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shareSearchQuery]);
 
   const handleStartChat = async () => {

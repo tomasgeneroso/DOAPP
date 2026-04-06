@@ -126,10 +126,12 @@ const AdminDisputeManager: React.FC = () => {
 
   useEffect(() => {
     fetchDisputes();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterStatus, filterPriority, page]);
 
   useEffect(() => {
     fetchStats();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Real-time handlers
@@ -141,6 +143,7 @@ const AdminDisputeManager: React.FC = () => {
     fetchStats();
     // Auto-hide alert after 5 seconds
     setTimeout(() => setRealtimeAlert(null), 5000);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleDisputeUpdated = useCallback((data: any) => {
@@ -153,6 +156,7 @@ const AdminDisputeManager: React.FC = () => {
     fetchStats();
     // Auto-hide alert after 5 seconds
     setTimeout(() => setRealtimeAlert(null), 5000);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

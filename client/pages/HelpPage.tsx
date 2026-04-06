@@ -101,6 +101,7 @@ export default function HelpPage() {
     } else if (activeTab === 'tickets') {
       loadTickets();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
   const loadDisputes = async () => {

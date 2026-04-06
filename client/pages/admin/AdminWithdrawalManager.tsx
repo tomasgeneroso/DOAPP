@@ -49,6 +49,7 @@ export default function AdminWithdrawalManager() {
     // Refresh stats
     loadData();
     setTimeout(() => setRealtimeAlert(null), 5000);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleWithdrawalUpdated = useCallback((data: any) => {
@@ -61,6 +62,7 @@ export default function AdminWithdrawalManager() {
     // Refresh stats
     loadData();
     setTimeout(() => setRealtimeAlert(null), 5000);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -70,6 +72,7 @@ export default function AdminWithdrawalManager() {
 
   useEffect(() => {
     loadData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterStatus]);
 
   const loadData = async () => {

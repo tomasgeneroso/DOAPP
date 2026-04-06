@@ -58,12 +58,14 @@ export default function AdminCreateDispute() {
     if (searchQuery.length >= 2) {
       searchUsers();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);
 
   useEffect(() => {
     if (selectedUser) {
       loadUserContracts();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedUser]);
 
   const searchUsers = async () => {

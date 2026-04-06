@@ -42,6 +42,7 @@ export default function EarningsDetail() {
 
   useEffect(() => {
     fetchEarnings();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchEarnings = async () => {

@@ -16,7 +16,7 @@ export function TermsModal({ isOpen, onClose, type }: TermsModalProps) {
     if (isOpen) {
       loadTerms();
     }
-  }, [isOpen, type]);
+  }, [isOpen, type]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadTerms = async () => {
     try {

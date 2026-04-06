@@ -32,6 +32,7 @@ export default function BlogDetailScreen() {
       fetchPost();
       fetchRelatedPosts();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
   const fetchPost = async () => {

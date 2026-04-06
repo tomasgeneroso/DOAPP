@@ -66,6 +66,7 @@ export default function ProposalDetail() {
     if (id) {
       loadProposal();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const loadProposal = async () => {

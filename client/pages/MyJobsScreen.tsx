@@ -367,6 +367,7 @@ export default function MyJobsScreen() {
   useEffect(() => {
     refreshUser().catch(() => {});
     return () => { availabilityLocallyModified.current = false; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Sync from user context (always, unless user has made local changes)

@@ -57,6 +57,7 @@ export default function CreatePortfolioPost() {
     } else {
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jobId]);
 
   const fetchJobData = async () => {

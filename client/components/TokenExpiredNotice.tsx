@@ -12,10 +12,10 @@ export default function TokenExpiredNotice() {
 
     // Show notice if there's a redirect parameter (indicates token expired)
     if (redirect && location.pathname === "/login") {
-      setShow(true);
+      const showTimer = setTimeout(() => setShow(true), 0);
       // Auto-hide after 5 seconds
-      const timer = setTimeout(() => setShow(false), 5000);
-      return () => clearTimeout(timer);
+      const hideTimer = setTimeout(() => setShow(false), 5000);
+      return () => { clearTimeout(showTimer); clearTimeout(hideTimer); };
     }
   }, [location]);
 

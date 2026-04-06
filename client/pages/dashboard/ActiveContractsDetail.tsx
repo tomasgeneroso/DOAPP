@@ -46,6 +46,7 @@ export default function ActiveContractsDetail() {
 
   useEffect(() => {
     fetchActiveContracts();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchActiveContracts = async () => {

@@ -198,11 +198,12 @@ export default function ContractsScreen() {
         case 'status':
           comparison = a.status.localeCompare(b.status);
           break;
-        case 'payment':
+        case 'payment': {
           const paymentA = a.paymentStatus || 'pending';
           const paymentB = b.paymentStatus || 'pending';
           comparison = paymentA.localeCompare(paymentB);
           break;
+        }
       }
 
       return sortDirection === 'asc' ? comparison : -comparison;

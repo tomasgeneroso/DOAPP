@@ -120,6 +120,7 @@ export default function FinancialTransactions() {
   useEffect(() => {
     loadTransactions();
     loadStats();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, filters]);
 
   const loadTransactions = async () => {
@@ -493,21 +494,24 @@ export default function FinancialTransactions() {
         case 'type':
           comparison = a.type.localeCompare(b.type, 'es');
           break;
-        case 'description':
+        case 'description': {
           const descA = a.contract?.title || a.description;
           const descB = b.contract?.title || b.description;
           comparison = descA.localeCompare(descB, 'es');
           break;
-        case 'client':
+        }
+        case 'client': {
           const clientA = a.contract?.client?.name || a.payer?.name || '';
           const clientB = b.contract?.client?.name || b.payer?.name || '';
           comparison = clientA.localeCompare(clientB, 'es');
           break;
-        case 'doer':
+        }
+        case 'doer': {
           const doerA = a.doer?.name || a.contract?.doer?.name || a.recipient?.name || '';
           const doerB = b.doer?.name || b.contract?.doer?.name || b.recipient?.name || '';
           comparison = doerA.localeCompare(doerB, 'es');
           break;
+        }
         case 'amount':
           comparison = (Number(a.totalAmount) || 0) - (Number(b.totalAmount) || 0);
           break;
@@ -520,11 +524,12 @@ export default function FinancialTransactions() {
         case 'released':
           comparison = (a.escrowReleased ? 1 : 0) - (b.escrowReleased ? 1 : 0);
           break;
-        case 'paymentMethod':
+        case 'paymentMethod': {
           const methodA = a.paymentMethod || '';
           const methodB = b.paymentMethod || '';
           comparison = methodA.localeCompare(methodB, 'es');
           break;
+        }
       }
 
       return sortDirection === 'asc' ? comparison : -comparison;

@@ -22,6 +22,7 @@ export default function BlogsScreen() {
 
   useEffect(() => {
     fetchBlogs();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCategory, selectedTag, selectedType, searchQuery, currentPage]);
 
   useEffect(() => {

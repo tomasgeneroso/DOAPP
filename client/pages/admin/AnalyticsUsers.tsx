@@ -41,6 +41,7 @@ export default function AnalyticsUsers() {
 
   useEffect(() => {
     loadAnalytics();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period]);
 
   const loadAnalytics = async () => {

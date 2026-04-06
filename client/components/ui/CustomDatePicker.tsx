@@ -161,8 +161,11 @@ export const CustomDateInput = forwardRef<HTMLDivElement, CustomDateInputProps>(
       if (!hasInitialized && defaultValue) {
         const newDate = new Date(defaultValue);
         if (!isNaN(newDate.getTime())) {
-          setDate(newDate);
-          setHasInitialized(true);
+          const t = setTimeout(() => {
+            setDate(newDate);
+            setHasInitialized(true);
+          }, 0);
+          return () => clearTimeout(t);
         }
       }
     }, [defaultValue, hasInitialized]);

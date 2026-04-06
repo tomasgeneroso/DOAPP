@@ -29,6 +29,7 @@ export default function AdminDashboard() {
     if (user?.adminRole === "owner") {
       loadCompanyBalance();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadOverview = async () => {

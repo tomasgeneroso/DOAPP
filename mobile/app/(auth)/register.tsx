@@ -13,12 +13,15 @@ import {
 import { useRouter, Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import Logo from '../../components/ui/Logo';
+import { ArrowLeft, Eye, EyeOff } from 'lucide-react-native';
 
 export default function RegisterScreen() {
   const router = useRouter();
   const { register } = useAuth();
+  const { colors: themeColors } = useTheme();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -39,7 +42,6 @@ export default function RegisterScreen() {
   };
 
   const handleRegister = async () => {
-    // Validaciones
     if (!formData.name.trim() || !formData.email.trim() || !formData.password || !formData.dni) {
       setError('Por favor completa todos los campos obligatorios');
       return;
@@ -55,7 +57,6 @@ export default function RegisterScreen() {
       return;
     }
 
-    // Validar DNI (7-9 dígitos para Argentina)
     if (!/^\d{7,9}$/.test(formData.dni)) {
       setError('El DNI debe tener 7 a 9 dígitos');
       return;
@@ -89,7 +90,7 @@ export default function RegisterScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
@@ -99,8 +100,8 @@ export default function RegisterScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Card Container - matching web design */}
-          <View style={styles.card}>
+          {/* Card Container */}
+          <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
             {/* Logo */}
             <View style={styles.logoContainer}>
               <Logo size="large" />
@@ -109,15 +110,15 @@ export default function RegisterScreen() {
             {/* Back to Home */}
             <Link href="/(tabs)" asChild>
               <TouchableOpacity style={styles.backButton}>
-                <Text style={styles.backIcon}>←</Text>
-                <Text style={styles.backText}>Volver al inicio</Text>
+                <ArrowLeft size={18} color={themeColors.text.secondary} />
+                <Text style={[styles.backText, { color: themeColors.text.secondary }]}>Volver al inicio</Text>
               </TouchableOpacity>
             </Link>
 
             {/* Title */}
-            <Text style={styles.title}>Crea tu cuenta</Text>
+            <Text style={[styles.title, { color: themeColors.text.primary }]}>Crea tu cuenta</Text>
 
-            {/* Promo Banner - matching web */}
+            {/* Promo Banner */}
             <View style={styles.promoBanner}>
               <Text style={styles.promoText}>
                 ¡Los primeros 1000 usuarios tendrán servicio gratuito por un año! 🎉
@@ -125,10 +126,10 @@ export default function RegisterScreen() {
             </View>
 
             {/* Tabs */}
-            <View style={styles.tabs}>
+            <View style={[styles.tabs, { borderBottomColor: themeColors.border }]}>
               <Link href="/(auth)/login" asChild>
                 <TouchableOpacity style={styles.tab}>
-                  <Text style={styles.tabText}>Iniciar Sesión</Text>
+                  <Text style={[styles.tabText, { color: themeColors.text.muted }]}>Iniciar Sesión</Text>
                 </TouchableOpacity>
               </Link>
               <TouchableOpacity style={[styles.tab, styles.tabActive]}>
@@ -148,11 +149,11 @@ export default function RegisterScreen() {
             <View style={styles.form}>
               {/* Nombre completo */}
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Nombre completo</Text>
+                <Text style={[styles.label, { color: themeColors.text.secondary }]}>Nombre completo</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { backgroundColor: themeColors.card, borderColor: themeColors.border, color: themeColors.text.primary }]}
                   placeholder="Juan Pérez"
-                  placeholderTextColor={colors.slate[400]}
+                  placeholderTextColor={themeColors.text.muted}
                   value={formData.name}
                   onChangeText={(v) => updateField('name', v)}
                   autoCapitalize="words"
@@ -161,13 +162,13 @@ export default function RegisterScreen() {
 
               {/* Username */}
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Nombre de usuario</Text>
-                <View style={styles.usernameContainer}>
-                  <Text style={styles.usernamePrefix}>@</Text>
+                <Text style={[styles.label, { color: themeColors.text.secondary }]}>Nombre de usuario</Text>
+                <View style={[styles.usernameContainer, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+                  <Text style={[styles.usernamePrefix, { color: themeColors.text.muted }]}>@</Text>
                   <TextInput
-                    style={styles.usernameInput}
+                    style={[styles.usernameInput, { color: themeColors.text.primary }]}
                     placeholder="juanperez"
-                    placeholderTextColor={colors.slate[400]}
+                    placeholderTextColor={themeColors.text.muted}
                     value={formData.username}
                     onChangeText={(v) => updateField('username', v.toLowerCase())}
                     autoCapitalize="none"
@@ -175,18 +176,18 @@ export default function RegisterScreen() {
                     maxLength={30}
                   />
                 </View>
-                <Text style={styles.helperText}>
+                <Text style={[styles.helperText, { color: themeColors.text.muted }]}>
                   Este será tu URL pública: doapp.com/u/tuusuario
                 </Text>
               </View>
 
               {/* Email */}
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Email</Text>
+                <Text style={[styles.label, { color: themeColors.text.secondary }]}>Email</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { backgroundColor: themeColors.card, borderColor: themeColors.border, color: themeColors.text.primary }]}
                   placeholder="tucorreo@email.com"
-                  placeholderTextColor={colors.slate[400]}
+                  placeholderTextColor={themeColors.text.muted}
                   value={formData.email}
                   onChangeText={(v) => updateField('email', v)}
                   keyboardType="email-address"
@@ -197,12 +198,12 @@ export default function RegisterScreen() {
 
               {/* Contraseña */}
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Contraseña</Text>
-                <View style={styles.passwordContainer}>
+                <Text style={[styles.label, { color: themeColors.text.secondary }]}>Contraseña</Text>
+                <View style={[styles.passwordContainer, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
                   <TextInput
-                    style={styles.passwordInput}
+                    style={[styles.passwordInput, { color: themeColors.text.primary }]}
                     placeholder="••••••••"
-                    placeholderTextColor={colors.slate[400]}
+                    placeholderTextColor={themeColors.text.muted}
                     value={formData.password}
                     onChangeText={(v) => updateField('password', v)}
                     secureTextEntry={!showPassword}
@@ -211,18 +212,22 @@ export default function RegisterScreen() {
                     style={styles.eyeButton}
                     onPress={() => setShowPassword(!showPassword)}
                   >
-                    <Text style={styles.eyeIcon}>{showPassword ? '👁' : '👁‍🗨'}</Text>
+                    {showPassword ? (
+                      <EyeOff size={20} color={themeColors.text.muted} strokeWidth={1.5} />
+                    ) : (
+                      <Eye size={20} color={themeColors.text.muted} strokeWidth={1.5} />
+                    )}
                   </TouchableOpacity>
                 </View>
               </View>
 
               {/* Teléfono */}
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Teléfono</Text>
+                <Text style={[styles.label, { color: themeColors.text.secondary }]}>Teléfono</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { backgroundColor: themeColors.card, borderColor: themeColors.border, color: themeColors.text.primary }]}
                   placeholder="+54 11 1234-5678"
-                  placeholderTextColor={colors.slate[400]}
+                  placeholderTextColor={themeColors.text.muted}
                   value={formData.phone}
                   onChangeText={(v) => updateField('phone', v)}
                   keyboardType="phone-pad"
@@ -231,36 +236,36 @@ export default function RegisterScreen() {
 
               {/* DNI */}
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>DNI</Text>
+                <Text style={[styles.label, { color: themeColors.text.secondary }]}>DNI</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { backgroundColor: themeColors.card, borderColor: themeColors.border, color: themeColors.text.primary }]}
                   placeholder="12345678"
-                  placeholderTextColor={colors.slate[400]}
+                  placeholderTextColor={themeColors.text.muted}
                   value={formData.dni}
                   onChangeText={(v) => updateField('dni', v.replace(/\D/g, ''))}
                   keyboardType="number-pad"
                   maxLength={9}
                 />
-                <Text style={styles.helperText}>
+                <Text style={[styles.helperText, { color: themeColors.text.muted }]}>
                   Ingresá tu DNI sin puntos ni espacios (7-9 dígitos)
                 </Text>
               </View>
 
               {/* Código de referido */}
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>
-                  Código de referido <Text style={styles.optionalText}>(opcional)</Text>
+                <Text style={[styles.label, { color: themeColors.text.secondary }]}>
+                  Código de referido <Text style={{ color: themeColors.text.muted, fontWeight: fontWeight.normal }}>(opcional)</Text>
                 </Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { backgroundColor: themeColors.card, borderColor: themeColors.border, color: themeColors.text.primary }]}
                   placeholder="ABC12345"
-                  placeholderTextColor={colors.slate[400]}
+                  placeholderTextColor={themeColors.text.muted}
                   value={formData.referralCode}
                   onChangeText={(v) => updateField('referralCode', v.toUpperCase())}
                   autoCapitalize="characters"
                   maxLength={8}
                 />
-                <Text style={styles.helperText}>
+                <Text style={[styles.helperText, { color: themeColors.text.muted }]}>
                   Si alguien te invitó, ingresa su código aquí
                 </Text>
               </View>
@@ -272,10 +277,10 @@ export default function RegisterScreen() {
                   activeOpacity={0.7}
                   style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
                 >
-                  <View style={[styles.checkbox, termsAccepted && styles.checkboxChecked]}>
+                  <View style={[styles.checkbox, { borderColor: themeColors.border }, termsAccepted && styles.checkboxChecked]}>
                     {termsAccepted && <Text style={styles.checkmark}>✓</Text>}
                   </View>
-                  <Text style={styles.termsText}>
+                  <Text style={[styles.termsText, { color: themeColors.text.secondary }]}>
                     Acepto los{' '}
                   </Text>
                 </TouchableOpacity>
@@ -300,14 +305,14 @@ export default function RegisterScreen() {
 
             {/* Divider */}
             <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>o continúa con</Text>
-              <View style={styles.dividerLine} />
+              <View style={[styles.dividerLine, { backgroundColor: themeColors.border }]} />
+              <Text style={[styles.dividerText, { color: themeColors.text.muted }]}>o continúa con</Text>
+              <View style={[styles.dividerLine, { backgroundColor: themeColors.border }]} />
             </View>
 
             {/* Social Login */}
             <View style={styles.socialButtons}>
-              <TouchableOpacity style={styles.socialButton}>
+              <TouchableOpacity style={[styles.socialButton, { borderColor: themeColors.border, backgroundColor: themeColors.card }]}>
                 <View style={styles.googleLogo}>
                   <Text style={styles.googleBlue}>G</Text>
                   <Text style={styles.googleRed}>o</Text>
@@ -317,9 +322,9 @@ export default function RegisterScreen() {
                   <Text style={styles.googleRed}>e</Text>
                 </View>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.socialButton}>
+              <TouchableOpacity style={[styles.socialButton, { borderColor: themeColors.border, backgroundColor: themeColors.card }]}>
                 <View style={styles.xLogo}>
-                  <Text style={styles.xText}>𝕏</Text>
+                  <Text style={[styles.xText, { color: themeColors.text.primary }]}>𝕏</Text>
                 </View>
               </TouchableOpacity>
             </View>
@@ -333,7 +338,6 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.slate[50],
   },
   keyboardView: {
     flex: 1,
@@ -344,11 +348,9 @@ const styles = StyleSheet.create({
     paddingTop: spacing.md,
   },
   card: {
-    backgroundColor: colors.card.light,
     borderRadius: borderRadius['2xl'],
     padding: spacing.xl,
     borderWidth: 1,
-    borderColor: colors.slate[200],
   },
   logoContainer: {
     alignItems: 'center',
@@ -358,21 +360,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: spacing.lg,
-  },
-  backIcon: {
-    fontSize: fontSize.lg,
-    color: colors.slate[600],
-    marginRight: spacing.sm,
+    gap: spacing.sm,
   },
   backText: {
     fontSize: fontSize.sm,
     fontWeight: fontWeight.medium,
-    color: colors.slate[600],
   },
   title: {
     fontSize: fontSize.xl,
     fontWeight: fontWeight.bold,
-    color: colors.slate[900],
     textAlign: 'center',
     marginBottom: spacing.lg,
   },
@@ -391,7 +387,6 @@ const styles = StyleSheet.create({
   tabs: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: colors.slate[200],
     marginBottom: spacing.lg,
   },
   tab: {
@@ -407,7 +402,6 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: fontSize.sm,
     fontWeight: fontWeight.medium,
-    color: colors.slate[500],
   },
   tabTextActive: {
     color: colors.primary[600],
@@ -440,69 +434,50 @@ const styles = StyleSheet.create({
   label: {
     fontSize: fontSize.sm,
     fontWeight: fontWeight.medium,
-    color: colors.slate[600],
     marginBottom: spacing.sm,
-  },
-  optionalText: {
-    color: colors.slate[400],
-    fontWeight: fontWeight.normal,
   },
   input: {
     height: 48,
-    backgroundColor: colors.card.light,
     borderRadius: borderRadius.lg,
     paddingHorizontal: spacing.md,
     fontSize: fontSize.base,
-    color: colors.slate[900],
     borderWidth: 1,
-    borderColor: colors.slate[300],
   },
   usernameContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     height: 48,
-    backgroundColor: colors.card.light,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: colors.slate[300],
   },
   usernamePrefix: {
     paddingLeft: spacing.md,
     fontSize: fontSize.base,
-    color: colors.slate[400],
   },
   usernameInput: {
     flex: 1,
     height: '100%',
     paddingHorizontal: spacing.sm,
     fontSize: fontSize.base,
-    color: colors.slate[900],
   },
   passwordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     height: 48,
-    backgroundColor: colors.card.light,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: colors.slate[300],
   },
   passwordInput: {
     flex: 1,
     height: '100%',
     paddingHorizontal: spacing.md,
     fontSize: fontSize.base,
-    color: colors.slate[900],
   },
   eyeButton: {
     padding: spacing.md,
   },
-  eyeIcon: {
-    fontSize: fontSize.lg,
-  },
   helperText: {
     fontSize: fontSize.xs,
-    color: colors.slate[500],
     marginTop: spacing.xs,
   },
   termsContainer: {
@@ -515,7 +490,6 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 4,
     borderWidth: 1,
-    borderColor: colors.slate[300],
     marginRight: spacing.sm,
     justifyContent: 'center',
     alignItems: 'center',
@@ -532,11 +506,11 @@ const styles = StyleSheet.create({
   termsText: {
     flex: 1,
     fontSize: fontSize.sm,
-    color: colors.slate[600],
   },
   termsLink: {
     color: colors.primary[600],
     fontWeight: fontWeight.semibold,
+    fontSize: fontSize.sm,
   },
   button: {
     height: 48,
@@ -562,12 +536,10 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: colors.slate[200],
   },
   dividerText: {
     marginHorizontal: spacing.md,
     fontSize: fontSize.sm,
-    color: colors.slate[500],
   },
   socialButtons: {
     flexDirection: 'row',
@@ -579,8 +551,6 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: borderRadius.xl,
     borderWidth: 1,
-    borderColor: colors.slate[200],
-    backgroundColor: colors.card.light,
     alignItems: 'center',
     justifyContent: 'center',
     flex: 1,
@@ -616,6 +586,5 @@ const styles = StyleSheet.create({
   xText: {
     fontSize: fontSize['2xl'],
     fontWeight: fontWeight.bold,
-    color: '#000',
   },
 });

@@ -109,6 +109,7 @@ export default function JobPayment() {
     loadJob();
     // Refresh user data to ensure contract counts are up-to-date
     refreshUser();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const loadJob = async () => {

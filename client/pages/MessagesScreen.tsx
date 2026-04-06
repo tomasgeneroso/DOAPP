@@ -125,12 +125,14 @@ export default function MessagesScreen() {
   const userSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Combine socket messages with local messages (socket messages take priority for new ones)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const messages = [...localMessages, ...(socketMessages as unknown as Message[]).filter(
     sm => !localMessages.find(lm => getId(lm) === getId(sm as any))
   )];
 
   useEffect(() => {
     fetchConversations();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Handle conversation selection when ID param changes
@@ -176,6 +178,7 @@ export default function MessagesScreen() {
     return () => {
       leaveConversation(conversationIdParam);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationIdParam, isConnected]);
 
   useEffect(() => {

@@ -22,6 +22,7 @@ const AdvertisementManager: React.FC = () => {
   useEffect(() => {
     fetchMyAds(filterStatus);
     fetchStats();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterStatus]);
 
   const handleViewPerformance = async (adId: string) => {

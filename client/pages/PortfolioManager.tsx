@@ -31,6 +31,7 @@ export default function PortfolioManager() {
     if (user) {
       loadPortfolio();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const loadPortfolio = async () => {

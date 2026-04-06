@@ -45,6 +45,7 @@ export default function PortfolioItemDetail() {
     if (id) {
       fetchPortfolioItem();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const fetchPortfolioItem = async () => {

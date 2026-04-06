@@ -9,18 +9,19 @@ import {
   Platform,
   ScrollView,
   ActivityIndicator,
-  Pressable,
 } from 'react-native';
 import { useRouter, Link } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import Logo from '../../components/ui/Logo';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, Eye, EyeOff } from 'lucide-react-native';
 
 export default function LoginScreen() {
   const router = useRouter();
   const { login } = useAuth();
+  const { colors: themeColors } = useTheme();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -53,13 +54,13 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Top Bar with Back Button - outside card */}
+    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
+      {/* Top Bar with Back Button */}
       <View style={styles.topBar}>
         <Link href="/(tabs)" asChild>
           <TouchableOpacity style={styles.backButton}>
-            <ArrowLeft size={20} color={colors.slate[600]} />
-            <Text style={styles.backText}>Volver al inicio</Text>
+            <ArrowLeft size={20} color={themeColors.text.secondary} />
+            <Text style={[styles.backText, { color: themeColors.text.secondary }]}>Volver al inicio</Text>
           </TouchableOpacity>
         </Link>
       </View>
@@ -73,17 +74,17 @@ export default function LoginScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* Card Container - matching web design */}
-          <View style={styles.card}>
+          {/* Card Container */}
+          <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
             {/* Logo */}
             <View style={styles.logoContainer}>
               <Logo size="large" />
             </View>
 
             {/* Title */}
-            <Text style={styles.title}>Inicia sesión en tu cuenta</Text>
+            <Text style={[styles.title, { color: themeColors.text.primary }]}>Inicia sesión en tu cuenta</Text>
 
-            {/* Promo Banner - matching web */}
+            {/* Promo Banner */}
             <View style={styles.promoBanner}>
               <Text style={styles.promoText}>
                 ¡Los primeros 1000 usuarios tendrán servicio gratuito por un año! 🎉
@@ -91,13 +92,13 @@ export default function LoginScreen() {
             </View>
 
             {/* Tabs */}
-            <View style={styles.tabs}>
+            <View style={[styles.tabs, { borderBottomColor: themeColors.border }]}>
               <TouchableOpacity style={[styles.tab, styles.tabActive]}>
                 <Text style={[styles.tabText, styles.tabTextActive]}>Iniciar Sesión</Text>
               </TouchableOpacity>
               <Link href="/(auth)/register" asChild>
                 <TouchableOpacity style={styles.tab}>
-                  <Text style={styles.tabText}>Registrarme</Text>
+                  <Text style={[styles.tabText, { color: themeColors.text.muted }]}>Registrarme</Text>
                 </TouchableOpacity>
               </Link>
             </View>
@@ -113,11 +114,11 @@ export default function LoginScreen() {
             {/* Form */}
             <View style={styles.form}>
               <View style={styles.inputContainer}>
-                <Text style={styles.label}>Email</Text>
+                <Text style={[styles.label, { color: themeColors.text.secondary }]}>Email</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { backgroundColor: themeColors.card, borderColor: themeColors.border, color: themeColors.text.primary }]}
                   placeholder="tucorreo@email.com"
-                  placeholderTextColor={colors.slate[400]}
+                  placeholderTextColor={themeColors.text.muted}
                   value={email}
                   onChangeText={setEmail}
                   keyboardType="email-address"
@@ -128,18 +129,18 @@ export default function LoginScreen() {
 
               <View style={styles.inputContainer}>
                 <View style={styles.labelRow}>
-                  <Text style={styles.label}>Contraseña</Text>
+                  <Text style={[styles.label, { color: themeColors.text.secondary }]}>Contraseña</Text>
                   <Link href="/(auth)/forgot-password" asChild>
                     <TouchableOpacity>
                       <Text style={styles.forgotPasswordText}>¿Olvidaste tu contraseña?</Text>
                     </TouchableOpacity>
                   </Link>
                 </View>
-                <View style={styles.passwordContainer}>
+                <View style={[styles.passwordContainer, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
                   <TextInput
-                    style={styles.passwordInput}
+                    style={[styles.passwordInput, { color: themeColors.text.primary }]}
                     placeholder="••••••••"
-                    placeholderTextColor={colors.slate[400]}
+                    placeholderTextColor={themeColors.text.muted}
                     value={password}
                     onChangeText={setPassword}
                     secureTextEntry={!showPassword}
@@ -148,7 +149,11 @@ export default function LoginScreen() {
                     style={styles.eyeButton}
                     onPress={() => setShowPassword(!showPassword)}
                   >
-                    <Text style={styles.eyeIcon}>{showPassword ? '👁' : '👁‍🗨'}</Text>
+                    {showPassword ? (
+                      <EyeOff size={20} color={themeColors.text.muted} strokeWidth={1.5} />
+                    ) : (
+                      <Eye size={20} color={themeColors.text.muted} strokeWidth={1.5} />
+                    )}
                   </TouchableOpacity>
                 </View>
               </View>
@@ -169,14 +174,14 @@ export default function LoginScreen() {
 
             {/* Divider */}
             <View style={styles.divider}>
-              <View style={styles.dividerLine} />
-              <Text style={styles.dividerText}>o continúa con</Text>
-              <View style={styles.dividerLine} />
+              <View style={[styles.dividerLine, { backgroundColor: themeColors.border }]} />
+              <Text style={[styles.dividerText, { color: themeColors.text.muted }]}>o continúa con</Text>
+              <View style={[styles.dividerLine, { backgroundColor: themeColors.border }]} />
             </View>
 
             {/* Social Login */}
             <View style={styles.socialButtons}>
-              <TouchableOpacity style={styles.socialButton}>
+              <TouchableOpacity style={[styles.socialButton, { borderColor: themeColors.border, backgroundColor: themeColors.card }]}>
                 <View style={styles.googleLogo}>
                   <Text style={styles.googleBlue}>G</Text>
                   <Text style={styles.googleRed}>o</Text>
@@ -186,9 +191,9 @@ export default function LoginScreen() {
                   <Text style={styles.googleRed}>e</Text>
                 </View>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.socialButton}>
+              <TouchableOpacity style={[styles.socialButton, { borderColor: themeColors.border, backgroundColor: themeColors.card }]}>
                 <View style={styles.xLogo}>
-                  <Text style={styles.xText}>𝕏</Text>
+                  <Text style={[styles.xText, { color: themeColors.text.primary }]}>𝕏</Text>
                 </View>
               </TouchableOpacity>
             </View>
@@ -202,7 +207,6 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.slate[50],
   },
   topBar: {
     paddingHorizontal: spacing.lg,
@@ -218,11 +222,9 @@ const styles = StyleSheet.create({
     paddingTop: 0,
   },
   card: {
-    backgroundColor: colors.card.light,
     borderRadius: borderRadius['2xl'],
     padding: spacing.xl,
     borderWidth: 1,
-    borderColor: colors.slate[200],
   },
   logoContainer: {
     alignItems: 'center',
@@ -236,12 +238,10 @@ const styles = StyleSheet.create({
   backText: {
     fontSize: fontSize.sm,
     fontWeight: fontWeight.medium,
-    color: colors.slate[600],
   },
   title: {
     fontSize: fontSize.xl,
     fontWeight: fontWeight.bold,
-    color: colors.slate[900],
     textAlign: 'center',
     marginBottom: spacing.lg,
   },
@@ -260,7 +260,6 @@ const styles = StyleSheet.create({
   tabs: {
     flexDirection: 'row',
     borderBottomWidth: 1,
-    borderBottomColor: colors.slate[200],
     marginBottom: spacing.lg,
   },
   tab: {
@@ -276,7 +275,6 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: fontSize.sm,
     fontWeight: fontWeight.medium,
-    color: colors.slate[500],
   },
   tabTextActive: {
     color: colors.primary[600],
@@ -315,40 +313,30 @@ const styles = StyleSheet.create({
   label: {
     fontSize: fontSize.sm,
     fontWeight: fontWeight.medium,
-    color: colors.slate[600],
     marginBottom: spacing.sm,
   },
   input: {
     height: 48,
-    backgroundColor: colors.card.light,
     borderRadius: borderRadius.lg,
     paddingHorizontal: spacing.md,
     fontSize: fontSize.base,
-    color: colors.slate[900],
     borderWidth: 1,
-    borderColor: colors.slate[300],
   },
   passwordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     height: 48,
-    backgroundColor: colors.card.light,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
-    borderColor: colors.slate[300],
   },
   passwordInput: {
     flex: 1,
     height: '100%',
     paddingHorizontal: spacing.md,
     fontSize: fontSize.base,
-    color: colors.slate[900],
   },
   eyeButton: {
     padding: spacing.md,
-  },
-  eyeIcon: {
-    fontSize: fontSize.lg,
   },
   forgotPasswordText: {
     color: colors.primary[600],
@@ -379,12 +367,10 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: colors.slate[200],
   },
   dividerText: {
     marginHorizontal: spacing.md,
     fontSize: fontSize.sm,
-    color: colors.slate[500],
   },
   socialButtons: {
     flexDirection: 'row',
@@ -396,8 +382,6 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: borderRadius.xl,
     borderWidth: 1,
-    borderColor: colors.slate[200],
-    backgroundColor: colors.card.light,
     alignItems: 'center',
     justifyContent: 'center',
     flex: 1,
@@ -433,6 +417,5 @@ const styles = StyleSheet.create({
   xText: {
     fontSize: fontSize['2xl'],
     fontWeight: fontWeight.bold,
-    color: '#000',
   },
 });
