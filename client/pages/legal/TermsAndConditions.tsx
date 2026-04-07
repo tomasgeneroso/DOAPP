@@ -1,8 +1,9 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { ArrowLeft, Home, FileText } from "lucide-react";
 
 export default function TermsAndConditions() {
+  const navigate = useNavigate();
   return (
     <>
       <Helmet>
@@ -16,13 +17,13 @@ export default function TermsAndConditions() {
         <div className="container mx-auto px-4 py-8 max-w-4xl">
           {/* Navegación */}
           <div className="flex items-center justify-between mb-8">
-            <Link
-              to="/register"
+            <button
+              onClick={() => navigate(-1)}
               className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
             >
               <ArrowLeft className="h-4 w-4" />
               Volver
-            </Link>
+            </button>
             <Link
               to="/"
               className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
@@ -355,12 +356,12 @@ export default function TermsAndConditions() {
 
           {/* Footer con enlace */}
           <div className="mt-8 text-center">
-            <Link
-              to="/register"
+            <button
+              onClick={() => navigate(-1)}
               className="inline-flex items-center justify-center px-6 py-3 rounded-xl bg-sky-600 text-white font-semibold hover:bg-sky-700 transition-colors"
             >
-              Acepto los términos, continuar con el registro
-            </Link>
+              Acepto los términos, volver
+            </button>
           </div>
         </div>
       </div>

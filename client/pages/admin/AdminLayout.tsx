@@ -152,8 +152,8 @@ export default function AdminLayout() {
   return (
     <div className="flex min-h-screen bg-slate-50 dark:bg-slate-900">
       {/* Sidebar */}
-      <aside className="w-64 bg-white dark:bg-slate-800 shadow-md border-r border-slate-200 dark:border-slate-700 flex-shrink-0">
-        <div className="p-4 sticky top-0 h-screen overflow-y-auto">
+      <aside className="w-64 bg-white dark:bg-slate-800 shadow-md border-r border-slate-200 dark:border-slate-700 flex-shrink-0 min-h-screen">
+        <div className="p-4 sticky top-0 h-screen overflow-y-auto flex flex-col">
           {/* Header with connection status */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
@@ -269,7 +269,7 @@ export default function AdminLayout() {
           </nav>
 
           {/* Bottom Actions */}
-          <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700 space-y-2">
+          <div className="mt-auto pt-4 border-t border-slate-200 dark:border-slate-700 space-y-2">
             <Link
               to="/"
               className="flex items-center justify-center gap-2 px-3 py-2 text-sm text-slate-600 dark:text-slate-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition border border-slate-200 dark:border-slate-600"

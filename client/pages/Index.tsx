@@ -279,10 +279,10 @@ export default function Index() {
   return (
     <>
       <Helmet>
-        <title>DoApp - Plataforma Freelance Argentina | Pagos Seguros con Escrow</title>
+        <title>DoApp - Plataforma de Trabajos Argentina | Pagos asegurados</title>
         <meta
           name="description"
-          content="DoApp es la plataforma freelance argentina donde publicás trabajos o encontrás oportunidades. Pagos seguros, tu dinero protegido hasta confirmar el trabajo. Comisiones desde 1%. Registrate gratis."
+          content="DoApp es la plataforma de trabajos argentina donde publicás trabajos o encontrás oportunidades. Pagos asegurados, tu dinero protegido hasta confirmar el trabajo. Comisiones desde 1%. Registrate gratis."
         />
         <meta property="og:url" content="https://doapparg.site/" />
         <meta property="og:image" content="https://doapparg.site/og-image.png" />
@@ -295,8 +295,8 @@ export default function Index() {
               `¡Hola de nuevo, ${user.name}!`
             ) : (
               <>
-                Plataforma Freelance Argentina con{" "}
-                <span className="text-sky-600">Pagos Seguros</span>
+                Plataforma de Trabajos Argentina con{" "}
+                <span className="text-sky-600">Pagos Asegurados</span>
               </>
             )}
           </h1>
@@ -305,13 +305,11 @@ export default function Index() {
               ? "Cargando..."
               : user
               ? "¿Listo para empezar un nuevo proyecto o buscar oportunidades? Estás en el lugar correcto."
-              : "Publicá trabajos y contratá profesionales con garantía de pago. El dinero queda protegido en nuestra plataforma hasta que confirmés el trabajo completado. Sin riesgos, sin estafas."}
+              : "Publicá trabajos y contratá profesionales con garantía de pago."}
           </p>
           {!user && !isLoading && (
             <p className="mx-auto mt-3 sm:mt-4 max-w-2xl text-sm sm:text-base leading-6 sm:leading-7 text-gray-500 dark:text-slate-500 px-2">
               Nos aseguramos que cada acuerdo se cumpla por ambas partes.
-              Publicá un trabajo, negociá directamente con la persona y pagá
-              automáticamente solo cuando todo esté verificado.
             </p>
           )}
           {!user && !isLoading && (

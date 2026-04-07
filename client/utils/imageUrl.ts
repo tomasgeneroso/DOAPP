@@ -1,7 +1,14 @@
 /**
+ * Get the backend base URL for serving uploads
+ * In development, Vite proxy handles /uploads → backend
+ * In production, we need to prefix with the API server URL
+ */
+const BACKEND_URL = import.meta.env.VITE_API_URL
+  ? import.meta.env.VITE_API_URL.replace(/\/api$/, '')
+  : '';
+
+/**
  * Get full image URL from relative path
- * Uses Vite proxy in development (configured in vite.config.ts)
- * In production, uses relative paths
  */
 export function getImageUrl(path: string | undefined): string {
   if (!path) {
@@ -13,15 +20,14 @@ export function getImageUrl(path: string | undefined): string {
     return path;
   }
 
-  // If it's a relative path starting with /uploads, return as-is
-  // Vite proxy will handle routing to the backend
+  // If it's a relative path starting with /uploads, prefix with backend URL
   if (path.startsWith('/uploads')) {
-    return path;
+    return `${BACKEND_URL}${path}`;
   }
 
   // If it's just a filename, assume it's in uploads
   if (!path.startsWith('/')) {
-    return `/uploads/${path}`;
+    return `${BACKEND_URL}/uploads/${path}`;
   }
 
   return path;

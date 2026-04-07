@@ -801,18 +801,28 @@ router.get("/:slug", async (req: Request, res: Response): Promise<void> => {
 // @access  Public
 router.get("/:slug/related", async (req: Request, res: Response): Promise<void> => {
   try {
-    const currentPost = await BlogPost.findOne({
-      where: {
-        slug: req.params.slug,
-        status: "published",
-      },
+    const { slug } = req.params;
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
+
+    // Try blog_posts table first
+    let currentPost = await BlogPost.findOne({
+      where: isUUID ? { id: slug, status: "published" } : { slug, status: "published" },
     });
 
-    if (!currentPost) {
-      res.status(404).json({
-        success: false,
-        message: "Artículo no encontrado",
+    // If not found and UUID, try user articles (posts table)
+    if (!currentPost && isUUID) {
+      const userArticle = await Post.findOne({
+        where: { id: slug, type: 'article', isPublished: true },
       });
+      if (userArticle) {
+        // Return empty related for user articles (different table)
+        res.json({ success: true, posts: [] });
+        return;
+      }
+    }
+
+    if (!currentPost) {
+      res.json({ success: true, posts: [] });
       return;
     }
 

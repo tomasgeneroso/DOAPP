@@ -308,5 +308,20 @@ export async function upload<T>(
   }
 }
 
+// Base URL for uploads (without /api suffix)
+const UPLOADS_BASE_URL = API_URL.replace(/\/api$/, '');
+
+/**
+ * Get full image URL from relative path
+ * Handles /uploads/... paths by prefixing with backend URL
+ */
+export function getImageUrl(path: string | undefined | null): string | undefined {
+  if (!path) return undefined;
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  if (path.startsWith('/uploads')) return `${UPLOADS_BASE_URL}${path}`;
+  if (!path.startsWith('/')) return `${UPLOADS_BASE_URL}/uploads/${path}`;
+  return path;
+}
+
 // Export API URL for use in other services
 export { API_URL };
