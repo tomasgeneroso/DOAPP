@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   X,
   Send,
@@ -59,6 +60,7 @@ export function ContractModal({
   onSubmit,
   isLoading = false,
 }: ContractModalProps) {
+  const { t } = useTranslation();
   const [amount, setAmount] = useState('');
   const [message, setMessage] = useState('');
   const [reason, setReason] = useState('');
@@ -190,33 +192,33 @@ export function ContractModal({
         const errors: Record<string, string> = {};
 
         if (!directTitle.trim()) {
-          errors.title = 'El título es requerido';
+          errors.title = t('validation.titleRequired', 'Title is required');
         } else if (directTitle.trim().length < 5) {
-          errors.title = 'El título debe tener al menos 5 caracteres';
+          errors.title = t('validation.titleMinLength', 'Title must be at least 5 characters');
         }
 
         if (!directDescription.trim()) {
-          errors.description = 'La descripción es requerida';
+          errors.description = t('validation.descriptionRequired', 'Description is required');
         } else if (directDescription.trim().length < 10) {
-          errors.description = 'La descripción debe tener al menos 10 caracteres';
+          errors.description = t('validation.descriptionMinLength', 'Description must be at least 10 characters');
         }
 
         if (!directPrice || parseFloat(directPrice) <= 0) {
-          errors.price = 'Ingresa un precio válido';
+          errors.price = t('validation.validPrice', 'Enter a valid price');
         } else if (parseFloat(directPrice) < 1000) {
-          errors.price = 'El precio mínimo es $1.000 ARS';
+          errors.price = t('validation.minPrice', 'Minimum price is $1,000 ARS');
         }
 
         if (!directCategory) {
-          errors.category = 'Selecciona una categoría';
+          errors.category = t('validation.selectCategory', 'Select a category');
         }
 
         if (!directStartDate) {
-          errors.startDate = 'La fecha de inicio es requerida';
+          errors.startDate = t('validation.startDateRequired', 'Start date is required');
         }
 
         if (!directEndDate) {
-          errors.endDate = 'La fecha de fin es requerida';
+          errors.endDate = t('validation.endDateRequired', 'End date is required');
         }
 
         // Validate dates are in the future and end > start
@@ -226,11 +228,11 @@ export function ContractModal({
           const now = new Date();
 
           if (startDateTime < now) {
-            errors.startDate = 'La fecha de inicio debe ser en el futuro';
+            errors.startDate = t('validation.startDateFuture', 'Start date must be in the future');
           }
 
           if (endDateTime <= startDateTime) {
-            errors.endDate = 'La fecha de fin debe ser posterior a la de inicio';
+            errors.endDate = t('validation.endDateAfterStart', 'End date must be after start date');
           }
         }
 
@@ -283,7 +285,7 @@ export function ContractModal({
                 <Briefcase className="h-6 w-6 text-sky-600 dark:text-sky-400" />
               </div>
               <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                Aplicaste a contrato!
+                {t('chat.appliedToContract', 'Applied to contract!')}
               </h2>
             </div>
             <button
@@ -316,12 +318,12 @@ export function ContractModal({
               {isLoading ? (
                 <>
                   <Clock className="h-5 w-5 animate-spin" />
-                  Enviando...
+                  {t('common.sending', 'Sending...')}
                 </>
               ) : (
                 <>
                   <XCircle className="h-5 w-5" />
-                  Cancelar contrato
+                  {t('contracts.cancelContract', 'Cancel contract')}
                 </>
               )}
             </button>
@@ -340,10 +342,10 @@ export function ContractModal({
           <div className="flex items-start justify-between mb-6">
             <div>
               <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-1">
-                Solicitud de aplicación
+                {t('chat.applicationRequest', 'Application request')}
               </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Regatear trabajo
+                {t('chat.negotiateJob', 'Negotiate job')}
               </p>
             </div>
             <button
@@ -371,7 +373,7 @@ export function ContractModal({
             <div className="bg-cyan-50 dark:bg-cyan-900/20 rounded-xl p-4 border-2 border-cyan-200 dark:border-cyan-800">
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                 <DollarSign className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
-                Ingresar monto a regatear
+                {t('chat.enterNegotiationAmount', 'Enter negotiation amount')}
               </label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400">
@@ -392,7 +394,7 @@ export function ContractModal({
                 onClick={onClose}
                 className="flex-1 px-6 py-3 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold rounded-xl border-2 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
               >
-                Cancelar
+                {t('common.cancel', 'Cancel')}
               </button>
               <button
                 onClick={handleSubmit}
@@ -402,12 +404,12 @@ export function ContractModal({
                 {isLoading ? (
                   <>
                     <Clock className="h-5 w-5 animate-spin" />
-                    Enviando...
+                    {t('common.sending', 'Sending...')}
                   </>
                 ) : (
                   <>
                     <Send className="h-5 w-5" />
-                    Enviar solicitud
+                    {t('common.sendRequest', 'Send request')}
                   </>
                 )}
               </button>
@@ -427,10 +429,10 @@ export function ContractModal({
           <div className="flex items-start justify-between mb-6">
             <div>
               <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-1">
-                {applicantName || 'Usuario'} quiere aplicar a tu trabajo!
+                {t('chat.userWantsToApply', '{{name}} wants to apply to your job!', { name: applicantName || t('common.user', 'User') })}
               </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Usuario quiere aplicar
+                {t('chat.userWantsToApplySubtitle', 'User wants to apply')}
               </p>
             </div>
             <button
@@ -466,7 +468,7 @@ export function ContractModal({
                 ) : (
                   <>
                     <XCircle className="h-5 w-5" />
-                    Denegar trabajador
+                    {t('chat.denyWorker', 'Deny worker')}
                   </>
                 )}
               </button>
@@ -480,7 +482,7 @@ export function ContractModal({
                 ) : (
                   <>
                     <Check className="h-5 w-5" />
-                    Aceptar trabajador
+                    {t('chat.acceptWorker', 'Accept worker')}
                   </>
                 )}
               </button>
@@ -500,10 +502,10 @@ export function ContractModal({
           <div className="flex items-start justify-between mb-6">
             <div>
               <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-1">
-                Aceptaste a {applicantName || 'usuario'} para realizar tu trabajo!
+                {t('chat.youAcceptedWorker', 'You accepted {{name}} to do your job!', { name: applicantName || t('common.user', 'user') })}
               </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">
-                Aceptaste al {applicantName || 'usuario'}
+                {t('chat.youAcceptedWorkerSubtitle', 'You accepted {{name}}', { name: applicantName || t('common.user', 'user') })}
               </p>
             </div>
             <button
@@ -534,7 +536,7 @@ export function ContractModal({
                 className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white font-bold rounded-xl transition-all shadow-lg"
               >
                 <FileText className="h-5 w-5" />
-                Solicitar cambios de contrato
+                {t('contracts.requestChanges', 'Request contract changes')}
               </button>
             )}
 
@@ -542,7 +544,7 @@ export function ContractModal({
               onClick={onClose}
               className="w-full px-6 py-3 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold rounded-xl border-2 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
             >
-              Cerrar
+              {t('common.close', 'Close')}
             </button>
           </div>
         </div>
@@ -558,7 +560,7 @@ export function ContractModal({
           <div className="flex items-start justify-between mb-6">
             <div>
               <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-1">
-                Solicitar cambios de contrato
+                {t('contracts.requestChanges', 'Request contract changes')}
               </h2>
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 {jobData?.title}
@@ -576,13 +578,13 @@ export function ContractModal({
             <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-4 border-2 border-amber-200 dark:border-amber-800 flex gap-3">
               <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-amber-900 dark:text-amber-200">
-                La otra parte deberá aceptar tus cambios. Si no responde en 2 días, se enviará automáticamente a soporte.
+                {t('contracts.otherPartyMustAccept', 'The other party must accept your changes. If they don\'t respond in 2 days, it will be automatically sent to support.')}
               </p>
             </div>
 
             <div>
               <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                Tipo de solicitud
+                {t('contracts.requestType', 'Request type')}
               </label>
               <div className="flex gap-3">
                 <button
@@ -593,7 +595,7 @@ export function ContractModal({
                       : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-2 border-slate-300 dark:border-slate-600'
                   }`}
                 >
-                  Modificar términos
+                  {t('contracts.modifyTerms', 'Modify terms')}
                 </button>
                 <button
                   onClick={() => setChangeType('cancel')}
@@ -603,19 +605,19 @@ export function ContractModal({
                       : 'bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 border-2 border-slate-300 dark:border-slate-600'
                   }`}
                 >
-                  Cancelar contrato
+                  {t('contracts.cancelContract', 'Cancel contract')}
                 </button>
               </div>
             </div>
 
             <div>
               <label className="block text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
-                Razón de {changeType === 'cancel' ? 'cancelación' : 'cambio'}
+                {t('contracts.reasonFor', 'Reason for')} {changeType === 'cancel' ? t('contracts.cancellation', 'cancellation') : t('contracts.change', 'change')}
               </label>
               <textarea
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                placeholder={`Explica por qué deseas ${changeType === 'cancel' ? 'cancelar' : 'modificar'} el contrato...`}
+                placeholder={changeType === 'cancel' ? t('contracts.explainCancellation', 'Explain why you want to cancel the contract...') : t('contracts.explainModification', 'Explain why you want to modify the contract...')}
                 rows={4}
                 className="w-full px-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-slate-900 dark:text-white resize-none"
               />
@@ -626,7 +628,7 @@ export function ContractModal({
                 onClick={onClose}
                 className="flex-1 px-6 py-3 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold rounded-xl border-2 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
               >
-                Cancelar
+                {t('common.cancel', 'Cancel')}
               </button>
               <button
                 onClick={handleSubmit}
@@ -640,12 +642,12 @@ export function ContractModal({
                 {isLoading ? (
                   <>
                     <Clock className="h-5 w-5 animate-spin" />
-                    Enviando...
+                    {t('common.sending', 'Sending...')}
                   </>
                 ) : (
                   <>
                     <Send className="h-5 w-5" />
-                    Enviar solicitud
+                    {t('common.sendRequest', 'Send request')}
                   </>
                 )}
               </button>
@@ -669,10 +671,10 @@ export function ContractModal({
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                    Proponer Contrato
+                    {t('chat.proposeContract', 'Propose Contract')}
                   </h2>
                   <p className="text-sm text-slate-500 dark:text-slate-400">
-                    a {directProposalData.recipientName}
+                    {t('common.to', 'to')} {directProposalData.recipientName}
                   </p>
                 </div>
               </div>
@@ -690,8 +692,8 @@ export function ContractModal({
             <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl p-4 border-2 border-emerald-200 dark:border-emerald-800 flex gap-3">
               <AlertCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-emerald-900 dark:text-emerald-200">
-                Estás proponiendo un contrato directo a <strong>{directProposalData.recipientName}</strong>.
-                Si acepta, se creará el trabajo y contrato automáticamente.
+                {t('chat.directProposalInfo', 'You are proposing a direct contract to')} <strong>{directProposalData.recipientName}</strong>.
+                {t('chat.directProposalAutoCreate', 'If accepted, the job and contract will be created automatically.')}
               </p>
             </div>
 
@@ -699,7 +701,7 @@ export function ContractModal({
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                 <Briefcase className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                Título del trabajo *
+                {t('jobs.jobTitle', 'Job title')} *
               </label>
               <input
                 type="text"
@@ -708,7 +710,7 @@ export function ContractModal({
                   setDirectTitle(e.target.value);
                   if (formErrors.title) setFormErrors(prev => ({ ...prev, title: '' }));
                 }}
-                placeholder="Ej: Reparación de cañería en baño"
+                placeholder={t('chat.jobTitlePlaceholder', 'E.g.: Bathroom pipe repair')}
                 maxLength={200}
                 className={`w-full px-4 py-3 bg-white dark:bg-slate-700 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-slate-900 dark:text-white ${
                   formErrors.title ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'
@@ -726,7 +728,7 @@ export function ContractModal({
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                 <FileText className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                Descripción del trabajo *
+                {t('jobs.jobDescription', 'Job description')} *
               </label>
               <textarea
                 value={directDescription}
@@ -734,7 +736,7 @@ export function ContractModal({
                   setDirectDescription(e.target.value);
                   if (formErrors.description) setFormErrors(prev => ({ ...prev, description: '' }));
                 }}
-                placeholder="Describe el trabajo a realizar, incluye todos los detalles relevantes..."
+                placeholder={t('chat.describeJobPlaceholder', 'Describe the work to be done, include all relevant details...')}
                 rows={4}
                 className={`w-full px-4 py-3 bg-white dark:bg-slate-700 border rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-slate-900 dark:text-white resize-none ${
                   formErrors.description ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'
@@ -753,7 +755,7 @@ export function ContractModal({
               <div>
                 <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                   <DollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                  Precio propuesto (ARS) *
+                  {t('chat.proposedPriceARS', 'Proposed price (ARS)')} *
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400">
@@ -784,7 +786,7 @@ export function ContractModal({
               <div>
                 <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                   <Tag className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                  Categoría *
+                  {t('jobs.category', 'Category')} *
                 </label>
                 <select
                   value={directCategory}
@@ -796,7 +798,7 @@ export function ContractModal({
                     formErrors.category ? 'border-red-500' : 'border-slate-300 dark:border-slate-600'
                   }`}
                 >
-                  <option value="">Seleccionar...</option>
+                  <option value="">{t('common.select', 'Select...')}</option>
                   {categories.map(cat => (
                     <option key={cat} value={cat}>{cat}</option>
                   ))}
@@ -814,13 +816,13 @@ export function ContractModal({
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                 <MapPin className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                Ubicación (opcional)
+                {t('jobs.locationOptional', 'Location (optional)')}
               </label>
               <input
                 type="text"
                 value={directLocation}
                 onChange={(e) => setDirectLocation(e.target.value)}
-                placeholder="Ej: Buenos Aires, Argentina"
+                placeholder={t('chat.locationPlaceholder', 'E.g.: Buenos Aires, Argentina')}
                 className="w-full px-4 py-3 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-slate-900 dark:text-white"
               />
             </div>
@@ -829,17 +831,17 @@ export function ContractModal({
             <div>
               <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                 <Paperclip className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                Archivos adjuntos (opcional)
+                {t('chat.attachmentsOptional', 'Attachments (optional)')}
               </label>
               <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-                Podés adjuntar hasta 5 archivos (JPG, PNG o PDF). Máx. 10MB cada uno.
+                {t('chat.attachmentsHint', 'You can attach up to 5 files (JPG, PNG or PDF). Max 10MB each.')}
               </p>
 
               {/* File input */}
               <label className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-white dark:bg-slate-700 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg cursor-pointer hover:border-emerald-500 dark:hover:border-emerald-400 transition-colors">
                 <Paperclip className="h-5 w-5 text-slate-400" />
                 <span className="text-slate-600 dark:text-slate-400">
-                  Hacer clic para adjuntar archivos
+                  {t('chat.clickToAttach', 'Click to attach files')}
                 </span>
                 <input
                   type="file"
@@ -900,7 +902,7 @@ export function ContractModal({
               <div>
                 <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                   <Calendar className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                  Fecha de inicio *
+                  {t('jobs.startDate', 'Start date')} *
                 </label>
                 <div className="flex gap-2">
                   <input
@@ -933,7 +935,7 @@ export function ContractModal({
               <div>
                 <label className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2">
                   <Calendar className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                  Fecha de fin *
+                  {t('jobs.endDate', 'End date')} *
                 </label>
                 <div className="flex gap-2">
                   <input
@@ -972,7 +974,7 @@ export function ContractModal({
                 onClick={onClose}
                 className="flex-1 px-6 py-3 bg-white dark:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold rounded-xl border-2 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors"
               >
-                Cancelar
+                {t('common.cancel', 'Cancel')}
               </button>
               <button
                 onClick={handleSubmit}
@@ -982,12 +984,12 @@ export function ContractModal({
                 {isLoading ? (
                   <>
                     <Clock className="h-5 w-5 animate-spin" />
-                    Enviando...
+                    {t('common.sending', 'Sending...')}
                   </>
                 ) : (
                   <>
                     <Send className="h-5 w-5" />
-                    Enviar Propuesta
+                    {t('chat.sendProposal', 'Send Proposal')}
                   </>
                 )}
               </button>

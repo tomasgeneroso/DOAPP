@@ -1,27 +1,15 @@
 import { Link } from "react-router-dom";
 import { Mail, MapPin, Phone, Facebook, Twitter, Instagram, Linkedin, Globe } from "lucide-react";
-import { useState } from "react";
-
-// Get initial language from localStorage or browser
-const getInitialLanguage = (): string => {
-  if (typeof window === 'undefined') return 'es';
-  const savedLang = localStorage.getItem("language") || navigator.language.split("-")[0];
-  return savedLang === "en" ? "en" : "es";
-};
+import { useTranslation } from "react-i18next";
+import { features } from "../../../shared/featureFlags";
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
-  const [currentLanguage, setCurrentLanguage] = useState<string>(getInitialLanguage);
+  const { t, i18n } = useTranslation();
+  const currentLanguage = i18n.language;
 
   const handleLanguageChange = (lang: string) => {
-    localStorage.setItem("language", lang);
-    setCurrentLanguage(lang);
-
-    // Set cookie for backend i18n
-    document.cookie = `i18next=${lang}; path=/; max-age=31536000; SameSite=Strict`;
-
-    // Reload page to apply language change
-    window.location.reload();
+    i18n.changeLanguage(lang);
   };
 
   return (
@@ -34,7 +22,7 @@ export default function Footer() {
               DOAPP
             </h3>
             <p className="text-gray-600 dark:text-gray-400 text-sm mb-4">
-              La plataforma de freelancing más confiable de Argentina. Conectamos talento con oportunidades.
+              {t('footer.description')}
             </p>
             <div className="flex gap-3">
               <a
@@ -75,7 +63,7 @@ export default function Footer() {
           {/* Enlaces Rápidos */}
           <div>
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
-              Enlaces Rápidos
+              {t('footer.quickLinks')}
             </h3>
             <ul className="space-y-2">
               <li>
@@ -83,7 +71,7 @@ export default function Footer() {
                   to="/"
                   className="text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 transition text-sm"
                 >
-                  Buscar Trabajos
+                  {t('footer.searchJobs')}
                 </Link>
               </li>
               <li>
@@ -91,9 +79,10 @@ export default function Footer() {
                   to="/contracts/create"
                   className="text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 transition text-sm"
                 >
-                  Publicar Trabajo
+                  {t('footer.publishJob')}
                 </Link>
               </li>
+              {features.blog && (
               <li>
                 <Link
                   to="/blog"
@@ -102,12 +91,13 @@ export default function Footer() {
                   Blog
                 </Link>
               </li>
+              )}
               <li>
                 <Link
                   to="/help"
                   className="text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 transition text-sm"
                 >
-                  Centro de Ayuda
+                  {t('footer.helpCenter')}
                 </Link>
               </li>
               <li>
@@ -115,7 +105,7 @@ export default function Footer() {
                   to="/contact"
                   className="text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 transition text-sm"
                 >
-                  Contacto
+                  {t('footer.contact')}
                 </Link>
               </li>
             </ul>
@@ -124,7 +114,7 @@ export default function Footer() {
           {/* Legal */}
           <div>
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
-              Legal
+              {t('footer.legal')}
             </h3>
             <ul className="space-y-2">
               <li>
@@ -132,7 +122,7 @@ export default function Footer() {
                   to="/legal/terminos-y-condiciones"
                   className="text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 transition text-sm"
                 >
-                  Términos y Condiciones
+                  {t('footer.terms')}
                 </Link>
               </li>
               <li>
@@ -140,7 +130,7 @@ export default function Footer() {
                   to="/legal/privacidad"
                   className="text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 transition text-sm"
                 >
-                  Política de Privacidad
+                  {t('footer.privacy')}
                 </Link>
               </li>
               <li>
@@ -148,7 +138,7 @@ export default function Footer() {
                   to="/legal/cookies"
                   className="text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 transition text-sm"
                 >
-                  Política de Cookies
+                  {t('footer.cookies')}
                 </Link>
               </li>
               <li>
@@ -156,7 +146,7 @@ export default function Footer() {
                   to="/legal/disputas"
                   className="text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 transition text-sm"
                 >
-                  Resolución de Disputas
+                  {t('footer.disputes')}
                 </Link>
               </li>
             </ul>
@@ -165,12 +155,12 @@ export default function Footer() {
           {/* Contacto */}
           <div>
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
-              Contacto
+              {t('footer.contactInfo')}
             </h3>
             <ul className="space-y-3">
               <li className="flex items-start gap-2 text-gray-600 dark:text-gray-400 text-sm">
                 <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                <span>Buenos Aires, Argentina</span>
+                <span>{t('footer.location')}</span>
               </li>
               <li className="flex items-start gap-2 text-gray-600 dark:text-gray-400 text-sm">
                 <Mail className="h-4 w-4 mt-0.5 flex-shrink-0" />
@@ -192,7 +182,7 @@ export default function Footer() {
         <div className="mt-8 pt-8 border-t border-gray-200 dark:border-gray-800">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-gray-600 dark:text-gray-400 text-sm text-center md:text-left">
-              © {currentYear} DOAPP. Todos los derechos reservados.
+              © {currentYear} DOAPP. {t('footer.allRightsReserved')}
             </p>
 
             <div className="flex flex-col sm:flex-row items-center gap-4">
@@ -229,13 +219,13 @@ export default function Footer() {
                   to="/sitemap"
                   className="text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 transition"
                 >
-                  Mapa del Sitio
+                  {t('footer.sitemap')}
                 </Link>
                 <Link
                   to="/accessibility"
                   className="text-gray-600 dark:text-gray-400 hover:text-sky-600 dark:hover:text-sky-400 transition"
                 >
-                  Accesibilidad
+                  {t('footer.accessibility')}
                 </Link>
               </div>
             </div>

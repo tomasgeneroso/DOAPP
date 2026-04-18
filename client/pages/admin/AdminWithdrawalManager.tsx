@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { WithdrawalRequest } from '../../types';
 import { useSocket } from '@/hooks/useSocket';
 import {
@@ -25,6 +26,7 @@ import {
 import Button from '../../components/ui/Button';
 
 export default function AdminWithdrawalManager() {
+  const { t } = useTranslation();
   const { isConnected, registerAdminWithdrawalCreatedHandler, registerAdminWithdrawalUpdatedHandler } = useSocket();
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>([]);
   const [stats, setStats] = useState<any>(null);
@@ -44,7 +46,7 @@ export default function AdminWithdrawalManager() {
   const handleNewWithdrawal = useCallback((data: any) => {
     console.log('🔔 New withdrawal request:', data);
     const amount = data.withdrawal?.amount?.toLocaleString('es-AR') || '0';
-    setRealtimeAlert(`Nueva solicitud de retiro: $${amount}`);
+    setRealtimeAlert(`${t('admin.withdrawals.newRequest', 'New withdrawal request')}: $${amount}`);
     setWithdrawals(prev => [data.withdrawal, ...prev]);
     // Refresh stats
     loadData();
@@ -55,7 +57,7 @@ export default function AdminWithdrawalManager() {
   const handleWithdrawalUpdated = useCallback((data: any) => {
     console.log('🔔 Withdrawal updated:', data);
     const amount = data.withdrawal?.amount?.toLocaleString('es-AR') || '0';
-    setRealtimeAlert(`Retiro actualizado: $${amount} - ${data.previousStatus} → ${data.withdrawal?.status}`);
+    setRealtimeAlert(`${t('admin.withdrawals.updated', 'Withdrawal updated')}: $${amount} - ${data.previousStatus} → ${data.withdrawal?.status}`);
     setWithdrawals(prev =>
       prev.map(w => (w.id === data.withdrawal?.id) ? { ...w, ...data.withdrawal } : w)
     );
@@ -95,14 +97,14 @@ export default function AdminWithdrawalManager() {
         setStats(withdrawalsData.stats || null);
       }
     } catch (err: any) {
-      setError(err.message || 'Error al cargar datos');
+      setError(err.message || t('admin.withdrawals.errorLoadingData', 'Error loading data'));
     } finally {
       setLoading(false);
     }
   };
 
   const handleApprove = async (id: string) => {
-    if (!confirm('¿Aprobar esta solicitud de retiro?')) return;
+    if (!confirm(t('admin.withdrawals.confirmApprove', 'Approve this withdrawal request?'))) return;
 
     setProcessing(id);
     setError(null);
@@ -122,21 +124,21 @@ export default function AdminWithdrawalManager() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess('Solicitud aprobada correctamente');
+        setSuccess(t('admin.withdrawals.approvedSuccess', 'Request approved successfully'));
         await loadData();
         setAdminNotes('');
       } else {
-        setError(data.message || 'Error al aprobar');
+        setError(data.message || t('admin.withdrawals.errorApproving', 'Error approving'));
       }
     } catch (err: any) {
-      setError(err.message || 'Error al aprobar');
+      setError(err.message || t('admin.withdrawals.errorApproving', 'Error approving'));
     } finally {
       setProcessing(null);
     }
   };
 
   const handleProcessing = async (id: string) => {
-    if (!confirm('¿Marcar como en proceso de transferencia?')) return;
+    if (!confirm(t('admin.withdrawals.confirmProcessing', 'Mark as processing transfer?'))) return;
 
     setProcessing(id);
     setError(null);
@@ -152,23 +154,23 @@ export default function AdminWithdrawalManager() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess('Marcado como en proceso');
+        setSuccess(t('admin.withdrawals.processingSuccess', 'Marked as processing'));
         await loadData();
       } else {
-        setError(data.message || 'Error al procesar');
+        setError(data.message || t('admin.withdrawals.errorProcessing', 'Error processing'));
       }
     } catch (err: any) {
-      setError(err.message || 'Error al procesar');
+      setError(err.message || t('admin.withdrawals.errorProcessing', 'Error processing'));
     } finally {
       setProcessing(null);
     }
   };
 
   const handleComplete = async (id: string) => {
-    if (!confirm('¿Marcar como completado? Esto deducirá el saldo del usuario.')) return;
+    if (!confirm(t('admin.withdrawals.confirmComplete', 'Mark as completed? This will deduct the user balance.'))) return;
 
     if (!proofOfTransfer.trim()) {
-      setError('Debes ingresar el comprobante de transferencia');
+      setError(t('admin.withdrawals.proofRequired', 'You must enter the transfer proof'));
       return;
     }
 
@@ -190,25 +192,25 @@ export default function AdminWithdrawalManager() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess('Retiro completado correctamente');
+        setSuccess(t('admin.withdrawals.completedSuccess', 'Withdrawal completed successfully'));
         await loadData();
         setProofOfTransfer('');
         setShowDetailsModal(false);
       } else {
-        setError(data.message || 'Error al completar');
+        setError(data.message || t('admin.withdrawals.errorCompleting', 'Error completing'));
       }
     } catch (err: any) {
-      setError(err.message || 'Error al completar');
+      setError(err.message || t('admin.withdrawals.errorCompleting', 'Error completing'));
     } finally {
       setProcessing(null);
     }
   };
 
   const handleReject = async (id: string) => {
-    if (!confirm('¿Rechazar esta solicitud de retiro?')) return;
+    if (!confirm(t('admin.withdrawals.confirmReject', 'Reject this withdrawal request?'))) return;
 
     if (!rejectionReason.trim()) {
-      setError('Debes ingresar un motivo de rechazo');
+      setError(t('admin.withdrawals.rejectionRequired', 'You must enter a rejection reason'));
       return;
     }
 
@@ -230,15 +232,15 @@ export default function AdminWithdrawalManager() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess('Solicitud rechazada correctamente');
+        setSuccess(t('admin.withdrawals.rejectedSuccess', 'Request rejected successfully'));
         await loadData();
         setRejectionReason('');
         setShowDetailsModal(false);
       } else {
-        setError(data.message || 'Error al rechazar');
+        setError(data.message || t('admin.withdrawals.errorRejecting', 'Error rejecting'));
       }
     } catch (err: any) {
-      setError(err.message || 'Error al rechazar');
+      setError(err.message || t('admin.withdrawals.errorRejecting', 'Error rejecting'));
     } finally {
       setProcessing(null);
     }
@@ -249,32 +251,32 @@ export default function AdminWithdrawalManager() {
       pending: {
         color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200',
         icon: <Clock className="w-4 h-4" />,
-        text: 'Pendiente',
+        text: t('common.status.pending', 'Pending'),
       },
       approved: {
         color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200',
         icon: <CheckCircle className="w-4 h-4" />,
-        text: 'Aprobada',
+        text: t('common.status.approved', 'Approved'),
       },
       processing: {
         color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-200',
         icon: <Loader2 className="w-4 h-4 animate-spin" />,
-        text: 'Procesando',
+        text: t('common.status.processing', 'Processing'),
       },
       completed: {
         color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200',
         icon: <CheckCircle className="w-4 h-4" />,
-        text: 'Completada',
+        text: t('common.status.completed', 'Completed'),
       },
       rejected: {
         color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200',
         icon: <XCircle className="w-4 h-4" />,
-        text: 'Rechazada',
+        text: t('common.status.rejected', 'Rejected'),
       },
       cancelled: {
         color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
         icon: <XCircle className="w-4 h-4" />,
-        text: 'Cancelada',
+        text: t('common.status.cancelled', 'Cancelled'),
       },
     };
 
@@ -310,7 +312,7 @@ export default function AdminWithdrawalManager() {
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Gestión de Retiros
+            {t('admin.withdrawals.title', 'Withdrawal Management')}
           </h1>
           <span className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
             isConnected
@@ -322,7 +324,7 @@ export default function AdminWithdrawalManager() {
           </span>
         </div>
         <p className="text-gray-600 dark:text-gray-400">
-          Administra las solicitudes de retiro de los usuarios
+          {t('admin.withdrawals.subtitle', 'Manage user withdrawal requests')}
         </p>
       </div>
 
@@ -353,7 +355,7 @@ export default function AdminWithdrawalManager() {
             <p className="text-2xl font-bold text-gray-900 dark:text-white">
               {stats.pending}
             </p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Pendientes</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">{t('common.status.pending', 'Pending')}</p>
           </div>
 
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
@@ -365,7 +367,7 @@ export default function AdminWithdrawalManager() {
             <p className="text-2xl font-bold text-gray-900 dark:text-white">
               {stats.approved}
             </p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Aprobadas</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">{t('common.status.approved', 'Approved')}</p>
           </div>
 
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
@@ -377,7 +379,7 @@ export default function AdminWithdrawalManager() {
             <p className="text-2xl font-bold text-gray-900 dark:text-white">
               {stats.completed}
             </p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Completadas</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">{t('common.status.completed', 'Completed')}</p>
           </div>
 
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
@@ -389,7 +391,7 @@ export default function AdminWithdrawalManager() {
             <p className="text-2xl font-bold text-gray-900 dark:text-white">
               ${stats.totalAmount?.toLocaleString('es-AR') || 0}
             </p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Monto Total</p>
+            <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.withdrawals.totalAmount', 'Total Amount')}</p>
           </div>
         </div>
       )}
@@ -407,7 +409,7 @@ export default function AdminWithdrawalManager() {
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}
             >
-              {status === 'all' ? 'Todos' : status.charAt(0).toUpperCase() + status.slice(1)}
+              {status === 'all' ? t('common.all', 'All') : status === 'pending' ? t('common.status.pending', 'Pending') : status === 'approved' ? t('common.status.approved', 'Approved') : status === 'processing' ? t('common.status.processing', 'Processing') : status === 'completed' ? t('common.status.completed', 'Completed') : t('common.status.rejected', 'Rejected')}
             </button>
           ))}
         </div>
@@ -417,7 +419,7 @@ export default function AdminWithdrawalManager() {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
         <div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-            Solicitudes de Retiro ({withdrawals.length})
+            {t('admin.withdrawals.requests', 'Withdrawal Requests')} ({withdrawals.length})
           </h2>
         </div>
 
@@ -426,7 +428,7 @@ export default function AdminWithdrawalManager() {
             <div className="p-12 text-center">
               <ArrowDownCircle className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
               <p className="text-gray-500 dark:text-gray-400">
-                No hay solicitudes con este filtro
+                {t('admin.withdrawals.noRequests', 'No requests match this filter')}
               </p>
             </div>
           ) : (
@@ -446,7 +448,7 @@ export default function AdminWithdrawalManager() {
 
                       {user && (
                         <div className="mb-3 text-sm text-gray-600 dark:text-gray-400">
-                          <span className="font-medium">Usuario:</span> {user.name} ({user.email})
+                          <span className="font-medium">{t('common.user', 'User')}:</span> {user.name} ({user.email})
                         </div>
                       )}
 
@@ -472,7 +474,7 @@ export default function AdminWithdrawalManager() {
                       {withdrawal.adminNotes && (
                         <div className="mt-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded p-3">
                           <p className="text-sm text-blue-800 dark:text-blue-200">
-                            <strong>Notas admin:</strong> {withdrawal.adminNotes}
+                            <strong>{t('admin.withdrawals.adminNotes', 'Admin notes')}:</strong> {withdrawal.adminNotes}
                           </p>
                         </div>
                       )}
@@ -480,7 +482,7 @@ export default function AdminWithdrawalManager() {
                       {withdrawal.rejectionReason && (
                         <div className="mt-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-3">
                           <p className="text-sm text-red-800 dark:text-red-200">
-                            <strong>Motivo de rechazo:</strong> {withdrawal.rejectionReason}
+                            <strong>{t('admin.withdrawals.rejectionReason', 'Rejection reason')}:</strong> {withdrawal.rejectionReason}
                           </p>
                         </div>
                       )}
@@ -496,7 +498,7 @@ export default function AdminWithdrawalManager() {
                         className="w-full lg:w-auto"
                       >
                         <Eye className="w-4 h-4 mr-2" />
-                        Ver detalles
+                        {t('common.viewDetails', 'View Details')}
                       </Button>
 
                       {withdrawal.status === 'pending' && (
@@ -508,7 +510,7 @@ export default function AdminWithdrawalManager() {
                             className="w-full lg:w-auto"
                           >
                             <CheckCircle className="w-4 h-4 mr-2" />
-                            Aprobar
+                            {t('common.approve', 'Approve')}
                           </Button>
                         </>
                       )}
@@ -521,7 +523,7 @@ export default function AdminWithdrawalManager() {
                           className="w-full lg:w-auto"
                         >
                           <Loader2 className="w-4 h-4 mr-2" />
-                          Procesar
+                          {t('common.process', 'Process')}
                         </Button>
                       )}
                     </div>
@@ -539,14 +541,14 @@ export default function AdminWithdrawalManager() {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Detalles del Retiro
+                {t('admin.withdrawals.details', 'Withdrawal Details')}
               </h2>
             </div>
 
             <div className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Monto
+                  {t('common.amount', 'Amount')}
                 </label>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   ${selectedWithdrawal.amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
@@ -555,7 +557,7 @@ export default function AdminWithdrawalManager() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Estado
+                  {t('common.status.label', 'Status')}
                 </label>
                 {getStatusBadge(selectedWithdrawal.status)}
               </div>
@@ -563,7 +565,7 @@ export default function AdminWithdrawalManager() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Saldo Antes
+                    {t('admin.withdrawals.balanceBefore', 'Balance Before')}
                   </label>
                   <p className="text-gray-900 dark:text-white">
                     ${selectedWithdrawal.balanceBeforeWithdrawal.toLocaleString('es-AR')}
@@ -571,7 +573,7 @@ export default function AdminWithdrawalManager() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Saldo Después
+                    {t('admin.withdrawals.balanceAfter', 'Balance After')}
                   </label>
                   <p className="text-gray-900 dark:text-white">
                     ${selectedWithdrawal.balanceAfterWithdrawal.toLocaleString('es-AR')}
@@ -582,13 +584,13 @@ export default function AdminWithdrawalManager() {
               {selectedWithdrawal.status === 'processing' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Comprobante de Transferencia
+                    {t('admin.withdrawals.transferProof', 'Transfer Proof')}
                   </label>
                   <input
                     type="text"
                     value={proofOfTransfer}
                     onChange={(e) => setProofOfTransfer(e.target.value)}
-                    placeholder="Número de comprobante o referencia"
+                    placeholder={t('admin.withdrawals.proofPlaceholder', 'Receipt number or reference')}
                     className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                   />
                   <Button
@@ -598,7 +600,7 @@ export default function AdminWithdrawalManager() {
                     className="mt-2 w-full"
                   >
                     <CheckCircle className="w-4 h-4 mr-2" />
-                    Marcar como Completado
+                    {t('admin.withdrawals.markCompleted', 'Mark as Completed')}
                   </Button>
                 </div>
               )}
@@ -606,12 +608,12 @@ export default function AdminWithdrawalManager() {
               {(selectedWithdrawal.status === 'pending' || selectedWithdrawal.status === 'approved') && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Motivo de Rechazo
+                    {t('admin.withdrawals.rejectionReason', 'Rejection Reason')}
                   </label>
                   <textarea
                     value={rejectionReason}
                     onChange={(e) => setRejectionReason(e.target.value)}
-                    placeholder="Explica por qué se rechaza esta solicitud"
+                    placeholder={t('admin.withdrawals.rejectionPlaceholder', 'Explain why this request is being rejected')}
                     rows={3}
                     className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                   />
@@ -622,7 +624,7 @@ export default function AdminWithdrawalManager() {
                     className="mt-2 w-full text-red-600 hover:text-red-700"
                   >
                     <XCircle className="w-4 h-4 mr-2" />
-                    Rechazar Solicitud
+                    {t('admin.withdrawals.rejectRequest', 'Reject Request')}
                   </Button>
                 </div>
               )}
@@ -639,7 +641,7 @@ export default function AdminWithdrawalManager() {
                 }}
                 className="w-full"
               >
-                Cerrar
+                {t('common.close', 'Close')}
               </Button>
             </div>
           </div>

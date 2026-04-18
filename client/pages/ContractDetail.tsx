@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket";
 import { api } from "@/lib/api";
@@ -34,6 +35,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 
 export default function ContractDetail() {
   const { id } = useParams<{ id: string }>();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { isConnected, registerContractUpdateHandler } = useSocket();
@@ -124,11 +126,11 @@ export default function ContractDetail() {
   }, [id, loadContract, loadPayments, registerContractUpdateHandler]);
 
   const handleReleaseEscrow = async (paymentId: string) => {
-    if (!confirm("¿Estás seguro de liberar el pago del escrow?")) return;
+    if (!confirm(t('contracts.confirmReleaseEscrow', 'Are you sure you want to release the escrow payment?'))) return;
 
     try {
       await paymentApi.releaseEscrow(paymentId);
-      alert("Pago liberado exitosamente");
+      alert(t('contracts.paymentReleasedSuccess', 'Payment released successfully'));
       loadPayments();
       loadContract();
     } catch (error: any) {
@@ -148,7 +150,7 @@ export default function ContractDetail() {
       }
     } catch (error) {
       console.error("Error opening chat:", error);
-      alert("Error al abrir el chat. Inténtalo de nuevo.");
+      alert(t('contracts.errorOpeningChat', 'Error opening chat. Please try again.'));
     } finally {
       setLoadingChat(false);
     }
@@ -162,11 +164,11 @@ export default function ContractDetail() {
     try {
       const response = await api.post(`/contracts/${id}/generate-pairing`);
       if (response.data.success) {
-        setPairingMessage("Código generado exitosamente");
+        setPairingMessage(t('contracts.pairingCodeGenerated', 'Code generated successfully'));
         loadContract(); // Reload to get the new code
       }
     } catch (error: any) {
-      setPairingMessage(error.response?.data?.message || "Error al generar código");
+      setPairingMessage(error.response?.data?.message || t('contracts.errorGeneratingCode', 'Error generating code'));
     } finally {
       setLoadingPairing(false);
     }
@@ -182,12 +184,12 @@ export default function ContractDetail() {
         code: pairingCode.toUpperCase()
       });
       if (response.data.success) {
-        setPairingMessage("¡Código confirmado exitosamente!");
+        setPairingMessage(t('contracts.pairingCodeConfirmed', 'Code confirmed successfully!'));
         setPairingCode("");
         loadContract();
       }
     } catch (error: any) {
-      setPairingMessage(error.response?.data?.message || "Error al confirmar código");
+      setPairingMessage(error.response?.data?.message || t('contracts.errorConfirmingCode', 'Error confirming code'));
     } finally {
       setLoadingPairing(false);
     }
@@ -196,7 +198,7 @@ export default function ContractDetail() {
   const handleCopyCode = () => {
     if (contract?.pairingCode) {
       navigator.clipboard.writeText(contract.pairingCode);
-      setPairingMessage("Código copiado al portapapeles");
+      setPairingMessage(t('contracts.codeCopied', 'Code copied to clipboard'));
       setTimeout(() => setPairingMessage(""), 3000);
     }
   };
@@ -215,11 +217,11 @@ export default function ContractDetail() {
 
   const handleProposeHours = async () => {
     if (!id || !proposedStart || !proposedEnd) {
-      alert("Debes indicar hora de inicio y fin");
+      alert(t('contracts.mustIndicateStartEnd', 'You must indicate start and end times'));
       return;
     }
     if (new Date(proposedEnd) <= new Date(proposedStart)) {
-      alert("La hora de fin debe ser posterior a la de inicio");
+      alert(t('contracts.endMustBeAfterStart', 'End time must be after start time'));
       return;
     }
 
@@ -236,7 +238,7 @@ export default function ContractDetail() {
         loadContract();
       }
     } catch (error: any) {
-      alert(error.response?.data?.message || "Error al confirmar");
+      alert(error.response?.data?.message || t('contracts.errorConfirming', 'Error confirming'));
     } finally {
       setConfirmingWork(false);
     }
@@ -244,7 +246,7 @@ export default function ContractDetail() {
 
   const handleConfirmCompletion = async () => {
     if (!id) return;
-    if (!confirm("¿Confirmas que las horas reportadas son correctas y el trabajo fue completado?")) return;
+    if (!confirm(t('contracts.confirmHoursCorrect', 'Do you confirm that the reported hours are correct and the work was completed?'))) return;
 
     setConfirmingWork(true);
     try {
@@ -258,7 +260,7 @@ export default function ContractDetail() {
         }
       }
     } catch (error: any) {
-      alert(error.response?.data?.message || "Error al confirmar finalización del trabajo");
+      alert(error.response?.data?.message || t('contracts.errorConfirmingCompletion', 'Error confirming work completion'));
     } finally {
       setConfirmingWork(false);
     }
@@ -266,7 +268,7 @@ export default function ContractDetail() {
 
   const handleRejectConfirmation = async () => {
     if (!id || !rejectionReason.trim()) {
-      alert("Debes proporcionar un motivo de rechazo");
+      alert(t('contracts.mustProvideRejectionReason', 'You must provide a rejection reason'));
       return;
     }
 
@@ -277,11 +279,11 @@ export default function ContractDetail() {
       });
       if (response.success) {
         setShowRejectModal(false);
-        alert("Confirmación rechazada. Se ha creado una disputa automáticamente.");
+        alert(t('contracts.confirmationRejectedDisputeCreated', 'Confirmation rejected. A dispute has been created automatically.'));
         loadContract();
       }
     } catch (error: any) {
-      alert(error.response?.data?.message || "Error al rechazar");
+      alert(error.response?.data?.message || t('contracts.errorRejecting', 'Error rejecting'));
     } finally {
       setConfirmingWork(false);
     }
@@ -372,16 +374,17 @@ export default function ContractDetail() {
   };
 
   const getPaymentStatusLabel = (status: string) => {
-    const labels: Record<string, string> = {
-      pending: "Pendiente",
-      held_escrow: "En Escrow",
-      escrow: "En Escrow",
-      pending_payout: "En proceso de pago",
-      released: "En proceso de pago", // Legacy
-      completed: "Completado",
-      refunded: "Reembolsado",
+    const labels: Record<string, { key: string; fallback: string }> = {
+      pending: { key: 'contracts.paymentStatus.pending', fallback: 'Pending' },
+      held_escrow: { key: 'contracts.paymentStatus.heldEscrow', fallback: 'In Escrow' },
+      escrow: { key: 'contracts.paymentStatus.escrow', fallback: 'In Escrow' },
+      pending_payout: { key: 'contracts.paymentStatus.pendingPayout', fallback: 'Payment in progress' },
+      released: { key: 'contracts.paymentStatus.released', fallback: 'Payment in progress' },
+      completed: { key: 'contracts.paymentStatus.completed', fallback: 'Completed' },
+      refunded: { key: 'contracts.paymentStatus.refunded', fallback: 'Refunded' },
     };
-    return labels[status] || status;
+    const entry = labels[status];
+    return entry ? t(entry.key, entry.fallback) : status;
   };
 
   if (loading) {
@@ -396,12 +399,12 @@ export default function ContractDetail() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900">Contrato no encontrado</h2>
+          <h2 className="text-2xl font-bold text-gray-900">{t('contracts.notFound', 'Contract not found')}</h2>
           <button
             onClick={() => navigate("/")}
             className="mt-4 text-sky-600 hover:text-sky-700"
           >
-            Volver al inicio
+            {t('common.backToHome', 'Back to home')}
           </button>
         </div>
       </div>
@@ -435,7 +438,7 @@ export default function ContractDetail() {
   return (
     <>
       <Helmet>
-        <title>Contrato - {contract.title || "Detalle"} - Do</title>
+        <title>{t('contracts.titlePage', 'Contract')} - {contract.title || t('contracts.detail', 'Detail')} - Do</title>
       </Helmet>
 
       <div className="min-h-screen bg-gray-50 dark:bg-slate-900 py-8">
@@ -446,7 +449,7 @@ export default function ContractDetail() {
             className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6 md:hidden"
           >
             <ArrowLeft className="h-5 w-5" />
-            Volver
+            {t('common.back', 'Back')}
           </button>
 
           {/* Header */}
@@ -454,7 +457,7 @@ export default function ContractDetail() {
             <div className="flex items-start justify-between">
               <div>
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                  {contract.job?.title || contract.jobId?.title || "Contrato"}
+                  {contract.job?.title || contract.jobId?.title || t('contracts.contract', 'Contract')}
                 </h1>
                 <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
                   <span
@@ -469,17 +472,17 @@ export default function ContractDetail() {
                       contract.paymentStatus
                     )}`}
                   >
-                    Pago: {getPaymentStatusLabel(contract.paymentStatus)}
+                    {t('contracts.payment', 'Payment')}: {getPaymentStatusLabel(contract.paymentStatus)}
                   </span>
                   {isConnected ? (
                     <span className="flex items-center gap-1 text-green-600">
                       <Wifi className="h-4 w-4" />
-                      <span className="text-xs">Tiempo real</span>
+                      <span className="text-xs">{t('contracts.realtime', 'Real-time')}</span>
                     </span>
                   ) : (
                     <span className="flex items-center gap-1 text-gray-400">
                       <WifiOff className="h-4 w-4" />
-                      <span className="text-xs">Offline</span>
+                      <span className="text-xs">{t('contracts.offline', 'Offline')}</span>
                     </span>
                   )}
                 </div>
@@ -488,28 +491,28 @@ export default function ContractDetail() {
                 <Link
                   to={`/jobs/${contract.job?.id || contract.job?._id || contract.jobId?.id || contract.jobId?._id || contract.jobId}`}
                   className="flex items-center gap-2 px-6 py-3 bg-sky-600 text-white rounded-lg hover:bg-sky-700 dark:bg-sky-700 dark:hover:bg-sky-600 transition font-semibold shadow-sm"
-                  title="Ver el trabajo asociado a este contrato"
+                  title={t('contracts.viewAssociatedJob', 'View the job associated with this contract')}
                 >
                   <Briefcase className="h-5 w-5" />
-                  Ver Trabajo
+                  {t('contracts.viewJob', 'View Job')}
                 </Link>
                 <button
                   onClick={handleOpenChat}
                   disabled={loadingChat}
                   className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-sky-600 text-sky-600 rounded-lg hover:bg-sky-50 transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Abre el chat para comunicarte con la otra parte del contrato"
+                  title={t('contracts.openChatTooltip', 'Open chat to communicate with the other party of the contract')}
                 >
                   <MessageCircle className="h-5 w-5" />
-                  {loadingChat ? "Cargando..." : "Chat"}
+                  {loadingChat ? t('common.loading', 'Loading...') : t('contracts.chat', 'Chat')}
                 </button>
                 {hasPermission(PERMISSIONS.DISPUTE_CREATE) && ['in_progress', 'completed', 'awaiting_confirmation'].includes(contract?.status || '') && (
                   <button
                     onClick={() => navigate(`/disputes/new?contractId=${id}`)}
                     className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-orange-600 text-orange-600 rounded-lg hover:bg-orange-50 transition font-semibold"
-                    title="Reporta problemas relacionados con este contrato (trabajo no entregado, calidad, etc.)"
+                    title={t('contracts.reportProblemTooltip', 'Report issues related to this contract (work not delivered, quality, etc.)')}
                   >
                     <Flag className="h-5 w-5" />
-                    Reportar Problema
+                    {t('contracts.reportProblem', 'Report Problem')}
                   </button>
                 )}
                 {canPayContract && (
@@ -517,7 +520,7 @@ export default function ContractDetail() {
                     onClick={() => setShowPaymentModal(true)}
                     className="px-6 py-3 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition font-semibold"
                   >
-                    Realizar Pago
+                    {t('contracts.makePayment', 'Make Payment')}
                   </button>
                 )}
               </div>
@@ -529,11 +532,11 @@ export default function ContractDetail() {
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 border-2 border-green-500">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <User className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-                ✅ Partes del Contrato
+                {t('contracts.contractParties', 'Contract Parties')}
               </h2>
               <div className="space-y-3">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Cliente</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{t('contracts.client', 'Client')}</p>
                   {contract.client?.id ? (
                     <Link
                       to={`/profile/${contract.client.id}`}
@@ -548,7 +551,7 @@ export default function ContractDetail() {
                   )}
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Proveedor</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{t('contracts.provider', 'Provider')}</p>
                   {contract.doer?.id ? (
                     <Link
                       to={`/profile/${contract.doer.id}`}
@@ -568,26 +571,26 @@ export default function ContractDetail() {
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 border-2 border-green-500">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <DollarSign className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-                ✅ Detalles de Pago
+                {t('contracts.paymentDetails', 'Payment Details')}
               </h2>
               <div className="space-y-3">
                 <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Precio:</span>
+                  <span className="text-gray-600 dark:text-gray-400">{t('contracts.price', 'Price')}:</span>
                   <span className="font-semibold text-gray-900 dark:text-white">${Number(contract.price || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-400">Comisión:</span>
+                  <span className="text-gray-600 dark:text-gray-400">{t('contracts.commission', 'Commission')}:</span>
                   <span className="font-semibold text-gray-900 dark:text-white">${Number(contract.commission || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
                 <div className="flex justify-between border-t dark:border-gray-700 pt-2">
-                  <span className="font-semibold text-gray-900 dark:text-white">Total:</span>
+                  <span className="font-semibold text-gray-900 dark:text-white">{t('contracts.total', 'Total')}:</span>
                   <span className="font-bold text-sky-600 dark:text-sky-400">
                     ${Number(contract.totalPrice || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
                 {contract.escrowEnabled && (
                   <div className="bg-blue-50 dark:bg-blue-900/30 rounded p-2 text-sm text-blue-800 dark:text-blue-300">
-                    ✓ Protegido con Escrow
+                    {t('contracts.protectedWithEscrow', 'Protected with Escrow')}
                   </div>
                 )}
               </div>
@@ -596,17 +599,17 @@ export default function ContractDetail() {
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 border-2 border-green-500">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <Calendar className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-                ✅ Fechas
+                {t('contracts.dates', 'Dates')}
               </h2>
               <div className="space-y-3">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Inicio:</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{t('contracts.startDate', 'Start')}:</p>
                   <p className="font-medium text-gray-900 dark:text-white">
                     {new Date(contract.startDate).toLocaleDateString()}
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Finalización:</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{t('contracts.endDate', 'End')}:</p>
                   <p className="font-medium text-gray-900 dark:text-white">
                     {new Date(contract.endDate).toLocaleDateString()}
                   </p>
@@ -617,13 +620,13 @@ export default function ContractDetail() {
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 border-2 border-green-500">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <Clock className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-                ✅ Estado del Contrato
+                {t('contracts.contractStatus', 'Contract Status')}
               </h2>
               <div className="space-y-4">
                 {/* Estado general del contrato */}
                 <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Estado:</span>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('contracts.statusLabel', 'Status')}:</span>
                     <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                       contract.status === 'completed' ? 'bg-green-100 text-green-800' :
                       contract.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
@@ -631,12 +634,12 @@ export default function ContractDetail() {
                       contract.status === 'cancelled' ? 'bg-red-100 text-red-800' :
                       'bg-gray-100 text-gray-800'
                     }`}>
-                      {contract.status === 'completed' ? 'COMPLETADO' :
-                       contract.status === 'in_progress' ? 'EN PROGRESO' :
-                       contract.status === 'awaiting_confirmation' ? 'ESPERANDO CONFIRMACIÓN' :
-                       contract.status === 'cancelled' ? 'CANCELADO' :
-                       contract.status === 'accepted' ? 'ACEPTADO' :
-                       contract.status === 'pending' ? 'PENDIENTE' :
+                      {contract.status === 'completed' ? t('contracts.statusCompleted', 'COMPLETED') :
+                       contract.status === 'in_progress' ? t('contracts.statusInProgress', 'IN PROGRESS') :
+                       contract.status === 'awaiting_confirmation' ? t('contracts.statusAwaitingConfirmation', 'AWAITING CONFIRMATION') :
+                       contract.status === 'cancelled' ? t('contracts.statusCancelled', 'CANCELLED') :
+                       contract.status === 'accepted' ? t('contracts.statusAccepted', 'ACCEPTED') :
+                       contract.status === 'pending' ? t('contracts.statusPending', 'PENDING') :
                        contract.status?.toUpperCase()}
                     </span>
                   </div>
@@ -644,7 +647,7 @@ export default function ContractDetail() {
 
                 {/* Aceptación de términos */}
                 <div className="border-t pt-3">
-                  <p className="text-xs text-gray-500 mb-2 font-medium">Aceptación de Términos</p>
+                  <p className="text-xs text-gray-500 mb-2 font-medium">{t('contracts.termsAcceptance', 'Terms Acceptance')}</p>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
                       {contract.termsAcceptedByClient ? (
@@ -652,7 +655,7 @@ export default function ContractDetail() {
                       ) : (
                         <AlertCircle className="h-5 w-5 text-yellow-600" />
                       )}
-                      <span className="text-sm">Cliente: {contract.termsAcceptedByClient ? 'Aceptados' : 'Pendiente'}</span>
+                      <span className="text-sm">{t('contracts.client', 'Client')}: {contract.termsAcceptedByClient ? t('contracts.accepted', 'Accepted') : t('contracts.pending', 'Pending')}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       {contract.termsAcceptedByDoer ? (
@@ -660,7 +663,7 @@ export default function ContractDetail() {
                       ) : (
                         <AlertCircle className="h-5 w-5 text-yellow-600" />
                       )}
-                      <span className="text-sm">Trabajador: {contract.termsAcceptedByDoer ? 'Aceptados' : 'Pendiente'}</span>
+                      <span className="text-sm">{t('contracts.worker', 'Worker')}: {contract.termsAcceptedByDoer ? t('contracts.accepted', 'Accepted') : t('contracts.pending', 'Pending')}</span>
                     </div>
                   </div>
                 </div>
@@ -668,14 +671,14 @@ export default function ContractDetail() {
                 {/* Verificación de Trabajo */}
                 {['in_progress', 'awaiting_confirmation', 'completed'].includes(contract.status) && (
                   <div className="border-t pt-3">
-                    <p className="text-xs text-gray-500 mb-2 font-medium">Verificación de Trabajo</p>
+                    <p className="text-xs text-gray-500 mb-2 font-medium">{t('contracts.workVerification', 'Work Verification')}</p>
 
                     {/* Siempre mostrar horario original */}
                     <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg p-3 mb-3">
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 font-medium">Horario original del contrato</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 font-medium">{t('contracts.originalSchedule', 'Original contract schedule')}</p>
                       <div className="flex gap-4 text-sm">
-                        <span>Inicio: {new Date(contract.startDate).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-                        <span>Fin: {new Date(contract.endDate).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                        <span>{t('contracts.start', 'Start')}: {new Date(contract.startDate).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                        <span>{t('contracts.end', 'End')}: {new Date(contract.endDate).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
                       </div>
                     </div>
 
@@ -683,14 +686,14 @@ export default function ContractDetail() {
                     {contract.proposedStartTime && (
                       <div className="bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg p-3 mb-3">
                         <p className="text-xs text-sky-600 dark:text-sky-400 mb-1 font-medium">
-                          Horas reportadas por {contract.confirmationProposedBy === contract.clientId ? (contract.client?.name || 'Cliente') : (contract.doer?.name || 'Trabajador')}
+                          {t('contracts.hoursReportedBy', 'Hours reported by')} {contract.confirmationProposedBy === contract.clientId ? (contract.client?.name || t('contracts.client', 'Client')) : (contract.doer?.name || t('contracts.worker', 'Worker'))}
                         </p>
                         <div className="flex gap-4 text-sm">
-                          <span>Inicio: {new Date(contract.proposedStartTime).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
-                          <span>Fin: {new Date(contract.proposedEndTime!).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                          <span>{t('contracts.start', 'Start')}: {new Date(contract.proposedStartTime).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                          <span>{t('contracts.end', 'End')}: {new Date(contract.proposedEndTime!).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                         {contract.confirmationNotes && (
-                          <p className="text-xs text-gray-500 mt-1">Notas: {contract.confirmationNotes}</p>
+                          <p className="text-xs text-gray-500 mt-1">{t('contracts.notes', 'Notes')}: {contract.confirmationNotes}</p>
                         )}
                       </div>
                     )}
@@ -700,7 +703,7 @@ export default function ContractDetail() {
                       <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
                         <p className="text-sm text-green-700 dark:text-green-300 font-medium flex items-center gap-2">
                           <CheckCircle className="h-4 w-4" />
-                          Ambas partes han confirmado. Contrato completado.
+                          {t('contracts.bothPartiesConfirmed', 'Both parties have confirmed. Contract completed.')}
                         </p>
                       </div>
                     )}
@@ -717,7 +720,7 @@ export default function ContractDetail() {
                           <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-3 mb-3">
                             <p className="text-sm text-amber-700 dark:text-amber-300 flex items-center gap-2">
                               <Clock className="h-4 w-4" />
-                              Podrás confirmar las horas después del {new Date(new Date(contract.startDate).getTime() + (new Date(contract.endDate).getTime() - new Date(contract.startDate).getTime()) * 0.3).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} (30% del tiempo)
+                              {t('contracts.canConfirmAfter', 'You can confirm hours after')} {new Date(new Date(contract.startDate).getTime() + (new Date(contract.endDate).getTime() - new Date(contract.startDate).getTime()) * 0.3).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} {t('contracts.thirtyPercentTime', '(30% of time)')}
                             </p>
                           </div>
                         )}
@@ -738,28 +741,28 @@ export default function ContractDetail() {
                             className="w-full bg-sky-600 hover:bg-sky-700 disabled:bg-gray-400 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2"
                           >
                             <Clock className="h-5 w-5" />
-                            Confirmar / Cambiar Horas Trabajadas
+                            {t('contracts.confirmChangeHours', 'Confirm / Change Hours Worked')}
                           </button>
                         ) : (
                           <div className="bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg p-4 space-y-3">
-                            <p className="text-sm font-medium">Indica las horas reales trabajadas</p>
+                            <p className="text-sm font-medium">{t('contracts.indicateActualHours', 'Indicate actual hours worked')}</p>
                             <div className="grid grid-cols-2 gap-3">
                               <div>
-                                <label className="block text-xs text-gray-500 mb-1">Inicio real</label>
+                                <label className="block text-xs text-gray-500 mb-1">{t('contracts.actualStart', 'Actual start')}</label>
                                 <input type="datetime-local" value={proposedStart} onChange={(e) => setProposedStart(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-sm" />
                               </div>
                               <div>
-                                <label className="block text-xs text-gray-500 mb-1">Fin real</label>
+                                <label className="block text-xs text-gray-500 mb-1">{t('contracts.actualEnd', 'Actual end')}</label>
                                 <input type="datetime-local" value={proposedEnd} onChange={(e) => setProposedEnd(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-sm" />
                               </div>
                             </div>
-                            <textarea placeholder="Notas adicionales (opcional)" value={confirmationNotes} onChange={(e) => setConfirmationNotes(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-sm resize-none" rows={2} />
+                            <textarea placeholder={t('contracts.additionalNotesOptional', 'Additional notes (optional)')} value={confirmationNotes} onChange={(e) => setConfirmationNotes(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-800 text-sm resize-none" rows={2} />
                             <div className="flex gap-2">
                               <button onClick={handleProposeHours} disabled={confirmingWork} className="flex-1 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2">
                                 {confirmingWork ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                                Confirmar Horas
+                                {t('contracts.confirmHours', 'Confirm Hours')}
                               </button>
-                              <button onClick={() => setShowHoursForm(false)} className="px-4 py-2.5 bg-slate-200 dark:bg-slate-600 rounded-lg text-sm">Cancelar</button>
+                              <button onClick={() => setShowHoursForm(false)} className="px-4 py-2.5 bg-slate-200 dark:bg-slate-600 rounded-lg text-sm">{t('common.cancel', 'Cancel')}</button>
                             </div>
                           </div>
                         )}
@@ -773,7 +776,7 @@ export default function ContractDetail() {
                         {contract.confirmationProposedBy === user?.id && (
                           <div className="bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg p-3">
                             <p className="text-sm text-sky-700 dark:text-sky-300 text-center">
-                              Has confirmado tus horas. Esperando que la otra parte revise y confirme. (Auto-confirmación en 5 horas)
+                              {t('contracts.waitingOtherPartyConfirm', 'You have confirmed your hours. Waiting for the other party to review and confirm. (Auto-confirmation in 5 hours)')}
                             </p>
                           </div>
                         )}
@@ -783,11 +786,11 @@ export default function ContractDetail() {
                           <div className="space-y-2">
                             <button onClick={handleConfirmCompletion} disabled={confirmingWork} className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
                               {confirmingWork ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <CheckCircle className="h-5 w-5" />}
-                              Confirmar y Liberar Pago
+                              {t('contracts.confirmAndRelease', 'Confirm and Release Payment')}
                             </button>
                             <button onClick={() => setShowRejectModal(true)} disabled={confirmingWork} className="w-full bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-semibold py-3 rounded-lg transition-colors flex items-center justify-center gap-2">
                               <AlertCircle className="h-5 w-5" />
-                              Rechazar y Abrir Disputa
+                              {t('contracts.rejectAndOpenDispute', 'Reject and Open Dispute')}
                             </button>
                           </div>
                         )}
@@ -798,14 +801,14 @@ export default function ContractDetail() {
                     {showRejectModal && (
                       <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
                         <div className="bg-white dark:bg-slate-800 rounded-xl max-w-md w-full p-6 space-y-4">
-                          <h3 className="text-lg font-semibold">Rechazar Confirmación</h3>
-                          <p className="text-sm text-gray-500">Al rechazar, se creará una disputa automáticamente para que un administrador resuelva.</p>
-                          <textarea placeholder="Motivo del rechazo (requerido)" value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 text-sm resize-none" rows={3} />
+                          <h3 className="text-lg font-semibold">{t('contracts.rejectConfirmation', 'Reject Confirmation')}</h3>
+                          <p className="text-sm text-gray-500">{t('contracts.rejectConfirmationDesc', 'By rejecting, a dispute will be automatically created for an administrator to resolve.')}</p>
+                          <textarea placeholder={t('contracts.rejectionReasonRequired', 'Rejection reason (required)')} value={rejectionReason} onChange={(e) => setRejectionReason(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 dark:bg-slate-700 text-sm resize-none" rows={3} />
                           <div className="flex gap-2">
                             <button onClick={handleRejectConfirmation} disabled={confirmingWork || !rejectionReason.trim()} className="flex-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white font-semibold py-2.5 rounded-lg">
-                              {confirmingWork ? 'Procesando...' : 'Rechazar y Crear Disputa'}
+                              {confirmingWork ? t('common.processing', 'Processing...') : t('contracts.rejectAndCreateDispute', 'Reject and Create Dispute')}
                             </button>
-                            <button onClick={() => setShowRejectModal(false)} className="px-4 py-2.5 bg-slate-200 dark:bg-slate-600 rounded-lg text-sm">Cancelar</button>
+                            <button onClick={() => setShowRejectModal(false)} className="px-4 py-2.5 bg-slate-200 dark:bg-slate-600 rounded-lg text-sm">{t('common.cancel', 'Cancel')}</button>
                           </div>
                         </div>
                       </div>
@@ -821,7 +824,7 @@ export default function ContractDetail() {
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 mb-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <Users className="h-5 w-5 text-sky-600" />
-                Trabajadores del Proyecto ({allContracts.length})
+                {t('contracts.projectWorkers', 'Project Workers')} ({allContracts.length})
               </h2>
               <div className="space-y-3">
                 {allContracts.map((c, index) => (
@@ -850,7 +853,7 @@ export default function ContractDetail() {
                         )}
                         <div>
                           <p className="font-medium text-gray-900 dark:text-white">
-                            {c.doerName || 'Trabajador'}
+                            {c.doerName || t('contracts.worker', 'Worker')}
                           </p>
                           <span className={`text-xs px-2 py-0.5 rounded-full ${
                             c.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
@@ -859,11 +862,11 @@ export default function ContractDetail() {
                             c.status === 'cancelled' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
                             'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
                           }`}>
-                            {c.status === 'completed' ? 'Completado' :
-                             c.status === 'in_progress' ? 'En progreso' :
-                             c.status === 'awaiting_confirmation' ? 'Esperando confirmación' :
-                             c.status === 'cancelled' ? 'Cancelado' :
-                             c.status === 'accepted' ? 'Aceptado' :
+                            {c.status === 'completed' ? t('common.status.completed', 'Completed') :
+                             c.status === 'in_progress' ? t('common.status.inProgress', 'In progress') :
+                             c.status === 'awaiting_confirmation' ? t('common.status.awaitingConfirmation', 'Awaiting confirmation') :
+                             c.status === 'cancelled' ? t('common.status.cancelled', 'Cancelled') :
+                             c.status === 'accepted' ? t('common.status.accepted', 'Accepted') :
                              c.status}
                           </span>
                         </div>
@@ -876,7 +879,7 @@ export default function ContractDetail() {
                             ) : (
                               <AlertCircle className="h-4 w-4 text-yellow-500" />
                             )}
-                            <span className="text-gray-600 dark:text-gray-400">Trabajador</span>
+                            <span className="text-gray-600 dark:text-gray-400">{t('contracts.worker', 'Worker')}</span>
                           </div>
                           <div className="flex items-center gap-1 text-sm mt-1">
                             {c.clientConfirmed ? (
@@ -884,7 +887,7 @@ export default function ContractDetail() {
                             ) : (
                               <AlertCircle className="h-4 w-4 text-yellow-500" />
                             )}
-                            <span className="text-gray-600 dark:text-gray-400">Cliente (tú)</span>
+                            <span className="text-gray-600 dark:text-gray-400">{t('contracts.clientYou', 'Client (you)')}</span>
                           </div>
                         </div>
                         {c.id !== id && (
@@ -892,7 +895,7 @@ export default function ContractDetail() {
                             onClick={() => navigate(`/contracts/${c.id}`)}
                             className="text-sky-600 hover:text-sky-700 text-sm font-medium"
                           >
-                            Ver →
+                            {t('common.view', 'View')} →
                           </button>
                         )}
                       </div>
@@ -904,7 +907,7 @@ export default function ContractDetail() {
               <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600 dark:text-gray-400">
-                    Confirmados por trabajadores:
+                    {t('contracts.confirmedByWorkers', 'Confirmed by workers')}:
                   </span>
                   <span className="font-medium text-gray-900 dark:text-white">
                     {allContracts.filter(c => c.doerConfirmed).length} / {allContracts.length}
@@ -912,7 +915,7 @@ export default function ContractDetail() {
                 </div>
                 <div className="flex justify-between text-sm mt-1">
                   <span className="text-gray-600 dark:text-gray-400">
-                    Confirmados por ti (cliente):
+                    {t('contracts.confirmedByYouClient', 'Confirmed by you (client)')}:
                   </span>
                   <span className="font-medium text-gray-900 dark:text-white">
                     {allContracts.filter(c => c.clientConfirmed).length} / {allContracts.length}
@@ -921,11 +924,60 @@ export default function ContractDetail() {
                 {allContracts.every(c => c.clientConfirmed && c.doerConfirmed) && (
                   <div className="mt-3 bg-green-100 dark:bg-green-900/30 rounded-lg p-3 text-center">
                     <p className="text-green-700 dark:text-green-300 font-medium">
-                      ✓ Todos los contratos han sido completados
+                      {t('contracts.allContractsCompleted', 'All contracts have been completed')}
                     </p>
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Admin Details Panel */}
+          {user?.adminRole && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800 p-4 mb-6">
+              <details>
+                <summary className="cursor-pointer text-sm font-bold text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                  Admin Details
+                </summary>
+                <div className="mt-3 space-y-3 text-xs">
+                  <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-amber-200 dark:border-amber-800">
+                    <p className="font-semibold text-amber-800 dark:text-amber-300 mb-2">Contract</p>
+                    <div className="grid grid-cols-2 gap-1 text-slate-600 dark:text-slate-400">
+                      <span>ID:</span><span className="font-mono text-[10px]">{contract.id || (contract as any)._id}</span>
+                      <span>Status:</span><span className="font-semibold">{contract.status}</span>
+                      <span>Payment Status:</span><span>{contract.paymentStatus || '-'}</span>
+                      <span>Escrow:</span><span>{contract.escrowStatus || '-'}</span>
+                      <span>Price:</span><span>${Number(contract.price).toLocaleString('es-AR')}</span>
+                      <span>Commission:</span><span>{contract.commission || '-'}</span>
+                      <span>Pairing Code:</span><span className="font-mono">{contract.pairingCode || '-'}</span>
+                      <span>Client Confirmed:</span><span>{contract.clientConfirmed ? 'Yes' : 'No'}</span>
+                      <span>Worker Confirmed:</span><span>{contract.doerConfirmed ? 'Yes' : 'No'}</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-amber-200 dark:border-amber-800">
+                    <p className="font-semibold text-amber-800 dark:text-amber-300 mb-2">Client: {contract.client?.name}</p>
+                    <div className="grid grid-cols-2 gap-1 text-slate-600 dark:text-slate-400">
+                      <span>ID:</span><span className="font-mono text-[10px]">{contract.client?.id || contract.client?._id}</span>
+                      <span>Email:</span><span>{(contract.client as any)?.email || '-'}</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-amber-200 dark:border-amber-800">
+                    <p className="font-semibold text-amber-800 dark:text-amber-300 mb-2">Worker: {contract.doer?.name}</p>
+                    <div className="grid grid-cols-2 gap-1 text-slate-600 dark:text-slate-400">
+                      <span>ID:</span><span className="font-mono text-[10px]">{contract.doer?.id || contract.doer?._id}</span>
+                      <span>Email:</span><span>{(contract.doer as any)?.email || '-'}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <a href={`/admin/contracts`} className="flex-1 text-center py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-medium transition-colors">Admin Contracts</a>
+                    <a href={`/admin/users`} className="flex-1 text-center py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-medium transition-colors">Admin Users</a>
+                  </div>
+                </div>
+              </details>
             </div>
           )}
 
@@ -938,10 +990,10 @@ export default function ContractDetail() {
                 </div>
                 <div>
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                    Código de Pareamiento
+                    {t('contracts.pairingCode', 'Pairing Code')}
                   </h2>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Ambas partes deben confirmar el código para iniciar el contrato
+                    {t('contracts.pairingCodeDesc', 'Both parties must confirm the code to start the contract')}
                   </p>
                 </div>
               </div>
@@ -959,14 +1011,14 @@ export default function ContractDetail() {
               {!contract.pairingCode && canGeneratePairingCode() && (
                 <div className="bg-white dark:bg-gray-800 rounded-lg p-4 mb-4">
                   <p className="text-gray-700 dark:text-gray-300 mb-3">
-                    El contrato comienza en menos de 24 horas. Genera el código de pareamiento para confirmar el inicio.
+                    {t('contracts.contractStartsIn24h', 'The contract starts in less than 24 hours. Generate the pairing code to confirm the start.')}
                   </p>
                   <button
                     onClick={handleGeneratePairingCode}
                     disabled={loadingPairing}
                     className="px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {loadingPairing ? "Generando..." : "Generar Código"}
+                    {loadingPairing ? t('contracts.generating', 'Generating...') : t('contracts.generateCode', 'Generate Code')}
                   </button>
                 </div>
               )}
@@ -976,7 +1028,7 @@ export default function ContractDetail() {
                   {/* Display Code */}
                   <div className="bg-white dark:bg-gray-800 rounded-lg p-6 mb-4">
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
-                      Código de Pareamiento:
+                      {t('contracts.pairingCode', 'Pairing Code')}:
                     </p>
                     <div className="flex items-center gap-3">
                       <div className="flex-1 bg-gray-100 dark:bg-gray-700 p-4 rounded-lg">
@@ -987,16 +1039,22 @@ export default function ContractDetail() {
                       <button
                         onClick={handleCopyCode}
                         className="p-3 bg-sky-100 dark:bg-sky-900/30 hover:bg-sky-200 dark:hover:bg-sky-900/50 rounded-lg transition"
-                        title="Copiar código"
+                        title={t('contracts.copyCode', 'Copy code')}
                       >
                         <Copy className="h-5 w-5 text-sky-600 dark:text-sky-400" />
                       </button>
                     </div>
                     {contract.pairingExpiry && (
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">
-                        Expira: {new Date(contract.pairingExpiry).toLocaleString()}
+                        {t('contracts.expires', 'Expires')}: {new Date(contract.pairingExpiry).toLocaleString()}
                       </p>
                     )}
+                    <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                      <p className="text-xs text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                        <span className="text-base">📝</span>
+                        <strong>{t('jobs.detail.tip', 'Tip')}:</strong> {t('contracts.pairing.tipWriteDown')}
+                      </p>
+                    </div>
                   </div>
 
                   {/* Confirmation Status */}
@@ -1014,10 +1072,10 @@ export default function ContractDetail() {
                         )}
                         <div>
                           <p className="font-semibold text-gray-900 dark:text-white">
-                            {contract.client?.name || "Cliente"}
+                            {contract.client?.name || t('contracts.client', 'Client')}
                           </p>
                           <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {contract.clientConfirmedPairing ? "✓ Confirmado" : "Pendiente"}
+                            {contract.clientConfirmedPairing ? t('contracts.confirmed', 'Confirmed') : t('contracts.pending', 'Pending')}
                           </p>
                           {contract.clientPairingConfirmedAt && (
                             <p className="text-xs text-gray-500 mt-1">
@@ -1041,10 +1099,10 @@ export default function ContractDetail() {
                         )}
                         <div>
                           <p className="font-semibold text-gray-900 dark:text-white">
-                            {contract.doer?.name || "Proveedor"}
+                            {contract.doer?.name || t('contracts.provider', 'Provider')}
                           </p>
                           <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {contract.doerConfirmedPairing ? "✓ Confirmado" : "Pendiente"}
+                            {contract.doerConfirmedPairing ? t('contracts.confirmed', 'Confirmed') : t('contracts.pending', 'Pending')}
                           </p>
                           {contract.doerPairingConfirmedAt && (
                             <p className="text-xs text-gray-500 mt-1">
@@ -1060,23 +1118,23 @@ export default function ContractDetail() {
                   {((isClient && !contract.clientConfirmedPairing) || (isDoer && !contract.doerConfirmedPairing)) && (
                     <div className="bg-white dark:bg-gray-800 rounded-lg p-4">
                       <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                        Ingresa el código para confirmar:
+                        {t('contracts.enterCodeToConfirm', 'Enter the code to confirm')}:
                       </p>
                       <div className="flex gap-3">
                         <input
                           type="text"
                           value={pairingCode}
                           onChange={(e) => setPairingCode(e.target.value.toUpperCase())}
-                          placeholder="Ingresa el código"
-                          maxLength={10}
+                          placeholder={t('contracts.enterCode', 'Enter the code')}
+                          maxLength={4}
                           className="flex-1 px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-gray-900 dark:text-white font-mono text-lg"
                         />
                         <button
                           onClick={handleConfirmPairing}
-                          disabled={loadingPairing || !pairingCode || pairingCode.length !== 10}
+                          disabled={loadingPairing || !pairingCode || pairingCode.length !== 4}
                           className="px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                         >
-                          {loadingPairing ? "Confirmando..." : "Confirmar"}
+                          {loadingPairing ? t('contracts.confirming', 'Confirming...') : t('common.confirm', 'Confirm')}
                         </button>
                       </div>
                     </div>
@@ -1089,10 +1147,10 @@ export default function ContractDetail() {
                         <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400 flex-shrink-0" />
                         <div>
                           <p className="font-semibold text-green-800 dark:text-green-200">
-                            ¡Ambas partes han confirmado!
+                            {t('contracts.bothPartiesConfirmedPairing', 'Both parties have confirmed!')}
                           </p>
                           <p className="text-sm text-green-700 dark:text-green-300">
-                            El contrato ha iniciado. Pueden comenzar a trabajar.
+                            {t('contracts.contractStartedCanWork', 'The contract has started. You can begin working.')}
                           </p>
                         </div>
                       </div>
@@ -1125,10 +1183,10 @@ export default function ContractDetail() {
                   <button
                     onClick={() => setShowExtensionForm(true)}
                     className="w-full bg-blue-50 dark:bg-blue-900/20 border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-lg p-4 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors flex items-center justify-center gap-2"
-                    title="Solicita más tiempo para completar el contrato (máximo 1 extensión permitida)"
+                    title={t('contracts.requestExtensionTooltip', 'Request more time to complete the contract (maximum 1 extension allowed)')}
                   >
                     <Clock className="h-5 w-5" />
-                    Solicitar Extensión de Contrato
+                    {t('contracts.requestExtension', 'Request Contract Extension')}
                   </button>
                 </div>
               )}
@@ -1154,18 +1212,18 @@ export default function ContractDetail() {
                     <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
                     <div className="flex-1">
                       <h3 className="font-semibold text-green-900 dark:text-green-100 mb-1">
-                        Contrato Extendido
+                        {t('contracts.contractExtended', 'Contract Extended')}
                       </h3>
                       <p className="text-sm text-green-700 dark:text-green-300">
-                        Se extendió {contract.extensionDays} días
+                        {t('contracts.extendedByDays', 'Extended by')} {contract.extensionDays} {t('contracts.days', 'days')}
                         {contract.extensionAmount && contract.extensionAmount > 0 && (
-                          <> con un monto adicional de ${contract.extensionAmount.toLocaleString('es-AR')} ARS</>
+                          <> {t('contracts.withAdditionalAmount', 'with an additional amount of')} ${contract.extensionAmount.toLocaleString('es-AR')} ARS</>
                         )}
                       </p>
                       {contract.originalEndDate && (
                         <p className="text-xs text-green-600 dark:text-green-400 mt-1">
-                          Fecha original: {new Date(contract.originalEndDate).toLocaleDateString('es-AR')} →
-                          Nueva fecha: {new Date(contract.endDate).toLocaleDateString('es-AR')}
+                          {t('contracts.originalDate', 'Original date')}: {new Date(contract.originalEndDate).toLocaleDateString('es-AR')} →
+                          {t('contracts.newDate', 'New date')}: {new Date(contract.endDate).toLocaleDateString('es-AR')}
                         </p>
                       )}
                     </div>
@@ -1196,10 +1254,10 @@ export default function ContractDetail() {
                 className="w-full bg-amber-50 dark:bg-amber-900/20 border-2 border-dashed border-amber-300 dark:border-amber-700 rounded-lg p-4 text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors flex items-center justify-center gap-2"
               >
                 <ClipboardList className="h-5 w-5" />
-                Reclamar Tareas Incompletas
+                {t('contracts.claimIncompleteTasks', 'Claim Incomplete Tasks')}
               </button>
               <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
-                Si alguna tarea no fue completada, puedes reclamarla antes de confirmar
+                {t('contracts.claimIncompleteTasksDesc', 'If any task was not completed, you can claim it before confirming')}
               </p>
             </div>
           )}
@@ -1211,15 +1269,15 @@ export default function ContractDetail() {
                 <ClipboardList className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <h3 className="font-semibold text-amber-900 dark:text-amber-100 mb-1">
-                    Reclamo Pendiente
+                    {t('contracts.pendingClaim', 'Pending Claim')}
                   </h3>
                   <p className="text-sm text-amber-700 dark:text-amber-300">
-                    Has reclamado {contract.claimedTaskIds?.length || 0} tarea{(contract.claimedTaskIds?.length || 0) > 1 ? 's' : ''}.
-                    Esperando respuesta del trabajador.
+                    {t('contracts.claimedTasks', 'You have claimed')} {contract.claimedTaskIds?.length || 0} {t('contracts.tasks', 'task(s)')}.
+                    {t('contracts.waitingWorkerResponse', 'Waiting for worker response.')}
                   </p>
                   {contract.taskClaimNewEndDate && (
                     <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                      Nueva fecha propuesta: {new Date(contract.taskClaimNewEndDate).toLocaleDateString('es-AR')}
+                      {t('contracts.proposedNewDate', 'Proposed new date')}: {new Date(contract.taskClaimNewEndDate).toLocaleDateString('es-AR')}
                     </p>
                   )}
                 </div>
@@ -1235,10 +1293,10 @@ export default function ContractDetail() {
                 className="w-full bg-sky-50 dark:bg-sky-900/20 border-2 border-dashed border-sky-300 dark:border-sky-700 rounded-lg p-4 text-sky-600 dark:text-sky-400 hover:bg-sky-100 dark:hover:bg-sky-900/30 transition-colors flex items-center justify-center gap-2"
               >
                 <Camera className="h-5 w-5" />
-                Subir Fotos de Evidencia
+                {t('contracts.uploadEvidencePhotos', 'Upload Evidence Photos')}
               </button>
               <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
-                Documenta el trabajo realizado para proteger tu trabajo en caso de disputas
+                {t('contracts.uploadEvidenceDesc', 'Document the work done to protect yourself in case of disputes')}
               </p>
             </div>
           )}
@@ -1247,7 +1305,7 @@ export default function ContractDetail() {
           {payments.length > 0 && (
             <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Historial de Pagos
+                {t('contracts.paymentHistory', 'Payment History')}
               </h2>
               <div className="space-y-3">
                 {payments.map((payment, index) => (
@@ -1282,7 +1340,7 @@ export default function ContractDetail() {
                               onClick={() => handleReleaseEscrow(payment._id)}
                               className="mt-2 text-sm text-sky-600 hover:text-sky-700 font-medium"
                             >
-                              Liberar Pago
+                              {t('contracts.releasePayment', 'Release Payment')}
                             </button>
                           )}
                       </div>
@@ -1301,9 +1359,9 @@ export default function ContractDetail() {
           isOpen={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}
           contractId={contract.id || contract._id}
-          contractTitle={contract.job?.title || contract.jobId?.title || "Contrato"}
+          contractTitle={contract.job?.title || contract.jobId?.title || t('contracts.contract', 'Contract')}
           amount={contract.price}
-          recipientName={contract.doer?.name || "Proveedor"}
+          recipientName={contract.doer?.name || t('contracts.provider', 'Provider')}
           escrowEnabled={contract.escrowEnabled}
           onSuccess={() => {
             loadPayments();

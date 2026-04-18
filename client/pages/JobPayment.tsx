@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/components/ui/Toast";
@@ -123,11 +124,11 @@ export default function JobPayment() {
       if (response.ok && data.success) {
         setJob(data.job);
       } else {
-        setError(data.message || "No se pudo cargar el trabajo");
+        setError(data.message || t('jobs.errorLoading', 'Could not load the job'));
       }
     } catch (error) {
       console.error("Error loading job:", error);
-      setError("Error al cargar el trabajo");
+      setError(t('jobs.errorLoading', 'Error loading job'));
     } finally {
       setLoading(false);
     }
@@ -262,7 +263,7 @@ export default function JobPayment() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Error al crear la orden de pago");
+        throw new Error(data.message || t('payments.errorCreatingOrder', 'Error creating payment order'));
       }
 
       // Check if payment was not required (free contract)
@@ -303,7 +304,7 @@ export default function JobPayment() {
         const proofData = await proofResponse.json();
 
         if (!proofResponse.ok) {
-          throw new Error(proofData.message || "Error al subir comprobante");
+          throw new Error(proofData.message || t('payments.errorUploadingProof', 'Error uploading proof'));
         }
 
         const verificationTime = paymentMethod === 'binance' ? '5-15 minutos' : '24-48hs hábiles';
@@ -325,12 +326,12 @@ export default function JobPayment() {
       if (data.approvalUrl) {
         window.location.href = data.approvalUrl;
       } else {
-        throw new Error("No se recibió URL de pago");
+        throw new Error(t('payments.noPaymentUrl', 'No payment URL received'));
       }
     } catch (err: any) {
       console.error("Payment error:", err);
-      toast.error('Error de pago', err.message || "Error al procesar el pago");
-      setError(err.message || "Error al procesar el pago");
+      toast.error(t('payments.paymentError', 'Payment error'), err.message || t('payments.errorProcessing', 'Error processing payment'));
+      setError(err.message || t('payments.errorProcessing', 'Error processing payment'));
       setProcessing(false);
     }
   };
@@ -715,7 +716,7 @@ export default function JobPayment() {
                             <div className="mt-3">
                               <img
                                 src={proofPreview}
-                                alt="Vista previa"
+                                alt={t('common.preview', 'Preview')}
                                 className="max-h-40 rounded border border-gray-300 dark:border-gray-600"
                               />
                             </div>
@@ -843,7 +844,7 @@ export default function JobPayment() {
                             <div className="mt-3">
                               <img
                                 src={proofPreview}
-                                alt="Vista previa"
+                                alt={t('common.preview', 'Preview')}
                                 className="max-h-40 rounded border border-gray-300 dark:border-gray-600"
                               />
                             </div>
@@ -874,7 +875,7 @@ export default function JobPayment() {
               {processing ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  {isFreeContract ? "Publicando..." : "Procesando..."}
+                  {isFreeContract ? t('jobs.publishing', 'Publishing...') : t('common.processing', 'Processing...')}
                 </>
               ) : isFreeContract ? (
                 <>
@@ -893,7 +894,7 @@ export default function JobPayment() {
               disabled={processing}
               className="w-full mt-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-6 rounded-lg transition-colors disabled:opacity-50"
             >
-              {isBudgetIncrease ? "Cancelar Cambio" : "Cancelar"}
+              {isBudgetIncrease ? t('payments.cancelChange', 'Cancel Change') : t('common.cancel', 'Cancel')}
             </button>
           </div>
         </div>

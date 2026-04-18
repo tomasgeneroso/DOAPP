@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import {
   ArrowLeft,
@@ -49,6 +50,7 @@ interface Contract {
 export default function ContractSummary() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { user, token } = useAuth();
   const [contract, setContract] = useState<Contract | null>(null);
   const [loading, setLoading] = useState(true);
@@ -73,11 +75,11 @@ export default function ContractSummary() {
       if (data.success) {
         setContract(data.contract);
       } else {
-        setError(data.message || "No se pudo cargar el contrato");
+        setError(data.message || t('contracts.summary.loadError', 'Could not load the contract'));
       }
     } catch (error) {
       console.error("Error loading contract:", error);
-      setError("Error al cargar el contrato");
+      setError(t('contracts.summary.loadError', 'Error loading the contract'));
     } finally {
       setLoading(false);
     }
@@ -105,11 +107,11 @@ export default function ContractSummary() {
         // Redirect to MercadoPago
         window.location.href = data.paymentUrl;
       } else {
-        setError(data.message || "Error al procesar el pago");
+        setError(data.message || t('contracts.summary.paymentError', 'Error processing payment'));
       }
     } catch (error: any) {
       console.error("Error processing payment:", error);
-      setError(error.message || "Error al procesar el pago");
+      setError(error.message || t('contracts.summary.paymentError', 'Error processing payment'));
     } finally {
       setProcessingPayment(false);
     }
@@ -129,13 +131,13 @@ export default function ContractSummary() {
         <div className="text-center">
           <AlertCircle className="h-16 w-16 text-red-500 mx-auto mb-4" />
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-            {error || "Contrato no encontrado"}
+            {error || t('contracts.summary.notFound', 'Contract not found')}
           </h2>
           <button
             onClick={() => navigate("/contracts")}
             className="mt-4 text-sky-600 hover:text-sky-700 dark:text-sky-400"
           >
-            Volver a Contratos
+            {t('contracts.backToContracts', 'Back to Contracts')}
           </button>
         </div>
       </div>
@@ -150,7 +152,7 @@ export default function ContractSummary() {
   return (
     <>
       <Helmet>
-        <title>Resumen del Contrato - Do</title>
+        <title>{t('contracts.summary.title', 'Contract Summary')} - Do</title>
       </Helmet>
 
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 py-8">
@@ -162,13 +164,13 @@ export default function ContractSummary() {
               className="flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white mb-4"
             >
               <ArrowLeft className="h-4 w-4" />
-              Volver a contratos
+              {t('contracts.backToContracts', 'Back to contracts')}
             </button>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-              Resumen del Contrato
+              {t('contracts.summary.title', 'Contract Summary')}
             </h1>
             <p className="mt-2 text-slate-600 dark:text-slate-400">
-              Revisa los detalles y procede al pago con escrow
+              {t('contracts.summary.subtitle', 'Review the details and proceed to escrow payment')}
             </p>
           </div>
 
@@ -180,10 +182,10 @@ export default function ContractSummary() {
               </div>
               <div className="flex-1">
                 <h3 className="text-sm font-semibold text-green-900 dark:text-green-100">
-                  ¡Contrato creado exitosamente!
+                  {t('contracts.summary.createdSuccess', 'Contract created successfully!')}
                 </h3>
                 <p className="mt-1 text-sm text-green-700 dark:text-green-300">
-                  El contrato ha sido creado. Ahora debes realizar el pago para activar el servicio de escrow.
+                  {t('contracts.summary.createdDesc', 'The contract has been created. You must now make the payment to activate the escrow service.')}
                 </p>
               </div>
             </div>
@@ -195,7 +197,7 @@ export default function ContractSummary() {
             <div className="p-6 border-b border-slate-200 dark:border-slate-700">
               <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 mb-2">
                 <FileText className="h-4 w-4" />
-                Trabajo
+                {t('contracts.summary.job', 'Job')}
               </div>
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
                 {contract.job.title}
@@ -208,7 +210,7 @@ export default function ContractSummary() {
               <div>
                 <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 mb-3">
                   <User className="h-4 w-4" />
-                  Cliente
+                  {t('contracts.client', 'Client')}
                 </div>
                 <div className="flex items-center gap-3">
                   {contract.client.avatar ? (
@@ -237,7 +239,7 @@ export default function ContractSummary() {
               <div>
                 <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 mb-3">
                   <User className="h-4 w-4" />
-                  Freelancer
+                  {t('contracts.freelancer', 'Freelancer')}
                 </div>
                 <div className="flex items-center gap-3">
                   {contract.doer.avatar ? (
@@ -268,7 +270,7 @@ export default function ContractSummary() {
               <div>
                 <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 mb-2">
                   <Calendar className="h-4 w-4" />
-                  Fecha de inicio
+                  {t('contracts.startDate', 'Start date')}
                 </div>
                 <p className="font-semibold text-slate-900 dark:text-white">
                   {new Date(contract.startDate).toLocaleDateString("es-AR", {
@@ -284,7 +286,7 @@ export default function ContractSummary() {
               <div>
                 <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 mb-2">
                   <Clock className="h-4 w-4" />
-                  Fecha de finalización
+                  {t('contracts.endDate', 'End date')}
                 </div>
                 <p className="font-semibold text-slate-900 dark:text-white">
                   {new Date(contract.endDate).toLocaleDateString("es-AR", {
@@ -302,7 +304,7 @@ export default function ContractSummary() {
             <div className="p-6 bg-slate-50 dark:bg-slate-900/50">
               <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-400 mb-4">
                 <DollarSign className="h-4 w-4" />
-                Desglose de costos
+                {t('contracts.summary.costBreakdown', 'Cost breakdown')}
               </div>
 
               {/* Warning for contracts below minimum */}
@@ -311,9 +313,9 @@ export default function ContractSummary() {
                   <div className="flex items-start gap-2">
                     <AlertCircle className="h-5 w-5 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5" />
                     <div className="text-sm text-orange-800 dark:text-orange-300">
-                      <p className="font-semibold mb-1">Mínimo de contrato</p>
+                      <p className="font-semibold mb-1">{t('contracts.summary.minimumContract', 'Minimum contract')}</p>
                       <p>
-                        El precio del servicio es menor a $8,000 ARS. Se aplica una comisión mínima de $1,000 ARS.
+                        {t('contracts.summary.minimumContractDesc', 'The service price is below $8,000 ARS. A minimum commission of $1,000 ARS applies.')}
                       </p>
                     </div>
                   </div>
@@ -324,7 +326,7 @@ export default function ContractSummary() {
                 {/* Service Price */}
                 <div className="flex justify-between items-center">
                   <span className="text-slate-700 dark:text-slate-300">
-                    Precio del servicio
+                    {t('contracts.summary.servicePrice', 'Service price')}
                   </span>
                   <span className="font-semibold text-slate-900 dark:text-white">
                     ${contract.price.toLocaleString("es-AR", { minimumFractionDigits: 2 })} ARS
@@ -335,16 +337,16 @@ export default function ContractSummary() {
                 <div className="flex justify-between items-center">
                   <div className="flex flex-col">
                     <span className="text-slate-700 dark:text-slate-300">
-                      Comisión de plataforma ({contract.commissionPercentage || 8}%)
+                      {t('contracts.summary.platformCommission', 'Platform commission')} ({contract.commissionPercentage || 8}%)
                       {contract.commission === 0 && (
                         <span className="ml-2 text-xs text-green-600 dark:text-green-400 font-semibold">
-                          ¡GRATIS!
+                          {t('contracts.summary.free', 'FREE!')}
                         </span>
                       )}
                     </span>
                     {contract.price < 8000 && contract.commission > 0 && (
                       <span className="text-xs text-orange-600 dark:text-orange-400 mt-1">
-                        * Comisión mínima de $1,000 ARS
+                        * {t('contracts.summary.minimumCommission', 'Minimum commission of $1,000 ARS')}
                       </span>
                     )}
                   </div>
@@ -356,7 +358,7 @@ export default function ContractSummary() {
                 {/* Total */}
                 <div className="pt-3 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
                   <span className="text-lg font-semibold text-slate-900 dark:text-white">
-                    Total a pagar
+                    {t('contracts.summary.totalToPay', 'Total to pay')}
                   </span>
                   <span className="text-2xl font-bold text-sky-600 dark:text-sky-400">
                     ${contract.totalPrice.toLocaleString("es-AR", { minimumFractionDigits: 2 })} ARS
@@ -369,25 +371,25 @@ export default function ContractSummary() {
                 <div className="mt-6 p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
                   <div className="text-sm">
                     <p className="font-semibold text-purple-900 dark:text-purple-100 mb-2">
-                      {user.membershipTier === 'super_pro' && '🌟 Membresía SUPER PRO - Comisión 1%'}
-                      {user.membershipTier === 'pro' && '👑 Membresía PRO - Comisión 3%'}
-                      {(!user.membershipTier || user.membershipTier === 'free') && '💼 Usuario FREE - Comisión 8%'}
+                      {user.membershipTier === 'super_pro' && t('contracts.summary.membershipSuperPro', 'SUPER PRO Membership - 1% Commission')}
+                      {user.membershipTier === 'pro' && t('contracts.summary.membershipPro', 'PRO Membership - 3% Commission')}
+                      {(!user.membershipTier || user.membershipTier === 'free') && t('contracts.summary.membershipFree', 'FREE User - 8% Commission')}
                     </p>
                     <p className="text-purple-700 dark:text-purple-300">
-                      {user.membershipTier === 'super_pro' && 'Disfrutas de la comisión más baja de la plataforma.'}
-                      {user.membershipTier === 'pro' && 'Tienes una comisión reducida gracias a tu membresía.'}
+                      {user.membershipTier === 'super_pro' && t('contracts.summary.superProDesc', 'You enjoy the lowest commission on the platform.')}
+                      {user.membershipTier === 'pro' && t('contracts.summary.proDesc', 'You have a reduced commission thanks to your membership.')}
                       {(!user.membershipTier || user.membershipTier === 'free') && (
                         <>
-                          Actualiza a PRO (3%) o SUPER PRO (1%) para reducir tus comisiones.{' '}
+                          {t('contracts.summary.freeDesc', 'Upgrade to PRO (3%) or SUPER PRO (1%) to reduce your commissions.')}{' '}
                           <Link to="/settings?tab=membership" className="underline font-semibold">
-                            Ver planes
+                            {t('contracts.summary.viewPlans', 'View plans')}
                           </Link>
                         </>
                       )}
                     </p>
                     {(user.freeContractsRemaining ?? 0) > 0 && (
                       <p className="mt-2 text-green-700 dark:text-green-300 font-semibold">
-                        ✨ Tienes {user.freeContractsRemaining} contrato{(user.freeContractsRemaining ?? 0) > 1 ? 's' : ''} gratis disponible{(user.freeContractsRemaining ?? 0) > 1 ? 's' : ''}
+                        {t('contracts.summary.freeContracts', 'You have {{count}} free contract(s) available', { count: user.freeContractsRemaining })}
                       </p>
                     )}
                   </div>
@@ -400,11 +402,10 @@ export default function ContractSummary() {
                   <AlertCircle className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
                   <div className="text-sm">
                     <p className="font-semibold text-blue-900 dark:text-blue-100 mb-1">
-                      Pago con Escrow (Garantía)
+                      {t('contracts.summary.escrowTitle', 'Escrow Payment (Guarantee)')}
                     </p>
                     <p className="text-blue-700 dark:text-blue-300">
-                      El dinero se retendrá de forma segura hasta que ambas partes confirmen
-                      que el trabajo fue completado satisfactoriamente.
+                      {t('contracts.summary.escrowDesc', 'The money will be held securely until both parties confirm that the work was completed satisfactorily.')}
                     </p>
                   </div>
                 </div>
@@ -422,18 +423,18 @@ export default function ContractSummary() {
                   {processingPayment ? (
                     <>
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      Procesando...
+                      {t('common.processing', 'Processing...')}
                     </>
                   ) : (
                     <>
                       <CreditCard className="h-5 w-5" />
-                      Proceder al Pago con MercadoPago
+                      {t('contracts.summary.proceedToPayment', 'Proceed to Payment with MercadoPago')}
                     </>
                   )}
                 </button>
 
                 <p className="mt-3 text-xs text-center text-slate-500 dark:text-slate-400">
-                  Al hacer clic, serás redirigido a MercadoPago para completar el pago de forma segura
+                  {t('contracts.summary.redirectNotice', 'By clicking, you will be redirected to MercadoPago to complete the payment securely')}
                 </p>
               </div>
             )}
@@ -445,11 +446,10 @@ export default function ContractSummary() {
                     <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                     <div className="text-sm">
                       <p className="font-semibold text-amber-900 dark:text-amber-100 mb-1">
-                        Esperando pago del cliente
+                        {t('contracts.summary.waitingPayment', 'Waiting for client payment')}
                       </p>
                       <p className="text-amber-700 dark:text-amber-300">
-                        El cliente debe realizar el pago para activar el contrato. Recibirás una
-                        notificación cuando el pago sea confirmado.
+                        {t('contracts.summary.waitingPaymentDesc', 'The client must make the payment to activate the contract. You will receive a notification when the payment is confirmed.')}
                       </p>
                     </div>
                   </div>
@@ -461,7 +461,7 @@ export default function ContractSummary() {
           {/* Next Steps */}
           <div className="mt-6 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
-              Próximos pasos
+              {t('contracts.summary.nextSteps', 'Next steps')}
             </h3>
             <ol className="space-y-3">
               <li className="flex items-start gap-3">
@@ -469,7 +469,7 @@ export default function ContractSummary() {
                   <span className="text-xs font-bold text-sky-600 dark:text-sky-400">1</span>
                 </div>
                 <p className="text-sm text-slate-700 dark:text-slate-300">
-                  {isClient ? "Realiza" : "El cliente realiza"} el pago a través de MercadoPago
+                  {isClient ? t('contracts.summary.step1Client', 'Make the payment through MercadoPago') : t('contracts.summary.step1Doer', 'The client makes the payment through MercadoPago')}
                 </p>
               </li>
               <li className="flex items-start gap-3">
@@ -477,7 +477,7 @@ export default function ContractSummary() {
                   <span className="text-xs font-bold text-sky-600 dark:text-sky-400">2</span>
                 </div>
                 <p className="text-sm text-slate-700 dark:text-slate-300">
-                  El dinero se retiene en escrow (garantía) de forma segura
+                  {t('contracts.summary.step2', 'The money is held in escrow (guarantee) securely')}
                 </p>
               </li>
               <li className="flex items-start gap-3">
@@ -485,7 +485,7 @@ export default function ContractSummary() {
                   <span className="text-xs font-bold text-sky-600 dark:text-sky-400">3</span>
                 </div>
                 <p className="text-sm text-slate-700 dark:text-slate-300">
-                  El freelancer realiza el trabajo según lo acordado
+                  {t('contracts.summary.step3', 'The freelancer performs the work as agreed')}
                 </p>
               </li>
               <li className="flex items-start gap-3">
@@ -493,7 +493,7 @@ export default function ContractSummary() {
                   <span className="text-xs font-bold text-sky-600 dark:text-sky-400">4</span>
                 </div>
                 <p className="text-sm text-slate-700 dark:text-slate-300">
-                  Ambas partes confirman que el trabajo fue completado satisfactoriamente
+                  {t('contracts.summary.step4', 'Both parties confirm that the work was completed satisfactorily')}
                 </p>
               </li>
               <li className="flex items-start gap-3">
@@ -501,7 +501,7 @@ export default function ContractSummary() {
                   <span className="text-xs font-bold text-sky-600 dark:text-sky-400">5</span>
                 </div>
                 <p className="text-sm text-slate-700 dark:text-slate-300">
-                  El dinero se libera al freelancer automáticamente
+                  {t('contracts.summary.step5', 'The money is released to the freelancer automatically')}
                 </p>
               </li>
             </ol>

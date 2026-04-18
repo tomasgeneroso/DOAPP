@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import { useSocket } from '@/hooks/useSocket';
 import { useAuth } from '@/hooks/useAuth';
@@ -73,6 +74,7 @@ interface DisputeStats {
 }
 
 const AdminDisputeManager: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { isConnected, registerAdminDisputeCreatedHandler, registerAdminDisputeUpdatedHandler } = useSocket();
   const { token } = useAuth();
@@ -137,7 +139,7 @@ const AdminDisputeManager: React.FC = () => {
   // Real-time handlers
   const handleNewDispute = useCallback((data: any) => {
     console.log('🔔 New dispute received:', data);
-    setRealtimeAlert(`Nueva disputa: ${data.dispute?.reason || 'Sin motivo'}`);
+    setRealtimeAlert(`${t('admin.disputes.newDispute', 'New dispute')}: ${data.dispute?.reason || t('admin.disputes.noReason', 'No reason')}`);
     setDisputes(prev => [data.dispute, ...prev]);
     // Refresh stats
     fetchStats();
@@ -148,7 +150,7 @@ const AdminDisputeManager: React.FC = () => {
 
   const handleDisputeUpdated = useCallback((data: any) => {
     console.log('🔔 Dispute updated:', data);
-    setRealtimeAlert(`Disputa actualizada: ${data.dispute?.reason || 'Sin motivo'}`);
+    setRealtimeAlert(`${t('admin.disputes.disputeUpdated', 'Dispute updated')}: ${data.dispute?.reason || t('admin.disputes.noReason', 'No reason')}`);
     setDisputes(prev =>
       prev.map(d => (d.id === data.dispute?.id || d._id === data.dispute?._id) ? { ...d, ...data.dispute } : d)
     );
@@ -175,12 +177,12 @@ const AdminDisputeManager: React.FC = () => {
     };
 
     const labels = {
-      open: 'Abierta',
-      in_review: 'En Revisión',
-      awaiting_info: 'Esperando Info',
-      resolved_released: 'Resuelta',
-      resolved_refunded: 'Resuelta',
-      resolved_partial: 'Resuelta',
+      open: t('common.status.open', 'Open'),
+      in_review: t('common.status.inReview', 'In Review'),
+      awaiting_info: t('common.status.awaitingInfo', 'Awaiting Info'),
+      resolved_released: t('common.status.resolved', 'Resolved'),
+      resolved_refunded: t('common.status.resolved', 'Resolved'),
+      resolved_partial: t('common.status.resolved', 'Resolved'),
     };
 
     return (
@@ -199,10 +201,10 @@ const AdminDisputeManager: React.FC = () => {
     };
 
     const labels = {
-      low: 'Baja',
-      medium: 'Media',
-      high: 'Alta',
-      urgent: 'Urgente',
+      low: t('common.priority.low', 'Low'),
+      medium: t('common.priority.medium', 'Medium'),
+      high: t('common.priority.high', 'High'),
+      urgent: t('common.priority.urgent', 'Urgent'),
     };
 
     const icons = {
@@ -231,10 +233,10 @@ const AdminDisputeManager: React.FC = () => {
     };
 
     const labels = {
-      low: 'Importancia: Baja',
-      medium: 'Importancia: Media',
-      high: 'Importancia: Alta',
-      critical: '🔴 CRÍTICO',
+      low: t('admin.disputes.importanceLow', 'Importance: Low'),
+      medium: t('admin.disputes.importanceMedium', 'Importance: Medium'),
+      high: t('admin.disputes.importanceHigh', 'Importance: High'),
+      critical: t('admin.disputes.importanceCritical', 'CRITICAL'),
     };
 
     return (
@@ -251,7 +253,7 @@ const AdminDisputeManager: React.FC = () => {
           <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
           </svg>
-          Con Pago
+          {t('admin.disputes.withPayment', 'With Payment')}
         </span>
       );
     }
@@ -260,7 +262,7 @@ const AdminDisputeManager: React.FC = () => {
         <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
         </svg>
-        Sin Pago
+        {t('admin.disputes.withoutPayment', 'Without Payment')}
       </span>
     );
   };
@@ -387,7 +389,7 @@ const AdminDisputeManager: React.FC = () => {
         <div className="mb-8 flex justify-between items-start">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Disputas</h1>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t('admin.disputes.title', 'Dispute Management')}</h1>
               {/* Connection indicator */}
               <span className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
                 isConnected
@@ -398,7 +400,7 @@ const AdminDisputeManager: React.FC = () => {
                 {isConnected ? 'Live' : 'Offline'}
               </span>
             </div>
-            <p className="text-gray-600 dark:text-gray-400">Administra y resuelve disputas de contratos</p>
+            <p className="text-gray-600 dark:text-gray-400">{t('admin.disputes.subtitle', 'Manage and resolve contract disputes')}</p>
           </div>
           <button
             onClick={() => navigate('/admin/disputes/create')}
@@ -407,7 +409,7 @@ const AdminDisputeManager: React.FC = () => {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Crear Disputa
+            {t('admin.disputes.create', 'Create Dispute')}
           </button>
         </div>
 
@@ -417,7 +419,7 @@ const AdminDisputeManager: React.FC = () => {
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Total</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{t('common.total', 'Total')}</p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.total}</p>
                 </div>
                 <div className="w-12 h-12 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
@@ -431,7 +433,7 @@ const AdminDisputeManager: React.FC = () => {
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Abiertas</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{t('common.status.open', 'Open')}</p>
                   <p className="text-2xl font-bold text-yellow-600">{stats.open}</p>
                 </div>
                 <div className="w-12 h-12 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center">
@@ -445,7 +447,7 @@ const AdminDisputeManager: React.FC = () => {
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">En Revisión</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{t('common.status.inReview', 'In Review')}</p>
                   <p className="text-2xl font-bold text-blue-600">{stats.inReview}</p>
                 </div>
                 <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
@@ -460,7 +462,7 @@ const AdminDisputeManager: React.FC = () => {
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Resueltas</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{t('common.status.resolved', 'Resolved')}</p>
                   <p className="text-2xl font-bold text-green-600">{stats.resolved}</p>
                 </div>
                 <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
@@ -476,26 +478,26 @@ const AdminDisputeManager: React.FC = () => {
         {/* Priority Distribution */}
         {stats && stats.byPriority && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-8">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Distribución por Prioridad</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('admin.disputes.priorityDistribution', 'Priority Distribution')}</h3>
             <div className="flex flex-wrap gap-4">
               <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
                 <span className="text-gray-400">○</span>
-                <span className="text-sm text-gray-600 dark:text-gray-300">Baja:</span>
+                <span className="text-sm text-gray-600 dark:text-gray-300">{t('common.priority.low', 'Low')}:</span>
                 <span className="font-bold text-gray-900 dark:text-white">{stats.byPriority.low || 0}</span>
               </div>
               <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                 <span className="text-blue-500">◐</span>
-                <span className="text-sm text-blue-600 dark:text-blue-300">Media:</span>
+                <span className="text-sm text-blue-600 dark:text-blue-300">{t('common.priority.medium', 'Medium')}:</span>
                 <span className="font-bold text-blue-700 dark:text-blue-200">{stats.byPriority.medium || 0}</span>
               </div>
               <div className="flex items-center gap-2 px-4 py-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
                 <span className="text-orange-500">●</span>
-                <span className="text-sm text-orange-600 dark:text-orange-300">Alta:</span>
+                <span className="text-sm text-orange-600 dark:text-orange-300">{t('common.priority.high', 'High')}:</span>
                 <span className="font-bold text-orange-700 dark:text-orange-200">{stats.byPriority.high || 0}</span>
               </div>
               <div className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
                 <span>⚠️</span>
-                <span className="text-sm text-red-600 dark:text-red-300">Urgente:</span>
+                <span className="text-sm text-red-600 dark:text-red-300">{t('common.priority.urgent', 'Urgent')}:</span>
                 <span className="font-bold text-red-700 dark:text-red-200">{stats.byPriority.urgent || 0}</span>
               </div>
             </div>
@@ -507,17 +509,17 @@ const AdminDisputeManager: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
             {/* Search */}
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Buscar</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('common.search', 'Search')}</label>
               <input
                 type="text"
-                placeholder="Buscar por ID, motivo o usuario..."
+                placeholder={t('admin.disputes.searchPlaceholder', 'Search by ID, reason or user...')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Estado</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('common.status.label', 'Status')}</label>
               <select
                 value={filterStatus}
                 onChange={(e) => {
@@ -526,18 +528,18 @@ const AdminDisputeManager: React.FC = () => {
                 }}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               >
-                <option value="">Todos</option>
-                <option value="open">Abiertas</option>
-                <option value="in_review">En Revisión</option>
-                <option value="awaiting_info">Esperando Info</option>
-                <option value="resolved_released">Resuelta - Liberado</option>
-                <option value="resolved_refunded">Resuelta - Reembolsado</option>
-                <option value="resolved_partial">Resuelta - Parcial</option>
+                <option value="">{t('common.all', 'All')}</option>
+                <option value="open">{t('common.status.open', 'Open')}</option>
+                <option value="in_review">{t('common.status.inReview', 'In Review')}</option>
+                <option value="awaiting_info">{t('common.status.awaitingInfo', 'Awaiting Info')}</option>
+                <option value="resolved_released">{t('admin.disputes.resolvedReleased', 'Resolved - Released')}</option>
+                <option value="resolved_refunded">{t('admin.disputes.resolvedRefunded', 'Resolved - Refunded')}</option>
+                <option value="resolved_partial">{t('admin.disputes.resolvedPartial', 'Resolved - Partial')}</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Prioridad</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('common.priority.label', 'Priority')}</label>
               <select
                 value={filterPriority}
                 onChange={(e) => {
@@ -546,16 +548,16 @@ const AdminDisputeManager: React.FC = () => {
                 }}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
               >
-                <option value="">Todas</option>
-                <option value="low">Baja</option>
-                <option value="medium">Media</option>
-                <option value="high">Alta</option>
-                <option value="urgent">Urgente</option>
+                <option value="">{t('common.all', 'All')}</option>
+                <option value="low">{t('common.priority.low', 'Low')}</option>
+                <option value="medium">{t('common.priority.medium', 'Medium')}</option>
+                <option value="high">{t('common.priority.high', 'High')}</option>
+                <option value="urgent">{t('common.priority.urgent', 'Urgent')}</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Desde</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('common.dateFrom', 'From')}</label>
               <input
                 type="date"
                 value={dateFrom}
@@ -568,7 +570,7 @@ const AdminDisputeManager: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Hasta</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('common.dateTo', 'To')}</label>
               <input
                 type="date"
                 value={dateTo}
@@ -591,7 +593,7 @@ const AdminDisputeManager: React.FC = () => {
                 }}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
-                Limpiar Filtros
+                {t('common.clearFilters', 'Clear Filters')}
               </button>
             </div>
           </div>
@@ -608,7 +610,7 @@ const AdminDisputeManager: React.FC = () => {
               <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              <p className="mt-4 text-gray-600 dark:text-gray-400">No se encontraron disputas</p>
+              <p className="mt-4 text-gray-600 dark:text-gray-400">{t('admin.disputes.noDisputes', 'No disputes found')}</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -623,7 +625,7 @@ const AdminDisputeManager: React.FC = () => {
                         onClick={() => handleSort('priority')}
                         className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-white transition-colors"
                       >
-                        Prioridad
+                        {t('common.priority.label', 'Priority')}
                         <SortIcon field="priority" />
                       </button>
                     </th>
@@ -632,7 +634,7 @@ const AdminDisputeManager: React.FC = () => {
                         onClick={() => handleSort('reason')}
                         className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-white transition-colors"
                       >
-                        Motivo
+                        {t('admin.disputes.reason', 'Reason')}
                         <SortIcon field="reason" />
                       </button>
                     </th>
@@ -641,36 +643,36 @@ const AdminDisputeManager: React.FC = () => {
                         onClick={() => handleSort('category')}
                         className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-white transition-colors"
                       >
-                        Categoría
+                        {t('common.category', 'Category')}
                         <SortIcon field="category" />
                       </button>
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Partes
+                      {t('admin.disputes.parties', 'Parties')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                       <button
                         onClick={() => handleSort('status')}
                         className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-white transition-colors"
                       >
-                        Estado
+                        {t('common.status.label', 'Status')}
                         <SortIcon field="status" />
                       </button>
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Pago
+                      {t('admin.disputes.payment', 'Payment')}
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                       <button
                         onClick={() => handleSort('date')}
                         className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-white transition-colors"
                       >
-                        Fecha
+                        {t('common.date', 'Date')}
                         <SortIcon field="date" />
                       </button>
                     </th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                      Acciones
+                      {t('common.actions', 'Actions')}
                     </th>
                   </tr>
                 </thead>
@@ -717,7 +719,7 @@ const AdminDisputeManager: React.FC = () => {
                           onClick={() => navigate(`/admin/disputes/${dispute.id || dispute._id}`)}
                           className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
                         >
-                          Ver Detalle
+                          {t('common.viewDetails', 'View Details')}
                         </button>
                       </td>
                     </tr>
@@ -736,20 +738,20 @@ const AdminDisputeManager: React.FC = () => {
                   disabled={page === 1}
                   className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
                 >
-                  Anterior
+                  {t('common.previous', 'Previous')}
                 </button>
                 <button
                   onClick={() => setPage(page + 1)}
                   disabled={page === totalPages}
                   className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
                 >
-                  Siguiente
+                  {t('common.next', 'Next')}
                 </button>
               </div>
               <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
                 <div>
                   <p className="text-sm text-gray-700 dark:text-gray-300">
-                    Página <span className="font-medium">{page}</span> de <span className="font-medium">{totalPages}</span>
+                    {t('common.pageOf', 'Page')} <span className="font-medium">{page}</span> {t('common.of', 'of')} <span className="font-medium">{totalPages}</span>
                   </p>
                 </div>
                 <div>
@@ -759,14 +761,14 @@ const AdminDisputeManager: React.FC = () => {
                       disabled={page === 1}
                       className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
                     >
-                      Anterior
+                      {t('common.previous', 'Previous')}
                     </button>
                     <button
                       onClick={() => setPage(page + 1)}
                       disabled={page === totalPages}
                       className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
                     >
-                      Siguiente
+                      {t('common.next', 'Next')}
                     </button>
                   </nav>
                 </div>

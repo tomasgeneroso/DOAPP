@@ -1,9 +1,11 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Helmet } from "react-helmet-async";
 import { PaymentHistory } from "@/components/payments/PaymentHistory";
 import { ArrowDownCircle, ArrowUpCircle, Wallet } from "lucide-react";
 
 export default function PaymentsScreen() {
+  const { t } = useTranslation();
   const [filter, setFilter] = useState<"all" | "sent" | "received">("all");
 
   return (
@@ -18,10 +20,10 @@ export default function PaymentsScreen() {
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
               <Wallet className="h-8 w-8 text-sky-600" />
-              Historial de Pagos
+              {t('payments.title')}
             </h1>
             <p className="text-gray-600 dark:text-slate-400 mt-2">
-              Gestiona y revisa todos tus pagos y transacciones
+              {t('payments.subtitle')}
             </p>
           </div>
 
@@ -39,7 +41,7 @@ export default function PaymentsScreen() {
                 >
                   <div className="flex items-center gap-2">
                     <Wallet className="h-4 w-4" />
-                    Todos
+                    {t('payments.all')}
                   </div>
                 </button>
                 <button
@@ -52,7 +54,7 @@ export default function PaymentsScreen() {
                 >
                   <div className="flex items-center gap-2">
                     <ArrowUpCircle className="h-4 w-4" />
-                    Enviados
+                    {t('payments.sent')}
                   </div>
                 </button>
                 <button
@@ -65,7 +67,7 @@ export default function PaymentsScreen() {
                 >
                   <div className="flex items-center gap-2">
                     <ArrowDownCircle className="h-4 w-4" />
-                    Recibidos
+                    {t('payments.received')}
                   </div>
                 </button>
               </nav>

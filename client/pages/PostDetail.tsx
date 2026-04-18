@@ -281,7 +281,7 @@ export default function PostDetail() {
                 <button
                   onClick={handleShare}
                   className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
-                  title="Compartir"
+                  title={t('common.share', 'Share')}
                 >
                   <Share2 className="w-5 h-5 text-slate-600 dark:text-slate-400" />
                 </button>

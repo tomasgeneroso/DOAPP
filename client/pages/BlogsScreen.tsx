@@ -1,12 +1,14 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
+import { useTranslation } from "react-i18next";
 import type { BlogPost } from "../types";
 import { getImageUrl } from "../utils/imageUrl";
 import { BookOpen, Calendar, User, Search, Filter, Clock, Star, Crown, Users, PenSquare } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
 
 export default function BlogsScreen() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [categories, setCategories] = useState<{ name: string; count: number }[]>([]);
@@ -50,11 +52,11 @@ export default function BlogsScreen() {
         setPosts(data.posts);
         setTotalPages(data.pagination.pages);
       } else {
-        setError(data.message || "Error al cargar artículos");
+        setError(data.message || t('blog.errorLoading', 'Error loading articles'));
       }
     } catch (error) {
       console.error("Error fetching blogs:", error);
-      setError("Error al cargar artículos");
+      setError(t('blog.errorLoading', 'Error loading articles'));
     } finally {
       setLoading(false);
     }
@@ -108,10 +110,10 @@ export default function BlogsScreen() {
   return (
     <>
       <Helmet>
-        <title>Blog - DoApp</title>
+        <title>{t('blog.pageTitle', 'Blog - DoApp')}</title>
         <meta
           name="description"
-          content="Aprende tips, trucos y guías prácticas para el hogar, reparaciones, limpieza y más"
+          content={t('blog.metaDescription', 'Learn tips, tricks and practical guides for home, repairs, cleaning and more')}
         />
       </Helmet>
 
@@ -120,9 +122,9 @@ export default function BlogsScreen() {
         <div className="bg-gradient-to-r from-sky-600 to-blue-600 text-white py-16">
           <div className="container mx-auto px-4">
             <div className="max-w-3xl mx-auto text-center">
-              <h1 className="text-4xl md:text-5xl font-bold mb-4">Blog de DoApp</h1>
+              <h1 className="text-4xl md:text-5xl font-bold mb-4">{t('blog.title', 'DoApp Blog')}</h1>
               <p className="text-xl text-sky-100 mb-6">
-                Tips, guías y consejos para tu hogar
+                {t('blog.subtitle', 'Tips, guides and advice for your home')}
               </p>
 
               {/* Create Post Button */}
@@ -132,7 +134,7 @@ export default function BlogsScreen() {
                   className="inline-flex items-center gap-2 px-6 py-3 bg-white text-sky-600 font-semibold rounded-xl hover:bg-sky-50 transition-colors mb-6"
                 >
                   <PenSquare className="h-5 w-5" />
-                  Escribir un artículo
+                  {t('blog.writeArticle', 'Write an article')}
                 </Link>
               )}
 
@@ -142,7 +144,7 @@ export default function BlogsScreen() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Buscar artículos..."
+                  placeholder={t('blog.searchPlaceholder', 'Search articles...')}
                   className="w-full px-6 py-4 pr-12 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-white"
                 />
                 <button
@@ -165,14 +167,14 @@ export default function BlogsScreen() {
                 <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                     <Filter className="h-5 w-5" />
-                    Filtros
+                    {t('blog.filters', 'Filters')}
                   </h3>
                   {(selectedCategory || selectedTag || selectedType) && (
                     <button
                       onClick={clearFilters}
                       className="text-sm text-sky-600 hover:text-sky-700"
                     >
-                      Limpiar
+                      {t('blog.clearFilters', 'Clear')}
                     </button>
                   )}
                 </div>
@@ -180,7 +182,7 @@ export default function BlogsScreen() {
                 {/* Post Type Filter */}
                 <div className="mb-8">
                   <h4 className="font-semibold text-slate-900 dark:text-white mb-3">
-                    Tipo de contenido
+                    {t('blog.contentType', 'Content type')}
                   </h4>
                   <div className="flex flex-col gap-2">
                     <button
@@ -195,7 +197,7 @@ export default function BlogsScreen() {
                       }`}
                     >
                       <BookOpen className="h-4 w-4" />
-                      Todos los artículos
+                      {t('blog.allArticles', 'All articles')}
                     </button>
                     <button
                       onClick={() => {
@@ -209,7 +211,7 @@ export default function BlogsScreen() {
                       }`}
                     >
                       <Crown className="h-4 w-4" />
-                      Oficiales (DOAPP)
+                      {t('blog.official', 'Official (DOAPP)')}
                     </button>
                     <button
                       onClick={() => {
@@ -223,7 +225,7 @@ export default function BlogsScreen() {
                       }`}
                     >
                       <Users className="h-4 w-4" />
-                      Comunidad
+                      {t('blog.community', 'Community')}
                     </button>
                   </div>
                 </div>
@@ -231,7 +233,7 @@ export default function BlogsScreen() {
                 {/* Categories */}
                 <div className="mb-8">
                   <h4 className="font-semibold text-slate-900 dark:text-white mb-3">
-                    Categorías
+                    {t('blog.categories', 'Categories')}
                   </h4>
                   <div className="space-y-2">
                     {categories.map((category) => (
@@ -261,7 +263,7 @@ export default function BlogsScreen() {
                 {/* Tags */}
                 <div>
                   <h4 className="font-semibold text-slate-900 dark:text-white mb-3">
-                    Etiquetas Populares
+                    {t('blog.popularTags', 'Popular Tags')}
                   </h4>
                   <div className="flex flex-wrap gap-2">
                     {tags.slice(0, 10).map((tag) => (
@@ -301,10 +303,10 @@ export default function BlogsScreen() {
                 <div className="text-center py-20">
                   <BookOpen className="h-16 w-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
                   <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
-                    No se encontraron artículos
+                    {t('blog.noArticlesFound', 'No articles found')}
                   </h3>
                   <p className="text-slate-600 dark:text-slate-400">
-                    Intenta ajustar los filtros de búsqueda
+                    {t('blog.tryAdjustingFilters', 'Try adjusting the search filters')}
                   </p>
                 </div>
               ) : (
@@ -322,7 +324,7 @@ export default function BlogsScreen() {
                         {post.featured && (
                           <div className="absolute top-3 left-3 z-10 flex items-center gap-1 px-2 py-1 bg-amber-500 text-white text-xs font-bold rounded-full">
                             <Star className="h-3 w-3 fill-current" />
-                            Destacado
+                            {t('blog.featured', 'Featured')}
                           </div>
                         )}
 
@@ -331,12 +333,12 @@ export default function BlogsScreen() {
                           {post.postType === 'official' ? (
                             <span className="flex items-center gap-1 px-2 py-1 bg-sky-600 text-white text-xs font-medium rounded-full">
                               <Crown className="h-3 w-3" />
-                              Oficial
+                              {t('blog.officialBadge', 'Official')}
                             </span>
                           ) : (
                             <span className="flex items-center gap-1 px-2 py-1 bg-purple-600 text-white text-xs font-medium rounded-full">
                               <Users className="h-3 w-3" />
-                              Comunidad
+                              {t('blog.communityBadge', 'Community')}
                             </span>
                           )}
                         </div>
@@ -423,7 +425,7 @@ export default function BlogsScreen() {
                         disabled={currentPage === 1}
                         className="px-4 py-2 rounded-lg bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        Anterior
+                        {t('common.previous', 'Previous')}
                       </button>
 
                       <div className="flex items-center gap-2">
@@ -459,7 +461,7 @@ export default function BlogsScreen() {
                         disabled={currentPage === totalPages}
                         className="px-4 py-2 rounded-lg bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        Siguiente
+                        {t('common.next', 'Next')}
                       </button>
                     </div>
                   )}

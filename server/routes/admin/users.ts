@@ -1,12 +1,17 @@
 import express, { Request, Response } from "express";
 import { User } from "../../models/sql/User.model.js";
+import { Contract } from "../../models/sql/Contract.model.js";
+import { Job } from "../../models/sql/Job.model.js";
 import { RefreshToken } from "../../models/sql/RefreshToken.model.js";
 import { protect } from "../../middleware/auth.js";
 import { requirePermission, requireRole } from "../../middleware/permissions.js";
 import { verifyOwnerPassword } from "../../middleware/ownerVerification.js";
 import { logAudit, getSeverityForAction, detectChanges } from "../../utils/auditLog.js";
 import type { AuthRequest } from "../../types/index.js";
-import { Op } from 'sequelize';
+import { Op, literal } from 'sequelize';
+import { isValidUUID } from "../../utils/sanitizer.js";
+
+const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&');
 
 const router = express.Router();
 
@@ -37,10 +42,62 @@ router.get(
 
       // Filtros
       if (search) {
-        where[Op.or] = [
-          { name: { [Op.iLike]: `%${search}%` } },
-          { email: { [Op.iLike]: `%${search}%` } },
-        ];
+        const searchStr = search as string;
+        const isFullUUID = isValidUUID(searchStr);
+
+        // Always collect user IDs that match this search
+        const userIds = new Set<string>();
+
+        // If it looks like a UUID fragment (hex chars + dashes, >= 4 chars), resolve related IDs
+        if (/^[0-9a-f-]{4,}$/i.test(searchStr)) {
+          // Partial/full UUID: find contracts matching this ID fragment
+          const contracts = await Contract.findAll({
+            where: {
+              [Op.or]: [
+                literal(`CAST("contracts"."id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
+                literal(`CAST("contracts"."job_id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
+              ],
+            },
+            attributes: ['clientId', 'doerId'],
+            limit: 20,
+          }).catch(() => []);
+          contracts.forEach(c => {
+            if (c.clientId) userIds.add(c.clientId);
+            if (c.doerId) userIds.add(c.doerId);
+          });
+
+          // Find jobs matching this ID fragment
+          const jobs = await Job.findAll({
+            where: { [Op.or]: [literal(`CAST("jobs"."id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`)] },
+            attributes: ['clientId'],
+            limit: 10,
+          }).catch(() => []);
+          jobs.forEach(j => { if (j.clientId) userIds.add(j.clientId); });
+
+          // Direct user ID match
+          if (isFullUUID) userIds.add(searchStr);
+
+          if (userIds.size > 0) {
+            where[Op.or] = [
+              { id: { [Op.in]: Array.from(userIds) } },
+              { name: { [Op.iLike]: `%${escapeLike(searchStr)}%` } },
+              { email: { [Op.iLike]: `%${escapeLike(searchStr)}%` } },
+              literal(`CAST("users"."id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
+            ];
+          } else {
+            where[Op.or] = [
+              { name: { [Op.iLike]: `%${escapeLike(searchStr)}%` } },
+              { email: { [Op.iLike]: `%${escapeLike(searchStr)}%` } },
+              literal(`CAST("users"."id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
+            ];
+          }
+        } else {
+          where[Op.or] = [
+            { name: { [Op.iLike]: `%${escapeLike(searchStr)}%` } },
+            { email: { [Op.iLike]: `%${escapeLike(searchStr)}%` } },
+            { username: { [Op.iLike]: `%${escapeLike(searchStr)}%` } },
+          ];
+        }
       }
 
       if (role) where.role = role;
@@ -106,9 +163,31 @@ router.get(
         return;
       }
 
+      // Get login devices
+      const { LoginDevice } = await import('../../models/sql/LoginDevice.model.js');
+      const devices = await LoginDevice.findAll({
+        where: { userId: user.id },
+        order: [['lastLoginAt', 'DESC']],
+        limit: 10,
+      });
+
       res.json({
         success: true,
-        data: user,
+        data: {
+          ...user.toJSON(),
+          devices: devices.map((d: any) => ({
+            id: d.id,
+            deviceType: d.deviceType,
+            browser: d.browser,
+            os: d.os,
+            country: d.country,
+            city: d.city,
+            ipAddress: d.ipAddress,
+            lastLoginAt: d.lastLoginAt,
+            loginCount: d.loginCount,
+            isTrusted: d.isTrusted,
+          })),
+        },
       });
     } catch (error: any) {
       res.status(500).json({

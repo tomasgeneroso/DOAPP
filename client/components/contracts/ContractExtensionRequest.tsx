@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Contract } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
 import Input from '../ui/Input';
@@ -16,6 +17,7 @@ export default function ContractExtensionRequest({
   onSuccess,
   onCancel,
 }: ContractExtensionRequestProps) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [extensionDays, setExtensionDays] = useState<number>(1);
   const [extensionAmount, setExtensionAmount] = useState<number>(0);
@@ -46,7 +48,7 @@ export default function ContractExtensionRequest({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Error al solicitar extensión');
+        throw new Error(data.message || t('contracts.errorRequestingExtension', 'Error requesting extension'));
       }
 
       onSuccess();
@@ -61,8 +63,7 @@ export default function ContractExtensionRequest({
     return (
       <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
         <p className="text-yellow-800 dark:text-yellow-200">
-          Este contrato ya fue extendido. Solo se permite 1 extensión por contrato.
-          Si necesitas más tiempo, debes crear un nuevo contrato.
+          {t('contracts.alreadyExtended', 'This contract has already been extended. Only 1 extension per contract is allowed. If you need more time, you must create a new contract.')}
         </p>
       </div>
     );
@@ -82,13 +83,12 @@ export default function ContractExtensionRequest({
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
       <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-        Solicitar Extensión de Contrato
+        {t('contracts.requestExtension', 'Request Contract Extension')}
       </h3>
 
       <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
         <p className="text-sm text-blue-800 dark:text-blue-200">
-          <strong>Importante:</strong> Solo puedes extender este contrato 1 vez.
-          Si necesitas más extensiones, deberás crear un nuevo contrato.
+          <strong>{t('common.important', 'Important')}:</strong> {t('contracts.extensionLimit', 'You can only extend this contract once. If you need more extensions, you must create a new contract.')}
         </p>
       </div>
 
@@ -101,7 +101,7 @@ export default function ContractExtensionRequest({
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Días de extensión *
+            {t('contracts.extensionDays', 'Extension days')} *
           </label>
           <Input
             type="number"
@@ -109,37 +109,37 @@ export default function ContractExtensionRequest({
             value={extensionDays}
             onChange={(e) => setExtensionDays(Number(e.target.value))}
             required
-            placeholder="Ej: 7"
+            placeholder={t('common.egNumber', 'E.g.: 7')}
           />
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Nueva fecha de fin: {new Date(new Date(contract.endDate).getTime() + extensionDays * 24 * 60 * 60 * 1000).toLocaleDateString('es-AR')}
+            {t('contracts.newEndDate', 'New end date')}: {new Date(new Date(contract.endDate).getTime() + extensionDays * 24 * 60 * 60 * 1000).toLocaleDateString('es-AR')}
           </p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Monto adicional (opcional)
+            {t('contracts.additionalAmountOptional', 'Additional amount (optional)')}
           </label>
           <Input
             type="number"
             min="0"
             value={extensionAmount}
             onChange={(e) => setExtensionAmount(Number(e.target.value))}
-            placeholder="Ej: 5000"
+            placeholder={t('common.egAmount', 'E.g.: 5000')}
           />
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-            Si la extensión requiere pago adicional, especifícalo aquí (ARS)
+            {t('contracts.additionalPaymentHint', 'If the extension requires additional payment, specify it here (ARS)')}
           </p>
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Notas (opcional)
+            {t('contracts.notesOptional', 'Notes (optional)')}
           </label>
           <Textarea
             value={extensionNotes}
             onChange={(e) => setExtensionNotes(e.target.value)}
-            placeholder="Explica por qué necesitas la extensión..."
+            placeholder={t('contracts.extensionReasonPlaceholder', 'Explain why you need the extension...')}
             rows={3}
           />
         </div>
@@ -151,14 +151,14 @@ export default function ContractExtensionRequest({
             onClick={onCancel}
             disabled={loading}
           >
-            Cancelar
+            {t('common.cancel', 'Cancel')}
           </Button>
           <Button
             type="submit"
             variant="primary"
             disabled={loading}
           >
-            {loading ? 'Enviando...' : 'Solicitar Extensión'}
+            {loading ? t('common.sending', 'Sending...') : t('contracts.requestExtension', 'Request Extension')}
           </Button>
         </div>
       </form>

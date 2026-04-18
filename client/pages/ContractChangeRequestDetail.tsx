@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/hooks/useAuth';
 import {
   ArrowLeft,
@@ -61,6 +62,7 @@ interface ContractChangeRequest {
 export default function ContractChangeRequestDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { user, token } = useAuth();
   const [request, setRequest] = useState<ContractChangeRequest | null>(null);
   const [loading, setLoading] = useState(true);
@@ -97,8 +99,8 @@ export default function ContractChangeRequestDetail() {
     if (
       !confirm(
         accept
-          ? '¿Estás seguro de aceptar esta solicitud?'
-          : '¿Estás seguro de rechazar esta solicitud?'
+          ? t('contracts.changeRequest.confirmAccept', 'Are you sure you want to accept this request?')
+          : t('contracts.changeRequest.confirmReject', 'Are you sure you want to reject this request?')
       )
     ) {
       return;
@@ -120,11 +122,11 @@ export default function ContractChangeRequestDetail() {
         alert(data.message);
         navigate(`/contracts/${request.contract._id}`);
       } else {
-        alert(data.message || 'Error al responder la solicitud');
+        alert(data.message || t('contracts.changeRequest.respondError', 'Error responding to request'));
       }
     } catch (error) {
       console.error('Error responding to request:', error);
-      alert('Error al responder la solicitud');
+      alert(t('contracts.changeRequest.respondError', 'Error responding to request'));
     } finally {
       setResponding(false);
     }
@@ -143,13 +145,13 @@ export default function ContractChangeRequestDetail() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Solicitud no encontrada
+            {t('contracts.changeRequest.notFound', 'Request not found')}
           </h2>
           <button
             onClick={() => navigate('/contracts')}
             className="mt-4 text-sky-600 hover:text-sky-700"
           >
-            Volver a contratos
+            {t('contracts.backToContracts', 'Back to contracts')}
           </button>
         </div>
       </div>
@@ -166,12 +168,12 @@ export default function ContractChangeRequestDetail() {
       'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
   }[request.status];
 
-  const typeLabel = request.type === 'cancel' ? 'Cancelación' : 'Modificación';
+  const typeLabel = request.type === 'cancel' ? t('contracts.changeRequest.typeCancellation', 'Cancellation') : t('contracts.changeRequest.typeModification', 'Modification');
 
   return (
     <>
       <Helmet>
-        <title>Solicitud de {typeLabel} - DOAPP</title>
+        <title>{t('contracts.changeRequest.requestOf', '{{type}} Request', { type: typeLabel })} - DOAPP</title>
       </Helmet>
 
       <div className="min-h-screen bg-gray-50 dark:bg-slate-900 py-8">
@@ -182,7 +184,7 @@ export default function ContractChangeRequestDetail() {
             className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6 transition-colors"
           >
             <ArrowLeft className="h-5 w-5" />
-            Volver al contrato
+            {t('contracts.backToContract', 'Back to contract')}
           </button>
 
           {/* Header */}
@@ -190,17 +192,17 @@ export default function ContractChangeRequestDetail() {
             <div className="flex items-start justify-between mb-4">
               <div>
                 <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                  Solicitud de {typeLabel}
+                  {t('contracts.changeRequest.requestOf', '{{type}} Request', { type: typeLabel })}
                 </h1>
                 <p className="text-gray-600 dark:text-gray-400">
                   {request.contract.job.title}
                 </p>
               </div>
               <span className={`px-4 py-2 rounded-full font-semibold ${statusColor}`}>
-                {request.status === 'pending' && 'Pendiente'}
-                {request.status === 'accepted' && 'Aceptada'}
-                {request.status === 'rejected' && 'Rechazada'}
-                {request.status === 'escalated_to_support' && 'Escalada a soporte'}
+                {request.status === 'pending' && t('contracts.changeRequest.statusPending', 'Pending')}
+                {request.status === 'accepted' && t('contracts.changeRequest.statusAccepted', 'Accepted')}
+                {request.status === 'rejected' && t('contracts.changeRequest.statusRejected', 'Rejected')}
+                {request.status === 'escalated_to_support' && t('contracts.changeRequest.statusEscalated', 'Escalated to support')}
               </span>
             </div>
 
@@ -208,10 +210,9 @@ export default function ContractChangeRequestDetail() {
               <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4 flex gap-3 border-2 border-amber-200 dark:border-amber-800">
                 <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                 <div className="text-sm text-amber-900 dark:text-amber-200">
-                  <p className="font-semibold mb-1">Tiempo límite de respuesta</p>
+                  <p className="font-semibold mb-1">{t('contracts.changeRequest.responseDeadline', 'Response deadline')}</p>
                   <p>
-                    Esta solicitud se escalará automáticamente a soporte si no se responde en 2
-                    días desde su creación.
+                    {t('contracts.changeRequest.escalationWarning', 'This request will be automatically escalated to support if not responded to within 2 days of its creation.')}
                   </p>
                 </div>
               </div>
@@ -224,7 +225,7 @@ export default function ContractChangeRequestDetail() {
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <User className="h-5 w-5 text-sky-600" />
-                Solicitado por
+                {t('contracts.changeRequest.requestedBy', 'Requested by')}
               </h2>
               <div className="flex items-center gap-3">
                 {request.requestedBy.avatar ? (
@@ -257,17 +258,17 @@ export default function ContractChangeRequestDetail() {
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <FileText className="h-5 w-5 text-sky-600" />
-                Contrato
+                {t('contracts.changeRequest.contract', 'Contract')}
               </h2>
               <div className="space-y-2">
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Cliente</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{t('contracts.client', 'Client')}</p>
                   <p className="font-medium text-gray-900 dark:text-white">
                     {request.contract.client.name}
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Proveedor</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{t('contracts.provider', 'Provider')}</p>
                   <p className="font-medium text-gray-900 dark:text-white">
                     {request.contract.doer.name}
                   </p>
@@ -280,7 +281,7 @@ export default function ContractChangeRequestDetail() {
           <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-6 mb-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
               <MessageCircle className="h-5 w-5 text-sky-600" />
-              Razón de la solicitud
+              {t('contracts.changeRequest.reason', 'Request reason')}
             </h2>
             <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
               {request.reason}
@@ -291,19 +292,19 @@ export default function ContractChangeRequestDetail() {
           {request.type === 'modify' && request.newTerms && (
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-6 mb-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Nuevos términos propuestos
+                {t('contracts.changeRequest.newTerms', 'Proposed new terms')}
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {request.newTerms.price !== undefined && (
                   <div className="flex items-start gap-3 p-4 bg-sky-50 dark:bg-sky-900/20 rounded-lg">
                     <DollarSign className="h-5 w-5 text-sky-600 dark:text-sky-400 mt-0.5" />
                     <div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Precio</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">{t('contracts.price', 'Price')}</p>
                       <p className="text-lg font-bold text-gray-900 dark:text-white">
                         ${request.newTerms.price.toLocaleString('es-AR')}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Actual: ${request.contract.price.toLocaleString('es-AR')}
+                        {t('contracts.changeRequest.current', 'Current')}: ${request.contract.price.toLocaleString('es-AR')}
                       </p>
                     </div>
                   </div>
@@ -312,12 +313,12 @@ export default function ContractChangeRequestDetail() {
                   <div className="flex items-start gap-3 p-4 bg-sky-50 dark:bg-sky-900/20 rounded-lg">
                     <Calendar className="h-5 w-5 text-sky-600 dark:text-sky-400 mt-0.5" />
                     <div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Fecha de inicio</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">{t('contracts.startDate', 'Start date')}</p>
                       <p className="font-semibold text-gray-900 dark:text-white">
                         {new Date(request.newTerms.startDate).toLocaleDateString('es-AR')}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Actual:{' '}
+                        {t('contracts.changeRequest.current', 'Current')}:{' '}
                         {new Date(request.contract.startDate).toLocaleDateString('es-AR')}
                       </p>
                     </div>
@@ -327,19 +328,19 @@ export default function ContractChangeRequestDetail() {
                   <div className="flex items-start gap-3 p-4 bg-sky-50 dark:bg-sky-900/20 rounded-lg">
                     <Calendar className="h-5 w-5 text-sky-600 dark:text-sky-400 mt-0.5" />
                     <div>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">Fecha de fin</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">{t('contracts.endDate', 'End date')}</p>
                       <p className="font-semibold text-gray-900 dark:text-white">
                         {new Date(request.newTerms.endDate).toLocaleDateString('es-AR')}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        Actual: {new Date(request.contract.endDate).toLocaleDateString('es-AR')}
+                        {t('contracts.changeRequest.current', 'Current')}: {new Date(request.contract.endDate).toLocaleDateString('es-AR')}
                       </p>
                     </div>
                   </div>
                 )}
                 {request.newTerms.description && (
                   <div className="md:col-span-2 p-4 bg-sky-50 dark:bg-sky-900/20 rounded-lg">
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Descripción</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">{t('contracts.changeRequest.description', 'Description')}</p>
                     <p className="text-gray-900 dark:text-white">{request.newTerms.description}</p>
                   </div>
                 )}
@@ -371,7 +372,7 @@ export default function ContractChangeRequestDetail() {
                           : 'text-red-900 dark:text-red-100'
                       }`}
                     >
-                      Solicitud {request.status === 'accepted' ? 'aceptada' : 'rechazada'}
+                      {request.status === 'accepted' ? t('contracts.changeRequest.requestAccepted', 'Request accepted') : t('contracts.changeRequest.requestRejected', 'Request rejected')}
                     </h3>
                     <p
                       className={`text-sm ${
@@ -380,13 +381,15 @@ export default function ContractChangeRequestDetail() {
                           : 'text-red-800 dark:text-red-200'
                       }`}
                     >
-                      Por <strong>{request.respondedBy.name}</strong> el{' '}
-                      {new Date(request.respondedAt!).toLocaleDateString('es-AR', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
+                      {t('contracts.changeRequest.respondedByOn', 'By {{name}} on {{date}}', {
+                        name: request.respondedBy.name,
+                        date: new Date(request.respondedAt!).toLocaleDateString('es-AR', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
                       })}
                     </p>
                   </div>
@@ -401,22 +404,21 @@ export default function ContractChangeRequestDetail() {
                 <AlertCircle className="h-6 w-6 text-orange-600 dark:text-orange-400 flex-shrink-0" />
                 <div>
                   <h3 className="text-lg font-semibold text-orange-900 dark:text-orange-100 mb-2">
-                    Escalada a soporte
+                    {t('contracts.changeRequest.escalatedToSupport', 'Escalated to support')}
                   </h3>
                   <p className="text-sm text-orange-800 dark:text-orange-200">
-                    Esta solicitud ha sido escalada automáticamente a nuestro equipo de soporte
-                    porque no se recibió respuesta en 2 días. El equipo se pondrá en contacto
-                    pronto.
+                    {t('contracts.changeRequest.escalatedDesc', 'This request has been automatically escalated to our support team because no response was received within 2 days. The team will get in touch soon.')}
                   </p>
                   {request.escalatedAt && (
                     <p className="text-xs text-orange-700 dark:text-orange-300 mt-2">
-                      Escalada el{' '}
-                      {new Date(request.escalatedAt).toLocaleDateString('es-AR', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
+                      {t('contracts.changeRequest.escalatedOn', 'Escalated on {{date}}', {
+                        date: new Date(request.escalatedAt).toLocaleDateString('es-AR', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
                       })}
                     </p>
                   )}
@@ -429,7 +431,7 @@ export default function ContractChangeRequestDetail() {
           {canRespond && (
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-lg p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Responder a esta solicitud
+                {t('contracts.changeRequest.respondToRequest', 'Respond to this request')}
               </h2>
               <div className="flex gap-4">
                 <button
@@ -440,12 +442,12 @@ export default function ContractChangeRequestDetail() {
                   {responding ? (
                     <>
                       <Clock className="h-5 w-5 animate-spin" />
-                      Procesando...
+                      {t('common.processing', 'Processing...')}
                     </>
                   ) : (
                     <>
                       <X className="h-5 w-5" />
-                      Rechazar
+                      {t('common.reject', 'Reject')}
                     </>
                   )}
                 </button>
@@ -457,12 +459,12 @@ export default function ContractChangeRequestDetail() {
                   {responding ? (
                     <>
                       <Clock className="h-5 w-5 animate-spin" />
-                      Procesando...
+                      {t('common.processing', 'Processing...')}
                     </>
                   ) : (
                     <>
                       <Check className="h-5 w-5" />
-                      Aceptar
+                      {t('common.accept', 'Accept')}
                     </>
                   )}
                 </button>

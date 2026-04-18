@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
+import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useToast } from "../components/ui/Toast";
@@ -53,6 +54,7 @@ function FormField({
 }
 
 export default function EditJobScreen() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, token } = useAuth();
@@ -143,7 +145,7 @@ export default function EditJobScreen() {
           const userId = user?.id || user?._id;
 
           if (clientId !== userId) {
-            setError("No tienes permiso para editar este trabajo");
+            setError(t('jobs.noPermissionToEdit', 'You do not have permission to edit this job'));
             setLoading(false);
             return;
           }
@@ -174,10 +176,10 @@ export default function EditJobScreen() {
             }
           }
         } else {
-          setError(data.message || "No se pudo cargar el trabajo");
+          setError(data.message || t('jobs.errorLoadingJob', 'Could not load the job'));
         }
       } catch (err) {
-        setError("Error al cargar el trabajo");
+        setError(t('jobs.errorLoadingJob', 'Error loading job'));
         console.error("Error fetching job:", err);
       } finally {
         setLoading(false);
@@ -324,17 +326,17 @@ export default function EditJobScreen() {
       // Show success message based on whether it needs approval
       if (data.requiresApproval) {
         toastSuccess(
-          'Trabajo enviado para aprobación',
-          'Tu trabajo ha sido actualizado y será revisado por nuestro equipo antes de publicarse.'
+          t('jobs.sentForApproval', 'Job sent for approval'),
+          t('jobs.sentForApprovalDesc', 'Your job has been updated and will be reviewed by our team before publishing.')
         );
       } else {
-        toastSuccess('Trabajo actualizado', 'Los cambios han sido guardados exitosamente.');
+        toastSuccess(t('jobs.jobUpdated', 'Job updated'), t('jobs.jobUpdatedDesc', 'Changes have been saved successfully.'));
       }
 
       // Redirect back to job detail
       navigate(`/jobs/${id}`);
     } catch (err: any) {
-      setError(err.message || "No se pudo actualizar el trabajo. Inténtalo de nuevo.");
+      setError(err.message || t('jobs.errorUpdatingJob', 'Could not update the job. Please try again.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -357,7 +359,7 @@ export default function EditJobScreen() {
             to="/"
             className="text-sky-600 hover:text-sky-700 font-medium"
           >
-            Volver al inicio
+            {t('common.backToHome', 'Back to home')}
           </Link>
         </div>
       </div>
@@ -367,8 +369,8 @@ export default function EditJobScreen() {
   return (
     <>
       <Helmet>
-        <title>Editar Trabajo - DoApp</title>
-        <meta name="description" content="Edita tu publicación de trabajo en DoApp." />
+        <title>{t('jobs.editPageTitle', 'Edit Job - DoApp')}</title>
+        <meta name="description" content={t('jobs.editMetaDescription', 'Edit your job posting on DoApp.')} />
       </Helmet>
       <div className="container mx-auto max-w-4xl py-8 px-4">
         <div className="mb-6">
@@ -377,33 +379,31 @@ export default function EditJobScreen() {
             className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white"
           >
             <ArrowLeft className="h-4 w-4" />
-            Volver al trabajo
+            {t('jobs.backToJob', 'Back to job')}
           </Link>
         </div>
 
         <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
-          Editar trabajo
+          {t('jobs.editTitle', 'Edit job')}
         </h1>
         <p className="mt-2 text-lg leading-8 text-gray-600 dark:text-slate-400">
-          Modifica los detalles de tu publicación.
+          {t('jobs.editSubtitle', 'Modify the details of your posting.')}
         </p>
 
         {(jobStatus === 'cancelled' || jobStatus === 'rejected') && !hasExpiredDates && (
           cancellationReason?.includes('Ningún trabajador se postuló') ? (
             <div className="mt-4 rounded-xl border border-blue-400 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/20 p-4">
               <p className="text-blue-800 dark:text-blue-200 text-sm font-medium mb-2">
-                Reprogramando trabajo sin postulaciones
+                {t('jobs.reschedulingNoApplicants', 'Rescheduling job with no applicants')}
               </p>
               <p className="text-blue-700 dark:text-blue-300 text-sm">
-                Actualiza las fechas y considera ajustar el presupuesto o agregar más detalles para atraer trabajadores.
-                Al guardar, tu trabajo será republicado automáticamente.
+                {t('jobs.reschedulingNoApplicantsDesc', 'Update the dates and consider adjusting the budget or adding more details to attract workers. When you save, your job will be automatically republished.')}
               </p>
             </div>
           ) : (
             <div className="mt-4 rounded-xl border border-amber-500/50 bg-amber-50 dark:bg-amber-900/20 p-4">
               <p className="text-amber-700 dark:text-amber-300 text-sm">
-                <strong>Nota:</strong> Este trabajo fue {jobStatus === 'cancelled' ? 'cancelado' : 'rechazado'}.
-                Al guardar los cambios, será enviado automáticamente para revisión y aprobación antes de publicarse.
+                <strong>{t('common.note', 'Note')}:</strong> {t('jobs.cancelledOrRejectedNote', 'This job was {{status}}. When you save the changes, it will be automatically sent for review and approval before being published.', { status: jobStatus === 'cancelled' ? t('jobs.statusCancelled', 'cancelled') : t('jobs.statusRejected', 'rejected') })}
               </p>
             </div>
           )
@@ -412,15 +412,14 @@ export default function EditJobScreen() {
         {hasExpiredDates && (
           <div className="mt-4 rounded-xl border-2 border-red-500/50 bg-red-50 dark:bg-red-900/20 p-4">
             <p className="text-red-700 dark:text-red-300 text-sm font-medium mb-2">
-              ⚠️ Este trabajo tiene fechas vencidas
+              {t('jobs.expiredDatesWarning', 'This job has expired dates')}
             </p>
             <p className="text-red-600 dark:text-red-400 text-sm">
-              Las fechas programadas para este trabajo ya pasaron. <strong>Primero debes actualizar las fechas de inicio y fin</strong> a fechas futuras válidas.
-              Una vez que las fechas sean correctas, podrás editar los demás campos.
+              {t('jobs.expiredDatesDesc', 'The scheduled dates for this job have passed. You must first update the start and end dates to valid future dates. Once the dates are correct, you can edit the other fields.')}
             </p>
             {!fieldsDisabled && (
               <p className="text-green-600 dark:text-green-400 text-sm mt-2">
-                ✓ Las nuevas fechas son válidas. Ahora puedes editar todos los campos y guardar los cambios.
+                {t('jobs.datesValidNow', 'The new dates are valid. You can now edit all fields and save the changes.')}
               </p>
             )}
           </div>
@@ -429,9 +428,9 @@ export default function EditJobScreen() {
         <form onSubmit={handleSubmit} className="mt-10 space-y-8">
           <div className="space-y-6 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-6 shadow-sm">
             <FormField
-              label="Título del trabajo"
+              label={t('jobs.titleLabel', 'Job title')}
               icon={FileText}
-              description="Sé claro y específico."
+              description={t('jobs.titleDescription', 'Be clear and specific.')}
             >
               <input
                 type="text"
@@ -439,15 +438,15 @@ export default function EditJobScreen() {
                 onChange={(e) => setTitle(e.target.value)}
                 required
                 disabled={fieldsDisabled}
-                placeholder="Ej: Reparación de cañería en cocina"
+                placeholder={t('jobs.titlePlaceholder', 'E.g.: Kitchen pipe repair')}
                 className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </FormField>
 
             <FormField
-              label="Resumen breve"
+              label={t('jobs.summaryLabel', 'Brief summary')}
               icon={FileText}
-              description="Un resumen corto del trabajo (máximo 200 caracteres)"
+              description={t('jobs.summaryDescription', 'A short summary of the job (max 200 characters)')}
             >
               <input
                 type="text"
@@ -456,15 +455,15 @@ export default function EditJobScreen() {
                 required
                 disabled={fieldsDisabled}
                 maxLength={200}
-                placeholder="Ej: Necesito arreglar una pérdida de agua en la cocina"
+                placeholder={t('jobs.summaryPlaceholder', 'E.g.: I need to fix a water leak in the kitchen')}
                 className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </FormField>
 
             <FormField
-              label="Descripción detallada"
+              label={t('jobs.descriptionLabel', 'Detailed description')}
               icon={FileText}
-              description="Incluye todos los detalles importantes del servicio requerido."
+              description={t('jobs.descriptionDescription', 'Include all important details of the required service.')}
             >
               <textarea
                 value={description}
@@ -472,15 +471,15 @@ export default function EditJobScreen() {
                 rows={5}
                 required
                 disabled={fieldsDisabled}
-                placeholder="Describe el problema, qué esperas que se haga, si se necesitan materiales especiales, etc."
+                placeholder={t('jobs.descriptionPlaceholder', 'Describe the problem, what you expect to be done, if special materials are needed, etc.')}
                 className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </FormField>
 
             <FormField
-              label="Categoría"
+              label={t('jobs.categoryLabel', 'Category')}
               icon={Tag}
-              description="Selecciona la categoría que mejor describe tu trabajo"
+              description={t('jobs.categoryDescription', 'Select the category that best describes your job')}
             >
               <select
                 value={selectedCategory}
@@ -489,7 +488,7 @@ export default function EditJobScreen() {
                 disabled={fieldsDisabled}
                 className="block w-full rounded-md border-0 py-2 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <option value="">Seleccionar categoría...</option>
+                <option value="">{t('jobs.selectCategory', 'Select category...')}</option>
                 {JOB_CATEGORIES.map((cat) => (
                   <option key={cat.id} value={cat.id}>
                     {cat.icon} {cat.label}
@@ -499,9 +498,9 @@ export default function EditJobScreen() {
             </FormField>
 
             <FormField
-              label="Etiquetas"
+              label={t('jobs.tagsLabel', 'Tags')}
               icon={Tag}
-              description="Agrega etiquetas para ayudar a que tu trabajo sea encontrado (máximo 10)"
+              description={t('jobs.tagsDescription', 'Add tags to help your job be found (max 10)')}
             >
               <div className="space-y-3">
                 {selectedTags.length > 0 && (
@@ -544,7 +543,7 @@ export default function EditJobScreen() {
                     value={customTag}
                     onChange={(e) => setCustomTag(e.target.value)}
                     onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), handleAddCustomTag())}
-                    placeholder="O agrega una etiqueta personalizada"
+                    placeholder={t('jobs.customTagPlaceholder', 'Or add a custom tag')}
                     disabled={fieldsDisabled || selectedTags.length >= 10}
                     className="block flex-1 rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50"
                   />
@@ -554,7 +553,7 @@ export default function EditJobScreen() {
                     disabled={fieldsDisabled || !customTag.trim() || selectedTags.length >= 10}
                     className="px-4 py-2 bg-sky-500 text-white rounded-md hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                   >
-                    Agregar
+                    {t('common.add', 'Add')}
                   </button>
                 </div>
               </div>
@@ -562,7 +561,7 @@ export default function EditJobScreen() {
 
             <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
               <div className="sm:col-span-3">
-                <FormField label="Presupuesto (ARS)" icon={DollarSign}>
+                <FormField label={t('jobs.budgetLabel', 'Budget (ARS)')} icon={DollarSign}>
                   <input
                     type="number"
                     value={price}
@@ -582,11 +581,11 @@ export default function EditJobScreen() {
                 </FormField>
               </div>
               <div className="sm:col-span-2">
-                <FormField label="Ciudad" icon={MapPin}>
+                <FormField label={t('jobs.cityLabel', 'City')} icon={MapPin}>
                   <LocationAutocomplete
                     value={location}
                     onChange={setLocation}
-                    placeholder="Ej: Buenos Aires"
+                    placeholder={t('jobs.locationPlaceholder')}
                     required
                     disabled={fieldsDisabled}
                     name="location"
@@ -594,12 +593,12 @@ export default function EditJobScreen() {
                 </FormField>
               </div>
               <div className="sm:col-span-2">
-                <FormField label="Barrio (opcional)" icon={MapPin}>
+                <FormField label={t('jobs.neighborhoodLabel', 'Neighborhood (optional)')} icon={MapPin}>
                   <input
                     type="text"
                     value={neighborhood}
                     onChange={(e) => setNeighborhood(e.target.value)}
-                    placeholder="Ej: Palermo, Belgrano"
+                    placeholder={t('jobs.locationPlaceholder')}
                     disabled={fieldsDisabled}
                     className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
@@ -611,21 +610,21 @@ export default function EditJobScreen() {
               {hasExpiredDates && (
                 <div className="sm:col-span-6 mb-2">
                   <p className="text-amber-700 dark:text-amber-300 text-sm font-medium">
-                    ⚠️ Este trabajo expiró. Selecciona nuevas fechas para poder guardarlo:
+                    {t('jobs.jobExpiredSelectDates', 'This job expired. Select new dates to save it:')}
                   </p>
                   <ul className="text-amber-600 dark:text-amber-400 text-xs mt-1 list-disc list-inside">
-                    <li>La fecha de fin debe ser en el futuro</li>
-                    <li>La fecha de fin debe ser posterior a la fecha de inicio</li>
+                    <li>{t('jobs.endDateMustBeFuture', 'The end date must be in the future')}</li>
+                    <li>{t('jobs.endDateMustBeAfterStart', 'The end date must be after the start date')}</li>
                   </ul>
                   {datesAreValid() && (
                     <p className="text-green-600 dark:text-green-400 text-sm mt-2 font-medium">
-                      ✓ Las nuevas fechas son válidas
+                      {t('jobs.newDatesValid', 'The new dates are valid')}
                     </p>
                   )}
                 </div>
               )}
               <div className="sm:col-span-3">
-                <FormField label="Fecha de inicio" icon={Calendar}>
+                <FormField label={t('jobs.startDateLabel', 'Start date')} icon={Calendar}>
                   <input
                     type="datetime-local"
                     value={startDate}
@@ -637,7 +636,7 @@ export default function EditJobScreen() {
                 </FormField>
               </div>
               <div className="sm:col-span-3">
-                <FormField label="Fecha de finalización estimada" icon={Clock}>
+                <FormField label={t('jobs.endDateLabel', 'Estimated end date')} icon={Clock}>
                   {!endDateFlexible && (
                     <input
                       type="datetime-local"
@@ -656,14 +655,14 @@ export default function EditJobScreen() {
                       className="w-4 h-4 rounded border-gray-300 dark:border-slate-600 text-sky-600 focus:ring-sky-500 dark:bg-slate-700"
                     />
                     <span className="text-sm text-gray-600 dark:text-slate-400">
-                      Todavía no lo sé
+                      {t('jobs.dontKnowYet', "I don't know yet")}
                     </span>
                   </label>
                   {endDateFlexible && (
                     <div className="mt-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
                       <p className="text-sm text-amber-700 dark:text-amber-300">
                         <AlertTriangle className="inline h-4 w-4 mr-1" />
-                        Deberás definir la fecha de fin antes de las 24 horas previas al inicio del trabajo, de lo contrario el trabajo quedará suspendido.
+                        {t('jobs.flexibleEndDateWarning', 'You must define the end date before 24 hours prior to the job start, otherwise the job will be suspended.')}
                       </p>
                     </div>
                   )}
@@ -678,7 +677,7 @@ export default function EditJobScreen() {
                   <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="font-semibold text-red-800 dark:text-red-200">
-                      Conflicto de horario con "{overlapWarning.jobTitle}"
+                      {t('jobs.scheduleConflict', 'Schedule conflict with "{{jobTitle}}"', { jobTitle: overlapWarning.jobTitle })}
                     </p>
                     <p className="text-sm text-red-700 dark:text-red-300 mt-1">
                       {overlapWarning.message}
@@ -690,7 +689,7 @@ export default function EditJobScreen() {
 
             {/* Existing Images */}
             {existingImages.length > 0 && (
-              <FormField label="Imágenes existentes" icon={ImageIcon}>
+              <FormField label={t('jobs.existingImages', 'Existing images')} icon={ImageIcon}>
                 <div className="flex flex-wrap gap-3">
                   {existingImages.map((img, index) => (
                     <div key={index} className="relative group">
@@ -713,7 +712,7 @@ export default function EditJobScreen() {
             )}
 
             <FormField
-              label="Agregar nuevas fotos (opcional)"
+              label={t('jobs.addNewPhotos', 'Add new photos (optional)')}
               icon={ImageIcon}
             >
               <FileUploadWithPreview
@@ -736,11 +735,10 @@ export default function EditJobScreen() {
               <HelpCircle className="h-5 w-5 text-sky-500 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <h3 className="font-medium text-gray-900 dark:text-white text-sm">
-                  ¿Necesitás ayuda con este trabajo?
+                  {t('jobs.needHelp', 'Need help with this job?')}
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
-                  Si tenés problemas con el contrato, necesitás hacer modificaciones que no podés realizar vos mismo,
-                  o tenés algún inconveniente con el trabajador, podés abrir un ticket de soporte.
+                  {t('jobs.needHelpDesc', 'If you have problems with the contract, need to make modifications you cannot do yourself, or have any issues with the worker, you can open a support ticket.')}
                 </p>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Link
@@ -748,14 +746,14 @@ export default function EditJobScreen() {
                     className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-sky-700 dark:text-sky-300 bg-sky-100 dark:bg-sky-900/30 hover:bg-sky-200 dark:hover:bg-sky-900/50 rounded-lg transition-colors"
                   >
                     <MessageSquare className="h-4 w-4" />
-                    Reportar problema
+                    {t('jobs.reportProblem', 'Report problem')}
                   </Link>
                   <Link
                     to="/help"
                     className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 dark:text-slate-300 bg-gray-100 dark:bg-slate-700 hover:bg-gray-200 dark:hover:bg-slate-600 rounded-lg transition-colors"
                   >
                     <HelpCircle className="h-4 w-4" />
-                    Centro de ayuda
+                    {t('jobs.helpCenter', 'Help center')}
                   </Link>
                 </div>
               </div>
@@ -767,14 +765,14 @@ export default function EditJobScreen() {
               to={`/jobs/${id}`}
               className="text-sm font-semibold leading-6 text-gray-900 dark:text-slate-300 hover:text-gray-700 dark:hover:text-white"
             >
-              Cancelar
+              {t('common.cancel', 'Cancel')}
             </Link>
             <button
               type="submit"
               disabled={isSubmitting || fieldsDisabled || !!overlapWarning}
               className="rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-sky-500/30 hover:from-sky-600 hover:to-sky-700 hover:shadow-sky-500/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
             >
-              {isSubmitting ? "Guardando..." : overlapWarning ? "Resolvé el conflicto de horario" : fieldsDisabled ? "Actualiza las fechas primero" : "Guardar cambios"}
+              {isSubmitting ? t('common.saving', 'Saving...') : overlapWarning ? t('jobs.resolveConflict', 'Resolve the schedule conflict') : fieldsDisabled ? t('jobs.updateDatesFirst', 'Update dates first') : t('common.saveChanges', 'Save changes')}
             </button>
           </div>
         </form>

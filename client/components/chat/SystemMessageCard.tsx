@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import {
   Briefcase,
@@ -97,39 +98,40 @@ const parseSystemMessage = (messageText: string) => {
 };
 
 // Get status configuration
-const getStatusConfig = (status?: string) => {
+const getStatusConfig = (status?: string, t?: (key: string, fallback: string) => string) => {
+  const translate = t || ((key: string, fallback: string) => fallback);
   switch (status) {
     case 'pending':
       return {
-        label: 'Pendiente',
+        label: translate('common.status.pending', 'Pending'),
         color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
         icon: Clock,
         borderColor: 'border-amber-300 dark:border-amber-700',
       };
     case 'approved':
       return {
-        label: 'Aceptada',
+        label: translate('common.status.accepted', 'Accepted'),
         color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
         icon: CheckCircle2,
         borderColor: 'border-green-300 dark:border-green-700',
       };
     case 'rejected':
       return {
-        label: 'Rechazada',
+        label: translate('common.status.rejected', 'Rejected'),
         color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
         icon: XCircle,
         borderColor: 'border-red-300 dark:border-red-700',
       };
     case 'withdrawn':
       return {
-        label: 'Cancelada',
+        label: translate('common.status.cancelled', 'Cancelled'),
         color: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300',
         icon: XCircle,
         borderColor: 'border-gray-300 dark:border-gray-700',
       };
     default:
       return {
-        label: 'Pendiente',
+        label: translate('common.status.pending', 'Pending'),
         color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
         icon: Clock,
         borderColor: 'border-amber-300 dark:border-amber-700',
@@ -143,6 +145,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
   onRefresh,
   token,
 }) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { header, title, data } = parseSystemMessage(message.message);
 
@@ -152,7 +155,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
   const isRejected = message.metadata?.proposalStatus === 'rejected';
   const isDirectProposal = message.metadata?.action === 'direct_contract_proposal' || header === 'direct_proposal';
 
-  const statusConfig = getStatusConfig(message.metadata?.proposalStatus);
+  const statusConfig = getStatusConfig(message.metadata?.proposalStatus, t);
   const StatusIcon = statusConfig.icon;
 
   // Determine card style based on status and sender
@@ -183,33 +186,33 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
   const getDisplayTitle = () => {
     if (isDirectProposal) {
       return isCurrentUser
-        ? 'Propuesta de contrato enviada'
-        : `${message.sender.name} te propone un contrato`;
+        ? t('chat.contractProposalSent', 'Contract proposal sent')
+        : t('chat.userProposesContract', '{{name}} proposes a contract to you', { name: message.sender.name });
     }
     // Check for counter-offer
     const isCounterOffer = message.metadata?.isCounterOffer;
     if (isCounterOffer) {
       if (isCurrentUser) {
-        return 'Enviaste una contraoferta';
+        return t('chat.youSentCounterOffer', 'You sent a counter-offer');
       }
-      return `${message.sender.name} envió una contraoferta`;
+      return t('chat.userSentCounterOffer', '{{name}} sent a counter-offer', { name: message.sender.name });
     }
     if (isCurrentUser) {
-      return 'Te postulaste a este trabajo';
+      return t('chat.youAppliedToJob', 'You applied to this job');
     }
-    return `${message.sender.name} quiere trabajar contigo`;
+    return t('chat.userWantsToWork', '{{name}} wants to work with you', { name: message.sender.name });
   };
 
   // Handle accept proposal
   const handleAccept = async () => {
     if (!message.metadata?.proposalId) {
-      alert('No se encontró la propuesta');
+      alert(t('chat.proposalNotFound', 'Proposal not found'));
       return;
     }
 
     const confirmMsg = isDirectProposal
-      ? '¿Aceptas esta propuesta? Se creará el trabajo y contrato automáticamente.'
-      : '¿Seleccionar a este trabajador para el trabajo?';
+      ? t('chat.confirmAcceptDirect', 'Accept this proposal? The job and contract will be created automatically.')
+      : t('chat.confirmSelectWorker', 'Select this worker for the job?');
 
     if (!confirm(confirmMsg)) return;
 
@@ -231,11 +234,11 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
       if (result.success && result.contractId) {
         navigate(`/contracts/${result.contractId}/summary`);
       } else {
-        alert(result.message || 'Error al aceptar');
+        alert(result.message || t('chat.errorAccepting', 'Error accepting'));
       }
     } catch (error) {
       console.error('Error:', error);
-      alert('Error al procesar la solicitud');
+      alert(t('chat.errorProcessing', 'Error processing request'));
     }
   };
 
@@ -243,7 +246,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
   const handleReject = async () => {
     if (!message.metadata?.proposalId) return;
 
-    if (!confirm('¿Rechazar esta postulación?')) return;
+    if (!confirm(t('chat.confirmReject', 'Reject this application?'))) return;
 
     try {
       const endpoint = isDirectProposal
@@ -262,11 +265,11 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
       if (result.success) {
         onRefresh();
       } else {
-        alert(result.message || 'Error al rechazar');
+        alert(result.message || t('chat.errorRejecting', 'Error rejecting'));
       }
     } catch (error) {
       console.error('Error:', error);
-      alert('Error al rechazar');
+      alert(t('chat.errorRejecting', 'Error rejecting'));
     }
   };
 
@@ -274,7 +277,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
   const handleWithdraw = async () => {
     if (!message.metadata?.proposalId) return;
 
-    if (!confirm('¿Cancelar tu postulación?')) return;
+    if (!confirm(t('chat.confirmWithdraw', 'Withdraw your application?'))) return;
 
     try {
       const response = await fetch(`/api/proposals/${message.metadata.proposalId}/withdraw`, {
@@ -289,11 +292,11 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
       if (result.success) {
         onRefresh();
       } else {
-        alert(result.message || 'Error al cancelar');
+        alert(result.message || t('chat.errorCancelling', 'Error cancelling'));
       }
     } catch (error) {
       console.error('Error:', error);
-      alert('Error al cancelar');
+      alert(t('chat.errorCancelling', 'Error cancelling'));
     }
   };
 
@@ -338,7 +341,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
           <div className="px-4 py-2 bg-purple-100 dark:bg-purple-900/30 flex items-center gap-2">
             <CheckCircle className="h-4 w-4 text-purple-600 dark:text-purple-400" />
             <span className="text-xs font-medium text-purple-700 dark:text-purple-300">
-              Seleccionado automáticamente
+              {t('chat.autoSelected', 'Automatically selected')}
             </span>
           </div>
         )}
@@ -348,7 +351,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
           <div className="px-4 py-2 bg-orange-100 dark:bg-orange-900/30 flex items-center gap-2">
             <DollarSign className="h-4 w-4 text-orange-600 dark:text-orange-400" />
             <span className="text-xs font-medium text-orange-700 dark:text-orange-300">
-              Contraoferta - Precio diferente al publicado
+              {t('chat.counterOfferDifferentPrice', 'Counter-offer - Different price than posted')}
             </span>
           </div>
         )}
@@ -358,7 +361,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
           <div className="px-4 py-2 bg-amber-100 dark:bg-amber-900/30 flex items-center gap-2">
             <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 animate-pulse" />
             <span className="text-xs font-medium text-amber-700 dark:text-amber-300">
-              Requiere tu respuesta
+              {t('chat.requiresYourResponse', 'Requires your response')}
             </span>
           </div>
         )}
@@ -383,7 +386,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
               <span className="font-semibold text-green-700 dark:text-green-400">{data.price}</span>
               {data.originalPrice && (
                 <span className="text-slate-500 dark:text-slate-400 line-through text-xs">
-                  (Original: {data.originalPrice})
+                  ({t('common.original', 'Original')}: {data.originalPrice})
                 </span>
               )}
             </div>
@@ -400,7 +403,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
             <div className="pt-2 mt-2 border-t border-slate-200 dark:border-slate-700">
               <div className="flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
                 <Paperclip className="h-3.5 w-3.5" />
-                <span>{message.metadata.directProposal.attachments.length} archivo(s) adjunto(s)</span>
+                <span>{t('chat.attachedFiles', '{{count}} attached file(s)', { count: message.metadata.directProposal.attachments.length })}</span>
               </div>
               <div className="grid grid-cols-2 gap-2">
                 {message.metadata.directProposal.attachments.map((url, index) => {
@@ -431,7 +434,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-medium text-slate-700 dark:text-slate-300 truncate">
-                          {isPdf ? 'Documento PDF' : 'Imagen'}
+                          {isPdf ? t('common.pdfDocument', 'PDF Document') : t('common.image', 'Image')}
                         </p>
                         <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
                           {fileName.substring(0, 20)}...
@@ -459,11 +462,11 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
                       className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/40 rounded-lg transition-colors"
                     >
                       <X className="h-4 w-4" />
-                      Cancelar
+                      {t('common.cancel', 'Cancel')}
                     </button>
                     <div className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Esperando...
+                      {t('common.waiting', 'Waiting...')}
                     </div>
                   </>
                 ) : (
@@ -474,14 +477,14 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
                       className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 rounded-lg shadow-sm hover:shadow transition-all active:scale-[0.98]"
                     >
                       <CheckCircle className="h-4 w-4" />
-                      Aceptar
+                      {t('common.accept', 'Accept')}
                     </button>
                     <button
                       onClick={handleReject}
                       className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 bg-white dark:bg-slate-800 hover:bg-red-50 dark:hover:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg transition-colors"
                     >
                       <X className="h-4 w-4" />
-                      Rechazar
+                      {t('common.reject', 'Reject')}
                     </button>
                   </>
                 )}
@@ -495,7 +498,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
                 className={`w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/20 hover:bg-sky-100 dark:hover:bg-sky-900/40 rounded-lg transition-colors ${isPending ? 'mt-2' : ''}`}
               >
                 <Briefcase className="h-4 w-4" />
-                Ver trabajo
+                {t('chat.viewJob', 'View job')}
               </button>
             )}
 
@@ -506,7 +509,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
                 className="w-full mt-2 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors"
               >
                 <Users className="h-4 w-4" />
-                Ver todos los postulantes
+                {t('chat.viewAllApplicants', 'View all applicants')}
               </button>
             )}
 
@@ -517,7 +520,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
                 className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 rounded-lg shadow-sm"
               >
                 <CheckCircle className="h-4 w-4" />
-                Ver contrato
+                {t('chat.viewContract', 'View contract')}
               </button>
             )}
           </div>

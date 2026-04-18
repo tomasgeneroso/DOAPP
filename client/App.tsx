@@ -9,6 +9,7 @@ import OnboardingTooltip from "./components/onboarding/OnboardingTooltip";
 import { useEffect } from "react";
 import { setupFetchInterceptor } from "./utils/fetchWithAuth";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { features } from "../shared/featureFlags";
 import Index from "./pages/Index";
 import LoginScreen from "./pages/LoginScreen";
 import AuthCallback from "./pages/AuthCallback";
@@ -92,6 +93,7 @@ import PendingPayments from "./pages/admin/PendingPayments";
 import AdminJobManager from "./pages/admin/JobManager";
 import AdminFamilyCodes from "./pages/admin/FamilyCodes";
 import AdminPerformanceMonitor from "./pages/admin/PerformanceMonitor";
+import AdminSearch from "./pages/admin/AdminSearch";
 import EditJobScreen from "./pages/EditJobScreen";
 import NotificationsScreen from "./pages/NotificationsScreen";
 import CompleteRegistration from "./pages/CompleteRegistration";
@@ -376,11 +378,11 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
-              <Route path="/blog" element={<BlogsScreen />} />
-              <Route path="/blog/create" element={<CreateBlogScreen />} />
-              <Route path="/blog/:slug" element={<BlogDetailScreen />} />
+              {features.blog && <Route path="/blog" element={<BlogsScreen />} />}
+              {features.blog && <Route path="/blog/create" element={<CreateBlogScreen />} />}
+              {features.blog && <Route path="/blog/:slug" element={<BlogDetailScreen />} />}
               <Route path="/posts/:id" element={<PostDetail />} />
-              <Route path="/sitemap" element={<SiteMap />} />
+              {features.sitemap && <Route path="/sitemap" element={<SiteMap />} />}
               <Route
                 path="/tickets/new"
                 element={
@@ -500,6 +502,7 @@ export default function App() {
               <Route path="jobs" element={<AdminJobManager />} />
               <Route path="family-codes" element={<AdminFamilyCodes />} />
               <Route path="performance" element={<AdminPerformanceMonitor />} />
+              <Route path="search" element={<AdminSearch />} />
             </Route>
                 </Routes>
               </OnboardingProvider>

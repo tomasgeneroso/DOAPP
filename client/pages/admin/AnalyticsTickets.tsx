@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { adminApi } from "@/lib/adminApi";
 import { Ticket, Clock, AlertTriangle, CheckCircle2 } from "lucide-react";
 import {
@@ -24,32 +25,34 @@ interface TicketAnalytics {
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#82ca9d"];
 
-const STATUS_LABELS: Record<string, string> = {
-  open: "Abierto",
-  assigned: "Asignado",
-  in_progress: "En Progreso",
-  waiting_response: "Esperando Respuesta",
-  closed: "Cerrado",
-  resolved: "Resuelto",
-};
-
-const CATEGORY_LABELS: Record<string, string> = {
-  technical: "Técnico",
-  billing: "Facturación",
-  account: "Cuenta",
-  general: "General",
-  bug: "Error",
-  feature_request: "Solicitud de Función",
-};
-
-const PRIORITY_LABELS: Record<string, string> = {
-  low: "Baja",
-  medium: "Media",
-  high: "Alta",
-  urgent: "Urgente",
-};
-
 export default function AnalyticsTickets() {
+  const { t } = useTranslation();
+
+  const STATUS_LABELS: Record<string, string> = {
+    open: t('common.status.open', 'Open'),
+    assigned: t('common.status.assigned', 'Assigned'),
+    in_progress: t('common.status.inProgress', 'In Progress'),
+    waiting_response: t('common.status.waitingResponse', 'Waiting Response'),
+    closed: t('common.status.closed', 'Closed'),
+    resolved: t('common.status.resolved', 'Resolved'),
+  };
+
+  const CATEGORY_LABELS: Record<string, string> = {
+    technical: t('admin.tickets.categories.technical', 'Technical'),
+    billing: t('admin.tickets.categories.billing', 'Billing'),
+    account: t('admin.tickets.categories.account', 'Account'),
+    general: t('admin.tickets.categories.general', 'General'),
+    bug: t('admin.tickets.categories.bug', 'Bug'),
+    feature_request: t('admin.tickets.categories.featureRequest', 'Feature Request'),
+  };
+
+  const PRIORITY_LABELS: Record<string, string> = {
+    low: t('common.priority.low', 'Low'),
+    medium: t('common.priority.medium', 'Medium'),
+    high: t('common.priority.high', 'High'),
+    urgent: t('common.priority.urgent', 'Urgent'),
+  };
+
   const [analytics, setAnalytics] = useState<TicketAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("30d");
@@ -84,7 +87,7 @@ export default function AnalyticsTickets() {
   if (!analytics) {
     return (
       <div className="p-6 text-center text-gray-500 dark:text-gray-400">
-        No se pudieron cargar las métricas
+        {t('admin.analytics.loadError', 'Could not load metrics')}
       </div>
     );
   }
@@ -121,10 +124,10 @@ export default function AnalyticsTickets() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Métricas de Tickets
+            {t('admin.analytics.ticketMetrics', 'Ticket Metrics')}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Análisis detallado de soporte y tickets
+            {t('admin.analytics.ticketSubtitle', 'Detailed analysis of support and tickets')}
           </p>
         </div>
 
@@ -140,7 +143,7 @@ export default function AnalyticsTickets() {
                   : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
               }`}
             >
-              {p === "7d" ? "7 días" : p === "30d" ? "30 días" : "90 días"}
+              {p === "7d" ? t('admin.analytics.7days', '7 days') : p === "30d" ? t('admin.analytics.30days', '30 days') : t('admin.analytics.90days', '90 days')}
             </button>
           ))}
         </div>
@@ -154,7 +157,7 @@ export default function AnalyticsTickets() {
               <Ticket className="h-6 w-6 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Total Tickets</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.analytics.totalTickets', 'Total Tickets')}</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalTickets}</p>
             </div>
           </div>
@@ -166,7 +169,7 @@ export default function AnalyticsTickets() {
               <AlertTriangle className="h-6 w-6 text-orange-600 dark:text-orange-400" />
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Abiertos</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t('common.status.open', 'Open')}</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{openTickets}</p>
             </div>
           </div>
@@ -178,7 +181,7 @@ export default function AnalyticsTickets() {
               <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Tasa de Resolución</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.analytics.resolutionRate', 'Resolution Rate')}</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
                 {resolutionRate.toFixed(1)}%
               </p>
@@ -192,7 +195,7 @@ export default function AnalyticsTickets() {
               <Clock className="h-6 w-6 text-purple-600 dark:text-purple-400" />
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Tiempo Promedio</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.analytics.avgTime', 'Average Time')}</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
                 {analytics.avgResolutionTimeHours.toFixed(1)}h
               </p>
@@ -206,7 +209,7 @@ export default function AnalyticsTickets() {
         {/* Tickets by Status */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Tickets por Estado
+            {t('admin.analytics.ticketsByStatus', 'Tickets by Status')}
           </h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={statusChartData}>
@@ -221,7 +224,7 @@ export default function AnalyticsTickets() {
                 }}
               />
               <Legend />
-              <Bar dataKey="count" fill="#0EA5E9" name="Tickets" />
+              <Bar dataKey="count" fill="#0EA5E9" name={t('admin.sidebar.tickets', 'Tickets')} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -229,7 +232,7 @@ export default function AnalyticsTickets() {
         {/* Tickets by Category */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Tickets por Categoría
+            {t('admin.analytics.ticketsByCategory', 'Tickets by Category')}
           </h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
@@ -264,7 +267,7 @@ export default function AnalyticsTickets() {
         {/* Tickets by Priority */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Tickets por Prioridad
+            {t('admin.analytics.ticketsByPriority', 'Tickets by Priority')}
           </h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={priorityChartData}>
@@ -279,7 +282,7 @@ export default function AnalyticsTickets() {
                 }}
               />
               <Legend />
-              <Bar dataKey="count" fill="#F59E0B" name="Tickets" />
+              <Bar dataKey="count" fill="#F59E0B" name={t('admin.sidebar.tickets', 'Tickets')} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -287,7 +290,7 @@ export default function AnalyticsTickets() {
         {/* Priority Distribution Pie */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Distribución de Prioridad
+            {t('admin.analytics.priorityDistribution', 'Priority Distribution')}
           </h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
@@ -322,17 +325,17 @@ export default function AnalyticsTickets() {
         {/* Category Summary */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Resumen por Categoría
+            {t('admin.analytics.summaryByCategory', 'Summary by Category')}
           </h3>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead>
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Categoría
+                    {t('common.category', 'Category')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Cantidad
+                    {t('common.quantity', 'Quantity')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     %
@@ -361,17 +364,17 @@ export default function AnalyticsTickets() {
         {/* Priority Summary */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Resumen por Prioridad
+            {t('admin.analytics.summaryByPriority', 'Summary by Priority')}
           </h3>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead>
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Prioridad
+                    {t('common.priority.label', 'Priority')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Cantidad
+                    {t('common.quantity', 'Quantity')}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     %

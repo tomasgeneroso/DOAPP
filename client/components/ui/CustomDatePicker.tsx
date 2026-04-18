@@ -1,4 +1,5 @@
 import { forwardRef, useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import ReactDatePicker, { registerLocale } from "react-datepicker";
 import { es } from "date-fns/locale/es";
 import "react-datepicker/dist/react-datepicker.css";
@@ -28,7 +29,7 @@ export const CustomDatePicker = forwardRef<HTMLDivElement, CustomDatePickerProps
       value,
       onChange,
       type = "date",
-      placeholder = "Selecciona fecha",
+      placeholder,
       required = false,
       disabled = false,
       minDate,
@@ -38,8 +39,10 @@ export const CustomDatePicker = forwardRef<HTMLDivElement, CustomDatePickerProps
     },
     ref
   ) => {
+    const { t } = useTranslation();
     const [selectedDate, setSelectedDate] = useState<Date | null>(value || null);
     const [isFocused, setIsFocused] = useState(false);
+    const displayPlaceholder = placeholder || t('datePicker.selectDate', 'Select date');
 
     const handleChange = (date: Date | null) => {
       setSelectedDate(date);
@@ -104,12 +107,12 @@ export const CustomDatePicker = forwardRef<HTMLDivElement, CustomDatePickerProps
             showTimeSelectOnly={showTimeOnly}
             timeIntervals={timeIntervals}
             dateFormat={getDateFormat()}
-            placeholderText={placeholder}
+            placeholderText={displayPlaceholder}
             disabled={disabled}
             minDate={minDate}
             maxDate={maxDate}
             locale="es"
-            timeCaption="Hora"
+            timeCaption={t('datePicker.time', 'Time')}
             required={required}
             className="flex-1 bg-transparent border-0 outline-none text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 w-full"
             calendarClassName="custom-datepicker-calendar"

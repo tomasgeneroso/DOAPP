@@ -2,6 +2,7 @@ import { useAuth } from "../hooks/useAuth";
 import { Helmet } from "react-helmet-async";
 import { Link, useLocation } from "react-router-dom";
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { MapPin, Calendar, Clock, Star, Briefcase, CheckCircle, Plus } from "lucide-react";
 import type { Job, User as UserType } from "@/types";
 import SearchBar, { SearchFilters } from "../components/SearchBar";
@@ -15,6 +16,7 @@ import { fetchWithAuth } from "../utils/fetchWithAuth";
 
 export default function Index() {
   const { user, isLoading } = useAuth();
+  const { t } = useTranslation();
   const location = useLocation();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [users, setUsers] = useState<UserType[]>([]);
@@ -292,24 +294,24 @@ export default function Index() {
         <div className="text-center mb-8 sm:mb-12">
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-gray-900 dark:text-white px-2">
             {user ? (
-              `¡Hola de nuevo, ${user.name}!`
+              t('home.welcomeBack', { name: user.name })
             ) : (
               <>
-                Plataforma de Trabajos Argentina con{" "}
-                <span className="text-sky-600">Pagos Asegurados</span>
+                {t('home.title')}{" "}
+                <span className="text-sky-600">{t('home.titleHighlight')}</span>
               </>
             )}
           </h1>
           <p className="mx-auto mt-4 sm:mt-6 max-w-2xl text-base sm:text-lg leading-7 sm:leading-8 text-gray-600 dark:text-slate-400 px-2">
             {isLoading
-              ? "Cargando..."
+              ? t('common.loading')
               : user
-              ? "¿Listo para empezar un nuevo proyecto o buscar oportunidades? Estás en el lugar correcto."
-              : "Publicá trabajos y contratá profesionales con garantía de pago."}
+              ? t('home.welcomeSubtitle')
+              : t('home.subtitle')}
           </p>
           {!user && !isLoading && (
             <p className="mx-auto mt-3 sm:mt-4 max-w-2xl text-sm sm:text-base leading-6 sm:leading-7 text-gray-500 dark:text-slate-500 px-2">
-              Nos aseguramos que cada acuerdo se cumpla por ambas partes.
+              {t('home.subtitleSecond')}
             </p>
           )}
           {!user && !isLoading && (
@@ -318,13 +320,13 @@ export default function Index() {
                 to="/register"
                 className="w-full max-w-xs sm:w-auto rounded-lg bg-sky-600 px-5 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-semibold text-white shadow-lg hover:bg-sky-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 transition-all"
               >
-                Registrate gratis
+                {t('home.registerFree')}
               </Link>
               <Link
                 to="/login"
                 className="w-full max-w-xs sm:w-auto rounded-lg bg-orange-500 px-5 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base font-semibold text-white shadow-lg hover:bg-orange-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-orange-500 transition-all"
               >
-                Publicá tu primer trabajo
+                {t('home.publishJob')}
               </Link>
             </div>
           )}
@@ -335,10 +337,10 @@ export default function Index() {
         <div className="mt-8 sm:mt-12 max-w-6xl mx-auto px-2">
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6 sm:p-8 border border-slate-200 dark:border-slate-700">
             <h2 className="text-xl sm:text-2xl font-bold text-center text-gray-900 dark:text-white mb-2">
-              ¿Necesitás un servicio?
+              {t('home.needService')}
             </h2>
             <p className="text-center text-gray-600 dark:text-gray-400 mb-8">
-              Publicá tu trabajo y encontrá profesionales
+              {t('home.needServiceDesc')}
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 md:gap-4 overflow-visible pt-4">
@@ -353,10 +355,10 @@ export default function Index() {
                   1
                 </div>
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
-                  Publicá
+                  {t('home.step1Client')}
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Publicá tu servicio con los detalles que necesitás
+                  {t('home.step1ClientDesc')}
                 </p>
                 <div className="hidden md:block absolute top-8 -right-4 text-sky-400">
                   <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
@@ -376,10 +378,10 @@ export default function Index() {
                   2
                 </div>
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
-                  Elegí
+                  {t('home.step2Client')}
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Recibí propuestas y elegí al mejor perfil
+                  {t('home.step2ClientDesc')}
                 </p>
                 <div className="hidden md:block absolute top-8 -right-4 text-orange-400">
                   <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
@@ -399,10 +401,10 @@ export default function Index() {
                   3
                 </div>
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
-                  Pagá Seguro
+                  {t('home.step3Client')}
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Tu dinero queda protegido en nuestra plataforma hasta que el trabajo se complete
+                  {t('home.step3ClientDesc')}
                 </p>
                 <div className="hidden md:block absolute top-8 -right-4 text-purple-400">
                   <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
@@ -422,10 +424,10 @@ export default function Index() {
                   4
                 </div>
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
-                  ¡Listo!
+                  {t('home.step4Client')}
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Confirmá el servicio prestado y el pago se libera automáticamente
+                  {t('home.step4ClientDesc')}
                 </p>
               </div>
             </div>
@@ -436,10 +438,10 @@ export default function Index() {
         <div className="mt-6 sm:mt-8 max-w-6xl mx-auto px-2">
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-6 sm:p-8 border border-slate-200 dark:border-slate-700">
             <h2 className="text-xl sm:text-2xl font-bold text-center text-gray-900 dark:text-white mb-2">
-              ¿Ofrecés servicios?
+              {t('home.offerServices')}
             </h2>
             <p className="text-center text-gray-600 dark:text-gray-400 mb-8">
-              Encontrá trabajos, mostrá tu portfolio y empezá a ganar
+              {t('home.offerServicesDesc')}
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 md:gap-4 overflow-visible pt-4">
@@ -454,10 +456,10 @@ export default function Index() {
                   1
                 </div>
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
-                  Buscá
+                  {t('home.step1Worker')}
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Explorá trabajos que se ajusten a tus habilidades
+                  {t('home.step1WorkerDesc')}
                 </p>
                 <div className="hidden md:block absolute top-8 -right-4 text-sky-400">
                   <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
@@ -477,10 +479,10 @@ export default function Index() {
                   2
                 </div>
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
-                  Aplicá
+                  {t('home.step2Worker')}
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Enviá tu propuesta con tu mejor oferta
+                  {t('home.step2WorkerDesc')}
                 </p>
                 <div className="hidden md:block absolute top-8 -right-4 text-orange-400">
                   <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
@@ -500,10 +502,10 @@ export default function Index() {
                   3
                 </div>
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
-                  Trabajá
+                  {t('home.step3Worker')}
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Realizá el trabajo con tranquilidad
+                  {t('home.step3WorkerDesc')}
                 </p>
                 <div className="hidden md:block absolute top-8 -right-4 text-purple-400">
                   <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
@@ -523,10 +525,10 @@ export default function Index() {
                   4
                 </div>
                 <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
-                  Cobrá
+                  {t('home.step4Worker')}
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Recibí tu pago de forma segura y garantizada
+                  {t('home.step4WorkerDesc')}
                 </p>
               </div>
             </div>
@@ -597,12 +599,10 @@ export default function Index() {
                 </svg>
                 <div className="text-left">
                   <p className="text-xs sm:text-sm font-semibold text-sky-900 dark:text-sky-300">
-                    En DoApp, cada contrato queda protegido:
+                    {t('home.securityBanner')}
                   </p>
                   <p className="text-[11px] sm:text-xs text-sky-700 dark:text-sky-400 mt-1">
-                    el dinero se mantiene protegido en nuestra plataforma hasta que ambas partes
-                    confirman que el trabajo fue entregado. Así, vos y el
-                    profesional están seguros en todo momento.
+                    {t('home.securityDesc')}
                   </p>
                 </div>
               </div>
@@ -618,13 +618,13 @@ export default function Index() {
           <div className="mt-10 sm:mt-16 px-2">
             <div className="flex items-center justify-between mb-6 sm:mb-8">
               <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-                Mis Publicaciones
+                {t('home.myPublications')}
               </h2>
               <Link
                 to="/my-jobs"
                 className="text-xs sm:text-sm text-sky-600 hover:text-sky-700 font-semibold whitespace-nowrap"
               >
-                Ver todos ({myJobs.length})
+                {t('home.seeAll')} ({myJobs.length})
               </Link>
             </div>
             <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
@@ -637,7 +637,7 @@ export default function Index() {
                   {/* Badge de estado */}
                   <div className="absolute top-4 left-4 z-10">
                     <span className="px-3 py-1 text-xs font-bold bg-orange-500 text-white rounded-full">
-                      TU TRABAJO
+                      {t('home.yourJob', 'YOUR JOB')}
                     </span>
                   </div>
 
@@ -664,9 +664,9 @@ export default function Index() {
                       job.status === 'pending_payment' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
                       'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
                     }`}>
-                      {job.status === 'open' ? '✓ Publicado' :
-                       job.status === 'draft' ? '📝 Borrador' :
-                       job.status === 'pending_payment' ? '⏳ Pendiente de pago' :
+                      {job.status === 'open' ? `✓ ${t('jobs.status.open')}` :
+                       job.status === 'draft' ? `📝 ${t('jobs.status.draft')}` :
+                       job.status === 'pending_payment' ? `⏳ ${t('jobs.status.pending_payment')}` :
                        job.status}
                     </span>
                   </div>
@@ -681,7 +681,7 @@ export default function Index() {
           <div className="mt-10 sm:mt-16 px-2">
             <div className="flex items-center justify-between mb-6 sm:mb-8">
               <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-                Usuarios
+                {t('home.profilesTab')}
               </h2>
             </div>
 
@@ -770,7 +770,7 @@ export default function Index() {
           <div id="trabajos-disponibles" className="mt-10 sm:mt-16 px-2" data-onboarding="jobs-list">
             <div className="flex items-center justify-between mb-6 sm:mb-8">
               <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-                Trabajos Disponibles
+                {t('home.availableJobs')}
               </h2>
             </div>
 
@@ -782,10 +782,10 @@ export default function Index() {
               <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-8">
                 <Briefcase className="h-16 w-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
-                  ¡Sé el primero en publicar!
+                  {t('home.beFirstToPublish', 'Be the first to publish!')}
                 </h3>
                 <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto mb-6">
-                  Todavía no hay trabajos publicados. Aprovechá la oportunidad de ser el primero en ofrecer tus servicios o publicar lo que necesitás.
+                  {t('home.noJobsYetDesc', 'No jobs published yet. Take the opportunity to be the first to offer your services or post what you need.')}
                 </p>
                 {user ? (
                   <Link
@@ -793,14 +793,14 @@ export default function Index() {
                     className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-xl font-medium transition-all shadow-sm"
                   >
                     <Plus className="w-5 h-5" />
-                    Publicar primer trabajo
+                    {t('home.publishFirstJob', 'Publish first job')}
                   </Link>
                 ) : (
                   <Link
                     to="/register"
                     className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-600 hover:to-sky-700 text-white rounded-xl font-medium transition-all shadow-sm"
                   >
-                    Registrarse para publicar
+                    {t('home.registerToPublish', 'Sign up to publish')}
                   </Link>
                 )}
               </div>
@@ -892,7 +892,7 @@ export default function Index() {
 
                       {/* Hover Button */}
                       <div className="absolute inset-x-0 bottom-0 translate-y-full bg-gradient-to-r from-sky-500 to-sky-600 py-3 text-center text-sm font-semibold text-white transition-transform group-hover:translate-y-0">
-                        Ver detalles
+                        {t('common.viewDetails')}
                       </div>
                     </Link>
                   );

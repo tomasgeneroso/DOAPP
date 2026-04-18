@@ -155,7 +155,7 @@ export default function AdminTickets() {
           comparison = a.subject.localeCompare(b.subject, 'es');
           break;
         case 'user':
-          comparison = a.createdBy.name.localeCompare(b.createdBy.name, 'es');
+          comparison = (a.creator?.name || '').localeCompare(b.creator?.name || '', 'es');
           break;
         case 'category':
           comparison = a.category.localeCompare(b.category, 'es');
@@ -345,7 +345,7 @@ export default function AdminTickets() {
                 </td>
                 <td className="px-6 py-4">
                   <div className="text-sm text-gray-900 dark:text-white">{ticket.subject}</div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">Por {ticket.createdBy?.name || ticket.user?.name || 'N/A'}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400">Por {ticket.creator?.name || ticket.user?.name || 'N/A'}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                   {ticket.category}

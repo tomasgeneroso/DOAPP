@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
 import { useOnboarding } from '../../hooks/useOnboarding';
 import { X, ChevronLeft, ChevronRight, SkipForward } from 'lucide-react';
 
@@ -10,6 +11,7 @@ interface TooltipPosition {
 }
 
 export default function OnboardingTooltip() {
+  const { t } = useTranslation();
   const {
     isActive,
     currentStepData,
@@ -62,8 +64,18 @@ export default function OnboardingTooltip() {
 
       setTargetElement(target);
 
-      const rect = target.getBoundingClientRect();
-      setTargetRect(rect);
+      const rawRect = target.getBoundingClientRect();
+      // Compensate for CSS zoom (0.75 on desktop)
+      const zoom = parseFloat(getComputedStyle(document.documentElement).zoom || '1') || 1;
+      const rect = {
+        top: rawRect.top / zoom,
+        left: rawRect.left / zoom,
+        right: rawRect.right / zoom,
+        bottom: rawRect.bottom / zoom,
+        width: rawRect.width / zoom,
+        height: rawRect.height / zoom,
+      };
+      setTargetRect(rawRect);
       const tooltipWidth = 350;
       const tooltipHeight = 200;
       const padding = 16;
@@ -92,16 +104,18 @@ export default function OnboardingTooltip() {
           break;
       }
 
-      // Keep tooltip within viewport
+      // Keep tooltip within viewport (compensate for zoom)
+      const viewWidth = window.innerWidth / zoom;
+      const viewHeight = window.innerHeight / zoom;
       if (left < padding) left = padding;
-      if (left + tooltipWidth > window.innerWidth - padding) {
-        left = window.innerWidth - tooltipWidth - padding;
+      if (left + tooltipWidth > viewWidth - padding) {
+        left = viewWidth - tooltipWidth - padding;
       }
       if (top < padding) {
         top = rect.bottom + arrowOffset;
         arrowPosition = 'top';
       }
-      if (top + tooltipHeight > window.innerHeight - padding) {
+      if (top + tooltipHeight > viewHeight - padding) {
         top = rect.top - tooltipHeight - arrowOffset;
         arrowPosition = 'bottom';
       }
@@ -196,16 +210,16 @@ export default function OnboardingTooltip() {
           <div className="flex items-start justify-between mb-3">
             <div>
               <span className="text-xs font-medium text-sky-500 dark:text-sky-400">
-                Paso {currentStep + 1} de {totalSteps}
+                {t('onboarding.step', 'Step')} {currentStep + 1} {t('common.of')} {totalSteps}
               </span>
               <h3 className="text-lg font-bold text-slate-900 dark:text-white mt-1">
-                {currentStepData.title}
+                {t(currentStepData.title)}
               </h3>
             </div>
             <button
               onClick={skipOnboarding}
               className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-              title="Cerrar"
+              title={t('common.close', 'Close')}
             >
               <X className="h-5 w-5 text-slate-400" />
             </button>
@@ -213,7 +227,7 @@ export default function OnboardingTooltip() {
 
           {/* Description */}
           <p className="text-sm text-slate-600 dark:text-slate-400 mb-5">
-            {currentStepData.description}
+            {t(currentStepData.description)}
           </p>
 
           {/* Actions */}
@@ -223,7 +237,7 @@ export default function OnboardingTooltip() {
               className="flex items-center gap-1 px-3 py-2 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
             >
               <SkipForward className="h-4 w-4" />
-              Saltar tutorial
+              {t('onboarding.skip', 'Skip tutorial')}
             </button>
 
             <div className="flex items-center gap-2">
@@ -233,7 +247,7 @@ export default function OnboardingTooltip() {
                   className="flex items-center gap-1 px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors"
                 >
                   <ChevronLeft className="h-4 w-4" />
-                  Anterior
+                  {t('common.previous')}
                 </button>
               )}
 
@@ -245,7 +259,7 @@ export default function OnboardingTooltip() {
                   '¡Entendido!'
                 ) : (
                   <>
-                    Siguiente
+                    {t('common.next')}
                     <ChevronRight className="h-4 w-4" />
                   </>
                 )}

@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
 import { User, CreditCard, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
 
 export default function CompleteRegistration() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { user, token, refreshUser } = useAuth();
   const [dni, setDni] = useState('');
   const [loading, setLoading] = useState(false);
@@ -17,12 +19,12 @@ export default function CompleteRegistration() {
 
     // Validate DNI
     if (!dni || dni.length < 7 || dni.length > 8) {
-      setError('El DNI debe tener entre 7 y 8 dígitos');
+      setError(t('auth.dniLengthError', 'DNI must be between 7 and 8 digits'));
       return;
     }
 
     if (!/^\d+$/.test(dni)) {
-      setError('El DNI debe contener solo números');
+      setError(t('auth.dniNumericError', 'DNI must contain only numbers'));
       return;
     }
 
@@ -55,11 +57,11 @@ export default function CompleteRegistration() {
         // Redirect to home
         navigate('/', { replace: true });
       } else {
-        setError(data.message || 'Error al completar el registro');
+        setError(data.message || t('auth.completeRegistrationError', 'Error completing registration'));
       }
     } catch (err) {
       console.error('Error completing registration:', err);
-      setError('Error de conexión. Intenta nuevamente.');
+      setError(t('auth.connectionError', 'Connection error. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -68,7 +70,7 @@ export default function CompleteRegistration() {
   return (
     <>
       <Helmet>
-        <title>Completar Registro - DOAPP</title>
+        <title>{t('auth.completeRegistrationTitle', 'Complete Registration')} - DOAPP</title>
       </Helmet>
 
       <div className="min-h-screen bg-gradient-to-br from-sky-50 to-blue-100 dark:from-slate-900 dark:to-slate-800 flex items-center justify-center p-4">
@@ -77,7 +79,7 @@ export default function CompleteRegistration() {
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-sky-600 dark:text-sky-400">DOAPP</h1>
             <p className="text-slate-600 dark:text-slate-400 mt-2">
-              Plataforma de trabajo freelance
+              {t('auth.freelancePlatform', 'Freelance work platform')}
             </p>
           </div>
 
@@ -88,10 +90,10 @@ export default function CompleteRegistration() {
                 <User className="w-8 h-8 text-sky-600 dark:text-sky-400" />
               </div>
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-                Completa tu registro
+                {t('auth.completeYourRegistration', 'Complete your registration')}
               </h2>
               <p className="text-slate-600 dark:text-slate-400 mt-2">
-                Para continuar, necesitamos que ingreses tu DNI
+                {t('auth.dniRequired', 'To continue, we need you to enter your DNI')}
               </p>
             </div>
 
@@ -99,7 +101,7 @@ export default function CompleteRegistration() {
             {user && (
               <div className="bg-sky-50 dark:bg-sky-900/20 rounded-xl p-4 mb-6">
                 <p className="text-sm text-sky-700 dark:text-sky-300">
-                  Hola <strong>{user.name}</strong>, ya casi terminamos. Solo necesitamos tu DNI para verificar tu identidad.
+                  {t('auth.welcomeMessage', 'Hello {{name}}, we are almost done. We just need your DNI to verify your identity.', { name: user.name })}
                 </p>
               </div>
             )}
@@ -108,7 +110,7 @@ export default function CompleteRegistration() {
               {/* DNI Input */}
               <div>
                 <label htmlFor="dni" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  DNI (Documento Nacional de Identidad)
+                  {t('auth.dniLabel', 'DNI (National Identity Document)')}
                 </label>
                 <div className="relative">
                   <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -124,7 +126,7 @@ export default function CompleteRegistration() {
                   />
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                  Ingresa tu DNI sin puntos ni espacios (7-8 dígitos)
+                  {t('auth.dniHint', 'Enter your DNI without dots or spaces (7-8 digits)')}
                 </p>
               </div>
 
@@ -145,11 +147,11 @@ export default function CompleteRegistration() {
                 {loading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Guardando...
+                    {t('common.saving', 'Saving...')}
                   </>
                 ) : (
                   <>
-                    Continuar
+                    {t('common.continue', 'Continue')}
                     <ArrowRight className="w-5 h-5" />
                   </>
                 )}
@@ -158,8 +160,7 @@ export default function CompleteRegistration() {
 
             {/* Info */}
             <p className="text-xs text-center text-slate-500 dark:text-slate-400 mt-6">
-              Tu DNI se utiliza para verificar tu identidad y cumplir con las regulaciones argentinas.
-              Tus datos están protegidos y no serán compartidos con terceros.
+              {t('auth.dniPrivacy', 'Your DNI is used to verify your identity and comply with Argentine regulations. Your data is protected and will not be shared with third parties.')}
             </p>
           </div>
         </div>

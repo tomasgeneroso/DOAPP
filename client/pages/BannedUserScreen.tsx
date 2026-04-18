@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { Ban, Mail, Send, AlertCircle } from "lucide-react";
 
 const SUPPORT_EMAIL = "support@doapp.com.ar";
 
 export default function BannedUserScreen() {
+  const { t } = useTranslation();
   const { user, logout } = useAuth();
   const [appealText, setAppealText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -14,7 +16,7 @@ export default function BannedUserScreen() {
     e.preventDefault();
 
     if (!appealText.trim()) {
-      alert("Por favor ingresa tu reclamo");
+      alert(t('banned.enterAppeal', 'Please enter your appeal'));
       return;
     }
 
@@ -29,7 +31,7 @@ export default function BannedUserScreen() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          subject: "Apelación de baneo - Solicitud de revisión",
+          subject: t('banned.appealSubject', 'Ban appeal - Review request'),
           message: appealText,
           priority: "high",
           category: "account"
@@ -42,11 +44,11 @@ export default function BannedUserScreen() {
         setAppealSubmitted(true);
         setAppealText("");
       } else {
-        throw new Error(data.message || "Error al enviar la apelación");
+        throw new Error(data.message || t('banned.errorSendingAppeal', 'Error sending appeal'));
       }
     } catch (error: any) {
       console.error("Error submitting appeal:", error);
-      alert(error.message || "Error al enviar la apelación. Por favor contacta directamente a soporte.");
+      alert(error.message || t('banned.errorSendingAppealContact', 'Error sending appeal. Please contact support directly.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -64,11 +66,11 @@ export default function BannedUserScreen() {
           </div>
 
           <h1 className="text-3xl font-bold text-center text-gray-900 dark:text-white mb-2">
-            Cuenta Suspendida
+            {t('banned.accountSuspended', 'Account Suspended')}
           </h1>
 
           <p className="text-center text-gray-600 dark:text-gray-400 mb-6">
-            Tu cuenta ha sido suspendida y no puedes acceder a la plataforma en este momento.
+            {t('banned.accountSuspendedDescription', 'Your account has been suspended and you cannot access the platform at this time.')}
           </p>
 
           {/* Ban Details */}
@@ -77,14 +79,14 @@ export default function BannedUserScreen() {
               <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
               <div className="flex-1">
                 <h3 className="font-semibold text-red-900 dark:text-red-200 mb-1">
-                  Motivo de la suspensión:
+                  {t('banned.suspensionReason', 'Suspension reason:')}
                 </h3>
                 <p className="text-red-800 dark:text-red-300">
-                  {user?.banReason || "No se especificó un motivo"}
+                  {user?.banReason || t('banned.noReasonSpecified', 'No reason specified')}
                 </p>
                 {user?.bannedAt && (
                   <p className="text-sm text-red-600 dark:text-red-400 mt-2">
-                    Fecha: {new Date(user.bannedAt).toLocaleDateString('es-AR', {
+                    {t('banned.date', 'Date')}: {new Date(user.bannedAt).toLocaleDateString('es-AR', {
                       day: '2-digit',
                       month: 'long',
                       year: 'numeric',
@@ -95,7 +97,7 @@ export default function BannedUserScreen() {
                 )}
                 {user?.banExpiresAt && (
                   <p className="text-sm text-red-600 dark:text-red-400">
-                    Expira: {new Date(user.banExpiresAt).toLocaleDateString('es-AR', {
+                    {t('banned.expires', 'Expires')}: {new Date(user.banExpiresAt).toLocaleDateString('es-AR', {
                       day: '2-digit',
                       month: 'long',
                       year: 'numeric'
@@ -112,24 +114,22 @@ export default function BannedUserScreen() {
           {!appealSubmitted ? (
             <>
               <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-                Solicitar Revisión
+                {t('banned.requestReview', 'Request Review')}
               </h2>
 
               <p className="text-gray-600 dark:text-gray-400 mb-6">
-                Si crees que esta suspensión es un error o deseas apelar esta decisión,
-                por favor completa el siguiente formulario. Nuestro equipo de soporte
-                revisará tu caso.
+                {t('banned.reviewDescription', 'If you believe this suspension is an error or wish to appeal this decision, please complete the following form. Our support team will review your case.')}
               </p>
 
               <form onSubmit={handleSubmitAppeal} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Describe tu situación
+                    {t('banned.describeYourSituation', 'Describe your situation')}
                   </label>
                   <textarea
                     value={appealText}
                     onChange={(e) => setAppealText(e.target.value)}
-                    placeholder="Explica por qué consideras que esta suspensión debería ser revisada..."
+                    placeholder={t('banned.appealPlaceholder', 'Explain why you believe this suspension should be reviewed...')}
                     rows={6}
                     className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
                     required
@@ -142,7 +142,7 @@ export default function BannedUserScreen() {
                   className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white font-semibold rounded-lg transition-colors shadow-md hover:shadow-lg"
                 >
                   <Send className="w-5 h-5" />
-                  {isSubmitting ? "Enviando..." : "Enviar Apelación"}
+                  {isSubmitting ? t('banned.sending', 'Sending...') : t('banned.submitAppeal', 'Submit Appeal')}
                 </button>
               </form>
             </>
@@ -152,11 +152,10 @@ export default function BannedUserScreen() {
                 <Send className="w-8 h-8 text-green-600 dark:text-green-400" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-                Apelación Enviada
+                {t('banned.appealSent', 'Appeal Sent')}
               </h3>
               <p className="text-gray-600 dark:text-gray-400">
-                Tu apelación ha sido enviada exitosamente. Nuestro equipo de soporte
-                la revisará y te contactará por email.
+                {t('banned.appealSentDescription', 'Your appeal has been sent successfully. Our support team will review it and contact you by email.')}
               </p>
             </div>
           )}
@@ -166,7 +165,7 @@ export default function BannedUserScreen() {
             <div className="flex items-center justify-center gap-2 text-gray-600 dark:text-gray-400">
               <Mail className="w-5 h-5" />
               <span className="text-sm">
-                ¿Necesitas ayuda? Contacta a soporte:
+                {t('banned.needHelp', 'Need help? Contact support:')}
               </span>
             </div>
             <a
@@ -183,7 +182,7 @@ export default function BannedUserScreen() {
               onClick={logout}
               className="w-full px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
             >
-              Cerrar Sesión
+              {t('banned.logout', 'Log Out')}
             </button>
           </div>
         </div>

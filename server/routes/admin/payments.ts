@@ -10,8 +10,65 @@ import { Notification } from "../../models/sql/Notification.model.js";
 import { Op } from 'sequelize';
 import { isValidUUID } from "../../utils/sanitizer.js";
 import { generateClientPaymentInvoice } from "../../services/invoiceService.js";
+import multer from "multer";
+import path from "path";
+import fs from "fs";
 
 const router = Router();
+
+// Multer for admin-uploaded client payment proofs
+const clientProofStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = 'uploads/payment-proofs';
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, `admin-proof-${uniqueSuffix}${path.extname(file.originalname)}`);
+  }
+});
+
+const clientProofUpload = multer({
+  storage: clientProofStorage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Tipo de archivo no permitido. Solo se permiten imágenes y PDFs.'));
+    }
+  }
+});
+
+/**
+ * Upload admin payment proof for client payments
+ * POST /api/admin/payments/upload-proof
+ * MUST be before parameterized routes like /:paymentId
+ */
+router.post("/upload-proof", protect, requireRole('admin', 'super_admin', 'owner'), clientProofUpload.single('file'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ success: false, message: "No se subió ningún archivo" });
+      return;
+    }
+    const fileUrl = `/uploads/payment-proofs/${req.file.filename}`;
+    res.status(200).json({
+      success: true,
+      url: fileUrl,
+      filename: req.file.filename,
+      originalName: req.file.originalname,
+      size: req.file.size,
+      mimetype: req.file.mimetype
+    });
+  } catch (error: any) {
+    console.error("Error uploading payment proof:", error);
+    res.status(500).json({ success: false, message: error.message || "Error al subir comprobante" });
+  }
+});
 
 /**
  * Get all payments pending verification (admin only)
@@ -358,11 +415,12 @@ router.get("/:paymentId", protect, requireRole('admin', 'super_admin', 'owner'),
 /**
  * Approve payment proof OR MercadoPago payment (admin only)
  * POST /api/admin/payments/:paymentId/approve
+ * Accepts: notes, proofId (optional), proofUrl + bankReference + transferAmount + transferDate (admin-uploaded proof)
  */
 router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { paymentId } = req.params;
-    const { notes, proofId } = req.body;
+    const { notes, proofId, proofUrl, bankReference, transferAmount, transferDate, senderBankName } = req.body;
     const adminId = req.user.id;
 
     // Validate UUID to prevent PostgreSQL errors
@@ -375,6 +433,33 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
     if (!payment) {
       res.status(404).json({ success: false, message: "Pago no encontrado" });
       return;
+    }
+
+    // If admin uploaded a proof directly, create a PaymentProof record for it
+    if (proofUrl && !proofId) {
+      const ext = (proofUrl.split('.').pop() || 'jpg').toLowerCase() as any;
+      const allowedExts = ['pdf', 'png', 'jpeg', 'jpg'];
+      const fileType = allowedExts.includes(ext) ? ext : 'jpg';
+      await PaymentProof.create({
+        paymentId,
+        userId: payment.payerId || adminId,
+        fileUrl: proofUrl,
+        fileType,
+        fileName: proofUrl.split('/').pop() || 'comprobante',
+        fileSize: 0,
+        senderBankName: senderBankName || null,
+        status: 'approved',
+        verifiedBy: adminId,
+        verifiedAt: new Date(),
+        notes: [
+          bankReference ? `Referencia: ${bankReference}` : null,
+          transferAmount ? `Monto: $${transferAmount}` : null,
+          transferDate ? `Fecha: ${transferDate}` : null,
+          notes || null
+        ].filter(Boolean).join(' | ') || null,
+        isActive: true,
+        uploadedAt: new Date(),
+      });
     }
 
     // Check if there's a proof to verify (only for bank transfers with uploaded proofs)

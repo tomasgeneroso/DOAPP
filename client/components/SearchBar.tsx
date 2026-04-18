@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Search, MapPin, Tag, X, SlidersHorizontal, Briefcase, Users } from "lucide-react";
 import { JOB_CATEGORIES } from "../../shared/constants/categories";
 import { searchLocations } from "../../shared/constants/locations";
@@ -20,6 +21,7 @@ export interface SearchFilters {
 }
 
 export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
   const [location, setLocation] = useState("");
   const [category, setCategory] = useState("");
@@ -241,7 +243,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Search Type Toggle */}
         <div className="flex items-center gap-2 mb-2">
-          <span className="text-sm text-slate-600 dark:text-slate-400">Buscar:</span>
+          <span className="text-sm text-slate-600 dark:text-slate-400">{t('home.searchLabel')}</span>
           <div className="flex bg-slate-100 dark:bg-slate-700 rounded-lg p-1">
             <button
               type="button"
@@ -251,10 +253,10 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
                   ? 'bg-white dark:bg-slate-600 text-sky-600 dark:text-sky-400 shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
-              title="Buscar trabajos disponibles por categoría, ubicación o descripción"
+              title={t('search.jobsTooltip', 'Search available jobs by category, location or description')}
             >
               <Briefcase className="h-4 w-4" />
-              Trabajos
+              {t('home.jobsTab')}
             </button>
             <button
               type="button"
@@ -264,10 +266,10 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
                   ? 'bg-white dark:bg-slate-600 text-sky-600 dark:text-sky-400 shadow-sm'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
-              title="Buscar profesionales por nombre de usuario o habilidades"
+              title={t('search.usersTooltip', 'Search professionals by username or skills')}
             >
               <Users className="h-4 w-4" />
-              Perfiles
+              {t('home.profilesTab')}
             </button>
           </div>
         </div>
@@ -280,7 +282,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
               type="text"
               value={query}
               onChange={(e) => handleQueryChange(e.target.value)}
-              placeholder={searchType === 'users' ? "Buscar usuarios por nombre o @usuario..." : "Buscar por título, descripción, palabras clave..."}
+              placeholder={searchType === 'users' ? t('home.searchUsers') : t('home.searchByTitle')}
               className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-transparent"
             />
           </div>
@@ -295,10 +297,10 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
                   ? "border-sky-500 bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-400"
                   : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
               }`}
-              title="Filtrar por ubicación, categoría, presupuesto y más opciones"
+              title={t('search.filtersTooltip', 'Filter by location, category, budget and more options')}
             >
               <SlidersHorizontal className="h-5 w-5" />
-              <span className="hidden sm:inline">Filtros</span>
+              <span className="hidden sm:inline">{t('jobs.filters')}</span>
               {hasActiveFilters && (
                 <span className="flex h-5 w-5 items-center justify-center rounded-full bg-sky-500 text-xs text-white">
                   {(location ? 1 : 0) + (category ? 1 : 0) + tags.length + (minBudget ? 1 : 0) + (maxBudget ? 1 : 0) + (sortBy !== 'date' ? 1 : 0)}
@@ -311,7 +313,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
             type="submit"
             className="px-6 py-3 rounded-xl bg-sky-500 text-white font-medium hover:bg-sky-600 transition-colors"
           >
-            Buscar
+            {t('common.search')}
           </button>
         </div>
 
@@ -320,7 +322,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
           <div className="p-6 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 space-y-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                Filtros avanzados
+                {t('home.advancedFilters')}
               </h3>
               {hasActiveFilters && (
                 <button
@@ -328,7 +330,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
                   onClick={handleClear}
                   className="text-sm text-sky-600 dark:text-sky-400 hover:underline"
                 >
-                  Limpiar filtros
+                  {t('jobs.clearFilters', 'Clear filters')}
                 </button>
               )}
             </div>
@@ -337,7 +339,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
             <div className="relative">
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                 <MapPin className="inline h-4 w-4 mr-1" />
-                Ubicación
+                {t('jobs.location', 'Location')}
               </label>
               <input
                 ref={locationInputRef}
@@ -345,7 +347,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
                 value={location}
                 onChange={(e) => handleLocationChange(e.target.value)}
                 onFocus={() => location && setShowLocationSuggestions(locationSuggestions.length > 0)}
-                placeholder="Ej: Palermo, CABA o zona específica"
+                placeholder={t('search.locationPlaceholder', 'E.g.: Palermo, CABA or specific area')}
                 className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-transparent"
               />
 
@@ -381,14 +383,14 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
             <div data-onboarding="categories">
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                 <Tag className="inline h-4 w-4 mr-1" />
-                Categoría
+                {t('jobs.category', 'Category')}
               </label>
               <select
                 value={category}
                 onChange={(e) => handleCategoryChange(e.target.value)}
                 className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"
               >
-                <option value="">Todas las categorías</option>
+                <option value="">{t('search.allCategories', 'All categories')}</option>
                 {JOB_CATEGORIES.map((cat) => (
                   <option key={cat.id} value={cat.id}>
                     {cat.icon} {cat.label}
@@ -400,7 +402,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
             {/* Tags */}
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                Etiquetas populares
+                {t('search.popularTags', 'Popular tags')}
               </label>
               {tags.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-3">
@@ -442,12 +444,12 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
             {/* Budget Range */}
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                Rango de presupuesto
+                {t('search.budgetRange', 'Budget range')}
               </label>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="minBudget" className="block text-xs text-slate-600 dark:text-slate-400 mb-1">
-                    Mínimo
+                    {t('common.minimum', 'Minimum')}
                   </label>
                   <input
                     id="minBudget"
@@ -461,14 +463,14 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
                 </div>
                 <div>
                   <label htmlFor="maxBudget" className="block text-xs text-slate-600 dark:text-slate-400 mb-1">
-                    Máximo
+                    {t('common.maximum', 'Maximum')}
                   </label>
                   <input
                     id="maxBudget"
                     type="number"
                     value={maxBudget}
                     onChange={(e) => setMaxBudget(e.target.value)}
-                    placeholder="$ Sin límite"
+                    placeholder={t('search.noLimit', '$ No limit')}
                     min="0"
                     className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                   />
@@ -479,17 +481,17 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
             {/* Sort By */}
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                Ordenar por
+                {t('jobs.sortBy')}
               </label>
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SearchFilters['sortBy'])}
                 className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"
               >
-                <option value="date">Fecha de publicación</option>
-                <option value="budget-asc">Presupuesto (menor a mayor)</option>
-                <option value="budget-desc">Presupuesto (mayor a menor)</option>
-                <option value="proximity">Cercanía</option>
+                <option value="date">{t('search.sortByDate', 'Publication date')}</option>
+                <option value="budget-asc">{t('search.sortBudgetAsc', 'Budget (low to high)')}</option>
+                <option value="budget-desc">{t('search.sortBudgetDesc', 'Budget (high to low)')}</option>
+                <option value="proximity">{t('search.sortProximity', 'Proximity')}</option>
               </select>
             </div>
           </div>

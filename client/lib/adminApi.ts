@@ -1,10 +1,10 @@
 import type { AdminUser, AdminContract, Ticket, AuditLogEntry, AnalyticsOverview, ApiResponse } from "@/types/admin";
 const API_URL = import.meta.env.VITE_API_URL || "/api";
 const getAuthHeaders = () => {
-
+  const token = localStorage.getItem('token');
   return {
-
     "Content-Type": "application/json",
+    ...(token ? { "Authorization": `Bearer ${token}` } : {}),
   };
 };
 // Helper function to make authenticated requests

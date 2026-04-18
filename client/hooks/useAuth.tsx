@@ -7,6 +7,7 @@ import {
   useMemo,
   ReactNode,
 } from "react";
+import { useTranslation } from "react-i18next";
 import type { User, RegisterData } from "@/types";
 import {
   initializeNotifications,
@@ -29,6 +30,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation();
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -113,7 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           throw new Error(errorMessages);
         }
         // Crear error con campo específico si está disponible
-        const error: any = new Error(data.message || "Error al iniciar sesión");
+        const error: any = new Error(data.message || t('auth.loginError', 'Error logging in'));
         if (data.field) {
           error.field = data.field;
         }
@@ -140,7 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Login error:", error);
       throw error;
     }
-  }, []);
+  }, [t]);
 
   const register = useCallback(async (data: RegisterData) => {
     try {
@@ -163,7 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             .join(", ");
           throw new Error(errorMessages);
         }
-        throw new Error(responseData.message || "Error al registrarse");
+        throw new Error(responseData.message || t('auth.registerError', 'Error registering'));
       }
 
       // El token ahora está en la cookie httpOnly
@@ -178,7 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error("Register error:", error);
       throw error;
     }
-  }, []);
+  }, [t]);
 
   const logout = useCallback(async () => {
     try {

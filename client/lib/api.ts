@@ -18,10 +18,15 @@ let circuitOpenTime = 0;
 // Request deduplication
 const pendingRequests = new Map<string, Promise<any>>();
 
-const getAuthHeaders = () => {
-  return {
+const getAuthHeaders = (): Record<string, string> => {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
+  const token = localStorage.getItem("token");
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  return headers;
 };
 
 interface RequestOptions {

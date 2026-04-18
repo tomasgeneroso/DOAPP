@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
+import { useTranslation } from 'react-i18next';
 import { User } from '../types';
 import { getImageUrl } from '../utils/imageUrl';
 import MultipleRatings from '../components/user/MultipleRatings';
@@ -38,11 +39,12 @@ import {
   ArrowLeft,
   Quote,
   ExternalLink,
-  Heart
+  Heart,
 } from 'lucide-react';
 
 export default function ProfilePage() {
   const { userId, username } = useParams<{ userId?: string; username?: string }>();
+  const { t } = useTranslation();
   const { user: currentUser } = useAuth();
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
@@ -477,7 +479,7 @@ export default function ProfilePage() {
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-500 mx-auto"></div>
-          <p className="mt-4 text-slate-600 dark:text-slate-400">Cargando perfil...</p>
+          <p className="mt-4 text-slate-600 dark:text-slate-400">{t('common.loading')}</p>
         </div>
       </div>
     );
@@ -551,11 +553,17 @@ export default function ProfilePage() {
               <div className="flex flex-col md:flex-row gap-6 items-start">
                 {/* Avatar */}
                 <div className="relative -mt-16 mb-4 md:mb-0 group">
-                  <img
-                    src={getImageUrl(user.avatar)}
-                    alt={user.name}
-                    className="w-32 h-32 rounded-2xl object-cover border-4 border-white dark:border-slate-800 shadow-lg"
-                  />
+                  {user.avatar ? (
+                    <img
+                      src={getImageUrl(user.avatar)}
+                      alt={user.name}
+                      className="w-32 h-32 rounded-2xl object-cover border-4 border-white dark:border-slate-800 shadow-lg"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
+                    />
+                  ) : null}
+                  <div className={`w-32 h-32 rounded-2xl border-4 border-white dark:border-slate-800 shadow-lg bg-sky-500 flex items-center justify-center text-white text-4xl font-bold ${user.avatar ? 'hidden' : ''}`}>
+                    {user.name?.charAt(0)?.toUpperCase() || '?'}
+                  </div>
                   {user.isVerified && (
                     <div className="absolute -bottom-2 -right-2 bg-green-500 rounded-full p-2 border-4 border-white dark:border-slate-800">
                       <CheckCircle className="w-5 h-5 text-white" />
@@ -602,17 +610,17 @@ export default function ProfilePage() {
                       <div className="relative">
                         <button
                           onClick={() => setShowShareMenu(!showShareMenu)}
-                          className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-2"
+                          className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 text-sm font-semibold"
                         >
                           {copiedProfileLink ? (
                             <>
                               <Check className="w-4 h-4 text-green-500" />
-                              <span className="text-green-500">Copiado</span>
+                              <span className="text-green-500">{t('common.copied', 'Copied')}</span>
                             </>
                           ) : (
                             <>
                               <Share2 className="w-4 h-4" />
-                              <span>Compartir</span>
+                              <span>{t('common.share')}</span>
                             </>
                           )}
                         </button>
@@ -658,14 +666,14 @@ export default function ProfilePage() {
                             className="flex items-center gap-2"
                           >
                             <MessageCircle className="w-4 h-4" />
-                            <span>Chatear</span>
+                            <span>{t('profile.chat', 'Chat')}</span>
                           </Button>
                           <button
                             onClick={() => setShowReportModal(true)}
-                            className="px-4 py-2 rounded-xl border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-2"
+                            className="px-4 py-2.5 rounded-xl border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-2 text-sm font-semibold"
                           >
                             <Flag className="w-4 h-4" />
-                            Denunciar
+                            {t('profile.report', 'Report')}
                           </button>
                         </>
                       )}
@@ -680,7 +688,7 @@ export default function ProfilePage() {
                         {user.completedJobs}
                       </span>
                       <span className="text-slate-600 dark:text-slate-400">
-                        Trabajos Completados
+                        {t('profile.completedJobs')}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -689,13 +697,13 @@ export default function ProfilePage() {
                         {user.rating ? Number(user.rating).toFixed(1) : '0.0'}
                       </span>
                       <span className="text-slate-600 dark:text-slate-400">
-                        ({user.reviewsCount || 0} reseñas)
+                        ({user.reviewsCount || 0} {t('profile.reviews')})
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-slate-400" />
                       <span className="text-slate-600 dark:text-slate-400">
-                        Miembro desde 2023
+                        {t('profile.memberSince')} 2023
                       </span>
                     </div>
                   </div>
@@ -712,7 +720,7 @@ export default function ProfilePage() {
               <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                    Puntuaciones
+                    {t('profile.ratings.title')}
                   </h2>
                   {(user.reviewsCount || 0) > 0 && (
                     <button
@@ -722,7 +730,7 @@ export default function ProfilePage() {
                       }}
                       className="text-sm text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1"
                     >
-                      Ver reseñas
+                      {t('profile.viewReviews', 'View reviews')}
                       <ChevronRight className="w-4 h-4" />
                     </button>
                   )}
@@ -803,7 +811,7 @@ export default function ProfilePage() {
               {/* Completed Jobs by Category Section */}
               <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">
-                  Trabajos Completados por Categoría
+                  {t('profile.completedByCategory', 'Completed Jobs by Category')}
                 </h2>
                 {completedByCategory.length === 0 ? (
                   <div className="text-center py-8">
@@ -812,8 +820,8 @@ export default function ProfilePage() {
                     </div>
                     <p className="text-slate-600 dark:text-slate-400">
                       {isOwnProfile()
-                        ? '¡Cada categoría que domines aparecerá acá!'
-                        : 'Las especialidades irán apareciendo con cada trabajo.'}
+                        ? t('profile.categoriesWillAppear', 'Every category you master will appear here!')
+                        : t('profile.specialtiesWillAppear', 'Specialties will appear with each completed job.')}
                     </p>
                   </div>
                 ) : (
@@ -880,7 +888,7 @@ export default function ProfilePage() {
                 <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                     <Briefcase className="h-5 w-5 text-sky-500" />
-                    Mis Publicaciones
+                    {t('home.myPublications')}
                   </h2>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
                     Trabajos que has publicado como cliente
@@ -899,7 +907,7 @@ export default function ProfilePage() {
                 <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                     <CheckCircle className="h-5 w-5 text-green-500" />
-                    Trabajos que Realicé
+                    {t('profile.jobsIDid', 'Jobs I Completed')}
                   </h2>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
                     Contratos donde trabajaste como profesional
@@ -927,7 +935,7 @@ export default function ProfilePage() {
                   }`}
                 >
                   <Briefcase className="w-4 h-4" />
-                  Trabajos Realizados
+                  {t('profile.completedWork')}
                 </button>
                 <button
                   onClick={() => setMainTab('posts')}
@@ -938,7 +946,7 @@ export default function ProfilePage() {
                   }`}
                 >
                   <FileText className="w-4 h-4" />
-                  Publicaciones
+                  {t('profile.posts', 'Posts')}
                 </button>
               </div>
 
@@ -963,13 +971,13 @@ export default function ProfilePage() {
                       <div>
                         <h2 className="text-xl font-bold text-slate-900 dark:text-white">
                           {selectedCategory
-                            ? completedByCategory.find(c => c.id === selectedCategory)?.label || 'Trabajos'
-                            : 'Trabajos Realizados'}
+                            ? completedByCategory.find(c => c.id === selectedCategory)?.label || t('jobs.title')
+                            : t('profile.completedWork')}
                         </h2>
                         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                           {selectedCategory
-                            ? `Mostrando trabajos de ${completedByCategory.find(c => c.id === selectedCategory)?.label}`
-                            : `${completedJobs.length} trabajos completados`}
+                            ? `${t('profile.showingJobsFrom', 'Showing jobs from')} ${completedByCategory.find(c => c.id === selectedCategory)?.label}`
+                            : `${completedJobs.length} ${t('profile.jobsCompleted', 'jobs completed')}`}
                         </p>
                       </div>
                     </div>
@@ -981,24 +989,24 @@ export default function ProfilePage() {
                   {completedJobsLoading ? (
                     <div className="text-center py-12">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500 mx-auto"></div>
-                      <p className="mt-4 text-slate-600 dark:text-slate-400">Cargando trabajos...</p>
+                      <p className="mt-4 text-slate-600 dark:text-slate-400">{t('common.loading')}</p>
                     </div>
                   ) : completedJobs.length === 0 ? (
                     <div className="text-center py-12">
                       <Briefcase className="w-16 h-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
                       <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
                         {selectedCategory
-                          ? `Explorando ${completedByCategory.find(c => c.id === selectedCategory)?.label || 'esta categoría'}...`
+                          ? `${t('profile.exploring', 'Exploring')} ${completedByCategory.find(c => c.id === selectedCategory)?.label || t('profile.thisCategory', 'this category')}...`
                           : isOwnProfile()
-                            ? '¡Tu portafolio está esperando!'
-                            : 'El comienzo de una gran historia'}
+                            ? t('profile.portfolioWaiting', 'Your portfolio is waiting!')
+                            : t('profile.beginningOfStory', 'The beginning of a great story')}
                       </h3>
                       <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto">
                         {selectedCategory
                           ? 'Aún no hay trabajos completados en esta categoría. ¡Pero seguro pronto habrá!'
                           : isOwnProfile()
                             ? 'Completá tu primer trabajo y empezá a construir tu reputación. Cada proyecto es una oportunidad para brillar.'
-                            : 'Este profesional está listo para demostrar su talento. ¡Podés ser el primero en contratarlo!'}
+                            : t('profile.readyToShowTalent', 'This professional is ready to showcase their talent. You could be the first to hire them!')}
                       </p>
                       {isOwnProfile() && !selectedCategory && (
                         <div className="flex flex-wrap gap-3 mt-4 justify-center">
@@ -1043,7 +1051,7 @@ export default function ProfilePage() {
                               <div className="flex items-start justify-between gap-2">
                                 <div>
                                   <h3 className="font-semibold text-slate-900 dark:text-white text-lg">
-                                    {contract.job?.title || 'Trabajo completado'}
+                                    {contract.job?.title || t('profile.completedJob', 'Completed job')}
                                   </h3>
                                   <div className="flex items-center gap-2 mt-1">
                                     <span className="text-lg">{contract.job?.categoryIcon || '📋'}</span>
@@ -1128,7 +1136,7 @@ export default function ProfilePage() {
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                       <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                        Publicaciones
+                        {t('profile.posts', 'Posts')}
                       </h2>
                       <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                         {posts.length} publicaciones
@@ -1189,7 +1197,7 @@ export default function ProfilePage() {
                   {postsLoading ? (
                     <div className="text-center py-12">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500 mx-auto"></div>
-                      <p className="mt-4 text-slate-600 dark:text-slate-400">Cargando publicaciones...</p>
+                      <p className="mt-4 text-slate-600 dark:text-slate-400">{t('common.loading')}</p>
                     </div>
                   ) : posts.length === 0 ? (
                     <div className="text-center py-12">
@@ -1201,7 +1209,7 @@ export default function ProfilePage() {
                             : '¡Tu voz importa!'
                           : viewMode === 'articles'
                             ? 'Próximamente...'
-                            : 'Sin publicaciones por ahora'}
+                            : t('profile.noPostsYet', 'No posts yet')}
                       </h3>
                       <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto">
                         {isOwnProfile()
@@ -1209,7 +1217,7 @@ export default function ProfilePage() {
                             ? 'Escribí tu primer artículo y posicionáte como experto en tu área. Los clientes valoran a los profesionales que comparten su experiencia.'
                             : 'Contá qué estás haciendo, compartí tu día a día y conectá con la comunidad. ¡Tu contenido puede inspirar a otros!'
                           : viewMode === 'articles'
-                            ? 'Este profesional aún no ha escrito artículos, pero seguro tiene mucho para contar.'
+                            ? t('profile.noArticlesYet', 'This professional hasn\'t written articles yet, but surely has a lot to share.')
                             : 'Cuando comparta algo, lo vas a ver acá.'}
                       </p>
                       {isOwnProfile() && (
@@ -1221,7 +1229,7 @@ export default function ProfilePage() {
                           className="mt-4 px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-medium transition-all shadow-sm inline-flex items-center gap-2"
                         >
                           <Plus className="w-4 h-4" />
-                          {viewMode === 'articles' ? 'Escribir mi primer artículo' : 'Crear mi primer post'}
+                          {viewMode === 'articles' ? t('profile.writeFirstArticle', 'Write my first article') : t('profile.createFirstPost', 'Create my first post')}
                         </button>
                       )}
                     </div>
@@ -1289,6 +1297,7 @@ export default function ProfilePage() {
                 </div>
               </div>
               )}
+
             </div>
           </div>
         </div>
@@ -1325,7 +1334,7 @@ export default function ProfilePage() {
               {/* Header */}
               <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  Compartir perfil
+                  {t('common.share')}
                 </h3>
                 <button
                   onClick={() => {
@@ -1363,7 +1372,7 @@ export default function ProfilePage() {
                   <div className="text-center py-8 text-slate-500 dark:text-slate-400">
                     {shareSearchQuery.length < 2
                       ? 'Escribí al menos 2 caracteres para buscar'
-                      : 'No se encontraron usuarios'}
+                      : t('profile.noUsersFound', 'No users found')}
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-100 dark:divide-slate-700">
@@ -1463,7 +1472,7 @@ export default function ProfilePage() {
                     <h4 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
                       {isOwnProfile()
                         ? '¡Tu primera reseña está por llegar!'
-                        : 'Las primeras opiniones están en camino'}
+                        : t('profile.firstReviewsComing', 'First reviews are on the way')}
                     </h4>
                     <p className="text-slate-600 dark:text-slate-400 max-w-sm mx-auto">
                       {isOwnProfile()
@@ -1488,7 +1497,7 @@ export default function ProfilePage() {
                             />
                             <div>
                               <p className="font-semibold text-slate-900 dark:text-white">
-                                {review.reviewer?.name || 'Usuario'}
+                                {review.reviewer?.name || t('common.user', 'User')}
                               </p>
                               <p className="text-xs text-slate-500 dark:text-slate-400">
                                 {new Date(review.createdAt).toLocaleDateString('es-AR', {

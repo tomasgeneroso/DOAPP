@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Briefcase, CheckCircle, XCircle, Clock, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Image as ImageIcon, FileText, Download, Bell, Pause, Play, Ban, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useSocket } from "../../hooks/useSocket";
@@ -59,6 +60,7 @@ type SortField = 'title' | 'category' | 'budget' | 'status' | 'date' | 'user';
 type SortDirection = 'asc' | 'desc' | null;
 
 export default function AdminJobManager() {
+  const { t } = useTranslation();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [stats, setStats] = useState<JobStats>({ total: 0, pending: 0, approved: 0, rejected: 0 });
   const [loading, setLoading] = useState(true);
@@ -299,12 +301,15 @@ export default function AdminJobManager() {
 
   const getSortedAndFilteredJobs = () => {
     const result = jobs.filter((job) => {
+      const q = searchQuery.toLowerCase();
       const matchesSearch =
         searchQuery === "" ||
-        job.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        job.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (job.description || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (job.client?.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+        job.id.toLowerCase().includes(q) ||
+        job.title.toLowerCase().includes(q) ||
+        (job.description || '').toLowerCase().includes(q) ||
+        (job.client?.id || '').toLowerCase().includes(q) ||
+        (job.client?.name || '').toLowerCase().includes(q) ||
+        (job.client?.email || '').toLowerCase().includes(q);
 
       return matchesSearch;
     });
@@ -618,7 +623,7 @@ export default function AdminJobManager() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm">
-                        <p className="font-medium text-gray-900 dark:text-white">{job.title}</p>
+                        <a href={`/jobs/${job.id}`} target="_blank" rel="noopener noreferrer" className="font-medium text-sky-600 dark:text-sky-400 hover:underline">{job.title}</a>
                         <p className="text-gray-500 dark:text-gray-400 truncate max-w-xs">{job.description}</p>
                       </div>
                     </td>
@@ -631,7 +636,12 @@ export default function AdminJobManager() {
                           <img src={job.client.avatar} alt="" className="h-8 w-8 rounded-full mr-2" />
                         )}
                         <div>
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">{job.client?.name || 'N/A'}</p>
+                          <a
+                            href={`/admin/users?search=${encodeURIComponent(job.client?.name || '')}`}
+                            className="text-sm font-medium text-sky-600 dark:text-sky-400 hover:underline"
+                          >
+                            {job.client?.name || 'N/A'}
+                          </a>
                           <p className="text-xs text-gray-500 dark:text-gray-400">{job.client?.email || '-'}</p>
                         </div>
                       </div>
@@ -742,7 +752,7 @@ export default function AdminJobManager() {
                             <button
                               onClick={() => handleReject(job.id, job.title)}
                               className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transform hover:scale-110 transition-all duration-150"
-                              title="Rechazar"
+                              title={t('common.reject', 'Reject')}
                               disabled={actionLoading}
                             >
                               <XCircle className="w-5 h-5" />
@@ -755,7 +765,7 @@ export default function AdminJobManager() {
                           <button
                             onClick={() => handlePause(job.id, job.title)}
                             className="text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 transform hover:scale-110 transition-all duration-150"
-                            title="Pausar"
+                            title={t('common.pause', 'Pause')}
                             disabled={actionLoading}
                           >
                             <Pause className="w-5 h-5" />
@@ -767,7 +777,7 @@ export default function AdminJobManager() {
                           <button
                             onClick={() => handleResume(job.id)}
                             className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 transform hover:scale-110 transition-all duration-150"
-                            title="Reanudar"
+                            title={t('common.resume', 'Resume')}
                             disabled={actionLoading}
                           >
                             <Play className="w-5 h-5" />
@@ -779,7 +789,7 @@ export default function AdminJobManager() {
                           <button
                             onClick={() => handleCancel(job.id, job.title)}
                             className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transform hover:scale-110 transition-all duration-150"
-                            title="Cancelar"
+                            title={t('common.cancel', 'Cancel')}
                             disabled={actionLoading}
                           >
                             <Ban className="w-5 h-5" />
@@ -801,9 +811,9 @@ export default function AdminJobManager() {
           <div className="bg-white dark:bg-gray-800 rounded-lg p-4 max-w-4xl max-h-[90vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Comprobante de Pago</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('admin.jobs.paymentProof', 'Payment Proof')}</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {selectedProof.fileName} • Subido el {new Date(selectedProof.uploadedAt).toLocaleDateString('es-AR')}
+                  {selectedProof.fileName} • {t('admin.jobs.uploadedOn', 'Uploaded on')} {new Date(selectedProof.uploadedAt).toLocaleDateString()}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -811,7 +821,7 @@ export default function AdminJobManager() {
                   href={selectedProof.fileUrl}
                   download={selectedProof.fileName}
                   className="p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors"
-                  title="Descargar"
+                  title={t('common.download', 'Download')}
                 >
                   <Download className="w-5 h-5" />
                 </a>

@@ -14,6 +14,7 @@ import 'reflect-metadata';
 import { Job } from '../../../server/models/sql/Job.model.js';
 import { User } from '../../../server/models/sql/User.model.js';
 import { sequelize } from '../../../server/config/database.js';
+import { describe, it, expect, beforeEach, afterAll } from '@jest/globals';
 
 describe('Job Model - SQL', () => {
   let client: User;
@@ -930,3 +931,4 @@ describe('Job Model - SQL', () => {
     });
   });
 });
+

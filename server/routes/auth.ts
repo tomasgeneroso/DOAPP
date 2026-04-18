@@ -1365,6 +1365,128 @@ router.post(
   }
 );
 
+// @route   POST /api/auth/set-password
+// @desc    Establecer contraseña para usuarios OAuth (Google, etc.)
+// @access  Private
+router.post(
+  "/set-password",
+  protect,
+  [
+    body("newPassword")
+      .isLength({ min: 6 })
+      .withMessage("La contraseña debe tener al menos 6 caracteres"),
+  ],
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({ success: false, errors: errors.array() });
+        return;
+      }
+
+      const user = await User.findByPk(req.user.id);
+      if (!user) {
+        res.status(404).json({ success: false, message: "Usuario no encontrado" });
+        return;
+      }
+
+      // Check if user already has a password
+      if (user.password && user.password.length > 0) {
+        res.status(400).json({
+          success: false,
+          message: "Ya tienes una contraseña configurada. Usa 'cambiar contraseña' en su lugar.",
+        });
+        return;
+      }
+
+      // Check user has OAuth provider
+      if (!user.googleId && !user.facebookId && !user.twitterId) {
+        res.status(400).json({
+          success: false,
+          message: "Esta función es solo para usuarios registrados con redes sociales.",
+        });
+        return;
+      }
+
+      const { newPassword } = req.body;
+      user.password = newPassword; // BeforeUpdate hook will hash it
+      await user.save();
+
+      res.json({
+        success: true,
+        message: "Contraseña establecida correctamente. Ahora puedes iniciar sesión con email y contraseña.",
+      });
+    } catch (error: any) {
+      console.error("Error en set-password:", error);
+      res.status(500).json({ success: false, message: "Error al establecer la contraseña" });
+    }
+  }
+);
+
+// @route   POST /api/auth/change-password
+// @desc    Cambiar contraseña (requiere contraseña actual)
+// @access  Private
+router.post(
+  "/change-password",
+  protect,
+  [
+    body("currentPassword").notEmpty().withMessage("Contraseña actual requerida"),
+    body("newPassword")
+      .isLength({ min: 6 })
+      .withMessage("La nueva contraseña debe tener al menos 6 caracteres"),
+  ],
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({ success: false, errors: errors.array() });
+        return;
+      }
+
+      const user = await User.findByPk(req.user.id);
+      if (!user) {
+        res.status(404).json({ success: false, message: "Usuario no encontrado" });
+        return;
+      }
+
+      if (!user.password) {
+        res.status(400).json({ success: false, message: "No tienes contraseña. Usa 'establecer contraseña'." });
+        return;
+      }
+
+      const isMatch = await user.comparePassword(req.body.currentPassword);
+      if (!isMatch) {
+        res.status(400).json({ success: false, message: "La contraseña actual es incorrecta" });
+        return;
+      }
+
+      user.password = req.body.newPassword;
+      await user.save();
+
+      res.json({ success: true, message: "Contraseña actualizada correctamente" });
+    } catch (error: any) {
+      console.error("Error en change-password:", error);
+      res.status(500).json({ success: false, message: "Error al cambiar la contraseña" });
+    }
+  }
+);
+
+// @route   GET /api/auth/has-password
+// @desc    Check if user has a password set
+// @access  Private
+router.get("/has-password", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const user = await User.findByPk(req.user.id, { attributes: ['password', 'googleId', 'facebookId', 'twitterId'] });
+    res.json({
+      success: true,
+      hasPassword: !!(user?.password && user.password.length > 0),
+      isOAuth: !!(user?.googleId || user?.facebookId || user?.twitterId),
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // @route   GET /api/auth/devices
 // @desc    Obtener dispositivos de login del usuario
 // @access  Private

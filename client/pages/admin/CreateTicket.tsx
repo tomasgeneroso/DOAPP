@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { adminApi } from "@/lib/adminApi";
 import { ArrowLeft, Send, Search } from "lucide-react";
@@ -29,6 +30,7 @@ interface Contract {
 }
 
 export default function AdminCreateTicket() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
@@ -87,7 +89,7 @@ export default function AdminCreateTicket() {
     e.preventDefault();
 
     if (!selectedUser) {
-      alert("Debes seleccionar un usuario");
+      alert(t('admin.tickets.mustSelectUser', 'You must select a user'));
       return;
     }
 
@@ -116,14 +118,14 @@ export default function AdminCreateTicket() {
       const data = await response.json();
 
       if (data.success) {
-        alert("Ticket creado exitosamente");
+        alert(t('admin.tickets.createdSuccessfully', 'Ticket created successfully'));
         navigate("/admin/tickets");
       } else {
         alert(`Error: ${data.message}`);
       }
     } catch (error: any) {
       console.error("Error creating ticket:", error);
-      alert(error.message || "Error al crear el ticket");
+      alert(error.message || t('admin.tickets.errorCreating', 'Error creating ticket'));
     } finally {
       setSubmitting(false);
     }
@@ -141,10 +143,10 @@ export default function AdminCreateTicket() {
         </button>
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Crear Ticket (Admin)
+            {t('admin.tickets.createTitle', 'Create Ticket (Admin)')}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Crear un ticket de soporte en nombre de un usuario
+            {t('admin.tickets.createSubtitle', 'Create a support ticket on behalf of a user')}
           </p>
         </div>
       </div>
@@ -153,7 +155,7 @@ export default function AdminCreateTicket() {
         {/* User Selector */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Seleccionar Usuario
+            {t('admin.tickets.selectUser', 'Select User')}
           </h3>
 
           {!selectedUser ? (
@@ -167,7 +169,7 @@ export default function AdminCreateTicket() {
                     setSearchQuery(e.target.value);
                     setShowUserSelector(true);
                   }}
-                  placeholder="Buscar usuario por nombre o email..."
+                  placeholder={t('admin.tickets.searchUserPlaceholder', 'Search user by name or email...')}
                   className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                 />
               </div>
@@ -241,7 +243,7 @@ export default function AdminCreateTicket() {
                 }}
                 className="px-4 py-2 text-sm text-sky-600 dark:text-sky-400 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition"
               >
-                Cambiar
+                {t('common.change', 'Change')}
               </button>
             </div>
           )}
@@ -251,10 +253,10 @@ export default function AdminCreateTicket() {
         {selectedUser && contracts.length > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Contrato Relacionado (Opcional)
+              {t('admin.tickets.relatedContract', 'Related Contract (Optional)')}
             </h3>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Si el ticket está relacionado con un contrato específico, selecciónalo aquí
+              {t('admin.tickets.relatedContractDescription', 'If the ticket is related to a specific contract, select it here')}
             </p>
 
             {selectedContract ? (
@@ -262,12 +264,12 @@ export default function AdminCreateTicket() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <p className="font-semibold text-gray-900 dark:text-white">
-                      {selectedContract.job?.title || 'Contrato sin título'}
+                      {selectedContract.job?.title || t('admin.tickets.untitledContract', 'Untitled contract')}
                     </p>
                     <div className="flex items-center gap-4 mt-2 text-sm text-gray-600 dark:text-gray-400">
-                      <span>Cliente: {selectedContract.client?.name || 'N/A'}</span>
+                      <span>{t('common.client', 'Client')}: {selectedContract.client?.name || 'N/A'}</span>
                       <span>•</span>
-                      <span>Proveedor: {selectedContract.doer?.name || 'N/A'}</span>
+                      <span>{t('common.provider', 'Provider')}: {selectedContract.doer?.name || 'N/A'}</span>
                       <span>•</span>
                       <span className="font-semibold">${selectedContract.price}</span>
                     </div>
@@ -277,7 +279,7 @@ export default function AdminCreateTicket() {
                     onClick={() => setSelectedContract(null)}
                     className="ml-4 px-4 py-2 text-sm text-sky-600 dark:text-sky-400 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition"
                   >
-                    Quitar
+                    {t('common.remove', 'Remove')}
                   </button>
                 </div>
               </div>
@@ -291,12 +293,12 @@ export default function AdminCreateTicket() {
                     className="w-full p-4 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-sky-500 dark:hover:border-sky-500 transition text-left"
                   >
                     <p className="font-semibold text-gray-900 dark:text-white">
-                      {contract.job?.title || 'Contrato sin título'}
+                      {contract.job?.title || t('admin.tickets.untitledContract', 'Untitled contract')}
                     </p>
                     <div className="flex items-center gap-4 mt-2 text-sm text-gray-600 dark:text-gray-400">
-                      <span>Cliente: {contract.client?.name || 'N/A'}</span>
+                      <span>{t('common.client', 'Client')}: {contract.client?.name || 'N/A'}</span>
                       <span>•</span>
-                      <span>Proveedor: {contract.doer?.name || 'N/A'}</span>
+                      <span>{t('common.provider', 'Provider')}: {contract.doer?.name || 'N/A'}</span>
                       <span>•</span>
                       <span className="font-semibold">${contract.price}</span>
                     </div>
@@ -316,12 +318,12 @@ export default function AdminCreateTicket() {
         {selectedUser && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-4">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Detalles del Ticket
+              {t('admin.tickets.ticketDetails', 'Ticket Details')}
             </h3>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Asunto *
+                {t('admin.tickets.subject', 'Subject')} *
               </label>
               <input
                 type="text"
@@ -329,14 +331,14 @@ export default function AdminCreateTicket() {
                 value={formData.subject}
                 onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
                 className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                placeholder="Ej: Problema con el pago"
+                placeholder={t('admin.tickets.subjectPlaceholder', 'E.g.: Payment issue')}
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Categoría *
+                  {t('admin.tickets.category', 'Category')} *
                 </label>
                 <select
                   required
@@ -344,16 +346,16 @@ export default function AdminCreateTicket() {
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                 >
-                  <option value="technical">Técnico</option>
-                  <option value="billing">Facturación</option>
-                  <option value="account">Cuenta</option>
-                  <option value="general">General</option>
+                  <option value="technical">{t('admin.tickets.categoryTechnical', 'Technical')}</option>
+                  <option value="billing">{t('admin.tickets.categoryBilling', 'Billing')}</option>
+                  <option value="account">{t('admin.tickets.categoryAccount', 'Account')}</option>
+                  <option value="general">{t('admin.tickets.categoryGeneral', 'General')}</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Prioridad *
+                  {t('admin.tickets.priority', 'Priority')} *
                 </label>
                 <select
                   required
@@ -361,17 +363,17 @@ export default function AdminCreateTicket() {
                   onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
                   className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                 >
-                  <option value="low">Baja</option>
-                  <option value="medium">Media</option>
-                  <option value="high">Alta</option>
-                  <option value="urgent">Urgente</option>
+                  <option value="low">{t('admin.tickets.priorityLow', 'Low')}</option>
+                  <option value="medium">{t('admin.tickets.priorityMedium', 'Medium')}</option>
+                  <option value="high">{t('admin.tickets.priorityHigh', 'High')}</option>
+                  <option value="urgent">{t('admin.tickets.priorityUrgent', 'Urgent')}</option>
                 </select>
               </div>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Mensaje *
+                {t('admin.tickets.message', 'Message')} *
               </label>
               <textarea
                 required
@@ -379,7 +381,7 @@ export default function AdminCreateTicket() {
                 onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                 rows={6}
                 className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                placeholder="Describe el problema o consulta del usuario..."
+                placeholder={t('admin.tickets.messagePlaceholder', 'Describe the user\'s problem or question...')}
               />
             </div>
 
@@ -389,7 +391,7 @@ export default function AdminCreateTicket() {
                 onClick={() => navigate("/admin")}
                 className="px-6 py-3 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition font-semibold"
               >
-                Cancelar
+                {t('common.cancel', 'Cancel')}
               </button>
               <button
                 type="submit"
@@ -397,7 +399,7 @@ export default function AdminCreateTicket() {
                 className="flex-1 px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-lg transition font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Send className="h-5 w-5" />
-                {submitting ? "Creando..." : "Crear Ticket"}
+                {submitting ? t('admin.tickets.creating', 'Creating...') : t('admin.tickets.createTicket', 'Create Ticket')}
               </button>
             </div>
           </div>

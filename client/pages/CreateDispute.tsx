@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useDropzone } from 'react-dropzone';
 import axios from 'axios';
 import { usePermissions } from '../hooks/usePermissions';
@@ -43,6 +44,7 @@ interface Contract {
 
 const CreateDispute: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const contractIdFromUrl = searchParams.get('contractId');
   const { hasPermission, PERMISSIONS } = usePermissions();
@@ -52,10 +54,10 @@ const CreateDispute: React.FC = () => {
     if (!hasPermission(PERMISSIONS.DISPUTE_CREATE)) {
       navigate('/dashboard', {
         replace: true,
-        state: { error: 'No tienes permiso para crear disputas' }
+        state: { error: t('disputes.noPermission', 'You do not have permission to create disputes') }
       });
     }
-  }, [hasPermission, navigate, PERMISSIONS]);
+  }, [hasPermission, navigate, PERMISSIONS, t]);
 
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [selectedContract, setSelectedContract] = useState<string>(contractIdFromUrl || '');
@@ -134,7 +136,7 @@ const CreateDispute: React.FC = () => {
 
     try {
       if (!selectedContract) {
-        setError('Debes seleccionar un contrato');
+        setError(t('disputes.selectContractError', 'You must select a contract'));
         return;
       }
 
@@ -157,7 +159,7 @@ const CreateDispute: React.FC = () => {
 
       navigate(`/disputes/${response.data.data.id || response.data.data._id}`);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Error al crear la disputa');
+      setError(err.response?.data?.message || t('disputes.createError', 'Error creating dispute'));
     } finally {
       setLoading(false);
     }
@@ -184,8 +186,8 @@ const CreateDispute: React.FC = () => {
               </svg>
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Abrir Disputa</h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Reporta un problema con el contrato</p>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('disputes.openDispute', 'Open Dispute')}</h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t('disputes.reportProblem', 'Report a problem with the contract')}</p>
             </div>
           </div>
 
@@ -200,29 +202,29 @@ const CreateDispute: React.FC = () => {
             {!contractIdFromUrl && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Seleccionar Contrato *
+                  {t('disputes.selectContract', 'Select Contract')} *
                 </label>
                 {loadingContracts ? (
                   <div className="text-center py-4">
-                    <p className="text-gray-500 dark:text-gray-400">Cargando contratos...</p>
+                    <p className="text-gray-500 dark:text-gray-400">{t('disputes.loadingContracts', 'Loading contracts...')}</p>
                   </div>
                 ) : contracts.length === 0 ? (
                   <div className="text-center py-4 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-lg">
                     <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                      No tienes contratos activos para disputar
+                      {t('disputes.noActiveContracts', 'You have no active contracts to dispute')}
                     </p>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     {contracts.map((contract) => {
                       const contractId = contract.id || contract._id;
-                      const jobTitle = contract.job?.title || contract.jobId?.title || 'Sin título';
-                      const clientName = contract.client?.name || contract.clientId?.name || 'Cliente';
-                      const doerName = contract.doer?.name || contract.doerId?.name || 'Proveedor';
+                      const jobTitle = contract.job?.title || contract.jobId?.title || t('disputes.noTitle', 'No title');
+                      const clientName = contract.client?.name || contract.clientId?.name || t('contracts.client', 'Client');
+                      const doerName = contract.doer?.name || contract.doerId?.name || t('contracts.provider', 'Provider');
                       const statusLabels: Record<string, string> = {
-                        in_progress: 'En progreso',
-                        awaiting_confirmation: 'Esperando confirmación',
-                        completed: 'Completado',
+                        in_progress: t('contracts.status.in_progress', 'In progress'),
+                        awaiting_confirmation: t('contracts.status.awaiting_confirmation', 'Awaiting confirmation'),
+                        completed: t('contracts.status.completed', 'Completed'),
                       };
                       return (
                         <button
@@ -241,9 +243,9 @@ const CreateDispute: React.FC = () => {
                                 {jobTitle}
                               </p>
                               <div className="flex items-center gap-4 mt-2 text-sm text-gray-600 dark:text-gray-400">
-                                <span>Cliente: {clientName}</span>
+                                <span>{t('contracts.client', 'Client')}: {clientName}</span>
                                 <span>•</span>
-                                <span>Proveedor: {doerName}</span>
+                                <span>{t('contracts.provider', 'Provider')}: {doerName}</span>
                                 <span>•</span>
                                 <span className="font-semibold">${contract.price?.toLocaleString('es-AR')}</span>
                               </div>
@@ -262,7 +264,7 @@ const CreateDispute: React.FC = () => {
                                   {statusLabels[contract.status] || contract.status}
                                 </span>
                                 <span className="text-xs text-gray-500 dark:text-gray-400">
-                                  Inicio: {new Date(contract.startDate).toLocaleDateString('es-AR')}
+                                  {t('disputes.start', 'Start')}: {new Date(contract.startDate).toLocaleDateString('es-AR')}
                                 </span>
                               </div>
                             </div>
@@ -278,7 +280,7 @@ const CreateDispute: React.FC = () => {
             {/* Category */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Categoría del problema
+                {t('disputes.problemCategory', 'Problem category')}
               </label>
               <select
                 value={formData.category}
@@ -286,25 +288,25 @@ const CreateDispute: React.FC = () => {
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white"
                 required
               >
-                <option value="service_not_delivered">Servicio no entregado</option>
-                <option value="incomplete_work">Trabajo incompleto</option>
-                <option value="quality_issues">Problemas de calidad</option>
-                <option value="payment_issues">Problemas de pago</option>
-                <option value="breach_of_contract">Incumplimiento de contrato</option>
-                <option value="other">Otro</option>
+                <option value="service_not_delivered">{t('disputes.categories.serviceNotDelivered', 'Service not delivered')}</option>
+                <option value="incomplete_work">{t('disputes.categories.incompleteWork', 'Incomplete work')}</option>
+                <option value="quality_issues">{t('disputes.categories.qualityIssues', 'Quality issues')}</option>
+                <option value="payment_issues">{t('disputes.categories.paymentIssues', 'Payment issues')}</option>
+                <option value="breach_of_contract">{t('disputes.categories.breachOfContract', 'Breach of contract')}</option>
+                <option value="other">{t('disputes.categories.other', 'Other')}</option>
               </select>
             </div>
 
             {/* Reason */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Motivo (título breve)
+                {t('disputes.reasonLabel', 'Reason (brief title)')}
               </label>
               <input
                 type="text"
                 value={formData.reason}
                 onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                placeholder="Ej: El trabajo no cumple con lo acordado"
+                placeholder={t('disputes.reasonPlaceholder', 'E.g.: The work does not meet what was agreed')}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white"
                 maxLength={200}
                 required
@@ -314,26 +316,26 @@ const CreateDispute: React.FC = () => {
             {/* Description */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Descripción detallada
+                {t('disputes.descriptionLabel', 'Detailed description')}
               </label>
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Describe en detalle qué sucedió y por qué no estás satisfecho con el trabajo..."
+                placeholder={t('disputes.descriptionPlaceholder', 'Describe in detail what happened and why you are not satisfied with the work...')}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:text-white"
                 rows={6}
                 maxLength={2000}
                 required
               />
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                {formData.description.length}/2000 caracteres
+                {formData.description.length}/2000 {t('common.characters', 'characters')}
               </p>
             </div>
 
             {/* File Upload */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Evidencia (opcional)
+                {t('disputes.evidence', 'Evidence (optional)')}
               </label>
               <div
                 {...getRootProps()}
@@ -348,14 +350,14 @@ const CreateDispute: React.FC = () => {
                   <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
                 {isDragActive ? (
-                  <p className="mt-2 text-sm text-red-600 dark:text-red-400">Suelta los archivos aquí...</p>
+                  <p className="mt-2 text-sm text-red-600 dark:text-red-400">{t('disputes.dropFilesHere', 'Drop files here...')}</p>
                 ) : (
                   <>
                     <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                      Arrastra archivos aquí o haz clic para seleccionar
+                      {t('disputes.dragOrClick', 'Drag files here or click to select')}
                     </p>
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">
-                      Fotos, videos (max 50MB) o PDFs
+                      {t('disputes.fileTypes', 'Photos, videos (max 50MB) or PDFs')}
                     </p>
                   </>
                 )}
@@ -409,10 +411,9 @@ const CreateDispute: React.FC = () => {
                   <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                 </svg>
                 <div className="text-sm">
-                  <p className="font-medium text-yellow-800 dark:text-yellow-200">Importante</p>
+                  <p className="font-medium text-yellow-800 dark:text-yellow-200">{t('disputes.important', 'Important')}</p>
                   <p className="mt-1 text-yellow-700 dark:text-yellow-300">
-                    Al abrir una disputa, el pago quedará retenido en escrow hasta que un administrador resuelva el caso.
-                    El proceso puede tomar de 3 a 5 días hábiles.
+                    {t('disputes.escrowWarning', 'By opening a dispute, the payment will be held in escrow until an administrator resolves the case. The process may take 3 to 5 business days.')}
                   </p>
                 </div>
               </div>
@@ -425,14 +426,14 @@ const CreateDispute: React.FC = () => {
                 onClick={() => navigate(-1)}
                 className="flex-1 px-6 py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
               >
-                Cancelar
+                {t('common.cancel', 'Cancel')}
               </button>
               <button
                 type="submit"
                 disabled={loading}
                 className="flex-1 px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-400 transition-colors"
               >
-                {loading ? 'Creando disputa...' : 'Abrir Disputa'}
+                {loading ? t('disputes.creating', 'Creating dispute...') : t('disputes.openDispute', 'Open Dispute')}
               </button>
             </div>
           </form>

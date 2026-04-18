@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../hooks/useAuth';
 import { WithdrawalRequest } from '../types';
 import {
@@ -19,6 +21,7 @@ import Button from '../components/ui/Button';
 import { useNavigate } from 'react-router-dom';
 
 export default function WithdrawalRequestPage() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [balance, setBalance] = useState(0);
@@ -59,7 +62,8 @@ export default function WithdrawalRequestPage() {
       });
       const withdrawalsData = await withdrawalsRes.json();
       if (withdrawalsData.success) {
-        setWithdrawals(withdrawalsData.data);
+        const list = withdrawalsData.withdrawals || [];
+        setWithdrawals(list);
       }
     } catch (err: any) {
       setError(err.message || 'Error al cargar datos');
@@ -126,7 +130,7 @@ export default function WithdrawalRequestPage() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess('Solicitud de retiro enviada correctamente. Será procesada en breve.');
+        setSuccess(t('withdrawals.submitSuccess'));
         // Reset form
         setAmount('');
         setAccountHolder('');
@@ -146,7 +150,7 @@ export default function WithdrawalRequestPage() {
   };
 
   const handleCancel = async (withdrawalId: string) => {
-    if (!confirm('¿Estás seguro de que deseas cancelar esta solicitud de retiro?')) {
+    if (!confirm(t('withdrawals.confirmCancel'))) {
       return;
     }
 
@@ -162,7 +166,7 @@ export default function WithdrawalRequestPage() {
       const data = await response.json();
 
       if (data.success) {
-        setSuccess('Solicitud cancelada correctamente');
+        setSuccess(t('withdrawals.cancelSuccess'));
         await loadData();
       } else {
         setError(data.message || 'Error al cancelar solicitud');
@@ -177,32 +181,32 @@ export default function WithdrawalRequestPage() {
       pending: {
         color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200',
         icon: <Clock className="w-4 h-4" />,
-        text: 'Pendiente',
+        text: t('withdrawals.status.pending'),
       },
       approved: {
         color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200',
         icon: <CheckCircle className="w-4 h-4" />,
-        text: 'Aprobada',
+        text: t('withdrawals.status.approved'),
       },
       processing: {
         color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-200',
         icon: <Loader2 className="w-4 h-4 animate-spin" />,
-        text: 'Procesando',
+        text: t('withdrawals.status.processing'),
       },
       completed: {
         color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-200',
         icon: <CheckCircle className="w-4 h-4" />,
-        text: 'Completada',
+        text: t('withdrawals.status.completed'),
       },
       rejected: {
         color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-200',
         icon: <XCircle className="w-4 h-4" />,
-        text: 'Rechazada',
+        text: t('withdrawals.status.rejected'),
       },
       cancelled: {
-        color: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
+        color: 'bg-gray-100 text-gray-800 dark:bg-slate-700 dark:text-gray-200',
         icon: <XCircle className="w-4 h-4" />,
-        text: 'Cancelada',
+        text: t('withdrawals.status.cancelled'),
       },
     };
 
@@ -233,14 +237,19 @@ export default function WithdrawalRequestPage() {
     .reduce((sum, w) => sum + w.amount, 0);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <>
+    <Helmet>
+      <title>{t('withdrawals.pageTitle')}</title>
+    </Helmet>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 py-8">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-          Retiro de Saldo
+          {t('withdrawals.title')}
         </h1>
         <p className="text-gray-600 dark:text-gray-400">
-          Solicita retiros de tu saldo a tu cuenta bancaria
+          {t('withdrawals.subtitle')}
         </p>
       </div>
 
@@ -268,33 +277,33 @@ export default function WithdrawalRequestPage() {
               <DollarSign className="w-6 h-6" />
             </div>
           </div>
-          <p className="text-sky-100 text-sm mb-1">Saldo Disponible</p>
+          <p className="text-sky-100 text-sm mb-1">{t('withdrawals.availableBalance')}</p>
           <p className="text-3xl font-bold">
             ${balance.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
           </p>
         </div>
 
         {/* Total Withdrawn */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
               <ArrowDownCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
             </div>
           </div>
-          <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">Total Retirado</p>
+          <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">{t('withdrawals.totalWithdrawn')}</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-white">
             ${totalWithdrawn.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
           </p>
         </div>
 
         {/* Pending Amount */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="w-12 h-12 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center">
               <Clock className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
             </div>
           </div>
-          <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">Monto Pendiente</p>
+          <p className="text-gray-600 dark:text-gray-400 text-sm mb-1">{t('withdrawals.pendingAmount')}</p>
           <p className="text-2xl font-bold text-gray-900 dark:text-white">
             ${pendingAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
           </p>
@@ -304,16 +313,29 @@ export default function WithdrawalRequestPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Request Form */}
         <div className="lg:col-span-1">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 sticky top-4">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 sticky top-4">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
-              Nueva Solicitud
+              {t('withdrawals.newRequest')}
             </h2>
 
+            {balance <= 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <div className="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mb-4">
+                  <DollarSign className="w-8 h-8 text-slate-400" />
+                </div>
+                <p className="text-lg font-semibold text-slate-700 dark:text-slate-300 mb-2">
+                  {t('withdrawals.zeroBalanceTitle', 'Saldo insuficiente')}
+                </p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  {t('withdrawals.zeroBalanceDesc', 'Tu saldo disponible es $0. Necesitas tener saldo para solicitar un retiro.')}
+                </p>
+              </div>
+            ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Amount */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Monto a Retirar (ARS)
+                  {t('withdrawals.amount')}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -323,22 +345,22 @@ export default function WithdrawalRequestPage() {
                     type="number"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    placeholder="Mínimo $1,000"
+                    placeholder={t('withdrawals.amountPlaceholder')}
                     min="1000"
                     step="0.01"
                     required
-                    className="pl-10 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="pl-10 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                   />
                 </div>
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  Monto mínimo: $1,000 ARS
+                  {t('withdrawals.amountMin')}
                 </p>
               </div>
 
               {/* Account Holder */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Titular de la Cuenta
+                  {t('withdrawals.accountHolder')}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -348,9 +370,9 @@ export default function WithdrawalRequestPage() {
                     type="text"
                     value={accountHolder}
                     onChange={(e) => setAccountHolder(e.target.value)}
-                    placeholder="Nombre completo"
+                    placeholder={t('withdrawals.accountHolderPlaceholder')}
                     required
-                    className="pl-10 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="pl-10 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                   />
                 </div>
               </div>
@@ -358,7 +380,7 @@ export default function WithdrawalRequestPage() {
               {/* Bank Name */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Banco
+                  {t('withdrawals.bank')}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -368,9 +390,9 @@ export default function WithdrawalRequestPage() {
                     type="text"
                     value={bankName}
                     onChange={(e) => setBankName(e.target.value)}
-                    placeholder="Ej: Banco Galicia"
+                    placeholder={t('withdrawals.bankPlaceholder')}
                     required
-                    className="pl-10 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="pl-10 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                   />
                 </div>
               </div>
@@ -378,7 +400,7 @@ export default function WithdrawalRequestPage() {
               {/* Account Type */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Tipo de Cuenta
+                  {t('withdrawals.accountType')}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -387,10 +409,10 @@ export default function WithdrawalRequestPage() {
                   <select
                     value={accountType}
                     onChange={(e) => setAccountType(e.target.value as 'savings' | 'checking')}
-                    className="pl-10 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="pl-10 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
-                    <option value="savings">Caja de Ahorro</option>
-                    <option value="checking">Cuenta Corriente</option>
+                    <option value="savings">{t('withdrawals.savings')}</option>
+                    <option value="checking">{t('withdrawals.checking')}</option>
                   </select>
                 </div>
               </div>
@@ -398,7 +420,7 @@ export default function WithdrawalRequestPage() {
               {/* CBU */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  CBU
+                  {t('withdrawals.cbu')}
                 </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -408,10 +430,10 @@ export default function WithdrawalRequestPage() {
                     type="text"
                     value={cbu}
                     onChange={(e) => setCbu(e.target.value.replace(/\D/g, '').slice(0, 22))}
-                    placeholder="22 dígitos"
+                    placeholder={t('withdrawals.cbuPlaceholder')}
                     maxLength={22}
                     required
-                    className="pl-10 w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono"
+                    className="pl-10 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500 font-mono"
                   />
                 </div>
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -422,14 +444,14 @@ export default function WithdrawalRequestPage() {
               {/* Alias (optional) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Alias (opcional)
+                  {t('withdrawals.alias')}
                 </label>
                 <input
                   type="text"
                   value={alias}
                   onChange={(e) => setAlias(e.target.value)}
-                  placeholder="Ej: MIEMPRESA.PAGOS"
-                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  placeholder={t('withdrawals.aliaPlaceholder')}
+                  className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
               </div>
 
@@ -437,31 +459,32 @@ export default function WithdrawalRequestPage() {
                 type="submit"
                 variant="primary"
                 disabled={submitting}
-                className="w-full"
+                className="w-full flex items-center justify-center"
               >
                 {submitting ? (
                   <>
                     <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Enviando solicitud...
+                    {t('withdrawals.submitting')}
                   </>
                 ) : (
                   <>
                     <ArrowDownCircle className="w-5 h-5 mr-2" />
-                    Solicitar Retiro
+                    {t('withdrawals.submit')}
                   </>
                 )}
               </Button>
             </form>
+            )}
 
             {/* Info Box */}
             <div className="mt-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
               <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2 text-sm">
-                Tiempos de Procesamiento
+                {t('withdrawals.processingTitle')}
               </h3>
               <ul className="space-y-1 text-xs text-blue-800 dark:text-blue-200">
-                <li>• Aprobación: 24-48 horas</li>
-                <li>• Transferencia: 1-3 días hábiles</li>
-                <li>• Mínimo: $1,000 ARS</li>
+                <li>• {t('withdrawals.processingApproval')}</li>
+                <li>• {t('withdrawals.processingTransfer')}</li>
+                <li>• {t('withdrawals.processingMin')}</li>
               </ul>
             </div>
           </div>
@@ -469,10 +492,10 @@ export default function WithdrawalRequestPage() {
 
         {/* Withdrawals List */}
         <div className="lg:col-span-2">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="bg-white dark:bg-slate-800 rounded-lg shadow">
+            <div className="p-6 border-b border-slate-200 dark:border-slate-700">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-                Mis Solicitudes de Retiro
+                {t('withdrawals.myRequests')}
               </h2>
             </div>
 
@@ -481,12 +504,12 @@ export default function WithdrawalRequestPage() {
                 <div className="p-12 text-center">
                   <ArrowDownCircle className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
                   <p className="text-gray-500 dark:text-gray-400">
-                    No tienes solicitudes de retiro aún
+                    {t('withdrawals.noRequests')}
                   </p>
                 </div>
               ) : (
                 withdrawals.map((withdrawal) => (
-                  <div key={withdrawal._id} className="p-6 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                  <div key={withdrawal.id || withdrawal._id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-3">
@@ -518,7 +541,7 @@ export default function WithdrawalRequestPage() {
                         {withdrawal.rejectionReason && (
                           <div className="mt-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-3">
                             <p className="text-sm text-red-800 dark:text-red-200">
-                              <strong>Motivo de rechazo:</strong> {withdrawal.rejectionReason}
+                              <strong>{t('withdrawals.rejectionReason')}:</strong> {withdrawal.rejectionReason}
                             </p>
                           </div>
                         )}
@@ -528,11 +551,11 @@ export default function WithdrawalRequestPage() {
                         <div>
                           <Button
                             variant="secondary"
-                            onClick={() => handleCancel(withdrawal._id)}
+                            onClick={() => handleCancel(withdrawal.id || withdrawal._id)}
                             className="text-red-600 hover:text-red-700"
                           >
                             <XCircle className="w-4 h-4 mr-2" />
-                            Cancelar
+                            {t('withdrawals.cancel')}
                           </Button>
                         </div>
                       )}
@@ -545,5 +568,7 @@ export default function WithdrawalRequestPage() {
         </div>
       </div>
     </div>
+    </div>
+    </>
   );
 }

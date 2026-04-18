@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { paymentApi, Payment } from "@/lib/paymentApi";
 import { ArrowDownCircle, ArrowUpCircle, Clock, CheckCircle, XCircle, ChevronRight } from "lucide-react";
@@ -8,6 +9,7 @@ interface PaymentHistoryProps {
 }
 
 export function PaymentHistory({ type = "all" }: PaymentHistoryProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,13 +62,13 @@ export function PaymentHistory({ type = "all" }: PaymentHistoryProps) {
 
   const getStatusText = (status: string) => {
     const statusMap: Record<string, string> = {
-      pending: "Pendiente",
-      pending_verification: "Pendiente de verificación",
-      processing: "Procesando",
-      completed: "Completado",
-      failed: "Fallido",
-      refunded: "Reembolsado",
-      held_escrow: "En Escrow",
+      pending: t('payments.status.pending'),
+      pending_verification: t('payments.status.pending_verification'),
+      processing: t('payments.status.processing'),
+      completed: t('payments.status.completed'),
+      failed: t('payments.status.failed'),
+      refunded: t('payments.status.refunded'),
+      held_escrow: t('payments.status.held_escrow'),
     };
     return statusMap[status] || status;
   };
@@ -99,7 +101,7 @@ export function PaymentHistory({ type = "all" }: PaymentHistoryProps) {
   if (payments.length === 0) {
     return (
       <div className="text-center py-12 bg-gray-50 rounded-lg">
-        <p className="text-gray-600">No hay pagos para mostrar</p>
+        <p className="text-gray-600">{t('payments.noPayments')}</p>
       </div>
     );
   }
@@ -132,15 +134,15 @@ export function PaymentHistory({ type = "all" }: PaymentHistoryProps) {
                       </h3>
                       {payment.isEscrow && (
                         <span className="text-xs px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded">
-                          Escrow
+                          {t('payments.escrow')}
                         </span>
                       )}
                     </div>
                     <p className="text-sm text-gray-600 dark:text-slate-400">
                       {payment.paymentType === "job_publication" ? (
-                        <>Para: Plataforma</>
+                        <>{t('payments.platform')}</>
                       ) : payment.paymentType === "membership" ? (
-                        <>Membresía DOAPP</>
+                        <>{t('payments.membership')}</>
                       ) : payment.payerId?.name && payment.recipientId?.name ? (
                         <>
                           De <span className="font-medium">{payment.payerId.name}</span> a{" "}
@@ -155,7 +157,7 @@ export function PaymentHistory({ type = "all" }: PaymentHistoryProps) {
                           Recibido de <span className="font-medium">{payment.recipientId.name}</span>
                         </>
                       ) : (
-                        "Información de pago"
+                        t('payments.paymentInfo')
                       )}
                     </p>
                     <div className="flex items-center gap-2 mt-1">
@@ -180,7 +182,7 @@ export function PaymentHistory({ type = "all" }: PaymentHistoryProps) {
                     </p>
                     {payment.platformFee > 0 && (
                       <p className="text-xs text-gray-500 dark:text-slate-500">
-                        +${Number(payment.platformFee).toLocaleString('es-AR', { minimumFractionDigits: 2 })} tarifa
+                        +${Number(payment.platformFee).toLocaleString('es-AR', { minimumFractionDigits: 2 })} {t('payments.fee')}
                       </p>
                     )}
                   </div>
@@ -200,17 +202,17 @@ export function PaymentHistory({ type = "all" }: PaymentHistoryProps) {
             disabled={page === 1}
             className="px-4 py-2 bg-white border border-gray-300 rounded-lg disabled:opacity-50 hover:bg-gray-50"
           >
-            Anterior
+            {t('common.previous')}
           </button>
           <span className="px-4 py-2 text-gray-700">
-            Página {page} de {pagination.pages}
+            {t('common.page')} {page} {t('common.of')} {pagination.pages}
           </span>
           <button
             onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
             disabled={page === pagination.pages}
             className="px-4 py-2 bg-white border border-gray-300 rounded-lg disabled:opacity-50 hover:bg-gray-50"
           >
-            Siguiente
+            {t('common.next')}
           </button>
         </div>
       )}

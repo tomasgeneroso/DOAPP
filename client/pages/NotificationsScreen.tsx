@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Bell,
   Check,
@@ -199,6 +200,7 @@ const getNotificationUrl = (notification: Notification): string | null => {
 };
 
 export default function NotificationsScreen() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -312,8 +314,8 @@ export default function NotificationsScreen() {
   return (
     <>
       <Helmet>
-        <title>Notificaciones - DoApp</title>
-        <meta name="description" content="Todas tus notificaciones en un solo lugar" />
+        <title>{t('nav.notifications')} - DoApp</title>
+        <meta name="description" content={t('notifications.description', 'All your notifications in one place')} />
       </Helmet>
 
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
@@ -325,14 +327,14 @@ export default function NotificationsScreen() {
               className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white mb-4"
             >
               <ArrowLeft className="h-4 w-4" />
-              Volver al inicio
+              {t('auth.backToHome')}
             </Link>
 
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
                   <Bell className="h-7 w-7 text-sky-500" />
-                  Notificaciones
+                  {t('nav.notifications')}
                   {unreadCount > 0 && (
                     <span className="flex h-6 min-w-[24px] items-center justify-center rounded-full bg-red-500 px-2 text-sm font-bold text-white">
                       {unreadCount}
@@ -340,7 +342,7 @@ export default function NotificationsScreen() {
                   )}
                 </h1>
                 <p className="text-slate-600 dark:text-slate-400 mt-1">
-                  Mantente al día con todas las actualizaciones
+                  {t('notifications.stayUpToDate', 'Stay up to date with all updates')}
                 </p>
               </div>
 
@@ -367,7 +369,7 @@ export default function NotificationsScreen() {
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
-                No leídas
+                {t('notifications.unread', 'Unread')}
                 {unreadCount > 0 && (
                   <span className={`px-1.5 py-0.5 rounded-full text-xs ${
                     filter === 'unread' ? 'bg-white/20 text-white' : 'bg-red-500 text-white'
@@ -384,7 +386,7 @@ export default function NotificationsScreen() {
                     : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
-                Todas
+                {t('common.all')}
               </button>
             </div>
 
@@ -394,7 +396,7 @@ export default function NotificationsScreen() {
                 className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors"
               >
                 <CheckCheck className="h-4 w-4" />
-                Marcar todas como leídas
+                {t('notifications.markAllRead', 'Mark all as read')}
               </button>
             )}
           </div>
@@ -409,12 +411,12 @@ export default function NotificationsScreen() {
               <div className="text-center py-12 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
                 <Bell className="h-12 w-12 mx-auto text-slate-300 dark:text-slate-600 mb-4" />
                 <h3 className="text-lg font-medium text-slate-900 dark:text-white mb-2">
-                  {filter === 'unread' ? 'No tienes notificaciones sin leer' : 'No tienes notificaciones'}
+                  {filter === 'unread' ? t('notifications.noUnread', 'No unread notifications') : t('notifications.noNotifications', 'No notifications')}
                 </h3>
                 <p className="text-slate-500 dark:text-slate-400">
                   {filter === 'unread'
-                    ? 'Todas tus notificaciones han sido leídas'
-                    : 'Las notificaciones aparecerán aquí cuando tengas actividad'}
+                    ? t('notifications.allRead', 'All your notifications have been read')
+                    : t('notifications.willAppear', 'Notifications will appear here when you have activity')}
                 </p>
               </div>
             ) : (
@@ -491,7 +493,7 @@ export default function NotificationsScreen() {
                                 deleteNotification(notification.id);
                               }}
                               className="p-1.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 text-slate-500 dark:text-slate-400 hover:text-red-500"
-                              title="Eliminar"
+                              title={t('common.delete', 'Delete')}
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import {
   Wallet,
@@ -19,6 +20,7 @@ import {
 import type { BalanceTransaction } from "@/types";
 
 export default function BalancePage() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [balance, setBalance] = useState(0);
   const [transactions, setTransactions] = useState<BalanceTransaction[]>([]);
@@ -101,11 +103,11 @@ export default function BalancePage() {
 
   const getTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
-      refund: "Reembolso",
-      payment: "Pago",
-      bonus: "Bonus",
-      adjustment: "Ajuste",
-      withdrawal: "Retiro",
+      refund: t('balance.type.refund', 'Reembolso'),
+      payment: t('balance.type.payment', 'Pago'),
+      bonus: t('balance.type.bonus', 'Bonus'),
+      adjustment: t('balance.type.adjustment', 'Ajuste'),
+      withdrawal: t('balance.type.withdrawal', 'Retiro'),
     };
     return labels[type] || type;
   };
@@ -188,10 +190,10 @@ export default function BalancePage() {
     }
 
     if (paymentTypeId === 'bank_transfer' || paymentMethod === 'bank_transfer') {
-      return 'Transferencia';
+      return t('balance.bankTransfer', 'Transferencia');
     }
     if (paymentTypeId === 'account_money') {
-      return 'Dinero en cuenta';
+      return t('balance.accountMoney', 'Dinero en cuenta');
     }
 
     return null;
@@ -208,7 +210,7 @@ export default function BalancePage() {
   return (
     <>
       <Helmet>
-        <title>Mi Saldo - DoApp</title>
+        <title>{t('balance.pageTitle', 'Mi Saldo - DoApp')}</title>
       </Helmet>
 
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 py-8">
@@ -217,10 +219,10 @@ export default function BalancePage() {
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
               <Wallet className="h-8 w-8 text-sky-600" />
-              Mi Saldo
+              {t('balance.title', 'Mi Saldo')}
             </h1>
             <p className="mt-2 text-slate-600 dark:text-slate-400">
-              Administra tu saldo y revisa tu historial de transacciones
+              {t('balance.subtitle', 'Administra tu saldo y revisa tu historial de transacciones')}
             </p>
           </div>
 
@@ -228,7 +230,7 @@ export default function BalancePage() {
           <div className="bg-gradient-to-br from-sky-500 to-sky-600 rounded-xl p-8 text-white shadow-lg mb-8">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium opacity-90">Saldo Disponible</p>
+                <p className="text-sm font-medium opacity-90">{t('balance.availableBalance', 'Saldo Disponible')}</p>
                 <p className="text-5xl font-bold mt-2">
                   ${(balance || 0).toLocaleString("es-AR")}
                 </p>
@@ -238,12 +240,12 @@ export default function BalancePage() {
                 <button
                   onClick={fetchBalanceData}
                   className="p-3 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
-                  title="Actualizar saldo"
+                  title={t('balance.refresh', 'Actualizar saldo')}
                 >
                   <RefreshCw className="h-5 w-5" />
                 </button>
                 <div className="text-right">
-                  <p className="text-sm opacity-90">Usuario: {user?.name}</p>
+                  <p className="text-sm opacity-90">{t('balance.user', 'User')}: {user?.name}</p>
                   <p className="text-xs opacity-70">ID: {user?._id?.slice(-8)}</p>
                 </div>
               </div>
@@ -256,7 +258,7 @@ export default function BalancePage() {
               <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">Reembolsos Totales</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('balance.totalRefunds', 'Reembolsos Totales')}</p>
                     <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
                       ${summary.totalRefunds.toLocaleString("es-AR")}
                     </p>
@@ -268,7 +270,7 @@ export default function BalancePage() {
               <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">Pagos Totales</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('balance.totalPayments', 'Pagos Totales')}</p>
                     <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
                       ${summary.totalPayments.toLocaleString("es-AR")}
                     </p>
@@ -280,7 +282,7 @@ export default function BalancePage() {
               <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">Bonus Recibidos</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('balance.totalBonuses', 'Bonus Recibidos')}</p>
                     <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
                       ${summary.totalBonuses.toLocaleString("es-AR")}
                     </p>
@@ -292,7 +294,7 @@ export default function BalancePage() {
               <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">Transacciones</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('balance.transactions', 'Transacciones')}</p>
                     <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
                       {summary.transactionCount}
                     </p>
@@ -308,10 +310,10 @@ export default function BalancePage() {
             <div className="border-b border-slate-200 dark:border-slate-700">
               <nav className="flex -mb-px">
                 {[
-                  { id: "all", label: "Todas" },
-                  { id: "refund", label: "Reembolsos" },
-                  { id: "payment", label: "Pagos" },
-                  { id: "bonus", label: "Bonus" },
+                  { id: "all", label: t('common.all', 'Todas') },
+                  { id: "refund", label: t('balance.type.refund', 'Reembolsos') },
+                  { id: "payment", label: t('balance.type.payment', 'Pagos') },
+                  { id: "bonus", label: t('balance.type.bonus', 'Bonus') },
                 ].map((tab) => (
                   <button
                     key={tab.id}
@@ -334,7 +336,7 @@ export default function BalancePage() {
                 <div className="text-center py-12">
                   <Wallet className="h-16 w-16 text-slate-300 dark:text-slate-600 mx-auto mb-4" />
                   <p className="text-slate-600 dark:text-slate-400">
-                    No hay transacciones registradas
+                    {t('balance.noTransactions', 'No hay transacciones registradas')}
                   </p>
                 </div>
               ) : (
@@ -388,7 +390,7 @@ export default function BalancePage() {
                           {transaction.amount >= 0 ? "+" : ""}${Math.abs(transaction.amount).toLocaleString("es-AR")}
                         </p>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                          Saldo: ${transaction.balanceAfter.toLocaleString("es-AR")}
+                          {t('balance.balanceLabel', 'Saldo')}: ${transaction.balanceAfter.toLocaleString("es-AR")}
                         </p>
                       </div>
                     </div>
@@ -403,24 +405,20 @@ export default function BalancePage() {
             <div className="bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-xl p-6">
               <h3 className="font-semibold text-sky-900 dark:text-sky-100 mb-2 flex items-center gap-2">
                 <SettingsIcon className="h-5 w-5" />
-                ¿Qué es el saldo a favor?
+                {t('balance.whatIsBalance', '¿Qué es el saldo a favor?')}
               </h3>
               <p className="text-sm text-sky-800 dark:text-sky-300">
-                Tu saldo a favor se genera cuando reduces el precio de un contrato o cuando recibes
-                reembolsos. Puedes usar este saldo para aumentar el precio de contratos futuros sin
-                necesidad de realizar un nuevo pago.
+                {t('balance.whatIsBalanceDesc', 'Tu saldo a favor se genera cuando reduces el precio de un contrato o cuando recibes reembolsos. Puedes usar este saldo para aumentar el precio de contratos futuros sin necesidad de realizar un nuevo pago.')}
               </p>
             </div>
 
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-6">
               <h3 className="font-semibold text-green-900 dark:text-green-100 mb-2 flex items-center gap-2">
                 <Banknote className="h-5 w-5" />
-                Pagos rápidos con MercadoPago
+                {t('balance.fastPayments', 'Pagos rápidos con MercadoPago')}
               </h3>
               <p className="text-sm text-green-800 dark:text-green-300">
-                Al usar Mercado Pago, los pagos de los trabajos se acreditarán dentro de las 48 horas
-                posteriores a la finalización del trabajo, <strong>sin comisiones bancarias</strong>.
-                Tu dinero llega de forma rápida y segura.
+                {t('balance.fastPaymentsDesc', 'Al usar Mercado Pago, los pagos de los trabajos se acreditarán dentro de las 48 horas posteriores a la finalización del trabajo, sin comisiones bancarias. Tu dinero llega de forma rápida y segura.')}
               </p>
             </div>
           </div>

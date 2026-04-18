@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Crown, X, Check, Sparkles } from 'lucide-react';
 import Button from './ui/Button';
@@ -10,6 +11,7 @@ interface MembershipOfferModalProps {
 }
 
 export default function MembershipOfferModal({ isOpen, onClose, onUpgrade }: MembershipOfferModalProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [selectedPlan, setSelectedPlan] = useState<'free' | 'monthly' | 'quarterly' | 'super_pro'>('monthly');
 
@@ -34,61 +36,61 @@ export default function MembershipOfferModal({ isOpen, onClose, onUpgrade }: Mem
     {
       id: 'free',
       name: 'Free',
-      subtitle: 'Para empezar',
-      price: 'Gratis',
-      priceDetail: 'siempre',
+      subtitle: t('membership.toGetStarted', 'To get started'),
+      price: t('membership.free', 'Free'),
+      priceDetail: t('membership.always', 'always'),
       features: [
-        '3 contratos gratis para los primeros 1000 usuarios',
-        'Comisión fija del 8%',
-        '3 códigos de invitación',
+        t('membership.freeFeature1', '3 free contracts for the first 1000 users'),
+        t('membership.freeFeature2', 'Fixed 8% commission'),
+        t('membership.freeFeature3', '3 invitation codes'),
       ],
     },
     {
       id: 'monthly',
-      name: 'PRO Mensual',
-      subtitle: 'Más popular',
+      name: t('membership.proMonthly', 'PRO Monthly'),
+      subtitle: t('membership.mostPopular', 'Most popular'),
       price: '$4.999',
-      priceDetail: 'ARS/mes',
+      priceDetail: 'ARS/' + t('membership.month', 'month'),
       isPopular: true,
       features: [
-        '1 contrato mensual sin comisión',
-        '2 contratos gratis iniciales únicos',
-        'Contratos adicionales: 3% de comisión',
-        'Prioridad en resultados de búsqueda',
-        'Verificación de identidad',
-        'Badge PRO dorado',
+        t('membership.proFeature1', '1 monthly contract without commission'),
+        t('membership.proFeature2', '2 unique initial free contracts'),
+        t('membership.proFeature3', 'Additional contracts: 3% commission'),
+        t('membership.proFeature4', 'Priority in search results'),
+        t('membership.proFeature5', 'Identity verification'),
+        t('membership.proFeature6', 'Golden PRO badge'),
       ],
     },
     {
       id: 'quarterly',
-      name: 'PRO Trimestral',
-      subtitle: 'Mejor valor',
+      name: t('membership.proQuarterly', 'PRO Quarterly'),
+      subtitle: t('membership.bestValue', 'Best value'),
       price: '$13.347',
-      priceDetail: 'ARS cada 3 meses',
-      savings: 'Ahorra $1.650',
+      priceDetail: 'ARS ' + t('membership.every3Months', 'every 3 months'),
+      savings: t('membership.save', 'Save') + ' $1.650',
       features: [
-        '1 contrato mensual sin comisión',
-        '2 contratos gratis iniciales únicos',
-        'Contratos adicionales: 3% de comisión',
-        'Prioridad en resultados de búsqueda',
-        'Verificación de identidad',
-        'Badge PRO dorado',
+        t('membership.proFeature1', '1 monthly contract without commission'),
+        t('membership.proFeature2', '2 unique initial free contracts'),
+        t('membership.proFeature3', 'Additional contracts: 3% commission'),
+        t('membership.proFeature4', 'Priority in search results'),
+        t('membership.proFeature5', 'Identity verification'),
+        t('membership.proFeature6', 'Golden PRO badge'),
       ],
     },
     {
       id: 'super_pro',
       name: 'SUPER PRO',
-      subtitle: 'Para profesionales',
+      subtitle: t('membership.forProfessionals', 'For professionals'),
       price: '$8.999',
-      priceDetail: 'ARS/mes',
+      priceDetail: 'ARS/' + t('membership.month', 'month'),
       isSuperPro: true,
       features: [
-        'Todo lo de PRO +',
-        '2 contratos mensuales sin comisión',
-        '2 contratos gratis iniciales únicos',
-        'Contratos adicionales: 1% de comisión',
-        'Analytics avanzados',
-        'Reportes mensuales detallados',
+        t('membership.superProFeature1', 'Everything in PRO +'),
+        t('membership.superProFeature2', '2 monthly contracts without commission'),
+        t('membership.superProFeature3', '2 unique initial free contracts'),
+        t('membership.superProFeature4', 'Additional contracts: 1% commission'),
+        t('membership.superProFeature5', 'Advanced analytics'),
+        t('membership.superProFeature6', 'Detailed monthly reports'),
       ],
     },
   ];
@@ -108,8 +110,8 @@ export default function MembershipOfferModal({ isOpen, onClose, onUpgrade }: Mem
           </button>
           <div className="text-center">
             <Crown className="w-12 h-12 text-yellow-300 mx-auto mb-2" />
-            <h2 className="text-2xl font-bold">¡Bienvenido a DOAPP!</h2>
-            <p className="text-sky-100 text-sm mt-1">Potencia tu experiencia con una membresía PRO</p>
+            <h2 className="text-2xl font-bold">{t('membership.welcomeToDoapp', 'Welcome to DOAPP!')}</h2>
+            <p className="text-sky-100 text-sm mt-1">{t('membership.boostExperience', 'Boost your experience with a PRO membership')}</p>
           </div>
         </div>
 
@@ -137,7 +139,7 @@ export default function MembershipOfferModal({ isOpen, onClose, onUpgrade }: Mem
                 {(plan as any).isPopular && (
                   <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
                     <span className="bg-sky-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
-                      MÁS POPULAR
+                      {t('membership.mostPopularBadge', 'MOST POPULAR')}
                     </span>
                   </div>
                 )}
@@ -216,7 +218,7 @@ export default function MembershipOfferModal({ isOpen, onClose, onUpgrade }: Mem
                 }`}
               >
                 <Crown className="w-4 h-4 mr-2 inline-block" />
-                Activar {selectedPlanData?.name}
+                {t('membership.activate', 'Activate')} {selectedPlanData?.name}
               </Button>
             )}
             <Button
@@ -224,12 +226,12 @@ export default function MembershipOfferModal({ isOpen, onClose, onUpgrade }: Mem
               onClick={onClose}
               className="w-full border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
             >
-              Continuar con plan FREE
+              {t('membership.continueWithFree', 'Continue with FREE plan')}
             </Button>
           </div>
 
           <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-3">
-            Cancela en cualquier momento • Siempre puedes actualizar
+            {t('membership.cancelAnytime', 'Cancel anytime')} • {t('membership.alwaysUpgrade', 'You can always upgrade')}
           </p>
         </div>
       </div>

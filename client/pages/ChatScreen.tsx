@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useLocation, Link, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
 import { useSocket } from '../hooks/useSocket';
 import { ContractModal, ContractModalType } from '../components/chat/ContractModals';
@@ -89,6 +90,7 @@ interface Job {
 }
 
 export default function ChatScreen() {
+  const { t } = useTranslation();
   const { id: conversationId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -444,7 +446,7 @@ export default function ChatScreen() {
     if (contractData.status === 'pending' || contractData.status === 'active') {
       alerts.push({
         type: 'selected',
-        message: `¡Fuiste seleccionado para "${contractData.job?.title || 'este trabajo'}"!`,
+        message: t('chat.selectedForJob', 'You were selected for "{{title}}"!', { title: contractData.job?.title || t('chat.thisJob', 'this job') }),
         color: 'green',
       });
     }
@@ -455,7 +457,7 @@ export default function ChatScreen() {
       const minutes = Math.floor((timeInfo.diffHours - hours) * 60);
       alerts.push({
         type: 'soon',
-        message: `⏰ El trabajo comienza en ${hours > 0 ? `${hours}h ` : ''}${minutes}min`,
+        message: t('chat.jobStartsIn', 'The job starts in {{time}}', { time: `${hours > 0 ? `${hours}h ` : ''}${minutes}min` }),
         color: 'amber',
       });
     }
@@ -465,7 +467,7 @@ export default function ChatScreen() {
       if (timeInfo && timeInfo.diffMs <= 0) {
         alerts.push({
           type: 'in_progress',
-          message: '🔧 El trabajo está en progreso',
+          message: t('chat.jobInProgress', 'The job is in progress'),
           color: 'blue',
         });
       }
@@ -590,7 +592,7 @@ export default function ChatScreen() {
             setShowContractModal(false);
             fetchConversationData(); // Reload messages
           } else {
-            alert(directData.message || 'Error al enviar aplicación');
+            alert(directData.message || t('chat.errorSendingApplication', 'Error sending application'));
           }
           break;
         }
@@ -617,7 +619,7 @@ export default function ChatScreen() {
             setShowContractModal(false);
             fetchConversationData(); // Reload messages
           } else {
-            alert(negotiateData.message || 'Error al enviar contraoferta');
+            alert(negotiateData.message || t('chat.errorSendingCounteroffer', 'Error sending counteroffer'));
           }
           break;
         }
@@ -675,17 +677,17 @@ export default function ChatScreen() {
 
           const changeData = await changeResponse.json();
           if (changeData.success) {
-            alert('Solicitud enviada exitosamente');
+            alert(t('chat.requestSentSuccessfully', 'Request sent successfully'));
             setShowContractModal(false);
           } else {
-            alert(changeData.message || 'Error al enviar solicitud');
+            alert(changeData.message || t('chat.errorSendingRequest', 'Error sending request'));
           }
           break;
         }
       }
     } catch (error) {
       console.error('Error submitting modal:', error);
-      alert('Error al procesar la solicitud');
+      alert(t('chat.errorProcessingRequest', 'Error processing request'));
     } finally {
       setModalLoading(false);
     }
@@ -762,11 +764,11 @@ export default function ChatScreen() {
           fetchConversationData(); // Reload messages to show the new proposal
         }
       } else {
-        alert(result.message || 'Error al enviar la propuesta');
+        alert(result.message || t('chat.errorSendingProposal', 'Error sending proposal'));
       }
     } catch (error) {
       console.error('Error sending direct proposal:', error);
-      alert('Error al enviar la propuesta');
+      alert(t('chat.errorSendingProposal', 'Error sending proposal'));
     } finally {
       setModalLoading(false);
     }
@@ -810,14 +812,14 @@ export default function ChatScreen() {
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="text-lg font-semibold text-slate-900 dark:text-white">
-                    Conversación
+                    {t('chat.conversation', 'Conversation')}
                   </h1>
                   {/* Job Code Badge */}
                   {getCurrentJobId() && (
                     <button
                       onClick={handleCopyJobCode}
                       className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-100 dark:bg-sky-900/40 text-sm font-mono font-bold text-sky-700 dark:text-sky-300 hover:bg-sky-200 dark:hover:bg-sky-900/60 transition-colors border border-sky-200 dark:border-sky-700"
-                      title="Copiar código del trabajo"
+                      title={t('chat.copyJobCode', 'Copy job code')}
                     >
                       <Key className="h-3.5 w-3.5" />
                       #{getJobCode(getCurrentJobId())}
@@ -842,10 +844,10 @@ export default function ChatScreen() {
                 <button
                   onClick={() => setShowDirectProposalModal(true)}
                   className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg transition-colors"
-                  title="Proponer un contrato directo"
+                  title={t('chat.proposeDirectContract', 'Propose a direct contract')}
                 >
                   <Handshake className="h-5 w-5" />
-                  <span className="hidden sm:inline">Proponer Contrato</span>
+                  <span className="hidden sm:inline">{t('chat.proposeContract', 'Propose Contract')}</span>
                 </button>
               )}
 
@@ -872,7 +874,7 @@ export default function ChatScreen() {
                         {otherParticipant.name}
                       </p>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Ver trabajos
+                        {t('chat.viewJobs', 'View jobs')}
                       </p>
                     </div>
                   </div>
@@ -892,7 +894,7 @@ export default function ChatScreen() {
           <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 py-4">
             <div className="container mx-auto max-w-4xl">
               <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-4">
-                Trabajos disponibles de {otherParticipant?.name}
+                {t('chat.availableJobsOf', "Available jobs from {{name}}", { name: otherParticipant?.name })}
               </h3>
 
               {loadingJobs ? (
@@ -902,7 +904,7 @@ export default function ChatScreen() {
               ) : participantJobs.length === 0 ? (
                 <div className="text-center py-8">
                   <p className="text-sm text-slate-500 dark:text-slate-400">
-                    No hay trabajos disponibles en este momento
+                    {t('chat.noJobsAvailable', 'No jobs available at this time')}
                   </p>
                 </div>
               ) : (
@@ -934,14 +936,14 @@ export default function ChatScreen() {
                           onClick={() => navigate(`/jobs/${job.id || job._id}`)}
                           className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap"
                         >
-                          Ver Trabajo
+                          {t('chat.viewJob', 'View Job')}
                         </button>
                       ) : (
                         <button
                           onClick={() => navigate(`/jobs/${job.id || job._id}/apply`)}
                           className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap"
                         >
-                          Aplicar
+                          {t('chat.apply', 'Apply')}
                         </button>
                       )}
                     </div>
@@ -1003,7 +1005,7 @@ export default function ChatScreen() {
                           to={`/contracts/${contractData.id}`}
                           className="text-sm text-green-600 dark:text-green-400 hover:underline mt-1 inline-block"
                         >
-                          Ver detalles del contrato →
+                          {t('chat.viewContractDetails', 'View contract details')} &rarr;
                         </Link>
                       )}
                     </div>
@@ -1021,10 +1023,10 @@ export default function ChatScreen() {
                   </div>
                   <div className="flex-1">
                     <h4 className="font-bold text-purple-900 dark:text-purple-100 text-lg mb-1">
-                      Código de Pareamiento
+                      {t('chat.pairingCode', 'Pairing Code')}
                     </h4>
                     <p className="text-sm text-purple-700 dark:text-purple-300 mb-3">
-                      Muestra este código al cliente cuando llegues al lugar de trabajo
+                      {t('chat.showCodeToClient', 'Show this code to the client when you arrive at the workplace')}
                     </p>
                     <div className="flex items-center gap-3">
                       <div className="flex-1 bg-white dark:bg-slate-800 rounded-lg p-3 border-2 border-purple-300 dark:border-purple-600">
@@ -1035,7 +1037,7 @@ export default function ChatScreen() {
                       <button
                         onClick={handleCopyPairingCode}
                         className="p-3 bg-purple-100 dark:bg-purple-900/50 hover:bg-purple-200 dark:hover:bg-purple-800/50 rounded-lg transition-colors"
-                        title="Copiar código"
+                        title={t('chat.copyCode', 'Copy code')}
                       >
                         {copiedCode ? (
                           <Check className="h-5 w-5 text-green-600 dark:text-green-400" />
@@ -1046,12 +1048,12 @@ export default function ChatScreen() {
                     </div>
                     {copiedCode && (
                       <p className="text-sm text-green-600 dark:text-green-400 mt-2">
-                        ¡Código copiado!
+                        {t('chat.codeCopied', 'Code copied!')}
                       </p>
                     )}
                     {contractData.pairingExpiry && (
                       <p className="text-xs text-purple-600 dark:text-purple-400 mt-2">
-                        Expira: {new Date(contractData.pairingExpiry).toLocaleString('es-AR')}
+                        {t('chat.expires', 'Expires')}: {new Date(contractData.pairingExpiry).toLocaleString('es-AR')}
                       </p>
                     )}
                   </div>
@@ -1097,7 +1099,7 @@ export default function ChatScreen() {
                       className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 border-2 border-sky-500 text-sky-600 dark:text-sky-400 font-semibold rounded-lg hover:bg-sky-50 dark:hover:bg-slate-700 transition-colors"
                     >
                       <FileText className="h-5 w-5" />
-                      Ver Contrato
+                      {t('chat.viewContract', 'View Contract')}
                     </Link>
                   )}
                   <Link
@@ -1105,7 +1107,7 @@ export default function ChatScreen() {
                     className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-semibold rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                   >
                     <Briefcase className="h-5 w-5" />
-                    Ver Trabajo
+                    {t('chat.viewJob', 'View Job')}
                   </Link>
                 </div>
               </div>
@@ -1192,7 +1194,7 @@ export default function ChatScreen() {
                 type="text"
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Escribe un mensaje..."
+                placeholder={t('chat.writeMessage', 'Write a message...')}
                 className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-slate-900 dark:text-white"
               />
               <button
@@ -1201,7 +1203,7 @@ export default function ChatScreen() {
                 className="px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 <Send className="h-5 w-5" />
-                Enviar
+                {t('common.send', 'Send')}
               </button>
             </form>
           </div>

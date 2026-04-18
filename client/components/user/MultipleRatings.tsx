@@ -1,5 +1,6 @@
 import { User } from '../../types';
-import { Star, Briefcase, UserCheck, FileText } from 'lucide-react';
+import { Star, Clock, Heart, FileText, UserCheck, Briefcase } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface MultipleRatingsProps {
   user: User;
@@ -14,29 +15,31 @@ const toNumber = (value: any): number => {
 };
 
 export default function MultipleRatings({ user, showAll = true }: MultipleRatingsProps) {
+  const { t } = useTranslation();
+
   const ratings = [
     {
       icon: Star,
-      label: 'Calidad de Trabajo',
-      description: 'Evalúa la calidad técnica y profesional del trabajo entregado',
+      label: t('profile.ratings.workQuality'),
+      description: t('profile.ratings.workQualityDesc', 'Evaluates the technical and professional quality of the work delivered'),
       rating: user.workQualityRating,
       count: user.workQualityReviewsCount,
       color: 'text-yellow-500',
       bgColor: 'bg-yellow-50 dark:bg-yellow-800',
     },
     {
-      icon: UserCheck,
-      label: 'Como Trabajador',
-      description: 'Evalúa la comunicación, puntualidad y actitud profesional',
+      icon: Clock,
+      label: t('profile.ratings.asWorker'),
+      description: t('profile.ratings.punctualityDesc', 'Evaluates punctuality and meeting deadlines'),
       rating: user.workerRating,
       count: user.workerReviewsCount,
       color: 'text-blue-500',
       bgColor: 'bg-blue-50 dark:bg-blue-800',
     },
     {
-      icon: FileText,
-      label: 'Cumplimiento de Contratos',
-      description: 'Evalúa el cumplimiento de plazos, presupuestos y acuerdos establecidos',
+      icon: Heart,
+      label: t('profile.ratings.contractCompliance'),
+      description: t('profile.ratings.asPersonDesc', 'Evaluates communication, attitude and treatment'),
       rating: user.contractRating,
       count: user.contractReviewsCount,
       color: 'text-green-500',
@@ -53,7 +56,7 @@ export default function MultipleRatings({ user, showAll = true }: MultipleRating
     return (
       <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
         <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
-          Sin puntuaciones todavía
+          {t('profile.ratings.noRatings')}
         </p>
       </div>
     );
@@ -106,7 +109,7 @@ export default function MultipleRatings({ user, showAll = true }: MultipleRating
                   </>
                 ) : (
                   <span className="text-xs text-gray-500 dark:text-gray-400">
-                    Sin puntuaciones
+                    {t('profile.ratings.noRatings')}
                   </span>
                 )}
               </div>

@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import "./i18n";
 import "./global.css";
 import "./styles/datepicker.css";
 import "react-quill/dist/quill.snow.css";

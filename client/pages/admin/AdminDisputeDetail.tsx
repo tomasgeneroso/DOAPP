@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -79,6 +80,7 @@ interface Dispute {
 const AdminDisputeDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { token } = useAuth();
 
   const [dispute, setDispute] = useState<Dispute | null>(null);
@@ -128,7 +130,7 @@ const AdminDisputeDetail: React.FC = () => {
       setShowResolveForm(false);
     } catch (error) {
       console.error('Error resolving dispute:', error);
-      alert('Error al resolver la disputa');
+      alert(t('admin.disputes.errorResolving', 'Error resolving dispute'));
     } finally {
       setResolving(false);
     }
@@ -182,7 +184,7 @@ const AdminDisputeDetail: React.FC = () => {
       await fetchDispute();
     } catch (error) {
       console.error('Error sending message:', error);
-      alert('Error al enviar el mensaje');
+      alert(t('admin.disputes.errorSendingMessage', 'Error sending message'));
     } finally {
       setSendingMessage(false);
     }
@@ -200,13 +202,13 @@ const AdminDisputeDetail: React.FC = () => {
     };
 
     const labels: Record<string, string> = {
-      open: 'Abierta',
-      in_review: 'En Revision',
-      awaiting_info: 'Esperando Info',
-      resolved_released: 'Resuelta - Liberado',
-      resolved_refunded: 'Resuelta - Reembolsado',
-      resolved_partial: 'Resuelta - Parcial',
-      cancelled: 'Cancelada',
+      open: t('admin.disputes.status.open', 'Open'),
+      in_review: t('admin.disputes.status.inReview', 'In Review'),
+      awaiting_info: t('admin.disputes.status.awaitingInfo', 'Awaiting Info'),
+      resolved_released: t('admin.disputes.status.resolvedReleased', 'Resolved - Released'),
+      resolved_refunded: t('admin.disputes.status.resolvedRefunded', 'Resolved - Refunded'),
+      resolved_partial: t('admin.disputes.status.resolvedPartial', 'Resolved - Partial'),
+      cancelled: t('admin.disputes.status.cancelled', 'Cancelled'),
     };
 
     return (
@@ -241,8 +243,8 @@ const AdminDisputeDetail: React.FC = () => {
             <div className="w-16 h-16 border-4 border-sky-200 dark:border-sky-900 rounded-full"></div>
             <div className="absolute top-0 left-0 w-16 h-16 border-4 border-sky-600 border-t-transparent rounded-full animate-spin"></div>
           </div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400 font-medium">Cargando disputa...</p>
-          <p className="text-sm text-gray-500 dark:text-gray-500">Recuperando información del caso</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-400 font-medium">{t('admin.disputes.loadingDispute', 'Loading dispute...')}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-500">{t('admin.disputes.retrievingCaseInfo', 'Retrieving case information')}</p>
         </div>
       </div>
     );
@@ -258,23 +260,23 @@ const AdminDisputeDetail: React.FC = () => {
             </svg>
           </div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            Disputa no encontrada
+            {t('admin.disputes.notFound', 'Dispute not found')}
           </h2>
           <p className="text-gray-600 dark:text-gray-400 mb-6">
-            Esta disputa puede haber sido eliminada o el ID es incorrecto.
+            {t('admin.disputes.notFoundDescription', 'This dispute may have been deleted or the ID is incorrect.')}
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <button
               onClick={() => navigate('/admin/disputes')}
               className="px-6 py-2.5 bg-sky-600 text-white font-medium rounded-lg hover:bg-sky-700 transition-colors"
             >
-              Ver todas las disputas
+              {t('admin.disputes.viewAll', 'View all disputes')}
             </button>
             <button
               onClick={() => window.location.reload()}
               className="px-6 py-2.5 text-gray-700 dark:text-gray-300 font-medium rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             >
-              Recargar
+              {t('common.reload', 'Reload')}
             </button>
           </div>
         </div>
@@ -296,7 +298,7 @@ const AdminDisputeDetail: React.FC = () => {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            Volver a disputas
+            {t('admin.disputes.backToDisputes', 'Back to disputes')}
           </button>
 
           <div className="flex items-start justify-between">
@@ -307,11 +309,11 @@ const AdminDisputeDetail: React.FC = () => {
                 {getPriorityBadge(dispute.priority)}
                 {hasPayment ? (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
-                    Con Pago
+                    {t('admin.disputes.withPayment', 'With Payment')}
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
-                    Sin Pago
+                    {t('admin.disputes.withoutPayment', 'Without Payment')}
                   </span>
                 )}
               </div>
@@ -326,14 +328,14 @@ const AdminDisputeDetail: React.FC = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                 </svg>
-                Ver como usuario
+                {t('admin.disputes.viewAsUser', 'View as user')}
               </button>
               {!isResolved && (
                 <button
                   onClick={() => setShowResolveForm(true)}
                   className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors"
                 >
-                  Resolver Disputa
+                  {t('admin.disputes.resolveDispute', 'Resolve Dispute')}
                 </button>
               )}
             </div>
@@ -345,14 +347,14 @@ const AdminDisputeDetail: React.FC = () => {
           <div className="lg:col-span-2 space-y-6">
             {/* Description */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Descripcion</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('admin.disputes.description', 'Description')}</h2>
               <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{dispute.detailedDescription}</p>
             </div>
 
             {/* Evidence */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Evidencia ({dispute.evidence?.length || 0} archivos)
+                {t('admin.disputes.evidence', 'Evidence')} ({dispute.evidence?.length || 0} {t('admin.disputes.files', 'files')})
               </h2>
 
               {dispute.evidence && dispute.evidence.length > 0 ? (
@@ -407,8 +409,8 @@ const AdminDisputeDetail: React.FC = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                   </div>
-                  <p className="text-gray-600 dark:text-gray-400 font-medium mb-1">Sin evidencia adjunta</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-500">El usuario no ha subido archivos</p>
+                  <p className="text-gray-600 dark:text-gray-400 font-medium mb-1">{t('admin.disputes.noEvidence', 'No evidence attached')}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-500">{t('admin.disputes.userNoFiles', 'The user has not uploaded any files')}</p>
                 </div>
               )}
             </div>
@@ -416,7 +418,7 @@ const AdminDisputeDetail: React.FC = () => {
             {/* Messages */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Mensajes ({dispute.messages?.length || 0})
+                {t('admin.disputes.messages', 'Messages')} ({dispute.messages?.length || 0})
               </h2>
 
               <div className="space-y-4 max-h-96 overflow-y-auto mb-4">
@@ -428,11 +430,11 @@ const AdminDisputeDetail: React.FC = () => {
                     // Determine display name
                     let displayName: string;
                     if (isAdmin) {
-                      displayName = 'Soporte DoApp';
+                      displayName = t('admin.disputes.supportDoApp', 'DoApp Support');
                     } else if (isInitiatorMsg) {
-                      displayName = dispute.initiator?.name || 'Iniciador';
+                      displayName = dispute.initiator?.name || t('admin.disputes.initiator', 'Initiator');
                     } else {
-                      displayName = dispute.defendant?.name || 'Demandado';
+                      displayName = dispute.defendant?.name || t('admin.disputes.defendant', 'Defendant');
                     }
 
                     const avatarClass = isAdmin
@@ -444,7 +446,7 @@ const AdminDisputeDetail: React.FC = () => {
                     const badgeClass = isAdmin
                       ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
                       : (isInitiatorMsg ? 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400' : 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400');
-                    const badgeLabel = isAdmin ? 'Admin' : (isInitiatorMsg ? 'Iniciador' : 'Demandado');
+                    const badgeLabel = isAdmin ? 'Admin' : (isInitiatorMsg ? t('admin.disputes.initiator', 'Initiator') : t('admin.disputes.defendant', 'Defendant'));
 
                     return (
                       <div key={index} className="flex gap-3 group">
@@ -514,9 +516,9 @@ const AdminDisputeDetail: React.FC = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                       </svg>
                     </div>
-                    <h4 className="text-gray-900 dark:text-white font-medium mb-1">Sin conversación</h4>
+                    <h4 className="text-gray-900 dark:text-white font-medium mb-1">{t('admin.disputes.noConversation', 'No conversation')}</h4>
                     <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xs mx-auto">
-                      Las partes no han intercambiado mensajes en esta disputa.
+                      {t('admin.disputes.noMessagesExchanged', 'The parties have not exchanged messages in this dispute.')}
                     </p>
                   </div>
                 )}
@@ -531,7 +533,7 @@ const AdminDisputeDetail: React.FC = () => {
                         type="text"
                         value={adminMessage}
                         onChange={(e) => setAdminMessage(e.target.value)}
-                        placeholder="Enviar mensaje como soporte..."
+                        placeholder={t('admin.disputes.sendAsSupportPlaceholder', 'Send message as support...')}
                         disabled={sendingMessage}
                         className="w-full px-4 py-3 pr-12 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent dark:bg-gray-700 dark:text-white placeholder-gray-400 disabled:opacity-50 transition-all"
                       />
@@ -554,7 +556,7 @@ const AdminDisputeDetail: React.FC = () => {
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                           </svg>
-                          <span className="hidden sm:inline">Enviar</span>
+                          <span className="hidden sm:inline">{t('common.send', 'Send')}</span>
                         </>
                       )}
                     </button>
@@ -565,7 +567,7 @@ const AdminDisputeDetail: React.FC = () => {
 
             {/* Admin Notes */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Notas Admin / Historial</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('admin.disputes.adminNotesHistory', 'Admin Notes / History')}</h2>
 
               <div className="space-y-3 max-h-64 overflow-y-auto mb-4">
                 {dispute.logs && dispute.logs.length > 0 ? (
@@ -581,7 +583,7 @@ const AdminDisputeDetail: React.FC = () => {
                     </div>
                   ))
                 ) : (
-                  <p className="text-gray-500 dark:text-gray-400">Sin registros</p>
+                  <p className="text-gray-500 dark:text-gray-400">{t('admin.disputes.noRecords', 'No records')}</p>
                 )}
               </div>
 
@@ -593,7 +595,7 @@ const AdminDisputeDetail: React.FC = () => {
                         type="text"
                         value={note}
                         onChange={(e) => setNote(e.target.value)}
-                        placeholder="Agregar nota interna..."
+                        placeholder={t('admin.disputes.addInternalNotePlaceholder', 'Add internal note...')}
                         disabled={addingNote}
                         className="w-full px-4 py-3 pr-12 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-sky-500 focus:border-transparent dark:bg-gray-700 dark:text-white placeholder-gray-400 disabled:opacity-50 transition-all"
                       />
@@ -612,14 +614,14 @@ const AdminDisputeDetail: React.FC = () => {
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                           </svg>
-                          <span className="hidden sm:inline">Guardando...</span>
+                          <span className="hidden sm:inline">{t('common.saving', 'Saving...')}</span>
                         </>
                       ) : (
                         <>
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                           </svg>
-                          <span className="hidden sm:inline">Agregar</span>
+                          <span className="hidden sm:inline">{t('common.add', 'Add')}</span>
                         </>
                       )}
                     </button>
@@ -631,12 +633,12 @@ const AdminDisputeDetail: React.FC = () => {
             {/* Resolution */}
             {dispute.resolution && (
               <div className="bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg p-6">
-                <h3 className="font-semibold text-green-900 dark:text-green-200 mb-2">Resolucion</h3>
+                <h3 className="font-semibold text-green-900 dark:text-green-200 mb-2">{t('admin.disputes.resolution', 'Resolution')}</h3>
                 <p className="text-green-800 dark:text-green-300 mb-2">{dispute.resolution}</p>
                 <div className="flex items-center gap-4 text-sm text-green-700 dark:text-green-400">
-                  <span>Tipo: {dispute.resolutionType}</span>
-                  {dispute.refundAmount && <span>Monto: ${dispute.refundAmount}</span>}
-                  {dispute.resolvedAt && <span>Fecha: {new Date(dispute.resolvedAt).toLocaleString()}</span>}
+                  <span>{t('admin.disputes.type', 'Type')}: {dispute.resolutionType}</span>
+                  {dispute.refundAmount && <span>{t('admin.disputes.amount', 'Amount')}: ${dispute.refundAmount}</span>}
+                  {dispute.resolvedAt && <span>{t('admin.disputes.date', 'Date')}: {new Date(dispute.resolvedAt).toLocaleString()}</span>}
                 </div>
               </div>
             )}
@@ -646,18 +648,18 @@ const AdminDisputeDetail: React.FC = () => {
           <div className="space-y-6">
             {/* Info Card */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-              <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Informacion</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-4">{t('admin.disputes.information', 'Information')}</h3>
 
               <div className="space-y-4">
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Categoria</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.disputes.categoryLabel', 'Category')}</p>
                   <p className="font-medium text-gray-900 dark:text-white capitalize">
                     {dispute.category?.replace(/_/g, ' ')}
                   </p>
                 </div>
 
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Iniciado por</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.disputes.initiatedBy', 'Initiated by')}</p>
                   <p className="font-medium text-gray-900 dark:text-white">{dispute.initiator?.name}</p>
                   {dispute.initiator?.email && (
                     <p className="text-xs text-gray-500">{dispute.initiator.email}</p>
@@ -665,7 +667,7 @@ const AdminDisputeDetail: React.FC = () => {
                 </div>
 
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Contra</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.disputes.against', 'Against')}</p>
                   <p className="font-medium text-gray-900 dark:text-white">{dispute.defendant?.name}</p>
                   {dispute.defendant?.email && (
                     <p className="text-xs text-gray-500">{dispute.defendant.email}</p>
@@ -674,26 +676,26 @@ const AdminDisputeDetail: React.FC = () => {
 
                 {dispute.contract && (
                   <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Contrato</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.disputes.contract', 'Contract')}</p>
                     <p className="font-medium text-gray-900 dark:text-white">
                       ${dispute.contract.price?.toLocaleString()}
                     </p>
-                    <p className="text-xs text-gray-500">Estado: {dispute.contract.status}</p>
+                    <p className="text-xs text-gray-500">{t('admin.disputes.statusLabel', 'Status')}: {dispute.contract.status}</p>
                   </div>
                 )}
 
                 {dispute.payment && (
                   <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Pago</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.disputes.payment', 'Payment')}</p>
                     <p className="font-medium text-gray-900 dark:text-white">
                       ${dispute.payment.amount?.toLocaleString()}
                     </p>
-                    <p className="text-xs text-gray-500">Estado: {dispute.payment.status}</p>
+                    <p className="text-xs text-gray-500">{t('admin.disputes.statusLabel', 'Status')}: {dispute.payment.status}</p>
                   </div>
                 )}
 
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Fecha de creacion</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.disputes.creationDate', 'Creation date')}</p>
                   <p className="font-medium text-gray-900 dark:text-white">
                     {new Date(dispute.createdAt).toLocaleString()}
                   </p>
@@ -701,7 +703,7 @@ const AdminDisputeDetail: React.FC = () => {
 
                 {dispute.assignee && (
                   <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Asignado a</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.disputes.assignedTo', 'Assigned to')}</p>
                     <p className="font-medium text-gray-900 dark:text-white">{dispute.assignee.name}</p>
                   </div>
                 )}
@@ -711,7 +713,7 @@ const AdminDisputeDetail: React.FC = () => {
             {/* Priority Update */}
             {!isResolved && (
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-                <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Cambiar Prioridad</h3>
+                <h3 className="font-semibold text-gray-900 dark:text-white mb-4">{t('admin.disputes.changePriority', 'Change Priority')}</h3>
                 <div className="grid grid-cols-2 gap-2">
                   {['low', 'medium', 'high', 'urgent'].map((p) => (
                     <button
@@ -736,12 +738,12 @@ const AdminDisputeDetail: React.FC = () => {
         {showResolveForm && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full p-6">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Resolver Disputa</h3>
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">{t('admin.disputes.resolveDisputeTitle', 'Resolve Dispute')}</h3>
 
               <form onSubmit={handleResolve} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Tipo de Resolucion
+                    {t('admin.disputes.resolutionType', 'Resolution Type')}
                   </label>
                   <select
                     value={resolutionType}
@@ -749,18 +751,18 @@ const AdminDisputeDetail: React.FC = () => {
                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 dark:bg-gray-700 dark:text-white"
                     required
                   >
-                    <option value="">Seleccionar...</option>
-                    <option value="full_release">Liberar pago al proveedor</option>
-                    <option value="full_refund">Reembolso completo al cliente</option>
-                    <option value="partial_refund">Reembolso parcial</option>
-                    <option value="no_action">Sin accion</option>
+                    <option value="">{t('common.select', 'Select...')}</option>
+                    <option value="full_release">{t('admin.disputes.resolutions.fullRelease', 'Release payment to provider')}</option>
+                    <option value="full_refund">{t('admin.disputes.resolutions.fullRefund', 'Full refund to client')}</option>
+                    <option value="partial_refund">{t('admin.disputes.resolutions.partialRefund', 'Partial refund')}</option>
+                    <option value="no_action">{t('admin.disputes.resolutions.noAction', 'No action')}</option>
                   </select>
                 </div>
 
                 {resolutionType === 'partial_refund' && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                      Monto a reembolsar
+                      {t('admin.disputes.refundAmount', 'Refund amount')}
                     </label>
                     <input
                       type="number"
@@ -774,7 +776,7 @@ const AdminDisputeDetail: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Explicacion de la resolucion
+                    {t('admin.disputes.resolutionExplanation', 'Resolution explanation')}
                   </label>
                   <textarea
                     value={resolution}
@@ -791,14 +793,14 @@ const AdminDisputeDetail: React.FC = () => {
                     onClick={() => setShowResolveForm(false)}
                     className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
                   >
-                    Cancelar
+                    {t('common.cancel', 'Cancel')}
                   </button>
                   <button
                     type="submit"
                     disabled={resolving}
                     className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 disabled:bg-gray-400 transition-colors"
                   >
-                    {resolving ? 'Resolviendo...' : 'Resolver'}
+                    {resolving ? t('admin.disputes.resolving', 'Resolving...') : t('admin.disputes.resolve', 'Resolve')}
                   </button>
                 </div>
               </form>

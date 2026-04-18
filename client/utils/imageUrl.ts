@@ -3,16 +3,24 @@
  * In development, Vite proxy handles /uploads → backend
  * In production, we need to prefix with the API server URL
  */
-const BACKEND_URL = import.meta.env.VITE_API_URL
-  ? import.meta.env.VITE_API_URL.replace(/\/api$/, '')
-  : '';
+function getBackendUrl(): string {
+  // If VITE_API_URL is set (e.g. "https://doappar.site/api"), strip /api
+  const apiUrl = import.meta.env.VITE_API_URL;
+  if (apiUrl && apiUrl.startsWith('http')) {
+    return apiUrl.replace(/\/api$/, '');
+  }
+  // In production, use same origin (Nginx should proxy /uploads to backend)
+  // In development, empty string works because Vite proxy handles it
+  return '';
+}
+const BACKEND_URL = getBackendUrl();
 
 /**
  * Get full image URL from relative path
  */
-export function getImageUrl(path: string | undefined): string {
+export function getImageUrl(path: string | undefined | null): string {
   if (!path) {
-    return '/default-avatar.png';
+    return 'https://api.dicebear.com/7.x/shapes/svg?seed=default&backgroundColor=0ea5e9';
   }
 
   // If it's already a full URL, return as is

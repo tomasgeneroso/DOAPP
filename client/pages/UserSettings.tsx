@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -21,9 +22,158 @@ import { useOnboarding } from "../hooks/useOnboarding";
 
 type TabType = "basic" | "address" | "banking" | "legal" | "interests" | "notifications" | "help";
 
+const API_URL = import.meta.env.VITE_API_URL || '/api';
+
+function PasswordSection() {
+  const { t } = useTranslation();
+  const [hasPassword, setHasPassword] = useState<boolean | null>(null);
+  const [isOAuth, setIsOAuth] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_URL}/auth/has-password`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data.success) {
+          setHasPassword(data.hasPassword);
+          setIsOAuth(data.isOAuth);
+        }
+      } catch { /* ignore */ }
+    };
+    check();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMsg(null);
+
+    if (newPassword.length < 6) {
+      setMsg({ type: 'error', text: t('auth.passwordMinLength') });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setMsg({ type: 'error', text: t('settings.password.mismatch', 'Passwords do not match') });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const endpoint = hasPassword ? '/auth/change-password' : '/auth/set-password';
+      const body = hasPassword
+        ? { currentPassword, newPassword }
+        : { newPassword };
+
+      const res = await fetch(`${API_URL}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setMsg({ type: 'success', text: data.message });
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        setHasPassword(true);
+      } else {
+        setMsg({ type: 'error', text: data.message || 'Error' });
+      }
+    } catch {
+      setMsg({ type: 'error', text: t('auth.connectionError') });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (hasPassword === null) return null;
+
+  return (
+    <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+        {hasPassword
+          ? t('settings.password.change', 'Change password')
+          : t('settings.password.set', 'Set password')}
+      </h3>
+      {!hasPassword && isOAuth && (
+        <div className="mb-4 p-3 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg">
+          <p className="text-sm text-sky-800 dark:text-sky-300">
+            {t('settings.password.oauthHint', 'You signed up with Google. Set a password to also log in with email and password.')}
+          </p>
+        </div>
+      )}
+      {msg && (
+        <div className={`mb-4 p-3 rounded-lg text-sm ${msg.type === 'success' ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'}`}>
+          {msg.text}
+        </div>
+      )}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {hasPassword && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+              {t('settings.password.current', 'Current password')}
+            </label>
+            <input
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              required
+              className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
+            />
+          </div>
+        )}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+            {t('settings.password.new', 'New password')}
+          </label>
+          <input
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            required
+            minLength={6}
+            className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+            {t('settings.password.confirm', 'Confirm new password')}
+          </label>
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+            minLength={6}
+            className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="px-6 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+        >
+          {loading ? t('common.loading') : hasPassword ? t('settings.password.changeBtn', 'Change password') : t('settings.password.setBtn', 'Set password')}
+        </button>
+      </form>
+    </div>
+  );
+}
+
 export default function UserSettings() {
   const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { startOnboarding } = useOnboarding();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabType>("basic");
@@ -165,23 +315,23 @@ export default function UserSettings() {
   };
 
   const tabs = [
-    { id: "basic", label: "Información Básica", icon: User },
-    { id: "address", label: "Dirección", icon: MapPin },
-    { id: "banking", label: "Información Bancaria", icon: CreditCard },
-    { id: "legal", label: "Información Legal", icon: FileText },
-    { id: "interests", label: "Rubros de Interés", icon: Tag },
-    { id: "notifications", label: "Notificaciones", icon: Bell },
-    { id: "help", label: "Ayuda", icon: HelpCircle },
+    { id: "basic", label: t('settings.tabs.basic'), icon: User },
+    { id: "address", label: t('settings.tabs.address'), icon: MapPin },
+    { id: "banking", label: t('settings.tabs.banking'), icon: CreditCard },
+    { id: "legal", label: t('settings.tabs.legal'), icon: FileText },
+    { id: "interests", label: t('settings.tabs.interests'), icon: Tag },
+    { id: "notifications", label: t('settings.tabs.notifications'), icon: Bell },
+    { id: "help", label: t('settings.tabs.help'), icon: HelpCircle },
   ];
 
   return (
     <>
       <Helmet>
-        <title>Configuración de Usuario - DoApp</title>
+        <title>{t('settings.pageTitle')} - DoApp</title>
       </Helmet>
       <div className="container mx-auto max-w-6xl py-8 px-4">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-8">
-          Configuración de Usuario
+          {t('settings.pageTitle')}
         </h1>
 
         {message && (
@@ -231,11 +381,11 @@ export default function UserSettings() {
               {activeTab === "basic" && (
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Información Básica
+                    {t('settings.tabs.basic')}
                   </h2>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      Correo electrónico
+                      {t('settings.basic.email')}
                     </label>
                     <input
                       type="email"
@@ -244,12 +394,12 @@ export default function UserSettings() {
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-gray-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 cursor-not-allowed"
                     />
                     <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-                      El correo electrónico no puede ser modificado. Si necesitas cambiarlo, contacta a soporte.
+                      {t('settings.basic.emailHint')}
                     </p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      Nombre completo
+                      {t('settings.basic.fullName')}
                     </label>
                     <input
                       type="text"
@@ -260,7 +410,7 @@ export default function UserSettings() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      Teléfono
+                      {t('settings.basic.phone')}
                     </label>
                     <input
                       type="tel"
@@ -272,62 +422,65 @@ export default function UserSettings() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      Biografía
+                      {t('settings.basic.bio')}
                     </label>
                     <textarea
                       value={bio}
                       onChange={(e) => setBio(e.target.value)}
                       rows={4}
                       maxLength={500}
-                      placeholder="Cuéntanos sobre ti..."
+                      placeholder={t('settings.basic.bioPlaceholder')}
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
                     />
                     <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
-                      {bio.length}/500 caracteres
+                      {bio.length}/500 {t('settings.basic.bioChars')}
                     </p>
                   </div>
+
+                  {/* Password Section */}
+                  <PasswordSection />
                 </div>
               )}
 
               {activeTab === "address" && (
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Dirección
+                    {t('settings.tabs.address')}
                   </h2>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      Calle y número
+                      {t('settings.address.street')}
                     </label>
                     <input
                       type="text"
                       value={street}
                       onChange={(e) => setStreet(e.target.value)}
-                      placeholder="Ej: Av. Corrientes 1234"
+                      placeholder={t('settings.address.streetPlaceholder')}
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                        Ciudad
+                        {t('settings.address.city')}
                       </label>
                       <input
                         type="text"
                         value={city}
                         onChange={(e) => setCity(e.target.value)}
-                        placeholder="Ej: Buenos Aires"
+                        placeholder={t('settings.address.cityPlaceholder')}
                         className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                        Provincia/Estado
+                        {t('settings.address.state')}
                       </label>
                       <input
                         type="text"
                         value={state}
                         onChange={(e) => setState(e.target.value)}
-                        placeholder="Ej: CABA"
+                        placeholder={t('settings.address.statePlaceholder')}
                         className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
                       />
                     </div>
@@ -335,19 +488,19 @@ export default function UserSettings() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                        Código Postal
+                        {t('settings.address.postalCode')}
                       </label>
                       <input
                         type="text"
                         value={postalCode}
                         onChange={(e) => setPostalCode(e.target.value)}
-                        placeholder="Ej: C1043"
+                        placeholder={t('settings.address.postalCodePlaceholder')}
                         className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
                       />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                        País
+                        {t('settings.address.country')}
                       </label>
                       <input
                         type="text"
@@ -363,29 +516,29 @@ export default function UserSettings() {
               {activeTab === "banking" && (
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Información Bancaria
+                    {t('settings.tabs.banking')}
                   </h2>
                   <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
                     <p className="text-sm text-amber-800 dark:text-amber-300 flex items-center gap-2">
                       <AlertCircle className="h-4 w-4" />
-                      Esta información es confidencial y se utilizará únicamente para procesar pagos.
+                      {t('settings.banking.confidentialNote')}
                     </p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      Titular de la cuenta
+                      {t('settings.banking.accountHolder')}
                     </label>
                     <input
                       type="text"
                       value={accountHolder}
                       onChange={(e) => setAccountHolder(e.target.value)}
-                      placeholder="Nombre del titular"
+                      placeholder={t('settings.banking.accountHolderPlaceholder')}
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      Tipo de cuenta bancaria
+                      {t('settings.banking.bankType')}
                     </label>
                     <select
                       value={bankType}
@@ -393,7 +546,7 @@ export default function UserSettings() {
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
                     >
                       <option value="mercadopago">Mercado Pago</option>
-                      <option value="otro">Otro banco</option>
+                      <option value="otro">{t('settings.banking.otherBank')}</option>
                     </select>
                   </div>
 
@@ -403,7 +556,7 @@ export default function UserSettings() {
                       <p className="text-sm text-green-800 dark:text-green-300 flex items-start gap-2">
                         <CheckCircle2 className="h-4 w-4 mt-0.5 flex-shrink-0" />
                         <span>
-                          <strong>Pagos rápidos:</strong> Al usar Mercado Pago, los pagos de los trabajos se acreditarán dentro de las <strong>48 horas</strong> posteriores a la finalización del trabajo.
+                          <strong>{t('settings.banking.fastPayments')}:</strong> {t('settings.banking.mercadopagoNote')}
                         </span>
                       </p>
                     </div>
@@ -412,7 +565,7 @@ export default function UserSettings() {
                       <p className="text-sm text-blue-800 dark:text-blue-300 flex items-start gap-2">
                         <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
                         <span>
-                          <strong>Transferencia bancaria:</strong> Los pagos a cuentas de otros bancos pueden demorar hasta <strong>fin de mes</strong> y podrían incluir <strong>comisiones bancarias extras</strong> según la entidad.
+                          <strong>{t('settings.banking.bankTransfer')}:</strong> {t('settings.banking.bankTransferNote')}
                         </span>
                       </p>
                     </div>
@@ -421,38 +574,38 @@ export default function UserSettings() {
                   {bankType === "otro" && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                        Nombre del banco
+                        {t('settings.banking.bankName')}
                       </label>
                       <input
                         type="text"
                         value={bankName}
                         onChange={(e) => setBankName(e.target.value)}
-                        placeholder="Ej: Banco Galicia, Santander"
+                        placeholder={t('settings.banking.bankNamePlaceholder')}
                         className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
                       />
                     </div>
                   )}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      Tipo de cuenta
+                      {t('settings.banking.accountType')}
                     </label>
                     <select
                       value={accountType}
                       onChange={(e) => setAccountType(e.target.value as "savings" | "checking")}
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
                     >
-                      <option value="savings">Caja de Ahorro</option>
-                      <option value="checking">Cuenta Corriente</option>
+                      <option value="savings">{t('settings.banking.savings')}</option>
+                      <option value="checking">{t('settings.banking.checking')}</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      CBU
+                      {t('settings.banking.cbu')}
                     </label>
                     {cbuMasked && !cbu && (
                       <p className="text-xs text-green-600 dark:text-green-400 mb-1 flex items-center gap-1">
                         <CheckCircle2 className="h-3 w-3" />
-                        CBU guardado: {cbuMasked}
+                        {t('settings.banking.cbuSaved')}: {cbuMasked}
                       </p>
                     )}
                     <input
@@ -463,25 +616,25 @@ export default function UserSettings() {
                         const value = e.target.value.replace(/\D/g, '');
                         setCbu(value);
                       }}
-                      placeholder={cbuMasked ? "Ingresa nuevo CBU para cambiar" : "22 dígitos"}
+                      placeholder={cbuMasked ? t('settings.banking.cbuChangePlaceholder') : t('settings.banking.cbuPlaceholder')}
                       maxLength={22}
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
                     />
                     {cbu && cbu.length !== 22 && (
                       <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-                        El CBU debe tener 22 dígitos ({cbu.length}/22)
+                        {t('settings.banking.cbuError')} ({cbu.length}/22)
                       </p>
                     )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      Alias (opcional)
+                      {t('settings.banking.alias')}
                     </label>
                     <input
                       type="text"
                       value={alias}
                       onChange={(e) => setAlias(e.target.value)}
-                      placeholder="tu.alias.bancario"
+                      placeholder={t('settings.banking.aliasPlaceholder')}
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
                     />
                   </div>
@@ -491,53 +644,53 @@ export default function UserSettings() {
               {activeTab === "legal" && (
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Información Legal y Fiscal
+                    {t('settings.legal.title')}
                   </h2>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      Tipo de documento
+                      {t('settings.legal.idType')}
                     </label>
                     <select
                       value={idType}
                       onChange={(e) => setIdType(e.target.value as "dni" | "passport" | "cuit" | "cuil")}
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
                     >
-                      <option value="dni">DNI</option>
-                      <option value="passport">Pasaporte</option>
-                      <option value="cuit">CUIT</option>
-                      <option value="cuil">CUIL</option>
+                      <option value="dni">{t('settings.legal.idTypeDni')}</option>
+                      <option value="passport">{t('settings.legal.idTypePassport')}</option>
+                      <option value="cuit">{t('settings.legal.idTypeCuit')}</option>
+                      <option value="cuil">{t('settings.legal.idTypeCuil')}</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      Número de documento
+                      {t('settings.legal.idNumber')}
                     </label>
                     <input
                       type="text"
                       value={idNumber}
                       onChange={(e) => setIdNumber(e.target.value)}
-                      placeholder="Sin puntos ni guiones"
+                      placeholder={t('settings.legal.idNumberPlaceholder')}
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      Situación fiscal
+                      {t('settings.legal.taxStatus')}
                     </label>
                     <select
                       value={taxStatus}
                       onChange={(e) => setTaxStatus(e.target.value as typeof taxStatus)}
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
                     >
-                      <option value="freelancer">Freelancer</option>
-                      <option value="autonomo">Autónomo</option>
-                      <option value="monotributo">Monotributo</option>
-                      <option value="responsable_inscripto">Responsable Inscripto</option>
+                      <option value="freelancer">{t('settings.legal.freelancer')}</option>
+                      <option value="autonomo">{t('settings.legal.autonomo')}</option>
+                      <option value="monotributo">{t('settings.legal.monotributo')}</option>
+                      <option value="responsable_inscripto">{t('settings.legal.responsableInscripto')}</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      CUIT/CUIL
+                      {t('settings.banking.taxId')}
                     </label>
                     <input
                       type="text"
@@ -553,10 +706,10 @@ export default function UserSettings() {
               {activeTab === "interests" && (
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Rubros de Interés
+                    {t('settings.tabs.interests')}
                   </h2>
                   <p className="text-sm text-gray-600 dark:text-slate-400">
-                    Selecciona los rubros en los que estás interesado para recibir notificaciones de trabajos relevantes.
+                    {t('settings.interests.description')}
                   </p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                     {JOB_CATEGORIES.map((category) => (
@@ -582,14 +735,14 @@ export default function UserSettings() {
               {activeTab === "notifications" && (
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Preferencias de Notificación
+                    {t('settings.notifications.title')}
                   </h2>
                   <div className="space-y-4">
                     <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
                       <div>
-                        <p className="font-medium text-gray-900 dark:text-white">Email</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{t('settings.notifications.email')}</p>
                         <p className="text-sm text-gray-600 dark:text-slate-400">
-                          Recibir notificaciones por email
+                          {t('settings.notifications.emailDesc')}
                         </p>
                       </div>
                       <input
@@ -601,9 +754,9 @@ export default function UserSettings() {
                     </div>
                     <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
                       <div>
-                        <p className="font-medium text-gray-900 dark:text-white">Push</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{t('settings.notifications.push')}</p>
                         <p className="text-sm text-gray-600 dark:text-slate-400">
-                          Notificaciones push en el navegador
+                          {t('settings.notifications.pushDesc')}
                         </p>
                       </div>
                       <input
@@ -615,9 +768,9 @@ export default function UserSettings() {
                     </div>
                     <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
                       <div>
-                        <p className="font-medium text-gray-900 dark:text-white">SMS</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{t('settings.notifications.sms')}</p>
                         <p className="text-sm text-gray-600 dark:text-slate-400">
-                          Recibir notificaciones por SMS
+                          {t('settings.notifications.smsDesc')}
                         </p>
                       </div>
                       <input
@@ -629,9 +782,9 @@ export default function UserSettings() {
                     </div>
                     <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
                       <div>
-                        <p className="font-medium text-gray-900 dark:text-white">Nuevos mensajes</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{t('settings.notifications.newMessages')}</p>
                         <p className="text-sm text-gray-600 dark:text-slate-400">
-                          Notificar cuando recibas mensajes
+                          {t('settings.notifications.newMessagesDesc')}
                         </p>
                       </div>
                       <input
@@ -643,9 +796,9 @@ export default function UserSettings() {
                     </div>
                     <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
                       <div>
-                        <p className="font-medium text-gray-900 dark:text-white">Actualizaciones de trabajos</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{t('settings.notifications.jobUpdates')}</p>
                         <p className="text-sm text-gray-600 dark:text-slate-400">
-                          Notificar cambios en trabajos
+                          {t('settings.notifications.jobUpdatesDesc')}
                         </p>
                       </div>
                       <input
@@ -657,9 +810,9 @@ export default function UserSettings() {
                     </div>
                     <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
                       <div>
-                        <p className="font-medium text-gray-900 dark:text-white">Actualizaciones de contratos</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{t('settings.notifications.contractUpdates')}</p>
                         <p className="text-sm text-gray-600 dark:text-slate-400">
-                          Notificar cambios en contratos
+                          {t('settings.notifications.contractUpdatesDesc')}
                         </p>
                       </div>
                       <input
@@ -671,9 +824,9 @@ export default function UserSettings() {
                     </div>
                     <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
                       <div>
-                        <p className="font-medium text-gray-900 dark:text-white">Actualizaciones de pagos</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{t('settings.notifications.paymentUpdates')}</p>
                         <p className="text-sm text-gray-600 dark:text-slate-400">
-                          Notificar transacciones y pagos
+                          {t('settings.notifications.paymentUpdatesDesc')}
                         </p>
                       </div>
                       <input
@@ -685,9 +838,9 @@ export default function UserSettings() {
                     </div>
                     <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
                       <div>
-                        <p className="font-medium text-gray-900 dark:text-white">Marketing</p>
+                        <p className="font-medium text-gray-900 dark:text-white">{t('settings.notifications.marketing')}</p>
                         <p className="text-sm text-gray-600 dark:text-slate-400">
-                          Recibir ofertas y novedades
+                          {t('settings.notifications.marketingDesc')}
                         </p>
                       </div>
                       <input
@@ -704,7 +857,7 @@ export default function UserSettings() {
               {activeTab === "help" && (
                 <div className="space-y-6">
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                    Ayuda
+                    {t('settings.help.title')}
                   </h2>
                   <div className="space-y-4">
                     {/* Tutorial restart */}
@@ -713,10 +866,10 @@ export default function UserSettings() {
                         <div>
                           <p className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
                             <PlayCircle className="h-5 w-5 text-sky-500" />
-                            Tutorial de la plataforma
+                            {t('settings.help.tutorial')}
                           </p>
                           <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
-                            Vuelve a ver el tutorial interactivo que te guía por las funciones principales de DOAPP.
+                            {t('settings.help.tutorialDesc')}
                           </p>
                         </div>
                         <button
@@ -726,7 +879,7 @@ export default function UserSettings() {
                           }}
                           className="flex-shrink-0 px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-medium rounded-lg transition-colors"
                         >
-                          Ver tutorial
+                          {t('settings.help.seeTutorial')}
                         </button>
                       </div>
                     </div>
@@ -737,17 +890,17 @@ export default function UserSettings() {
                         <div>
                           <p className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
                             <MessageCircle className="h-5 w-5 text-green-500" />
-                            Contactar soporte
+                            {t('settings.help.contactSupport')}
                           </p>
                           <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
-                            ¿Tienes algún problema o pregunta? Crea un ticket de soporte y te ayudaremos.
+                            {t('settings.help.contactSupportDesc')}
                           </p>
                         </div>
                         <button
                           onClick={() => navigate('/tickets/new')}
                           className="flex-shrink-0 px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-colors"
                         >
-                          Crear ticket
+                          {t('settings.help.createTicket')}
                         </button>
                       </div>
                     </div>
@@ -758,60 +911,60 @@ export default function UserSettings() {
                         <div>
                           <p className="font-medium text-gray-900 dark:text-white flex items-center gap-2">
                             <HelpCircle className="h-5 w-5 text-amber-500" />
-                            Centro de ayuda
+                            {t('settings.help.helpCenter')}
                           </p>
                           <p className="text-sm text-gray-600 dark:text-slate-400 mt-1">
-                            Encuentra respuestas a preguntas frecuentes y guías de uso.
+                            {t('settings.help.helpCenterDesc')}
                           </p>
                         </div>
                         <button
                           onClick={() => navigate('/help')}
                           className="flex-shrink-0 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white text-sm font-medium rounded-lg transition-colors"
                         >
-                          Ver ayuda
+                          {t('settings.help.seeHelp')}
                         </button>
                       </div>
                     </div>
                   </div>
 
-                  {/* FAQ - Cómo funciona DOAPP */}
+                  {/* FAQ */}
                   <div className="mt-8">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                      Preguntas Frecuentes
+                      {t('settings.help.faqTitle')}
                     </h3>
                     <div className="space-y-3">
                       {[
                         {
-                          q: "¿Cómo funciona DOAPP?",
-                          a: "DOAPP conecta clientes que necesitan servicios con trabajadores independientes. El cliente publica un trabajo, los trabajadores aplican con propuestas, el cliente elige al mejor perfil, y el pago queda protegido en nuestra plataforma hasta que ambas partes confirmen que el trabajo se completó.",
+                          q: t('settings.faq.howItWorks'),
+                          a: t('settings.faq.howItWorksAnswer'),
                         },
                         {
-                          q: "¿Cómo se protege mi dinero?",
-                          a: "Cuando pagás por un trabajo, el dinero queda retenido de forma segura en nuestra plataforma. Solo se libera al trabajador cuando ambas partes confirman que el servicio fue completado correctamente. Si hay un problema, podés abrir una disputa.",
+                          q: t('settings.faq.moneyProtection'),
+                          a: t('settings.faq.moneyProtectionAnswer'),
                         },
                         {
-                          q: "¿Cuánto cobra DOAPP de comisión?",
-                          a: "Plan FREE: 8% de comisión. Plan PRO ($4.999/mes): 3%. Plan SUPER PRO ($8.999/mes): 1%. Los primeros 1000 usuarios reciben 3 contratos gratis sin comisión.",
+                          q: t('settings.faq.commissions'),
+                          a: t('settings.faq.commissionsAnswer'),
                         },
                         {
-                          q: "¿Cómo publico un trabajo?",
-                          a: "Hacé clic en 'Publicar trabajo' en el menú superior. Completá el título, descripción, presupuesto y fechas. Luego realizá el pago de publicación y un administrador aprobará tu trabajo para que sea visible.",
+                          q: t('settings.faq.howToPublish'),
+                          a: t('settings.faq.howToPublishAnswer'),
                         },
                         {
-                          q: "¿Cómo me postulo a un trabajo?",
-                          a: "Explorá los trabajos disponibles en la página principal. Cuando encuentres uno que te interese, hacé clic en 'Aplicar' y enviá tu propuesta con un mensaje y precio sugerido.",
+                          q: t('settings.faq.howToApply'),
+                          a: t('settings.faq.howToApplyAnswer'),
                         },
                         {
-                          q: "¿Cómo cobro por mi trabajo?",
-                          a: "Al completar un trabajo, ambas partes confirman la finalización. El pago se acredita en tu balance de DOAPP. Podés retirarlo a tu cuenta bancaria (CBU) con un mínimo de $1.000 ARS.",
+                          q: t('settings.faq.howToGetPaid'),
+                          a: t('settings.faq.howToGetPaidAnswer'),
                         },
                         {
-                          q: "¿Qué hago si hay un problema con un trabajo?",
-                          a: "Podés abrir una disputa desde el detalle del contrato. Un administrador revisará el caso y tomará una decisión justa basándose en la evidencia de ambas partes. Mientras tanto, el dinero queda retenido.",
+                          q: t('settings.faq.problemWithJob'),
+                          a: t('settings.faq.problemWithJobAnswer'),
                         },
                         {
-                          q: "¿Cómo funciona el sistema de confirmación?",
-                          a: "Cuando el trabajo está listo, ambas partes deben confirmar. Si una de las partes no confirma dentro de las 2 horas, el sistema lo confirma automáticamente y se libera el pago.",
+                          q: t('settings.faq.confirmationSystem'),
+                          a: t('settings.faq.confirmationSystemAnswer'),
                         },
                       ].map((faq, i) => (
                         <details
@@ -845,7 +998,7 @@ export default function UserSettings() {
                     className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 text-white font-semibold shadow-lg shadow-sky-500/30 hover:from-sky-600 hover:to-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                   >
                     <Save className="h-5 w-5" />
-                    {loading ? "Guardando..." : "Guardar Cambios"}
+                    {loading ? t('common.saving') : t('common.save')}
                   </button>
                 </div>
               )}

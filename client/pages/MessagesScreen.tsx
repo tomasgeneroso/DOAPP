@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { useSocket } from "../hooks/useSocket";
 import { SkeletonConversationItem, SkeletonMessage } from "../components/ui/Skeleton";
@@ -83,6 +84,7 @@ export default function MessagesScreen() {
   const { id: conversationIdParam } = useParams();
   const navigate = useNavigate();
   const { user, token } = useAuth();
+  const { t } = useTranslation();
   const {
     sendMessage: socketSendMessage,
     joinConversation,
@@ -514,7 +516,7 @@ export default function MessagesScreen() {
   return (
     <>
       <Helmet>
-        <title>Mensajes - Do</title>
+        <title>{t('chat.title')} - Do</title>
       </Helmet>
 
       <div className="h-screen bg-slate-100 dark:bg-slate-900 flex">
@@ -524,13 +526,13 @@ export default function MessagesScreen() {
           <div className="p-4 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
             <div className="flex items-center justify-between mb-4">
               <h1 className="text-xl font-semibold text-slate-900 dark:text-white">
-                Mensajes
+                {t('chat.title')}
               </h1>
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => setShowNewMessageModal(true)}
                   className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors"
-                  title="Nuevo mensaje"
+                  title={t('chat.newMessage')}
                 >
                   <PenSquare className="h-5 w-5 text-sky-600 dark:text-sky-400" />
                 </button>
@@ -545,7 +547,7 @@ export default function MessagesScreen() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <input
                 type="text"
-                placeholder="Buscar conversación..."
+                placeholder={t('common.search')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 bg-slate-100 dark:bg-slate-700 border-none rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
@@ -559,12 +561,12 @@ export default function MessagesScreen() {
               <div className="flex flex-col items-center justify-center h-full px-4 text-center">
                 <MessageCircle className="h-16 w-16 text-slate-300 dark:text-slate-600 mb-4" />
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-                  {searchQuery ? "Sin resultados" : "¡Empezá a conectar!"}
+                  {searchQuery ? t('common.noResults', 'No results') : t('chat.noConversations')}
                 </h3>
                 <p className="text-slate-600 dark:text-slate-400 text-sm mb-4">
                   {searchQuery
-                    ? "No se encontraron conversaciones con ese criterio"
-                    : "Cuando te comuniques con otros usuarios o apliques a trabajos, tus conversaciones aparecerán acá"}
+                    ? t('chat.noConversationsFound', 'No conversations found matching that criteria')
+                    : t('chat.noConversationsDesc')}
                 </p>
                 {!searchQuery && (
                   <a
@@ -572,7 +574,7 @@ export default function MessagesScreen() {
                     className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-medium transition-colors text-sm"
                   >
                     <Briefcase className="w-4 h-4" />
-                    Explorar trabajos
+                    {t('chat.exploreJobs')}
                   </a>
                 )}
               </div>
@@ -740,7 +742,7 @@ export default function MessagesScreen() {
                               <div className="px-4 py-2 bg-sky-50 dark:bg-sky-900/30 border-b border-slate-200 dark:border-slate-700">
                                 <p className="text-xs text-sky-600 dark:text-sky-400 font-medium flex items-center gap-1">
                                   <Briefcase className="h-3 w-3" />
-                                  {isCurrentUser ? 'Compartiste un trabajo' : `${message.sender?.name || 'Usuario'} compartió un trabajo`}
+                                  {isCurrentUser ? t('chat.youSharedJob') : `${message.sender?.name || 'Usuario'} ${t('chat.sharedJob')}`}
                                 </p>
                               </div>
                               <div className="p-4">
@@ -764,11 +766,11 @@ export default function MessagesScreen() {
                                   )}
                                 </div>
                                 <button
-                                  onClick={() => navigate(`/job/${meta.jobId}`)}
+                                  onClick={() => navigate(`/jobs/${meta.jobId}`)}
                                   className="mt-3 w-full py-1.5 text-xs font-medium text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/20 hover:bg-sky-100 dark:hover:bg-sky-900/40 rounded-lg transition-colors flex items-center justify-center gap-1"
                                 >
                                   <ExternalLink className="h-3 w-3" />
-                                  Ver trabajo
+                                  {t('chat.viewJob')}
                                 </button>
                               </div>
                               <div className="px-4 pb-2 text-right">
@@ -825,7 +827,7 @@ export default function MessagesScreen() {
               {showInlineJobPicker && (
                 <div className="border-t border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-medium text-slate-600 dark:text-slate-400">Adjuntar trabajo publicado</p>
+                    <p className="text-xs font-medium text-slate-600 dark:text-slate-400">{t('chat.attachJob')}</p>
                     <button onClick={() => { setShowInlineJobPicker(false); setInlineSelectedJob(null); }} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full">
                       <X className="h-3.5 w-3.5 text-slate-400" />
                     </button>
@@ -889,7 +891,7 @@ export default function MessagesScreen() {
                     type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Escribe un mensaje..."
+                    placeholder={t('chat.typePlaceholder')}
                     className="flex-1 px-4 py-2 bg-slate-100 dark:bg-slate-700 border-none rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   />
 
@@ -908,7 +910,7 @@ export default function MessagesScreen() {
             <div className="flex-1 flex flex-col items-center justify-center px-4 text-center">
               <MessageCircle className="h-24 w-24 text-slate-300 dark:text-slate-600 mb-4" />
               <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-2">
-                Selecciona una conversación
+                {t('chat.selectUser')}
               </h2>
               <p className="text-slate-600 dark:text-slate-400 max-w-md">
                 Elige una conversación de la lista para empezar a chatear
@@ -924,7 +926,7 @@ export default function MessagesScreen() {
           <div className="bg-white dark:bg-slate-800 rounded-2xl w-full max-w-lg max-h-[80vh] flex flex-col shadow-xl" onClick={(e) => e.stopPropagation()}>
             {/* Modal Header */}
             <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">Nuevo mensaje</h2>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{t('chat.newMessage')}</h2>
               <button onClick={closeNewMessageModal} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full">
                 <X className="h-5 w-5 text-slate-500" />
               </button>
@@ -935,7 +937,7 @@ export default function MessagesScreen() {
               {!selectedUser ? (
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Buscar usuario
+                    {t('chat.searchUsers')}
                   </label>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
@@ -1025,7 +1027,7 @@ export default function MessagesScreen() {
                       className="flex items-center gap-2 px-3 py-2 text-sm text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded-lg transition-colors w-full"
                     >
                       <Briefcase className="h-4 w-4" />
-                      Adjuntar un trabajo publicado
+                      {t('chat.attachJob')}
                     </button>
                   )}
 
@@ -1060,7 +1062,7 @@ export default function MessagesScreen() {
                   {/* Message Input */}
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                      Mensaje {!selectedJob && <span className="text-slate-400">(requerido)</span>}
+                      {t('chat.message')} {!selectedJob && <span className="text-slate-400">(requerido)</span>}
                     </label>
                     <textarea
                       value={newConversationMessage}
@@ -1087,7 +1089,7 @@ export default function MessagesScreen() {
                   ) : (
                     <>
                       <Send className="h-4 w-4" />
-                      Enviar mensaje
+                      {t('chat.sendMessage')}
                     </>
                   )}
                 </button>

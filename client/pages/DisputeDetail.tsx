@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useDropzone } from 'react-dropzone';
@@ -60,6 +61,7 @@ interface Dispute {
 }
 
 const DisputeDetail: React.FC = () => {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { token, user } = useAuth();
@@ -149,10 +151,10 @@ const DisputeDetail: React.FC = () => {
         setMessageFiles([]);
         await fetchDispute();
       } else {
-        alert(response.data.message || 'Error al enviar el mensaje');
+        alert(response.data.message || t('disputes.errorSendingMessage', 'Error sending message'));
       }
     } catch (error: any) {
-      const errorMsg = error.response?.data?.message || 'Error al enviar el mensaje';
+      const errorMsg = error.response?.data?.message || t('disputes.errorSendingMessage', 'Error sending message');
       alert(errorMsg);
     } finally {
       setSubmitting(false);
@@ -181,13 +183,13 @@ const DisputeDetail: React.FC = () => {
     };
 
     const labels = {
-      open: 'Abierta',
-      in_review: 'En Revisión',
-      awaiting_info: 'Esperando Información',
-      resolved_released: 'Resuelta - Pago Liberado',
-      resolved_refunded: 'Resuelta - Reembolsado',
-      resolved_partial: 'Resuelta - Reembolso Parcial',
-      cancelled: 'Cancelada',
+      open: t('disputes.status.open', 'Open'),
+      in_review: t('disputes.status.inReview', 'In Review'),
+      awaiting_info: t('disputes.status.awaitingInfo', 'Awaiting Information'),
+      resolved_released: t('disputes.status.resolvedReleased', 'Resolved - Payment Released'),
+      resolved_refunded: t('disputes.status.resolvedRefunded', 'Resolved - Refunded'),
+      resolved_partial: t('disputes.status.resolvedPartial', 'Resolved - Partial Refund'),
+      cancelled: t('disputes.status.cancelled', 'Cancelled'),
     };
 
     return (
@@ -220,8 +222,8 @@ const DisputeDetail: React.FC = () => {
             <div className="w-16 h-16 border-4 border-red-200 dark:border-red-900 rounded-full"></div>
             <div className="absolute top-0 left-0 w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
           </div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400 font-medium">Cargando disputa...</p>
-          <p className="text-sm text-gray-500 dark:text-gray-500">Esto solo tomará un momento</p>
+          <p className="mt-4 text-gray-600 dark:text-gray-400 font-medium">{t('disputes.loading', 'Loading dispute...')}</p>
+          <p className="text-sm text-gray-500 dark:text-gray-500">{t('disputes.loadingMoment', 'This will only take a moment')}</p>
         </div>
       </div>
     );
@@ -237,23 +239,23 @@ const DisputeDetail: React.FC = () => {
             </svg>
           </div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            No pudimos encontrar esta disputa
+            {t('disputes.notFound', 'We could not find this dispute')}
           </h2>
           <p className="text-gray-600 dark:text-gray-400 mb-6">
-            Es posible que la disputa haya sido eliminada o que no tengas permiso para verla.
+            {t('disputes.notFoundDescription', 'The dispute may have been deleted or you may not have permission to view it.')}
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <button
               onClick={() => navigate('/disputes')}
               className="px-6 py-2.5 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors"
             >
-              Ver mis disputas
+              {t('disputes.viewMyDisputes', 'View my disputes')}
             </button>
             <button
               onClick={() => window.location.reload()}
               className="px-6 py-2.5 text-gray-700 dark:text-gray-300 font-medium rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             >
-              Intentar de nuevo
+              {t('disputes.tryAgain', 'Try again')}
             </button>
           </div>
         </div>
@@ -273,7 +275,7 @@ const DisputeDetail: React.FC = () => {
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            Volver a disputas
+            {t('disputes.backToDisputes', 'Back to disputes')}
           </button>
 
           <div className="flex items-start justify-between">
@@ -292,13 +294,13 @@ const DisputeDetail: React.FC = () => {
           <div className="lg:col-span-2 space-y-6">
             {/* Description */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Descripción</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('disputes.description', 'Description')}</h2>
               <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{dispute.detailedDescription}</p>
             </div>
 
             {/* Evidence */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Evidencia</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('disputes.evidence', 'Evidence')}</h2>
 
               {dispute.evidence && dispute.evidence.length > 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
@@ -355,8 +357,8 @@ const DisputeDetail: React.FC = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                   </div>
-                  <p className="text-gray-600 dark:text-gray-400 font-medium mb-1">Sin evidencia adjunta</p>
-                  <p className="text-sm text-gray-500 dark:text-gray-500">Sube fotos, videos o PDFs para respaldar tu caso</p>
+                  <p className="text-gray-600 dark:text-gray-400 font-medium mb-1">{t('disputes.noEvidence', 'No evidence attached')}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-500">{t('disputes.uploadEvidenceHint', 'Upload photos, videos or PDFs to support your case')}</p>
                 </div>
               )}
 
@@ -368,7 +370,7 @@ const DisputeDetail: React.FC = () => {
                     <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                   <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                    {uploadingEvidence ? 'Subiendo...' : 'Agregar más evidencia'}
+                    {uploadingEvidence ? t('disputes.uploading', 'Uploading...') : t('disputes.addMoreEvidence', 'Add more evidence')}
                   </p>
                 </div>
               )}
@@ -376,7 +378,7 @@ const DisputeDetail: React.FC = () => {
 
             {/* Messages */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Conversación</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('disputes.conversation', 'Conversation')}</h2>
 
               <div className="space-y-4 mb-4 max-h-96 overflow-y-auto">
                 {dispute.messages && dispute.messages.length > 0 ? (
@@ -395,13 +397,13 @@ const DisputeDetail: React.FC = () => {
                     // Determine display name
                     let displayName: string;
                     if (isAdmin) {
-                      displayName = 'Soporte DoApp';
+                      displayName = t('disputes.doappSupport', 'DoApp Support');
                     } else if (isFromObject && (msg.from as any).name) {
                       displayName = (msg.from as any).name;
                     } else if (isInitiator) {
-                      displayName = dispute.initiator?.name || 'Iniciador';
+                      displayName = dispute.initiator?.name || t('disputes.initiator', 'Initiator');
                     } else {
-                      displayName = dispute.defendant?.name || 'Demandado';
+                      displayName = dispute.defendant?.name || t('disputes.defendant', 'Defendant');
                     }
 
                     const avatarClass = isAdmin
@@ -413,7 +415,7 @@ const DisputeDetail: React.FC = () => {
                     const badgeClass = isAdmin
                       ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
                       : (isInitiator ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400');
-                    const badgeLabel = isAdmin ? 'Admin' : (isInitiator ? 'Iniciador' : 'Demandado');
+                    const badgeLabel = isAdmin ? 'Admin' : (isInitiator ? t('disputes.initiator', 'Initiator') : t('disputes.defendant', 'Defendant'));
 
                     return (
                       <div key={index} className="flex gap-3 group">
@@ -485,9 +487,9 @@ const DisputeDetail: React.FC = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                       </svg>
                     </div>
-                    <h4 className="text-gray-900 dark:text-white font-medium mb-1">Sin mensajes todavía</h4>
+                    <h4 className="text-gray-900 dark:text-white font-medium mb-1">{t('disputes.noMessages', 'No messages yet')}</h4>
                     <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xs mx-auto">
-                      Envía un mensaje para comunicarte con la otra parte sobre esta disputa.
+                      {t('disputes.noMessagesHint', 'Send a message to communicate with the other party about this dispute.')}
                     </p>
                   </div>
                 )}
@@ -541,7 +543,7 @@ const DisputeDetail: React.FC = () => {
                         type="text"
                         value={message}
                         onChange={(e) => setMessage(e.target.value)}
-                        placeholder="Escribe tu mensaje aquí..."
+                        placeholder={t('disputes.messagePlaceholder', 'Write your message here...')}
                         disabled={submitting}
                         className="w-full px-4 py-3 pr-12 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-red-500 focus:border-transparent dark:bg-gray-700 dark:text-white placeholder-gray-400 disabled:opacity-50 transition-all"
                       />
@@ -560,20 +562,20 @@ const DisputeDetail: React.FC = () => {
                             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                           </svg>
-                          <span className="hidden sm:inline">Enviando...</span>
+                          <span className="hidden sm:inline">{t('disputes.sending', 'Sending...')}</span>
                         </>
                       ) : (
                         <>
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                           </svg>
-                          <span className="hidden sm:inline">Enviar</span>
+                          <span className="hidden sm:inline">{t('disputes.send', 'Send')}</span>
                         </>
                       )}
                     </button>
                   </div>
                   {message.length > 500 && (
-                    <p className="text-xs text-red-500">El mensaje excede el límite de 500 caracteres</p>
+                    <p className="text-xs text-red-500">{t('disputes.messageTooLong', 'Message exceeds the 500 character limit')}</p>
                   )}
                 </form>
               ) : (
@@ -581,7 +583,7 @@ const DisputeDetail: React.FC = () => {
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                   </svg>
-                  <span className="text-sm">Esta disputa ha sido resuelta. No se pueden enviar más mensajes.</span>
+                  <span className="text-sm">{t('disputes.resolvedNoMessages', 'This dispute has been resolved. No more messages can be sent.')}</span>
                 </div>
               )}
             </div>
@@ -594,11 +596,11 @@ const DisputeDetail: React.FC = () => {
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-green-900 dark:text-green-200 mb-2">Resolución</h3>
+                    <h3 className="font-semibold text-green-900 dark:text-green-200 mb-2">{t('disputes.resolution', 'Resolution')}</h3>
                     <p className="text-green-800 dark:text-green-300">{dispute.resolution}</p>
                     {dispute.resolvedAt && (
                       <p className="mt-2 text-sm text-green-700 dark:text-green-400">
-                        Resuelto el {new Date(dispute.resolvedAt).toLocaleString()}
+                        {t('disputes.resolvedOn', 'Resolved on')} {new Date(dispute.resolvedAt).toLocaleString()}
                       </p>
                     )}
                   </div>
@@ -611,28 +613,28 @@ const DisputeDetail: React.FC = () => {
           <div className="space-y-6">
             {/* Info Card */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
-              <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Información</h3>
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-4">{t('disputes.information', 'Information')}</h3>
 
               <div className="space-y-4">
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Categoría</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('disputes.category', 'Category')}</p>
                   <p className="font-medium text-gray-900 dark:text-white capitalize">
                     {dispute.category.replace(/_/g, ' ')}
                   </p>
                 </div>
 
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Iniciado por</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{dispute.initiator?.name || 'No disponible'}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('disputes.initiatedBy', 'Initiated by')}</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{dispute.initiator?.name || t('disputes.notAvailable', 'Not available')}</p>
                 </div>
 
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Contra</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{dispute.defendant?.name || 'No disponible'}</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('disputes.against', 'Against')}</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{dispute.defendant?.name || t('disputes.notAvailable', 'Not available')}</p>
                 </div>
 
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Fecha de creación</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('disputes.createdDate', 'Created date')}</p>
                   <p className="font-medium text-gray-900 dark:text-white">
                     {new Date(dispute.createdAt).toLocaleDateString()}
                   </p>

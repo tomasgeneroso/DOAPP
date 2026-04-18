@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { adminApi } from "@/lib/adminApi";
 import { CustomDatePicker } from "@/components/ui/CustomDatePicker";
@@ -23,6 +24,7 @@ interface Job {
 }
 
 export default function AdminCreateContract() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   // User search states
@@ -141,12 +143,12 @@ export default function AdminCreateContract() {
     e.preventDefault();
 
     if (!selectedClient) {
-      alert("Debes seleccionar un cliente");
+      alert(t('admin.contracts.mustSelectClient', 'You must select a client'));
       return;
     }
 
     if (!selectedDoer) {
-      alert("Debes seleccionar un doer");
+      alert(t('admin.contracts.mustSelectDoer', 'You must select a doer'));
       return;
     }
 
@@ -177,14 +179,14 @@ export default function AdminCreateContract() {
       const data = await response.json();
 
       if (data.success) {
-        alert("Contrato creado exitosamente");
+        alert(t('admin.contracts.createdSuccessfully', 'Contract created successfully'));
         navigate("/admin/contracts");
       } else {
         alert(`Error: ${data.message}`);
       }
     } catch (error: any) {
       console.error("Error creating contract:", error);
-      alert(error.message || "Error al crear el contrato");
+      alert(error.message || t('admin.contracts.errorCreating', 'Error creating contract'));
     } finally {
       setSubmitting(false);
     }
@@ -212,7 +214,7 @@ export default function AdminCreateContract() {
         onClick={onRemove}
         className="px-4 py-2 text-sm text-green-600 dark:text-green-400 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition"
       >
-        Cambiar
+        {t('common.change', 'Change')}
       </button>
     </div>
   );
@@ -229,10 +231,10 @@ export default function AdminCreateContract() {
         </button>
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Crear Contrato (Admin)
+            {t('admin.contracts.createTitle', 'Create Contract (Admin)')}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Crear un contrato entre un cliente y un doer
+            {t('admin.contracts.createSubtitle', 'Create a contract between a client and a doer')}
           </p>
         </div>
       </div>
@@ -243,7 +245,7 @@ export default function AdminCreateContract() {
           <div className="flex items-center gap-2 mb-4">
             <Users className="h-5 w-5 text-green-600" />
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Cliente
+              {t('common.client', 'Client')}
             </h3>
           </div>
 
@@ -258,7 +260,7 @@ export default function AdminCreateContract() {
                     setClientSearchQuery(e.target.value);
                     setShowClientSelector(true);
                   }}
-                  placeholder="Buscar cliente por nombre o email..."
+                  placeholder={t('admin.contracts.searchClientPlaceholder', 'Search client by name or email...')}
                   className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 />
               </div>
@@ -307,7 +309,7 @@ export default function AdminCreateContract() {
         {selectedClient && jobs.length > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Trabajo Relacionado (Opcional)
+              {t('admin.contracts.relatedJob', 'Related Job (Optional)')}
             </h3>
             <div className="space-y-3">
               {jobs.map((job) => (
@@ -326,7 +328,7 @@ export default function AdminCreateContract() {
                 >
                   <p className="font-semibold text-gray-900 dark:text-white">{job.title}</p>
                   <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    Presupuesto: ${job.budget}
+                    {t('admin.contracts.budget', 'Budget')}: ${job.budget}
                   </p>
                 </button>
               ))}
@@ -339,7 +341,7 @@ export default function AdminCreateContract() {
           <div className="flex items-center gap-2 mb-4">
             <Users className="h-5 w-5 text-green-600" />
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-              Doer (Proveedor)
+              {t('admin.contracts.doerProvider', 'Doer (Provider)')}
             </h3>
           </div>
 
@@ -354,7 +356,7 @@ export default function AdminCreateContract() {
                     setDoerSearchQuery(e.target.value);
                     setShowDoerSelector(true);
                   }}
-                  placeholder="Buscar doer por nombre o email..."
+                  placeholder={t('admin.contracts.searchDoerPlaceholder', 'Search doer by name or email...')}
                   className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 />
               </div>
@@ -399,12 +401,12 @@ export default function AdminCreateContract() {
         {selectedClient && selectedDoer && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-4">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Detalles del Contrato
+              {t('admin.contracts.contractDetails', 'Contract Details')}
             </h3>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Título *
+                {t('admin.contracts.titleLabel', 'Title')} *
               </label>
               <input
                 type="text"
@@ -412,27 +414,27 @@ export default function AdminCreateContract() {
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                placeholder="Ej: Desarrollo de sitio web"
+                placeholder={t('admin.contracts.titlePlaceholder', 'E.g.: Website development')}
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Descripción
+                {t('admin.contracts.description', 'Description')}
               </label>
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 rows={4}
                 className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                placeholder="Describe el trabajo a realizar..."
+                placeholder={t('admin.contracts.descriptionPlaceholder', 'Describe the work to be done...')}
               />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Precio Total (USD) *
+                  {t('admin.contracts.totalPrice', 'Total Price (USD)')} *
                 </label>
                 <div className="relative">
                   <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -451,7 +453,7 @@ export default function AdminCreateContract() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Fecha de Inicio *
+                  {t('admin.contracts.startDate', 'Start Date')} *
                 </label>
                 <CustomDatePicker
                   type="date"
@@ -460,14 +462,14 @@ export default function AdminCreateContract() {
                   onChange={(date) =>
                     setFormData({ ...formData, startDate: date?.toISOString().split('T')[0] || '' })
                   }
-                  placeholder="Selecciona fecha de inicio"
+                  placeholder={t('admin.contracts.selectStartDate', 'Select start date')}
                   minDate={new Date()}
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Fecha de Finalización *
+                  {t('admin.contracts.endDate', 'End Date')} *
                 </label>
                 <CustomDatePicker
                   type="date"
@@ -476,7 +478,7 @@ export default function AdminCreateContract() {
                   onChange={(date) =>
                     setFormData({ ...formData, endDate: date?.toISOString().split('T')[0] || '' })
                   }
-                  placeholder="Selecciona fecha de finalización"
+                  placeholder={t('admin.contracts.selectEndDate', 'Select end date')}
                   minDate={formData.startDate ? new Date(formData.startDate) : new Date()}
                 />
               </div>
@@ -486,41 +488,41 @@ export default function AdminCreateContract() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Hitos (Milestones)
+                  {t('admin.contracts.milestones', 'Milestones')}
                 </label>
                 <button
                   type="button"
                   onClick={addMilestone}
                   className="px-3 py-1 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
                 >
-                  + Añadir Hito
+                  + {t('admin.contracts.addMilestone', 'Add Milestone')}
                 </button>
               </div>
 
               {formData.milestones.map((milestone, index) => (
                 <div key={index} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg mb-3 space-y-3">
                   <div className="flex items-center justify-between">
-                    <h4 className="font-medium text-gray-900 dark:text-white">Hito {index + 1}</h4>
+                    <h4 className="font-medium text-gray-900 dark:text-white">{t('admin.contracts.milestone', 'Milestone')} {index + 1}</h4>
                     <button
                       type="button"
                       onClick={() => removeMilestone(index)}
                       className="text-red-600 hover:text-red-700 text-sm"
                     >
-                      Eliminar
+                      {t('common.delete', 'Delete')}
                     </button>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <input
                       type="text"
-                      placeholder="Título del hito"
+                      placeholder={t('admin.contracts.milestoneTitlePlaceholder', 'Milestone title')}
                       value={milestone.title}
                       onChange={(e) => updateMilestone(index, "title", e.target.value)}
                       className="px-4 py-2 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded-lg text-gray-900 dark:text-white"
                     />
                     <input
                       type="number"
-                      placeholder="Monto (USD)"
+                      placeholder={t('admin.contracts.milestoneAmount', 'Amount (USD)')}
                       min="0"
                       step="0.01"
                       value={milestone.amount}
@@ -530,7 +532,7 @@ export default function AdminCreateContract() {
                   </div>
 
                   <textarea
-                    placeholder="Descripción del hito"
+                    placeholder={t('admin.contracts.milestoneDescriptionPlaceholder', 'Milestone description')}
                     value={milestone.description}
                     onChange={(e) => updateMilestone(index, "description", e.target.value)}
                     rows={2}
@@ -547,7 +549,7 @@ export default function AdminCreateContract() {
                 onClick={() => navigate("/admin/contracts")}
                 className="px-6 py-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition"
               >
-                Cancelar
+                {t('common.cancel', 'Cancel')}
               </button>
               <button
                 type="submit"
@@ -555,7 +557,7 @@ export default function AdminCreateContract() {
                 className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 <FileText className="h-5 w-5" />
-                {submitting ? "Creando..." : "Crear Contrato"}
+                {submitting ? t('admin.contracts.creating', 'Creating...') : t('admin.contracts.createContract', 'Create Contract')}
               </button>
             </div>
           </div>

@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 const ContactPage: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
 
   const subjectParam = searchParams.get('subject') || 'general';
@@ -78,25 +80,25 @@ const ContactPage: React.FC = () => {
         });
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Error al enviar el mensaje');
+      setError(err.response?.data?.message || t('contact.errorSending', 'Error sending message'));
     } finally {
       setLoading(false);
     }
   };
 
   const subjectOptions = [
-    { value: 'general', label: 'Consulta General' },
-    { value: 'support', label: 'Soporte Técnico' },
-    { value: 'complaint', label: 'Reclamo' },
-    { value: 'advertising', label: 'Solicitar Publicidad' },
-    { value: 'other', label: 'Otro' },
+    { value: 'general', label: t('contact.subjects.general', 'General Inquiry') },
+    { value: 'support', label: t('contact.subjects.support', 'Technical Support') },
+    { value: 'complaint', label: t('contact.subjects.complaint', 'Complaint') },
+    { value: 'advertising', label: t('contact.subjects.advertising', 'Request Advertising') },
+    { value: 'other', label: t('contact.subjects.other', 'Other') },
   ];
 
   const adTypeOptions = [
-    { value: 'model1', label: 'Banner 3x1 (Premium) - $50/día' },
-    { value: 'model2', label: 'Sidebar 1x2 - $35/día' },
-    { value: 'model3', label: 'Card 1x1 - $20/día' },
-    { value: 'custom', label: 'Personalizado (especificar)' },
+    { value: 'model1', label: t('contact.adTypes.banner', 'Banner 3x1 (Premium) - $50/day') },
+    { value: 'model2', label: t('contact.adTypes.sidebar', 'Sidebar 1x2 - $35/day') },
+    { value: 'model3', label: t('contact.adTypes.card', 'Card 1x1 - $20/day') },
+    { value: 'custom', label: t('contact.adTypes.custom', 'Custom (specify)') },
   ];
 
   if (success) {
@@ -119,17 +121,17 @@ const ContactPage: React.FC = () => {
             </svg>
           </div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            ¡Mensaje Enviado!
+            {t('contact.messageSent', 'Message Sent!')}
           </h2>
           <p className="text-gray-600 dark:text-gray-400 mb-6">
-            Hemos recibido tu mensaje. Nos pondremos en contacto contigo pronto.
+            {t('contact.messageSentDesc', 'We have received your message. We will get in touch with you soon.')}
           </p>
           <div className="space-y-3">
             <button
               onClick={() => navigate('/')}
               className="w-full px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition-colors"
             >
-              Volver al Inicio
+              {t('contact.backToHome', 'Back to Home')}
             </button>
             <button
               onClick={() => {
@@ -145,7 +147,7 @@ const ContactPage: React.FC = () => {
               }}
               className="w-full px-6 py-3 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-white font-medium rounded-lg transition-colors"
             >
-              Enviar Otro Mensaje
+              {t('contact.sendAnother', 'Send Another Message')}
             </button>
           </div>
         </div>
@@ -159,11 +161,10 @@ const ContactPage: React.FC = () => {
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            Contáctanos
+            {t('contact.title', 'Contact Us')}
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Estamos aquí para ayudarte. Completa el formulario y te responderemos
-            pronto.
+            {t('contact.subtitle', 'We are here to help. Fill out the form and we will get back to you soon.')}
           </p>
         </div>
 
@@ -176,7 +177,7 @@ const ContactPage: React.FC = () => {
                 htmlFor="name"
                 className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
               >
-                Nombre Completo *
+                {t('contact.fullName', 'Full Name')} *
               </label>
               <input
                 type="text"
@@ -187,7 +188,7 @@ const ContactPage: React.FC = () => {
                 required
                 maxLength={100}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                placeholder="Tu nombre"
+                placeholder={t('contact.namePlaceholder', 'Your name')}
               />
             </div>
 
@@ -197,7 +198,7 @@ const ContactPage: React.FC = () => {
                 htmlFor="email"
                 className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
               >
-                Email *
+                {t('contact.email', 'Email')} *
               </label>
               <input
                 type="email"
@@ -207,7 +208,7 @@ const ContactPage: React.FC = () => {
                 onChange={handleChange}
                 required
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                placeholder="tu@email.com"
+                placeholder={t('contact.emailPlaceholder', 'you@email.com')}
               />
             </div>
 
@@ -217,7 +218,7 @@ const ContactPage: React.FC = () => {
                 htmlFor="subject"
                 className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
               >
-                Asunto *
+                {t('contact.subject', 'Subject')} *
               </label>
               <select
                 id="subject"
@@ -243,7 +244,7 @@ const ContactPage: React.FC = () => {
                     htmlFor="adType"
                     className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
                   >
-                    Tipo de Anuncio
+                    {t('contact.adType', 'Ad Type')}
                   </label>
                   <select
                     id="adType"
@@ -252,7 +253,7 @@ const ContactPage: React.FC = () => {
                     onChange={handleChange}
                     className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                   >
-                    <option value="">Selecciona un tipo</option>
+                    <option value="">{t('contact.selectType', 'Select a type')}</option>
                     {adTypeOptions.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
@@ -268,7 +269,7 @@ const ContactPage: React.FC = () => {
                       htmlFor="customAdDetails"
                       className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
                     >
-                      Detalles del Espacio Personalizado
+                      {t('contact.customAdDetails', 'Custom Ad Space Details')}
                     </label>
                     <textarea
                       id="customAdDetails"
@@ -278,7 +279,7 @@ const ContactPage: React.FC = () => {
                       maxLength={500}
                       rows={3}
                       className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
-                      placeholder="Describe el tamaño y características del espacio publicitario que necesitas..."
+                      placeholder={t('contact.customAdPlaceholder', 'Describe the size and features of the ad space you need...')}
                     />
                   </div>
                 )}
@@ -291,7 +292,7 @@ const ContactPage: React.FC = () => {
                 htmlFor="message"
                 className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
               >
-                Mensaje *
+                {t('contact.message', 'Message')} *
               </label>
               <textarea
                 id="message"
@@ -303,10 +304,10 @@ const ContactPage: React.FC = () => {
                 maxLength={2000}
                 rows={6}
                 className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none"
-                placeholder="Escribe tu mensaje aquí..."
+                placeholder={t('contact.messagePlaceholder', 'Write your message here...')}
               />
               <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                {formData.message.length}/2000 caracteres
+                {formData.message.length}/2000 {t('contact.characters', 'characters')}
               </p>
             </div>
 
@@ -324,7 +325,7 @@ const ContactPage: React.FC = () => {
                 onClick={() => navigate(-1)}
                 className="flex-1 px-6 py-3 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-white font-medium rounded-lg transition-colors"
               >
-                Cancelar
+                {t('common.cancel', 'Cancel')}
               </button>
               <button
                 type="submit"
@@ -334,10 +335,10 @@ const ContactPage: React.FC = () => {
                 {loading ? (
                   <>
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2" />
-                    Enviando...
+                    {t('contact.sending', 'Sending...')}
                   </>
                 ) : (
-                  'Enviar Mensaje'
+                  t('contact.sendMessage', 'Send Message')
                 )}
               </button>
             </div>
@@ -347,7 +348,7 @@ const ContactPage: React.FC = () => {
         {/* Additional info */}
         <div className="mt-8 text-center text-sm text-gray-600 dark:text-gray-400">
           <p>
-            También puedes enviarnos un email a{' '}
+            {t('contact.alsoEmail', 'You can also send us an email at')}{' '}
             <a
               href="mailto:support@doapp.com"
               className="text-orange-500 hover:text-orange-600 font-medium"

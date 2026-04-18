@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../components/ui/Toast';
 import { Crown, Check, TrendingUp, Shield, BarChart3, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
 import Button from '../components/ui/Button';
 
 export default function MembershipCheckout() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
   const toast = useToast();
@@ -187,9 +189,9 @@ export default function MembershipCheckout() {
         <div className="text-center">
           <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-            Plan no válido
+            {t('membership.invalidPlan', 'Plan no válido')}
           </h1>
-          <Button onClick={() => navigate('/')}>Volver al inicio</Button>
+          <Button onClick={() => navigate('/')}>{t('common.goHome', 'Volver al inicio')}</Button>
         </div>
       </div>
     );
@@ -204,7 +206,7 @@ export default function MembershipCheckout() {
           className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
-          Volver
+          {t('common.back', 'Volver')}
         </button>
 
         {/* Header */}
@@ -213,10 +215,10 @@ export default function MembershipCheckout() {
             <Crown className="w-12 h-12 text-white" />
           </div>
           <h1 className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
-            Actualizar a {selectedPlan.name}
+            {t('membership.upgradeTo', 'Actualizar a')} {selectedPlan.name}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 text-lg">
-            Desbloquea todas las funcionalidades profesionales de DOAPP
+            {t('membership.unlockFeatures', 'Desbloquea todas las funcionalidades profesionales de DOAPP')}
           </p>
         </div>
 
@@ -238,7 +240,7 @@ export default function MembershipCheckout() {
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-bold text-purple-900 dark:text-purple-100 mb-2">
-                  Upgrade a SUPER PRO
+                  {t('membership.upgradeToSuperPro', 'Upgrade a SUPER PRO')}
                 </h3>
                 <p className="text-purple-800 dark:text-purple-200 text-sm mb-3">
                   Tienes <strong>{upgradeInfo.daysRemaining} días restantes</strong> en tu membresía PRO actual. Solo pagarás la diferencia prorrateada para actualizar a SUPER PRO por el tiempo restante.
@@ -264,7 +266,7 @@ export default function MembershipCheckout() {
           <div className="lg:col-span-2">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-                ¿Por qué elegir {selectedPlan.name}?
+                {t('membership.whyChoose', '¿Por qué elegir')} {selectedPlan.name}?
               </h2>
 
               <div className="space-y-6">
@@ -297,19 +299,19 @@ export default function MembershipCheckout() {
                   : 'bg-sky-50 dark:bg-sky-900/20'
               }`}>
                 <h3 className="font-bold text-gray-900 dark:text-white mb-4">
-                  Comparación de Comisiones
+                  {t('membership.commissionComparison', 'Comparación de Comisiones')}
                 </h3>
                 <div className={`grid ${plan === 'super_pro' ? 'grid-cols-3' : 'grid-cols-2'} gap-4`}>
                   <div className="text-center p-4 bg-white dark:bg-gray-800 rounded-lg">
                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Plan Free</p>
                     <p className="text-3xl font-bold text-gray-400 dark:text-gray-500">8%</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">de comisión</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('membership.commission', 'de comisión')}</p>
                   </div>
                   {plan === 'super_pro' && (
                     <div className="text-center p-4 bg-gradient-to-br from-sky-400 to-sky-500 rounded-lg">
                       <p className="text-sm text-sky-100 mb-2">Plan PRO</p>
                       <p className="text-3xl font-bold text-white">3%</p>
-                      <p className="text-xs text-sky-100 mt-1">de comisión</p>
+                      <p className="text-xs text-sky-100 mt-1">{t('membership.commission', 'de comisión')}</p>
                     </div>
                   )}
                   <div className={`text-center p-4 rounded-lg ${
@@ -323,13 +325,13 @@ export default function MembershipCheckout() {
                     <p className="text-3xl font-bold text-white">
                       {plan === 'super_pro' ? '1%' : '3%'}
                     </p>
-                    <p className="text-xs text-white opacity-90 mt-1">de comisión</p>
+                    <p className="text-xs text-white opacity-90 mt-1">{t('membership.commission', 'de comisión')}</p>
                   </div>
                 </div>
                 <p className="text-center text-sm text-green-600 dark:text-green-400 font-semibold mt-4">
                   {plan === 'super_pro'
-                    ? '¡Ahorra hasta 6% en cada transacción vs Free y 1% vs PRO!'
-                    : '¡Ahorra 5% en cada transacción!'}
+                    ? t('membership.saveSuperPro', '¡Ahorra hasta 6% en cada transacción vs Free y 1% vs PRO!')
+                    : t('membership.savePro', '¡Ahorra 5% en cada transacción!')}
                 </p>
               </div>
             </div>
@@ -339,13 +341,13 @@ export default function MembershipCheckout() {
           <div className="lg:col-span-1">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 sticky top-4">
               <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
-                Resumen de Pago
+                {t('membership.paymentSummary', 'Resumen de Pago')}
               </h2>
 
               {plan === 'quarterly' && 'savings' in selectedPlan && selectedPlan.savings && (
                 <div className="mb-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
                   <p className="text-green-800 dark:text-green-200 text-sm font-semibold text-center">
-                    Ahorra {selectedPlan.savings} con el plan trimestral
+                    {t('membership.saveQuarterly', 'Ahorra {{amount}} con el plan trimestral', { amount: selectedPlan.savings })}
                   </p>
                 </div>
               )}
@@ -369,7 +371,7 @@ export default function MembershipCheckout() {
 
                 <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
                   <div className="flex justify-between items-center">
-                    <p className="font-bold text-gray-900 dark:text-white">Total</p>
+                    <p className="font-bold text-gray-900 dark:text-white">{t('common.total', 'Total')}</p>
                     <p className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-sky-600 to-sky-500">
                       ${Math.round(selectedPlan.priceARS).toLocaleString('es-AR')} ARS
                     </p>
@@ -386,12 +388,12 @@ export default function MembershipCheckout() {
                 {loading ? (
                   <>
                     <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Procesando...
+                    {t('common.processing', 'Procesando...')}
                   </>
                 ) : (
                   <>
                     <Crown className="w-5 h-5 mr-2" />
-                    Proceder al Pago
+                    {t('membership.proceedToPayment', 'Proceder al Pago')}
                   </>
                 )}
               </Button>
@@ -399,27 +401,27 @@ export default function MembershipCheckout() {
               <div className="mt-6 space-y-3">
                 <div className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
                   <Check className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                  <span>Pago seguro con MercadoPago</span>
+                  <span>{t('membership.securePayment', 'Pago seguro con MercadoPago')}</span>
                 </div>
                 <div className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
                   <Check className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                  <span>Cancela en cualquier momento</span>
+                  <span>{t('membership.cancelAnytime', 'Cancela en cualquier momento')}</span>
                 </div>
                 <div className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
                   <Check className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                  <span>Activación instantánea</span>
+                  <span>{t('membership.instantActivation', 'Activación instantánea')}</span>
                 </div>
                 <div className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
                   <Check className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                  <span>Renovación automática mensual</span>
+                  <span>{t('membership.autoRenewal', 'Renovación automática mensual')}</span>
                 </div>
               </div>
 
               <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
                 <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
-                  Al continuar, aceptas nuestros{' '}
+                  {t('membership.termsAgree', 'Al continuar, aceptas nuestros')}{' '}
                   <a href="/legal/terms" className="text-sky-600 hover:text-sky-700">
-                    Términos y Condiciones
+                    {t('membership.termsAndConditions', 'Términos y Condiciones')}
                   </a>
                 </p>
               </div>

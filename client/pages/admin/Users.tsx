@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { adminApi } from "@/lib/adminApi";
 import { useSocket } from "@/hooks/useSocket";
 import type { AdminUser } from "@/types/admin";
@@ -7,10 +7,11 @@ import { Search, Ban, CheckCircle, Trash2, Eye, Wifi, WifiOff, Bell, UserPlus } 
 
 export default function AdminUsers() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { isConnected, registerAdminUserCreatedHandler, registerAdminUserUpdatedHandler } = useSocket();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get('search') || "");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [realtimeAlert, setRealtimeAlert] = useState<string | null>(null);

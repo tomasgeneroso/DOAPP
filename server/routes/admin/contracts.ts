@@ -11,8 +11,11 @@ import { verifyOwnerPassword } from "../../middleware/ownerVerification.js";
 import { logAudit, getSeverityForAction, detectChanges } from "../../utils/auditLog.js";
 import emailService from "../../services/email.js";
 import type { AuthRequest } from "../../types/index.js";
-import { Op } from "sequelize";
+import { Op, literal } from "sequelize";
 import { calculateCommission } from "../../services/commissionService.js";
+import { isValidUUID } from "../../utils/sanitizer.js";
+
+const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&');
 
 const router = express.Router();
 
@@ -28,12 +31,13 @@ router.get(
     try {
       const {
         page = "1",
-        limit = "20",
+        limit = "50",
         status,
         paymentStatus,
         isDeleted,
         isHidden,
         userId,
+        search,
         sortBy = "createdAt",
         sortOrder = "desc",
       } = req.query;
@@ -49,6 +53,20 @@ router.get(
           { clientId: userId },
           { doerId: userId },
         ];
+      }
+
+      // Cross-table search: by contract ID, job ID, client ID, or doer ID (partial or full)
+      if (search && !userId) {
+        const searchStr = search as string;
+        if (/^[0-9a-f-]{4,}$/i.test(searchStr)) {
+          where[Op.or] = [
+            literal(`CAST("contracts"."id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
+            literal(`CAST("contracts"."job_id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
+            literal(`CAST("contracts"."client_id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
+            literal(`CAST("contracts"."doer_id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
+          ];
+        }
+        // Text search handled client-side (names, titles)
       }
 
       const offset = (parseInt(page as string) - 1) * parseInt(limit as string);

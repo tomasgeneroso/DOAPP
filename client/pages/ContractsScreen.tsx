@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { useSocket } from "../hooks/useSocket";
 import { Briefcase, Calendar, DollarSign, User, Clock, ArrowUpDown, ArrowUp, ArrowDown, Wifi, WifiOff, Flag, Search, Plus } from "lucide-react";
@@ -32,6 +33,7 @@ type SortField = 'job' | 'client' | 'doer' | 'price' | 'date' | 'status' | 'paym
 type SortDirection = 'asc' | 'desc' | null;
 
 export default function ContractsScreen() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
   const { isConnected, registerContractUpdateHandler, registerContractsRefreshHandler } = useSocket();
@@ -152,11 +154,11 @@ export default function ContractsScreen() {
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
-      pending: "Pendiente",
-      accepted: "Aceptado",
-      in_progress: "En Progreso",
-      completed: "Completado",
-      cancelled: "Cancelado",
+      pending: t('contracts.status.pending', 'Pendiente'),
+      accepted: t('contracts.status.accepted', 'Aceptado'),
+      in_progress: t('contracts.status.in_progress', 'En Progreso'),
+      completed: t('contracts.status.completed', 'Completado'),
+      cancelled: t('contracts.status.cancelled', 'Cancelado'),
     };
     return labels[status] || status;
   };
@@ -217,7 +219,7 @@ export default function ContractsScreen() {
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-500 mx-auto"></div>
-          <p className="mt-4 text-slate-600 dark:text-slate-400">Cargando contratos...</p>
+          <p className="mt-4 text-slate-600 dark:text-slate-400">{t('common.loading', 'Cargando...')}</p>
         </div>
       </div>
     );
@@ -230,22 +232,22 @@ export default function ContractsScreen() {
         <div className="mb-8 flex items-start justify-between">
           <div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-              Mis Contratos
+              {t('contracts.myContracts', 'Mis Contratos')}
             </h1>
             <p className="mt-2 text-slate-600 dark:text-slate-400">
-              Administra todos tus contratos activos y completados
+              {t('contracts.subtitle', 'Administra todos tus contratos activos y completados')}
             </p>
           </div>
           <div className="flex items-center gap-2 text-sm">
             {isConnected ? (
               <>
                 <Wifi className="h-4 w-4 text-green-500" />
-                <span className="text-green-600 dark:text-green-400">Tiempo real</span>
+                <span className="text-green-600 dark:text-green-400">{t('common.realTime', 'Tiempo real')}</span>
               </>
             ) : (
               <>
                 <WifiOff className="h-4 w-4 text-slate-400" />
-                <span className="text-slate-500">Sin conexión</span>
+                <span className="text-slate-500">{t('common.disconnected', 'Sin conexión')}</span>
               </>
             )}
           </div>
@@ -261,7 +263,7 @@ export default function ContractsScreen() {
                 : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
             }`}
           >
-            Todos
+            {t('common.all', 'Todos')}
           </button>
           <button
             onClick={() => setFilter("active")}
@@ -271,7 +273,7 @@ export default function ContractsScreen() {
                 : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
             }`}
           >
-            Activos
+            {t('contracts.filter.active', 'Activos')}
           </button>
           <button
             onClick={() => setFilter("completed")}
@@ -281,7 +283,7 @@ export default function ContractsScreen() {
                 : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
             }`}
           >
-            Completados
+            {t('contracts.filter.completed', 'Completados')}
           </button>
         </div>
 
@@ -290,14 +292,14 @@ export default function ContractsScreen() {
           <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
             <Briefcase className="h-12 w-12 text-slate-400 mx-auto mb-4" />
             <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-2">
-              {filter === "all" ? "¡Tu primer contrato te espera!" : filter === "active" ? "Sin contratos activos" : "Sin contratos completados"}
+              {filter === "all" ? t('contracts.empty.allTitle', '¡Tu primer contrato te espera!') : filter === "active" ? t('contracts.empty.activeTitle', 'Sin contratos activos') : t('contracts.empty.completedTitle', 'Sin contratos completados')}
             </h3>
             <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto mb-4">
               {filter === "all"
-                ? "Explora los trabajos disponibles y postúlate, o publica tu propio trabajo para recibir propuestas."
+                ? t('contracts.empty.allDesc', 'Explora los trabajos disponibles y postúlate, o publica tu propio trabajo para recibir propuestas.')
                 : filter === "active"
-                  ? "Cuando tengas contratos en curso, aparecerán aquí."
-                  : "Los contratos que completes se mostrarán aquí como parte de tu historial."}
+                  ? t('contracts.empty.activeDesc', 'Cuando tengas contratos en curso, aparecerán aquí.')
+                  : t('contracts.empty.completedDesc', 'Los contratos que completes se mostrarán aquí como parte de tu historial.')}
             </p>
             <div className="flex flex-wrap gap-3 justify-center">
               <Link
@@ -305,14 +307,14 @@ export default function ContractsScreen() {
                 className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-medium transition-colors"
               >
                 <Search className="w-4 h-4" />
-                Explorar trabajos
+                {t('contracts.exploreJobs', 'Explorar trabajos')}
               </Link>
               <Link
                 to="/create-job"
                 className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-medium transition-colors"
               >
                 <Plus className="w-4 h-4" />
-                Publicar trabajo
+                {t('contracts.publishJob', 'Publicar trabajo')}
               </Link>
             </div>
           </div>
@@ -343,7 +345,7 @@ export default function ContractsScreen() {
                             {getStatusLabel(contract.status)}
                           </span>
                           <span className="text-sm text-slate-600 dark:text-slate-400">
-                            {isClient ? "Como Cliente" : "Como Freelancer"}
+                            {isClient ? t('contracts.asClient', 'Como Cliente') : t('contracts.asFreelancer', 'Como Freelancer')}
                           </span>
                         </div>
                       </div>
@@ -352,7 +354,7 @@ export default function ContractsScreen() {
                           ${contract.totalPrice.toLocaleString()}
                         </p>
                         <p className="text-xs text-slate-500 dark:text-slate-400">
-                          Precio total
+                          {t('contracts.totalPrice', 'Precio total')}
                         </p>
                       </div>
                     </div>
@@ -376,7 +378,7 @@ export default function ContractsScreen() {
                         <div className="flex items-center gap-1">
                           <Clock className="h-4 w-4" />
                           <span>
-                            Creado {new Date(contract.createdAt).toLocaleDateString("es-AR")}
+                            {t('contracts.created', 'Creado')} {new Date(contract.createdAt).toLocaleDateString("es-AR")}
                           </span>
                         </div>
                       </div>
@@ -389,10 +391,10 @@ export default function ContractsScreen() {
                             navigate(`/disputes/new?contractId=${contract.id}`);
                           }}
                           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-orange-600 hover:text-orange-700 bg-orange-50 hover:bg-orange-100 dark:bg-orange-900/20 dark:hover:bg-orange-900/30 dark:text-orange-400 rounded-lg transition-colors"
-                          title="Reportar un problema con este contrato"
+                          title={t('contracts.reportProblem', 'Reportar un problema con este contrato')}
                         >
                           <Flag className="h-3.5 w-3.5" />
-                          Reportar
+                          {t('contracts.report', 'Reportar')}
                         </button>
                       )}
                     </div>
@@ -412,10 +414,10 @@ export default function ContractsScreen() {
                   {loadingMore ? (
                     <div className="flex items-center gap-2">
                       <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                      <span>Cargando...</span>
+                      <span>{t('common.loading', 'Cargando...')}</span>
                     </div>
                   ) : (
-                    "Cargar más contratos"
+                    t('contracts.loadMore', 'Cargar más contratos')
                   )}
                 </button>
               </div>

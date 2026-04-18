@@ -1,4 +1,6 @@
 export interface Job {
+  views: undefined;
+  publicationPaid: import("react/jsx-runtime").JSX.Element;
   _id: string;
   id?: string; // PostgreSQL UUID (for compatibility with SQL migration)
   title: string;

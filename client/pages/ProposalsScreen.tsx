@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { useSocket } from "../hooks/useSocket";
 import { SkeletonProposalCard } from "../components/ui/Skeleton";
@@ -32,6 +33,7 @@ interface Proposal {
 }
 
 export default function ProposalsScreen() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { registerProposalUpdateHandler } = useSocket();
   const [searchParams] = useSearchParams();
@@ -89,11 +91,11 @@ export default function ProposalsScreen() {
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
-      pending: "Pendiente",
-      approved: "Aprobada",
-      rejected: "Rechazada",
-      withdrawn: "Retirada",
-      cancelled: "Cancelada",
+      pending: t('proposals.status.pending', 'Pendiente'),
+      approved: t('proposals.status.approved', 'Aprobada'),
+      rejected: t('proposals.status.rejected', 'Rechazada'),
+      withdrawn: t('proposals.status.withdrawn', 'Retirada'),
+      cancelled: t('proposals.status.cancelled', 'Cancelada'),
     };
     return labels[status] || status;
   };
@@ -159,12 +161,12 @@ export default function ProposalsScreen() {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-            {type === "sent" ? "Mis Propuestas" : "Propuestas Recibidas"}
+            {type === "sent" ? t('proposals.myProposals', 'Mis Propuestas') : t('proposals.receivedProposals', 'Propuestas Recibidas')}
           </h1>
           <p className="mt-2 text-slate-600 dark:text-slate-400">
             {type === "sent"
-              ? "Administra las propuestas que has enviado"
-              : "Revisa las propuestas recibidas para tus trabajos"}
+              ? t('proposals.sentSubtitle', 'Administra las propuestas que has enviado')
+              : t('proposals.receivedSubtitle', 'Revisa las propuestas recibidas para tus trabajos')}
           </p>
         </div>
 
@@ -178,7 +180,7 @@ export default function ProposalsScreen() {
                 : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
             }`}
           >
-            Enviadas
+            {t('proposals.sent', 'Enviadas')}
           </Link>
           <Link
             to="/proposals?type=received"
@@ -188,7 +190,7 @@ export default function ProposalsScreen() {
                 : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
             }`}
           >
-            Recibidas
+            {t('proposals.received', 'Recibidas')}
           </Link>
         </div>
 
@@ -202,7 +204,7 @@ export default function ProposalsScreen() {
                 : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
             }`}
           >
-            Todas
+            {t('common.all', 'Todas')}
           </button>
           <button
             onClick={() => setFilter("pending")}
@@ -212,7 +214,7 @@ export default function ProposalsScreen() {
                 : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
             }`}
           >
-            Pendientes
+            {t('proposals.filter.pending', 'Pendientes')}
           </button>
           <button
             onClick={() => setFilter("approved")}
@@ -222,7 +224,7 @@ export default function ProposalsScreen() {
                 : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
             }`}
           >
-            Aprobadas
+            {t('proposals.filter.approved', 'Aprobadas')}
           </button>
           <button
             onClick={() => setFilter("rejected")}
@@ -232,7 +234,7 @@ export default function ProposalsScreen() {
                 : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
             }`}
           >
-            Rechazadas
+            {t('proposals.filter.rejected', 'Rechazadas')}
           </button>
         </div>
 
@@ -241,9 +243,7 @@ export default function ProposalsScreen() {
           <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
             <FileText className="h-12 w-12 text-slate-400 mx-auto mb-4" />
             <p className="text-slate-600 dark:text-slate-400">
-              No tienes propuestas{" "}
-              {filter === "all" ? "" : filter === "pending" ? "pendientes" : filter === "approved" ? "aprobadas" : "rechazadas"}{" "}
-              en este momento
+              {t('proposals.noProposals', 'No tienes propuestas en este momento')}
             </p>
           </div>
         ) : (
@@ -253,7 +253,7 @@ export default function ProposalsScreen() {
               <div>
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                   <DollarSign className="h-6 w-6 text-sky-600" />
-                  Contraofertas ({counterOffers.length})
+                  {t('proposals.counterOffers', 'Contraofertas')} ({counterOffers.length})
                 </h2>
                 <div className="space-y-4">
                   {counterOffers.map((proposal) => {
@@ -273,7 +273,7 @@ export default function ProposalsScreen() {
                             </h3>
                             <div className="flex items-center gap-2 mt-2">
                               <span className="px-2 py-1 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 text-xs font-semibold rounded">
-                                CONTRAOFERTA
+                                {t('proposals.counterOffer', 'CONTRAOFERTA')}
                               </span>
                               <span
                                 className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 ${getStatusColor(
@@ -290,10 +290,10 @@ export default function ProposalsScreen() {
                               ${price.toLocaleString()}
                             </p>
                             <p className="text-xs text-slate-500 dark:text-slate-400">
-                              Tu oferta
+                              {t('proposals.yourOffer', 'Tu oferta')}
                             </p>
                             <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
-                              Original: ${proposal.job.price.toLocaleString()}
+                              {t('proposals.original', 'Original')}: ${proposal.job.price.toLocaleString()}
                             </p>
                           </div>
                         </div>
@@ -313,7 +313,7 @@ export default function ProposalsScreen() {
                               className="h-8 w-8 rounded-full object-cover"
                             />
                             <span>
-                              {type === "sent" ? "Cliente: " : "Freelancer: "}
+                              {type === "sent" ? t('proposals.client', 'Cliente') + ": " : t('proposals.freelancer', 'Freelancer') + ": "}
                               {otherParty.name}
                             </span>
                           </div>
@@ -336,7 +336,7 @@ export default function ProposalsScreen() {
               <div>
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                   <FileText className="h-6 w-6 text-violet-600" />
-                  Aplicaciones Directas ({directApplications.length})
+                  {t('proposals.directApplications', 'Aplicaciones Directas')} ({directApplications.length})
                 </h2>
                 <div className="space-y-4">
                   {directApplications.map((proposal) => {
@@ -370,7 +370,7 @@ export default function ProposalsScreen() {
                               ${price.toLocaleString()}
                             </p>
                             <p className="text-xs text-slate-500 dark:text-slate-400">
-                              Precio del trabajo
+                              {t('proposals.jobPrice', 'Precio del trabajo')}
                             </p>
                           </div>
                         </div>
@@ -390,7 +390,7 @@ export default function ProposalsScreen() {
                               className="h-8 w-8 rounded-full object-cover"
                             />
                             <span>
-                              {type === "sent" ? "Cliente: " : "Freelancer: "}
+                              {type === "sent" ? t('proposals.client', 'Cliente') + ": " : t('proposals.freelancer', 'Freelancer') + ": "}
                               {otherParty.name}
                             </span>
                           </div>

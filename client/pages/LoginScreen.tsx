@@ -1,5 +1,6 @@
 import { useState, useEffect, FormEvent, ChangeEvent } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { useFacebookLogin } from "../hooks/useFacebookLogin";
 import { Helmet } from "react-helmet-async";
@@ -13,6 +14,7 @@ import { analytics, identifyUser } from "../utils/analytics";
 type FormMode = "login" | "register";
 
 export default function LoginScreen() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -204,13 +206,13 @@ export default function LoginScreen() {
   return (
     <>
       <Helmet>
-        <title>{isRegister ? "Registrarme" : "Iniciar Sesión"} - DOAPP</title>
+        <title>{isRegister ? t('auth.registerButton') : t('auth.loginButton')} - DOAPP</title>
         <meta
           name="description"
           content={
             isRegister
-              ? "Crea tu cuenta en DOAPP."
-              : "Inicia sesión en tu cuenta de DOAPP."
+              ? `${t('auth.registerTitle')} - DOAPP`
+              : `${t('auth.loginTitle')} - DOAPP`
           }
         />
       </Helmet>
@@ -221,16 +223,16 @@ export default function LoginScreen() {
             className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white mb-6"
           >
             <Home className="h-4 w-4" />
-            Volver al inicio
+            {t('auth.backToHome')}
           </Link>
           <h2 className="mb-6 sm:mb-8 text-center text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
-            {isRegister ? "Crea tu cuenta" : "Inicia sesión en tu cuenta"}
+            {isRegister ? t('auth.registerTitle') : t('auth.loginTitle')}
           </h2>
 
           {/* Mensaje de bienvenida para nuevos usuarios */}
           <div className="mb-4 sm:mb-6 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 p-3 sm:p-4 text-center shadow-md">
             <p className="text-xs sm:text-sm font-semibold text-white">
-              ¡Los primeros 1000 usuarios tendrán servicio gratuito por un año! 🎉
+              {t('auth.promoFirst1000')}
             </p>
           </div>
 
@@ -253,7 +255,7 @@ export default function LoginScreen() {
                   role="tab"
                   aria-selected={mode === "login"}
                 >
-                  Iniciar Sesión
+                  {t('auth.loginButton')}
                 </button>
               </li>
               <li className="flex-1" role="presentation">
@@ -268,7 +270,7 @@ export default function LoginScreen() {
                   role="tab"
                   aria-selected={mode === "register"}
                 >
-                  Registrarme
+                  {t('auth.registerButton')}
                 </button>
               </li>
             </ul>
@@ -282,7 +284,7 @@ export default function LoginScreen() {
                     htmlFor="name"
                     className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
                   >
-                    Nombre completo
+                    {t('auth.name')}
                   </label>
                   <div className="mt-2">
                     <input
@@ -303,7 +305,7 @@ export default function LoginScreen() {
                     htmlFor="username"
                     className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
                   >
-                    Nombre de usuario
+                    {t('auth.username')}
                   </label>
                   <div className="mt-2 relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500">@</span>
@@ -353,7 +355,7 @@ export default function LoginScreen() {
                 htmlFor="email"
                 className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
               >
-                Email
+                {t('auth.email')}
               </label>
               <div className="mt-2">
                 <input
@@ -385,7 +387,7 @@ export default function LoginScreen() {
                   htmlFor="password"
                   className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
                 >
-                  Contraseña
+                  {t('auth.password')}
                 </label>
                 {!isRegister && (
                   <div className="text-sm">
@@ -393,7 +395,7 @@ export default function LoginScreen() {
                       to="/forgot-password"
                       className="font-semibold text-sky-600 hover:text-sky-500"
                     >
-                      ¿Olvidaste tu contraseña?
+                      {t('auth.forgotPassword')}
                     </Link>
                   </div>
                 )}
@@ -443,7 +445,7 @@ export default function LoginScreen() {
                     htmlFor="phone"
                     className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
                   >
-                    Teléfono
+                    {t('auth.phone')}
                   </label>
                   <div className="mt-2">
                     <input
@@ -464,7 +466,7 @@ export default function LoginScreen() {
                     htmlFor="dni"
                     className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
                   >
-                    DNI
+                    {t('auth.dni')}
                   </label>
                   <div className="mt-2">
                     <input
@@ -481,7 +483,7 @@ export default function LoginScreen() {
                     />
                   </div>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    Ingresá tu DNI sin puntos ni espacios (7-9 dígitos)
+                    {t('auth.dniHelper')}
                   </p>
                 </div>
                 <div>
@@ -489,7 +491,7 @@ export default function LoginScreen() {
                     htmlFor="referralCode"
                     className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
                   >
-                    Código de referido <span className="text-slate-400">(opcional)</span>
+                    {t('auth.referralCode')} <span className="text-slate-400">(opcional)</span>
                   </label>
                   <div className="mt-2">
                     <input
@@ -504,7 +506,7 @@ export default function LoginScreen() {
                     />
                   </div>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    Si alguien te invitó, ingresa su código aquí
+                    {t('auth.referralHelper')}
                   </p>
                 </div>
                 <div>
@@ -512,7 +514,7 @@ export default function LoginScreen() {
                     htmlFor="cbu"
                     className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
                   >
-                    CBU / CVU <span className="text-slate-400">(opcional)</span>
+                    {t('auth.cbu')} <span className="text-slate-400">(opcional)</span>
                   </label>
                   <div className="mt-2">
                     <input
@@ -544,13 +546,13 @@ export default function LoginScreen() {
                     htmlFor="termsAccepted"
                     className="ml-3 block text-sm leading-6 text-slate-600 dark:text-slate-300"
                   >
-                    Acepto los{" "}
+                    {t('auth.termsAccept')}{" "}
                     <Link
                       to="/legal/terminos-y-condiciones"
                       target="_blank"
                       className="font-semibold text-sky-600 hover:text-sky-500"
                     >
-                      Términos y Condiciones
+                      {t('auth.termsAndConditions')}
                     </Link>
                   </label>
                 </div>
@@ -571,7 +573,7 @@ export default function LoginScreen() {
                       </svg>
                       <div className="flex-1">
                         <p className="text-sm font-medium text-blue-800 dark:text-blue-300">
-                          Este email ya está registrado
+                          {t('auth.alreadyRegistered')}
                         </p>
                         <p className="text-sm text-blue-700 dark:text-blue-400 mt-1">
                           ¿Ya tienes una cuenta? Inicia sesión para acceder.
@@ -586,7 +588,7 @@ export default function LoginScreen() {
                       }}
                       className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
                     >
-                      Ir a Iniciar Sesión
+                      {t('auth.goToLogin')}
                     </button>
                   </div>
                 ) : (
@@ -607,17 +609,17 @@ export default function LoginScreen() {
                 className="h-12 w-full"
               >
                 {isLoading
-                  ? "Procesando..."
+                  ? t('auth.processing')
                   : isRegister
-                  ? "Registrarme"
-                  : "Iniciar Sesión"}
+                  ? t('auth.registerButton')
+                  : t('auth.loginButton')}
               </AnimatedButton>
             </div>
           </form>
 
           <div className="my-4 sm:my-6 flex items-center gap-3 sm:gap-4">
             <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
-            <span className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">o continúa con</span>
+            <span className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 whitespace-nowrap">{t('auth.continueWith')}</span>
             <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700"></div>
           </div>
 

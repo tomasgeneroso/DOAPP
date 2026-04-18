@@ -1,13 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { usePermissions } from '../hooks/usePermissions';
-import { ArrowLeft, AlertCircle, Paperclip, X, ExternalLink } from 'lucide-react';
+import { ArrowLeft, AlertCircle, Paperclip, X, ExternalLink, Briefcase, ChevronDown } from 'lucide-react';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
+
+interface UserContract {
+  id: string;
+  status: string;
+  price: number;
+  job?: { id: string; title: string };
+  client?: { id: string; name: string };
+  doer?: { id: string; name: string };
+  createdAt: string;
+}
 
 const CreateTicket: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { t } = useTranslation();
   const { hasPermission, PERMISSIONS } = usePermissions();
 
   // Get query params for job-related tickets
@@ -23,6 +35,14 @@ const CreateTicket: React.FC = () => {
   });
   const [relatedJobTitle, setRelatedJobTitle] = useState<string | null>(null);
 
+  // Contract & Job linking
+  const [userContracts, setUserContracts] = useState<UserContract[]>([]);
+  const [selectedContractId, setSelectedContractId] = useState<string>(contractId || '');
+  const [loadingContracts, setLoadingContracts] = useState(false);
+  const [userJobs, setUserJobs] = useState<Array<{ id: string; title: string; status: string; price: number }>>([]);
+  const [selectedJobId, setSelectedJobId] = useState<string>(jobId || '');
+  const [loadingJobs, setLoadingJobs] = useState(false);
+
   const [attachments, setAttachments] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -36,6 +56,48 @@ const CreateTicket: React.FC = () => {
       });
     }
   }, [hasPermission, navigate, PERMISSIONS]);
+
+  // Fetch user's contracts and jobs for linking
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    // Fetch contracts
+    const fetchContracts = async () => {
+      setLoadingContracts(true);
+      try {
+        const response = await fetch(`${API_URL}/contracts?limit=50`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await response.json();
+        if (data.success) {
+          setUserContracts(data.contracts || data.data || []);
+        }
+      } catch (err) {
+        console.error('Error fetching contracts:', err);
+      } finally {
+        setLoadingContracts(false);
+      }
+    };
+    // Fetch jobs
+    const fetchJobs = async () => {
+      setLoadingJobs(true);
+      try {
+        const response = await fetch(`${API_URL}/jobs/my-jobs`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await response.json();
+        if (data.success) {
+          setUserJobs(data.jobs || data.data || []);
+        }
+      } catch (err) {
+        console.error('Error fetching jobs:', err);
+      } finally {
+        setLoadingJobs(false);
+      }
+    };
+    fetchContracts();
+    fetchJobs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Fetch job info and pre-fill form when jobId is provided
   useEffect(() => {
@@ -142,11 +204,13 @@ const CreateTicket: React.FC = () => {
       formDataToSend.append('message', formData.message);
 
       // Append related job/contract info if present
-      if (jobId) {
-        formDataToSend.append('relatedJobId', jobId);
+      const finalJobId = selectedJobId || jobId;
+      if (finalJobId) {
+        formDataToSend.append('relatedJobId', finalJobId);
       }
-      if (contractId) {
-        formDataToSend.append('relatedContractId', contractId);
+      const finalContractId = selectedContractId || contractId;
+      if (finalContractId) {
+        formDataToSend.append('relatedContractId', finalContractId);
       }
 
       // Append attachments
@@ -188,13 +252,13 @@ const CreateTicket: React.FC = () => {
             className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition mb-4"
           >
             <ArrowLeft className="h-5 w-5" />
-            Volver
+            {t('common.back')}
           </button>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Crear Nuevo Ticket
+            {t('tickets.title')}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
-            ¿Necesitas ayuda? Crea un ticket de soporte y nuestro equipo te ayudará.
+            {t('tickets.subtitle')}
           </p>
         </div>
 
@@ -238,7 +302,7 @@ const CreateTicket: React.FC = () => {
             {/* Subject */}
             <div>
               <label htmlFor="subject" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Asunto *
+                {t('tickets.subject')} *
               </label>
               <input
                 type="text"
@@ -248,14 +312,14 @@ const CreateTicket: React.FC = () => {
                 onChange={handleChange}
                 required
                 className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-gray-900 dark:text-white"
-                placeholder="Describe brevemente tu problema"
+                placeholder={t('tickets.subjectPlaceholder')}
               />
             </div>
 
             {/* Category */}
             <div>
               <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Categoría *
+                {t('tickets.category')} *
               </label>
               <select
                 id="category"
@@ -265,20 +329,20 @@ const CreateTicket: React.FC = () => {
                 required
                 className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-gray-900 dark:text-white"
               >
-                <option value="support">Soporte General</option>
-                <option value="bug">Reportar Error</option>
-                <option value="feature">Solicitar Funcionalidad</option>
-                <option value="report_user">Reportar Usuario</option>
-                <option value="report_contract">Reportar Contrato</option>
-                <option value="payment">Problema de Pago</option>
-                <option value="other">Otro</option>
+                <option value="support">{t('tickets.categories.support')}</option>
+                <option value="bug">{t('tickets.categories.bug')}</option>
+                <option value="feature">{t('tickets.categories.feature')}</option>
+                <option value="report_user">{t('tickets.categories.report_user')}</option>
+                <option value="report_contract">{t('tickets.categories.report_contract')}</option>
+                <option value="payment">{t('tickets.categories.payment')}</option>
+                <option value="other">{t('tickets.categories.other')}</option>
               </select>
             </div>
 
             {/* Priority */}
             <div>
               <label htmlFor="priority" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Prioridad *
+                {t('tickets.priority')} *
               </label>
               <select
                 id="priority"
@@ -288,17 +352,92 @@ const CreateTicket: React.FC = () => {
                 required
                 className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-gray-900 dark:text-white"
               >
-                <option value="low">Baja</option>
-                <option value="medium">Media</option>
-                <option value="high">Alta</option>
-                <option value="urgent">Urgente</option>
+                <option value="low">{t('tickets.priorities.low')}</option>
+                <option value="medium">{t('tickets.priorities.medium')}</option>
+                <option value="high">{t('tickets.priorities.high')}</option>
+                <option value="urgent">{t('tickets.priorities.urgent')}</option>
               </select>
+            </div>
+
+            {/* Job & Contract Selectors */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="relatedJob" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <Briefcase className="h-4 w-4 inline mr-1" />
+                  {t('tickets.linkedJob')}
+                </label>
+                <select
+                  id="relatedJob"
+                  value={selectedJobId}
+                  onChange={(e) => {
+                    setSelectedJobId(e.target.value);
+                    if (e.target.value) {
+                      const j = userJobs.find(j => j.id === e.target.value);
+                      if (j?.title && !formData.subject) {
+                        setFormData(prev => ({ ...prev, subject: `Problema con trabajo: ${j.title}` }));
+                      }
+                    }
+                  }}
+                  className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-gray-900 dark:text-white text-sm"
+                >
+                  <option value="">{t('common.none')}</option>
+                  {loadingJobs ? (
+                    <option disabled>Cargando...</option>
+                  ) : (
+                    userJobs.map((j) => (
+                      <option key={j.id} value={j.id}>
+                        {j.title} — {j.status === 'open' ? 'Abierto' : j.status === 'in_progress' ? 'En progreso' : j.status === 'completed' ? 'Completado' : j.status}
+                      </option>
+                    ))
+                  )}
+                </select>
+                {selectedJobId && (
+                  <Link to={`/jobs/${selectedJobId}`} className="inline-flex items-center gap-1 mt-1 text-xs text-sky-600 dark:text-sky-400 hover:underline">
+                    Ver trabajo <ExternalLink className="h-3 w-3" />
+                  </Link>
+                )}
+              </div>
+              <div>
+                <label htmlFor="relatedContract" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  {t('tickets.linkedContract')}
+                </label>
+                <select
+                  id="relatedContract"
+                  value={selectedContractId}
+                  onChange={(e) => {
+                    setSelectedContractId(e.target.value);
+                    if (e.target.value) {
+                      const c = userContracts.find(c => c.id === e.target.value);
+                      if (c?.job?.title && !formData.subject) {
+                        setFormData(prev => ({ ...prev, subject: `Problema con contrato - ${c.job?.title}` }));
+                      }
+                    }
+                  }}
+                  className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-gray-900 dark:text-white text-sm"
+                >
+                  <option value="">{t('common.none')}</option>
+                  {loadingContracts ? (
+                    <option disabled>Cargando...</option>
+                  ) : (
+                    userContracts.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.job?.title || 'Contrato'} — ${Number(c.price).toLocaleString('es-AR')} — {c.status === 'completed' ? 'Completado' : c.status === 'in_progress' ? 'En progreso' : c.status === 'pending' ? 'Pendiente' : c.status === 'ready' ? 'Listo' : c.status === 'accepted' ? 'Aceptado' : c.status}
+                      </option>
+                    ))
+                  )}
+                </select>
+                {selectedContractId && (
+                  <Link to={`/contracts/${selectedContractId}`} className="inline-flex items-center gap-1 mt-1 text-xs text-sky-600 dark:text-sky-400 hover:underline">
+                    Ver contrato <ExternalLink className="h-3 w-3" />
+                  </Link>
+                )}
+              </div>
             </div>
 
             {/* Message */}
             <div>
               <label htmlFor="message" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Mensaje *
+                {t('chat.message')} *
               </label>
               <textarea
                 id="message"
@@ -308,20 +447,20 @@ const CreateTicket: React.FC = () => {
                 required
                 rows={6}
                 className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-gray-900 dark:text-white resize-none"
-                placeholder="Describe tu problema o pregunta con el mayor detalle posible..."
+                placeholder={t('tickets.messagePlaceholder')}
               />
             </div>
 
             {/* Attachments */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Archivos adjuntos (opcional)
+                {t('tickets.attachments')}
               </label>
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <label className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-600 transition">
                     <Paperclip className="h-4 w-4 text-gray-600 dark:text-gray-400" />
-                    <span className="text-sm text-gray-700 dark:text-gray-300">Seleccionar archivos</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300">{t('tickets.selectFiles')}</span>
                     <input
                       type="file"
                       multiple
@@ -373,14 +512,14 @@ const CreateTicket: React.FC = () => {
                 disabled={loading}
                 className="flex-1 bg-sky-600 hover:bg-sky-700 text-white font-medium py-3 px-6 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? 'Creando...' : 'Crear Ticket'}
+                {loading ? t('tickets.creating') : t('tickets.createTicket')}
               </button>
               <button
                 type="button"
                 onClick={() => navigate(-1)}
                 className="px-6 py-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition"
               >
-                Cancelar
+                {t('common.cancel')}
               </button>
             </div>
           </form>

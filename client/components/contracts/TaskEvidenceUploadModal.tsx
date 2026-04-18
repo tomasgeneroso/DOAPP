@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { JobTask } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
 import Button from '../ui/Button';
@@ -17,6 +18,7 @@ export default function TaskEvidenceUploadModal({
   onClose,
   onSuccess,
 }: TaskEvidenceUploadModalProps) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [tasks, setTasks] = useState<any[]>([]);
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
@@ -48,7 +50,7 @@ export default function TaskEvidenceUploadModal({
         }
       } catch (err) {
         console.error('Error loading tasks:', err);
-        setError('Error al cargar las tareas');
+        setError(t('contracts.errorLoadingTasks', 'Error loading tasks'));
       } finally {
         setLoadingTasks(false);
       }
@@ -94,7 +96,7 @@ export default function TaskEvidenceUploadModal({
         }));
       }
     } catch (err: any) {
-      setError('Error al subir las fotos');
+      setError(t('contracts.errorUploadingPhotos', 'Error uploading photos'));
     } finally {
       setUploading(false);
       if (fileInputRef.current) {
@@ -115,7 +117,7 @@ export default function TaskEvidenceUploadModal({
     const tasksWithoutPhotos = tasks.filter(t => !photos[t.id] || photos[t.id].length === 0);
 
     if (tasksWithoutPhotos.length > 0) {
-      setError(`Debes subir fotos para todas las tareas. Faltan: ${tasksWithoutPhotos.map(t => t.title).join(', ')}`);
+      setError(t('contracts.missingPhotos', 'You must upload photos for all tasks. Missing: {{tasks}}', { tasks: tasksWithoutPhotos.map(tk => tk.title).join(', ') }));
       return;
     }
 
@@ -143,7 +145,7 @@ export default function TaskEvidenceUploadModal({
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.message || 'Error al guardar la evidencia');
+      setError(err.message || t('contracts.errorSavingEvidence', 'Error saving evidence'));
     } finally {
       setLoading(false);
     }
@@ -151,7 +153,7 @@ export default function TaskEvidenceUploadModal({
 
   const handleSkip = () => {
     // Allow skipping but show a warning
-    if (confirm('Las fotos de evidencia ayudan a proteger tu trabajo en caso de disputas. ¿Estás seguro de que quieres continuar sin subir fotos?')) {
+    if (confirm(t('contracts.skipEvidenceWarning', 'Evidence photos help protect your work in case of disputes. Are you sure you want to continue without uploading photos?'))) {
       onClose();
     }
   };
@@ -171,10 +173,10 @@ export default function TaskEvidenceUploadModal({
           <div>
             <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <Camera className="h-6 w-6 text-sky-600" />
-              Fotos de Evidencia
+              {t('contracts.evidencePhotos', 'Evidence Photos')}
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              Documenta el estado inicial de las tareas antes de comenzar
+              {t('contracts.documentInitialState', 'Document the initial state of tasks before starting')}
             </p>
           </div>
           <button
@@ -192,11 +194,11 @@ export default function TaskEvidenceUploadModal({
             <div className="flex gap-3">
               <AlertCircle className="h-5 w-5 text-sky-600 dark:text-sky-400 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-sky-800 dark:text-sky-200">
-                <p className="font-medium mb-1">Importante:</p>
+                <p className="font-medium mb-1">{t('common.important', 'Important')}:</p>
                 <ul className="list-disc list-inside space-y-1">
-                  <li>Saca fotos del estado inicial antes de comenzar cada tarea</li>
-                  <li>Estas fotos servirán como evidencia en caso de disputas</li>
-                  <li>Se recomienda documentar el área de trabajo y materiales</li>
+                  <li>{t('contracts.evidenceTip1', 'Take photos of the initial state before starting each task')}</li>
+                  <li>{t('contracts.evidenceTip2', 'These photos will serve as evidence in case of disputes')}</li>
+                  <li>{t('contracts.evidenceTip3', 'It is recommended to document the work area and materials')}</li>
                 </ul>
               </div>
             </div>
@@ -215,15 +217,15 @@ export default function TaskEvidenceUploadModal({
           ) : tasks.length === 0 ? (
             <div className="text-center py-8 text-gray-500 dark:text-gray-400">
               <CheckCircle className="h-12 w-12 mx-auto mb-3 text-green-500" />
-              <p className="font-medium">Todas las tareas ya tienen evidencia</p>
-              <p className="text-sm mt-1">No hay tareas pendientes de documentar</p>
+              <p className="font-medium">{t('contracts.allTasksHaveEvidence', 'All tasks already have evidence')}</p>
+              <p className="text-sm mt-1">{t('contracts.noTasksPendingDocumentation', 'No tasks pending documentation')}</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Task List */}
               <div className="space-y-2">
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                  Tareas a Documentar ({tasksWithPhotos}/{tasks.length})
+                  {t('contracts.tasksToDocument', 'Tasks to Document')} ({tasksWithPhotos}/{tasks.length})
                 </h3>
                 {tasks.map((task) => {
                   const hasPhotos = photos[task.id]?.length > 0;
@@ -294,7 +296,7 @@ export default function TaskEvidenceUploadModal({
                         {uploading ? (
                           <>
                             <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-sky-600 mb-3"></div>
-                            <span className="text-gray-600 dark:text-gray-400">Subiendo...</span>
+                            <span className="text-gray-600 dark:text-gray-400">{t('common.uploading', 'Uploading...')}</span>
                           </>
                         ) : (
                           <>
@@ -302,10 +304,10 @@ export default function TaskEvidenceUploadModal({
                               <Upload className="h-6 w-6 text-sky-600 dark:text-sky-400" />
                             </div>
                             <span className="font-medium text-gray-900 dark:text-white">
-                              Subir fotos
+                              {t('contracts.uploadPhotos', 'Upload photos')}
                             </span>
                             <span className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                              Haz clic o arrastra imágenes aquí
+                              {t('contracts.clickOrDragImages', 'Click or drag images here')}
                             </span>
                           </>
                         )}
@@ -319,7 +321,7 @@ export default function TaskEvidenceUploadModal({
                           <div key={index} className="relative group">
                             <img
                               src={photo}
-                              alt={`Evidencia ${index + 1}`}
+                              alt={t('contracts.evidencePhoto', 'Evidence {{number}}', { number: index + 1 })}
                               className="w-full h-24 object-cover rounded-lg"
                             />
                             <button
@@ -347,10 +349,10 @@ export default function TaskEvidenceUploadModal({
             <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Progreso
+                  {t('common.progress', 'Progress')}
                 </span>
                 <span className="text-sm text-gray-600 dark:text-gray-400">
-                  {tasksWithPhotos} de {tasks.length} tareas documentadas
+                  {t('contracts.tasksDocumented', '{{done}} of {{total}} tasks documented', { done: tasksWithPhotos, total: tasks.length })}
                 </span>
               </div>
               <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
@@ -371,14 +373,14 @@ export default function TaskEvidenceUploadModal({
               disabled={loading}
               className="flex-1"
             >
-              Omitir por ahora
+              {t('contracts.skipForNow', 'Skip for now')}
             </Button>
             <Button
               onClick={handleSubmit}
               disabled={loading || uploading || totalPhotosUploaded === 0}
               className="flex-1 bg-sky-600 hover:bg-sky-700 text-white"
             >
-              {loading ? 'Guardando...' : `Guardar Evidencia (${totalPhotosUploaded} fotos)`}
+              {loading ? t('common.saving', 'Saving...') : t('contracts.saveEvidence', 'Save Evidence ({{count}} photos)', { count: totalPhotosUploaded })}
             </Button>
           </div>
         </div>

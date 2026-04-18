@@ -236,7 +236,10 @@ app.use("/uploads", (req, res, next) => {
   next();
 }, express.static(path.join(__dirname, "../uploads")));
 
-// API Routes
+// Feature Flags
+import { features } from '../shared/featureFlags.js';
+
+// API Routes (core - always enabled)
 app.use("/api/auth", authRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/jobs", jobsRoutes);
@@ -244,27 +247,32 @@ app.use("/api/contracts", contractsRoutes);
 app.use("/api/payments", paymentsRoutes);
 app.use("/api/matching", matchingRoutes);
 app.use("/api/negotiation", negotiationRoutes);
-console.log("📋 Tickets stack:", (ticketsRoutes as any).stack?.length || 0, "routes");
-app.use("/api/tickets", ticketsRoutes);
-console.log("📋 Tickets route mounted to Express");
-app.use("/api/reviews", reviewsRoutes);
-app.use("/api/chat", chatRoutes);
-app.use("/api/notifications", notificationsRoutes);
 app.use("/api/search", searchRoutes);
-app.use("/api/portfolio", portfolioRoutes);
-app.use("/api/disputes", disputesRoutes);
-app.use("/api/proposals", proposalsRoutes);
-app.use("/api/referrals", referralsRoutes);
-app.use("/api/membership", membershipRoutes);
-app.use("/api/contract-change-requests", contractChangeRequestsRoutes);
 app.use("/api/webhooks", webhooksRoutes);
-app.use("/api/advertisements", advertisementsRoutes);
 app.use("/api/contact", contactRoutes);
-app.use("/api/blogs", blogsRoutes);
-app.use("/api/balance", balanceRoutes);
-app.use("/api/posts", postsRoutes);
-app.use("/api/promoter", promoterRoutes);
+app.use("/api/contract-change-requests", contractChangeRequestsRoutes);
 app.use("/api/user-analytics", userAnalyticsRoutes);
+
+// API Routes (feature-flagged)
+if (features.tickets) app.use("/api/tickets", ticketsRoutes);
+if (features.reviews) app.use("/api/reviews", reviewsRoutes);
+if (features.chat) app.use("/api/chat", chatRoutes);
+if (features.inAppNotifications) app.use("/api/notifications", notificationsRoutes);
+if (features.portfolio) app.use("/api/portfolio", portfolioRoutes);
+if (features.disputes) app.use("/api/disputes", disputesRoutes);
+if (features.proposals) app.use("/api/proposals", proposalsRoutes);
+if (features.referrals) app.use("/api/referrals", referralsRoutes);
+if (features.membership) app.use("/api/membership", membershipRoutes);
+if (features.advertisements) app.use("/api/advertisements", advertisementsRoutes);
+if (features.blog) app.use("/api/blogs", blogsRoutes);
+if (features.balance) app.use("/api/balance", balanceRoutes);
+if (features.blog) app.use("/api/posts", postsRoutes);
+if (features.advertisements) app.use("/api/promoter", promoterRoutes);
+
+// Feature flags endpoint (public)
+app.get("/api/features", (_req, res) => {
+  res.json({ success: true, features });
+});
 
 // MercadoPago OAuth routes - DISABLED (requires marketplace account)
 // app.use("/api/mercadopago", (await import('./routes/mercadopagoOAuth.js')).default);
@@ -283,6 +291,7 @@ app.use("/api/admin/contact", adminContactRoutes);
 app.use("/api/admin/blogs", adminBlogsRoutes);
 app.use("/api/admin/withdrawals", (await import('./routes/admin/withdrawals.js')).default);
 app.use("/api/admin/payments", (await import('./routes/admin/payments.js')).default);
+app.use("/api/admin/search", (await import('./routes/admin/search.js')).default);
 app.use("/api/admin/company-balance", companyBalanceRoutes);
 app.use("/api/admin/marketing", marketingRoutes);
 app.use("/api/admin/family-codes", familyCodesRoutes);

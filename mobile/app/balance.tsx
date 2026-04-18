@@ -12,7 +12,7 @@ import {
   Platform,
   Linking,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
@@ -37,6 +37,7 @@ type TabType = 'transactions' | 'withdrawals' | 'invoices';
 
 export default function BalanceScreen() {
   const router = useRouter();
+  const { tab } = useLocalSearchParams<{ tab?: string }>();
   const { colors: themeColors } = useTheme();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
 
@@ -47,7 +48,9 @@ export default function BalanceScreen() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabType>('transactions');
+  const [activeTab, setActiveTab] = useState<TabType>(
+    tab === 'withdrawals' ? 'withdrawals' : tab === 'invoices' ? 'invoices' : 'transactions'
+  );
   const [showWithdrawForm, setShowWithdrawForm] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [cbu, setCbu] = useState('');

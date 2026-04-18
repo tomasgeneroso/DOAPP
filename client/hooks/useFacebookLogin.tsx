@@ -1,7 +1,9 @@
 import { useState, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { FB_SDK_READY_EVENT } from "../components/FacebookSDK";
 
 export function useFacebookLogin() {
+  const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Initialize states based on current SDK status
@@ -27,16 +29,16 @@ export function useFacebookLogin() {
           localStorage.setItem("user", JSON.stringify(data.user));
           window.location.href = "/";
         } else {
-          setError(data.message || "Error al autenticar con Facebook");
+          setError(data.message || t('auth.facebookAuthError', 'Error authenticating with Facebook'));
           setIsLoading(false);
         }
       })
       .catch((err) => {
-        setError("Error de conexión con el servidor");
+        setError(t('auth.serverConnectionError', 'Server connection error'));
         setIsLoading(false);
         console.error("Facebook login error:", err);
       });
-  }, []);
+  }, [t]);
 
   // Check Facebook SDK ready on mount (without checking login status)
   // Note: If SDK is already initialized, states are set correctly at initialization
@@ -92,7 +94,7 @@ export function useFacebookLogin() {
             if (response.status === "connected" && response.authResponse) {
               authenticateWithBackend(response.authResponse.accessToken, response.authResponse.userID);
             } else {
-              setError("Autenticación cancelada o denegada");
+              setError(t('auth.facebookCancelled', 'Authentication cancelled or denied'));
               setIsLoading(false);
             }
           },
@@ -100,14 +102,14 @@ export function useFacebookLogin() {
         );
       } catch (e) {
         console.error('Error calling FB.login:', e);
-        setError("Error al iniciar sesión con Facebook");
+        setError(t('auth.facebookLoginError', 'Error logging in with Facebook'));
         setIsLoading(false);
       }
     };
 
     // Start attempt after a small delay to ensure everything is ready
     setTimeout(attemptLogin, 100);
-  }, [authenticateWithBackend]);
+  }, [authenticateWithBackend, t]);
 
   return {
     loginWithFacebook,

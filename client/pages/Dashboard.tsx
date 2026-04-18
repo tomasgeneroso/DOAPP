@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useSocket } from "../hooks/useSocket";
@@ -18,6 +19,7 @@ import {
   Sparkles,
   Gift,
   Users,
+  ArrowDownCircle,
 } from "lucide-react";
 
 interface DashboardStats {
@@ -34,6 +36,7 @@ interface DashboardStats {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { registerDashboardRefreshHandler, registerContractUpdateHandler, registerProposalUpdateHandler, registerJobUpdateHandler } = useSocket();
   const [stats, setStats] = useState<DashboardStats>({
@@ -224,29 +227,29 @@ export default function Dashboard() {
   // Grupo 1: Finanzas
   const financeCards = [
     {
-      title: "Ingresos por Trabajos",
+      title: t('balance.earnings'),
       value: `$${stats.totalEarnings.toLocaleString()}`,
       icon: TrendingUp,
       color: "text-green-500",
       bgColor: "bg-green-100 dark:bg-green-900/20",
       link: "/dashboard/earnings",
-      description: "Dinero recibido (sin comisiones)",
+      description: t('dashboard.earningsDescription', 'Money received (without commissions)'),
     },
     {
-      title: "Gastos en Contrataciones",
+      title: t('balance.expenses'),
       value: `$${stats.totalSpent.toLocaleString()}`,
       icon: TrendingDown,
       color: "text-red-500",
       bgColor: "bg-red-100 dark:bg-red-900/20",
       link: "/dashboard/expenses",
-      description: "Incluye comisión de plataforma",
+      description: t('dashboard.expensesDescription', 'Includes platform commission'),
     },
   ];
 
   // Grupo 2: Trabajos y Contratos
   const jobsAndContractsCards = [
     {
-      title: "Trabajos Publicados",
+      title: t('dashboard.postedJobs', 'Posted jobs'),
       value: stats.postedJobs.toString(),
       icon: Briefcase,
       color: "text-indigo-500",
@@ -258,7 +261,7 @@ export default function Dashboard() {
         const parts = [];
 
         if (initialUsed > 0) {
-          parts.push(`${initialUsed} iniciales`);
+          parts.push(`${initialUsed} ${t('dashboard.initial', 'initial')}`);
         }
         if (monthlyUsed > 0 && monthlyFreeLimit > 0) {
           const tierName = user?.membershipTier === 'super_pro' ? 'SUPER PRO' : 'PRO';
@@ -266,13 +269,13 @@ export default function Dashboard() {
         }
 
         if (parts.length > 0) {
-          return `Usaste: ${parts.join(', ')}`;
+          return `${t('dashboard.used', 'Used')}: ${parts.join(', ')}`;
         }
-        return "Trabajos que publicaste como cliente";
+        return t('dashboard.postedJobsDescription', 'Jobs you posted as a client');
       })(),
     },
     {
-      title: "Contratos Activos",
+      title: t('dashboard.activeContracts', 'Active contracts'),
       value: stats.activeContracts.toString(),
       icon: Briefcase,
       color: "text-sky-500",
@@ -280,7 +283,7 @@ export default function Dashboard() {
       link: "/dashboard/active-contracts",
     },
     {
-      title: "Contratos Completados",
+      title: t('jobs.status.completed'),
       value: stats.completedContracts.toString(),
       icon: CheckCircle,
       color: "text-emerald-500",
@@ -292,7 +295,7 @@ export default function Dashboard() {
   // Grupo 3: Propuestas
   const proposalsCards = [
     {
-      title: "Total Propuestas",
+      title: t('dashboard.totalProposals', 'Total proposals'),
       value: stats.totalProposals.toString(),
       icon: FileText,
       color: "text-violet-500",
@@ -300,7 +303,7 @@ export default function Dashboard() {
       link: "/dashboard/proposals",
     },
     {
-      title: "Propuestas Pendientes",
+      title: t('dashboard.pendingProposals', 'Pending proposals'),
       value: stats.pendingProposals.toString(),
       icon: Clock,
       color: "text-amber-500",
@@ -308,7 +311,7 @@ export default function Dashboard() {
       link: "/dashboard/proposals?status=pending",
     },
     {
-      title: "Propuestas Aprobadas",
+      title: t('dashboard.approvedProposals', 'Approved proposals'),
       value: stats.approvedProposals.toString(),
       icon: CheckCircle,
       color: "text-teal-500",
@@ -316,7 +319,7 @@ export default function Dashboard() {
       link: "/dashboard/proposals?status=approved",
     },
     {
-      title: "Propuestas Rechazadas",
+      title: t('dashboard.rejectedProposals', 'Rejected proposals'),
       value: stats.rejectedProposals.toString(),
       icon: XCircle,
       color: "text-rose-500",
@@ -334,7 +337,7 @@ export default function Dashboard() {
             Dashboard
           </h1>
           <p className="mt-2 text-slate-600 dark:text-slate-400">
-            Resumen de tu actividad en la plataforma
+            {t('dashboard.subtitle', 'Summary of your activity on the platform')}
           </p>
         </div>
 
@@ -347,7 +350,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium opacity-90">
-                {(user?.balance || 0) >= 0 ? "Saldo Disponible" : "Saldo Deudor"}
+                {(user?.balance || 0) >= 0 ? t('dashboard.availableBalance', 'Available balance') : t('dashboard.debtBalance', 'Debt balance')}
               </p>
               <p className="mt-2 text-4xl font-bold">
                 {(user?.balance || 0) >= 0
@@ -357,20 +360,20 @@ export default function Dashboard() {
               </p>
               <p className="mt-1 text-xs opacity-70">
                 {(user?.balance || 0) >= 0
-                  ? "Tu saldo disponible en la plataforma"
-                  : "Tienes pagos pendientes por completar"
+                  ? t('dashboard.availableBalanceDesc', 'Your available balance on the platform')
+                  : t('dashboard.debtBalanceDesc', 'You have pending payments to complete')
                 }
               </p>
               <p className="mt-2 text-sm opacity-80">
                 {(user?.balance || 0) >= 0 ? (
                   <span className="flex items-center gap-1">
                     <TrendingUp className="h-4 w-4" />
-                    Saldo a favor
+                    {t('dashboard.positiveBalance', 'Positive balance')}
                   </span>
                 ) : (
                   <span className="flex items-center gap-1">
                     <TrendingDown className="h-4 w-4" />
-                    Trabajos pausados hasta completar pago
+                    {t('dashboard.jobsPausedUntilPayment', 'Jobs paused until payment is completed')}
                   </span>
                 )}
               </p>
@@ -380,13 +383,37 @@ export default function Dashboard() {
                   className="mt-4 inline-flex items-center gap-2 bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                 >
                   <DollarSign className="h-4 w-4" />
-                  Completar Pago
+                  {t('dashboard.completePayment', 'Complete payment')}
                 </Link>
               )}
             </div>
             <DollarSign className="h-16 w-16 opacity-20" />
           </div>
         </div>
+
+        {/* Retiro de Saldo - debajo del balance */}
+        {(user?.balance || 0) >= 0 && (
+          <div className="mb-8 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center flex-shrink-0">
+                <ArrowDownCircle className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <p className="font-semibold text-slate-900 dark:text-white">{t('dashboard.withdrawalTitle')}</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  {t('dashboard.withdrawalAvailable')}: <span className="font-medium text-emerald-600 dark:text-emerald-400">${(user?.balance || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })} ARS</span>
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/withdrawals"
+              className="flex-shrink-0 inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium text-sm transition-colors"
+            >
+              <ArrowDownCircle className="w-4 h-4" />
+              {t('dashboard.withdrawalRequest')}
+            </Link>
+          </div>
+        )}
 
         {/* Selector de Planes para usuarios FREE - Justo debajo del balance */}
         {isFreeUser && (
@@ -404,11 +431,11 @@ export default function Dashboard() {
                   </div>
                   <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
                     <span className="bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-blue-600">
-                      Elige tu Plan
+                      {t('dashboard.choosePlan', 'Choose your plan')}
                     </span>
                   </h2>
                   <p className="text-slate-600 dark:text-slate-300">
-                    Desbloquea todo el potencial de DOAPP
+                    {t('dashboard.unlockPotential', 'Unlock the full potential of DOAPP')}
                   </p>
                 </div>
 
@@ -422,7 +449,7 @@ export default function Dashboard() {
                     <div className="text-center mb-4">
                       <Crown className="w-10 h-10 text-purple-600 dark:text-purple-400 mx-auto mb-2" />
                       <h3 className="text-lg font-bold text-slate-900 dark:text-white">PRO Mensual</h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Más popular</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{t('dashboard.mostPopular', 'Most popular')}</p>
                     </div>
                     <div className="text-center mb-4">
                       <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">$4.999</div>
@@ -435,11 +462,11 @@ export default function Dashboard() {
                       </li>
                       <li className="flex items-start gap-2">
                         <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                        <span>Dashboard completo</span>
+                        <span>{t('dashboard.fullDashboard', 'Full dashboard')}</span>
                       </li>
                       <li className="flex items-start gap-2">
                         <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                        <span>Badge verificado</span>
+                        <span>{t('dashboard.verifiedBadge', 'Verified badge')}</span>
                       </li>
                     </ul>
                   </div>
@@ -451,17 +478,17 @@ export default function Dashboard() {
                   >
                     <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                       <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-                        AHORRA 11%
+                        {t('dashboard.save11', 'SAVE 11%')}
                       </span>
                     </div>
                     <div className="text-center mb-4">
                       <Crown className="w-10 h-10 text-green-600 dark:text-green-400 mx-auto mb-2" />
                       <h3 className="text-lg font-bold text-slate-900 dark:text-white">PRO Trimestral</h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Mejor valor</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{t('dashboard.bestValue', 'Best value')}</p>
                     </div>
                     <div className="text-center mb-4">
                       <div className="text-3xl font-bold text-green-600 dark:text-green-400">$13.347</div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">ARS cada 3 meses</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{t('dashboard.arsEvery3Months', 'ARS every 3 months')}</p>
                       <p className="text-xs text-green-600 dark:text-green-400 font-semibold mt-1">$4.449/mes</p>
                     </div>
                     <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300 mb-4">
@@ -471,11 +498,11 @@ export default function Dashboard() {
                       </li>
                       <li className="flex items-start gap-2">
                         <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                        <span>Dashboard completo</span>
+                        <span>{t('dashboard.fullDashboard', 'Full dashboard')}</span>
                       </li>
                       <li className="flex items-start gap-2">
                         <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
-                        <span>Badge verificado</span>
+                        <span>{t('dashboard.verifiedBadge', 'Verified badge')}</span>
                       </li>
                     </ul>
                   </div>
@@ -493,7 +520,7 @@ export default function Dashboard() {
                     <div className="text-center mb-4">
                       <Sparkles className="w-10 h-10 text-pink-600 dark:text-pink-400 mx-auto mb-2" />
                       <h3 className="text-lg font-bold text-slate-900 dark:text-white">SUPER PRO</h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Máximo ahorro</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{t('dashboard.maximumSavings', 'Maximum savings')}</p>
                     </div>
                     <div className="text-center mb-4">
                       <div className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-600 to-purple-600">$8.999</div>
@@ -502,15 +529,15 @@ export default function Dashboard() {
                     <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300 mb-4">
                       <li className="flex items-start gap-2">
                         <CheckCircle className="w-4 h-4 text-pink-500 flex-shrink-0 mt-0.5" />
-                        <span><strong>1% de comisión</strong></span>
+                        <span><strong>{t('dashboard.onePercentCommission', '1% commission')}</strong></span>
                       </li>
                       <li className="flex items-start gap-2">
                         <CheckCircle className="w-4 h-4 text-pink-500 flex-shrink-0 mt-0.5" />
-                        <span>Analytics avanzados</span>
+                        <span>{t('dashboard.advancedAnalytics', 'Advanced analytics')}</span>
                       </li>
                       <li className="flex items-start gap-2">
                         <CheckCircle className="w-4 h-4 text-pink-500 flex-shrink-0 mt-0.5" />
-                        <span>Dashboard exclusivo</span>
+                        <span>{t('dashboard.exclusiveDashboard', 'Exclusive dashboard')}</span>
                       </li>
                     </ul>
                   </div>
@@ -518,7 +545,7 @@ export default function Dashboard() {
 
                 {/* Footer Note */}
                 <p className="text-center text-xs text-slate-500 dark:text-slate-400">
-                  Todos los planes incluyen cancelación cuando quieras
+                  {t('dashboard.allPlansIncludeCancellation', 'All plans include cancellation anytime')}
                 </p>
               </div>
             </div>
@@ -531,7 +558,7 @@ export default function Dashboard() {
           {/* Sección: Finanzas */}
           <div className="mb-8">
             <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
-              💰 Finanzas
+              {t('dashboard.finances', 'Finances')}
             </h2>
             <div className="grid gap-6 md:grid-cols-2">
               {financeCards.map((stat, index) => {
@@ -556,7 +583,7 @@ export default function Dashboard() {
                           </p>
                         )}
                         <p className="mt-1 text-xs text-sky-600 dark:text-sky-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                          Ver detalles →
+                          {t('common.viewDetails', 'View details')} →
                         </p>
                       </div>
                       <div className={`rounded-full p-3 ${stat.bgColor} group-hover:scale-110 transition-transform flex-shrink-0`}>
@@ -572,7 +599,7 @@ export default function Dashboard() {
           {/* Sección: Trabajos y Contratos */}
           <div className="mb-8">
             <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
-              💼 Trabajos y Contratos
+              {t('dashboard.jobsAndContracts', 'Jobs & Contracts')}
             </h2>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {jobsAndContractsCards.map((stat, index) => {
@@ -597,7 +624,7 @@ export default function Dashboard() {
                           </p>
                         )}
                         <p className="mt-1 text-xs text-sky-600 dark:text-sky-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                          Ver detalles →
+                          {t('common.viewDetails', 'View details')} →
                         </p>
                       </div>
                       <div className={`rounded-full p-3 ${stat.bgColor} group-hover:scale-110 transition-transform flex-shrink-0`}>
@@ -613,7 +640,7 @@ export default function Dashboard() {
           {/* Sección: Propuestas */}
           <div className="mb-8">
             <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
-              📄 Propuestas
+              {t('dashboard.proposals', 'Proposals')}
             </h2>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
               {proposalsCards.map((stat, index) => {
@@ -633,7 +660,7 @@ export default function Dashboard() {
                           {stat.value}
                         </p>
                         <p className="mt-1 text-xs text-sky-600 dark:text-sky-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                          Ver detalles →
+                          {t('common.viewDetails', 'View details')} →
                         </p>
                       </div>
                       <div className={`rounded-full p-3 ${stat.bgColor} group-hover:scale-110 transition-transform flex-shrink-0`}>
@@ -654,7 +681,7 @@ export default function Dashboard() {
             >
               <DollarSign className="mx-auto h-8 w-8 text-green-500" />
               <p className="mt-2 font-medium text-slate-900 dark:text-white">
-                Ver Pagos
+                {t('dashboard.viewPayments', 'View payments')}
               </p>
             </Link>
           </div>
@@ -664,7 +691,7 @@ export default function Dashboard() {
             <div className="mt-8">
               <div className="rounded-xl bg-white dark:bg-slate-800 p-6 shadow-sm border border-slate-200 dark:border-slate-700">
                 <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4">
-                  Mis Puntuaciones
+                  {t('dashboard.myRatings', 'My ratings')}
                 </h2>
                 <MultipleRatings user={user} showAll={true} />
               </div>
@@ -678,32 +705,32 @@ export default function Dashboard() {
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
                     <Gift className="h-8 w-8" />
-                    <p className="text-sm font-medium opacity-90">Programa de Referidos</p>
+                    <p className="text-sm font-medium opacity-90">{t('dashboard.referralProgram', 'Referral program')}</p>
                   </div>
                   <p className="text-3xl font-bold mb-2">
-                    Invita y Gana
+                    {t('dashboard.inviteAndEarn', 'Invite & Earn')}
                   </p>
                   <p className="text-sm opacity-80 mb-4">
-                    Comparte tu código con amigos y obtén beneficios increíbles
+                    {t('dashboard.shareCodeDescription', 'Share your code with friends and get amazing benefits')}
                   </p>
                   <div className="flex items-center gap-6">
                     <div className="flex items-center gap-2">
                       <Users className="h-5 w-5" />
                       <div>
-                        <p className="text-xs opacity-70">Referidos</p>
+                        <p className="text-xs opacity-70">{t('dashboard.referrals', 'Referrals')}</p>
                         <p className="text-lg font-bold">{user?.totalReferrals || 0}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Gift className="h-5 w-5" />
                       <div>
-                        <p className="text-xs opacity-70">Contratos Gratis</p>
+                        <p className="text-xs opacity-70">{t('dashboard.freeContracts', 'Free contracts')}</p>
                         <p className="text-lg font-bold">{user?.freeContractsRemaining || 0}</p>
                       </div>
                     </div>
                   </div>
                   <p className="mt-4 text-sm opacity-90 flex items-center gap-1">
-                    Ver mi código y detalles →
+                    {t('dashboard.viewMyCodeAndDetails', 'View my code and details')} →
                   </p>
                 </div>
                 <Gift className="h-20 w-20 opacity-20" />
@@ -721,17 +748,17 @@ export default function Dashboard() {
                     <div>
                       <div className="flex items-center gap-3 mb-2">
                         <Crown className="h-8 w-8 text-yellow-300" />
-                        <p className="text-sm font-medium opacity-90">Membresía PRO</p>
+                        <p className="text-sm font-medium opacity-90">{t('dashboard.proMembership', 'PRO Membership')}</p>
                       </div>
                       <p className="text-3xl font-bold">
-                        Ver Dashboard
+                        {t('dashboard.viewDashboard', 'View Dashboard')}
                       </p>
                       <p className="mt-1 text-sm opacity-70">
-                        Contratos gratis y bonus mensuales
+                        {t('dashboard.freeContractsAndBonus', 'Free contracts and monthly bonuses')}
                       </p>
                       <p className="mt-2 text-sm opacity-80 flex items-center gap-1">
                         <Sparkles className="h-4 w-4" />
-                        Accede a tus estadísticas PRO
+                        {t('dashboard.accessProStats', 'Access your PRO stats')}
                       </p>
                     </div>
                     <Crown className="h-16 w-16 opacity-20" />
@@ -746,7 +773,7 @@ export default function Dashboard() {
                     <div>
                       <div className="flex items-center gap-3 mb-2">
                         <Sparkles className="h-8 w-8 text-yellow-300" />
-                        <p className="text-sm font-medium opacity-90">Upgrade Disponible</p>
+                        <p className="text-sm font-medium opacity-90">{t('dashboard.upgradeAvailable', 'Upgrade available')}</p>
                       </div>
                       <p className="text-3xl font-bold">
                         SUPER PRO
@@ -756,7 +783,7 @@ export default function Dashboard() {
                       </p>
                       <p className="mt-2 text-sm opacity-80 flex items-center gap-1">
                         <Crown className="h-4 w-4 text-yellow-300" />
-                        $8.999/mes - Mejora tu plan
+                        {t('dashboard.upgradeYourPlan', '$8.999/mo - Upgrade your plan')}
                       </p>
                     </div>
                     <Sparkles className="h-16 w-16 opacity-20" />
@@ -774,20 +801,20 @@ export default function Dashboard() {
                   <div>
                     <div className="flex items-center gap-3 mb-2">
                       <Sparkles className="h-8 w-8 text-yellow-300 animate-pulse" />
-                      <p className="text-sm font-medium opacity-90">Membresía SUPER PRO</p>
+                      <p className="text-sm font-medium opacity-90">{t('dashboard.superProMembership', 'SUPER PRO Membership')}</p>
                       <span className="text-xs bg-yellow-400 text-purple-900 px-3 py-1 rounded-full font-bold">
                         PREMIUM
                       </span>
                     </div>
                     <p className="text-3xl font-bold">
-                      Ver Dashboard Premium
+                      {t('dashboard.viewPremiumDashboard', 'View Premium Dashboard')}
                     </p>
                     <p className="mt-1 text-sm opacity-70">
-                      1% de comisión + Analytics avanzados
+                      {t('dashboard.onePercentPlusAnalytics', '1% commission + Advanced analytics')}
                     </p>
                     <p className="mt-2 text-sm opacity-80 flex items-center gap-1">
                       <Crown className="h-4 w-4 text-yellow-300" />
-                      Accede a tu dashboard exclusivo SUPER PRO
+                      {t('dashboard.accessSuperProDashboard', 'Access your exclusive SUPER PRO dashboard')}
                     </p>
                   </div>
                   <Sparkles className="h-16 w-16 opacity-20" />

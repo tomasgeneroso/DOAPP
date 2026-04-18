@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
 import {
   ArrowLeft,
@@ -30,6 +31,7 @@ interface JobData {
 
 export default function CreatePortfolioPost() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const { token } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -75,16 +77,16 @@ export default function CreatePortfolioPost() {
         setJobData(job);
 
         // Pre-fill form with job data
-        setTitle(`Servicio brindado exitosamente: ${job.title}`);
+        setTitle(t('portfolio.serviceTitle', 'Service provided successfully: {{title}}', { title: job.title }));
         setDescription(job.description || '');
         setCategory(job.category || '');
         setTags(job.tags?.join(', ') || '');
       } else {
-        setError('No se pudo cargar la información del trabajo');
+        setError(t('portfolio.loadJobError', 'Could not load job information'));
       }
     } catch (err) {
       console.error('Error fetching job:', err);
-      setError('Error al cargar el trabajo');
+      setError(t('portfolio.loadJobError', 'Error loading job'));
     } finally {
       setLoading(false);
     }
@@ -98,7 +100,7 @@ export default function CreatePortfolioPost() {
     const maxImages = 10;
 
     if (images.length + newFiles.length > maxImages) {
-      setError(`Máximo ${maxImages} imágenes permitidas`);
+      setError(t('portfolio.maxImages', 'Maximum {{max}} images allowed', { max: maxImages }));
       return;
     }
 
@@ -149,7 +151,7 @@ export default function CreatePortfolioPost() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Error al crear el portfolio');
+        throw new Error(data.message || t('portfolio.createError', 'Error creating portfolio'));
       }
 
       const portfolioId = data.data?._id || data.data?.id;
@@ -233,7 +235,7 @@ export default function CreatePortfolioPost() {
       }, 2000);
 
     } catch (err: any) {
-      setError(err.message || 'Error al crear el portfolio');
+      setError(err.message || t('portfolio.createError', 'Error creating portfolio'));
     } finally {
       setSubmitting(false);
     }
@@ -246,9 +248,9 @@ export default function CreatePortfolioPost() {
     const end = jobData.endDate ? new Date(jobData.endDate) : new Date();
     const diffDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
 
-    if (diffDays < 7) return `${diffDays} días`;
-    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} semanas`;
-    return `${Math.ceil(diffDays / 30)} meses`;
+    if (diffDays < 7) return t('portfolio.durationDays', '{{count}} days', { count: diffDays });
+    if (diffDays < 30) return t('portfolio.durationWeeks', '{{count}} weeks', { count: Math.ceil(diffDays / 7) });
+    return t('portfolio.durationMonths', '{{count}} months', { count: Math.ceil(diffDays / 30) });
   };
 
   if (loading) {
@@ -256,7 +258,7 @@ export default function CreatePortfolioPost() {
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="h-12 w-12 animate-spin text-sky-500 mx-auto" />
-          <p className="mt-4 text-slate-600 dark:text-slate-400">Cargando...</p>
+          <p className="mt-4 text-slate-600 dark:text-slate-400">{t('common.loading', 'Loading...')}</p>
         </div>
       </div>
     );
@@ -270,12 +272,12 @@ export default function CreatePortfolioPost() {
             <CheckCircle className="h-12 w-12 text-green-500" />
           </div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-            Publicado Exitosamente
+            {t('portfolio.publishedSuccess', 'Published Successfully')}
           </h2>
           <p className="text-slate-600 dark:text-slate-400 mb-4">
-            Tu trabajo ha sido compartido en tu portfolio
+            {t('portfolio.sharedInPortfolio', 'Your work has been shared in your portfolio')}
           </p>
-          <p className="text-sm text-slate-500">Redirigiendo...</p>
+          <p className="text-sm text-slate-500">{t('common.redirecting', 'Redirecting...')}</p>
         </div>
       </div>
     );
@@ -294,10 +296,10 @@ export default function CreatePortfolioPost() {
           </button>
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-              Compartir Trabajo Completado
+              {t('portfolio.shareCompletedWork', 'Share Completed Work')}
             </h1>
             <p className="text-slate-600 dark:text-slate-400">
-              Muestra tu trabajo en tu portfolio
+              {t('portfolio.showInPortfolio', 'Show your work in your portfolio')}
             </p>
           </div>
         </div>
@@ -308,7 +310,7 @@ export default function CreatePortfolioPost() {
             <Trophy className="h-6 w-6 text-green-500 flex-shrink-0" />
             <div>
               <p className="font-medium text-green-800 dark:text-green-200">
-                Trabajo completado exitosamente
+                {t('portfolio.workCompletedSuccess', 'Work completed successfully')}
               </p>
               <p className="text-sm text-green-600 dark:text-green-400">
                 {jobData.title}
@@ -327,13 +329,13 @@ export default function CreatePortfolioPost() {
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
-              Información del Trabajo
+              {t('portfolio.workInfo', 'Work Information')}
             </h2>
 
             {/* Title */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                Título de la publicación *
+                {t('portfolio.postTitle', 'Post title')} *
               </label>
               <input
                 type="text"
@@ -341,14 +343,14 @@ export default function CreatePortfolioPost() {
                 onChange={(e) => setTitle(e.target.value)}
                 required
                 className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                placeholder="Ej: Servicio brindado exitosamente: Desarrollo Web"
+                placeholder={t('portfolio.titlePlaceholder', 'E.g.: Service provided successfully: Web Development')}
               />
             </div>
 
             {/* Description */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                Descripción *
+                {t('portfolio.description', 'Description')} *
               </label>
               <textarea
                 value={description}
@@ -356,14 +358,14 @@ export default function CreatePortfolioPost() {
                 required
                 rows={5}
                 className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent resize-none"
-                placeholder="Describe el trabajo realizado, los resultados obtenidos y cualquier detalle relevante..."
+                placeholder={t('portfolio.descriptionPlaceholder', 'Describe the work performed, the results obtained, and any relevant details...')}
               />
             </div>
 
             {/* Category */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                Categoría *
+                {t('portfolio.category', 'Category')} *
               </label>
               <select
                 value={category}
@@ -371,32 +373,32 @@ export default function CreatePortfolioPost() {
                 required
                 className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"
               >
-                <option value="">Seleccionar categoría</option>
-                <option value="desarrollo_web">Desarrollo Web</option>
-                <option value="diseno_grafico">Diseño Gráfico</option>
-                <option value="marketing">Marketing</option>
-                <option value="redaccion">Redacción</option>
-                <option value="video">Video y Animación</option>
-                <option value="musica">Música y Audio</option>
-                <option value="hogar">Hogar y Mantenimiento</option>
-                <option value="educacion">Educación</option>
-                <option value="salud">Salud y Bienestar</option>
-                <option value="transporte">Transporte</option>
-                <option value="otro">Otro</option>
+                <option value="">{t('portfolio.selectCategory', 'Select category')}</option>
+                <option value="desarrollo_web">{t('portfolio.categories.webDev', 'Web Development')}</option>
+                <option value="diseno_grafico">{t('portfolio.categories.graphicDesign', 'Graphic Design')}</option>
+                <option value="marketing">{t('portfolio.categories.marketing', 'Marketing')}</option>
+                <option value="redaccion">{t('portfolio.categories.writing', 'Writing')}</option>
+                <option value="video">{t('portfolio.categories.video', 'Video and Animation')}</option>
+                <option value="musica">{t('portfolio.categories.music', 'Music and Audio')}</option>
+                <option value="hogar">{t('portfolio.categories.home', 'Home and Maintenance')}</option>
+                <option value="educacion">{t('portfolio.categories.education', 'Education')}</option>
+                <option value="salud">{t('portfolio.categories.health', 'Health and Wellness')}</option>
+                <option value="transporte">{t('portfolio.categories.transport', 'Transport')}</option>
+                <option value="otro">{t('portfolio.categories.other', 'Other')}</option>
               </select>
             </div>
 
             {/* Tags */}
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                Tags (separados por comas)
+                {t('portfolio.tags', 'Tags (comma separated)')}
               </label>
               <input
                 type="text"
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
                 className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                placeholder="Ej: React, TypeScript, E-commerce"
+                placeholder={t('portfolio.tagsPlaceholder', 'E.g.: React, TypeScript, E-commerce')}
               />
             </div>
           </div>
@@ -404,11 +406,11 @@ export default function CreatePortfolioPost() {
           {/* Images Section */}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
             <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
-              Imágenes del Trabajo
+              {t('portfolio.workImages', 'Work Images')}
             </h2>
 
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
-              Agrega capturas de pantalla, fotos del trabajo realizado o cualquier imagen relevante (máx. 10)
+              {t('portfolio.imagesHint', 'Add screenshots, photos of the work done, or any relevant images (max. 10)')}
             </p>
 
             {/* Image Previews */}
@@ -452,10 +454,10 @@ export default function CreatePortfolioPost() {
                 <Image className="h-6 w-6 text-slate-500" />
               </div>
               <span className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                Subir imágenes
+                {t('portfolio.uploadImages', 'Upload images')}
               </span>
               <span className="text-xs text-slate-500">
-                JPG, PNG, WebP - Máx 5MB cada una
+                {t('portfolio.imageFormats', 'JPG, PNG, WebP - Max 5MB each')}
               </span>
             </button>
           </div>
@@ -465,10 +467,10 @@ export default function CreatePortfolioPost() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                  Publicar también en mi perfil
+                  {t('portfolio.alsoPublishProfile', 'Also publish on my profile')}
                 </h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                  Además del portfolio, se creará un post visible en tu perfil
+                  {t('portfolio.alsoPublishDesc', 'In addition to the portfolio, a post visible on your profile will be created')}
                 </p>
               </div>
               <button
@@ -490,7 +492,7 @@ export default function CreatePortfolioPost() {
             {publishAsPost && (
               <div className="mt-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
                 <p className="text-sm text-green-700 dark:text-green-300">
-                  ✓ Tu trabajo aparecerá en tu portfolio y como un post en tu perfil
+                  {t('portfolio.publishConfirmation', 'Your work will appear in your portfolio and as a post on your profile')}
                 </p>
               </div>
             )}
@@ -500,24 +502,24 @@ export default function CreatePortfolioPost() {
           {jobData && (
             <div className="bg-slate-100 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
               <h3 className="text-sm font-medium text-slate-500 dark:text-slate-400 mb-3">
-                Datos del trabajo original
+                {t('portfolio.originalJobData', 'Original job data')}
               </h3>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-slate-500 dark:text-slate-400">Precio:</span>
+                  <span className="text-slate-500 dark:text-slate-400">{t('portfolio.price', 'Price')}:</span>
                   <span className="ml-2 font-medium text-slate-900 dark:text-white">
                     ${jobData.price?.toLocaleString('es-AR')} ARS
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-500 dark:text-slate-400">Duración:</span>
+                  <span className="text-slate-500 dark:text-slate-400">{t('portfolio.duration', 'Duration')}:</span>
                   <span className="ml-2 font-medium text-slate-900 dark:text-white">
                     {calculateDuration()}
                   </span>
                 </div>
                 {jobData.location && (
                   <div>
-                    <span className="text-slate-500 dark:text-slate-400">Ubicación:</span>
+                    <span className="text-slate-500 dark:text-slate-400">{t('portfolio.location', 'Location')}:</span>
                     <span className="ml-2 font-medium text-slate-900 dark:text-white">
                       {jobData.location}
                     </span>
@@ -534,7 +536,7 @@ export default function CreatePortfolioPost() {
               onClick={() => navigate(-1)}
               className="flex-1 py-3 px-6 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-medium hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
             >
-              Cancelar
+              {t('common.cancel', 'Cancel')}
             </button>
             <button
               type="submit"
@@ -544,12 +546,12 @@ export default function CreatePortfolioPost() {
               {submitting ? (
                 <>
                   <Loader2 className="h-5 w-5 animate-spin" />
-                  Publicando...
+                  {t('portfolio.publishing', 'Publishing...')}
                 </>
               ) : (
                 <>
                   <Upload className="h-5 w-5" />
-                  Publicar en Portfolio
+                  {t('portfolio.publishToPortfolio', 'Publish to Portfolio')}
                 </>
               )}
             </button>

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { Link, useSearchParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { useSocket } from "../hooks/useSocket";
 import {
@@ -117,6 +118,7 @@ type MainTab = "published" | "applied";
 type ViewMode = "list" | "calendar";
 
 export default function MyJobsScreen() {
+  const { t } = useTranslation();
   const { user, token, refreshUser } = useAuth();
   const { isConnected, registerJobUpdateHandler, registerMyJobsRefreshHandler, registerJobsRefreshHandler, registerNewProposalHandler } = useSocket();
   const [searchParams] = useSearchParams();
@@ -542,18 +544,18 @@ export default function MyJobsScreen() {
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
-      published: "Publicado",
-      open: "Abierto",
-      draft: "Borrador",
-      pending_payment: "Pendiente de Pago",
-      pending_approval: "Pendiente de Aprobación",
-      completed: "Completado",
-      cancelled: "Cancelado",
-      in_progress: "En Progreso",
-      pending: "Pendiente",
-      approved: "Aprobada",
-      rejected: "Rechazada",
-      disputed: "En Disputa",
+      published: t('jobs.status.published', 'Publicado'),
+      open: t('jobs.status.open', 'Abierto'),
+      draft: t('jobs.status.draft', 'Borrador'),
+      pending_payment: t('jobs.status.pending_payment', 'Pendiente de Pago'),
+      pending_approval: t('jobs.status.pending_approval', 'Pendiente de Aprobación'),
+      completed: t('jobs.status.completed', 'Completado'),
+      cancelled: t('jobs.status.cancelled', 'Cancelado'),
+      in_progress: t('jobs.status.in_progress', 'En Progreso'),
+      pending: t('jobs.status.pending', 'Pendiente'),
+      approved: t('jobs.status.approved', 'Aprobada'),
+      rejected: t('jobs.status.rejected', 'Rechazada'),
+      disputed: t('jobs.status.disputed', 'En Disputa'),
     };
     return labels[status] || status;
   };
@@ -580,7 +582,7 @@ export default function MyJobsScreen() {
       return (
         <div className="flex items-center gap-2 px-3 py-1 bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-400 rounded-full text-xs font-medium">
           <Upload className="h-3 w-3" />
-          <span>Subir Comprobante</span>
+          <span>{t('jobs.uploadProof', 'Subir Comprobante')}</span>
         </div>
       );
     }
@@ -589,7 +591,7 @@ export default function MyJobsScreen() {
       return (
         <div className="flex items-center gap-2 px-3 py-1 bg-sky-100 dark:bg-sky-900/20 text-sky-800 dark:text-sky-400 rounded-full text-xs font-medium">
           <Clock className="h-3 w-3" />
-          <span>Pago en Revisión</span>
+          <span>{t('jobs.paymentInReview', 'Pago en Revisión')}</span>
         </div>
       );
     }
@@ -598,7 +600,7 @@ export default function MyJobsScreen() {
       return (
         <div className="flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-400 rounded-full text-xs font-medium">
           <CheckCircle className="h-3 w-3" />
-          <span>Pago Aprobado</span>
+          <span>{t('jobs.paymentApproved', 'Pago Aprobado')}</span>
         </div>
       );
     }
@@ -607,7 +609,7 @@ export default function MyJobsScreen() {
       return (
         <div className="flex items-center gap-2 px-3 py-1 bg-amber-100 dark:bg-amber-900/20 text-amber-800 dark:text-amber-400 rounded-full text-xs font-medium">
           <AlertCircle className="h-3 w-3" />
-          <span>Pago Pendiente</span>
+          <span>{t('jobs.paymentPending', 'Pago Pendiente')}</span>
         </div>
       );
     }
@@ -703,7 +705,7 @@ export default function MyJobsScreen() {
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-500 mx-auto"></div>
-          <p className="mt-4 text-slate-600 dark:text-slate-400">Cargando trabajos...</p>
+          <p className="mt-4 text-slate-600 dark:text-slate-400">{t('common.loading', 'Cargando...')}</p>
         </div>
       </div>
     );
@@ -716,10 +718,10 @@ export default function MyJobsScreen() {
         <div className="mb-8 flex items-start justify-between">
           <div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-              Agenda Do
+              {t('jobs.myJobs', 'Agenda Do')}
             </h1>
             <p className="mt-2 text-slate-600 dark:text-slate-400">
-              Administra tus trabajos publicados y postulaciones
+              {t('jobs.myJobsSubtitle', 'Administra tus trabajos publicados y postulaciones')}
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -728,14 +730,14 @@ export default function MyJobsScreen() {
               <button
                 onClick={() => setViewMode("list")}
                 className={`p-2 ${viewMode === "list" ? 'bg-sky-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
-                title="Vista de lista"
+                title={t('jobs.listView')}
               >
                 <List className="h-5 w-5" />
               </button>
               <button
                 onClick={() => setViewMode("calendar")}
                 className={`p-2 border-l border-slate-200 dark:border-slate-700 ${viewMode === "calendar" ? 'bg-sky-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
-                title="Vista de calendario"
+                title={t('jobs.calendarView')}
               >
                 <CalendarDays className="h-5 w-5" />
               </button>
@@ -746,12 +748,12 @@ export default function MyJobsScreen() {
               {isConnected ? (
                 <>
                   <Wifi className="h-4 w-4 text-green-500" />
-                  <span className="text-green-600 dark:text-green-400">Tiempo real</span>
+                  <span className="text-green-600 dark:text-green-400">{t('common.realTime', 'Tiempo real')}</span>
                 </>
               ) : (
                 <>
                   <WifiOff className="h-4 w-4 text-slate-400" />
-                  <span className="text-slate-500">Sin conexión</span>
+                  <span className="text-slate-500">{t('common.disconnected', 'Sin conexión')}</span>
                 </>
               )}
             </div>
@@ -762,13 +764,13 @@ export default function MyJobsScreen() {
         <div className="mb-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
           <button
             onClick={() => setShowAvailability(!showAvailability)}
-            className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
+            className="w-full flex items-center justify-between px-5 py-4 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
           >
             <div className="flex items-center gap-3">
               <Clock className="h-5 w-5 text-sky-500" />
-              <span className="font-semibold text-slate-900 dark:text-white">Disponibilidad</span>
+              <span className="font-semibold text-slate-900 dark:text-white">{t('jobs.availability', 'Disponibilidad')}</span>
               <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full ${isAvailabilityPublic ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'}`}>
-                {isAvailabilityPublic ? <><Eye className="h-3 w-3" /> Pública</> : <><EyeOff className="h-3 w-3" /> Privada</>}
+                {isAvailabilityPublic ? <><Eye className="h-3 w-3" /> {t('jobs.public', 'Pública')}</> : <><EyeOff className="h-3 w-3" /> {t('jobs.private', 'Privada')}</>}
               </span>
             </div>
             {showAvailability ? <ChevronUp className="h-5 w-5 text-slate-400" /> : <ChevronDown className="h-5 w-5 text-slate-400" />}
@@ -778,7 +780,7 @@ export default function MyJobsScreen() {
             <div className="px-5 pb-5 border-t border-slate-100 dark:border-slate-700">
               {/* Public toggle */}
               <div className="flex items-center justify-between py-3">
-                <span className="text-sm text-slate-600 dark:text-slate-400">Visible en tu perfil público</span>
+                <span className="text-sm text-slate-600 dark:text-slate-400">{t('jobs.visibleOnProfile', 'Visible en tu perfil público')}</span>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
                     type="checkbox"
@@ -804,7 +806,7 @@ export default function MyJobsScreen() {
                           ? 'bg-sky-500 text-white border-sky-500'
                           : hasSlots
                           ? 'bg-sky-50 text-sky-700 border-sky-300 dark:bg-sky-900/20 dark:text-sky-400 dark:border-sky-700'
-                          : 'bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-700 dark:text-slate-400 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-650'
+                          : 'bg-slate-50 text-slate-500 border-slate-200 dark:bg-slate-700 dark:text-slate-400 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600'
                       }`}
                     >
                       {name}
@@ -823,12 +825,12 @@ export default function MyJobsScreen() {
                       className="flex items-center gap-1 text-xs font-medium text-sky-600 hover:text-sky-700 bg-sky-50 dark:bg-sky-900/20 px-3 py-1.5 rounded-lg transition-colors"
                     >
                       <Plus className="h-3.5 w-3.5" />
-                      Agregar horario
+                      {t('jobs.addSchedule', 'Agregar horario')}
                     </button>
                   </div>
 
                   {getSlotsForDay(selectedDay).length === 0 ? (
-                    <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-3">Sin horarios configurados</p>
+                    <p className="text-sm text-slate-400 dark:text-slate-500 text-center py-3">{t('jobs.noSchedules', 'Sin horarios configurados')}</p>
                   ) : (
                     <div className="space-y-2">
                       {getSlotsForDay(selectedDay).map((slot, i) => (
@@ -856,7 +858,7 @@ export default function MyJobsScreen() {
                             target="_blank"
                             rel="noopener noreferrer"
                             className="p-2 text-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded-lg transition-colors"
-                            title="Agregar a Google Calendar"
+                            title={t('jobs.addToGoogleCalendar')}
                           >
                             <ExternalLink className="h-4 w-4" />
                           </a>
@@ -882,7 +884,7 @@ export default function MyJobsScreen() {
               {savingAvailability && (
                 <div className="flex items-center justify-center gap-2 py-2 text-slate-500 dark:text-slate-400 text-sm">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Guardando...
+                  {t('common.saving', 'Guardando...')}
                 </div>
               )}
             </div>
@@ -900,7 +902,7 @@ export default function MyJobsScreen() {
             }`}
           >
             <Briefcase className="h-5 w-5" />
-            Mis Publicaciones ({jobs.length})
+            {t('jobs.myPublications', 'Mis Publicaciones')} ({jobs.length})
           </button>
           <button
             onClick={() => setMainTab("applied")}
@@ -911,7 +913,7 @@ export default function MyJobsScreen() {
             }`}
           >
             <Send className="h-5 w-5" />
-            Mis Postulaciones ({proposals.length})
+            {t('jobs.myApplications', 'Mis Postulaciones')} ({proposals.length})
           </button>
         </div>
 
@@ -919,7 +921,7 @@ export default function MyJobsScreen() {
         {viewMode === "calendar" && (
           <JobsCalendar
             jobs={calendarJobs}
-            title={mainTab === "published" ? "Calendario de Publicaciones" : "Calendario de Postulaciones"}
+            title={mainTab === "published" ? t('jobs.calendarPublished') : t('jobs.calendarApplied')}
             availabilitySlots={availabilitySlots}
             onAddAvailability={handleCalendarAddAvailability}
             onRemoveAvailability={handleCalendarRemoveAvailability}
@@ -934,7 +936,7 @@ export default function MyJobsScreen() {
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">Total</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('common.total', 'Total')}</p>
                     <p className="text-2xl font-bold text-slate-900 dark:text-white">{jobs.length}</p>
                   </div>
                   <Briefcase className="h-8 w-8 text-slate-400" />
@@ -944,7 +946,7 @@ export default function MyJobsScreen() {
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">Publicados</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('jobs.filter.published', 'Publicados')}</p>
                     <p className="text-2xl font-bold text-green-600">{publishedCount}</p>
                   </div>
                   <CheckCircle className="h-8 w-8 text-green-500" />
@@ -954,7 +956,7 @@ export default function MyJobsScreen() {
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">Completados</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('jobs.filter.completed', 'Completados')}</p>
                     <p className="text-2xl font-bold text-blue-600">{completedJobsCount}</p>
                   </div>
                   <Trophy className="h-8 w-8 text-blue-500" />
@@ -964,7 +966,7 @@ export default function MyJobsScreen() {
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">En Disputa</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('jobs.filter.disputed', 'En Disputa')}</p>
                     <p className="text-2xl font-bold text-orange-600">{disputedJobsCount}</p>
                   </div>
                   <AlertTriangle className="h-8 w-8 text-orange-500" />
@@ -974,7 +976,7 @@ export default function MyJobsScreen() {
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">Pago Pendiente</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('jobs.filter.pendingPayment', 'Pago Pendiente')}</p>
                     <p className="text-2xl font-bold text-amber-600">{pendingPaymentCount}</p>
                   </div>
                   <AlertCircle className="h-8 w-8 text-amber-500" />
@@ -984,7 +986,7 @@ export default function MyJobsScreen() {
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">Borradores</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('jobs.filter.drafts', 'Borradores')}</p>
                     <p className="text-2xl font-bold text-slate-600">{draftCount}</p>
                   </div>
                   <FileText className="h-8 w-8 text-slate-400" />
@@ -1002,7 +1004,7 @@ export default function MyJobsScreen() {
                     : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                 }`}
               >
-                Todos ({jobs.length})
+                {t('common.all', 'Todos')} ({jobs.length})
               </button>
               <button
                 onClick={() => setFilter("published")}
@@ -1012,7 +1014,7 @@ export default function MyJobsScreen() {
                     : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                 }`}
               >
-                Publicados ({publishedCount})
+                {t('jobs.filter.published', 'Publicados')} ({publishedCount})
               </button>
               <button
                 onClick={() => setFilter("completed")}
@@ -1022,7 +1024,7 @@ export default function MyJobsScreen() {
                     : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                 }`}
               >
-                Completados ({completedJobsCount})
+                {t('jobs.filter.completed', 'Completados')} ({completedJobsCount})
               </button>
               <button
                 onClick={() => setFilter("disputed")}
@@ -1032,7 +1034,7 @@ export default function MyJobsScreen() {
                     : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                 }`}
               >
-                En Disputa ({disputedJobsCount})
+                {t('jobs.filter.disputed', 'En Disputa')} ({disputedJobsCount})
               </button>
               <button
                 onClick={() => setFilter("pending_payment")}
@@ -1042,7 +1044,7 @@ export default function MyJobsScreen() {
                     : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                 }`}
               >
-                Pago Pendiente ({pendingPaymentCount})
+                {t('jobs.filter.pendingPayment', 'Pago Pendiente')} ({pendingPaymentCount})
               </button>
               <button
                 onClick={() => setFilter("draft")}
@@ -1052,7 +1054,7 @@ export default function MyJobsScreen() {
                     : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                 }`}
               >
-                Borradores ({draftCount})
+                {t('jobs.filter.drafts', 'Borradores')} ({draftCount})
               </button>
             </div>
 
@@ -1061,13 +1063,13 @@ export default function MyJobsScreen() {
               <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                 <Briefcase className="h-12 w-12 text-slate-400 mx-auto mb-4" />
                 <p className="text-slate-600 dark:text-slate-400">
-                  No tienes trabajos en este momento
+                  {t('jobs.noJobs', 'No tienes trabajos en este momento')}
                 </p>
                 <Link
                   to="/create-job"
                   className="mt-4 inline-block px-6 py-2 bg-sky-500 hover:bg-sky-600 text-white font-medium rounded-lg transition-colors"
                 >
-                  Publicar Trabajo
+                  {t('jobs.publishJob', 'Publicar Trabajo')}
                 </Link>
               </div>
             ) : (
@@ -1107,7 +1109,7 @@ export default function MyJobsScreen() {
                         <p className="text-2xl font-bold text-sky-600">
                           ${job.price.toLocaleString()} ARS
                         </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Precio</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{t('common.price', 'Precio')}</p>
                       </div>
                     </div>
 
@@ -1126,7 +1128,7 @@ export default function MyJobsScreen() {
                       )}
                       <div className="flex items-center gap-1">
                         <FileText className="h-4 w-4" />
-                        <span>{job.proposalCount} propuestas</span>
+                        <span>{job.proposalCount} {t('jobs.proposals', 'propuestas')}</span>
                       </div>
                     </div>
 
@@ -1151,7 +1153,7 @@ export default function MyJobsScreen() {
                         className="flex items-center gap-2 px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white font-medium rounded-lg transition-colors text-sm"
                       >
                         <Eye className="h-4 w-4" />
-                        Ver Detalles
+                        {t('common.viewDetails', 'Ver Detalles')}
                       </Link>
 
                       <div className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium ${
@@ -1160,7 +1162,7 @@ export default function MyJobsScreen() {
                           : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
                       }`}>
                         <FileText className="h-4 w-4" />
-                        <span>{job.proposalCount} {job.proposalCount === 1 ? 'postulado' : 'postulados'}</span>
+                        <span>{job.proposalCount} {job.proposalCount === 1 ? t('jobs.applicant', 'postulado') : t('jobs.applicants', 'postulados')}</span>
                       </div>
 
                       {job.payment?.requiresProof && !job.payment?.proofSubmitted && (
@@ -1169,7 +1171,7 @@ export default function MyJobsScreen() {
                           className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white font-medium rounded-lg transition-colors text-sm"
                         >
                           <Upload className="h-4 w-4" />
-                          Subir Comprobante
+                          {t('jobs.uploadProof', 'Subir Comprobante')}
                         </Link>
                       )}
 
@@ -1185,12 +1187,12 @@ export default function MyJobsScreen() {
                           {confirmingJobId === job.id ? (
                             <>
                               <Loader2 className="h-4 w-4 animate-spin" />
-                              Confirmando...
+                              {t('common.confirming', 'Confirmando...')}
                             </>
                           ) : (
                             <>
                               <CheckCircle className="h-4 w-4" />
-                              Confirmar trabajo realizado
+                              {t('jobs.confirmWorkDone', 'Confirmar trabajo realizado')}
                             </>
                           )}
                         </button>
@@ -1202,7 +1204,7 @@ export default function MyJobsScreen() {
                         jobContracts[job.id] && jobContracts[job.id].clientConfirmed && !jobContracts[job.id].doerConfirmed && (
                         <div className="flex items-center gap-2 px-3 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg text-sm">
                           <Clock className="h-4 w-4" />
-                          Esperando confirmación del trabajador
+                          {t('jobs.waitingWorkerConfirmation', 'Esperando confirmación del trabajador')}
                         </div>
                       )}
 
@@ -1212,7 +1214,7 @@ export default function MyJobsScreen() {
                           className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors text-sm"
                         >
                           <Share2 className="h-4 w-4" />
-                          Compartir en Portfolio
+                          {t('jobs.sharePortfolio', 'Compartir en Portfolio')}
                         </button>
                       )}
                     </div>
@@ -1231,7 +1233,7 @@ export default function MyJobsScreen() {
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">Total</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('common.total', 'Total')}</p>
                     <p className="text-2xl font-bold text-slate-900 dark:text-white">{proposals.length}</p>
                   </div>
                   <Send className="h-8 w-8 text-slate-400" />
@@ -1241,7 +1243,7 @@ export default function MyJobsScreen() {
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">Pendientes</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('jobs.filter.pending', 'Pendientes')}</p>
                     <p className="text-2xl font-bold text-amber-600">{pendingProposalsCount}</p>
                   </div>
                   <Clock className="h-8 w-8 text-amber-500" />
@@ -1251,7 +1253,7 @@ export default function MyJobsScreen() {
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">Aprobadas</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('jobs.filter.approved', 'Aprobadas')}</p>
                     <p className="text-2xl font-bold text-green-600">{approvedProposalsCount}</p>
                   </div>
                   <CheckCircle className="h-8 w-8 text-green-500" />
@@ -1261,7 +1263,7 @@ export default function MyJobsScreen() {
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">Completados</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('jobs.filter.completed', 'Completados')}</p>
                     <p className="text-2xl font-bold text-blue-600">{completedProposalsCount}</p>
                   </div>
                   <Trophy className="h-8 w-8 text-blue-500" />
@@ -1271,7 +1273,7 @@ export default function MyJobsScreen() {
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">En Disputa</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('jobs.filter.disputed', 'En Disputa')}</p>
                     <p className="text-2xl font-bold text-orange-600">{disputedProposalsCount}</p>
                   </div>
                   <AlertTriangle className="h-8 w-8 text-orange-500" />
@@ -1281,7 +1283,7 @@ export default function MyJobsScreen() {
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">Rechazadas</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('jobs.filter.rejected', 'Rechazadas')}</p>
                     <p className="text-2xl font-bold text-red-600">{rejectedProposalsCount}</p>
                   </div>
                   <AlertCircle className="h-8 w-8 text-red-500" />
@@ -1299,7 +1301,7 @@ export default function MyJobsScreen() {
                     : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                 }`}
               >
-                Todas ({proposals.length})
+                {t('common.all', 'Todas')} ({proposals.length})
               </button>
               <button
                 onClick={() => setProposalFilter("pending")}
@@ -1309,7 +1311,7 @@ export default function MyJobsScreen() {
                     : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                 }`}
               >
-                Pendientes ({pendingProposalsCount})
+                {t('jobs.filter.pending', 'Pendientes')} ({pendingProposalsCount})
               </button>
               <button
                 onClick={() => setProposalFilter("approved")}
@@ -1319,7 +1321,7 @@ export default function MyJobsScreen() {
                     : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                 }`}
               >
-                Aprobadas ({approvedProposalsCount})
+                {t('jobs.filter.approved', 'Aprobadas')} ({approvedProposalsCount})
               </button>
               <button
                 onClick={() => setProposalFilter("completed")}
@@ -1329,7 +1331,7 @@ export default function MyJobsScreen() {
                     : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                 }`}
               >
-                Completados ({completedProposalsCount})
+                {t('jobs.filter.completed', 'Completados')} ({completedProposalsCount})
               </button>
               <button
                 onClick={() => setProposalFilter("disputed")}
@@ -1339,7 +1341,7 @@ export default function MyJobsScreen() {
                     : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                 }`}
               >
-                En Disputa ({disputedProposalsCount})
+                {t('jobs.filter.disputed', 'En Disputa')} ({disputedProposalsCount})
               </button>
               <button
                 onClick={() => setProposalFilter("rejected")}
@@ -1349,7 +1351,7 @@ export default function MyJobsScreen() {
                     : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
                 }`}
               >
-                Rechazadas ({rejectedProposalsCount})
+                {t('jobs.filter.rejected', 'Rechazadas')} ({rejectedProposalsCount})
               </button>
             </div>
 
@@ -1357,19 +1359,19 @@ export default function MyJobsScreen() {
             {loadingProposals ? (
               <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500 mx-auto"></div>
-                <p className="mt-4 text-slate-600 dark:text-slate-400">Cargando postulaciones...</p>
+                <p className="mt-4 text-slate-600 dark:text-slate-400">{t('jobs.loadingApplications', 'Cargando postulaciones...')}</p>
               </div>
             ) : filteredProposals.length === 0 ? (
               <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
                 <Send className="h-12 w-12 text-slate-400 mx-auto mb-4" />
                 <p className="text-slate-600 dark:text-slate-400">
-                  No tienes postulaciones {proposalFilter !== "all" ? `${getStatusLabel(proposalFilter).toLowerCase()}s` : ""}
+                  {t('jobs.noApplications', 'No tienes postulaciones')}
                 </p>
                 <Link
                   to="/"
                   className="mt-4 inline-block px-6 py-2 bg-sky-500 hover:bg-sky-600 text-white font-medium rounded-lg transition-colors"
                 >
-                  Explorar Trabajos
+                  {t('jobs.exploreJobs', 'Explorar Trabajos')}
                 </Link>
               </div>
             ) : (
@@ -1394,10 +1396,10 @@ export default function MyJobsScreen() {
                         </p>
                         <div className="flex flex-wrap items-center gap-2">
                           <span className={`px-3 py-1 rounded-full text-xs font-medium ${getProposalStatusColor(proposal.status)}`}>
-                            Propuesta {getStatusLabel(proposal.status)}
+                            {t('jobs.proposal', 'Propuesta')} {getStatusLabel(proposal.status)}
                           </span>
                           <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(proposal.job.status)}`}>
-                            Trabajo {getStatusLabel(proposal.job.status)}
+                            {t('jobs.job', 'Trabajo')} {getStatusLabel(proposal.job.status)}
                           </span>
                           {proposal.job.category && (
                             <div className="flex items-center gap-1 px-3 py-1 bg-sky-100 dark:bg-sky-900/20 text-sky-800 dark:text-sky-400 rounded-full text-xs">
@@ -1411,7 +1413,7 @@ export default function MyJobsScreen() {
                         <p className="text-2xl font-bold text-sky-600">
                           ${proposal.proposedPrice.toLocaleString()} ARS
                         </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">Tu oferta</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{t('proposals.yourOffer', 'Tu oferta')}</p>
                         {proposal.proposedPrice !== proposal.job.price && (
                           <p className="text-xs text-slate-400 line-through">
                             ${proposal.job.price.toLocaleString()} original
@@ -1430,19 +1432,19 @@ export default function MyJobsScreen() {
                       {proposal.job.startDate && (
                         <div className="flex items-center gap-1">
                           <Calendar className="h-4 w-4" />
-                          <span>Inicio: {new Date(proposal.job.startDate).toLocaleDateString("es-AR")}</span>
+                          <span>{t('jobs.start', 'Inicio')}: {new Date(proposal.job.startDate).toLocaleDateString("es-AR")}</span>
                         </div>
                       )}
                       <div className="flex items-center gap-1">
                         <Clock className="h-4 w-4" />
-                        <span>Enviada: {new Date(proposal.createdAt).toLocaleDateString("es-AR")}</span>
+                        <span>{t('proposals.sent', 'Enviada')}: {new Date(proposal.createdAt).toLocaleDateString("es-AR")}</span>
                       </div>
                     </div>
 
                     {/* Cover Letter Preview */}
                     {proposal.coverLetter && (
                       <div className="mb-4 p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">Tu mensaje:</p>
+                        <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-1">{t('proposals.yourMessage', 'Tu mensaje')}:</p>
                         <p className="text-sm text-slate-700 dark:text-slate-300 line-clamp-2">
                           {proposal.coverLetter}
                         </p>
@@ -1456,14 +1458,14 @@ export default function MyJobsScreen() {
                         className="flex items-center gap-2 px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white font-medium rounded-lg transition-colors text-sm"
                       >
                         <Eye className="h-4 w-4" />
-                        Ver Trabajo
+                        {t('jobs.viewJob', 'Ver Trabajo')}
                       </Link>
                       <button
                         onClick={() => setViewMode("calendar")}
                         className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 font-medium rounded-lg transition-colors text-sm"
                       >
                         <CalendarDays className="h-4 w-4" />
-                        Ver en Calendario
+                        {t('jobs.viewCalendar', 'Ver en Calendario')}
                       </button>
 
                       {/* Confirm button for workers - proposals that have ended */}
@@ -1479,12 +1481,12 @@ export default function MyJobsScreen() {
                           {confirmingProposalJobId === proposal.job.id ? (
                             <>
                               <Loader2 className="h-4 w-4 animate-spin" />
-                              Confirmando...
+                              {t('common.confirming', 'Confirmando...')}
                             </>
                           ) : (
                             <>
                               <CheckCircle className="h-4 w-4" />
-                              Confirmar mi trabajo
+                              {t('jobs.confirmMyWork', 'Confirmar mi trabajo')}
                             </>
                           )}
                         </button>
@@ -1497,7 +1499,7 @@ export default function MyJobsScreen() {
                         proposalContracts[proposal.job.id] && proposalContracts[proposal.job.id].doerConfirmed && !proposalContracts[proposal.job.id].clientConfirmed && (
                         <div className="flex items-center gap-2 px-3 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-lg text-sm">
                           <Clock className="h-4 w-4" />
-                          Esperando confirmación del cliente
+                          {t('jobs.waitingClientConfirmation', 'Esperando confirmación del cliente')}
                         </div>
                       )}
 
@@ -1507,7 +1509,7 @@ export default function MyJobsScreen() {
                           className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors text-sm"
                         >
                           <Share2 className="h-4 w-4" />
-                          Compartir en Portfolio
+                          {t('jobs.sharePortfolio', 'Compartir en Portfolio')}
                         </button>
                       )}
                     </div>
@@ -1528,10 +1530,10 @@ export default function MyJobsScreen() {
                 <CheckCircle className="h-10 w-10 text-green-500" />
               </div>
               <h3 className="text-2xl font-bold text-white mb-2">
-                ¡Gracias por confirmar el trabajo!
+                {t('jobs.confirmSuccess', '¡Gracias por confirmar el trabajo!')}
               </h3>
               <p className="text-slate-300">
-                Gracias por confiar en DoApp, nosotros nos encargamos de que el pago llegue a destino.
+                {t('jobs.confirmSuccessDesc', 'Gracias por confiar en DoApp, nosotros nos encargamos de que el pago llegue a destino.')}
               </p>
             </div>
 
@@ -1540,7 +1542,7 @@ export default function MyJobsScreen() {
                 onClick={() => setShowConfirmationSuccessModal(false)}
                 className="rounded-xl bg-gradient-to-r from-green-500 to-green-600 px-8 py-3 font-semibold text-white shadow-lg transition-all hover:from-green-600 hover:to-green-700"
               >
-                Entendido
+                {t('common.understood', 'Entendido')}
               </button>
             </div>
           </div>
@@ -1556,10 +1558,10 @@ export default function MyJobsScreen() {
                 <CheckCircle className="h-10 w-10 text-sky-500" />
               </div>
               <h3 className="text-2xl font-bold text-white mb-2">
-                Disponibilidad guardada
+                {t('jobs.availabilitySaved', 'Disponibilidad guardada')}
               </h3>
               <p className="text-slate-300">
-                Tu agenda de disponibilidad se actualizó correctamente.
+                {t('jobs.availabilitySavedDesc', 'Tu agenda de disponibilidad se actualizó correctamente.')}
               </p>
             </div>
 
@@ -1568,7 +1570,7 @@ export default function MyJobsScreen() {
                 onClick={() => setShowAvailabilitySuccessModal(false)}
                 className="rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 px-8 py-3 font-semibold text-white shadow-lg transition-all hover:from-sky-600 hover:to-sky-700"
               >
-                Entendido
+                {t('common.understood', 'Entendido')}
               </button>
             </div>
           </div>
@@ -1599,7 +1601,7 @@ export default function MyJobsScreen() {
                 }}
                 className="rounded-xl bg-gradient-to-r from-red-500 to-red-600 px-8 py-3 font-semibold text-white shadow-lg transition-all hover:from-red-600 hover:to-red-700"
               >
-                Entendido
+                {t('common.understood', 'Entendido')}
               </button>
             </div>
           </div>

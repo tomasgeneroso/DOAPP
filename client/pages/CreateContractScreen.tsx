@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
+import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -58,6 +59,7 @@ function FormField({
 }
 
 export default function CreateContractScreen() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { user, refreshUser, token } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -225,7 +227,7 @@ export default function CreateContractScreen() {
       }
     } catch (err: any) {
       setError(
-        err.message || "No se pudo publicar el trabajo. Inténtalo de nuevo."
+        err.message || t('contracts.errorPublishing', 'Could not publish the job. Please try again.')
       );
     } finally {
       setIsSubmitting(false);
@@ -288,10 +290,10 @@ export default function CreateContractScreen() {
   return (
     <>
       <Helmet>
-        <title>Crear Nuevo Contrato - DoApp</title>
+        <title>{t('contracts.createPageTitle', 'Create New Contract - DoApp')}</title>
         <meta
           name="description"
-          content="Publica un nuevo trabajo o servicio en DoApp."
+          content={t('contracts.createMetaDescription', 'Post a new job or service on DoApp.')}
         />
       </Helmet>
       <div className="container mx-auto max-w-4xl py-8 px-4">
@@ -300,67 +302,66 @@ export default function CreateContractScreen() {
             to="/"
             className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white"
           >
-            &larr; Volver al inicio
+            &larr; {t('common.backToHome', 'Back to home')}
           </Link>
         </div>
 
         <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
-          Publicar un nuevo trabajo
+          {t('contracts.publishNewJob', 'Publish a new job')}
         </h1>
         <p className="mt-2 text-lg leading-8 text-gray-600 dark:text-slate-400">
-          Describe el servicio que necesitas para que los profesionales puedan
-          postularse.
+          {t('contracts.publishDescription', 'Describe the service you need so professionals can apply.')}
         </p>
 
         <form onSubmit={handleSubmit} className="mt-10 space-y-8">
           <div className="space-y-6 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-6 shadow-sm">
             <FormField
-              label="Título del trabajo"
+              label={t('jobs.titleLabel', 'Job title')}
               icon={FileText}
-              description="Sé claro y específico."
+              description={t('jobs.titleDescription', 'Be clear and specific.')}
             >
               <input
                 name="title"
                 type="text"
                 required
-                placeholder="Ej: Reparación de cañería en cocina"
+                placeholder={t('jobs.titlePlaceholder', 'E.g.: Kitchen pipe repair')}
                 className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
               />
             </FormField>
 
             <FormField
-              label="Resumen breve"
+              label={t('jobs.summaryLabel', 'Brief summary')}
               icon={FileText}
-              description="Un resumen corto del trabajo (máximo 200 caracteres)"
+              description={t('jobs.summaryDescription', 'A short summary of the job (max 200 characters)')}
             >
               <input
                 name="summary"
                 type="text"
                 required
                 maxLength={200}
-                placeholder="Ej: Necesito arreglar una pérdida de agua en la cocina"
+                placeholder={t('jobs.summaryPlaceholder', 'E.g.: I need to fix a water leak in the kitchen')}
                 className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
               />
             </FormField>
 
             <FormField
-              label="Descripción detallada"
+              label={t('jobs.descriptionLabel', 'Detailed description')}
               icon={FileText}
-              description="Incluye todos los detalles importantes del servicio requerido."
+              description={t('jobs.descriptionDescription', 'Include all important details of the required service.')}
             >
               <textarea
                 name="description"
                 rows={5}
                 required
-                placeholder="Describe el problema, qué esperas que se haga, si se necesitan materiales especiales, etc."
+                placeholder={t('jobs.descriptionPlaceholder', 'Describe the problem, what you expect to be done, if special materials are needed, etc.')}
                 className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
               />
             </FormField>
 
             <FormField
-              label="Categoría"
+              label={t('jobs.categoryLabel', 'Category')}
               icon={Tag}
-              description="Selecciona la categoría que mejor describe tu trabajo"
+              description={t('jobs.categoryDescription', 'Select the category that best describes your job')}
             >
               <select
                 value={selectedCategory}
@@ -368,7 +369,7 @@ export default function CreateContractScreen() {
                 required
                 className="block w-full rounded-md border-0 py-2 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
               >
-                <option value="">Seleccionar categoría...</option>
+                <option value="">{t('jobs.selectCategory', 'Select category...')}</option>
                 {JOB_CATEGORIES.map((cat) => (
                   <option key={cat.id} value={cat.id}>
                     {cat.icon} {cat.label}
@@ -378,9 +379,9 @@ export default function CreateContractScreen() {
             </FormField>
 
             <FormField
-              label="Etiquetas"
+              label={t('jobs.tagsLabel', 'Tags')}
               icon={Tag}
-              description="Agrega etiquetas para ayudar a que tu trabajo sea encontrado (máximo 10)"
+              description={t('jobs.tagsDescription', 'Add tags to help your job be found (max 10)')}
             >
               <div className="space-y-3">
                 {/* Selected tags */}
@@ -426,7 +427,7 @@ export default function CreateContractScreen() {
                     value={customTag}
                     onChange={(e) => setCustomTag(e.target.value)}
                     onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), handleAddCustomTag())}
-                    placeholder="O agrega una etiqueta personalizada"
+                    placeholder={t('jobs.customTagPlaceholder', 'Or add a custom tag')}
                     disabled={selectedTags.length >= 10}
                     className="block flex-1 rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50"
                   />
@@ -436,7 +437,7 @@ export default function CreateContractScreen() {
                     disabled={!customTag.trim() || selectedTags.length >= 10}
                     className="px-4 py-2 bg-sky-500 text-white rounded-md hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                   >
-                    Agregar
+                    {t('common.add', 'Add')}
                   </button>
                 </div>
               </div>
@@ -444,7 +445,7 @@ export default function CreateContractScreen() {
 
             <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
               <div className="sm:col-span-3">
-                <FormField label="Presupuesto (ARS)" icon={DollarSign}>
+                <FormField label={t('jobs.budgetLabel', 'Budget (ARS)')} icon={DollarSign}>
                   <input
                     name="budget"
                     type="number"
@@ -462,11 +463,11 @@ export default function CreateContractScreen() {
                 </FormField>
               </div>
               <div className="sm:col-span-3">
-                <FormField label="Ubicación" icon={MapPin}>
+                <FormField label={t('jobs.locationLabel', 'Location')} icon={MapPin}>
                   <LocationAutocomplete
                     value={location}
                     onChange={setLocation}
-                    placeholder="Ej: Palermo, CABA"
+                    placeholder={t('jobs.locationPlaceholder')}
                     required
                     name="location"
                   />
@@ -477,22 +478,22 @@ export default function CreateContractScreen() {
             {/* Address details */}
             <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
               <div className="sm:col-span-3">
-                <FormField label="Calle" icon={Home}>
+                <FormField label={t('jobs.streetLabel', 'Street')} icon={Home}>
                   <StreetAutocomplete
                     value={addressStreet}
                     onChange={setAddressStreet}
                     location={location}
-                    placeholder="Ej: Av. Santa Fe"
+                    placeholder={t('jobs.streetPlaceholder')}
                   />
                 </FormField>
               </div>
               <div className="sm:col-span-3">
-                <FormField label="Número" icon={Hash}>
+                <FormField label={t('jobs.numberLabel', 'Number')} icon={Hash}>
                   <input
                     type="text"
                     value={addressNumber}
                     onChange={(e) => setAddressNumber(e.target.value)}
-                    placeholder="Ej: 1234"
+                    placeholder={t('jobs.numberPlaceholder')}
                     className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
                   />
                 </FormField>
@@ -500,40 +501,40 @@ export default function CreateContractScreen() {
             </div>
 
             <FormField
-              label="Detalles de la dirección (opcional)"
+              label={t('jobs.addressDetailsLabel', 'Address details (optional)')}
               icon={MapPin}
-              description="Piso, departamento, entre calles u otras referencias para encontrar el lugar"
+              description={t('jobs.addressDetailsDescription', 'Floor, apartment, cross streets or other references to find the place')}
             >
               <input
                 type="text"
                 value={addressDetails}
                 onChange={(e) => setAddressDetails(e.target.value)}
-                placeholder="Ej: Piso 3, Depto B, timbre 302"
+                placeholder={t('jobs.addressDetailsPlaceholder')}
                 className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
               />
             </FormField>
 
             <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
               <div className="sm:col-span-3">
-                <FormField label="Fecha de inicio" icon={Calendar}>
+                <FormField label={t('jobs.startDateLabel', 'Start date')} icon={Calendar}>
                   <CustomDateInput
                     name="startDate"
                     type="datetime"
                     required
-                    placeholder="Selecciona fecha y hora de inicio"
+                    placeholder={t('jobs.startDatePlaceholder')}
                     minDate={new Date()}
                     onDateChange={(date) => setStartDate(date)}
                   />
                 </FormField>
               </div>
               <div className="sm:col-span-3">
-                <FormField label="Fecha de finalización estimada" icon={Clock}>
+                <FormField label={t('jobs.endDateLabel', 'Estimated end date')} icon={Clock}>
                   {!endDateFlexible && (
                     <CustomDateInput
                       name="endDate"
                       type="datetime"
                       required
-                      placeholder="Selecciona fecha y hora de fin"
+                      placeholder={t('jobs.endDatePlaceholder')}
                       minDate={new Date()}
                       onDateChange={(date) => setEndDate(date)}
                     />
@@ -546,14 +547,14 @@ export default function CreateContractScreen() {
                       className="w-4 h-4 rounded border-gray-300 dark:border-slate-600 text-sky-600 focus:ring-sky-500 dark:bg-slate-700"
                     />
                     <span className="text-sm text-gray-600 dark:text-slate-400">
-                      Todavía no lo sé
+                      {t('jobs.dontKnowYet', "I don't know yet")}
                     </span>
                   </label>
                   {endDateFlexible && (
                     <div className="mt-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
                       <p className="text-sm text-amber-700 dark:text-amber-300">
                         <AlertTriangle className="inline h-4 w-4 mr-1" />
-                        Deberás definir la fecha de fin antes de las 24 horas previas al inicio del trabajo, de lo contrario el trabajo quedará suspendido.
+                        {t('jobs.flexibleEndDateWarning', 'You must define the end date before 24 hours prior to the job start, otherwise the job will be suspended.')}
                       </p>
                     </div>
                   )}
@@ -568,7 +569,7 @@ export default function CreateContractScreen() {
                   <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
                   <div>
                     <p className="font-semibold text-red-800 dark:text-red-200">
-                      Conflicto de horario con "{overlapWarning.jobTitle}"
+                      {t('jobs.scheduleConflict', 'Schedule conflict with "{{jobTitle}}"', { jobTitle: overlapWarning.jobTitle })}
                     </p>
                     <p className="text-sm text-red-700 dark:text-red-300 mt-1">
                       {overlapWarning.message}
@@ -580,9 +581,9 @@ export default function CreateContractScreen() {
 
             {/* Single Delivery Option */}
             <FormField
-              label="Tipo de entrega"
+              label={t('contracts.deliveryType', 'Delivery type')}
               icon={ListTodo}
-              description="Define cómo se entregarán las tareas del trabajo"
+              description={t('contracts.deliveryTypeDescription', 'Define how the job tasks will be delivered')}
             >
               <div className="space-y-3">
                 <label className="flex items-start gap-3 p-4 rounded-lg border border-gray-300 dark:border-slate-600 hover:border-sky-500 dark:hover:border-sky-500 cursor-pointer transition-colors">
@@ -596,10 +597,10 @@ export default function CreateContractScreen() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <CheckCircle className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-                      <span className="font-medium text-gray-900 dark:text-white">Entrega única</span>
+                      <span className="font-medium text-gray-900 dark:text-white">{t('contracts.singleDelivery', 'Single delivery')}</span>
                     </div>
                     <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
-                      Todo el trabajo se entrega al final, en la fecha de finalización estimada.
+                      {t('contracts.singleDeliveryDesc', 'All work is delivered at the end, on the estimated completion date.')}
                     </p>
                   </div>
                 </label>
@@ -615,10 +616,10 @@ export default function CreateContractScreen() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <ListTodo className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-                      <span className="font-medium text-gray-900 dark:text-white">Entregas por tarea</span>
+                      <span className="font-medium text-gray-900 dark:text-white">{t('contracts.taskDelivery', 'Per-task delivery')}</span>
                     </div>
                     <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
-                      Cada tarea puede tener su propia fecha de entrega estimada como guía. La fecha final sigue siendo la importante.
+                      {t('contracts.taskDeliveryDesc', 'Each task can have its own estimated delivery date as a guide. The final date remains the important one.')}
                     </p>
                   </div>
                 </label>
@@ -627,7 +628,7 @@ export default function CreateContractScreen() {
                   <div className="p-3 rounded-lg bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800">
                     <p className="text-sm text-sky-700 dark:text-sky-300">
                       <Info className="inline h-4 w-4 mr-1" />
-                      Podrás agregar tareas con fechas de entrega individuales después de publicar el trabajo.
+                      {t('contracts.addTasksAfterPublish', 'You can add tasks with individual delivery dates after publishing the job.')}
                     </p>
                   </div>
                 )}
@@ -635,9 +636,9 @@ export default function CreateContractScreen() {
             </FormField>
 
             <FormField
-              label="Cantidad de trabajadores"
+              label={t('contracts.workersCount', 'Number of workers')}
               icon={Users}
-              description="¿Cuántas personas necesitas para este trabajo? (1-5)"
+              description={t('contracts.workersCountDescription', 'How many people do you need for this job? (1-5)')}
             >
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
@@ -662,21 +663,21 @@ export default function CreateContractScreen() {
                   </button>
                 </div>
                 <span className="text-sm text-gray-500 dark:text-slate-400">
-                  {maxWorkers === 1 ? "1 trabajador" : `${maxWorkers} trabajadores`}
+                  {maxWorkers === 1 ? t('contracts.oneWorker', '1 worker') : t('contracts.nWorkers', '{{count}} workers', { count: maxWorkers })}
                 </span>
               </div>
               {maxWorkers > 1 && (
                 <div className="mt-3 p-3 rounded-lg bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800">
                   <p className="text-sm text-sky-700 dark:text-sky-300">
                     <Users className="inline h-4 w-4 mr-1" />
-                    Se creará un chat grupal con todos los trabajadores seleccionados
+                    {t('contracts.groupChatInfo', 'A group chat will be created with all selected workers')}
                   </p>
                 </div>
               )}
             </FormField>
 
             <FormField
-              label="Fotos (opcional)"
+              label={t('jobs.photosLabel', 'Photos (optional)')}
               icon={ImageIcon}
             >
               <FileUploadWithPreview
@@ -697,25 +698,25 @@ export default function CreateContractScreen() {
               <AlertTriangle className="h-6 w-6 text-sky-500 dark:text-sky-400 shrink-0 mt-0.5" />
               <div className="space-y-3">
                 <h3 className="font-semibold text-gray-700 dark:text-gray-300">
-                  Condiciones importantes al publicar
+                  {t('contracts.importantConditions', 'Important conditions when publishing')}
                 </h3>
                 <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-2">
                   <li className="flex items-start gap-2">
                     <Info className="h-4 w-4 shrink-0 mt-0.5 text-sky-500 dark:text-sky-400" />
                     <span>
-                      <strong className="text-gray-700 dark:text-gray-300">Selección de trabajador:</strong> Una vez que recibas postulaciones, deberás seleccionar un trabajador antes de las 24 horas previas al inicio del trabajo.
+                      <strong className="text-gray-700 dark:text-gray-300">{t('contracts.workerSelectionLabel', 'Worker selection:')}</strong> {t('contracts.workerSelectionDesc', 'Once you receive applications, you must select a worker before 24 hours prior to the job start.')}
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Info className="h-4 w-4 shrink-0 mt-0.5 text-sky-500 dark:text-sky-400" />
                     <span>
-                      <strong className="text-gray-700 dark:text-gray-300">Auto-selección:</strong> Si no seleccionas un trabajador a tiempo, se asignará automáticamente al primer postulante.
+                      <strong className="text-gray-700 dark:text-gray-300">{t('contracts.autoSelectionLabel', 'Auto-selection:')}</strong> {t('contracts.autoSelectionDesc', 'If you do not select a worker in time, the first applicant will be automatically assigned.')}
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Info className="h-4 w-4 shrink-0 mt-0.5 text-sky-500 dark:text-sky-400" />
                     <span>
-                      <strong className="text-gray-700 dark:text-gray-300">Cancelación:</strong> Si cancelas el trabajo después de publicarlo, perderás la comisión de publicación pagada.
+                      <strong className="text-gray-700 dark:text-gray-300">{t('contracts.cancellationLabel', 'Cancellation:')}</strong> {t('contracts.cancellationDesc', 'If you cancel the job after publishing, you will lose the publication commission paid.')}
                     </span>
                   </li>
                 </ul>
@@ -730,14 +731,14 @@ export default function CreateContractScreen() {
               to="/"
               className="text-sm font-semibold leading-6 text-gray-900 dark:text-slate-300 hover:text-gray-700 dark:hover:text-white"
             >
-              Cancelar
+              {t('common.cancel', 'Cancel')}
             </Link>
             <button
               type="submit"
               disabled={isSubmitting || !!overlapWarning}
               className="rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-sky-500/30 hover:from-sky-600 hover:to-sky-700 hover:shadow-sky-500/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
             >
-              {isSubmitting ? "Publicando..." : overlapWarning ? "Resolvé el conflicto de horario" : "Publicar trabajo"}
+              {isSubmitting ? t('contracts.publishing', 'Publishing...') : overlapWarning ? t('jobs.resolveConflict', 'Resolve the schedule conflict') : t('contracts.publishJob', 'Publish job')}
             </button>
           </div>
         </form>
@@ -755,10 +756,10 @@ export default function CreateContractScreen() {
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                    Datos bancarios no configurados
+                    {t('contracts.bankingNotConfigured', 'Banking details not configured')}
                   </h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Para recibir pagos de tus trabajos
+                    {t('contracts.bankingNotConfiguredDesc', 'To receive payments for your jobs')}
                   </p>
                 </div>
               </div>
@@ -767,20 +768,20 @@ export default function CreateContractScreen() {
             {/* Content */}
             <div className="p-6 space-y-4">
               <p className="text-gray-600 dark:text-gray-300">
-                No tienes configurados tus datos bancarios. Cuando completes trabajos como profesional, necesitarás estos datos para recibir tus pagos.
+                {t('contracts.bankingExplanation', 'You do not have your banking details configured. When you complete jobs as a professional, you will need these details to receive your payments.')}
               </p>
 
               <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
                 <p className="text-sm text-amber-800 dark:text-amber-300 flex items-start gap-2">
                   <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
                   <span>
-                    <strong>Tip:</strong> Si usas Mercado Pago, los pagos se acreditan en 48hs. Otros bancos pueden demorar hasta fin de mes.
+                    <strong>{t('common.tip', 'Tip')}:</strong> {t('contracts.bankingTip', 'If you use Mercado Pago, payments are credited within 48 hours. Other banks may take until the end of the month.')}
                   </span>
                 </p>
               </div>
 
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                ¿Deseas agregar tus datos bancarios ahora?
+                {t('contracts.addBankingNow', 'Would you like to add your banking details now?')}
               </p>
             </div>
 
@@ -791,7 +792,7 @@ export default function CreateContractScreen() {
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-medium transition-colors"
               >
                 <Settings className="h-4 w-4" />
-                Agregar datos bancarios
+                {t('contracts.addBankingDetails', 'Add banking details')}
                 <ArrowRight className="h-4 w-4" />
               </button>
 
@@ -800,13 +801,13 @@ export default function CreateContractScreen() {
                   onClick={handleContinueWithoutBanking}
                   className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg font-medium transition-colors"
                 >
-                  Continuar sin agregar
+                  {t('contracts.continueWithout', 'Continue without adding')}
                 </button>
                 <button
                   onClick={handleDontAskAgain}
                   className="flex-1 px-4 py-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg text-sm transition-colors"
                 >
-                  No preguntar de nuevo
+                  {t('contracts.dontAskAgain', "Don't ask again")}
                 </button>
               </div>
             </div>

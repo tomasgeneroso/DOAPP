@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   Bell,
   Check,
@@ -81,11 +82,11 @@ const formatTimeAgo = (dateString: string) => {
   const now = new Date();
   const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-  if (diffInSeconds < 60) return 'Ahora';
+  if (diffInSeconds < 60) return 'Now';
   if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m`;
   if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h`;
   if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d`;
-  return date.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
+  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 };
 
 // Generate navigation URL based on notification data
@@ -162,6 +163,7 @@ const getNotificationUrl = (notification: Notification): string | null => {
 };
 
 export default function NotificationDropdown() {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -295,7 +297,7 @@ export default function NotificationDropdown() {
       <button
         onClick={toggleDropdown}
         className="relative flex items-center justify-center w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-        aria-label={unreadCount > 0 ? `Notificaciones, ${unreadCount} sin leer` : "Notificaciones"}
+        aria-label={t('nav.notifications')}
         aria-expanded={isOpen}
         aria-haspopup="menu"
       >
@@ -316,12 +318,12 @@ export default function NotificationDropdown() {
           className="absolute right-0 mt-2 w-80 sm:w-96 origin-top-right rounded-xl bg-white dark:bg-slate-800 shadow-xl ring-1 ring-black ring-opacity-5 z-[100] overflow-hidden"
           role="menu"
           aria-orientation="vertical"
-          aria-label="Notificaciones"
+          aria-label={t('nav.notifications')}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 dark:border-slate-700">
             <h3 className="font-semibold text-slate-900 dark:text-white">
-              Notificaciones
+              {t('nav.notifications')}
             </h3>
             {unreadCount > 0 && (
               <button
@@ -329,7 +331,7 @@ export default function NotificationDropdown() {
                 className="text-xs text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 flex items-center gap-1"
               >
                 <CheckCheck className="h-3.5 w-3.5" />
-                Marcar todas como leídas
+                {t('notifications.markAllRead', 'Mark all as read')}
               </button>
             )}
           </div>
@@ -343,7 +345,7 @@ export default function NotificationDropdown() {
             ) : notifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-slate-500 dark:text-slate-400">
                 <Bell className="h-8 w-8 mb-2 opacity-50" />
-                <p className="text-sm">No tienes notificaciones</p>
+                <p className="text-sm">{t('notifications.empty', 'No notifications')}</p>
               </div>
             ) : (
               notifications.map((notification) => (
@@ -385,8 +387,8 @@ export default function NotificationDropdown() {
                       {getNotificationUrl(notification) && (
                         <span className="inline-flex items-center gap-1 text-xs text-sky-600 dark:text-sky-400 mt-1">
                           {notification.data?.requiresBankingInfo
-                            ? 'Configurar datos bancarios'
-                            : (notification.actionText || 'Ver detalles')}
+                            ? t('notifications.configureBanking', 'Configure banking info')
+                            : (notification.actionText || t('notifications.viewDetails', 'View details'))}
                           <ExternalLink className="h-3 w-3" />
                         </span>
                       )}
@@ -409,7 +411,7 @@ export default function NotificationDropdown() {
               onClick={closeDropdown}
               className="block w-full text-center px-4 py-3 text-sm font-medium text-sky-600 dark:text-sky-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
             >
-              Ver todas las notificaciones
+              {t('notifications.viewAll', 'View all notifications')}
             </Link>
           </div>
         </div>

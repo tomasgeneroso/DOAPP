@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Bell, X, MessageSquare, Briefcase, CreditCard } from 'lucide-react';
 import Button from './ui/Button';
 
@@ -15,6 +16,8 @@ export default function NotificationPermissionModal({
   onDecline,
   isRetry = false,
 }: NotificationPermissionModalProps) {
+  const { t } = useTranslation();
+
   if (!isOpen) return null;
 
   return (
@@ -25,7 +28,7 @@ export default function NotificationPermissionModal({
           <button
             onClick={onDecline}
             className="absolute top-4 right-4 text-white/80 hover:text-white transition-colors"
-            aria-label="Cerrar"
+            aria-label={t('common.close', 'Close')}
           >
             <X className="h-5 w-5" />
           </button>
@@ -37,12 +40,12 @@ export default function NotificationPermissionModal({
           </div>
 
           <h2 className="text-2xl font-bold text-center">
-            {isRetry ? '¿Activar Notificaciones?' : 'Mantente al día'}
+            {isRetry ? t('notifications.enableNotifications', 'Enable Notifications?') : t('notifications.stayUpToDate', 'Stay up to date')}
           </h2>
           <p className="text-blue-100 text-center mt-2">
             {isRetry
-              ? 'No te pierdas actualizaciones importantes'
-              : 'Recibe alertas instantáneas en tiempo real'}
+              ? t('notifications.dontMissUpdates', "Don't miss important updates")
+              : t('notifications.receiveAlerts', 'Receive instant real-time alerts')}
           </p>
         </div>
 
@@ -55,10 +58,10 @@ export default function NotificationPermissionModal({
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-white">
-                  Mensajes nuevos
+                  {t('notifications.newMessages', 'New messages')}
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Recibe notificaciones cuando alguien te escriba
+                  {t('notifications.newMessagesDesc', 'Get notified when someone messages you')}
                 </p>
               </div>
             </div>
@@ -69,10 +72,10 @@ export default function NotificationPermissionModal({
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-white">
-                  Actualizaciones de contratos
+                  {t('notifications.contractUpdates', 'Contract updates')}
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Entérate al instante de cambios en tus trabajos
+                  {t('notifications.contractUpdatesDesc', 'Get instant updates on changes to your jobs')}
                 </p>
               </div>
             </div>
@@ -83,10 +86,10 @@ export default function NotificationPermissionModal({
               </div>
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-white">
-                  Confirmaciones de pago
+                  {t('notifications.paymentConfirmations', 'Payment confirmations')}
                 </h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  Sé notificado cuando recibas o envíes pagos
+                  {t('notifications.paymentConfirmationsDesc', 'Get notified when you receive or send payments')}
                 </p>
               </div>
             </div>
@@ -94,7 +97,7 @@ export default function NotificationPermissionModal({
 
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
             <p className="text-xs text-blue-800 dark:text-blue-300 text-center">
-              🔒 Puedes desactivar las notificaciones en cualquier momento desde la configuración
+              {t('notifications.canDisableAnytime', 'You can disable notifications at any time from settings')}
             </p>
           </div>
 
@@ -104,14 +107,14 @@ export default function NotificationPermissionModal({
               onClick={onAccept}
               className="w-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold py-3 rounded-xl transition-all duration-200 transform hover:scale-[1.02]"
             >
-              Activar Notificaciones
+              {t('notifications.enableButton', 'Enable Notifications')}
             </Button>
 
             <button
               onClick={onDecline}
               className="w-full text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white font-medium py-2 rounded-xl transition-colors"
             >
-              {isRetry ? 'Ahora no' : 'Más tarde'}
+              {isRetry ? t('common.notNow', 'Not now') : t('common.later', 'Later')}
             </button>
           </div>
         </div>

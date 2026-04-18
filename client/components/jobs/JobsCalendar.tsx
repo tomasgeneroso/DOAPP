@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, memo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   ChevronLeft,
   ChevronRight,
@@ -215,7 +216,9 @@ const CATEGORY_COLORS: Record<string, string> = {
   otros: 'bg-gray-500',
 };
 
-function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = true, availabilitySlots = [], onAddAvailability, onRemoveAvailability }: JobsCalendarProps) {
+function JobsCalendar({ jobs, title, showFilters = true, availabilitySlots = [], onAddAvailability, onRemoveAvailability }: JobsCalendarProps) {
+  const { t } = useTranslation();
+  const displayTitle = title || t('calendar.jobCalendar', 'Job Calendar');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [selectedJob, setSelectedJob] = useState<CalendarJob | null>(null);
@@ -653,7 +656,7 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
             {formatDate(currentDate)}
           </h3>
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            {dayJobs.length} trabajo{dayJobs.length !== 1 ? 's' : ''} programado{dayJobs.length !== 1 ? 's' : ''}
+            {dayJobs.length} {dayJobs.length !== 1 ? t('calendar.jobsScheduled', 'jobs scheduled') : t('calendar.jobScheduled', 'job scheduled')}
           </p>
         </div>
 
@@ -806,7 +809,7 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
           <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
             <CalendarIcon className="h-12 w-12 text-slate-400 mx-auto mb-4" />
             <p className="text-slate-600 dark:text-slate-400">
-              No hay trabajos que coincidan con los filtros
+              {t('calendar.noJobsMatchFilters', 'No jobs match the filters')}
             </p>
           </div>
         )}
@@ -819,7 +822,7 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-          {title}
+          {displayTitle}
         </h2>
 
         <div className="flex items-center gap-2">
@@ -829,19 +832,19 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
               onClick={() => setViewMode('month')}
               className={`px-3 py-1.5 text-sm ${viewMode === 'month' ? 'bg-sky-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
             >
-              Mes
+              {t('calendar.month', 'Month')}
             </button>
             <button
               onClick={() => setViewMode('week')}
               className={`px-3 py-1.5 text-sm border-l border-slate-200 dark:border-slate-700 ${viewMode === 'week' ? 'bg-sky-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
             >
-              Semana
+              {t('calendar.week', 'Week')}
             </button>
             <button
               onClick={() => setViewMode('day')}
               className={`px-3 py-1.5 text-sm border-l border-slate-200 dark:border-slate-700 ${viewMode === 'day' ? 'bg-sky-500 text-white' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
             >
-              Día
+              {t('calendar.day', 'Day')}
             </button>
             <button
               onClick={() => setViewMode('list')}
@@ -873,7 +876,7 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
                   ? 'bg-sky-500 text-white border-sky-500'
                   : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
               }`}
-              title="Sincronizar calendario"
+              title={t('calendar.syncCalendar', 'Sync calendar')}
             >
               <Share2 className="h-4 w-4" />
             </button>
@@ -881,7 +884,7 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
             {showSyncMenu && (
               <div className="absolute right-0 top-full mt-2 w-64 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xl z-50 overflow-hidden">
                 <div className="p-3 border-b border-slate-200 dark:border-slate-700">
-                  <h4 className="font-semibold text-sm text-slate-900 dark:text-white">Sincronizar calendario</h4>
+                  <h4 className="font-semibold text-sm text-slate-900 dark:text-white">{t('calendar.syncCalendar', 'Sync calendar')}</h4>
                 </div>
                 <div className="p-2 space-y-1">
                   {/* Exportar todo (trabajos + disponibilidad) */}
@@ -894,8 +897,8 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
                   >
                     <Download className="h-4 w-4 text-slate-500" />
                     <div>
-                      <p className="text-sm font-medium text-slate-900 dark:text-white">Exportar todo (.ics)</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Trabajos + disponibilidad</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">{t('calendar.exportAll', 'Export all (.ics)')}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{t('calendar.jobsAndAvailability', 'Jobs + availability')}</p>
                     </div>
                   </button>
                   {/* Exportar solo trabajos */}
@@ -908,8 +911,8 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
                   >
                     <CalendarIcon className="h-4 w-4 text-slate-500" />
                     <div>
-                      <p className="text-sm font-medium text-slate-900 dark:text-white">Solo trabajos (.ics)</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">{filteredJobs.length} trabajo{filteredJobs.length !== 1 ? 's' : ''}</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">{t('calendar.jobsOnly', 'Jobs only (.ics)')}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{filteredJobs.length} {filteredJobs.length !== 1 ? t('calendar.jobs', 'jobs') : t('calendar.job', 'job')}</p>
                     </div>
                   </button>
                   {/* Exportar solo disponibilidad */}
@@ -924,8 +927,8 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
                     >
                       <Clock className="h-4 w-4 text-emerald-500" />
                       <div>
-                        <p className="text-sm font-medium text-slate-900 dark:text-white">Solo disponibilidad (.ics)</p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">{availabilitySlots.length} horario{availabilitySlots.length !== 1 ? 's' : ''} recurrente{availabilitySlots.length !== 1 ? 's' : ''}</p>
+                        <p className="text-sm font-medium text-slate-900 dark:text-white">{t('calendar.availabilityOnly', 'Availability only (.ics)')}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">{availabilitySlots.length} {t('calendar.recurringSchedules', 'recurring schedule(s)')}</p>
                       </div>
                     </button>
                   )}
@@ -943,10 +946,10 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
                         const data = await res.json();
                         if (data.success) {
                           await navigator.clipboard.writeText(data.data.feedUrl);
-                          alert('URL del feed copiada al portapapeles.\n\nEn Google Calendar:\n1. Click en "+" al lado de "Otros calendarios"\n2. Seleccionar "Desde una URL"\n3. Pegar la URL copiada');
+                          alert(t('calendar.feedUrlCopied', 'Feed URL copied to clipboard.\n\nIn Google Calendar:\n1. Click "+" next to "Other calendars"\n2. Select "From a URL"\n3. Paste the copied URL'));
                         }
                       } catch {
-                        alert('Error al obtener la URL del feed');
+                        alert(t('calendar.errorGettingFeedUrl', 'Error getting feed URL'));
                       }
                       setShowSyncMenu(false);
                     }}
@@ -954,8 +957,8 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
                   >
                     <ExternalLink className="h-4 w-4 text-slate-500" />
                     <div>
-                      <p className="text-sm font-medium text-slate-900 dark:text-white">Suscribirse al feed</p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Sincronización automática</p>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">{t('calendar.subscribeToFeed', 'Subscribe to feed')}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{t('calendar.autoSync', 'Automatic sync')}</p>
                     </div>
                   </button>
                 </div>
@@ -983,7 +986,7 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
               onClick={goToToday}
               className="px-3 py-1 text-sm bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600"
             >
-              Hoy
+              {t('calendar.today', 'Today')}
             </button>
           </div>
 
@@ -1000,7 +1003,7 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
       {showFilterPanel && (
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-slate-900 dark:text-white">Filtros</h3>
+            <h3 className="font-semibold text-slate-900 dark:text-white">{t('calendar.filters', 'Filters')}</h3>
             <button
               onClick={() => {
                 setSelectedCategories([]);
@@ -1009,7 +1012,7 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
               }}
               className="text-sm text-sky-600 hover:text-sky-700"
             >
-              Limpiar filtros
+              {t('calendar.clearFilters', 'Clear filters')}
             </button>
           </div>
 
@@ -1017,7 +1020,7 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
             {/* Category filter */}
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                Categorías
+                {t('calendar.categories', 'Categories')}
               </label>
               <div className="flex flex-wrap gap-2 max-h-[200px] overflow-y-auto">
                 {JOB_CATEGORIES.map(cat => (
@@ -1045,13 +1048,13 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
             {/* Location filter */}
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                Ubicación
+                {t('calendar.location', 'Location')}
               </label>
               <input
                 type="text"
                 value={selectedLocation}
                 onChange={(e) => setSelectedLocation(e.target.value)}
-                placeholder="Filtrar por barrio..."
+                placeholder={t('calendar.filterByNeighborhood', 'Filter by neighborhood...')}
                 className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder:text-slate-400"
               />
               {locations.length > 0 && (
@@ -1072,14 +1075,14 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
             {/* Time range filter */}
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                Franja Horaria
+                {t('calendar.timeRange', 'Time Range')}
               </label>
               <div className="flex flex-wrap gap-2">
                 {[
-                  { id: 'all', label: 'Todas' },
-                  { id: 'morning', label: 'Mañana (6-12)' },
-                  { id: 'afternoon', label: 'Tarde (12-18)' },
-                  { id: 'evening', label: 'Noche (18-24)' },
+                  { id: 'all', label: t('calendar.timeRanges.all', 'All') },
+                  { id: 'morning', label: t('calendar.timeRanges.morning', 'Morning (6-12)') },
+                  { id: 'afternoon', label: t('calendar.timeRanges.afternoon', 'Afternoon (12-18)') },
+                  { id: 'evening', label: t('calendar.timeRanges.evening', 'Evening (18-24)') },
                 ].map(range => (
                   <button
                     key={range.id}
@@ -1104,7 +1107,7 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
         <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded bg-emerald-100 dark:bg-emerald-900/40 border border-emerald-300 dark:border-emerald-700" />
-            <span>Tu disponibilidad</span>
+            <span>{t('calendar.yourAvailability', 'Your availability')}</span>
           </div>
           {availabilitySlots.map((slot, i) => (
             <a
@@ -1158,7 +1161,7 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
             <div className="p-4 space-y-4">
               {/* Price */}
               <div className="flex items-center justify-between p-3 bg-slate-100 dark:bg-slate-700 rounded-xl">
-                <span className="text-slate-600 dark:text-slate-400">Precio</span>
+                <span className="text-slate-600 dark:text-slate-400">{t('calendar.price', 'Price')}</span>
                 <span className="text-xl font-bold text-sky-600 dark:text-sky-400">
                   ${selectedJob.price.toLocaleString('es-AR')} ARS
                 </span>
@@ -1212,7 +1215,7 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
                 <button
                   onClick={() => downloadIcsFile([selectedJob], `doapp-${selectedJob.id}.ics`)}
                   className="flex items-center justify-center gap-2 px-4 py-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 font-medium rounded-xl hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors text-sm"
-                  title="Descargar .ics"
+                  title={t('calendar.downloadIcs', 'Download .ics')}
                 >
                   <Download className="h-4 w-4" />
                 </button>
@@ -1223,7 +1226,7 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
                 to={`/jobs/${selectedJob.id}`}
                 className="block w-full text-center py-3 bg-sky-500 hover:bg-sky-600 text-white font-semibold rounded-xl transition-colors"
               >
-                Ver detalles completos
+                {t('calendar.viewFullDetails', 'View full details')}
               </Link>
             </div>
           </div>
@@ -1254,8 +1257,8 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
                 <Plus className="h-4 w-4 text-emerald-500" />
                 <span className="text-sm text-slate-700 dark:text-slate-200">
                   {contextMenu.hour !== undefined
-                    ? `Disponible ${String(contextMenu.hour).padStart(2, '0')}:00-${String(Math.min(contextMenu.hour + 1, 23)).padStart(2, '0')}:00`
-                    : 'Marcar disponible'}
+                    ? `${t('calendar.available', 'Available')} ${String(contextMenu.hour).padStart(2, '0')}:00-${String(Math.min(contextMenu.hour + 1, 23)).padStart(2, '0')}:00`
+                    : t('calendar.markAvailable', 'Mark available')}
                 </span>
               </button>
             )}
@@ -1273,7 +1276,7 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
               >
                 <Plus className="h-4 w-4 text-emerald-500" />
                 <span className="text-sm text-slate-700 dark:text-slate-200">
-                  Agregar {String(contextMenu.hour).padStart(2, '0')}:00-{String(Math.min(contextMenu.hour + 1, 23)).padStart(2, '0')}:00
+                  {t('calendar.add', 'Add')} {String(contextMenu.hour).padStart(2, '0')}:00-{String(Math.min(contextMenu.hour + 1, 23)).padStart(2, '0')}:00
                 </span>
               </button>
             )}
@@ -1291,7 +1294,7 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
               >
                 <Trash2 className="h-4 w-4 text-red-500" />
                 <span className="text-sm text-slate-700 dark:text-slate-200">
-                  Quitar {slot.start}-{slot.end}
+                  {t('calendar.remove', 'Remove')} {slot.start}-{slot.end}
                 </span>
               </button>
             ))}
@@ -1309,7 +1312,7 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
                   className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-left transition-colors"
                 >
                   <Grid3X3 className="h-4 w-4 text-slate-400" />
-                  <span className="text-sm text-slate-700 dark:text-slate-200">Ver semana</span>
+                  <span className="text-sm text-slate-700 dark:text-slate-200">{t('calendar.viewWeek', 'View week')}</span>
                 </button>
                 <button
                   onClick={() => {
@@ -1320,7 +1323,7 @@ function JobsCalendar({ jobs, title = "Calendario de Trabajos", showFilters = tr
                   className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-left transition-colors"
                 >
                   <CalendarIcon className="h-4 w-4 text-slate-400" />
-                  <span className="text-sm text-slate-700 dark:text-slate-200">Ver día</span>
+                  <span className="text-sm text-slate-700 dark:text-slate-200">{t('calendar.viewDay', 'View day')}</span>
                 </button>
               </>
             )}

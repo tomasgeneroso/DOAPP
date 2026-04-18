@@ -2,6 +2,7 @@
  * Contract Model Tests - PostgreSQL/Sequelize
  */
 
+import { describe, it, expect, beforeAll, beforeEach, afterAll, afterEach } from '@jest/globals';
 import { Contract } from '../../../server/models/sql/Contract.model.js';
 import { User } from '../../../server/models/sql/User.model.js';
 import { Job } from '../../../server/models/sql/Job.model.js';
@@ -147,7 +148,7 @@ describe('Contract Model', () => {
     it('should check if contract is active', () => {
       expect(contract.isActive()).toBe(false);
 
-      contract.status = 'active';
+      contract.status = 'in_progress';
       expect(contract.isActive()).toBe(true);
     });
 
@@ -180,7 +181,7 @@ describe('Contract Model', () => {
         escrowEnabled: true,
         escrowAmount: 10800,
         escrowStatus: 'held_escrow',
-        status: 'active',
+        status: 'in_progress',
         terms: 'Test terms',
       });
     });
@@ -261,10 +262,10 @@ describe('Contract Model', () => {
 
     it('should check if pairing code is expired', () => {
       contract.pairingCode = '123456';
-      contract.pairingCodeExpiresAt = new Date(Date.now() + 60000); // 1 minute future
+      contract.pairingExpiry = new Date(Date.now() + 60000); // 1 minute future
       expect(contract.isPairingExpired()).toBe(false);
 
-      contract.pairingCodeExpiresAt = new Date(Date.now() - 60000); // 1 minute past
+      contract.pairingExpiry = new Date(Date.now() - 60000); // 1 minute past
       expect(contract.isPairingExpired()).toBe(true);
     });
   });
@@ -280,7 +281,7 @@ describe('Contract Model', () => {
         price: 10000,
         commission: 800,
         totalPrice: 10800,
-        status: 'active',
+        status: 'in_progress',
         terms: 'Test terms',
       });
     });
@@ -288,13 +289,13 @@ describe('Contract Model', () => {
     it('should confirm completion by client', async () => {
       await contract.confirmCompletion(client.id);
 
-      expect(contract.clientConfirmedCompletion).toBe(true);
+      expect(contract.clientConfirmed).toBe(true);
     });
 
     it('should confirm completion by doer', async () => {
       await contract.confirmCompletion(doer.id);
 
-      expect(contract.doerConfirmedCompletion).toBe(true);
+      expect(contract.doerConfirmed).toBe(true);
     });
 
     it('should mark as completed when both confirm', async () => {
@@ -302,7 +303,7 @@ describe('Contract Model', () => {
       await contract.confirmCompletion(doer.id);
 
       expect(contract.status).toBe('completed');
-      expect(contract.completedAt).toBeDefined();
+      expect(contract.clientConfirmedAt).toBeDefined();
     });
 
     it('should check if both parties confirmed', () => {
@@ -327,7 +328,7 @@ describe('Contract Model', () => {
         price: 10000,
         commission: 800,
         totalPrice: 10800,
-        status: 'active',
+        status: 'in_progress',
         startDate: new Date(),
         endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
         terms: 'Test terms',
@@ -337,7 +338,7 @@ describe('Contract Model', () => {
     it('should check if can be extended', () => {
       expect(contract.canBeExtended()).toBe(true);
 
-      contract.isExtended = true;
+      contract.hasBeenExtended = true;
       expect(contract.canBeExtended()).toBe(false);
     });
 
@@ -347,13 +348,13 @@ describe('Contract Model', () => {
 
       await contract.extendContract(newEndDate, 'Client requested extension', 2000);
 
-      expect(contract.isExtended).toBe(true);
-      expect(contract.extensionReason).toBe('Client requested extension');
-      expect(parseFloat(contract.extensionPrice as any)).toBe(2000);
+      expect(contract.hasBeenExtended).toBe(true);
+      expect(contract.extensionNotes).toBe('Client requested extension');
+      expect(parseFloat(contract.extensionAmount as any)).toBe(2000);
     });
 
     it('should fail to extend already extended contract', async () => {
-      contract.isExtended = true;
+      contract.hasBeenExtended = true;
 
       const newEndDate = new Date(contract.endDate);
       newEndDate.setDate(newEndDate.getDate() + 7);
@@ -383,7 +384,7 @@ describe('Contract Model', () => {
         price: 10000,
         commission: 800,
         totalPrice: 10800,
-        status: 'active',
+        status: 'in_progress',
         terms: 'Test terms',
         priceModificationHistory: [],
       });
@@ -438,7 +439,7 @@ describe('Contract Model', () => {
         price: 10000,
         commission: 800,
         totalPrice: 10800,
-        status: 'active',
+        status: 'in_progress',
         terms: 'Test terms',
         deliveries: [],
       });
@@ -458,7 +459,7 @@ describe('Contract Model', () => {
 
     it('should approve delivery', async () => {
       await contract.addDelivery('Test delivery', [], doer.id);
-      const deliveryId = contract.deliveries[0].id;
+      const deliveryId = contract.deliveries[0].id!;
 
       await contract.approveDelivery(deliveryId, client.id);
 
@@ -469,7 +470,7 @@ describe('Contract Model', () => {
 
     it('should reject delivery', async () => {
       await contract.addDelivery('Test delivery', [], doer.id);
-      const deliveryId = contract.deliveries[0].id;
+      const deliveryId = contract.deliveries[0].id!;
 
       await contract.rejectDelivery(deliveryId, client.id, 'Not good enough');
 
@@ -484,19 +485,19 @@ describe('Contract Model', () => {
           description: 'Delivery 1',
           files: [],
           status: 'approved',
-          deliveredAt: new Date(),
+          submittedAt: new Date(),
         },
         {
           description: 'Delivery 2',
           files: [],
           status: 'pending',
-          deliveredAt: new Date(),
+          submittedAt: new Date(),
         },
         {
           description: 'Delivery 3',
           files: [],
           status: 'pending',
-          deliveredAt: new Date(),
+          submittedAt: new Date(),
         },
       ];
 
@@ -516,7 +517,7 @@ describe('Contract Model', () => {
         price: 10000,
         commission: 800,
         totalPrice: 10800,
-        status: 'active',
+        status: 'in_progress',
         terms: 'Test terms',
       });
     });

@@ -3,10 +3,14 @@ import { protect } from '../../middleware/auth.js';
 import { requireAdminRole } from '../../middleware/permissions.js';
 import type { AuthRequest } from '../../types/index.js';
 import { Job } from '../../models/sql/Job.model.js';
+import { Contract } from '../../models/sql/Contract.model.js';
 import { User } from '../../models/sql/User.model.js';
 import { Payment } from '../../models/sql/Payment.model.js';
 import { PaymentProof } from '../../models/sql/PaymentProof.model.js';
-import { Op } from 'sequelize';
+import { Op, literal } from 'sequelize';
+import { isValidUUID } from '../../utils/sanitizer.js';
+
+const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&');
 import { socketService } from '../../index.js';
 
 const router = express.Router();
@@ -30,13 +34,33 @@ router.get(
         where.status = status;
       }
 
-      // Búsqueda por título o descripción
+      // Búsqueda por título, descripción, ID parcial o UUID relacionado
       if (search) {
-        where[Op.or] = [
-          { title: { [Op.iLike]: `%${search}%` } },
-          { description: { [Op.iLike]: `%${search}%` } },
-          { summary: { [Op.iLike]: `%${search}%` } },
-        ];
+        const searchStr = search as string;
+        if (/^[0-9a-f-]{4,}$/i.test(searchStr)) {
+          // UUID fragment: match job ID, clientId, or resolve via related contract
+          const contractsForSearch = await Contract.findAll({
+            where: { [Op.or]: [literal(`CAST("contracts"."id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`)] },
+            attributes: ['jobId'],
+            limit: 10,
+          }).catch(() => []);
+
+          const conditions: any[] = [
+            literal(`CAST("jobs"."id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
+            literal(`CAST("jobs"."client_id" AS TEXT) ILIKE '%${escapeLike(searchStr)}%'`),
+          ];
+          const contractJobIds = contractsForSearch.map(c => c.jobId).filter(Boolean);
+          if (contractJobIds.length > 0) {
+            conditions.push({ id: { [Op.in]: contractJobIds } });
+          }
+          where[Op.or] = conditions;
+        } else {
+          where[Op.or] = [
+            { title: { [Op.iLike]: `%${searchStr}%` } },
+            { description: { [Op.iLike]: `%${searchStr}%` } },
+            { summary: { [Op.iLike]: `%${searchStr}%` } },
+          ];
+        }
       }
 
       const offset = (Number(page) - 1) * Number(limit);

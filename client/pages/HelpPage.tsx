@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { usePermissions } from "../hooks/usePermissions";
 import {
@@ -45,47 +46,48 @@ interface TicketItem {
 }
 
 const categoryLabels: Record<string, { label: string; icon: any; color: string }> = {
-  service_not_delivered: { label: 'Servicio no entregado', icon: Briefcase, color: 'text-red-600 bg-red-100 dark:bg-red-900/30' },
-  incomplete_work: { label: 'Trabajo incompleto', icon: FileText, color: 'text-orange-600 bg-orange-100 dark:bg-orange-900/30' },
-  quality_issues: { label: 'Problemas de calidad', icon: AlertTriangle, color: 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30' },
-  payment_issues: { label: 'Problema de pago', icon: DollarSign, color: 'text-red-600 bg-red-100 dark:bg-red-900/30' },
-  breach_of_contract: { label: 'Incumplimiento', icon: Clock, color: 'text-purple-600 bg-purple-100 dark:bg-purple-900/30' },
-  bug_report: { label: 'Reporte de bug', icon: Bug, color: 'text-indigo-600 bg-indigo-100 dark:bg-indigo-900/30' },
-  other: { label: 'Otro', icon: AlertCircle, color: 'text-gray-600 bg-gray-100 dark:bg-gray-700' },
+  service_not_delivered: { label: 'Service not delivered', icon: Briefcase, color: 'text-red-600 bg-red-100 dark:bg-red-900/30' },
+  incomplete_work: { label: 'Incomplete work', icon: FileText, color: 'text-orange-600 bg-orange-100 dark:bg-orange-900/30' },
+  quality_issues: { label: 'Quality issues', icon: AlertTriangle, color: 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30' },
+  payment_issues: { label: 'Payment issue', icon: DollarSign, color: 'text-red-600 bg-red-100 dark:bg-red-900/30' },
+  breach_of_contract: { label: 'Breach of contract', icon: Clock, color: 'text-purple-600 bg-purple-100 dark:bg-purple-900/30' },
+  bug_report: { label: 'Bug report', icon: Bug, color: 'text-indigo-600 bg-indigo-100 dark:bg-indigo-900/30' },
+  other: { label: 'Other', icon: AlertCircle, color: 'text-gray-600 bg-gray-100 dark:bg-gray-700' },
 };
 
 const ticketCategoryLabels: Record<string, { label: string; icon: any; color: string }> = {
   bug: { label: 'Bug', icon: Bug, color: 'text-red-600 bg-red-100 dark:bg-red-900/30' },
-  feature: { label: 'Sugerencia', icon: HelpCircle, color: 'text-purple-600 bg-purple-100 dark:bg-purple-900/30' },
-  support: { label: 'Soporte', icon: HelpCircle, color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30' },
-  report_user: { label: 'Reportar usuario', icon: AlertCircle, color: 'text-orange-600 bg-orange-100 dark:bg-orange-900/30' },
-  report_contract: { label: 'Reportar contrato', icon: FileText, color: 'text-orange-600 bg-orange-100 dark:bg-orange-900/30' },
-  payment: { label: 'Pago', icon: DollarSign, color: 'text-green-600 bg-green-100 dark:bg-green-900/30' },
-  other: { label: 'Otro', icon: HelpCircle, color: 'text-gray-600 bg-gray-100 dark:bg-gray-700' },
+  feature: { label: 'Suggestion', icon: HelpCircle, color: 'text-purple-600 bg-purple-100 dark:bg-purple-900/30' },
+  support: { label: 'Support', icon: HelpCircle, color: 'text-blue-600 bg-blue-100 dark:bg-blue-900/30' },
+  report_user: { label: 'Report user', icon: AlertCircle, color: 'text-orange-600 bg-orange-100 dark:bg-orange-900/30' },
+  report_contract: { label: 'Report contract', icon: FileText, color: 'text-orange-600 bg-orange-100 dark:bg-orange-900/30' },
+  payment: { label: 'Payment', icon: DollarSign, color: 'text-green-600 bg-green-100 dark:bg-green-900/30' },
+  other: { label: 'Other', icon: HelpCircle, color: 'text-gray-600 bg-gray-100 dark:bg-gray-700' },
 };
 
-const statusLabels: Record<string, { label: string; color: string; icon: any }> = {
-  open: { label: 'Abierto', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', icon: AlertCircle },
-  in_review: { label: 'En revisión', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300', icon: Clock },
-  in_progress: { label: 'En progreso', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300', icon: Clock },
-  awaiting_info: { label: 'Esperando info', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', icon: MessageCircle },
-  waiting_response: { label: 'Esperando respuesta', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', icon: MessageCircle },
-  resolved: { label: 'Resuelto', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: CheckCircle },
-  resolved_released: { label: 'Resuelta - Liberado', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: CheckCircle },
-  resolved_refunded: { label: 'Resuelta - Reembolsado', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: CheckCircle },
-  resolved_partial: { label: 'Resuelta - Parcial', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: CheckCircle },
-  closed: { label: 'Cerrado', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300', icon: XCircle },
-  cancelled: { label: 'Cancelado', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300', icon: XCircle },
+const statusLabels: Record<string, { label: string; tKey: string; color: string; icon: any }> = {
+  open: { label: 'Open', tKey: 'help.status.open', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', icon: AlertCircle },
+  in_review: { label: 'In review', tKey: 'help.status.inReview', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300', icon: Clock },
+  in_progress: { label: 'In progress', tKey: 'help.status.inProgress', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300', icon: Clock },
+  awaiting_info: { label: 'Awaiting info', tKey: 'help.status.awaitingInfo', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', icon: MessageCircle },
+  waiting_response: { label: 'Waiting for response', tKey: 'help.status.waitingResponse', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', icon: MessageCircle },
+  resolved: { label: 'Resolved', tKey: 'help.status.resolved', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: CheckCircle },
+  resolved_released: { label: 'Resolved - Released', tKey: 'help.status.resolvedReleased', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: CheckCircle },
+  resolved_refunded: { label: 'Resolved - Refunded', tKey: 'help.status.resolvedRefunded', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: CheckCircle },
+  resolved_partial: { label: 'Resolved - Partial', tKey: 'help.status.resolvedPartial', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: CheckCircle },
+  closed: { label: 'Closed', tKey: 'help.status.closed', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300', icon: XCircle },
+  cancelled: { label: 'Cancelled', tKey: 'help.status.cancelled', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300', icon: XCircle },
 };
 
-const priorityLabels: Record<string, { label: string; color: string }> = {
-  low: { label: 'Baja', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' },
-  medium: { label: 'Media', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
-  high: { label: 'Alta', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300' },
-  urgent: { label: 'Urgente', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
+const priorityLabels: Record<string, { label: string; tKey: string; color: string }> = {
+  low: { label: 'Low', tKey: 'help.priority.low', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' },
+  medium: { label: 'Medium', tKey: 'help.priority.medium', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
+  high: { label: 'High', tKey: 'help.priority.high', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300' },
+  urgent: { label: 'Urgent', tKey: 'help.priority.urgent', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
 };
 
 export default function HelpPage() {
+  const { t } = useTranslation();
   const { token } = useAuth();
   const { hasPermission, PERMISSIONS } = usePermissions();
   const [activeTab, setActiveTab] = useState<'overview' | 'disputes' | 'tickets'>('overview');
@@ -142,12 +144,12 @@ export default function HelpPage() {
     statusFilter === 'all' || d.status === statusFilter
   );
 
-  const filteredTickets = tickets.filter(t =>
-    statusFilter === 'all' || t.status === statusFilter
+  const filteredTickets = tickets.filter(tk =>
+    statusFilter === 'all' || tk.status === statusFilter
   );
 
   const openDisputes = disputes.filter(d => !d.status.startsWith('resolved') && d.status !== 'cancelled').length;
-  const openTickets = tickets.filter(t => t.status !== 'resolved' && t.status !== 'closed').length;
+  const openTickets = tickets.filter(tk => tk.status !== 'resolved' && tk.status !== 'closed').length;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8 px-4">
@@ -156,10 +158,10 @@ export default function HelpPage() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Centro de Ayuda y Soporte
+              {t('help.title', 'Help Center & Support')}
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
-              Gestiona tus tickets, disputas y obtén ayuda
+              {t('help.subtitle', 'Manage your tickets, disputes, and get help')}
             </p>
           </div>
           <div className="flex gap-2">
@@ -169,7 +171,7 @@ export default function HelpPage() {
                 className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
               >
                 <Ticket className="h-4 w-4" />
-                Nuevo Ticket
+                {t('help.newTicket', 'New Ticket')}
               </Link>
             )}
             {hasPermission(PERMISSIONS.DISPUTE_CREATE) && (
@@ -178,7 +180,7 @@ export default function HelpPage() {
                 className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
               >
                 <AlertCircle className="h-4 w-4" />
-                Nueva Disputa
+                {t('help.newDispute', 'New Dispute')}
               </Link>
             )}
           </div>
@@ -197,7 +199,7 @@ export default function HelpPage() {
             >
               <span className="flex items-center justify-center gap-2">
                 <HelpCircle className="h-4 w-4" />
-                Inicio
+                {t('help.overview', 'Overview')}
               </span>
             </button>
             <button
@@ -207,11 +209,11 @@ export default function HelpPage() {
                   ? 'text-sky-600 border-b-2 border-sky-500 bg-sky-50 dark:bg-sky-900/20'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
               }`}
-              title="Disputas son reclamos relacionados a contratos y trabajos específicos"
+              title={t('help.disputesTooltip', 'Disputes are claims related to contracts and specific jobs')}
             >
               <span className="flex items-center justify-center gap-2">
                 <AlertCircle className="h-4 w-4" />
-                Mis Disputas
+                {t('help.myDisputes', 'My Disputes')}
                 {openDisputes > 0 && (
                   <span className="px-1.5 py-0.5 text-xs bg-orange-500 text-white rounded-full">
                     {openDisputes}
@@ -226,11 +228,11 @@ export default function HelpPage() {
                   ? 'text-sky-600 border-b-2 border-sky-500 bg-sky-50 dark:bg-sky-900/20'
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
               }`}
-              title="Tickets son para reportar errores, solicitar mejoras o hacer consultas generales"
+              title={t('help.ticketsTooltip', 'Tickets are for reporting bugs, requesting features, or general inquiries')}
             >
               <span className="flex items-center justify-center gap-2">
                 <Ticket className="h-4 w-4" />
-                Mis Tickets
+                {t('help.myTickets', 'My Tickets')}
                 {openTickets > 0 && (
                   <span className="px-1.5 py-0.5 text-xs bg-blue-500 text-white rounded-full">
                     {openTickets}
@@ -258,10 +260,10 @@ export default function HelpPage() {
                         </div>
                         <div className="flex-1">
                           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                            Crear Ticket de Soporte
+                            {t('help.createTicket', 'Create Support Ticket')}
                           </h3>
                           <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Reporta bugs, solicita funcionalidades o pide ayuda general
+                            {t('help.createTicketDesc', 'Report bugs, request features, or get general help')}
                           </p>
                         </div>
                       </div>
@@ -279,10 +281,10 @@ export default function HelpPage() {
                         </div>
                         <div className="flex-1">
                           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                            Abrir una Disputa
+                            {t('help.openDispute', 'Open a Dispute')}
                           </h3>
                           <p className="text-sm text-gray-600 dark:text-gray-400">
-                            Problemas con un contrato? Reporta con evidencia
+                            {t('help.openDisputeDesc', 'Problems with a contract? Report with evidence')}
                           </p>
                         </div>
                       </div>
@@ -299,10 +301,10 @@ export default function HelpPage() {
                       </div>
                       <div className="flex-1">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                          Contacto Directo
+                          {t('help.directContact', 'Direct Contact')}
                         </h3>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                          Envía un mensaje a nuestro equipo
+                          {t('help.directContactDesc', 'Send a message to our team')}
                         </p>
                       </div>
                     </div>
@@ -318,10 +320,10 @@ export default function HelpPage() {
                       </div>
                       <div className="flex-1">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                          Ver Mis Contratos
+                          {t('help.viewContracts', 'View My Contracts')}
                         </h3>
                         <p className="text-sm text-gray-600 dark:text-gray-400">
-                          Reporta desde un contrato específico
+                          {t('help.viewContractsDesc', 'Report from a specific contract')}
                         </p>
                       </div>
                     </div>
@@ -333,7 +335,7 @@ export default function HelpPage() {
                   <div className="flex items-center gap-3 mb-4">
                     <BookOpen className="h-5 w-5 text-sky-600 dark:text-sky-400" />
                     <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                      Preguntas Frecuentes
+                      {t('help.faq', 'Frequently Asked Questions')}
                     </h2>
                   </div>
 
@@ -341,37 +343,37 @@ export default function HelpPage() {
                     <details className="group">
                       <summary className="flex items-center justify-between cursor-pointer p-3 bg-slate-50 dark:bg-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-600 transition">
                         <span className="font-medium text-gray-900 dark:text-white text-sm">
-                          ¿Cuál es la diferencia entre un ticket y una disputa?
+                          {t('help.faq1Question', 'What is the difference between a ticket and a dispute?')}
                         </span>
                         <span className="text-gray-500 group-open:rotate-180 transition-transform">▼</span>
                       </summary>
                       <div className="p-3 text-gray-600 dark:text-gray-400 text-sm">
-                        <p><strong>Tickets</strong> son para problemas técnicos, bugs, preguntas generales o solicitudes de soporte que no involucran dinero.</p>
-                        <p className="mt-2"><strong>Disputas</strong> son para problemas relacionados con contratos específicos donde hay dinero en juego (escrow).</p>
+                        <p><strong>{t('help.faq1TicketsLabel', 'Tickets')}</strong> {t('help.faq1TicketsAnswer', 'are for technical issues, bugs, general questions, or support requests that do not involve money.')}</p>
+                        <p className="mt-2"><strong>{t('help.faq1DisputesLabel', 'Disputes')}</strong> {t('help.faq1DisputesAnswer', 'are for issues related to specific contracts where money is at stake (escrow).')}</p>
                       </div>
                     </details>
 
                     <details className="group">
                       <summary className="flex items-center justify-between cursor-pointer p-3 bg-slate-50 dark:bg-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-600 transition">
                         <span className="font-medium text-gray-900 dark:text-white text-sm">
-                          ¿Cuánto tiempo tarda en resolverse un ticket?
+                          {t('help.faq2Question', 'How long does it take to resolve a ticket?')}
                         </span>
                         <span className="text-gray-500 group-open:rotate-180 transition-transform">▼</span>
                       </summary>
                       <div className="p-3 text-gray-600 dark:text-gray-400 text-sm">
-                        <p>Los tickets generalmente se responden en 24-48 horas hábiles.</p>
+                        <p>{t('help.faq2Answer', 'Tickets are generally responded to within 24-48 business hours.')}</p>
                       </div>
                     </details>
 
                     <details className="group">
                       <summary className="flex items-center justify-between cursor-pointer p-3 bg-slate-50 dark:bg-slate-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-600 transition">
                         <span className="font-medium text-gray-900 dark:text-white text-sm">
-                          ¿Qué evidencia debo incluir en una disputa?
+                          {t('help.faq3Question', 'What evidence should I include in a dispute?')}
                         </span>
                         <span className="text-gray-500 group-open:rotate-180 transition-transform">▼</span>
                       </summary>
                       <div className="p-3 text-gray-600 dark:text-gray-400 text-sm">
-                        <p>Capturas de pantalla, fotos/videos del trabajo, documentos y cualquier prueba que respalde tu caso.</p>
+                        <p>{t('help.faq3Answer', 'Screenshots, photos/videos of the work, documents, and any evidence that supports your case.')}</p>
                       </div>
                     </details>
                   </div>
@@ -390,13 +392,13 @@ export default function HelpPage() {
                     onChange={(e) => setStatusFilter(e.target.value)}
                     className="text-sm px-3 py-1.5 bg-slate-100 dark:bg-slate-700 border-0 rounded-lg text-slate-700 dark:text-slate-300"
                   >
-                    <option value="all">Todos los estados</option>
-                    <option value="open">Abiertas</option>
-                    <option value="in_review">En revisión</option>
-                    <option value="awaiting_info">Esperando información</option>
-                    <option value="resolved_released">Resueltas - Liberado</option>
-                    <option value="resolved_refunded">Resueltas - Reembolsado</option>
-                    <option value="cancelled">Canceladas</option>
+                    <option value="all">{t('help.allStatuses', 'All statuses')}</option>
+                    <option value="open">{t('help.filter.open', 'Open')}</option>
+                    <option value="in_review">{t('help.filter.inReview', 'In review')}</option>
+                    <option value="awaiting_info">{t('help.filter.awaitingInfo', 'Awaiting information')}</option>
+                    <option value="resolved_released">{t('help.filter.resolvedReleased', 'Resolved - Released')}</option>
+                    <option value="resolved_refunded">{t('help.filter.resolvedRefunded', 'Resolved - Refunded')}</option>
+                    <option value="cancelled">{t('help.filter.cancelled', 'Cancelled')}</option>
                   </select>
                 </div>
 
@@ -407,13 +409,13 @@ export default function HelpPage() {
                 ) : filteredDisputes.length === 0 ? (
                   <div className="text-center py-12">
                     <AlertCircle className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-                    <p className="text-slate-600 dark:text-slate-400">No tienes disputas</p>
+                    <p className="text-slate-600 dark:text-slate-400">{t('help.noDisputes', 'You have no disputes')}</p>
                     <Link
                       to="/disputes/create"
                       className="inline-flex items-center gap-2 mt-4 text-orange-600 hover:text-orange-700"
                     >
                       <Plus className="h-4 w-4" />
-                      Crear nueva disputa
+                      {t('help.createNewDispute', 'Create new dispute')}
                     </Link>
                   </div>
                 ) : (
@@ -437,21 +439,21 @@ export default function HelpPage() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
                               <h3 className="font-medium text-slate-900 dark:text-white truncate">
-                                {dispute.reason || 'Sin motivo especificado'}
+                                {dispute.reason || t('help.noReason', 'No reason specified')}
                               </h3>
                               <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${priority.color}`}>
-                                {priority.label}
+                                {t(priority.tKey, priority.label)}
                               </span>
                             </div>
                             {dispute.contract && (
                               <p className="text-sm text-slate-600 dark:text-slate-400 truncate">
-                                Contrato: {dispute.contract.title || `#${dispute.contract.id.slice(0, 8)}`}
+                                {t('help.contract', 'Contract')}: {dispute.contract.title || `#${dispute.contract.id.slice(0, 8)}`}
                               </p>
                             )}
                             <div className="flex items-center gap-3 mt-1">
                               <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${status.color}`}>
                                 <StatusIcon className="h-3 w-3" />
-                                {status.label}
+                                {t(status.tKey, status.label)}
                               </span>
                               <span className="text-xs text-slate-500">
                                 {new Date(dispute.createdAt).toLocaleDateString('es-AR')}
@@ -478,12 +480,12 @@ export default function HelpPage() {
                     onChange={(e) => setStatusFilter(e.target.value)}
                     className="text-sm px-3 py-1.5 bg-slate-100 dark:bg-slate-700 border-0 rounded-lg text-slate-700 dark:text-slate-300"
                   >
-                    <option value="all">Todos los estados</option>
-                    <option value="open">Abiertos</option>
-                    <option value="in_progress">En progreso</option>
-                    <option value="waiting_response">Esperando respuesta</option>
-                    <option value="resolved">Resueltos</option>
-                    <option value="closed">Cerrados</option>
+                    <option value="all">{t('help.allStatuses', 'All statuses')}</option>
+                    <option value="open">{t('help.filter.openTickets', 'Open')}</option>
+                    <option value="in_progress">{t('help.filter.inProgress', 'In progress')}</option>
+                    <option value="waiting_response">{t('help.filter.waitingResponse', 'Waiting for response')}</option>
+                    <option value="resolved">{t('help.filter.resolved', 'Resolved')}</option>
+                    <option value="closed">{t('help.filter.closed', 'Closed')}</option>
                   </select>
                 </div>
 
@@ -494,13 +496,13 @@ export default function HelpPage() {
                 ) : filteredTickets.length === 0 ? (
                   <div className="text-center py-12">
                     <Ticket className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-                    <p className="text-slate-600 dark:text-slate-400">No tienes tickets</p>
+                    <p className="text-slate-600 dark:text-slate-400">{t('help.noTickets', 'You have no tickets')}</p>
                     <Link
                       to="/tickets/new"
                       className="inline-flex items-center gap-2 mt-4 text-blue-600 hover:text-blue-700"
                     >
                       <Plus className="h-4 w-4" />
-                      Crear nuevo ticket
+                      {t('help.createNewTicket', 'Create new ticket')}
                     </Link>
                   </div>
                 ) : (
@@ -525,7 +527,7 @@ export default function HelpPage() {
                             <div className="flex items-center gap-2 mb-1">
                               <span className="text-xs text-slate-500 font-mono">{ticket.ticketNumber}</span>
                               <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${priority.color}`}>
-                                {priority.label}
+                                {t(priority.tKey, priority.label)}
                               </span>
                             </div>
                             <h3 className="font-medium text-slate-900 dark:text-white truncate">
@@ -534,7 +536,7 @@ export default function HelpPage() {
                             <div className="flex items-center gap-3 mt-1">
                               <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ${status.color}`}>
                                 <StatusIcon className="h-3 w-3" />
-                                {status.label}
+                                {t(status.tKey, status.label)}
                               </span>
                               <span className="text-xs text-slate-500">
                                 {new Date(ticket.createdAt).toLocaleDateString('es-AR')}
@@ -558,16 +560,16 @@ export default function HelpPage() {
             <Shield className="h-8 w-8 flex-shrink-0" />
             <div>
               <h3 className="text-lg font-semibold mb-2">
-                ¿Necesitas ayuda inmediata?
+                {t('help.needHelp', 'Need immediate help?')}
               </h3>
               <p className="text-sky-50 mb-4">
-                Nuestro equipo está disponible para ayudarte.
+                {t('help.teamAvailable', 'Our team is available to help you.')}
               </p>
               <Link
                 to="/contact"
                 className="inline-block bg-white text-sky-600 px-6 py-2 rounded-lg font-medium hover:bg-sky-50 transition"
               >
-                Contactar Soporte
+                {t('help.contactSupport', 'Contact Support')}
               </Link>
             </div>
           </div>

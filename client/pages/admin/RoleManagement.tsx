@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Shield, UserCog, Search, Check, X, ChevronDown } from "lucide-react";
 
 interface User {
@@ -29,6 +30,7 @@ interface Permission {
 }
 
 export default function RoleManagement() {
+  const { t } = useTranslation();
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
@@ -105,15 +107,15 @@ export default function RoleManagement() {
 
       const data = await response.json();
       if (data.success) {
-        alert("Rol asignado exitosamente");
+        alert(t('admin.roles.roleAssignedSuccess', 'Role assigned successfully'));
         setShowRoleModal(false);
         fetchUsers();
       } else {
-        alert(data.message || "Error al asignar rol");
+        alert(data.message || t('admin.roles.errorAssigningRole', 'Error assigning role'));
       }
     } catch (error) {
       console.error("Error assigning role:", error);
-      alert("Error al asignar rol");
+      alert(t('admin.roles.errorAssigningRole', 'Error assigning role'));
     }
   };
 
@@ -133,15 +135,15 @@ export default function RoleManagement() {
 
       const data = await response.json();
       if (data.success) {
-        alert("Permisos actualizados exitosamente");
+        alert(t('admin.roles.permissionsUpdatedSuccess', 'Permissions updated successfully'));
         setShowPermissionsModal(false);
         fetchUsers();
       } else {
-        alert(data.message || "Error al actualizar permisos");
+        alert(data.message || t('admin.roles.errorUpdatingPermissions', 'Error updating permissions'));
       }
     } catch (error) {
       console.error("Error updating permissions:", error);
-      alert("Error al actualizar permisos");
+      alert(t('admin.roles.errorUpdatingPermissions', 'Error updating permissions'));
     }
   };
 
@@ -187,10 +189,10 @@ export default function RoleManagement() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            Roles y Permisos
+            {t('admin.roles.rolesAndPermissions', 'Roles and Permissions')}
           </h1>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-            Gestiona roles administrativos y permisos de usuarios
+            {t('admin.roles.manageRolesDescription', 'Manage administrative roles and user permissions')}
           </p>
         </div>
       </div>
@@ -210,7 +212,7 @@ export default function RoleManagement() {
               {role.description}
             </p>
             <p className="text-xs text-slate-500 dark:text-slate-500">
-              {role.permissions.length} permisos
+              {role.permissions.length} {t('admin.roles.permissions', 'permissions')}
             </p>
           </div>
         ))}
@@ -222,7 +224,7 @@ export default function RoleManagement() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
           <input
             type="text"
-            placeholder="Buscar por nombre o email..."
+            placeholder={t('admin.roles.searchPlaceholder', 'Search by name or email...')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
@@ -233,7 +235,7 @@ export default function RoleManagement() {
           onChange={(e) => setSelectedRole(e.target.value)}
           className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
         >
-          <option value="all">Todos los roles</option>
+          <option value="all">{t('admin.roles.allRoles', 'All roles')}</option>
           <option value="super_admin">Super Admin</option>
           <option value="admin">Admin</option>
           <option value="support">Support</option>
@@ -249,22 +251,22 @@ export default function RoleManagement() {
             <thead className="bg-slate-50 dark:bg-slate-700">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  Usuario
+                  {t('admin.roles.user', 'User')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Email
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  Rol Admin
+                  {t('admin.roles.adminRole', 'Admin Role')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  Permisos
+                  {t('admin.roles.permissions', 'Permissions')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  Estado
+                  {t('admin.roles.statusLabel', 'Status')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                  Acciones
+                  {t('admin.roles.actions', 'Actions')}
                 </th>
               </tr>
             </thead>
@@ -272,13 +274,13 @@ export default function RoleManagement() {
               {loading ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
-                    Cargando...
+                    {t('common.loading', 'Loading...')}
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-12 text-center text-slate-500 dark:text-slate-400">
-                    No se encontraron usuarios
+                    {t('admin.roles.noUsersFound', 'No users found')}
                   </td>
                 </tr>
               ) : (
@@ -305,11 +307,11 @@ export default function RoleManagement() {
                           {user.adminRole.replace("_", " ").toUpperCase()}
                         </span>
                       ) : (
-                        <span className="text-sm text-slate-400">Sin rol admin</span>
+                        <span className="text-sm text-slate-400">{t('admin.roles.noAdminRole', 'No admin role')}</span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 dark:text-slate-400">
-                      {user.permissions?.length || 0} permisos
+                      {user.permissions?.length || 0} {t('admin.roles.permissions', 'permissions')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
@@ -331,13 +333,13 @@ export default function RoleManagement() {
                           onClick={() => openRoleModal(user)}
                           className="px-3 py-1 text-xs font-medium text-sky-700 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded transition"
                         >
-                          Asignar Rol
+                          {t('admin.roles.assignRole', 'Assign Role')}
                         </button>
                         <button
                           onClick={() => openPermissionsModal(user)}
                           className="px-3 py-1 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition"
                         >
-                          Permisos
+                          {t('admin.roles.permissions', 'Permissions')}
                         </button>
                       </div>
                     </td>
@@ -355,19 +357,19 @@ export default function RoleManagement() {
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-md w-full m-4">
             <div className="p-6">
               <h3 className="text-lg font-semibold text-slate-900 dark:text-white mb-4">
-                Asignar Rol a {selectedUser.name}
+                {t('admin.roles.assignRoleTo', 'Assign Role to')} {selectedUser.name}
               </h3>
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                    Seleccionar Rol
+                    {t('admin.roles.selectRole', 'Select Role')}
                   </label>
                   <select
                     value={newRole}
                     onChange={(e) => setNewRole(e.target.value)}
                     className="w-full px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
-                    <option value="none">Sin rol admin</option>
+                    <option value="none">{t('admin.roles.noAdminRole', 'No admin role')}</option>
                     <option value="super_admin">Super Admin</option>
                     <option value="admin">Admin</option>
                     <option value="support">Support</option>
@@ -388,13 +390,13 @@ export default function RoleManagement() {
                   onClick={handleAssignRole}
                   className="flex-1 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition"
                 >
-                  Asignar
+                  {t('admin.roles.assign', 'Assign')}
                 </button>
                 <button
                   onClick={() => setShowRoleModal(false)}
                   className="flex-1 px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition"
                 >
-                  Cancelar
+                  {t('common.cancel', 'Cancel')}
                 </button>
               </div>
             </div>
@@ -408,23 +410,23 @@ export default function RoleManagement() {
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl max-w-3xl w-full max-h-[80vh] overflow-hidden flex flex-col">
             <div className="p-6 border-b border-slate-200 dark:border-slate-700">
               <h3 className="text-lg font-semibold text-slate-900 dark:text-white">
-                Permisos Personalizados - {selectedUser.name}
+                {t('admin.roles.customPermissions', 'Custom Permissions')} - {selectedUser.name}
               </h3>
               <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                Selecciona permisos específicos para este usuario
+                {t('admin.roles.selectSpecificPermissions', 'Select specific permissions for this user')}
               </p>
               <div className="flex gap-3 mt-4">
                 <button
                   onClick={selectAllPermissions}
                   className="px-4 py-2 bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 rounded-lg hover:bg-sky-200 dark:hover:bg-sky-900/50 transition text-sm font-medium"
                 >
-                  Seleccionar Todo
+                  {t('admin.roles.selectAll', 'Select All')}
                 </button>
                 <button
                   onClick={clearAllPermissions}
                   className="px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/50 transition text-sm font-medium"
                 >
-                  Borrar Todo
+                  {t('admin.roles.clearAll', 'Clear All')}
                 </button>
               </div>
             </div>
@@ -467,13 +469,13 @@ export default function RoleManagement() {
                 onClick={handleUpdatePermissions}
                 className="flex-1 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition"
               >
-                Guardar Cambios
+                {t('admin.roles.saveChanges', 'Save Changes')}
               </button>
               <button
                 onClick={() => setShowPermissionsModal(false)}
                 className="flex-1 px-4 py-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-600 transition"
               >
-                Cancelar
+                {t('common.cancel', 'Cancel')}
               </button>
             </div>
           </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import ExcelJS from "exceljs";
 import {
@@ -93,6 +94,7 @@ type SortField = 'date' | 'type' | 'description' | 'client' | 'doer' | 'amount' 
 type SortDirection = 'asc' | 'desc' | null;
 
 export default function FinancialTransactions() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [stats, setStats] = useState<any>(null);
@@ -260,7 +262,7 @@ export default function FinancialTransactions() {
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Error exporting XLSX:", error);
-      alert("Error al exportar Excel");
+      alert(t('admin.financial.errorExportingExcel', 'Error exporting Excel'));
     } finally {
       setExporting(false);
     }
@@ -268,7 +270,7 @@ export default function FinancialTransactions() {
 
   // Payment actions
   const handleApprovePayment = async (paymentId: string) => {
-    if (!confirm("¿Estás seguro de aprobar este pago?")) return;
+    if (!confirm(t('admin.financial.confirmApprovePayment', 'Are you sure you want to approve this payment?'))) return;
 
     try {
       setActionLoading(true);
@@ -284,7 +286,7 @@ export default function FinancialTransactions() {
 
       const data = await response.json();
       if (data.success) {
-        alert("Pago aprobado exitosamente");
+        alert(t('admin.financial.paymentApprovedSuccess', 'Payment approved successfully'));
         loadTransactions();
         loadStats();
       } else {
@@ -292,7 +294,7 @@ export default function FinancialTransactions() {
       }
     } catch (error) {
       console.error("Error approving payment:", error);
-      alert("Error al aprobar el pago");
+      alert(t('admin.financial.errorApprovingPayment', 'Error approving payment'));
     } finally {
       setActionLoading(false);
     }
@@ -305,7 +307,7 @@ export default function FinancialTransactions() {
 
   const confirmRejectPayment = async () => {
     if (!rejectModal || !rejectReason.trim()) {
-      alert("Debe proporcionar una razón para rechazar");
+      alert(t('admin.financial.mustProvideRejectReason', 'You must provide a reason for rejection'));
       return;
     }
 
@@ -323,7 +325,7 @@ export default function FinancialTransactions() {
 
       const data = await response.json();
       if (data.success) {
-        alert("Pago rechazado");
+        alert(t('admin.financial.paymentRejected', 'Payment rejected'));
         setRejectModal(null);
         setRejectReason("");
         loadTransactions();
@@ -333,7 +335,7 @@ export default function FinancialTransactions() {
       }
     } catch (error) {
       console.error("Error rejecting payment:", error);
-      alert("Error al rechazar el pago");
+      alert(t('admin.financial.errorRejectingPayment', 'Error rejecting payment'));
     } finally {
       setActionLoading(false);
     }
@@ -716,10 +718,10 @@ export default function FinancialTransactions() {
           </div>
           <div className="text-xs">
             {isOwnBankAccount ? (
-              <span className="text-green-600 dark:text-green-400">Cuenta propia</span>
+              <span className="text-green-600 dark:text-green-400">{t('admin.financial.ownAccount', 'Own account')}</span>
             ) : (
               <span className="text-orange-600 dark:text-orange-400">
-                Tercero: {thirdPartyAccountHolder || 'N/A'}
+                {t('admin.financial.thirdParty', 'Third party')}: {thirdPartyAccountHolder || 'N/A'}
               </span>
             )}
           </div>
@@ -745,10 +747,10 @@ export default function FinancialTransactions() {
 
   const getChartTitle = () => {
     const titles = {
-      escrow: 'Análisis de Pagos en Escrow',
-      recent: 'Transacciones - Últimos 30 Días',
-      commissions: 'Análisis de Comisiones',
-      total: 'Análisis de Total de Transacciones'
+      escrow: t('admin.financial.chartTitles.escrow', 'Escrow Payment Analysis'),
+      recent: t('admin.financial.chartTitles.recent', 'Transactions - Last 30 Days'),
+      commissions: t('admin.financial.chartTitles.commissions', 'Commission Analysis'),
+      total: t('admin.financial.chartTitles.total', 'Total Transaction Analysis')
     };
     return titles[selectedChart as keyof typeof titles] || '';
   };
@@ -768,9 +770,9 @@ export default function FinancialTransactions() {
       {/* Header */}
       <div className="mb-8 flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Movimientos Financieros</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t('admin.financial.title', 'Financial Transactions')}</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
-            Historial completo de transacciones y comisiones
+            {t('admin.financial.subtitle', 'Complete history of transactions and commissions')}
           </p>
         </div>
         <button
@@ -779,7 +781,7 @@ export default function FinancialTransactions() {
           className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Download className="h-4 w-4" />
-          {exporting ? 'Exportando...' : 'Exportar Excel'}
+          {exporting ? t('admin.financial.exporting', 'Exporting...') : t('admin.financial.exportExcel', 'Export Excel')}
         </button>
       </div>
 
@@ -795,8 +797,8 @@ export default function FinancialTransactions() {
               <BarChart3 className="h-5 w-5 opacity-75" />
             </div>
             <h3 className="text-2xl font-bold">{stats.escrow?.held || 0}</h3>
-            <p className="text-sm opacity-90">Pagos en Escrow</p>
-            <p className="text-xs opacity-75 mt-1">Click para ver gráfico</p>
+            <p className="text-sm opacity-90">{t('admin.financial.escrowPayments', 'Escrow Payments')}</p>
+            <p className="text-xs opacity-75 mt-1">{t('admin.financial.clickToViewChart', 'Click to view chart')}</p>
           </button>
 
           <button
@@ -808,8 +810,8 @@ export default function FinancialTransactions() {
               <BarChart3 className="h-5 w-5 opacity-75" />
             </div>
             <h3 className="text-2xl font-bold">{stats.recent?.transactions || 0}</h3>
-            <p className="text-sm opacity-90">Últimos 30 días</p>
-            <p className="text-xs opacity-75 mt-1">Click para ver gráfico</p>
+            <p className="text-sm opacity-90">{t('admin.financial.last30Days', 'Last 30 days')}</p>
+            <p className="text-xs opacity-75 mt-1">{t('admin.financial.clickToViewChart', 'Click to view chart')}</p>
           </button>
 
           <button
@@ -823,8 +825,8 @@ export default function FinancialTransactions() {
             <h3 className="text-2xl font-bold">
               ${stats.recent?.revenue?.toLocaleString() || 0}
             </h3>
-            <p className="text-sm opacity-90">Comisiones (30d)</p>
-            <p className="text-xs opacity-75 mt-1">Click para ver gráfico</p>
+            <p className="text-sm opacity-90">{t('admin.financial.commissions30d', 'Commissions (30d)')}</p>
+            <p className="text-xs opacity-75 mt-1">{t('admin.financial.clickToViewChart', 'Click to view chart')}</p>
           </button>
 
           <button
@@ -836,8 +838,8 @@ export default function FinancialTransactions() {
               <BarChart3 className="h-5 w-5 opacity-75" />
             </div>
             <h3 className="text-2xl font-bold">{pagination?.total || 0}</h3>
-            <p className="text-sm opacity-90">Total Transacciones</p>
-            <p className="text-xs opacity-75 mt-1">Click para ver gráfico</p>
+            <p className="text-sm opacity-90">{t('admin.financial.totalTransactions', 'Total Transactions')}</p>
+            <p className="text-xs opacity-75 mt-1">{t('admin.financial.clickToViewChart', 'Click to view chart')}</p>
           </button>
         </div>
       )}
@@ -1054,7 +1056,7 @@ export default function FinancialTransactions() {
                 </div>
               ) : (
                 <div className="text-center text-gray-500 dark:text-gray-400 py-12">
-                  No hay datos disponibles
+                  {t('admin.financial.noDataAvailable', 'No data available')}
                 </div>
               )}
             </div>
@@ -1065,7 +1067,7 @@ export default function FinancialTransactions() {
                 onClick={closeModal}
                 className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
               >
-                Cerrar
+                {t('common.close', 'Close')}
               </button>
             </div>
           </div>
@@ -1078,11 +1080,11 @@ export default function FinancialTransactions() {
           {/* Search */}
           <div className="md:col-span-2">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Buscar
+              {t('admin.financial.search', 'Search')}
             </label>
             <input
               type="text"
-              placeholder="Buscar por ID, descripción, cliente o doer..."
+              placeholder={t('admin.financial.searchPlaceholder', 'Search by ID, description, client or doer...')}
               value={filters.search}
               onChange={(e) => setFilters({ ...filters, search: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400"
@@ -1091,37 +1093,37 @@ export default function FinancialTransactions() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Tipo
+              {t('admin.financial.type', 'Type')}
             </label>
             <select
               value={filters.type}
               onChange={(e) => setFilters({ ...filters, type: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
-              <option value="all">Todos</option>
-              <option value="contract_payment">Contratos</option>
-              <option value="membership">Membresías</option>
-              <option value="job_publication">Publicaciones</option>
-              <option value="budget_increase">Aumento Presupuesto</option>
-              <option value="escrow_deposit">Escrow</option>
+              <option value="all">{t('admin.financial.all', 'All')}</option>
+              <option value="contract_payment">{t('admin.financial.types.contracts', 'Contracts')}</option>
+              <option value="membership">{t('admin.financial.types.memberships', 'Memberships')}</option>
+              <option value="job_publication">{t('admin.financial.types.publications', 'Publications')}</option>
+              <option value="budget_increase">{t('admin.financial.types.budgetIncrease', 'Budget Increase')}</option>
+              <option value="escrow_deposit">{t('admin.financial.types.escrow', 'Escrow')}</option>
             </select>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Estado
+              {t('admin.financial.statusLabel', 'Status')}
             </label>
             <select
               value={filters.status}
               onChange={(e) => setFilters({ ...filters, status: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             >
-              <option value="all">Todos</option>
-              <option value="pending">Pendiente</option>
-              <option value="held_escrow">En Escrow</option>
-              <option value="completed">Completado</option>
-              <option value="released">Liberado</option>
-              <option value="failed">Fallido</option>
+              <option value="all">{t('admin.financial.all', 'All')}</option>
+              <option value="pending">{t('admin.financial.statuses.pending', 'Pending')}</option>
+              <option value="held_escrow">{t('admin.financial.statuses.inEscrow', 'In Escrow')}</option>
+              <option value="completed">{t('admin.financial.statuses.completed', 'Completed')}</option>
+              <option value="released">{t('admin.financial.statuses.released', 'Released')}</option>
+              <option value="failed">{t('admin.financial.statuses.failed', 'Failed')}</option>
             </select>
           </div>
         </div>
@@ -1313,8 +1315,8 @@ export default function FinancialTransactions() {
                           <p className="text-xs text-gray-500 dark:text-gray-400">{transaction.recipient.email}</p>
                         </>
                       ) : transaction.type === 'job_publication' ? (
-                        <span className="text-xs text-amber-600 dark:text-amber-400" title="Pago de publicación - aún no hay trabajador asignado">
-                          Sin asignar
+                        <span className="text-xs text-amber-600 dark:text-amber-400" title={t('admin.financial.publicationPaymentNoWorker', 'Publication payment - no worker assigned yet')}>
+                          {t('admin.financial.unassigned', 'Unassigned')}
                         </span>
                       ) : (
                         <span className="text-gray-400">-</span>
@@ -1371,18 +1373,18 @@ export default function FinancialTransactions() {
                         {transaction.escrowReleased ? (
                           <span
                             className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400 cursor-help"
-                            title="Fondos liberados al trabajador. El trabajo fue confirmado como completado por ambas partes."
+                            title={t('admin.financial.escrowReleasedTooltip', 'Funds released to worker. Work confirmed as completed by both parties.')}
                           >
                             <CheckCircle className="w-3 h-3" />
-                            Liberado
+                            {t('admin.financial.released', 'Released')}
                           </span>
                         ) : (
                           <span
                             className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400 cursor-help"
-                            title="Fondos retenidos en escrow. Se liberarán cuando el cliente y trabajador confirmen que el trabajo fue completado."
+                            title={t('admin.financial.escrowHeldTooltip', 'Funds held in escrow. Will be released when client and worker confirm work is completed.')}
                           >
                             <Lock className="w-3 h-3" />
-                            Retenido
+                            {t('admin.financial.held', 'Held')}
                           </span>
                         )}
                         {(transaction.escrowAmount || 0) > 0 && (
@@ -1404,7 +1406,7 @@ export default function FinancialTransactions() {
                       <button
                         onClick={() => setSelectedTransaction(transaction)}
                         className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
-                        title="Ver detalles"
+                        title={t('admin.financial.viewDetails', 'View details')}
                       >
                         <ArrowRight className="w-5 h-5" />
                       </button>
@@ -1420,7 +1422,7 @@ export default function FinancialTransactions() {
         {pagination && pagination.pages > 1 && (
           <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between">
             <div className="text-sm text-gray-700 dark:text-gray-300">
-              Mostrando {((page - 1) * 50) + 1} - {Math.min(page * 50, pagination.total)} de {pagination.total}
+              {t('admin.financial.showing', 'Showing')} {((page - 1) * 50) + 1} - {Math.min(page * 50, pagination.total)} {t('admin.financial.of', 'of')} {pagination.total}
             </div>
             <div className="flex gap-2">
               <button
@@ -1428,17 +1430,17 @@ export default function FinancialTransactions() {
                 disabled={page === 1}
                 className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 hover:bg-gray-100 dark:hover:bg-gray-700"
               >
-                Anterior
+                {t('common.previous', 'Previous')}
               </button>
               <span className="px-3 py-1">
-                Página {page} de {pagination.pages}
+                {t('admin.financial.page', 'Page')} {page} {t('admin.financial.of', 'of')} {pagination.pages}
               </span>
               <button
                 onClick={() => setPage(page + 1)}
                 disabled={page === pagination.pages}
                 className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded disabled:opacity-50 hover:bg-gray-100 dark:hover:bg-gray-700"
               >
-                Siguiente
+                {t('common.next', 'Next')}
               </button>
             </div>
           </div>
@@ -1449,28 +1451,28 @@ export default function FinancialTransactions() {
       {rejectModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setRejectModal(null)}>
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Rechazar Pago</h3>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('admin.financial.rejectPayment', 'Reject Payment')}</h3>
 
             <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg">
               <p className="text-sm text-red-800 dark:text-red-300">
-                <strong>⚠️ Atención:</strong> Al rechazar este pago, el usuario será notificado y podrá subir un nuevo comprobante.
+                <strong>{t('admin.financial.attention', 'Attention')}:</strong> {t('admin.financial.rejectWarning', 'By rejecting this payment, the user will be notified and will be able to upload a new receipt.')}
               </p>
             </div>
 
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Razón del rechazo (requerida)
+                {t('admin.financial.rejectReason', 'Rejection reason (required)')}
               </label>
               <textarea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value.slice(0, 200))}
-                placeholder="Ej: Comprobante ilegible, monto incorrecto, fecha no coincide..."
+                placeholder={t('admin.financial.rejectReasonPlaceholder', 'e.g.: Illegible receipt, incorrect amount, date mismatch...')}
                 className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-gray-900 dark:text-white"
                 rows={3}
                 maxLength={200}
               />
               <p className="text-xs text-gray-400 mt-1 text-right">
-                {rejectReason.length}/200 caracteres
+                {rejectReason.length}/200 {t('admin.financial.characters', 'characters')}
               </p>
             </div>
 
@@ -1480,14 +1482,14 @@ export default function FinancialTransactions() {
                 disabled={actionLoading}
                 className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
               >
-                Cancelar
+                {t('common.cancel', 'Cancel')}
               </button>
               <button
                 onClick={confirmRejectPayment}
                 disabled={actionLoading || !rejectReason.trim()}
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
               >
-                {actionLoading ? 'Procesando...' : 'Rechazar Pago'}
+                {actionLoading ? t('common.processing', 'Processing...') : t('admin.financial.rejectPayment', 'Reject Payment')}
               </button>
             </div>
           </div>
@@ -1499,7 +1501,7 @@ export default function FinancialTransactions() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setSelectedTransaction(null)}>
           <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Detalles del Pago</h3>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('admin.financial.paymentDetails', 'Payment Details')}</h3>
               <button
                 onClick={() => setSelectedTransaction(null)}
                 className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
@@ -1515,7 +1517,7 @@ export default function FinancialTransactions() {
                   <p className="font-medium text-gray-900 dark:text-white text-xs">{selectedTransaction.id}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Fecha</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.financial.date', 'Date')}</p>
                   <p className="font-medium text-gray-900 dark:text-white">
                     {new Date(selectedTransaction.date).toLocaleDateString('es-AR')}
                   </p>
@@ -1524,17 +1526,17 @@ export default function FinancialTransactions() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Tipo</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.financial.type', 'Type')}</p>
                   {getTypeBadge(selectedTransaction.type)}
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Estado</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.financial.statusLabel', 'Status')}</p>
                   {getStatusBadge(selectedTransaction.status)}
                 </div>
               </div>
 
               <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Monto Total</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{t('admin.financial.totalAmount', 'Total Amount')}</p>
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">
                   ${Number(selectedTransaction.totalAmount).toLocaleString('es-AR', { minimumFractionDigits: 2 })} {selectedTransaction.currency}
                 </p>
@@ -1542,13 +1544,13 @@ export default function FinancialTransactions() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Comisión</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.financial.commission', 'Commission')}</p>
                   <p className="font-medium text-green-600 dark:text-green-400">
                     ${Number(selectedTransaction.platformFee).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">Porcentaje</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{t('admin.financial.percentage', 'Percentage')}</p>
                   <p className="font-medium text-gray-900 dark:text-white">
                     {Number(selectedTransaction.platformFeePercentage).toFixed(1)}%
                   </p>
@@ -1557,7 +1559,7 @@ export default function FinancialTransactions() {
 
               {selectedTransaction.payer && (
                 <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Pagador</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{t('admin.financial.payer', 'Payer')}</p>
                   <p className="font-medium text-gray-900 dark:text-white">{selectedTransaction.payer.name}</p>
                   <p className="text-sm text-gray-500">{selectedTransaction.payer.email}</p>
                 </div>
@@ -1565,7 +1567,7 @@ export default function FinancialTransactions() {
 
               {selectedTransaction.recipient && (
                 <div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Destinatario</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{t('admin.financial.recipient', 'Recipient')}</p>
                   <p className="font-medium text-gray-900 dark:text-white">{selectedTransaction.recipient.name}</p>
                   <p className="text-sm text-gray-500">{selectedTransaction.recipient.email}</p>
                 </div>
@@ -1573,14 +1575,14 @@ export default function FinancialTransactions() {
 
               {selectedTransaction.description && (
                 <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Descripción</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{t('common.description', 'Description')}</p>
                   <p className="text-gray-900 dark:text-white">{selectedTransaction.description}</p>
                 </div>
               )}
 
               {/* Payment Proof Section */}
               <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">Comprobante de Pago</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{t('admin.financial.paymentReceipt', 'Payment Receipt')}</p>
                 {selectedTransaction.proofs && selectedTransaction.proofs.length > 0 ? (
                   <div className="space-y-2">
                     {selectedTransaction.proofs.map((proof, index) => (
@@ -1594,7 +1596,7 @@ export default function FinancialTransactions() {
                         <Receipt className="h-5 w-5 text-sky-600 dark:text-sky-400" />
                         <div className="flex-1">
                           <p className="text-sm font-medium text-sky-700 dark:text-sky-300">
-                            Ver Comprobante {selectedTransaction.proofs!.length > 1 ? `#${index + 1}` : ''}
+                            {t('admin.financial.viewReceipt', 'View Receipt')} {selectedTransaction.proofs!.length > 1 ? `#${index + 1}` : ''}
                           </p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
                             {new Date(proof.uploadedAt).toLocaleString('es-AR')} -
@@ -1603,9 +1605,9 @@ export default function FinancialTransactions() {
                               proof.status === 'rejected' ? 'text-red-600' :
                               'text-amber-600'
                             }`}>
-                              {proof.status === 'approved' ? 'Aprobado' :
-                               proof.status === 'rejected' ? 'Rechazado' :
-                               'Pendiente'}
+                              {proof.status === 'approved' ? t('admin.financial.proofStatuses.approved', 'Approved') :
+                               proof.status === 'rejected' ? t('admin.financial.proofStatuses.rejected', 'Rejected') :
+                               t('admin.financial.proofStatuses.pending', 'Pending')}
                             </span>
                           </p>
                         </div>
@@ -1617,12 +1619,12 @@ export default function FinancialTransactions() {
                   <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                     <DollarSign className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                     <div>
-                      <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Pago vía MercadoPago</p>
+                      <p className="text-sm font-medium text-blue-700 dark:text-blue-300">{t('admin.financial.paymentViaMercadoPago', 'Payment via MercadoPago')}</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">ID: {selectedTransaction.mercadopagoPaymentId}</p>
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-400 dark:text-gray-500 italic">Sin comprobante adjunto</p>
+                  <p className="text-sm text-gray-400 dark:text-gray-500 italic">{t('admin.financial.noReceiptAttached', 'No receipt attached')}</p>
                 )}
               </div>
 
@@ -1630,7 +1632,7 @@ export default function FinancialTransactions() {
               {selectedTransaction.status === 'pending_verification' && (
                 <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
                   <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Para aprobar o rechazar pagos, ve a <span className="font-medium text-sky-600">Pagos Pendientes</span> en el menú lateral.
+                    {t('admin.financial.goToPendingPayments', 'To approve or reject payments, go to')} <span className="font-medium text-sky-600">{t('admin.financial.pendingPayments', 'Pending Payments')}</span> {t('admin.financial.inSidebar', 'in the sidebar')}.
                   </p>
                 </div>
               )}

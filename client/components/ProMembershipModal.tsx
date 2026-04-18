@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MembershipPricing } from '../types';
 import Button from './ui/Button';
 import { Crown, Check, X, TrendingDown, Info } from 'lucide-react';
@@ -9,6 +10,7 @@ interface ProMembershipModalProps {
 }
 
 export default function ProMembershipModal({ isOpen, onClose }: ProMembershipModalProps) {
+  const { t } = useTranslation();
   const [pricing, setPricing] = useState<MembershipPricing | null>(null);
   const [loading, setLoading] = useState(true);
   const [upgrading, setUpgrading] = useState(false);
@@ -29,7 +31,7 @@ export default function ProMembershipModal({ isOpen, onClose }: ProMembershipMod
       }
     } catch (err) {
       console.error('Error loading pricing:', err);
-      setError('Error al cargar precios');
+      setError(t('membership.errorLoadingPrices', 'Error loading prices'));
     } finally {
       setLoading(false);
     }
@@ -52,7 +54,7 @@ export default function ProMembershipModal({ isOpen, onClose }: ProMembershipMod
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Error al actualizar a PRO');
+        throw new Error(data.message || t('membership.errorUpgrading', 'Error upgrading to PRO'));
       }
 
       // Redirect to MercadoPago payment
@@ -75,10 +77,10 @@ export default function ProMembershipModal({ isOpen, onClose }: ProMembershipMod
             <div>
               <h2 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                 <Crown className="w-8 h-8 text-yellow-500" />
-                Actualiza a PRO
+                {t('membership.upgradeToPro', 'Upgrade to PRO')}
               </h2>
               <p className="text-gray-600 dark:text-gray-400 text-sm mt-1">
-                Desbloquea beneficios exclusivos y ahorra en comisiones
+                {t('membership.unlockBenefits', 'Unlock exclusive benefits and save on commissions')}
               </p>
             </div>
             <button
@@ -107,9 +109,9 @@ export default function ProMembershipModal({ isOpen, onClose }: ProMembershipMod
                       {pricing.free.name}
                     </h3>
                     <div className="text-4xl font-bold text-gray-900 dark:text-white">
-                      Gratis
+                      {t('membership.free', 'Free')}
                     </div>
-                    <p className="text-gray-500 dark:text-gray-400 mt-1">Por siempre</p>
+                    <p className="text-gray-500 dark:text-gray-400 mt-1">{t('membership.forever', 'Forever')}</p>
                   </div>
 
                   <ul className="space-y-3">
@@ -127,7 +129,7 @@ export default function ProMembershipModal({ isOpen, onClose }: ProMembershipMod
                       <div className="flex items-center gap-2 mb-3">
                         <TrendingDown className="w-4 h-4 text-sky-600 dark:text-sky-400" />
                         <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                          Comisiones por Volumen
+                          {t('membership.volumeCommissions', 'Volume commissions')}
                         </p>
                       </div>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
@@ -149,7 +151,7 @@ export default function ProMembershipModal({ isOpen, onClose }: ProMembershipMod
                         <div className="flex items-start gap-1.5">
                           <Info className="w-3.5 h-3.5 text-gray-400 flex-shrink-0 mt-0.5" />
                           <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Comisión mínima: ${(pricing.free as any).volumeCommissions.minimumCommission.toLocaleString('es-AR')} ARS
+                            {t('membership.minimumCommission', 'Minimum commission')}: ${(pricing.free as any).volumeCommissions.minimumCommission.toLocaleString('es-AR')} ARS
                           </p>
                         </div>
                       </div>
@@ -159,7 +161,7 @@ export default function ProMembershipModal({ isOpen, onClose }: ProMembershipMod
                   <div className="mt-4">
                     <div className="bg-white dark:bg-gray-600 rounded-lg p-3 text-center">
                       <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
-                        Plan Actual
+                        {t('membership.currentPlan', 'Current plan')}
                       </p>
                     </div>
                   </div>
@@ -205,18 +207,18 @@ export default function ProMembershipModal({ isOpen, onClose }: ProMembershipMod
                     {upgrading ? (
                       <>
                         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                        Procesando...
+                        {t('common.processing', 'Processing...')}
                       </>
                     ) : (
                       <>
                         <Crown className="w-5 h-5 mr-2" />
-                        Actualizar a PRO
+                        {t('membership.upgradeToPro', 'Upgrade to PRO')}
                       </>
                     )}
                   </Button>
 
                   <p className="text-xs text-center text-gray-600 dark:text-gray-400 mt-3">
-                    Cancela en cualquier momento. Procesado por MercadoPago.
+                    {t('membership.cancelAnytime', 'Cancel anytime. Processed by MercadoPago.')}
                   </p>
                 </div>
               </div>
@@ -224,7 +226,7 @@ export default function ProMembershipModal({ isOpen, onClose }: ProMembershipMod
               {/* Comparación de características */}
               <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-6">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 text-center">
-                  ¿Por qué PRO?
+                  {t('membership.whyPro', 'Why PRO?')}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="text-center">
@@ -233,8 +235,8 @@ export default function ProMembershipModal({ isOpen, onClose }: ProMembershipMod
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-1">Ahorra en Comisiones</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Solo 3% fijo vs 6-2% variable en Free</p>
+                    <h4 className="font-semibold text-gray-900 dark:text-white mb-1">{t('membership.saveOnCommissions', 'Save on commissions')}</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{t('membership.saveOnCommissionsDesc', 'Only 3% flat vs 6-2% variable on Free')}</p>
                   </div>
 
                   <div className="text-center">
@@ -243,8 +245,8 @@ export default function ProMembershipModal({ isOpen, onClose }: ProMembershipMod
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-1">Verificación Premium</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Badge PRO y KYC completo</p>
+                    <h4 className="font-semibold text-gray-900 dark:text-white mb-1">{t('membership.premiumVerification', 'Premium verification')}</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{t('membership.premiumVerificationDesc', 'PRO badge and full KYC')}</p>
                   </div>
 
                   <div className="text-center">
@@ -253,8 +255,8 @@ export default function ProMembershipModal({ isOpen, onClose }: ProMembershipMod
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                       </svg>
                     </div>
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-1">Prioridad en Búsquedas</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Aparece primero en resultados</p>
+                    <h4 className="font-semibold text-gray-900 dark:text-white mb-1">{t('membership.searchPriority', 'Search priority')}</h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{t('membership.searchPriorityDesc', 'Appear first in results')}</p>
                   </div>
                 </div>
               </div>

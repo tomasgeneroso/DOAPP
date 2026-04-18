@@ -2208,10 +2208,10 @@ router.post("/:id/generate-pairing", protect, async (req: AuthRequest, res: Resp
       return;
     }
 
-    // Generar código de 10 caracteres (alfanumérico)
-    const code = Array.from({ length: 10 }, () =>
-      'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random() * 32)]
-    ).join('');
+    // Generar código de 4 caracteres (1 letra + 3 números, ej: A123)
+    const letter = 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random() * 24)];
+    const numbers = Array.from({ length: 3 }, () => Math.floor(Math.random() * 10)).join('');
+    const code = `${letter}${numbers}`;
 
     contract.pairingCode = code;
     contract.pairingGeneratedAt = new Date();

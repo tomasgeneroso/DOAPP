@@ -1,5 +1,6 @@
 import { getImageUrl } from '../../utils/imageUrl';
 import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from 'react-i18next';
 import { Link } from "react-router-dom";
 import { Heart, Trash2, Send } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
@@ -30,6 +31,7 @@ interface PostCommentsProps {
 }
 
 export default function PostComments({ postId }: PostCommentsProps) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
@@ -80,7 +82,7 @@ export default function PostComments({ postId }: PostCommentsProps) {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Error al agregar comentario");
+        throw new Error(data.message || t('posts.errorAddingComment', 'Error adding comment'));
       }
 
       setComments([data.comment, ...comments]);
@@ -124,7 +126,7 @@ export default function PostComments({ postId }: PostCommentsProps) {
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    if (!confirm("¿Estás seguro de eliminar este comentario?")) return;
+    if (!confirm(t('posts.confirmDeleteComment', 'Are you sure you want to delete this comment?'))) return;
 
     try {
       const response = await fetch(`/api/posts/${postId}/comments/${commentId}`, {
@@ -150,11 +152,11 @@ export default function PostComments({ postId }: PostCommentsProps) {
     if (diffInHours < 24) {
       if (diffInHours < 1) {
         const diffInMinutes = Math.floor((now.getTime() - commentDate.getTime()) / (1000 * 60));
-        return `Hace ${diffInMinutes} min`;
+        return t('common.minutesAgo', '{{count}} min ago', { count: diffInMinutes });
       }
-      return `Hace ${diffInHours}h`;
+      return t('common.hoursAgo', '{{count}}h ago', { count: diffInHours });
     } else if (diffInHours < 48) {
-      return "Hace 1 día";
+      return t('common.oneDayAgo', '1 day ago');
     } else {
       return commentDate.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
     }
@@ -163,7 +165,7 @@ export default function PostComments({ postId }: PostCommentsProps) {
   if (isLoading) {
     return (
       <div className="p-6 text-center text-slate-500 dark:text-slate-400">
-        Cargando comentarios...
+        {t('posts.loadingComments', 'Loading comments...')}
       </div>
     );
   }
@@ -188,7 +190,7 @@ export default function PostComments({ postId }: PostCommentsProps) {
               <textarea
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Escribe un comentario..."
+                placeholder={t('posts.writeComment', 'Write a comment...')}
                 rows={2}
                 className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 resize-none"
                 maxLength={2000}
@@ -199,7 +201,7 @@ export default function PostComments({ postId }: PostCommentsProps) {
                   disabled={!newComment.trim() || isSubmitting}
                 >
                   <Send className="h-4 w-4 mr-2" />
-                  {isSubmitting ? "Enviando..." : "Comentar"}
+                  {isSubmitting ? t('common.sending', 'Sending...') : t('posts.comment', 'Comment')}
                 </Button>
               </div>
             </div>
@@ -211,7 +213,7 @@ export default function PostComments({ postId }: PostCommentsProps) {
       <div className="p-4 space-y-4">
         {comments.length === 0 ? (
           <p className="text-center text-slate-500 dark:text-slate-400 py-8">
-            No hay comentarios aún. ¡Sé el primero en comentar!
+            {t('posts.noComments', 'No comments yet. Be the first to comment!')}
           </p>
         ) : (
           comments.map((comment) => {
@@ -249,7 +251,7 @@ export default function PostComments({ postId }: PostCommentsProps) {
                         </span>
                       )}
                       {comment.author.isPremiumVerified && (
-                        <span className="text-blue-500 text-xs" title="Verificado">
+                        <span className="text-blue-500 text-xs" title={t('common.verified', 'Verified')}>
                           ✓
                         </span>
                       )}
@@ -282,7 +284,7 @@ export default function PostComments({ postId }: PostCommentsProps) {
                         className="text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 flex items-center gap-1"
                       >
                         <Trash2 className="h-3 w-3" />
-                        Eliminar
+                        {t('common.delete', 'Delete')}
                       </button>
                     )}
                   </div>

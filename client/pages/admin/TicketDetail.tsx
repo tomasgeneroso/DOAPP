@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { adminApi } from "@/lib/adminApi";
 import type { Ticket } from "@/types/admin";
 import { ArrowLeft, Send } from "lucide-react";
 
 export default function TicketDetail() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [ticket, setTicket] = useState<Ticket | null>(null);
@@ -40,7 +42,7 @@ export default function TicketDetail() {
       setMessage("");
       await loadTicket();
     } catch (error) {
-      alert("Error al enviar mensaje");
+      alert(t('admin.tickets.errorSending', 'Error sending message'));
     } finally {
       setSending(false);
     }
@@ -48,15 +50,15 @@ export default function TicketDetail() {
 
   const handleClose = async () => {
     if (!id) return;
-    const resolution = prompt("Resolución del ticket:");
+    const resolution = prompt(t('admin.tickets.resolutionPrompt', 'Ticket resolution:'));
     if (!resolution) return;
 
     try {
       await adminApi.tickets.close(id, resolution);
-      alert("Ticket cerrado correctamente");
+      alert(t('admin.tickets.closedSuccess', 'Ticket closed successfully'));
       await loadTicket();
     } catch (error) {
-      alert("Error al cerrar ticket");
+      alert(t('admin.tickets.errorClosing', 'Error closing ticket'));
     }
   };
 
@@ -69,7 +71,7 @@ export default function TicketDetail() {
   }
 
   if (!ticket) {
-    return <div>Ticket no encontrado</div>;
+    return <div>{t('admin.tickets.notFound', 'Ticket not found')}</div>;
   }
 
   return (
@@ -81,12 +83,12 @@ export default function TicketDetail() {
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4"
         >
           <ArrowLeft className="h-5 w-5" />
-          Volver a tickets
+          {t('admin.tickets.backToTickets', 'Back to tickets')}
         </button>
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">
-              Ticket {ticket.ticketNumber}
+              {t('admin.tickets.ticket', 'Ticket')} {ticket.ticketNumber}
             </h1>
             <p className="text-gray-600 mt-2">{ticket.subject}</p>
           </div>
@@ -95,7 +97,7 @@ export default function TicketDetail() {
               onClick={handleClose}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
             >
-              Cerrar Ticket
+              {t('admin.tickets.closeTicket', 'Close Ticket')}
             </button>
           )}
         </div>
@@ -104,22 +106,22 @@ export default function TicketDetail() {
       {/* Ticket Info */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-sm font-medium text-gray-500 mb-2">Estado</h3>
+          <h3 className="text-sm font-medium text-gray-500 mb-2">{t('common.status', 'Status')}</h3>
           <p className="text-lg font-semibold text-gray-900">{ticket.status}</p>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-sm font-medium text-gray-500 mb-2">Prioridad</h3>
+          <h3 className="text-sm font-medium text-gray-500 mb-2">{t('common.priority', 'Priority')}</h3>
           <p className="text-lg font-semibold text-gray-900">{ticket.priority}</p>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-sm font-medium text-gray-500 mb-2">Categoría</h3>
+          <h3 className="text-sm font-medium text-gray-500 mb-2">{t('common.category', 'Category')}</h3>
           <p className="text-lg font-semibold text-gray-900">{ticket.category}</p>
         </div>
       </div>
 
       {/* Messages */}
       <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-6">Conversación</h2>
+        <h2 className="text-xl font-bold text-gray-900 mb-6">{t('admin.tickets.conversation', 'Conversation')}</h2>
         <div className="space-y-6">
           {ticket.messages.map((msg, index) => (
             <div
@@ -144,7 +146,7 @@ export default function TicketDetail() {
                   )}
                   {msg.isInternal && (
                     <span className="text-xs px-2 py-1 bg-red-200 rounded">
-                      INTERNO
+                      {t('admin.tickets.internal', 'INTERNAL')}
                     </span>
                   )}
                 </div>
@@ -161,11 +163,11 @@ export default function TicketDetail() {
       {/* Reply Form */}
       {ticket.status !== "closed" && (
         <form onSubmit={handleSendMessage} className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Responder</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">{t('admin.tickets.reply', 'Reply')}</h3>
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Escribe tu respuesta..."
+            placeholder={t('admin.tickets.replyPlaceholder', 'Write your reply...')}
             rows={4}
             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent"
           />
@@ -176,7 +178,7 @@ export default function TicketDetail() {
               className="flex items-center gap-2 px-6 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 disabled:opacity-50"
             >
               <Send className="h-5 w-5" />
-              {sending ? "Enviando..." : "Enviar"}
+              {sending ? t('common.sending', 'Sending...') : t('common.send', 'Send')}
             </button>
           </div>
         </form>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Contract, JobTask } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
 import Button from '../ui/Button';
@@ -18,6 +19,7 @@ export default function TaskClaimModal({
   onClose,
   onSuccess,
 }: TaskClaimModalProps) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [tasks, setTasks] = useState<JobTask[]>([]);
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
@@ -86,12 +88,12 @@ export default function TaskClaimModal({
     setError(null);
 
     if (selectedTasks.length === 0) {
-      setError('Debes seleccionar al menos una tarea');
+      setError(t('contracts.selectAtLeastOneTask', 'You must select at least one task'));
       return;
     }
 
     if (!newEndDate) {
-      setError('Debes seleccionar una nueva fecha de entrega');
+      setError(t('contracts.selectNewDeliveryDate', 'You must select a new delivery date'));
       return;
     }
 
@@ -100,7 +102,7 @@ export default function TaskClaimModal({
     today.setHours(0, 0, 0, 0);
 
     if (selectedDate <= today) {
-      setError('La nueva fecha debe ser posterior a hoy');
+      setError(t('contracts.dateMustBeFuture', 'The new date must be after today'));
       return;
     }
 
@@ -124,7 +126,7 @@ export default function TaskClaimModal({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Error al reclamar tareas');
+        throw new Error(data.message || t('contracts.errorClaimingTasks', 'Error claiming tasks'));
       }
 
       onSuccess();
@@ -145,10 +147,10 @@ export default function TaskClaimModal({
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
           <div>
             <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-              Reclamar Tareas Incompletas
+              {t('contracts.claimIncompleteTasks', 'Claim Incomplete Tasks')}
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              Selecciona las tareas que no fueron completadas
+              {t('contracts.selectUncompletedTasks', 'Select the tasks that were not completed')}
             </p>
           </div>
           <button
@@ -166,11 +168,11 @@ export default function TaskClaimModal({
             <div className="flex gap-3">
               <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
               <div className="text-sm text-amber-800 dark:text-amber-200">
-                <p className="font-medium mb-1">Importante:</p>
+                <p className="font-medium mb-1">{t('common.important', 'Important')}:</p>
                 <ul className="list-disc list-inside space-y-1">
-                  <li>El trabajador recibirá una notificación de tu reclamo</li>
-                  <li>Si acepta, el contrato se extenderá hasta la nueva fecha</li>
-                  <li>Si rechaza, se creará una disputa automáticamente</li>
+                  <li>{t('contracts.workerWillBeNotified', 'The worker will receive a notification of your claim')}</li>
+                  <li>{t('contracts.ifAcceptedExtended', 'If accepted, the contract will be extended to the new date')}</li>
+                  <li>{t('contracts.ifRejectedDispute', 'If rejected, a dispute will be created automatically')}</li>
                 </ul>
               </div>
             </div>
@@ -186,7 +188,7 @@ export default function TaskClaimModal({
           <div>
             <div className="flex items-center justify-between mb-3">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Tareas No Completadas *
+                {t('contracts.uncompletedTasks', 'Uncompleted Tasks')} *
               </label>
               {tasks.length > 0 && (
                 <button
@@ -194,7 +196,7 @@ export default function TaskClaimModal({
                   onClick={handleSelectAll}
                   className="text-sm text-sky-600 hover:text-sky-700 dark:text-sky-400"
                 >
-                  {selectedTasks.length === tasks.length ? 'Deseleccionar todas' : 'Seleccionar todas'}
+                  {selectedTasks.length === tasks.length ? t('common.deselectAll', 'Deselect all') : t('common.selectAll', 'Select all')}
                 </button>
               )}
             </div>
@@ -205,8 +207,8 @@ export default function TaskClaimModal({
               </div>
             ) : tasks.length === 0 ? (
               <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                <p>No hay tareas pendientes para reclamar.</p>
-                <p className="text-sm mt-1">Todas las tareas fueron completadas.</p>
+                <p>{t('contracts.noPendingTasks', 'No pending tasks to claim.')}</p>
+                <p className="text-sm mt-1">{t('contracts.allTasksCompleted', 'All tasks were completed.')}</p>
               </div>
             ) : (
               <div className="space-y-2 max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg p-3">
@@ -244,7 +246,7 @@ export default function TaskClaimModal({
                               ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
                               : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
                           }`}>
-                            {task.status === 'pending' ? 'Pendiente' : 'En progreso'}
+                            {task.status === 'pending' ? t('common.status.pending', 'Pending') : t('common.status.inProgress', 'In progress')}
                           </span>
                         </div>
                       </div>
@@ -256,7 +258,7 @@ export default function TaskClaimModal({
 
             {selectedTasks.length > 0 && (
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                {selectedTasks.length} tarea{selectedTasks.length > 1 ? 's' : ''} seleccionada{selectedTasks.length > 1 ? 's' : ''}
+                {t('contracts.tasksSelected', '{{count}} task(s) selected', { count: selectedTasks.length })}
               </p>
             )}
           </div>
@@ -265,7 +267,7 @@ export default function TaskClaimModal({
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               <Calendar className="h-4 w-4 inline-block mr-1" />
-              Nueva Fecha de Entrega *
+              {t('contracts.newDeliveryDate', 'New Delivery Date')} *
             </label>
             <input
               type="date"
@@ -276,19 +278,19 @@ export default function TaskClaimModal({
               required
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              La fecha debe ser al menos 1 día en el futuro
+              {t('contracts.dateAtLeastOneDayFuture', 'The date must be at least 1 day in the future')}
             </p>
           </div>
 
           {/* Reason */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Motivo del reclamo (opcional)
+              {t('contracts.claimReasonOptional', 'Claim reason (optional)')}
             </label>
             <Textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Explica por qué consideras que estas tareas no fueron completadas..."
+              placeholder={t('contracts.claimReasonPlaceholder', 'Explain why you believe these tasks were not completed...')}
               rows={3}
             />
           </div>
@@ -301,14 +303,14 @@ export default function TaskClaimModal({
               onClick={onClose}
               disabled={loading}
             >
-              Cancelar
+              {t('common.cancel', 'Cancel')}
             </Button>
             <Button
               type="submit"
               variant="primary"
               disabled={loading || selectedTasks.length === 0 || loadingTasks}
             >
-              {loading ? 'Enviando...' : 'Enviar Reclamo'}
+              {loading ? t('common.sending', 'Sending...') : t('contracts.submitClaim', 'Submit Claim')}
             </Button>
           </div>
         </form>

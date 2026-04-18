@@ -1,4 +1,5 @@
 import { useState, useRef, ChangeEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Upload, X, FileIcon, Image as ImageIcon } from 'lucide-react';
 
 interface FileWithPreview extends File {
@@ -40,6 +41,7 @@ export default function FileUploadWithPreview({
   initialFiles = [],
   className = ""
 }: FileUploadWithPreviewProps) {
+  const { t } = useTranslation();
   const [selectedFiles, setSelectedFiles] = useState<FileWithPreview[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>(initialFiles);
   const [error, setError] = useState<string>("");
@@ -109,7 +111,7 @@ export default function FileUploadWithPreview({
     });
 
     if (validFiles.length === 0) {
-      setError('Tipo de archivo no permitido');
+      setError(t('upload.fileTypeNotAllowed', 'File type not allowed'));
       return;
     }
 
@@ -122,7 +124,7 @@ export default function FileUploadWithPreview({
 
     // Validar número de archivos
     if (files.length + selectedFiles.length > maxFiles) {
-      setError(`Máximo ${maxFiles} archivos permitidos`);
+      setError(t('upload.maxFilesAllowed', 'Maximum {{count}} files allowed', { count: maxFiles }));
       return;
     }
 
@@ -131,7 +133,7 @@ export default function FileUploadWithPreview({
     const oversizedFiles = files.filter(file => file.size > maxSizeBytes);
     if (oversizedFiles.length > 0) {
       const oversizedNames = oversizedFiles.map(f => f.name).join(', ');
-      setError(`Los siguientes archivos superan ${maxSizeMB}MB: ${oversizedNames}`);
+      setError(t('upload.filesExceedSize', 'The following files exceed {{size}}MB: {{names}}', { size: maxSizeMB, names: oversizedNames }));
       return;
     }
 
@@ -197,10 +199,10 @@ export default function FileUploadWithPreview({
           <Upload className={`w-12 h-12 mb-3 ${isDragging ? 'text-sky-500' : 'text-gray-400 dark:text-gray-500'}`} />
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">
             {isDragging ? (
-              <span className="text-sky-600 font-medium">Suelta los archivos aquí</span>
+              <span className="text-sky-600 font-medium">{t('upload.dropFilesHere', 'Drop files here')}</span>
             ) : (
               <>
-                <span className="text-sky-600 dark:text-sky-400 font-medium">Sube un archivo</span> o arrástralo aquí
+                <span className="text-sky-600 dark:text-sky-400 font-medium">{t('upload.uploadFile', 'Upload a file')}</span> {t('upload.orDragHere', 'or drag it here')}
               </>
             )}
           </p>
@@ -216,7 +218,7 @@ export default function FileUploadWithPreview({
       {/* Descripción adicional */}
       {!error && (
         <p className="mt-2 text-xs text-gray-500">
-          Una imagen vale más que mil palabras. Ayuda a los profesionales a entender el trabajo.
+          {t('upload.imageHelpText', 'A picture is worth a thousand words. Help professionals understand the job.')}
         </p>
       )}
 
@@ -224,7 +226,7 @@ export default function FileUploadWithPreview({
       {(selectedFiles.length > 0 || previewUrls.length > 0) && (
         <div className="mt-4">
           <p className="text-sm font-medium text-gray-700 mb-3">
-            Archivos seleccionados ({selectedFiles.length})
+            {t('upload.selectedFiles', 'Selected files')} ({selectedFiles.length})
           </p>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
@@ -257,7 +259,7 @@ export default function FileUploadWithPreview({
                     removeFile(index);
                   }}
                   className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg hover:bg-red-600"
-                  aria-label="Eliminar archivo"
+                  aria-label={t('upload.removeFile', 'Remove file')}
                 >
                   <X className="w-4 h-4" />
                 </button>

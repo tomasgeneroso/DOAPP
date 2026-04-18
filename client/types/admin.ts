@@ -111,7 +111,8 @@ export interface Ticket {
   category: "bug" | "feature" | "support" | "report_user" | "report_contract" | "dispute" | "payment" | "other";
   priority: "low" | "medium" | "high" | "urgent";
   status: "open" | "assigned" | "in_progress" | "waiting_user" | "resolved" | "closed";
-  createdBy: {
+  createdBy?: string; // FK UUID
+  creator?: {
     id?: string;
     _id?: string;
     name: string;
@@ -125,7 +126,8 @@ export interface Ticket {
     email: string;
     avatar?: string;
   };
-  assignedTo?: {
+  assignedTo?: string; // FK UUID
+  assignee?: {
     id?: string;
     _id?: string;
     name: string;
@@ -136,7 +138,8 @@ export interface Ticket {
   tags?: string[];
   resolution?: string;
   closedAt?: string;
-  closedBy?: {
+  closedBy?: string; // FK UUID
+  closer?: {
     id?: string;
     _id?: string;
     name: string;

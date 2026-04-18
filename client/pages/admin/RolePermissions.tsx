@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { Shield, Save, RotateCcw, Lock, AlertTriangle } from "lucide-react";
 
@@ -20,6 +21,7 @@ interface RolePermissions {
 }
 
 export default function RolePermissionsPage() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [roles, setRoles] = useState<Role[]>([]);
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
@@ -156,7 +158,7 @@ export default function RolePermissionsPage() {
 
       const data = await response.json();
       if (data.success) {
-        alert(`Permisos del rol ${roleId} actualizados exitosamente`);
+        alert(t('admin.rolePermissions.permissionsUpdatedSuccess', 'Role permissions updated successfully'));
         // Update original permissions
         setOriginalPermissions((prev) => ({
           ...prev,
@@ -167,7 +169,7 @@ export default function RolePermissionsPage() {
       }
     } catch (error) {
       console.error("Error saving permissions:", error);
-      alert("Error al guardar los permisos");
+      alert(t('admin.rolePermissions.errorSavingPermissions', 'Error saving permissions'));
     } finally {
       setSaving(false);
     }
@@ -202,10 +204,10 @@ export default function RolePermissionsPage() {
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center">
           <AlertTriangle className="h-12 w-12 text-red-600 dark:text-red-400 mx-auto mb-3" />
           <h2 className="text-xl font-bold text-red-900 dark:text-red-100 mb-2">
-            Acceso Denegado
+            {t('admin.rolePermissions.accessDenied', 'Access Denied')}
           </h2>
           <p className="text-red-700 dark:text-red-300">
-            Solo Owner y Super Admin pueden editar permisos de roles.
+            {t('admin.rolePermissions.onlyOwnerCanEdit', 'Only Owner and Super Admin can edit role permissions.')}
           </p>
         </div>
       </div>
@@ -218,16 +220,16 @@ export default function RolePermissionsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Permisos de Roles
+            {t('admin.rolePermissions.title', 'Role Permissions')}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Configura los permisos predefinidos para cada rol administrativo
+            {t('admin.rolePermissions.subtitle', 'Configure predefined permissions for each administrative role')}
           </p>
         </div>
         {hasChanges && (
           <div className="bg-yellow-100 dark:bg-yellow-900/20 px-4 py-2 rounded-lg border border-yellow-300 dark:border-yellow-700">
             <p className="text-sm text-yellow-800 dark:text-yellow-200">
-              ⚠️ Tienes cambios sin guardar
+              {t('admin.rolePermissions.unsavedChanges', 'You have unsaved changes')}
             </p>
           </div>
         )}
@@ -236,7 +238,7 @@ export default function RolePermissionsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Role Selector Sidebar */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 space-y-2">
-          <h3 className="font-semibold text-gray-900 dark:text-white mb-3">Roles</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-white mb-3">{t('admin.rolePermissions.roles', 'Roles')}</h3>
           {roles.map((role) => {
             const editable = canEditRole(role.id);
             const roleHasChanges =
@@ -267,7 +269,7 @@ export default function RolePermissionsPage() {
                   )}
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-6">
-                  {(rolePermissions[role.id] || []).length} permisos
+                  {(rolePermissions[role.id] || []).length} {t('admin.rolePermissions.permissions', 'permissions')}
                 </p>
               </button>
             );
@@ -292,7 +294,7 @@ export default function RolePermissionsPage() {
                   </p>
                   {!isRoleEditable && (
                     <p className="text-sm text-orange-600 dark:text-orange-400 mt-2">
-                      🔒 No puedes editar este rol
+                      {t('admin.rolePermissions.cannotEditRole', 'You cannot edit this role')}
                     </p>
                   )}
                 </div>
@@ -303,13 +305,13 @@ export default function RolePermissionsPage() {
                         onClick={() => selectAllPermissions(selectedRole)}
                         className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition text-sm"
                       >
-                        Seleccionar Todo
+                        {t('admin.rolePermissions.selectAll', 'Select All')}
                       </button>
                       <button
                         onClick={() => clearAllPermissions(selectedRole)}
                         className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition text-sm"
                       >
-                        Borrar Todo
+                        {t('admin.rolePermissions.clearAll', 'Clear All')}
                       </button>
                       {hasRoleChanges && (
                         <button
@@ -317,7 +319,7 @@ export default function RolePermissionsPage() {
                           className="px-4 py-2 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-lg hover:bg-orange-200 dark:hover:bg-orange-900/50 transition text-sm flex items-center gap-2"
                         >
                           <RotateCcw className="h-4 w-4" />
-                          Resetear
+                          {t('admin.rolePermissions.reset', 'Reset')}
                         </button>
                       )}
                       <button
@@ -326,7 +328,7 @@ export default function RolePermissionsPage() {
                         className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Save className="h-4 w-4" />
-                        {saving ? "Guardando..." : "Guardar Cambios"}
+                        {saving ? t('common.saving', 'Saving...') : t('admin.rolePermissions.saveChanges', 'Save Changes')}
                       </button>
                     </>
                   )}

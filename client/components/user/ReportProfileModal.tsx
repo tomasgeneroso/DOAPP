@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from 'react-i18next';
 import { X, AlertTriangle } from "lucide-react";
 import Button from "../ui/Button";
 
@@ -9,14 +10,14 @@ interface ReportProfileModalProps {
   onSuccess: () => void;
 }
 
-const REPORT_REASONS = [
-  { value: "identity_theft", label: "Está ocupando mi identidad" },
-  { value: "fake_profile", label: "Perfil falso o fraudulento" },
-  { value: "inappropriate_content", label: "Contenido inapropiado" },
-  { value: "harassment", label: "Acoso o comportamiento abusivo" },
-  { value: "scam", label: "Estafa o intento de fraude" },
-  { value: "spam", label: "Spam o publicidad no deseada" },
-  { value: "other", label: "Otro motivo" },
+const REPORT_REASON_KEYS = [
+  { value: "identity_theft", key: "profile.reportIdentityTheft", fallback: "Identity theft" },
+  { value: "fake_profile", key: "profile.reportFakeProfile", fallback: "Fake or fraudulent profile" },
+  { value: "inappropriate_content", key: "profile.reportInappropriateContent", fallback: "Inappropriate content" },
+  { value: "harassment", key: "profile.reportHarassment", fallback: "Harassment or abusive behavior" },
+  { value: "scam", key: "profile.reportScam", fallback: "Scam or fraud attempt" },
+  { value: "spam", key: "profile.reportSpam", fallback: "Spam or unwanted advertising" },
+  { value: "other", key: "profile.reportOther", fallback: "Other reason" },
 ];
 
 export default function ReportProfileModal({
@@ -25,21 +26,27 @@ export default function ReportProfileModal({
   onClose,
   onSuccess,
 }: ReportProfileModalProps) {
+  const { t } = useTranslation();
   const [selectedReason, setSelectedReason] = useState("");
   const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  const REPORT_REASONS = REPORT_REASON_KEYS.map(r => ({
+    value: r.value,
+    label: t(r.key, r.fallback),
+  }));
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!selectedReason) {
-      setError("Por favor selecciona un motivo");
+      setError(t('profile.selectReason', 'Please select a reason'));
       return;
     }
 
     if (!description.trim()) {
-      setError("Por favor describe el problema");
+      setError(t('profile.describeProblem', 'Please describe the problem'));
       return;
     }
 
@@ -54,8 +61,8 @@ export default function ReportProfileModal({
         },
         credentials: "include",
         body: JSON.stringify({
-          subject: `Denuncia de perfil: ${userName}`,
-          description: `Motivo: ${REPORT_REASONS.find(r => r.value === selectedReason)?.label}\n\nDescripción: ${description}\n\nPerfil reportado: ${userId}`,
+          subject: `${t('profile.reportSubject', 'Profile report')}: ${userName}`,
+          description: `${t('profile.reason', 'Reason')}: ${REPORT_REASONS.find(r => r.value === selectedReason)?.label}\n\n${t('posts.description', 'Description')}: ${description}\n\n${t('profile.reportedProfile', 'Reported profile')}: ${userId}`,
           priority: "high",
           category: "abuse",
         }),
@@ -64,13 +71,13 @@ export default function ReportProfileModal({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Error al enviar la denuncia");
+        throw new Error(data.message || t('profile.errorSendingReport', 'Error sending report'));
       }
 
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.message || "Error al enviar la denuncia");
+      setError(err.message || t('profile.errorSendingReport', 'Error sending report'));
     } finally {
       setIsSubmitting(false);
     }
@@ -87,7 +94,7 @@ export default function ReportProfileModal({
             </div>
             <div>
               <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                Denunciar Perfil
+                {t('profile.reportProfile', 'Report Profile')}
               </h2>
               <p className="text-sm text-slate-600 dark:text-slate-400">
                 {userName}
@@ -113,7 +120,7 @@ export default function ReportProfileModal({
           {/* Reason Selection */}
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-              Motivo de la denuncia *
+              {t('profile.reportReason', 'Reason for report')} *
             </label>
             <div className="space-y-2">
               {REPORT_REASONS.map((reason) => (
@@ -140,27 +147,26 @@ export default function ReportProfileModal({
           {/* Description */}
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-              Descripción del problema *
+              {t('profile.problemDescription', 'Problem description')} *
             </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={4}
-              placeholder="Por favor proporciona detalles sobre el problema..."
+              placeholder={t('profile.provideDetails', 'Please provide details about the problem...')}
               className="w-full px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 resize-none"
               maxLength={1000}
               required
             />
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              {description.length}/1000 caracteres
+              {description.length}/1000 {t('common.characters', 'characters')}
             </p>
           </div>
 
           {/* Warning */}
           <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
             <p className="text-sm text-amber-800 dark:text-amber-200">
-              Las denuncias falsas pueden resultar en la suspensión de tu cuenta.
-              El equipo de soporte revisará tu reporte.
+              {t('profile.falseReportWarning', 'False reports may result in the suspension of your account. The support team will review your report.')}
             </p>
           </div>
 
@@ -173,7 +179,7 @@ export default function ReportProfileModal({
               className="flex-1"
               disabled={isSubmitting}
             >
-              Cancelar
+              {t('common.cancel', 'Cancel')}
             </Button>
             <Button
               type="submit"
@@ -181,7 +187,7 @@ export default function ReportProfileModal({
               className="flex-1"
               disabled={isSubmitting}
             >
-              {isSubmitting ? "Enviando..." : "Enviar Denuncia"}
+              {isSubmitting ? t('common.sending', 'Sending...') : t('profile.sendReport', 'Send Report')}
             </Button>
           </div>
         </form>

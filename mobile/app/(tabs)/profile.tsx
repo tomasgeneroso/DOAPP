@@ -216,6 +216,16 @@ export default function ProfileScreen() {
 
           <TouchableOpacity
             style={[styles.menuItem, { borderBottomColor: themeColors.border }]}
+            onPress={() => router.push('/balance?tab=withdrawals')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.menuIcon}>🏦</Text>
+            <Text style={[styles.menuText, { color: themeColors.text.primary }]}>Retiro de saldo</Text>
+            <Text style={[styles.menuArrow, { color: themeColors.text.muted }]}>›</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.menuItem, { borderBottomColor: themeColors.border }]}
             onPress={() => router.push('/payments')}
             activeOpacity={0.7}
           >

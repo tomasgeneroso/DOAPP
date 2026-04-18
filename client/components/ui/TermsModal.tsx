@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import Button from "./Button";
 
@@ -9,6 +10,7 @@ interface TermsModalProps {
 }
 
 export function TermsModal({ isOpen, onClose, type }: TermsModalProps) {
+  const { t } = useTranslation();
   const [content, setContent] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
@@ -30,7 +32,7 @@ export function TermsModal({ isOpen, onClose, type }: TermsModalProps) {
       setContent(text);
     } catch (error) {
       console.error("Error cargando términos:", error);
-      setContent("Error al cargar los términos y condiciones.");
+      setContent(t('terms.errorLoading', 'Error loading terms and conditions.'));
     } finally {
       setLoading(false);
     }
@@ -45,8 +47,8 @@ export function TermsModal({ isOpen, onClose, type }: TermsModalProps) {
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <h2 className="text-2xl font-bold text-slate-900">
             {type === "app"
-              ? "Términos y Condiciones de Uso"
-              : "Términos y Condiciones del Contrato"}
+              ? t('terms.appTermsTitle', 'Terms and Conditions of Use')
+              : t('terms.contractTermsTitle', 'Contract Terms and Conditions')}
           </h2>
           <button
             onClick={onClose}
@@ -72,7 +74,7 @@ export function TermsModal({ isOpen, onClose, type }: TermsModalProps) {
         {/* Footer */}
         <div className="border-t border-slate-200 px-6 py-4">
           <Button onClick={onClose} className="w-full">
-            Cerrar
+            {t('common.close', 'Close')}
           </Button>
         </div>
       </div>

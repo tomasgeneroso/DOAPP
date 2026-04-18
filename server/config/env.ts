@@ -82,14 +82,7 @@ export const config = {
 // Validar variables críticas
 console.log("🔍 Environment check:");
 console.log("NODE_ENV:", config.nodeEnv);
-console.log("MONGODB_URI exists:", !!config.mongodbUri);
 console.log("JWT_SECRET exists:", !!config.jwtSecret && config.jwtSecret !== "tu-secreto-super-seguro-cambialo");
-console.log("PAYPAL_CLIENT_ID exists:", !!config.paypalClientId);
-
-// MongoDB is optional during PostgreSQL migration
-if (!config.mongodbUri && config.nodeEnv === 'production') {
-  console.warn("⚠️  ADVERTENCIA: MONGODB_URI no configurada. Asumiendo migración a PostgreSQL.");
-}
 
 if (!config.jwtSecret || config.jwtSecret === "tu-secreto-super-seguro-cambialo") {
   console.warn("⚠️  ADVERTENCIA: Usando JWT_SECRET por defecto. Cámbialo en producción.");

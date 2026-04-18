@@ -52,10 +52,10 @@ router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
       offset: skip,
       order: Object.entries(sortOptions).map(([key, value]) => [key, value === -1 ? 'DESC' : 'ASC']),
       include: [
-        { model: User, as: 'createdBy', attributes: ['name', 'email', 'avatar'] },
-        { model: User, as: 'assignedTo', attributes: ['name', 'email', 'avatar'] },
-        { model: User, as: 'relatedUser', attributes: ['name', 'email'] },
-        { model: Contract, as: 'relatedContract' }
+        { model: User, as: 'creator', attributes: ['id', 'name', 'email', 'avatar'] },
+        { model: User, as: 'assignee', attributes: ['id', 'name', 'email', 'avatar'] },
+        { model: User, as: 'related', attributes: ['id', 'name', 'email'] },
+        { model: Contract, as: 'contract' }
       ]
     });
 
@@ -84,11 +84,11 @@ router.get("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const ticket = await Ticket.findByPk(req.params.id, {
       include: [
-        { model: User, as: 'createdBy', attributes: ['name', 'email', 'avatar'] },
-        { model: User, as: 'assignedTo', attributes: ['name', 'email', 'avatar', 'adminRole'] },
-        { model: User, as: 'relatedUser', attributes: ['name', 'email'] },
-        { model: Contract, as: 'relatedContract' },
-        { model: User, as: 'closedBy', attributes: ['name', 'email'] }
+        { model: User, as: 'creator', attributes: ['id', 'name', 'email', 'avatar'] },
+        { model: User, as: 'assignee', attributes: ['id', 'name', 'email', 'avatar', 'adminRole'] },
+        { model: User, as: 'related', attributes: ['id', 'name', 'email'] },
+        { model: Contract, as: 'contract' },
+        { model: User, as: 'closer', attributes: ['id', 'name', 'email'] }
       ]
     });
 
@@ -159,7 +159,7 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
     });
 
     await ticket.reload({
-      include: [{ model: User, as: 'createdBy', attributes: ['name', 'email', 'avatar'] }]
+      include: [{ model: User, as: 'creator', attributes: ['id', 'name', 'email', 'avatar'] }]
     });
 
     // Notificar a staff
@@ -284,8 +284,8 @@ router.put(
 
       await ticket.reload({
         include: [
-          { model: User, as: 'createdBy', attributes: ['name', 'email'] },
-          { model: User, as: 'assignedTo', attributes: ['name', 'email'] }
+          { model: User, as: 'creator', attributes: ['name', 'email'] },
+          { model: User, as: 'assignee', attributes: ['name', 'email'] }
         ]
       });
 
@@ -345,7 +345,7 @@ router.put(
 
       await ticket.update({ status });
       await ticket.reload({
-        include: [{ model: User, as: 'createdBy', attributes: ['name', 'email'] }]
+        include: [{ model: User, as: 'creator', attributes: ['name', 'email'] }]
       });
 
       await logAudit({
@@ -403,8 +403,8 @@ router.put(
 
       await ticket.reload({
         include: [
-          { model: User, as: 'createdBy', attributes: ['name', 'email'] },
-          { model: User, as: 'closedBy', attributes: ['name', 'email'] }
+          { model: User, as: 'creator', attributes: ['name', 'email'] },
+          { model: User, as: 'closer', attributes: ['name', 'email'] }
         ]
       });
 
@@ -492,7 +492,7 @@ router.post("/create", async (req: AuthRequest, res: Response): Promise<void> =>
     });
 
     await ticket.reload({
-      include: [{ model: User, as: 'createdBy', attributes: ['name', 'email', 'avatar'] }]
+      include: [{ model: User, as: 'creator', attributes: ['name', 'email', 'avatar'] }]
     });
 
     res.status(201).json({

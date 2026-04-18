@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
+import { useTranslation } from "react-i18next";
 import type { BlogPost } from "../types";
 import { getImageUrl } from "../utils/imageUrl";
 import {
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 
 export default function BlogDetailScreen() {
+  const { t } = useTranslation();
   const { slug } = useParams<{ slug: string }>();
   const [post, setPost] = useState<BlogPost | null>(null);
   const [relatedPosts, setRelatedPosts] = useState<BlogPost[]>([]);
@@ -44,11 +46,11 @@ export default function BlogDetailScreen() {
       if (data.success) {
         setPost(data.post);
       } else {
-        setError(data.message || "Artículo no encontrado");
+        setError(data.message || t('blog.articleNotFound', 'Article not found'));
       }
     } catch (error) {
       console.error("Error fetching post:", error);
-      setError("Error al cargar el artículo");
+      setError(t('blog.errorLoadingArticle', 'Error loading article'));
     } finally {
       setLoading(false);
     }
@@ -98,7 +100,7 @@ export default function BlogDetailScreen() {
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(window.location.href);
-    alert("Enlace copiado al portapapeles");
+    alert(t('blog.linkCopied', 'Link copied to clipboard'));
   };
 
   if (loading) {
@@ -114,14 +116,14 @@ export default function BlogDetailScreen() {
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">
-            {error || "Artículo no encontrado"}
+            {error || t('blog.articleNotFound', 'Article not found')}
           </h1>
           <Link
             to="/blog"
             className="text-sky-600 hover:text-sky-700 flex items-center justify-center gap-2"
           >
             <ArrowLeft className="h-4 w-4" />
-            Volver al blog
+            {t('blog.backToBlog', 'Back to blog')}
           </Link>
         </div>
       </div>
@@ -205,7 +207,7 @@ export default function BlogDetailScreen() {
               className="inline-flex items-center gap-2 text-sky-600 hover:text-sky-700 font-medium"
             >
               <ArrowLeft className="h-4 w-4" />
-              Volver al blog
+              {t('blog.backToBlog', 'Back to blog')}
             </Link>
           </div>
         </div>
@@ -229,12 +231,12 @@ export default function BlogDetailScreen() {
             {post.postType === 'official' ? (
               <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-sky-600 text-white text-sm font-medium rounded-full">
                 <Crown className="h-4 w-4" />
-                Artículo Oficial
+                {t('blog.officialArticle', 'Official Article')}
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-purple-600 text-white text-sm font-medium rounded-full">
                 <Users className="h-4 w-4" />
-                Comunidad
+                {t('blog.communityBadge', 'Community')}
               </span>
             )}
 
@@ -242,7 +244,7 @@ export default function BlogDetailScreen() {
             {post.featured && (
               <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-amber-500 text-white text-sm font-bold rounded-full">
                 <Star className="h-4 w-4 fill-current" />
-                Destacado
+                {t('blog.featured', 'Featured')}
               </span>
             )}
 
@@ -255,7 +257,7 @@ export default function BlogDetailScreen() {
             {post.readingTime && (
               <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm rounded-full">
                 <Clock className="h-4 w-4" />
-                {post.readingTime} min de lectura
+                {post.readingTime} {t('blog.minRead', 'min read')}
               </span>
             )}
           </div>
@@ -282,7 +284,7 @@ export default function BlogDetailScreen() {
             </div>
             <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
               <Eye className="h-5 w-5" />
-              <span>{post.views} vistas</span>
+              <span>{post.views} {t('blog.views', 'views')}</span>
             </div>
             <div className="ml-auto">
               <div className="relative">
@@ -291,7 +293,7 @@ export default function BlogDetailScreen() {
                   className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
                 >
                   <Share2 className="h-5 w-5" />
-                  Compartir
+                  {t('blog.share', 'Share')}
                 </button>
 
                 {showShareMenu && (
@@ -321,7 +323,7 @@ export default function BlogDetailScreen() {
                       onClick={copyToClipboard}
                       className="w-full px-4 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700"
                     >
-                      Copiar enlace
+                      {t('blog.copyLink', 'Copy link')}
                     </button>
                   </div>
                 )}
@@ -359,7 +361,7 @@ export default function BlogDetailScreen() {
           <section className="bg-white dark:bg-slate-800 py-16 border-t border-slate-200 dark:border-slate-700">
             <div className="container mx-auto px-4">
               <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-8">
-                Artículos Relacionados
+                {t('blog.relatedArticles', 'Related Articles')}
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {relatedPosts.map((relatedPost) => (

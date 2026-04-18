@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { adminApi } from "@/lib/adminApi";
 import { FileText, DollarSign, TrendingUp, Activity } from "lucide-react";
 import {
@@ -28,17 +29,19 @@ interface ContractAnalytics {
 
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#82ca9d"];
 
-const STATUS_LABELS: Record<string, string> = {
-  pending: "Pendiente",
-  accepted: "Aceptado",
-  in_progress: "En Progreso",
-  completed: "Completado",
-  cancelled: "Cancelado",
-  disputed: "Disputado",
-  awaiting_confirmation: "Esperando Confirmación",
-};
-
 export default function AnalyticsContracts() {
+  const { t } = useTranslation();
+
+  const STATUS_LABELS: Record<string, string> = {
+    pending: t('common.status.pending', 'Pending'),
+    accepted: t('common.status.accepted', 'Accepted'),
+    in_progress: t('common.status.inProgress', 'In Progress'),
+    completed: t('common.status.completed', 'Completed'),
+    cancelled: t('common.status.cancelled', 'Cancelled'),
+    disputed: t('common.status.disputed', 'Disputed'),
+    awaiting_confirmation: t('common.status.awaitingConfirmation', 'Awaiting Confirmation'),
+  };
+
   const [analytics, setAnalytics] = useState<ContractAnalytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("30d");
@@ -73,7 +76,7 @@ export default function AnalyticsContracts() {
   if (!analytics) {
     return (
       <div className="p-6 text-center text-gray-500 dark:text-gray-400">
-        No se pudieron cargar las métricas
+        {t('admin.analytics.loadError', 'Could not load metrics')}
       </div>
     );
   }
@@ -95,10 +98,10 @@ export default function AnalyticsContracts() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Métricas de Contratos
+            {t('admin.analytics.contractMetrics', 'Contract Metrics')}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Análisis detallado de contratos y pagos
+            {t('admin.analytics.contractSubtitle', 'Detailed analysis of contracts and payments')}
           </p>
         </div>
 
@@ -114,7 +117,7 @@ export default function AnalyticsContracts() {
                   : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
               }`}
             >
-              {p === "7d" ? "7 días" : p === "30d" ? "30 días" : "90 días"}
+              {p === "7d" ? t('admin.analytics.7days', '7 days') : p === "30d" ? t('admin.analytics.30days', '30 days') : t('admin.analytics.90days', '90 days')}
             </button>
           ))}
         </div>
@@ -128,7 +131,7 @@ export default function AnalyticsContracts() {
               <FileText className="h-6 w-6 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Total Contratos</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.analytics.totalContracts', 'Total Contracts')}</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{totalContracts}</p>
             </div>
           </div>
@@ -140,7 +143,7 @@ export default function AnalyticsContracts() {
               <Activity className="h-6 w-6 text-green-600 dark:text-green-400" />
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Tasa de Completado</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.analytics.completionRate', 'Completion Rate')}</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
                 {completionRate.toFixed(1)}%
               </p>
@@ -154,7 +157,7 @@ export default function AnalyticsContracts() {
               <DollarSign className="h-6 w-6 text-purple-600 dark:text-purple-400" />
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Valor Promedio</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.analytics.avgValue', 'Average Value')}</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
                 ${analytics.avgContractValue.toFixed(2)}
               </p>
@@ -168,7 +171,7 @@ export default function AnalyticsContracts() {
               <TrendingUp className="h-6 w-6 text-orange-600 dark:text-orange-400" />
             </div>
             <div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Ingresos (Comisión)</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.analytics.revenue', 'Revenue (Commission)')}</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
                 ${analytics.totalRevenue.toFixed(2)}
               </p>
@@ -182,7 +185,7 @@ export default function AnalyticsContracts() {
         {/* Contracts Over Time */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Contratos por Día
+            {t('admin.analytics.contractsByDay', 'Contracts by Day')}
           </h3>
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={analytics.contractsByDay}>
@@ -203,7 +206,7 @@ export default function AnalyticsContracts() {
                 stroke="#0EA5E9"
                 fill="#0EA5E9"
                 fillOpacity={0.3}
-                name="Contratos"
+                name={t('admin.sidebar.contracts', 'Contracts')}
               />
             </AreaChart>
           </ResponsiveContainer>
@@ -212,7 +215,7 @@ export default function AnalyticsContracts() {
         {/* Revenue Over Time */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Ingresos por Día
+            {t('admin.analytics.revenueByDay', 'Revenue by Day')}
           </h3>
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={analytics.contractsByDay}>
@@ -233,7 +236,7 @@ export default function AnalyticsContracts() {
                 stroke="#10B981"
                 fill="#10B981"
                 fillOpacity={0.3}
-                name="Ingresos ($)"
+                name={t('admin.analytics.revenueLabel', 'Revenue ($)')}
               />
             </AreaChart>
           </ResponsiveContainer>
@@ -245,7 +248,7 @@ export default function AnalyticsContracts() {
         {/* Contracts by Status (Pie) */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Contratos por Estado
+            {t('admin.analytics.contractsByStatus', 'Contracts by Status')}
           </h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
@@ -277,7 +280,7 @@ export default function AnalyticsContracts() {
         {/* Contracts by Status (Bar) */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Distribución de Estados
+            {t('admin.analytics.statusDistribution', 'Status Distribution')}
           </h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={statusChartData}>
@@ -292,7 +295,7 @@ export default function AnalyticsContracts() {
                 }}
               />
               <Legend />
-              <Bar dataKey="count" fill="#8B5CF6" name="Contratos" />
+              <Bar dataKey="count" fill="#8B5CF6" name={t('admin.sidebar.contracts', 'Contracts')} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -301,20 +304,20 @@ export default function AnalyticsContracts() {
       {/* Status Summary Table */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Resumen por Estado
+          {t('admin.analytics.summaryByStatus', 'Summary by Status')}
         </h3>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead>
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Estado
+                  {t('common.status.label', 'Status')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Cantidad
+                  {t('common.quantity', 'Quantity')}
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Porcentaje
+                  {t('common.percentage', 'Percentage')}
                 </th>
               </tr>
             </thead>

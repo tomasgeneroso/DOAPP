@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { FileText, Search, Filter, Eye, Ban, CheckCircle, XCircle, Plus, ArrowUpDown, ArrowUp, ArrowDown, Wifi, WifiOff, Bell, AlertTriangle, X, Calendar, Clock, Edit, Receipt, ExternalLink } from "lucide-react";
 import { useSocket } from "../../hooks/useSocket";
 import { useAuth } from "../../hooks/useAuth";
@@ -74,6 +75,7 @@ type SortField = 'job' | 'client' | 'doer' | 'price' | 'date' | 'status' | 'paym
 type SortDirection = 'asc' | 'desc' | null;
 
 export default function AdminContracts() {
+  const { t } = useTranslation();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -113,7 +115,7 @@ export default function AdminContracts() {
     // Price changes
     if (contract.originalPrice && contract.originalPrice !== contract.totalPrice) {
       changes.push({
-        field: 'Precio',
+        field: t('admin.contracts.priceField', 'Price'),
         oldValue: `$${contract.originalPrice.toLocaleString()}`,
         newValue: `$${contract.totalPrice.toLocaleString()}`,
         changedAt: contract.updatedAt || contract.createdAt,
@@ -124,7 +126,7 @@ export default function AdminContracts() {
     if (contract.priceModifications) {
       contract.priceModifications.forEach((mod: any) => {
         changes.push({
-          field: 'Modificación de Precio',
+          field: t('admin.contracts.priceModification', 'Price Modification'),
           oldValue: `$${(mod.previousPrice || 0).toLocaleString()}`,
           newValue: `$${(mod.newPrice || 0).toLocaleString()}`,
           changedAt: mod.requestedAt || mod.createdAt,
@@ -138,7 +140,7 @@ export default function AdminContracts() {
     if (contract.extensions) {
       contract.extensions.forEach((ext: any) => {
         changes.push({
-          field: 'Extensión de Contrato',
+          field: t('admin.contracts.contractExtension', 'Contract Extension'),
           oldValue: ext.previousEndDate ? new Date(ext.previousEndDate).toLocaleDateString('es-AR') : '-',
           newValue: ext.newEndDate ? new Date(ext.newEndDate).toLocaleDateString('es-AR') : '-',
           changedAt: ext.requestedAt || ext.createdAt,
@@ -156,6 +158,12 @@ export default function AdminContracts() {
     return changes.sort((a, b) => new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime());
   };
 
+  const isUUID = (s: string) =>
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s.trim());
+
+  // Only use UUID search from backend; text search is client-side
+  const [backendSearchId, setBackendSearchId] = useState("");
+
   const fetchContracts = useCallback(async () => {
     try {
       setLoading(true);
@@ -164,6 +172,7 @@ export default function AdminContracts() {
 
       if (statusFilter !== "all") params.append("status", statusFilter);
       if (paymentFilter !== "all") params.append("paymentStatus", paymentFilter);
+      if (backendSearchId) params.append("search", backendSearchId);
 
       const response = await fetch(`/api/admin/contracts?${params}`, {
         headers: {
@@ -180,7 +189,16 @@ export default function AdminContracts() {
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, paymentFilter]);
+  }, [statusFilter, paymentFilter, backendSearchId]);
+
+  // When searchQuery is a complete UUID, trigger backend search
+  useEffect(() => {
+    if (isUUID(searchQuery)) {
+      setBackendSearchId(searchQuery.trim());
+    } else if (searchQuery === "") {
+      setBackendSearchId("");
+    }
+  }, [searchQuery]);
 
   const fetchContractDisputes = async (contractId: string) => {
     setLoadingDisputes(true);
@@ -206,7 +224,7 @@ export default function AdminContracts() {
 
   const handleChangeStatus = async () => {
     if (!changeStatusContract || !newStatus || !changeReason.trim() || changeReason.trim().length < 10) {
-      alert("Debes seleccionar un estado y proporcionar una razón (mínimo 10 caracteres)");
+      alert(t('admin.contracts.mustSelectStatusAndReason', 'You must select a status and provide a reason (minimum 10 characters)'));
       return;
     }
 
@@ -243,13 +261,13 @@ export default function AdminContracts() {
         setLinkedDisputeId("");
         setContractDisputes([]);
 
-        alert("Estado del contrato actualizado correctamente. Las partes han sido notificadas.");
+        alert(t('admin.contracts.statusUpdatedSuccess', 'Contract status updated successfully. Both parties have been notified.'));
       } else {
-        alert(data.message || "Error al cambiar el estado del contrato");
+        alert(data.message || t('admin.contracts.errorChangingStatus', 'Error changing contract status'));
       }
     } catch (error) {
       console.error("Error changing contract status:", error);
-      alert("Error al cambiar el estado del contrato");
+      alert(t('admin.contracts.errorChangingStatus', 'Error changing contract status'));
     } finally {
       setChangingStatus(false);
     }
@@ -258,7 +276,7 @@ export default function AdminContracts() {
   // Handle real-time contract creation
   const handleNewContract = useCallback((data: any) => {
     console.log("🆕 Real-time: New contract created", data);
-    setNewContractAlert(`Nuevo contrato: ${data.contract?.job?.title || 'Sin título'}`);
+    setNewContractAlert(`${t('admin.contracts.newContract', 'New contract')}: ${data.contract?.job?.title || t('admin.contracts.untitled', 'Untitled')}`);
     // Add contract to the list
     if (data.contract) {
       setContracts(prev => {
@@ -375,13 +393,13 @@ export default function AdminContracts() {
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
-      pending: "Pendiente",
-      accepted: "Aceptado",
-      in_progress: "En Progreso",
-      awaiting_confirmation: "Esperando Confirmación",
-      completed: "Completado",
-      cancelled: "Cancelado",
-      disputed: "En Disputa",
+      pending: t('admin.contracts.statuses.pending', 'Pending'),
+      accepted: t('admin.contracts.statuses.accepted', 'Accepted'),
+      in_progress: t('admin.contracts.statuses.inProgress', 'In Progress'),
+      awaiting_confirmation: t('admin.contracts.statuses.awaitingConfirmation', 'Awaiting Confirmation'),
+      completed: t('admin.contracts.statuses.completed', 'Completed'),
+      cancelled: t('admin.contracts.statuses.cancelled', 'Cancelled'),
+      disputed: t('admin.contracts.statuses.disputed', 'Disputed'),
     };
     return labels[status] || status;
   };
@@ -401,12 +419,21 @@ export default function AdminContracts() {
   const filteredContracts = contracts.filter((contract) => {
     const jobTitle = contract.job?.title || contract.title || '';
     const contractId = contract.id || contract._id || '';
+    const jobId = contract.job?.id || '';
+    const clientId = contract.client?.id || contract.client?._id || '';
+    const doerId = contract.doer?.id || contract.doer?._id || '';
+    const q = searchQuery.toLowerCase();
     const matchesSearch =
       searchQuery === "" ||
-      contractId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      jobTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contract.client?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contract.doer?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+      contractId.toLowerCase().includes(q) ||
+      jobTitle.toLowerCase().includes(q) ||
+      jobId.toLowerCase().includes(q) ||
+      clientId.toLowerCase().includes(q) ||
+      doerId.toLowerCase().includes(q) ||
+      contract.client?.name?.toLowerCase().includes(q) ||
+      contract.client?.email?.toLowerCase().includes(q) ||
+      contract.doer?.name?.toLowerCase().includes(q) ||
+      contract.doer?.email?.toLowerCase().includes(q);
 
     // Filtro por fecha
     const contractDate = new Date(contract.createdAt);
@@ -437,9 +464,9 @@ export default function AdminContracts() {
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Gestión de Contratos</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t('admin.contracts.title', 'Contract Management')}</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
-            Administra todos los contratos de la plataforma
+            {t('admin.contracts.subtitle', 'Manage all platform contracts')}
           </p>
         </div>
         <div className="flex items-center gap-4">
@@ -448,12 +475,12 @@ export default function AdminContracts() {
             {isConnected ? (
               <>
                 <Wifi className="h-4 w-4 text-green-500" />
-                <span className="text-green-600 dark:text-green-400">Tiempo real</span>
+                <span className="text-green-600 dark:text-green-400">{t('admin.contracts.realTime', 'Real-time')}</span>
               </>
             ) : (
               <>
                 <WifiOff className="h-4 w-4 text-gray-400" />
-                <span className="text-gray-500">Sin conexión</span>
+                <span className="text-gray-500">{t('admin.contracts.disconnected', 'Disconnected')}</span>
               </>
             )}
           </div>
@@ -462,7 +489,7 @@ export default function AdminContracts() {
             className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition shadow-md hover:shadow-lg"
           >
             <Plus className="h-5 w-5" />
-            Crear Contrato
+            {t('admin.contracts.createContract', 'Create Contract')}
           </Link>
         </div>
       </div>
@@ -475,7 +502,7 @@ export default function AdminContracts() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
             <input
               type="text"
-              placeholder="Buscar por ID, título, cliente o doer..."
+              placeholder={t('admin.contracts.searchPlaceholder', 'Search by ID, title, client or doer...')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 text-gray-900 dark:text-white"
@@ -489,14 +516,14 @@ export default function AdminContracts() {
               onChange={(e) => setStatusFilter(e.target.value)}
               className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 text-gray-900 dark:text-white"
             >
-              <option value="all">Todos los estados</option>
-              <option value="pending">Pendiente</option>
-              <option value="accepted">Aceptado</option>
-              <option value="in_progress">En Progreso</option>
-              <option value="awaiting_confirmation">Esperando Confirmación</option>
-              <option value="completed">Completado</option>
-              <option value="cancelled">Cancelado</option>
-              <option value="disputed">En Disputa</option>
+              <option value="all">{t('admin.contracts.allStatuses', 'All statuses')}</option>
+              <option value="pending">{t('admin.contracts.statuses.pending', 'Pending')}</option>
+              <option value="accepted">{t('admin.contracts.statuses.accepted', 'Accepted')}</option>
+              <option value="in_progress">{t('admin.contracts.statuses.inProgress', 'In Progress')}</option>
+              <option value="awaiting_confirmation">{t('admin.contracts.statuses.awaitingConfirmation', 'Awaiting Confirmation')}</option>
+              <option value="completed">{t('admin.contracts.statuses.completed', 'Completed')}</option>
+              <option value="cancelled">{t('admin.contracts.statuses.cancelled', 'Cancelled')}</option>
+              <option value="disputed">{t('admin.contracts.statuses.disputed', 'Disputed')}</option>
             </select>
           </div>
 
@@ -507,13 +534,13 @@ export default function AdminContracts() {
               onChange={(e) => setPaymentFilter(e.target.value)}
               className="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 text-gray-900 dark:text-white"
             >
-              <option value="all">Todos los pagos</option>
-              <option value="pending">Pago Pendiente</option>
-              <option value="escrow">En Escrow</option>
-              <option value="held">Retenido</option>
-              <option value="released">Liberado</option>
-              <option value="refunded">Reembolsado</option>
-              <option value="completed">Completado</option>
+              <option value="all">{t('admin.contracts.allPayments', 'All payments')}</option>
+              <option value="pending">{t('admin.contracts.paymentStatuses.pending', 'Payment Pending')}</option>
+              <option value="escrow">{t('admin.contracts.paymentStatuses.escrow', 'In Escrow')}</option>
+              <option value="held">{t('admin.contracts.paymentStatuses.held', 'Held')}</option>
+              <option value="released">{t('admin.contracts.paymentStatuses.released', 'Released')}</option>
+              <option value="refunded">{t('admin.contracts.paymentStatuses.refunded', 'Refunded')}</option>
+              <option value="completed">{t('admin.contracts.paymentStatuses.completed', 'Completed')}</option>
             </select>
           </div>
 
@@ -539,23 +566,23 @@ export default function AdminContracts() {
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <div className="text-sm text-gray-600 dark:text-gray-400">Total Contratos</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">{t('admin.contracts.totalContracts', 'Total Contracts')}</div>
           <div className="text-2xl font-bold text-gray-900 dark:text-white">{contracts.length}</div>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <div className="text-sm text-gray-600 dark:text-gray-400">En Progreso</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">{t('admin.contracts.statuses.inProgress', 'In Progress')}</div>
           <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
             {contracts.filter((c) => c.status === "in_progress").length}
           </div>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <div className="text-sm text-gray-600 dark:text-gray-400">Completados</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">{t('admin.contracts.statuses.completed', 'Completed')}</div>
           <div className="text-2xl font-bold text-green-600 dark:text-green-400">
             {contracts.filter((c) => c.status === "completed").length}
           </div>
         </div>
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-          <div className="text-sm text-gray-600 dark:text-gray-400">En Disputa</div>
+          <div className="text-sm text-gray-600 dark:text-gray-400">{t('admin.contracts.statuses.disputed', 'Disputed')}</div>
           <div className="text-2xl font-bold text-red-600 dark:text-red-400">
             {contracts.filter((c) => c.status === "disputed").length}
           </div>
@@ -576,7 +603,7 @@ export default function AdminContracts() {
                     onClick={() => handleSort('job')}
                     className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200"
                   >
-                    Trabajo
+                    {t('admin.contracts.job', 'Job')}
                     <SortIcon field="job" />
                   </button>
                 </th>
@@ -585,7 +612,7 @@ export default function AdminContracts() {
                     onClick={() => handleSort('client')}
                     className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200"
                   >
-                    Cliente
+                    {t('admin.contracts.client', 'Client')}
                     <SortIcon field="client" />
                   </button>
                 </th>
@@ -603,7 +630,7 @@ export default function AdminContracts() {
                     onClick={() => handleSort('price')}
                     className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200"
                   >
-                    Precio
+                    {t('admin.contracts.price', 'Price')}
                     <SortIcon field="price" />
                   </button>
                 </th>
@@ -612,7 +639,7 @@ export default function AdminContracts() {
                     onClick={() => handleSort('status')}
                     className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200"
                   >
-                    Estado
+                    {t('admin.contracts.status', 'Status')}
                     <SortIcon field="status" />
                   </button>
                 </th>
@@ -621,21 +648,21 @@ export default function AdminContracts() {
                     onClick={() => handleSort('payment')}
                     className="flex items-center gap-1 hover:text-gray-700 dark:hover:text-gray-200"
                   >
-                    Pago
+                    {t('admin.contracts.payment', 'Payment')}
                     <SortIcon field="payment" />
                   </button>
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Fechas
+                  {t('admin.contracts.dates', 'Dates')}
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Cambios
+                  {t('admin.contracts.changes', 'Changes')}
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Comprobante
+                  {t('admin.contracts.receipt', 'Receipt')}
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                  Acciones
+                  {t('admin.contracts.actions', 'Actions')}
                 </th>
               </tr>
             </thead>
@@ -643,7 +670,7 @@ export default function AdminContracts() {
               {getSortedAndFilteredContracts().length === 0 ? (
                 <tr>
                   <td colSpan={11} className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                    No se encontraron contratos
+                    {t('admin.contracts.noContractsFound', 'No contracts found')}
                   </td>
                 </tr>
               ) : (
@@ -656,18 +683,18 @@ export default function AdminContracts() {
                     </td>
                     <td className="px-4 py-4">
                       <div className="text-sm font-medium text-gray-900 dark:text-white">
-                        {contract.job?.title || contract.title || 'Sin título'}
+                        <a href={`/contracts/${contract.id}`} target="_blank" rel="noopener noreferrer" className="text-sky-600 dark:text-sky-400 hover:underline">{contract.job?.title || contract.title || t('admin.contracts.untitled', 'Untitled')}</a>
                       </div>
                       <div className="text-xs text-gray-500 dark:text-gray-400">
                         {new Date(contract.createdAt).toLocaleDateString("es-AR")} {new Date(contract.createdAt).toLocaleTimeString("es-AR", { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </td>
                     <td className="px-4 py-4">
-                      <div className="text-sm text-gray-900 dark:text-white">{contract.client?.name || 'N/A'}</div>
+                      <a href={`/admin/users?search=${encodeURIComponent(contract.client?.name || '')}`} className="text-sm text-sky-600 dark:text-sky-400 hover:underline">{contract.client?.name || 'N/A'}</a>
                       <div className="text-xs text-gray-500 dark:text-gray-400">{contract.client?.email || ''}</div>
                     </td>
                     <td className="px-4 py-4">
-                      <div className="text-sm text-gray-900 dark:text-white">{contract.doer?.name || 'N/A'}</div>
+                      <a href={`/admin/users?search=${encodeURIComponent(contract.doer?.name || '')}`} className="text-sm text-sky-600 dark:text-sky-400 hover:underline">{contract.doer?.name || 'N/A'}</a>
                       <div className="text-xs text-gray-500 dark:text-gray-400">{contract.doer?.email || ''}</div>
                     </td>
                     <td className="px-4 py-4">
@@ -689,11 +716,11 @@ export default function AdminContracts() {
                       <div className="text-xs text-gray-600 dark:text-gray-400 space-y-1">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-3 w-3 text-green-500" />
-                          <span>Inicio: {contract.startDate ? new Date(contract.startDate).toLocaleDateString('es-AR') : '-'}</span>
+                          <span>{t('admin.contracts.startDate', 'Start')}: {contract.startDate ? new Date(contract.startDate).toLocaleDateString('es-AR') : '-'}</span>
                         </div>
                         <div className="flex items-center gap-1">
                           <Calendar className="h-3 w-3 text-red-500" />
-                          <span>Fin: {contract.endDate ? new Date(contract.endDate).toLocaleDateString('es-AR') : '-'}</span>
+                          <span>{t('admin.contracts.endDate', 'End')}: {contract.endDate ? new Date(contract.endDate).toLocaleDateString('es-AR') : '-'}</span>
                         </div>
                         {contract.startDate && contract.endDate && (
                           <div className="flex items-center gap-1 text-gray-400">
@@ -710,7 +737,7 @@ export default function AdminContracts() {
                         <button
                           onClick={() => setSelectedContractChanges(contract)}
                           className="p-1.5 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 rounded-full transition-colors"
-                          title="Ver cambios"
+                          title={t('admin.contracts.viewChanges', 'View changes')}
                         >
                           <AlertTriangle className="h-5 w-5" />
                         </button>
@@ -727,11 +754,11 @@ export default function AdminContracts() {
                           className="inline-flex items-center gap-1 text-sm text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300"
                         >
                           <Receipt className="h-4 w-4" />
-                          Ver
+                          {t('admin.contracts.view', 'View')}
                           <ExternalLink className="h-3 w-3" />
                         </a>
                       ) : (
-                        <span className="text-xs text-gray-400 dark:text-gray-500">Sin comprobante</span>
+                        <span className="text-xs text-gray-400 dark:text-gray-500">{t('admin.contracts.noReceipt', 'No receipt')}</span>
                       )}
                     </td>
                     <td className="px-4 py-4">
@@ -739,7 +766,7 @@ export default function AdminContracts() {
                         <Link
                           to={`/contracts/${contract.id || contract._id}`}
                           className="p-1 text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded"
-                          title="Ver detalles"
+                          title={t('admin.contracts.viewDetails', 'View details')}
                         >
                           <Eye className="h-4 w-4" />
                         </Link>
@@ -752,7 +779,7 @@ export default function AdminContracts() {
                               fetchContractDisputes(contract.id || contract._id || "");
                             }}
                             className="p-1 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded"
-                            title="Cambiar estado (Owner)"
+                            title={t('admin.contracts.changeStatusOwner', 'Change status (Owner)')}
                           >
                             <Edit className="h-4 w-4" />
                           </button>
@@ -773,7 +800,7 @@ export default function AdminContracts() {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Historial de Cambios</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('admin.contracts.changeHistory', 'Change History')}</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   {selectedContractChanges.job?.title || selectedContractChanges.title || 'Contrato'}
                 </p>
@@ -787,7 +814,7 @@ export default function AdminContracts() {
             </div>
             <div className="p-4 overflow-y-auto max-h-[60vh]">
               {getContractChanges(selectedContractChanges).length === 0 ? (
-                <p className="text-center text-gray-500 dark:text-gray-400 py-8">No hay cambios registrados</p>
+                <p className="text-center text-gray-500 dark:text-gray-400 py-8">{t('admin.contracts.noChangesRecorded', 'No changes recorded')}</p>
               ) : (
                 <div className="space-y-4">
                   {getContractChanges(selectedContractChanges).map((change, index) => (
@@ -804,29 +831,29 @@ export default function AdminContracts() {
                           </div>
                           <div className="grid grid-cols-2 gap-4 text-sm">
                             <div>
-                              <span className="text-gray-500 dark:text-gray-400 block text-xs mb-1">Valor anterior:</span>
+                              <span className="text-gray-500 dark:text-gray-400 block text-xs mb-1">{t('admin.contracts.previousValue', 'Previous value')}:</span>
                               <span className="text-red-600 dark:text-red-400 font-medium line-through">{change.oldValue || '-'}</span>
                             </div>
                             <div>
-                              <span className="text-gray-500 dark:text-gray-400 block text-xs mb-1">Valor nuevo:</span>
+                              <span className="text-gray-500 dark:text-gray-400 block text-xs mb-1">{t('admin.contracts.newValue', 'New value')}:</span>
                               <span className="text-green-600 dark:text-green-400 font-medium">{change.newValue || '-'}</span>
                             </div>
                           </div>
                           {change.reason && (
                             <div className="mt-2 text-sm">
-                              <span className="text-gray-500 dark:text-gray-400">Razón: </span>
+                              <span className="text-gray-500 dark:text-gray-400">{t('admin.contracts.reason', 'Reason')}: </span>
                               <span className="text-gray-700 dark:text-gray-300">{change.reason}</span>
                             </div>
                           )}
                           {change.linkedDisputeId && (
                             <div className="mt-2 text-sm">
-                              <span className="text-gray-500 dark:text-gray-400">Disputa vinculada: </span>
+                              <span className="text-gray-500 dark:text-gray-400">{t('admin.contracts.linkedDispute', 'Linked dispute')}: </span>
                               <span className="text-sky-600 dark:text-sky-400 font-mono text-xs">{change.linkedDisputeId}</span>
                             </div>
                           )}
                           {change.changedBy && (
                             <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                              Por: {change.changedBy.name}
+                              {t('admin.contracts.by', 'By')}: {change.changedBy.name}
                             </div>
                           )}
                         </div>
@@ -841,7 +868,7 @@ export default function AdminContracts() {
                 onClick={() => setSelectedContractChanges(null)}
                 className="w-full px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
               >
-                Cerrar
+                {t('common.close', 'Close')}
               </button>
             </div>
           </div>
@@ -854,7 +881,7 @@ export default function AdminContracts() {
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Cambiar Estado del Contrato</h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('admin.contracts.changeContractStatus', 'Change Contract Status')}</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   {changeStatusContract.job?.title || changeStatusContract.title || 'Contrato'}
                 </p>
@@ -870,7 +897,7 @@ export default function AdminContracts() {
               {/* Current Status */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Estado actual:
+                  {t('admin.contracts.currentStatus', 'Current status')}:
                 </label>
                 <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
                   changeStatusContract.status === 'completed' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' :
@@ -886,7 +913,7 @@ export default function AdminContracts() {
               {/* New Status */}
               <div>
                 <label htmlFor="newStatus" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Nuevo estado: *
+                  {t('admin.contracts.newStatus', 'New status')}: *
                 </label>
                 <select
                   id="newStatus"
@@ -894,47 +921,47 @@ export default function AdminContracts() {
                   onChange={(e) => setNewStatus(e.target.value)}
                   className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-gray-900 dark:text-white"
                 >
-                  <option value="">Seleccionar estado...</option>
-                  <option value="pending">PENDING (Pendiente)</option>
-                  <option value="ready">READY (Listo)</option>
-                  <option value="accepted">ACCEPTED (Aceptado)</option>
-                  <option value="in_progress">IN_PROGRESS (En Progreso)</option>
-                  <option value="awaiting_confirmation">AWAITING_CONFIRMATION (Esperando Confirmación)</option>
-                  <option value="completed">COMPLETED (Completado)</option>
-                  <option value="cancelled">CANCELLED (Cancelado)</option>
-                  <option value="rejected">REJECTED (Rechazado)</option>
-                  <option value="disputed">DISPUTED (En Disputa)</option>
+                  <option value="">{t('admin.contracts.selectStatus', 'Select status...')}</option>
+                  <option value="pending">PENDING ({t('admin.contracts.statuses.pending', 'Pending')})</option>
+                  <option value="ready">READY ({t('admin.contracts.statuses.ready', 'Ready')})</option>
+                  <option value="accepted">ACCEPTED ({t('admin.contracts.statuses.accepted', 'Accepted')})</option>
+                  <option value="in_progress">IN_PROGRESS ({t('admin.contracts.statuses.inProgress', 'In Progress')})</option>
+                  <option value="awaiting_confirmation">AWAITING_CONFIRMATION ({t('admin.contracts.statuses.awaitingConfirmation', 'Awaiting Confirmation')})</option>
+                  <option value="completed">COMPLETED ({t('admin.contracts.statuses.completed', 'Completed')})</option>
+                  <option value="cancelled">CANCELLED ({t('admin.contracts.statuses.cancelled', 'Cancelled')})</option>
+                  <option value="rejected">REJECTED ({t('admin.contracts.statuses.rejected', 'Rejected')})</option>
+                  <option value="disputed">DISPUTED ({t('admin.contracts.statuses.disputed', 'Disputed')})</option>
                 </select>
               </div>
 
               {/* Reason */}
               <div>
                 <label htmlFor="changeReason" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Razón del cambio: * (mínimo 10 caracteres)
+                  {t('admin.contracts.changeReason', 'Reason for change')}: * ({t('admin.contracts.min10Chars', 'minimum 10 characters')})
                 </label>
                 <textarea
                   id="changeReason"
                   value={changeReason}
                   onChange={(e) => setChangeReason(e.target.value)}
                   rows={4}
-                  placeholder="Explica por qué estás cambiando el estado de este contrato..."
+                  placeholder={t('admin.contracts.changeReasonPlaceholder', 'Explain why you are changing the status of this contract...')}
                   className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-gray-900 dark:text-white resize-none"
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  {changeReason.length} / 10 caracteres mínimos
+                  {changeReason.length} / 10 {t('admin.contracts.minChars', 'minimum characters')}
                 </p>
               </div>
 
               {/* Linked Dispute (Optional) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Disputa relacionada (opcional):
+                  {t('admin.contracts.relatedDispute', 'Related dispute (optional)')}:
                 </label>
 
                 {loadingDisputes ? (
                   <div className="flex items-center justify-center py-4">
                     <div className="animate-spin h-5 w-5 border-2 border-sky-500 border-t-transparent rounded-full"></div>
-                    <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">Cargando disputas...</span>
+                    <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">{t('admin.contracts.loadingDisputes', 'Loading disputes...')}</span>
                   </div>
                 ) : (
                   <>
@@ -946,7 +973,7 @@ export default function AdminContracts() {
                           onChange={(e) => setLinkedDisputeId(e.target.value)}
                           className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-gray-900 dark:text-white"
                         >
-                          <option value="">Seleccionar disputa existente...</option>
+                          <option value="">{t('admin.contracts.selectExistingDispute', 'Select existing dispute...')}</option>
                           {contractDisputes.map((dispute) => (
                             <option key={dispute.id} value={dispute.id}>
                               {dispute.disputeNumber || dispute.id} - {dispute.category || 'Sin categoría'} - {dispute.status}
@@ -954,7 +981,7 @@ export default function AdminContracts() {
                           ))}
                         </select>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          {contractDisputes.length} disputa(s) encontrada(s) para este contrato
+                          {contractDisputes.length} {t('admin.contracts.disputesFound', 'dispute(s) found for this contract')}
                         </p>
                       </div>
                     )}
@@ -962,7 +989,7 @@ export default function AdminContracts() {
                     {/* Manual input for dispute ID */}
                     <div>
                       <label htmlFor="manualDisputeId" className="block text-xs text-gray-600 dark:text-gray-400 mb-1">
-                        O ingresar ID de disputa manualmente:
+                        {t('admin.contracts.orEnterDisputeId', 'Or enter dispute ID manually')}:
                       </label>
                       <input
                         id="manualDisputeId"
@@ -980,7 +1007,7 @@ export default function AdminContracts() {
               {/* Warning */}
               <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
                 <p className="text-xs text-amber-800 dark:text-amber-300">
-                  <strong>⚠️ Importante:</strong> Este cambio quedará registrado en el historial del contrato y ambas partes (cliente y trabajador) serán notificadas por email.
+                  <strong>{t('admin.contracts.important', 'Important')}:</strong> {t('admin.contracts.changeWarning', 'This change will be recorded in the contract history and both parties (client and worker) will be notified by email.')}
                 </p>
               </div>
             </div>
@@ -989,14 +1016,14 @@ export default function AdminContracts() {
                 onClick={() => setChangeStatusContract(null)}
                 className="flex-1 px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
               >
-                Cancelar
+                {t('common.cancel', 'Cancel')}
               </button>
               <button
                 onClick={handleChangeStatus}
                 disabled={changingStatus || !newStatus || changeReason.trim().length < 10}
                 className="flex-1 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {changingStatus ? 'Cambiando...' : 'Cambiar Estado'}
+                {changingStatus ? t('admin.contracts.changing', 'Changing...') : t('admin.contracts.changeStatus', 'Change Status')}
               </button>
             </div>
           </div>

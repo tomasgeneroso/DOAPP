@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import { PayPalButton } from "./PayPalButton";
 
@@ -23,6 +24,7 @@ export function PaymentModal({
   escrowEnabled = false,
   onSuccess,
 }: PaymentModalProps) {
+  const { t } = useTranslation();
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
   if (!isOpen) return null;
@@ -41,7 +43,7 @@ export function PaymentModal({
   };
 
   const handleError = (error: string) => {
-    alert(`Error al procesar el pago: ${error}`);
+    alert(`${t('payments.errorProcessingPayment', 'Error processing payment')}: ${error}`);
   };
 
   return (
@@ -49,7 +51,7 @@ export function PaymentModal({
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <h2 className="text-2xl font-bold text-gray-900">Realizar Pago</h2>
+          <h2 className="text-2xl font-bold text-gray-900">{t('payments.makePayment', 'Make Payment')}</h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition"
@@ -78,12 +80,12 @@ export function PaymentModal({
                 </svg>
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                ¡Pago Exitoso!
+                {t('payments.paymentSuccessful', 'Payment Successful!')}
               </h3>
               <p className="text-gray-600">
                 {escrowEnabled
-                  ? "Tu pago ha sido depositado en escrow de forma segura."
-                  : "El pago ha sido procesado correctamente."}
+                  ? t('payments.escrowDeposited', 'Your payment has been securely deposited in escrow.')
+                  : t('payments.paymentProcessed', 'The payment has been processed successfully.')}
               </p>
             </div>
           ) : (
@@ -91,26 +93,26 @@ export function PaymentModal({
               {/* Payment Details */}
               <div className="bg-gray-50 rounded-lg p-4 mb-6">
                 <h3 className="font-semibold text-gray-900 mb-3">
-                  Detalles del Pago
+                  {t('payments.paymentDetails', 'Payment Details')}
                 </h3>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Contrato:</span>
+                    <span className="text-gray-600">{t('payments.contract', 'Contract')}:</span>
                     <span className="font-medium text-gray-900">{contractTitle}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Destinatario:</span>
+                    <span className="text-gray-600">{t('payments.recipient', 'Recipient')}:</span>
                     <span className="font-medium text-gray-900">{recipientName}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Monto del servicio:</span>
+                    <span className="text-gray-600">{t('payments.serviceAmount', 'Service amount')}:</span>
                     <span className="font-medium text-gray-900">
                       ${amount.toFixed(2)} USD
                     </span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">
-                      Tarifa de plataforma ({platformFeePercentage}%):
+                      {t('payments.platformFee', 'Platform fee')} ({platformFeePercentage}%):
                     </span>
                     <span className="font-medium text-gray-900">
                       ${platformFee.toFixed(2)} USD
@@ -118,7 +120,7 @@ export function PaymentModal({
                   </div>
                   <div className="border-t border-gray-200 pt-2 mt-2">
                     <div className="flex justify-between">
-                      <span className="font-semibold text-gray-900">Total a pagar:</span>
+                      <span className="font-semibold text-gray-900">{t('payments.totalToPay', 'Total to pay')}:</span>
                       <span className="font-bold text-sky-600 text-lg">
                         ${totalAmount.toFixed(2)} USD
                       </span>
@@ -146,12 +148,10 @@ export function PaymentModal({
                     </div>
                     <div className="ml-3">
                       <h4 className="text-sm font-medium text-blue-800">
-                        Pago protegido con Escrow
+                        {t('payments.escrowProtected', 'Escrow-protected payment')}
                       </h4>
                       <p className="text-sm text-blue-700 mt-1">
-                        El dinero se mantendrá seguro hasta que confirmes que el trabajo
-                        está completo. Solo entonces se liberará el pago al proveedor del
-                        servicio.
+                        {t('payments.escrowDescription', 'The money will be held securely until you confirm the work is complete. Only then will the payment be released to the service provider.')}
                       </p>
                     </div>
                   </div>
@@ -163,7 +163,7 @@ export function PaymentModal({
                 <PayPalButton
                   contractId={contractId}
                   amount={totalAmount}
-                  description={`Pago para: ${contractTitle}`}
+                  description={`${t('payments.paymentFor', 'Payment for')}: ${contractTitle}`}
                   onSuccess={handleSuccess}
                   onError={handleError}
                   onCancel={onClose}
@@ -172,9 +172,9 @@ export function PaymentModal({
 
               {/* Security Notice */}
               <div className="text-xs text-gray-500 text-center">
-                <p>🔒 Pago seguro procesado por PayPal</p>
+                <p>{t('payments.securePayment', 'Secure payment processed by PayPal')}</p>
                 <p className="mt-1">
-                  Tus datos de pago están protegidos y encriptados
+                  {t('payments.dataProtected', 'Your payment data is protected and encrypted')}
                 </p>
               </div>
             </>

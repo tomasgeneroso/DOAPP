@@ -1,4 +1,5 @@
 import { Outlet, Link, useNavigate, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
 import { useSocket } from "@/hooks/useSocket";
@@ -26,6 +27,7 @@ import {
   TrendingUp,
   ChevronDown,
   ChevronRight,
+  Search,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -45,6 +47,7 @@ interface NavItem {
 }
 
 export default function AdminLayout() {
+  const { t } = useTranslation();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -78,9 +81,10 @@ export default function AdminLayout() {
       icon: LayoutDashboard,
       roles: ["owner", "super_admin", "admin", "support", "marketing", "dpo"],
       items: [
-        { path: "/admin", icon: LayoutDashboard, label: "Dashboard", roles: ["owner", "super_admin", "admin", "support", "marketing", "dpo"] },
-        { path: "/admin/analytics", icon: BarChart3, label: "Analytics", roles: ["owner", "super_admin", "admin", "marketing"] },
-        { path: "/admin/performance", icon: Activity, label: "Rendimiento", roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin", icon: LayoutDashboard, label: t('admin.sidebar.dashboard', 'Dashboard'), roles: ["owner", "super_admin", "admin", "support", "marketing", "dpo"] },
+        { path: "/admin/search", icon: Search, label: t('admin.sidebar.search', 'Global Search'), roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin/analytics", icon: BarChart3, label: t('admin.sidebar.analytics', 'Analytics'), roles: ["owner", "super_admin", "admin", "marketing"] },
+        { path: "/admin/performance", icon: Activity, label: t('admin.sidebar.performance', 'Performance'), roles: ["owner", "super_admin", "admin"] },
       ]
     },
     {
@@ -88,9 +92,9 @@ export default function AdminLayout() {
       icon: Briefcase,
       roles: ["owner", "super_admin", "admin", "marketing"],
       items: [
-        { path: "/admin/users", icon: Users, label: "Usuarios", roles: ["owner", "super_admin", "admin"] },
-        { path: "/admin/jobs", icon: Briefcase, label: "Publicaciones", roles: ["owner", "super_admin", "admin", "marketing"] },
-        { path: "/admin/contracts", icon: FileText, label: "Contratos", roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin/users", icon: Users, label: t('admin.sidebar.users', 'Users'), roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin/jobs", icon: Briefcase, label: t('admin.sidebar.publications', 'Publications'), roles: ["owner", "super_admin", "admin", "marketing"] },
+        { path: "/admin/contracts", icon: FileText, label: t('admin.sidebar.contracts', 'Contracts'), roles: ["owner", "super_admin", "admin"] },
       ]
     },
     {
@@ -98,10 +102,10 @@ export default function AdminLayout() {
       icon: DollarSign,
       roles: ["owner", "super_admin", "admin"],
       items: [
-        { path: "/admin/pending-payments", icon: CreditCard, label: "Pagos Pendientes", roles: ["owner", "super_admin", "admin"] },
-        { path: "/admin/withdrawals", icon: ArrowDownLeft, label: "Retiros", roles: ["owner", "super_admin", "admin"] },
-        { path: "/admin/financial-transactions", icon: TrendingUp, label: "Movimientos", roles: ["owner", "super_admin", "admin"] },
-        { path: "/admin/family-codes", icon: Gift, label: "Códigos Familia", roles: ["owner"] },
+        { path: "/admin/pending-payments", icon: CreditCard, label: t('admin.sidebar.pendingPayments', 'Pending Payments'), roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin/withdrawals", icon: ArrowDownLeft, label: t('admin.sidebar.withdrawals', 'Withdrawals'), roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin/financial-transactions", icon: TrendingUp, label: t('admin.sidebar.transactions', 'Transactions'), roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin/family-codes", icon: Gift, label: t('admin.sidebar.familyCodes', 'Family Codes'), roles: ["owner"] },
       ]
     },
     {
@@ -109,8 +113,8 @@ export default function AdminLayout() {
       icon: TicketIcon,
       roles: ["owner", "super_admin", "admin", "support"],
       items: [
-        { path: "/admin/disputes", icon: AlertTriangle, label: "Disputas", roles: ["owner", "super_admin", "admin", "support"] },
-        { path: "/admin/tickets", icon: TicketIcon, label: "Tickets", roles: ["owner", "super_admin", "admin", "support"] },
+        { path: "/admin/disputes", icon: AlertTriangle, label: t('admin.sidebar.disputes', 'Disputes'), roles: ["owner", "super_admin", "admin", "support"] },
+        { path: "/admin/tickets", icon: TicketIcon, label: t('admin.sidebar.tickets', 'Tickets'), roles: ["owner", "super_admin", "admin", "support"] },
       ]
     },
     {
@@ -118,19 +122,19 @@ export default function AdminLayout() {
       icon: Settings,
       roles: ["owner", "super_admin"],
       items: [
-        { path: "/admin/roles", icon: Shield, label: "Asignar Roles", roles: ["owner", "super_admin", "admin"] },
-        { path: "/admin/role-permissions", icon: Lock, label: "Permisos", roles: ["owner", "super_admin"] },
-        { path: "/admin/settings", icon: Settings, label: "Configuración", roles: ["owner", "super_admin"] },
+        { path: "/admin/roles", icon: Shield, label: t('admin.sidebar.assignRoles', 'Assign Roles'), roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin/role-permissions", icon: Lock, label: t('admin.sidebar.permissions', 'Permissions'), roles: ["owner", "super_admin"] },
+        { path: "/admin/settings", icon: Settings, label: t('admin.sidebar.settings', 'Settings'), roles: ["owner", "super_admin"] },
       ]
     },
   ];
 
   const groupLabels: Record<string, string> = {
-    general: "General",
-    operations: "Operaciones",
-    finance: "Finanzas",
-    support: "Soporte",
-    settings: "Configuración",
+    general: t('admin.sections.general', 'General'),
+    operations: t('admin.sections.operations', 'Operations'),
+    finance: t('admin.sections.finance', 'Finance'),
+    support: t('admin.sections.support', 'Support'),
+    settings: t('admin.sections.settings', 'Settings'),
   };
 
   // Filter groups and items by user role
@@ -150,10 +154,10 @@ export default function AdminLayout() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-900">
+    <div className="flex bg-slate-50 dark:bg-slate-900" style={{ minHeight: 'calc(100vh / 0.75)' }}>
       {/* Sidebar */}
-      <aside className="w-64 bg-white dark:bg-slate-800 shadow-md border-r border-slate-200 dark:border-slate-700 flex-shrink-0 min-h-screen">
-        <div className="p-4 sticky top-0 h-screen overflow-y-auto flex flex-col">
+      <aside className="w-64 bg-white dark:bg-slate-800 shadow-md border-r border-slate-200 dark:border-slate-700 flex-shrink-0" style={{ minHeight: 'calc(100vh / 0.75)' }}>
+        <div className="p-4 sticky top-0 overflow-y-auto flex flex-col" style={{ height: 'calc(100vh / 0.75)' }}>
           {/* Header with connection status */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
@@ -168,7 +172,7 @@ export default function AdminLayout() {
                   ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                   : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 cursor-pointer hover:bg-red-200 dark:hover:bg-red-900/50'
               }`}
-              title={isConnected ? 'Conectado en tiempo real' : 'Click para reconectar'}
+              title={isConnected ? t('admin.connectedRealtime', 'Connected in real-time') : t('admin.clickToReconnect', 'Click to reconnect')}
             >
               {isConnected ? (
                 <>
@@ -202,7 +206,7 @@ export default function AdminLayout() {
           {/* Theme Toggle - Compact */}
           <div className="mb-4 flex items-center justify-between px-2">
             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
-              {isDark ? "Oscuro" : "Claro"}
+              {isDark ? t('admin.dark', 'Dark') : t('admin.light', 'Light')}
             </span>
             <button
               onClick={toggleTheme}
@@ -274,21 +278,21 @@ export default function AdminLayout() {
               to="/"
               className="flex items-center justify-center gap-2 px-3 py-2 text-sm text-slate-600 dark:text-slate-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition border border-slate-200 dark:border-slate-600"
             >
-              Volver a la app
+              {t('admin.backToApp', 'Back to app')}
             </Link>
             <button
               onClick={handleLogout}
               className="flex items-center justify-center gap-2 px-3 py-2 w-full text-sm text-red-600 dark:text-red-400 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition"
             >
               <LogOut className="h-4 w-4" />
-              Cerrar Sesión
+              {t('nav.logout', 'Log Out')}
             </button>
           </div>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto bg-slate-50 dark:bg-slate-900">
+      <main className="flex-1 overflow-auto bg-slate-50 dark:bg-slate-900" style={{ minHeight: 'calc(100vh / 0.75)' }}>
         <div className="p-6 min-h-[calc(100vh-1px)]">
           <Outlet />
         </div>

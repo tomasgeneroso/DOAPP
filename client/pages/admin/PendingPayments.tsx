@@ -218,6 +218,16 @@ export default function PendingPayments() {
   const [rejectFile, setRejectFile] = useState<File | null>(null);
   const [rejectUploading, setRejectUploading] = useState(false);
 
+  // Approve modal state (mandatory proof upload)
+  const [approveModalPaymentId, setApproveModalPaymentId] = useState<string | null>(null);
+  const [approveFile, setApproveFile] = useState<File | null>(null);
+  const [approveReference, setApproveReference] = useState("");
+  const [approveAmount, setApproveAmount] = useState("");
+  const [approveDate, setApproveDate] = useState("");
+  const [approveSenderBank, setApproveSenderBank] = useState("");
+  const [approveNotes, setApproveNotes] = useState("");
+  const [approveUploading, setApproveUploading] = useState(false);
+
   // Liquidation form state
   const [bankFee, setBankFee] = useState<number>(0);
   const [taxPercentage, setTaxPercentage] = useState<number>(0);
@@ -329,36 +339,84 @@ export default function PendingPayments() {
     }
   };
 
-  // Aprobar pago de verificación (Step 1: verificar comprobante)
-  const handleApproveVerificationPayment = async (paymentId: string) => {
-    if (!confirm("¿Confirmas que el comprobante de pago es válido? El pago pasará a estado 'Verificado' y luego deberás confirmar el escrow.")) return;
+  // Abrir modal de aprobación (Step 1: requiere comprobante + datos)
+  const handleApproveVerificationPayment = (paymentId: string) => {
+    setApproveModalPaymentId(paymentId);
+    setApproveFile(null);
+    setApproveReference("");
+    setApproveAmount("");
+    setApproveDate("");
+    setApproveSenderBank("");
+    setApproveNotes("");
+  };
+
+  // Confirmar aprobación desde modal
+  const handleConfirmApprove = async () => {
+    if (!approveModalPaymentId) return;
+    if (!approveFile) {
+      alert("Debes subir el comprobante de pago");
+      return;
+    }
+    if (!approveReference.trim()) {
+      alert("Debes ingresar el número de referencia / ID de transacción");
+      return;
+    }
+    if (!approveAmount.trim()) {
+      alert("Debes ingresar el monto recibido");
+      return;
+    }
+    if (!approveDate.trim()) {
+      alert("Debes ingresar la fecha de la transferencia");
+      return;
+    }
 
     try {
-      setApprovingPaymentId(paymentId);
+      setApproveUploading(true);
       const token = localStorage.getItem("token");
-      const response = await fetch(`/api/admin/payments/${paymentId}/approve`, {
+
+      // 1. Upload proof file
+      const formData = new FormData();
+      formData.append("file", approveFile);
+      const uploadResponse = await fetch("/api/admin/payments/upload-proof", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      const uploadData = await uploadResponse.json();
+      if (!uploadData.success) {
+        throw new Error(uploadData.message || "Error al subir comprobante");
+      }
+
+      // 2. Approve payment with proof data
+      const response = await fetch(`/api/admin/payments/${approveModalPaymentId}/approve`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          notes: "Comprobante verificado por admin",
+          proofUrl: uploadData.url,
+          bankReference: approveReference,
+          transferAmount: approveAmount,
+          transferDate: approveDate,
+          senderBankName: approveSenderBank,
+          notes: approveNotes || "Comprobante verificado por admin",
         }),
       });
 
       const data = await response.json();
       if (data.success) {
         alert("✅ Comprobante verificado. Ahora debes verificar el escrow para que el contrato pueda continuar.");
+        setApproveModalPaymentId(null);
         loadVerificationPayments();
       } else {
         alert(data.message || "Error al aprobar el pago");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error approving payment:", error);
-      alert("Error al aprobar el pago");
+      alert(error.message || "Error al aprobar el pago");
     } finally {
-      setApprovingPaymentId(null);
+      setApproveUploading(false);
     }
   };
 
@@ -2523,6 +2581,159 @@ export default function PendingPayments() {
       )}
 
       {/* Reject Payment Modal */}
+      {/* Approve Payment Modal - Mandatory proof upload */}
+      {approveModalPaymentId && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-lg max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                    Verificar Comprobante de Pago
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    Todos los campos son obligatorios para aprobar el pago
+                  </p>
+                </div>
+                <button
+                  onClick={() => setApproveModalPaymentId(null)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Comprobante */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    <Upload className="inline h-4 w-4 mr-1" />
+                    Comprobante de pago <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    onChange={(e) => setApproveFile(e.target.files?.[0] || null)}
+                    className="block w-full text-sm text-gray-500 dark:text-gray-400
+                      file:mr-4 file:py-2 file:px-4
+                      file:rounded-lg file:border-0
+                      file:text-sm file:font-medium
+                      file:bg-green-100 file:text-green-700
+                      dark:file:bg-green-900/30 dark:file:text-green-300
+                      hover:file:bg-green-200 dark:hover:file:bg-green-900/50"
+                  />
+                  {approveFile && (
+                    <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                      ✓ {approveFile.name}
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    Formatos: JPG, PNG, PDF. Máx 10MB.
+                  </p>
+                </div>
+
+                {/* Referencia */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Número de referencia / ID de transacción <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={approveReference}
+                    onChange={(e) => setApproveReference(e.target.value)}
+                    placeholder="Ej: TRX-123456789"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Monto y Banco */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Monto recibido (ARS) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      value={approveAmount}
+                      onChange={(e) => setApproveAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Fecha de transferencia <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={approveDate}
+                      onChange={(e) => setApproveDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+
+                {/* Banco origen */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Banco de origen (opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={approveSenderBank}
+                    onChange={(e) => setApproveSenderBank(e.target.value)}
+                    placeholder="Ej: Banco Galicia, Mercado Pago..."
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                </div>
+
+                {/* Notas */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Notas adicionales (opcional)
+                  </label>
+                  <textarea
+                    value={approveNotes}
+                    onChange={(e) => setApproveNotes(e.target.value)}
+                    placeholder="Observaciones sobre el pago..."
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    rows={2}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <button
+                  onClick={() => setApproveModalPaymentId(null)}
+                  disabled={approveUploading}
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleConfirmApprove}
+                  disabled={approveUploading || !approveFile || !approveReference.trim() || !approveAmount.trim() || !approveDate.trim()}
+                  className="px-4 py-2 text-white bg-green-600 hover:bg-green-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {approveUploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Verificando...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4" />
+                      Verificar Comprobante
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {rejectModalPaymentId && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg max-w-lg w-full">

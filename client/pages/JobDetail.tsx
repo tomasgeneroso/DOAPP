@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { useSocket } from "../hooks/useSocket";
 import {
@@ -31,6 +32,8 @@ import {
   Briefcase,
   Flag,
   Share2,
+  MoreVertical,
+  Headphones,
 } from "lucide-react";
 import type { Job } from "@/types";
 import { getClientInfo } from "@/lib/utils";
@@ -64,6 +67,7 @@ const formatBudgetInput = (value: string): string => {
 
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
+  const { t } = useTranslation();
   const { user, token } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -87,6 +91,7 @@ export default function JobDetail() {
   const [newProposalAlert, setNewProposalAlert] = useState<string | null>(null);
   const [cancellationReason, setCancellationReason] = useState("");
   const [showBudgetModal, setShowBudgetModal] = useState(false);
+  const [showActionsMenu, setShowActionsMenu] = useState(false);
   const [newBudget, setNewBudget] = useState("");
   const [budgetReason, setBudgetReason] = useState("");
   const [changingBudget, setChangingBudget] = useState(false);
@@ -177,7 +182,7 @@ export default function JobDetail() {
   const handleNewProposal = useCallback((data: any) => {
     if (data.proposal?.jobId === id || data.proposal?.job?.id === id) {
       console.log("🆕 New proposal received for this job:", data);
-      setNewProposalAlert(`Nueva postulación de ${data.proposal?.freelancer?.name || 'un usuario'}`);
+      setNewProposalAlert(t('jobs.newApplication', 'New application from {{name}}', { name: data.proposal?.freelancer?.name || t('common.aUser', 'a user') }));
       // Add to proposals list
       setProposals(prev => {
         if (prev.some(p => p.id === data.proposal.id)) return prev;
@@ -232,10 +237,10 @@ export default function JobDetail() {
           location: data.job.location?.city || data.job.location?.province,
         });
       } else {
-        setError(data.message || "No se pudo cargar el trabajo");
+        setError(data.message || t('jobs.couldNotLoad', 'Could not load the job'));
       }
     } catch (err) {
-      setError("Error al cargar el trabajo");
+      setError(t('jobs.errorLoading', 'Error loading the job'));
       console.error("Error fetching job:", err);
     } finally {
       setLoading(false);
@@ -482,12 +487,12 @@ export default function JobDetail() {
         // Show success modal instead of navigating
         setShowConfirmationSuccessModal(true);
       } else {
-        setErrorMessage(data.message || 'Error al confirmar el trabajo');
+        setErrorMessage(data.message || t('jobs.errorConfirming', 'Error confirming the job'));
         setShowErrorModal(true);
       }
     } catch (err) {
       console.error('Error confirming work:', err);
-      setErrorMessage('Error al confirmar el trabajo');
+      setErrorMessage(t('jobs.errorConfirming', 'Error confirming the job'));
       setShowErrorModal(true);
     } finally {
       setConfirmingWork(false);
@@ -509,12 +514,12 @@ export default function JobDetail() {
       if (data.success && data.conversation) {
         navigate(`/chat/${data.conversation._id || data.conversation.id}`);
       } else {
-        setErrorMessage('No se pudo abrir el chat');
+        setErrorMessage(t('chat.couldNotOpen', 'Could not open chat'));
         setShowErrorModal(true);
       }
     } catch (err) {
       console.error('Error opening chat:', err);
-      setErrorMessage('Error al abrir el chat. Inténtalo de nuevo.');
+      setErrorMessage(t('chat.errorOpening', 'Error opening chat. Please try again.'));
       setShowErrorModal(true);
     } finally {
       setLoadingChat(false);
@@ -559,10 +564,10 @@ export default function JobDetail() {
         // Navigate to chat without job context (normal chat)
         navigate(`/chat/${data.conversationId}`);
       } else {
-        setError(data.message || 'No se pudo iniciar la conversación');
+        setError(data.message || t('chat.couldNotStart', 'Could not start conversation'));
       }
     } catch (err: any) {
-      setError(err.message || 'Error al iniciar conversación');
+      setError(err.message || t('chat.errorStarting', 'Error starting conversation'));
     } finally {
       setSendingMessage(false);
     }
@@ -577,7 +582,7 @@ export default function JobDetail() {
 
     const freelancerId = proposal.freelancer?.id || proposal.freelancerId;
     if (!freelancerId) {
-      setError('No se pudo identificar al freelancer');
+      setError(t('jobs.couldNotIdentifyFreelancer', 'Could not identify the freelancer'));
       return;
     }
 
@@ -605,10 +610,10 @@ export default function JobDetail() {
         // Navigate to chat with job context
         navigate(`/chat/${data.conversation.id}?jobId=${job.id || job._id}`);
       } else {
-        setError(data.message || 'No se pudo iniciar la conversación');
+        setError(data.message || t('chat.couldNotStart', 'Could not start conversation'));
       }
     } catch (err: any) {
-      setError(err.message || 'Error al iniciar conversación');
+      setError(err.message || t('chat.errorStarting', 'Error starting conversation'));
     } finally {
       setMessagingProposal(null);
     }
@@ -640,10 +645,10 @@ export default function JobDetail() {
           setJob(jobData.job);
         }
       } else {
-        setError(data.message || 'Error al pausar la publicación');
+        setError(data.message || t('jobs.errorPausing', 'Error pausing the listing'));
       }
     } catch (err: any) {
-      setError(err.message || 'Error al pausar la publicación');
+      setError(err.message || t('jobs.errorPausing', 'Error pausing the listing'));
     } finally {
       setActionLoading(false);
     }
@@ -675,10 +680,10 @@ export default function JobDetail() {
           setJob(jobData.job);
         }
       } else {
-        setError(data.message || 'Error al reanudar la publicación');
+        setError(data.message || t('jobs.errorResuming', 'Error resuming the listing'));
       }
     } catch (err: any) {
-      setError(err.message || 'Error al reanudar la publicación');
+      setError(err.message || t('jobs.errorResuming', 'Error resuming the listing'));
     } finally {
       setActionLoading(false);
     }
@@ -711,11 +716,11 @@ export default function JobDetail() {
         // Redirect to dashboard
         navigate('/dashboard');
       } else {
-        setError(data.message || 'Error al cancelar la publicación');
+        setError(data.message || t('jobs.errorCancelling', 'Error cancelling the listing'));
         setShowCancelModal(false);
       }
     } catch (err: any) {
-      setError(err.message || 'Error al cancelar la publicación');
+      setError(err.message || t('jobs.errorCancelling', 'Error cancelling the listing'));
       setShowCancelModal(false);
     } finally {
       setActionLoading(false);
@@ -751,11 +756,11 @@ export default function JobDetail() {
         // Redirect to dashboard
         navigate('/dashboard');
       } else {
-        setError(data.message || 'Error al eliminar el trabajo');
+        setError(data.message || t('jobs.errorDeleting', 'Error deleting the job'));
         setShowDeleteModal(false);
       }
     } catch (err: any) {
-      setError(err.message || 'Error al eliminar el trabajo');
+      setError(err.message || t('jobs.errorDeleting', 'Error deleting the job'));
       setShowDeleteModal(false);
     } finally {
       setDeleting(false);
@@ -770,12 +775,12 @@ export default function JobDetail() {
 
     // Validaciones
     if (!newBudget || parsedBudget <= 0) {
-      setError('El presupuesto debe ser mayor a 0');
+      setError(t('jobs.budgetMustBePositive', 'Budget must be greater than 0'));
       return;
     }
 
     if (!budgetReason || budgetReason.trim().length < 10) {
-      setError('La razón debe tener al menos 10 caracteres');
+      setError(t('jobs.reasonMinLength', 'Reason must be at least 10 characters'));
       return;
     }
 
@@ -838,10 +843,10 @@ export default function JobDetail() {
           setJob(jobData.job);
         }
       } else {
-        setError(data.message || 'Error al cambiar el presupuesto');
+        setError(data.message || t('jobs.errorChangingBudget', 'Error changing the budget'));
       }
     } catch (err: any) {
-      setError(err.message || 'Error al cambiar el presupuesto');
+      setError(err.message || t('jobs.errorChangingBudget', 'Error changing the budget'));
     } finally {
       setChangingBudget(false);
     }
@@ -876,10 +881,10 @@ export default function JobDetail() {
           setProposals([]);
         }
       } else {
-        setError(data.message || 'Error al seleccionar trabajador');
+        setError(data.message || t('jobs.errorSelectingWorker', 'Error selecting worker'));
       }
     } catch (err: any) {
-      setError(err.message || 'Error al seleccionar trabajador');
+      setError(err.message || t('jobs.errorSelectingWorker', 'Error selecting worker'));
     } finally {
       setSelectingWorker(null);
     }
@@ -898,16 +903,16 @@ export default function JobDetail() {
     const now = new Date();
     const diff = autoSelectDate.getTime() - now.getTime();
 
-    if (diff <= 0) return 'Ya pasó el límite';
+    if (diff <= 0) return t('jobs.deadlinePassed', 'Deadline has passed');
 
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
 
     if (hours > 24) {
       const days = Math.floor(hours / 24);
-      return `${days} día${days > 1 ? 's' : ''} restantes`;
+      return t('jobs.daysRemaining', '{{count}} days remaining', { count: days });
     }
-    return `${hours}h ${minutes}m restantes`;
+    return t('jobs.timeRemaining', '{{hours}}h {{minutes}}m remaining', { hours, minutes });
   };
 
   // Check if cancellation is allowed (more than 24h before start, or pending_approval)
@@ -946,9 +951,9 @@ export default function JobDetail() {
 
     if (hours > 24) {
       const days = Math.floor(hours / 24);
-      return `${days} día${days > 1 ? 's' : ''} para cancelar`;
+      return `${days} ${t('jobs.actions.daysToCancel', 'days to cancel')}`;
     }
-    return `${hours}h ${minutes}m para cancelar`;
+    return `${hours}h ${minutes}m ${t('jobs.actions.toCancel', 'to cancel')}`;
   };
 
   if (loading) {
@@ -963,12 +968,12 @@ export default function JobDetail() {
     return (
       <div className="container mx-auto px-4 py-12">
         <div className="text-center">
-          <p className="text-red-600 mb-4">{error || "Trabajo no encontrado"}</p>
+          <p className="text-red-600 mb-4">{error || t('jobs.notFound', 'Job not found')}</p>
           <Link
             to="/"
             className="text-sky-600 hover:text-sky-700 font-medium"
           >
-            Volver al inicio
+            {t('common.backToHome', 'Back to home')}
           </Link>
         </div>
       </div>
@@ -1003,7 +1008,7 @@ export default function JobDetail() {
             className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900"
           >
             <ArrowLeft className="h-4 w-4" />
-            Volver a trabajos
+            {t('jobs.backToJobs', 'Back to jobs')}
           </Link>
         </div>
 
@@ -1022,7 +1027,7 @@ export default function JobDetail() {
                     <button
                       onClick={handleCopyJobCode}
                       className="inline-flex items-center gap-2 rounded-lg bg-sky-100 dark:bg-sky-900/40 px-3 py-1.5 text-sm font-mono font-bold text-sky-700 dark:text-sky-300 hover:bg-sky-200 dark:hover:bg-sky-900/60 transition-colors border border-sky-200 dark:border-sky-700"
-                      title="Copiar código del trabajo"
+                      title={t('jobs.copyJobCode', 'Copy job code')}
                     >
                       <Key className="h-4 w-4" />
                       #{getJobCode(job.id || job._id)}
@@ -1050,14 +1055,14 @@ export default function JobDetail() {
                       {job.status === 'pending_payment' && <DollarSign className="h-3.5 w-3.5" />}
                       {job.status === 'paused' && <Pause className="h-3.5 w-3.5" />}
                       {job.status === 'cancelled' && <XCircle className="h-3.5 w-3.5" />}
-                      {job.status === 'completed' ? 'Completado' :
-                       job.status === 'in_progress' ? 'En Progreso' :
-                       job.status === 'open' ? 'Abierto' :
-                       job.status === 'pending_approval' ? 'Pendiente' :
-                       job.status === 'pending_payment' ? 'Pago Pendiente' :
-                       job.status === 'paused' ? 'Pausado' :
-                       job.status === 'cancelled' ? 'Cancelado' :
-                       job.status === 'draft' ? 'Borrador' :
+                      {job.status === 'completed' ? t('status.completed', 'Completed') :
+                       job.status === 'in_progress' ? t('status.inProgress', 'In Progress') :
+                       job.status === 'open' ? t('status.open', 'Open') :
+                       job.status === 'pending_approval' ? t('status.pending', 'Pending') :
+                       job.status === 'pending_payment' ? t('status.pendingPayment', 'Payment Pending') :
+                       job.status === 'paused' ? t('status.paused', 'Paused') :
+                       job.status === 'cancelled' ? t('status.cancelled', 'Cancelled') :
+                       job.status === 'draft' ? t('status.draft', 'Draft') :
                        job.status}
                     </span>
                     <div className="flex items-center gap-1">
@@ -1071,7 +1076,7 @@ export default function JobDetail() {
                   </div>
                 </div>
                 <div className="rounded-full bg-gradient-to-r from-sky-500 to-sky-600 px-4 py-2 text-xl font-bold text-white shadow-lg shadow-sky-500/30">
-                  ${job.price.toLocaleString("es-AR")}
+                  ${Number(job.price || 0).toLocaleString("es-AR")}
                 </div>
               </div>
 
@@ -1085,7 +1090,7 @@ export default function JobDetail() {
                   </div>
                   <div>
                     <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                      Fecha de inicio
+                      {t('jobs.startDate', 'Start date')}
                     </p>
                     <p className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white">
                       {new Date(job.startDate).toLocaleDateString("es-AR")}
@@ -1098,7 +1103,7 @@ export default function JobDetail() {
                   </div>
                   <div>
                     <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                      Hora de inicio
+                      {t('jobs.startTime', 'Start time')}
                     </p>
                     <p className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white">
                       {new Date(job.startDate).toLocaleTimeString("es-AR", {
@@ -1115,13 +1120,13 @@ export default function JobDetail() {
                     </div>
                     <div>
                       <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
-                        Fecha de fin
+                        {t('jobs.endDate', 'End date')}
                       </p>
                       <p className="mt-0.5 text-sm font-semibold text-amber-700 dark:text-amber-300">
-                        Por definir
+                        {t('jobs.toBeDecided', 'To be decided')}
                       </p>
                       <p className="text-xs text-amber-600 dark:text-amber-400">
-                        El cliente aún no ha definido la fecha de finalización
+                        {t('jobs.clientHasNotSetEndDate', 'The client has not yet set the end date')}
                       </p>
                     </div>
                   </div>
@@ -1133,10 +1138,10 @@ export default function JobDetail() {
                       </div>
                       <div>
                         <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                          Fecha de fin
+                          {t('jobs.endDate', 'End date')}
                         </p>
                         <p className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white">
-                          {job.endDate ? new Date(job.endDate).toLocaleDateString("es-AR") : 'Por definir'}
+                          {job.endDate ? new Date(job.endDate).toLocaleDateString("es-AR") : t('jobs.toBeDecided', 'To be decided')}
                         </p>
                       </div>
                     </div>
@@ -1146,7 +1151,7 @@ export default function JobDetail() {
                       </div>
                       <div>
                         <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                          Hora de fin
+                          {t('jobs.endTime', 'End time')}
                         </p>
                         <p className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-white">
                           {job.endDate ? new Date(job.endDate).toLocaleTimeString("es-AR", {
@@ -1167,11 +1172,11 @@ export default function JobDetail() {
                     <div className="flex items-center gap-2">
                       <Users className="h-5 w-5 text-purple-600 dark:text-purple-400" />
                       <span className="font-medium text-purple-800 dark:text-purple-300">
-                        Trabajo en equipo
+                        {t('jobs.teamJob', 'Team job')}
                       </span>
                     </div>
                     <span className="text-sm text-purple-600 dark:text-purple-400">
-                      {(job.selectedWorkers?.length || 0)} / {job.maxWorkers} trabajadores
+                      {(job.selectedWorkers?.length || 0)} / {job.maxWorkers} {t('jobs.workers', 'workers')}
                     </span>
                   </div>
                   <div className="mt-2">
@@ -1184,13 +1189,13 @@ export default function JobDetail() {
                   </div>
                   {(job.selectedWorkers?.length || 0) < (job.maxWorkers || 1) && (
                     <p className="mt-2 text-sm text-purple-600 dark:text-purple-400">
-                      Faltan {(job.maxWorkers || 1) - (job.selectedWorkers?.length || 0)} trabajador{(job.maxWorkers || 1) - (job.selectedWorkers?.length || 0) !== 1 ? 'es' : ''} por seleccionar
+                      {t('jobs.workersToSelect', '{{count}} worker(s) to select', { count: (job.maxWorkers || 1) - (job.selectedWorkers?.length || 0) })}
                     </p>
                   )}
                   {(job.selectedWorkers?.length || 0) >= (job.maxWorkers || 1) && (
                     <p className="mt-2 text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
                       <CheckCircle className="h-4 w-4" />
-                      Equipo completo
+                      {t('jobs.teamComplete', 'Team complete')}
                     </p>
                   )}
                 </div>
@@ -1203,69 +1208,69 @@ export default function JobDetail() {
                     <div className="flex items-center gap-2 mb-4">
                       <Briefcase className="h-6 w-6 text-sky-600 dark:text-sky-400" />
                       <h2 className="text-xl font-bold text-sky-800 dark:text-sky-300">
-                        {contractData ? '📋 Información del Contrato' : '📋 Información del Trabajo'}
+                        {contractData ? t('jobs.contractInfo', 'Contract Information') : t('jobs.jobInfo', 'Job Information')}
                       </h2>
                     </div>
 
-                    {/* Partes del Contrato + Detalles de Pago + Fechas */}
+                    {/* {t('jobs.detail.parties')} + {t('jobs.detail.paymentDetails')} + Fechas */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                       {/* Partes */}
                       <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
                         <div className="flex items-center gap-2 mb-3">
                           <Users className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-                          <h3 className="font-semibold text-gray-900 dark:text-white">Partes del Contrato</h3>
+                          <h3 className="font-semibold text-gray-900 dark:text-white">{t('jobs.detail.parties')}</h3>
                         </div>
                         <div className="space-y-2">
                           <div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Cliente</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{t('common.client', 'Client')}</p>
                             <Link
                               to={`/profile/${getClientInfo(job?.client)?.id || ''}`}
                               className="font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hover:underline"
                             >
-                              {getClientInfo(job?.client)?.name || 'Cliente'}
+                              {getClientInfo(job?.client)?.name || t('common.client', 'Client')}
                             </Link>
                           </div>
                           <div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Trabajador</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{t('common.worker', 'Worker')}</p>
                             {job.doer ? (
                               <Link
                                 to={`/profile/${typeof job.doer === 'string' ? job.doer : (job.doer.id || job.doer._id)}`}
                                 className="font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hover:underline"
                               >
-                                {typeof job.doer === 'string' ? 'Ver perfil' : job.doer.name}
+                                {typeof job.doer === 'string' ? t('profile.viewProfile', 'View profile') : job.doer.name}
                               </Link>
                             ) : contractData?.doerId ? (
                               <Link
                                 to={`/profile/${contractData.doerId}`}
                                 className="font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hover:underline"
                               >
-                                {allContractsData?.contracts?.find(c => c.doerId === contractData.doerId)?.doerName || 'Ver perfil'}
+                                {allContractsData?.contracts?.find(c => c.doerId === contractData.doerId)?.doerName || t('profile.viewProfile', 'View profile')}
                               </Link>
                             ) : (
                               <p className="font-medium text-gray-900 dark:text-white">
-                                Pendiente de asignar
+                                {t('jobs.detail.pendingAssignment')}
                               </p>
                             )}
                           </div>
                         </div>
                       </div>
 
-                      {/* Detalles de Pago */}
+                      {/* {t('jobs.detail.paymentDetails')} */}
                       <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
                         <div className="flex items-center gap-2 mb-3">
                           <DollarSign className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-                          <h3 className="font-semibold text-gray-900 dark:text-white">Detalles de Pago</h3>
+                          <h3 className="font-semibold text-gray-900 dark:text-white">{t('jobs.detail.paymentDetails')}</h3>
                         </div>
                         <div className="space-y-2">
                           <div className="flex justify-between">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">Precio:</span>
+                            <span className="text-sm text-gray-600 dark:text-gray-400">{t('common.price', 'Price')}:</span>
                             <span className="font-semibold text-gray-900 dark:text-white">
                               ${Number(contractData?.price || job.price || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
                           </div>
                           {contractData?.commission && (
                             <div className="flex justify-between">
-                              <span className="text-sm text-gray-600 dark:text-gray-400">Comisión:</span>
+                              <span className="text-sm text-gray-600 dark:text-gray-400">{t('common.commission', 'Commission')}:</span>
                               <span className="font-semibold text-gray-900 dark:text-white">
                                 ${Number(contractData.commission).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </span>
@@ -1273,7 +1278,7 @@ export default function JobDetail() {
                           )}
                           {contractData?.totalPrice && (
                             <div className="flex justify-between border-t dark:border-gray-700 pt-2">
-                              <span className="font-semibold text-gray-900 dark:text-white">Total:</span>
+                              <span className="font-semibold text-gray-900 dark:text-white">{t('common.total', 'Total')}:</span>
                               <span className="font-bold text-sky-600 dark:text-sky-400">
                                 ${Number(contractData.totalPrice).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </span>
@@ -1282,7 +1287,7 @@ export default function JobDetail() {
                           {contractData && (
                             <div className="mt-2 text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
                               <CheckCircle className="h-3 w-3" />
-                              Protegido con Escrow
+                              {t('jobs.protectedWithEscrow', 'Protected with Escrow')}
                             </div>
                           )}
                         </div>
@@ -1292,11 +1297,11 @@ export default function JobDetail() {
                       <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
                         <div className="flex items-center gap-2 mb-3">
                           <Calendar className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-                          <h3 className="font-semibold text-gray-900 dark:text-white">Fechas</h3>
+                          <h3 className="font-semibold text-gray-900 dark:text-white">{t('jobs.detail.dates')}</h3>
                         </div>
                         <div className="space-y-2">
                           <div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Inicio:</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{t('common.start', 'Start')}:</p>
                             <p className="font-medium text-gray-900 dark:text-white">
                               {job.startDate ? new Date(job.startDate).toLocaleDateString('es-AR', {
                                 day: 'numeric',
@@ -1308,7 +1313,7 @@ export default function JobDetail() {
                             </p>
                           </div>
                           <div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Finalización:</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{t('common.end', 'End')}:</p>
                             <p className="font-medium text-gray-900 dark:text-white">
                               {job.endDate ? new Date(job.endDate).toLocaleDateString('es-AR', {
                                 day: 'numeric',
@@ -1316,7 +1321,7 @@ export default function JobDetail() {
                                 year: 'numeric',
                                 hour: '2-digit',
                                 minute: '2-digit'
-                              }) : job.endDateFlexible ? 'Flexible' : 'N/A'}
+                              }) : job.endDateFlexible ? t('common.flexible', 'Flexible') : 'N/A'}
                             </p>
                           </div>
                         </div>
@@ -1327,7 +1332,7 @@ export default function JobDetail() {
                     <div className="bg-white dark:bg-slate-800 rounded-lg p-4 mb-4">
                       <div className="flex items-center gap-2 mb-3">
                         <Clock className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-                        <h3 className="font-semibold text-gray-900 dark:text-white">Estado {contractData ? 'del Contrato' : 'del Trabajo'}</h3>
+                        <h3 className="font-semibold text-gray-900 dark:text-white">{contractData ? t('jobs.contractStatus', 'Contract Status') : t('jobs.jobStatus', 'Job Status')}</h3>
                       </div>
                       <div className="flex items-center gap-3">
                         <span className={`px-4 py-2 rounded-full font-bold ${
@@ -1348,21 +1353,21 @@ export default function JobDetail() {
                           )
                         }`}>
                           {contractData ? (
-                            contractData.status === 'completed' ? '✅ Completado' :
-                            contractData.status === 'in_progress' ? '🔧 En progreso' :
-                            contractData.status === 'awaiting_confirmation' ? '⏳ Esperando confirmación' :
-                            contractData.status === 'accepted' ? '✓ Aceptado' :
-                            contractData.status === 'pending' ? '⏳ Pendiente' :
+                            contractData.status === 'completed' ? t('status.completed', 'Completed') :
+                            contractData.status === 'in_progress' ? t('status.inProgress', 'In progress') :
+                            contractData.status === 'awaiting_confirmation' ? t('status.awaitingConfirmation', 'Awaiting confirmation') :
+                            contractData.status === 'accepted' ? t('status.accepted', 'Accepted') :
+                            contractData.status === 'pending' ? t('status.pending', 'Pending') :
                             contractData.status
                           ) : (
-                            job.status === 'completed' ? '✅ Completado' :
-                            job.status === 'in_progress' ? '🔧 En progreso' :
-                            job.status === 'open' ? '🟢 Abierto' :
-                            job.status === 'pending_approval' ? '⏳ Pendiente de aprobación' :
-                            job.status === 'pending_payment' ? '💳 Pendiente de pago' :
-                            job.status === 'paused' ? '⏸️ Pausado' :
-                            job.status === 'cancelled' ? '❌ Cancelado' :
-                            job.status === 'draft' ? '📝 Borrador' :
+                            job.status === 'completed' ? t('status.completed', 'Completed') :
+                            job.status === 'in_progress' ? t('status.inProgress', 'In progress') :
+                            job.status === 'open' ? t('status.open', 'Open') :
+                            job.status === 'pending_approval' ? t('status.pendingApproval', 'Pending approval') :
+                            job.status === 'pending_payment' ? t('status.pendingPayment', 'Payment pending') :
+                            job.status === 'paused' ? t('status.paused', 'Paused') :
+                            job.status === 'cancelled' ? t('status.cancelled', 'Cancelled') :
+                            job.status === 'draft' ? t('status.draft', 'Draft') :
                             job.status
                           )}
                         </span>
@@ -1372,7 +1377,7 @@ export default function JobDetail() {
                     {/* Confirmaciones - Solo mostrar si hay contrato */}
                     {contractData ? (
                       <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
-                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Confirmaciones de Finalización</p>
+                        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">{t('jobs.completionConfirmations', 'Completion Confirmations')}</p>
                         {allContractsData && allContractsData.totalContracts > 1 ? (
                           <div className="space-y-2">
                             {allContractsData.contracts.map((c) => (
@@ -1388,11 +1393,11 @@ export default function JobDetail() {
                                 <div className="flex items-center gap-3">
                                   <span className={`flex items-center gap-1 text-sm ${c.doerConfirmed ? 'text-green-600' : 'text-slate-400'}`}>
                                     {c.doerConfirmed ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
-                                    Trabajador
+                                    {t('common.worker', 'Worker')}
                                   </span>
                                   <span className={`flex items-center gap-1 text-sm ${c.clientConfirmed ? 'text-green-600' : 'text-slate-400'}`}>
                                     {c.clientConfirmed ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
-                                    Cliente
+                                    {t('common.client', 'Client')}
                                   </span>
                                 </div>
                               </div>
@@ -1404,9 +1409,9 @@ export default function JobDetail() {
                               <div className="flex items-center gap-2">
                                 {contractData.doerConfirmed ? <CheckCircle className="h-5 w-5 text-green-600" /> : <Clock className="h-5 w-5 text-gray-400" />}
                                 <div>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400">Trabajador</p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('common.worker', 'Worker')}</p>
                                   <p className={`font-semibold ${contractData.doerConfirmed ? 'text-green-700 dark:text-green-400' : 'text-gray-600'}`}>
-                                    {contractData.doerConfirmed ? '✓ Confirmado' : 'Pendiente'}
+                                    {contractData.doerConfirmed ? t('status.confirmed', 'Confirmed') : t('status.pending', 'Pending')}
                                   </p>
                                 </div>
                               </div>
@@ -1415,9 +1420,9 @@ export default function JobDetail() {
                               <div className="flex items-center gap-2">
                                 {contractData.clientConfirmed ? <CheckCircle className="h-5 w-5 text-green-600" /> : <Clock className="h-5 w-5 text-gray-400" />}
                                 <div>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400">Cliente</p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400">{t('common.client', 'Client')}</p>
                                   <p className={`font-semibold ${contractData.clientConfirmed ? 'text-green-700 dark:text-green-400' : 'text-gray-600'}`}>
-                                    {contractData.clientConfirmed ? '✓ Confirmado' : 'Pendiente'}
+                                    {contractData.clientConfirmed ? t('status.confirmed', 'Confirmed') : t('status.pending', 'Pending')}
                                   </p>
                                 </div>
                               </div>
@@ -1442,12 +1447,12 @@ export default function JobDetail() {
                                 {confirmingWork ? (
                                   <>
                                     <Loader2 className="h-5 w-5 animate-spin" />
-                                    Confirmando...
+                                    {t('common.confirming', 'Confirming...')}
                                   </>
                                 ) : (
                                   <>
                                     <CheckCircle className="h-6 w-6" />
-                                    ✅ Confirmar Finalización del Trabajo
+                                    {t('jobs.confirmCompletion', 'Confirm Job Completion')}
                                   </>
                                 )}
                               </button>
@@ -1455,14 +1460,14 @@ export default function JobDetail() {
                             {isOwnJob && contractData.clientConfirmed && !contractData.doerConfirmed && (
                               <div className="bg-sky-50 dark:bg-sky-900/20 border-2 border-sky-300 dark:border-sky-700 rounded-lg p-4 text-center">
                                 <p className="text-sky-700 dark:text-sky-300 font-semibold">
-                                  ✓ Has confirmado. Esperando confirmación del trabajador...
+                                  {t('jobs.confirmedWaitingWorker', 'You have confirmed. Waiting for worker confirmation...')}
                                 </p>
                               </div>
                             )}
                             {isWorkerOnJob && contractData.doerConfirmed && !contractData.clientConfirmed && (
                               <div className="bg-sky-50 dark:bg-sky-900/20 border-2 border-sky-300 dark:border-sky-700 rounded-lg p-4 text-center">
                                 <p className="text-sky-700 dark:text-sky-300 font-semibold">
-                                  ✓ Has confirmado. Esperando confirmación del cliente...
+                                  {t('jobs.confirmedWaitingClient', 'You have confirmed. Waiting for client confirmation...')}
                                 </p>
                               </div>
                             )}
@@ -1472,11 +1477,11 @@ export default function JobDetail() {
                         {/* Summary message */}
                         {contractData.clientConfirmed && contractData.doerConfirmed ? (
                           <div className="mt-4 text-sm text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/30 border-2 border-green-500 rounded-lg p-3 text-center font-bold">
-                            ✅ Ambas partes confirmaron - Contrato completado - Los pagos serán liberados
+                            {t('jobs.bothConfirmedPaymentsReleased', 'Both parties confirmed - Contract completed - Payments will be released')}
                           </div>
                         ) : contractData.status === 'awaiting_confirmation' && (
                           <div className="mt-4 text-sm text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/30 border-2 border-amber-500 rounded-lg p-3 text-center font-semibold">
-                            ⏳ Esperando confirmación de {!contractData.clientConfirmed && !contractData.doerConfirmed ? 'ambas partes' : !contractData.clientConfirmed ? 'cliente' : 'trabajador'}
+                            {t('jobs.awaitingConfirmationFrom', 'Awaiting confirmation from {{party}}', { party: !contractData.clientConfirmed && !contractData.doerConfirmed ? t('jobs.bothParties', 'both parties') : !contractData.clientConfirmed ? t('common.client', 'client') : t('common.worker', 'worker') })}
                           </div>
                         )}
 
@@ -1488,7 +1493,7 @@ export default function JobDetail() {
                             className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-700 border-2 border-sky-600 text-sky-600 dark:text-sky-400 dark:border-sky-500 rounded-lg hover:bg-sky-50 dark:hover:bg-sky-900/30 transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <MessageCircle className="h-5 w-5" />
-                            {loadingChat ? 'Cargando...' : 'Chat'}
+                            {loadingChat ? t('common.loading', 'Loading...') : t('common.chat', 'Chat')}
                           </button>
                           {['in_progress', 'completed', 'awaiting_confirmation'].includes(contractData.status || '') && (
                             <button
@@ -1496,7 +1501,7 @@ export default function JobDetail() {
                               className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-700 border-2 border-orange-600 text-orange-600 dark:text-orange-400 dark:border-orange-500 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/30 transition font-semibold"
                             >
                               <Flag className="h-5 w-5" />
-                              Reportar Problema
+                              {t('jobs.reportProblem', 'Report Problem')}
                             </button>
                           )}
                           <Link
@@ -1504,14 +1509,14 @@ export default function JobDetail() {
                             className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition font-semibold"
                           >
                             <ExternalLink className="h-5 w-5" />
-                            Ver Contrato
+                            {t('jobs.viewContract', 'View Contract')}
                           </Link>
                         </div>
                       </div>
                     ) : (
                       <div className="bg-white dark:bg-slate-800 rounded-lg p-4">
                         <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
-                          Aún no hay contrato activo para este trabajo
+                          {t('jobs.detail.noActiveContract')}
                         </p>
                       </div>
                     )}
@@ -1521,7 +1526,7 @@ export default function JobDetail() {
                       <div className="bg-white dark:bg-slate-800 rounded-lg p-4 mt-4">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                           <Users className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-                          Trabajadores del Proyecto ({allContractsData.totalContracts})
+                          {t('jobs.projectWorkers', 'Project Workers')} ({allContractsData.totalContracts})
                         </h3>
                         <div className="space-y-3">
                           {allContractsData.contracts.map((c) => (
@@ -1550,7 +1555,7 @@ export default function JobDetail() {
                                   )}
                                   <div>
                                     <p className="font-medium text-gray-900 dark:text-white">
-                                      {c.doerName || 'Trabajador'}
+                                      {c.doerName || t('common.worker', 'Worker')}
                                     </p>
                                     <span className={`text-xs px-2 py-0.5 rounded-full ${
                                       c.status === 'completed' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
@@ -1559,11 +1564,11 @@ export default function JobDetail() {
                                       c.status === 'cancelled' ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' :
                                       'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
                                     }`}>
-                                      {c.status === 'completed' ? 'Completado' :
-                                       c.status === 'in_progress' ? 'En progreso' :
-                                       c.status === 'awaiting_confirmation' ? 'Esperando confirmación' :
-                                       c.status === 'cancelled' ? 'Cancelado' :
-                                       c.status === 'accepted' ? 'Aceptado' :
+                                      {c.status === 'completed' ? t('status.completed', 'Completed') :
+                                       c.status === 'in_progress' ? t('status.inProgress', 'In progress') :
+                                       c.status === 'awaiting_confirmation' ? t('status.awaitingConfirmation', 'Awaiting confirmation') :
+                                       c.status === 'cancelled' ? t('status.cancelled', 'Cancelled') :
+                                       c.status === 'accepted' ? t('status.accepted', 'Accepted') :
                                        c.status}
                                     </span>
                                   </div>
@@ -1576,7 +1581,7 @@ export default function JobDetail() {
                                       ) : (
                                         <Clock className="h-4 w-4 text-yellow-500" />
                                       )}
-                                      <span className="text-gray-600 dark:text-gray-400">Trabajador</span>
+                                      <span className="text-gray-600 dark:text-gray-400">{t('common.worker', 'Worker')}</span>
                                     </div>
                                     <div className="flex items-center gap-1 text-sm mt-1">
                                       {c.clientConfirmed ? (
@@ -1584,7 +1589,7 @@ export default function JobDetail() {
                                       ) : (
                                         <Clock className="h-4 w-4 text-yellow-500" />
                                       )}
-                                      <span className="text-gray-600 dark:text-gray-400">Cliente {isOwnJob ? '(tú)' : ''}</span>
+                                      <span className="text-gray-600 dark:text-gray-400">{t('common.client', 'Client')} {isOwnJob ? t('common.you', '(you)') : ''}</span>
                                     </div>
                                   </div>
                                 </div>
@@ -1596,7 +1601,7 @@ export default function JobDetail() {
                         <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
                           <div className="flex justify-between text-sm">
                             <span className="text-gray-600 dark:text-gray-400">
-                              Confirmaciones por trabajadores:
+                              {t('jobs.workerConfirmations', 'Worker confirmations')}:
                             </span>
                             <span className="font-medium text-gray-900 dark:text-white">
                               {allContractsData.contracts.filter(c => c.doerConfirmed).length} / {allContractsData.totalContracts}
@@ -1604,7 +1609,7 @@ export default function JobDetail() {
                           </div>
                           <div className="flex justify-between text-sm mt-1">
                             <span className="text-gray-600 dark:text-gray-400">
-                              Confirmaciones por {isOwnJob ? 'ti (cliente)' : 'cliente'}:
+                              {isOwnJob ? t('jobs.yourConfirmations', 'Your confirmations (client)') : t('jobs.clientConfirmations', 'Client confirmations')}:
                             </span>
                             <span className="font-medium text-gray-900 dark:text-white">
                               {allContractsData.contracts.filter(c => c.clientConfirmed).length} / {allContractsData.totalContracts}
@@ -1613,7 +1618,7 @@ export default function JobDetail() {
                           {allContractsData.allCompleted && (
                             <div className="mt-3 bg-green-100 dark:bg-green-900/30 rounded-lg p-3 text-center">
                               <p className="text-green-700 dark:text-green-300 font-medium">
-                                ✓ Todos los contratos han sido completados
+                                {t('jobs.allContractsCompleted', 'All contracts have been completed')}
                               </p>
                             </div>
                           )}
@@ -1628,7 +1633,7 @@ export default function JobDetail() {
             {/* Description */}
             <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
               <h2 className="mb-4 text-xl font-bold text-slate-900 dark:text-white">
-                Descripción del trabajo
+                {t('jobs.description', 'Job Description')}
               </h2>
               <p className="whitespace-pre-line leading-relaxed text-slate-600 dark:text-slate-300">
                 {job.description}
@@ -1657,7 +1662,7 @@ export default function JobDetail() {
             {/* Client Info */}
             <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
               <h2 className="mb-4 text-lg font-bold text-slate-900 dark:text-white">
-                Publicado por
+                {t('jobs.detail.publishedBy')}
               </h2>
               <div className="relative">
                 <button
@@ -1670,13 +1675,13 @@ export default function JobDetail() {
                         clientInfo?.avatar ||
                         `https://api.dicebear.com/7.x/avataaars/svg?seed=${clientInfo?.name || 'user'}`
                       }
-                      alt={clientInfo?.name || 'Usuario'}
+                      alt={clientInfo?.name || t('common.user', 'User')}
                       className="h-full w-full object-cover"
                     />
                   </div>
                   <div className="flex-1">
                     <p className="font-semibold text-slate-900 dark:text-white">
-                      {clientInfo?.name || 'Usuario'}
+                      {clientInfo?.name || t('common.user', 'User')}
                     </p>
                     <div className="flex items-center gap-1 text-sm text-slate-600 dark:text-slate-300">
                       <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
@@ -1698,7 +1703,7 @@ export default function JobDetail() {
                       onClick={() => setShowClientMenu(false)}
                     >
                       <User className="h-4 w-4 text-slate-500" />
-                      <span className="text-sm text-slate-700 dark:text-slate-200">Ver perfil</span>
+                      <span className="text-sm text-slate-700 dark:text-slate-200">{t('profile.viewProfile', 'View profile')}</span>
                     </Link>
                     <Link
                       to={`/profile/${clientInfo?.id || clientInfo?._id}?tab=jobs`}
@@ -1706,7 +1711,7 @@ export default function JobDetail() {
                       onClick={() => setShowClientMenu(false)}
                     >
                       <Briefcase className="h-4 w-4 text-slate-500" />
-                      <span className="text-sm text-slate-700 dark:text-slate-200">Ver trabajos publicados</span>
+                      <span className="text-sm text-slate-700 dark:text-slate-200">{t('profile.viewPublishedJobs', 'View published jobs')}</span>
                     </Link>
                   </div>
                 )}
@@ -1723,11 +1728,11 @@ export default function JobDetail() {
               <div className="space-y-2 text-sm text-slate-600 dark:text-slate-300">
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4" />
-                  <span>Miembro desde 2023</span>
+                  <span>{t('profile.memberSince', 'Member since 2023')}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <DollarSign className="h-4 w-4" />
-                  <span>{clientInfo?.completedJobs || 0} trabajos completados</span>
+                  <span>{clientInfo?.completedJobs || 0} {t('jobs.completedJobs', 'completed jobs')}</span>
                 </div>
               </div>
               {user && !isOwnJob && (
@@ -1739,24 +1744,102 @@ export default function JobDetail() {
                   {sendingMessage ? (
                     <>
                       <Loader2 className="inline h-4 w-4 mr-2 animate-spin" />
-                      Abriendo chat...
+                      {t('chat.opening', 'Opening chat...')}
                     </>
                   ) : (
                     <>
                       <MessageSquare className="inline h-4 w-4 mr-2" />
-                      Enviar mensaje
+                      {t('chat.sendMessage', 'Send message')}
                     </>
                   )}
                 </button>
               )}
             </div>
 
+            {/* Admin Details Panel */}
+            {user?.adminRole && (
+              <div className="rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4 shadow-sm">
+                <details>
+                  <summary className="cursor-pointer text-sm font-bold text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                    Admin Details
+                  </summary>
+                  <div className="mt-3 space-y-3 text-xs">
+                    {/* Job Metadata */}
+                    <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-amber-200 dark:border-amber-800">
+                      <p className="font-semibold text-amber-800 dark:text-amber-300 mb-2">Job Info</p>
+                      <div className="grid grid-cols-2 gap-1 text-slate-600 dark:text-slate-400">
+                        <span>ID:</span><span className="font-mono text-[10px]">{job.id || job._id}</span>
+                        <span>Status:</span><span className="font-semibold">{job.status}</span>
+                        <span>Created:</span><span>{new Date(job.createdAt).toLocaleString('es-AR')}</span>
+                        <span>Max Workers:</span><span>{job.maxWorkers || 1}</span>
+                        {(job as any).publicationPaid && <><span>Pub. Paid:</span><span className="text-green-600">Yes</span></>}
+                        {(job as any).views !== undefined && <><span>Views:</span><span>{(job as any).views}</span></>}
+                      </div>
+                    </div>
+
+                    {/* Client Details */}
+                    <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-amber-200 dark:border-amber-800">
+                      <p className="font-semibold text-amber-800 dark:text-amber-300 mb-2">Client: {clientInfo?.name}</p>
+                      <div className="grid grid-cols-2 gap-1 text-slate-600 dark:text-slate-400">
+                        <span>ID:</span><span className="font-mono text-[10px]">{clientInfo?.id || clientInfo?._id}</span>
+                        <span>Email:</span><span>{(clientInfo as any)?.email || '-'}</span>
+                        <span>Rating:</span><span>{(clientInfo?.rating || 0).toFixed(1)}</span>
+                        <span>Membership:</span><span className="font-semibold">{(clientInfo as any)?.membershipType || (clientInfo as any)?.membershipTier || 'free'}</span>
+                        <span>Verified:</span><span>{(clientInfo as any)?.isVerified ? 'Yes' : 'No'}</span>
+                      </div>
+                    </div>
+
+                    {/* Worker Details */}
+                    {job.doer && typeof job.doer === 'object' && (
+                      <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-amber-200 dark:border-amber-800">
+                        <p className="font-semibold text-amber-800 dark:text-amber-300 mb-2">Worker: {(job.doer as any).name}</p>
+                        <div className="grid grid-cols-2 gap-1 text-slate-600 dark:text-slate-400">
+                          <span>ID:</span><span className="font-mono text-[10px]">{(job.doer as any).id || (job.doer as any)._id}</span>
+                          <span>Email:</span><span>{(job.doer as any).email || '-'}</span>
+                          <span>Rating:</span><span>{((job.doer as any).rating || 0).toFixed(1)}</span>
+                          <span>Membership:</span><span className="font-semibold">{(job.doer as any).membershipType || (job.doer as any).membershipTier || 'free'}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Payment Info */}
+                    <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-amber-200 dark:border-amber-800">
+                      <p className="font-semibold text-amber-800 dark:text-amber-300 mb-2">Payment Info</p>
+                      <div className="grid grid-cols-2 gap-1 text-slate-600 dark:text-slate-400">
+                        <span>Price:</span><span className="font-semibold">${Number(job.price).toLocaleString('es-AR')}</span>
+                        <span>Commission:</span><span>{(job as any).commissionRate || '-'}%</span>
+                        <span>Pub. Amount:</span><span>${Number(job.publicationAmount || 0).toLocaleString('es-AR')}</span>
+                        <span>Escrow:</span><span>{(job as any).escrowStatus || '-'}</span>
+                      </div>
+                    </div>
+
+                    {/* Quick Actions */}
+                    <div className="flex gap-2">
+                      <Link
+                        to={`/admin/jobs`}
+                        className="flex-1 text-center py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-medium transition-colors"
+                      >
+                        Admin Jobs
+                      </Link>
+                      <Link
+                        to={`/admin/users`}
+                        className="flex-1 text-center py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-medium transition-colors"
+                      >
+                        Admin Users
+                      </Link>
+                    </div>
+                  </div>
+                </details>
+              </div>
+            )}
+
             {/* Worker(s) Info - Public view of who is doing/did the work */}
             {((job.doer && typeof job.doer === 'object') || (job.selectedWorkersData && job.selectedWorkersData.length > 0)) && (
               <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
                 <h2 className="mb-4 text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <Briefcase className="h-5 w-5 text-sky-500" />
-                  {job.status === 'completed' ? 'Realizado por' : 'Trabajando en este proyecto'}
+                  {job.status === 'completed' ? t('jobs.doneBy', 'Done by') : t('jobs.workingOnProject', 'Working on this project')}
                 </h2>
 
                 {/* Single worker (doer) */}
@@ -1771,13 +1854,13 @@ export default function JobDetail() {
                           job.doer.avatar ||
                           `https://api.dicebear.com/7.x/avataaars/svg?seed=${job.doer.name || 'worker'}`
                         }
-                        alt={job.doer.name || 'Trabajador'}
+                        alt={job.doer.name || t('common.worker', 'Worker')}
                         className="h-full w-full object-cover"
                       />
                     </div>
                     <div className="flex-1">
                       <p className="font-semibold text-slate-900 dark:text-white">
-                        {job.doer.name || 'Trabajador'}
+                        {job.doer.name || t('common.worker', 'Worker')}
                       </p>
                       <div className="flex items-center gap-1 text-sm text-slate-600 dark:text-slate-300">
                         <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
@@ -1805,13 +1888,13 @@ export default function JobDetail() {
                               worker.avatar ||
                               `https://api.dicebear.com/7.x/avataaars/svg?seed=${worker.name || 'worker'}`
                             }
-                            alt={worker.name || 'Trabajador'}
+                            alt={worker.name || t('common.worker', 'Worker')}
                             className="h-full w-full object-cover"
                           />
                         </div>
                         <div className="flex-1">
                           <p className="font-medium text-slate-900 dark:text-white text-sm">
-                            {worker.name || 'Trabajador'}
+                            {worker.name || t('common.worker', 'Worker')}
                           </p>
                           <div className="flex items-center gap-1 text-xs text-slate-600 dark:text-slate-300">
                             <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
@@ -1836,17 +1919,17 @@ export default function JobDetail() {
                     {job.status === 'completed' ? (
                       <>
                         <CheckCircle className="h-4 w-4" />
-                        Trabajo completado
+                        {t('jobs.jobCompleted', 'Job completed')}
                       </>
                     ) : job.status === 'in_progress' ? (
                       <>
                         <Clock className="h-4 w-4" />
-                        En progreso
+                        {t('status.inProgress', 'In progress')}
                       </>
                     ) : (
                       <>
                         <Clock className="h-4 w-4" />
-                        Trabajador asignado
+                        {t('jobs.workerAssigned', 'Worker assigned')}
                       </>
                     )}
                   </div>
@@ -1867,10 +1950,10 @@ export default function JobDetail() {
                   <div className="w-full rounded-xl bg-gradient-to-r from-green-500 to-green-600 px-6 py-3 text-center shadow-lg shadow-green-500/30">
                     <div className="flex items-center justify-center gap-2 text-lg font-semibold text-white">
                       <CheckCircle className="h-5 w-5" />
-                      <span>¡Ya aplicaste a este trabajo!</span>
+                      <span>{t('jobs.alreadyApplied', 'You already applied to this job!')}</span>
                     </div>
                     <p className="text-sm text-green-100 mt-1">
-                      El cliente revisará tu propuesta pronto
+                      {t('jobs.clientWillReview', 'The client will review your proposal soon')}
                     </p>
                   </div>
                 ) : (
@@ -1882,12 +1965,12 @@ export default function JobDetail() {
                     {applying || checkingApplication ? (
                       <>
                         <Loader2 className="inline h-5 w-5 mr-2 animate-spin" />
-                        {checkingApplication ? "Verificando..." : "Aplicando..."}
+                        {checkingApplication ? t('common.verifying', 'Verifying...') : t('jobs.applying', 'Applying...')}
                       </>
                     ) : user ? (
-                      "Aplicar al trabajo"
+                      t('jobs.applyToJob', 'Apply to job')
                     ) : (
-                      "Inicia sesión para aplicar"
+                      t('jobs.loginToApply', 'Log in to apply')
                     )}
                   </button>
                 )}
@@ -1900,7 +1983,7 @@ export default function JobDetail() {
             {!isOwnJob && job.status === 'pending_approval' && (
               <div className="rounded-2xl border border-yellow-300 dark:border-yellow-600 bg-yellow-50 dark:bg-yellow-900/30 p-4">
                 <p className="text-sm font-medium text-yellow-700 dark:text-yellow-300">
-                  ⏳ Este trabajo está pendiente de aprobación
+                  {t('jobs.pendingApprovalMessage', 'This job is pending approval')}
                 </p>
               </div>
             )}
@@ -1909,10 +1992,10 @@ export default function JobDetail() {
               <div className="space-y-4">
                 <div className="rounded-2xl border border-yellow-300 dark:border-yellow-600 bg-yellow-50 dark:bg-yellow-900/30 p-4">
                   <p className="text-sm font-medium text-yellow-700 dark:text-yellow-300 mb-2">
-                    ⏳ Tu trabajo está pendiente de aprobación por un administrador
+                    {t('jobs.pendingAdminApproval', 'Your job is pending admin approval')}
                   </p>
                   <p className="text-xs text-yellow-600 dark:text-yellow-400">
-                    Puedes cancelar ahora y recibir un reembolso del precio (sin comisión).
+                    {t('jobs.canCancelForRefund', 'You can cancel now and get a refund of the price (without commission).')}
                   </p>
                 </div>
 
@@ -1926,7 +2009,7 @@ export default function JobDetail() {
                   ) : (
                     <>
                       <XCircle className="h-4 w-4" />
-                      Cancelar y recibir reembolso
+                      {t('jobs.actions.cancelAndRefund', 'Cancel and get refund')}
                     </>
                   )}
                 </button>
@@ -1954,7 +2037,7 @@ export default function JobDetail() {
                         </div>
                         <div>
                           <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">
-                            ¡Felicitaciones! Trabajo terminado
+                            {t('jobs.congratsJobFinished', 'Congratulations! Job finished')}
                           </p>
                           <p className="text-sm text-emerald-600 dark:text-emerald-400">
                             El trabajo finalizó el {new Date(job.endDate).toLocaleDateString('es-AR', {
@@ -1995,7 +2078,7 @@ export default function JobDetail() {
                       ) : contractData && (
                         <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4 mb-4">
                           <div className="flex items-center justify-between mb-2">
-                            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Estado de confirmaciones:</p>
+                            <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('jobs.confirmationStatus', 'Confirmation status')}:</p>
                             <Link
                               to={`/contracts/${contractData.id}`}
                               className="text-xs text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 font-medium"
@@ -2040,7 +2123,7 @@ export default function JobDetail() {
                           <div className="px-4 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-xl text-sm">
                             {allContractsData && allContractsData.totalContracts > 1
                               ? `Esperando confirmaciones (${allContractsData.contracts.filter(c => c.doerConfirmed && c.clientConfirmed).length}/${allContractsData.totalContracts} completos)...`
-                              : 'Esperando confirmación del cliente...'}
+                              : t('jobs.waitingClientConfirmation', 'Waiting for client confirmation...')}
                           </div>
                         )}
                         {(allContractsData?.allCompleted ?? (contractData?.doerConfirmed && contractData?.clientConfirmed)) && (
@@ -2074,7 +2157,7 @@ export default function JobDetail() {
                             <div className="flex items-start gap-2">
                               <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
                               <p className="text-sm text-amber-700 dark:text-amber-300">
-                                El botón de <strong>confirmar finalización</strong> se habilitará cuando llegue la hora de fin del trabajo para ambas partes.
+                                {t('jobs.confirmButtonWillEnable', 'The confirm completion button will be enabled when the job end time arrives for both parties.')}
                               </p>
                             </div>
                           </div>
@@ -2096,7 +2179,7 @@ export default function JobDetail() {
                       <div className="flex items-center gap-2 mb-2">
                         <CheckCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                         <p className="text-sm font-semibold text-blue-700 dark:text-blue-300">
-                          ¡Fuiste seleccionado para este trabajo!
+                          {t('jobs.youWereSelected', 'You were selected for this job!')}
                         </p>
                       </div>
                       <p className="text-sm text-blue-600 dark:text-blue-400 mt-2">
@@ -2123,7 +2206,7 @@ export default function JobDetail() {
                   // Solo mostrar "ya tiene profesional" si TODOS los puestos están ocupados
                   <div className="rounded-2xl border border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30 p-4">
                     <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                      👥 Este trabajo ya tiene {job.maxWorkers === 1 ? 'un profesional asignado' : `los ${job.maxWorkers} profesionales asignados`}
+                      {job.maxWorkers === 1 ? t('jobs.hasAssignedProfessional', 'This job already has an assigned professional') : t('jobs.hasAllProfessionals', 'This job already has all {{count}} professionals assigned', { count: job.maxWorkers })}
                     </p>
                     <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
                       Iniciará el {new Date(job.startDate).toLocaleDateString('es-AR', {
@@ -2151,7 +2234,7 @@ export default function JobDetail() {
                           </div>
                           <div>
                             <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">
-                              ¡Felicitaciones! Trabajo terminado
+                              {t('jobs.congratsJobFinished', 'Congratulations! Job finished')}
                             </p>
                             <p className="text-sm text-emerald-600 dark:text-emerald-400">
                               El trabajo finalizó el {new Date(job.endDate).toLocaleDateString('es-AR', {
@@ -2163,7 +2246,7 @@ export default function JobDetail() {
                           </div>
                         </div>
                         <p className="text-sm text-emerald-700 dark:text-emerald-300 mb-4">
-                          Ahora solo resta confirmar que el trabajo fue finalizado correctamente para proceder con los pagos.
+                          {t('jobs.confirmToRelease', 'Now just confirm that the job was completed correctly to proceed with payments.')}
                         </p>
 
                         {/* Confirmation status - Team jobs show all workers */}
@@ -2192,7 +2275,7 @@ export default function JobDetail() {
                         ) : contractData && (
                           <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4 mb-4">
                             <div className="flex items-center justify-between mb-2">
-                              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Estado de confirmaciones:</p>
+                              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('jobs.confirmationStatus', 'Confirmation status')}:</p>
                               <Link
                                 to={`/contracts/${contractData.id}`}
                                 className="text-xs text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 font-medium"
@@ -2203,11 +2286,11 @@ export default function JobDetail() {
                             <div className="flex items-center gap-4 text-sm">
                               <span className={`flex items-center gap-1 ${contractData.doerConfirmed ? 'text-green-600' : 'text-slate-400'}`}>
                                 {contractData.doerConfirmed ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
-                                Tu confirmación
+                                {t('jobs.yourConfirmation', 'Your confirmation')}
                               </span>
                               <span className={`flex items-center gap-1 ${contractData.clientConfirmed ? 'text-green-600' : 'text-slate-400'}`}>
                                 {contractData.clientConfirmed ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
-                                Confirmación del cliente
+                                {t('jobs.clientConfirmation', 'Client confirmation')}
                               </span>
                             </div>
                           </div>
@@ -2228,7 +2311,7 @@ export default function JobDetail() {
                               ) : (
                                 <>
                                   <CheckCircle className="h-4 w-4" />
-                                  Confirmar mi trabajo
+                                  {t('jobs.confirmMyWork', 'Confirm my work')}
                                 </>
                               )}
                             </button>
@@ -2237,12 +2320,12 @@ export default function JobDetail() {
                             <div className="px-4 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-xl text-sm">
                               {allContractsData && allContractsData.totalContracts > 1
                                 ? `Esperando confirmaciones (${allContractsData.contracts.filter(c => c.doerConfirmed && c.clientConfirmed).length}/${allContractsData.totalContracts} completos)...`
-                                : 'Esperando confirmación del cliente...'}
+                                : t('jobs.waitingClientConfirmation', 'Waiting for client confirmation...')}
                             </div>
                           )}
                           {(allContractsData?.allCompleted ?? (contractData?.doerConfirmed && contractData?.clientConfirmed)) && (
                             <div className="px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-xl text-sm font-medium">
-                              ✅ Todos confirmaron - Los pagos serán liberados a los trabajadores
+                              {t('jobs.allConfirmedPaymentsReleased', 'All confirmed - Payments will be released to workers')}
                             </div>
                           )}
                         </div>
@@ -2253,7 +2336,7 @@ export default function JobDetail() {
                         <div className="flex items-center gap-2 mb-2">
                           <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
                           <p className="text-sm font-semibold text-green-700 dark:text-green-300">
-                            🔧 Trabajo en marcha
+                            {t('jobs.workInProgress', 'Work in progress')}
                           </p>
                         </div>
                         {job.endDate && (
@@ -2271,7 +2354,7 @@ export default function JobDetail() {
                               <div className="flex items-start gap-2">
                                 <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
                                 <p className="text-sm text-amber-700 dark:text-amber-300">
-                                  El botón de <strong>confirmar finalización</strong> se habilitará cuando llegue la hora de fin del trabajo para ambas partes.
+                                  {t('jobs.confirmButtonWillEnable', 'The confirm completion button will be enabled when the job end time arrives for both parties.')}
                                 </p>
                               </div>
                             </div>
@@ -2283,7 +2366,7 @@ export default function JobDetail() {
                             className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-100 dark:bg-green-800/50 text-green-700 dark:text-green-300 text-sm font-medium rounded-lg hover:bg-green-200 dark:hover:bg-green-700/50 transition-colors"
                           >
                             <Calendar className="h-4 w-4" />
-                            Ver en Calendario
+                            {t('jobs.viewInCalendar', 'View in Calendar')}
                           </Link>
                         </div>
                       </div>
@@ -2298,10 +2381,10 @@ export default function JobDetail() {
                           </div>
                           <div className="flex-1">
                             <h4 className="font-bold text-purple-900 dark:text-purple-100 text-lg mb-1">
-                              Código de Pareamiento
+                              {t('jobs.pairingCode', 'Pairing Code')}
                             </h4>
                             <p className="text-sm text-purple-700 dark:text-purple-300 mb-3">
-                              Muestra este código al cliente cuando llegues al lugar de trabajo
+                              {t('jobs.showCodeToClient', 'Show this code to the client when you arrive at the work location')}
                             </p>
                             <div className="flex items-center gap-3">
                               <div className="flex-1 bg-white dark:bg-slate-800 rounded-lg p-3 border-2 border-purple-300 dark:border-purple-600">
@@ -2312,7 +2395,7 @@ export default function JobDetail() {
                               <button
                                 onClick={handleCopyPairingCode}
                                 className="p-3 bg-purple-100 dark:bg-purple-900/50 hover:bg-purple-200 dark:hover:bg-purple-800/50 rounded-lg transition-colors"
-                                title="Copiar código"
+                                title={t('common.copyCode', 'Copy code')}
                               >
                                 {copiedPairingCode ? (
                                   <Check className="h-5 w-5 text-green-600 dark:text-green-400" />
@@ -2323,12 +2406,12 @@ export default function JobDetail() {
                             </div>
                             {copiedPairingCode && (
                               <p className="text-sm text-green-600 dark:text-green-400 mt-2">
-                                ¡Código copiado!
+                                {t('common.codeCopied', 'Code copied!')}
                               </p>
                             )}
                             {contractData?.pairingExpiry && (
                               <p className="text-xs text-purple-600 dark:text-purple-400 mt-2">
-                                Expira: {new Date(contractData?.pairingExpiry).toLocaleString('es-AR')}
+                                {t('common.expires', 'Expires')}: {new Date(contractData?.pairingExpiry).toLocaleString('es-AR')}
                               </p>
                             )}
                           </div>
@@ -2363,10 +2446,10 @@ export default function JobDetail() {
                   job.status === 'suspended' ? 'text-orange-700 dark:text-orange-300' :
                   'text-green-700 dark:text-green-300'
                 }`}>
-                  {job.status === 'cancelled' && '❌ Esta publicacion fue cancelada'}
+                  {job.status === 'cancelled' && t('jobs.listingCancelled', 'This listing was cancelled')}
                   {job.status === 'completed' && (
                     <>
-                      ✅ Este trabajo fue completado
+                      {t('jobs.jobWasCompleted', 'This job was completed')}
                       {job.category && (
                         <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300">
                           {getCategoryById(job.category)?.icon} {getCategoryById(job.category)?.label || job.category}
@@ -2374,12 +2457,12 @@ export default function JobDetail() {
                       )}
                     </>
                   )}
-                  {job.status === 'paused' && (job.pendingNewPrice ? '⏳ Este trabajo está actualizando su presupuesto' : '⏸️ Este trabajo esta pausado')}
-                  {job.status === 'suspended' && '⏸️ Este trabajo está suspendido por falta de fecha de finalización'}
+                  {job.status === 'paused' && (job.pendingNewPrice ? t('jobs.updatingBudget', 'This job is updating its budget') : t('jobs.jobPaused', 'This job is paused'))}
+                  {job.status === 'suspended' && t('jobs.jobSuspendedNoEndDate', 'This job is suspended due to missing end date')}
                 </p>
                 {job.status === 'cancelled' && job.cancellationReason && (
                   <div className="mt-3 p-3 bg-red-100 dark:bg-red-950/50 rounded-lg border border-red-200 dark:border-red-800">
-                    <p className="text-xs text-red-600 dark:text-red-400 font-medium mb-1">Razón de cancelación:</p>
+                    <p className="text-xs text-red-600 dark:text-red-400 font-medium mb-1">{t('jobs.cancellationReason', 'Cancellation reason')}:</p>
                     <p className="text-sm text-red-700 dark:text-red-200">{job.cancellationReason}</p>
                   </div>
                 )}
@@ -2399,7 +2482,7 @@ export default function JobDetail() {
                     className="mt-4 inline-flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
                   >
                     <Share2 className="h-4 w-4" />
-                    Compartir en Portfolio
+                    {t('jobs.shareToPortfolio', 'Share to Portfolio')}
                   </button>
                 )}
               </div>
@@ -2411,11 +2494,11 @@ export default function JobDetail() {
                   onClick={() => navigate(`/jobs/${job.id || job._id}/payment`)}
                   className="w-full gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-3 text-lg font-semibold text-white shadow-lg shadow-orange-500/30 transition-all hover:from-orange-600 hover:to-orange-700"
                 >
-                  📢 Pagar y Publicar
+                  {t('jobs.payAndPublish', 'Pay and Publish')}
                 </button>
                 <div className="rounded-2xl border border-yellow-600 bg-yellow-900/30 p-4">
                   <p className="text-sm font-medium text-yellow-300">
-                    Este trabajo está en borrador. Completa el pago para publicarlo.
+                    {t('jobs.draftPayToPublish', 'This job is a draft. Complete the payment to publish it.')}
                   </p>
                 </div>
                 <div className="flex gap-3">
@@ -2424,14 +2507,14 @@ export default function JobDetail() {
                     className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-sky-600 bg-transparent px-4 py-2 text-sm font-semibold text-sky-400 transition-colors hover:bg-sky-900/30"
                   >
                     <Edit className="h-4 w-4" />
-                    Editar
+                    {t('common.edit', 'Edit')}
                   </button>
                   <button
                     onClick={() => setShowDeleteModal(true)}
                     className="flex items-center justify-center gap-2 rounded-xl border border-red-600 bg-transparent px-4 py-2 text-sm font-semibold text-red-400 transition-colors hover:bg-red-900/30"
                   >
                     <Trash2 className="h-4 w-4" />
-                    Eliminar
+                    {t('common.delete', 'Delete')}
                   </button>
                 </div>
               </div>
@@ -2458,7 +2541,7 @@ export default function JobDetail() {
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-slate-900 dark:text-white flex items-center gap-2">
                       <Users className="h-5 w-5 text-sky-500 dark:text-sky-400" />
-                      Postulados ({proposals.length})
+                      {t('jobs.applicants', 'Applicants')} ({proposals.length})
                     </h3>
                     {proposals.length > 0 && (
                       <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
@@ -2475,9 +2558,9 @@ export default function JobDetail() {
                   ) : proposals.length === 0 ? (
                     <div className="text-center py-6">
                       <Users className="h-10 w-10 text-slate-400 dark:text-slate-500 mx-auto mb-2" />
-                      <p className="text-slate-500 dark:text-slate-400 text-sm">Aún no hay postulados</p>
+                      <p className="text-slate-500 dark:text-slate-400 text-sm">{t('jobs.detail.noApplicants')}</p>
                       <p className="text-slate-400 dark:text-slate-500 text-xs mt-1">
-                        Los profesionales interesados aparecerán aquí
+                        {t('jobs.detail.applicantsWillAppear')}
                       </p>
                     </div>
                   ) : (
@@ -2486,7 +2569,7 @@ export default function JobDetail() {
                       <div className="rounded-lg border border-amber-300 dark:border-amber-600/50 bg-amber-50 dark:bg-amber-900/20 p-3">
                         <p className="text-xs text-amber-700 dark:text-amber-300">
                           <AlertTriangle className="inline h-3 w-3 mr-1" />
-                          Si no seleccionas un trabajador 24h antes del inicio, se asignará automáticamente al primer postulado.
+                          {t('jobs.autoSelectWarning', 'If you don\'t select a worker 24h before the start, the first applicant will be automatically assigned.')}
                         </p>
                       </div>
 
@@ -2524,7 +2607,7 @@ export default function JobDetail() {
                                   to={`/profile/${proposal.freelancer?.id || proposal.freelancerId}`}
                                   className="font-semibold text-slate-900 dark:text-white hover:text-sky-500 dark:hover:text-sky-400 transition-colors"
                                 >
-                                  {proposal.freelancer?.name || 'Usuario'}
+                                  {proposal.freelancer?.name || t('common.user', 'User')}
                                 </Link>
                                 <ExternalLink className="h-3 w-3 text-slate-400 dark:text-slate-500" />
                                 {/* Job Code Badge */}
@@ -2539,7 +2622,7 @@ export default function JobDetail() {
                                   {Number(proposal.freelancer?.rating || 0).toFixed(1)}
                                 </span>
                                 <span>•</span>
-                                <span>{proposal.freelancer?.completedJobs || 0} trabajos</span>
+                                <span>{proposal.freelancer?.completedJobs || 0} {t('common.jobs', 'jobs')}</span>
                               </div>
 
                               {/* Monto propuesto */}
@@ -2554,12 +2637,12 @@ export default function JobDetail() {
                                 </div>
                                 {proposal.isCounterOffer && (
                                   <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-                                    (Contraoferta)
+                                    ({t('jobs.counterOffer', 'Counter-offer')})
                                   </span>
                                 )}
                                 {!proposal.isCounterOffer && proposal.proposedPrice === job.price && (
                                   <span className="text-xs text-green-600 dark:text-green-400">
-                                    Aceptó el precio original
+                                    {t('jobs.acceptedOriginalPrice', 'Accepted the original price')}
                                   </span>
                                 )}
                               </div>
@@ -2572,7 +2655,7 @@ export default function JobDetail() {
                                 onClick={() => handleMessageProposal(proposal)}
                                 disabled={messagingProposal === proposal.id}
                                 className="flex items-center gap-1 px-3 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
-                                title="Enviar mensaje"
+                                title={t('chat.sendMessage')}
                               >
                                 {messagingProposal === proposal.id ? (
                                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -2593,18 +2676,18 @@ export default function JobDetail() {
                                   ) : (
                                     <>
                                       <CheckCircle className="h-4 w-4" />
-                                      Seleccionar
+                                      {t('common.select', 'Select')}
                                     </>
                                   )}
                                 </button>
                               ) : proposal.status === 'approved' ? (
                                 <span className="flex items-center gap-1 px-3 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-sm font-medium rounded-lg border border-green-300 dark:border-green-600">
                                   <CheckCircle className="h-4 w-4" />
-                                  Seleccionado
+                                  {t('status.selected', 'Selected')}
                                 </span>
                               ) : proposal.status === 'rejected' ? (
                                 <span className="flex items-center gap-1 px-3 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-sm font-medium rounded-lg border border-red-300 dark:border-red-600">
-                                  Rechazado
+                                  {t('status.rejected', 'Rejected')}
                                 </span>
                               ) : null}
                             </div>
@@ -2623,7 +2706,7 @@ export default function JobDetail() {
                               to={`/proposals/${proposal.id}`}
                               className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300"
                             >
-                              Ver detalle de la contraoferta
+                              {t('jobs.viewCounterOfferDetail', 'View counter-offer detail')}
                               <ExternalLink className="h-3.5 w-3.5" />
                             </Link>
                           )}
@@ -2634,56 +2717,68 @@ export default function JobDetail() {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="space-y-3">
+                <div className="relative">
                   <button
-                    onClick={() => setShowBudgetModal(true)}
-                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors"
-                    title="Aumentar o disminuir el presupuesto de este trabajo"
+                    onClick={() => setShowActionsMenu(!showActionsMenu)}
+                    className="w-full flex items-center justify-center gap-2 rounded-xl bg-slate-700 hover:bg-slate-600 dark:bg-slate-600 dark:hover:bg-slate-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors"
                   >
-                    <DollarSign className="h-4 w-4" />
-                    Cambiar presupuesto
+                    <MoreVertical className="h-4 w-4" />
+                    {t('jobs.actions.actions')}
+                    <ChevronDown className={`h-4 w-4 transition-transform ${showActionsMenu ? 'rotate-180' : ''}`} />
                   </button>
 
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handlePauseJob}
-                      disabled={actionLoading || !canPauseJob()}
-                      title={!canPauseJob() ? "No puedes pausar con menos de 24h de anticipación" : "Pausar temporalmente este trabajo para dejar de recibir postulaciones"}
-                      className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-amber-600 hover:bg-amber-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {actionLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Pause className="h-4 w-4" />
-                          Pausar
-                        </>
-                      )}
-                    </button>
-                    <button
-                      onClick={() => setShowCancelModal(true)}
-                      disabled={actionLoading || !canCancelJob()}
-                      title={!canCancelJob() ? "No puedes cancelar con menos de 24h de anticipación" : "Cancelar este trabajo y recibir reembolso si corresponde"}
-                      className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-red-600 hover:bg-red-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <XCircle className="h-4 w-4" />
-                      Cancelar
-                    </button>
-                  </div>
+                  {showActionsMenu && (
+                    <>
+                    <div className="fixed inset-0 z-[5]" onClick={() => setShowActionsMenu(false)} />
+                    <div className="mt-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg overflow-hidden z-10 relative">
+                      <button
+                        onClick={() => { setShowBudgetModal(true); setShowActionsMenu(false); }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                      >
+                        <DollarSign className="h-4 w-4 text-sky-500" />
+                        {t('jobs.actions.changeBudget')}
+                      </button>
+                      <button
+                        onClick={() => { handlePauseJob(); setShowActionsMenu(false); }}
+                        disabled={actionLoading || !canPauseJob()}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Pause className="h-4 w-4 text-amber-500" />
+                        {t('jobs.actions.pause')}
+                      </button>
+                      <button
+                        onClick={() => { setShowCancelModal(true); setShowActionsMenu(false); }}
+                        disabled={actionLoading || !canCancelJob()}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <XCircle className="h-4 w-4 text-red-500" />
+                        {t('jobs.actions.cancel')}
+                      </button>
+                      <div className="border-t border-slate-200 dark:border-slate-700" />
+                      <button
+                        onClick={() => { navigate(`/tickets/new?type=job&jobId=${job.id || job._id}&jobTitle=${encodeURIComponent(job.title)}`); setShowActionsMenu(false); }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                      >
+                        <Headphones className="h-4 w-4 text-green-500" />
+                        {t('jobs.actions.contactSupport')}
+                      </button>
+                    </div>
+                    </>
+                  )}
 
                   {/* Cancellation deadline warning */}
                   {!canCancelJob() ? (
-                    <div className="rounded-xl border border-red-300 dark:border-red-600/50 bg-red-50 dark:bg-red-900/20 p-3">
+                    <div className="mt-3 rounded-xl border border-red-300 dark:border-red-600/50 bg-red-50 dark:bg-red-900/20 p-3">
                       <p className="text-xs text-red-700 dark:text-red-300">
                         <AlertTriangle className="inline h-3 w-3 mr-1" />
-                        Ya no puedes cancelar este trabajo (menos de 24h para el inicio). Contacta a soporte si necesitas ayuda.
+                        {t('jobs.actions.cantCancel')}
                       </p>
                     </div>
                   ) : getTimeUntilCancelDeadline() && (
-                    <div className="rounded-xl border border-amber-300 dark:border-amber-600/50 bg-amber-50 dark:bg-amber-900/20 p-3">
+                    <div className="mt-3 rounded-xl border border-amber-300 dark:border-amber-600/50 bg-amber-50 dark:bg-amber-900/20 p-3">
                       <p className="text-xs text-amber-700 dark:text-amber-300">
                         <Clock className="inline h-3 w-3 mr-1" />
-                        Tiempo restante para cancelar: <span className="font-semibold">{getTimeUntilCancelDeadline()}</span>
+                        {t('jobs.actions.timeToCancel')} <span className="font-semibold">{getTimeUntilCancelDeadline()}</span>
                       </p>
                     </div>
                   )}
@@ -2697,7 +2792,7 @@ export default function JobDetail() {
 
                 <div className="rounded-2xl border border-sky-300 dark:border-sky-600 bg-white dark:bg-sky-900/30 p-4">
                   <p className="text-sm font-medium text-sky-700 dark:text-sky-300">
-                    ✅ Este trabajo está publicado y recibiendo propuestas
+                    ✅ {t('jobs.actions.publishedReceiving')}
                   </p>
                 </div>
               </div>
@@ -2709,21 +2804,21 @@ export default function JobDetail() {
                 {job.pendingNewPrice ? (
                   <div className="rounded-2xl border border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/30 p-4">
                     <p className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-3">
-                      <span className="inline-block animate-pulse">⏳</span> Esperando verificación de pago
+                      {t('jobs.waitingPaymentVerification', 'Waiting for payment verification')}
                     </p>
                     <div className="space-y-2 text-xs text-blue-600 dark:text-blue-400">
                       <p>
-                        Tu comprobante de pago para el aumento de presupuesto está siendo verificado por nuestro equipo.
+                        {t('jobs.paymentProofBeingVerified', 'Your payment proof for the budget increase is being verified by our team.')}
                       </p>
                       <div className="mt-3 p-3 bg-blue-100 dark:bg-blue-900/50 rounded-lg">
-                        <p className="font-medium">Precio actual: ${Number(job.price).toLocaleString('es-AR')} ARS</p>
-                        <p className="font-medium">Nuevo precio pendiente: ${Number(job.pendingNewPrice).toLocaleString('es-AR')} ARS</p>
+                        <p className="font-medium">{t('jobs.currentPrice', 'Current price')}: ${Number(job.price).toLocaleString('es-AR')} ARS</p>
+                        <p className="font-medium">{t('jobs.pendingNewPrice', 'Pending new price')}: ${Number(job.pendingNewPrice).toLocaleString('es-AR')} ARS</p>
                       </div>
                       <p className="mt-2">
-                        Una vez aprobado, el presupuesto se actualizará automáticamente y tu trabajo se reactivará.
+                        {t('jobs.budgetWillUpdateOnApproval', 'Once approved, the budget will update automatically and your job will be reactivated.')}
                       </p>
                       <p className="text-blue-500 dark:text-blue-300">
-                        Tiempo estimado: 24-48hs hábiles (transferencia) o 5-15 minutos (Binance)
+                        {t('jobs.estimatedTime', 'Estimated time: 24-48 business hours (transfer) or 5-15 minutes (Binance)')}
                       </p>
                     </div>
                   </div>
@@ -2731,10 +2826,10 @@ export default function JobDetail() {
                   <>
                     <div className="rounded-2xl border border-amber-300 dark:border-amber-600 bg-amber-50 dark:bg-amber-900/30 p-4">
                       <p className="text-sm font-medium text-amber-700 dark:text-amber-300 mb-3">
-                        ⏸️ Esta publicación está pausada
+                        {t('jobs.listingPaused', 'This listing is paused')}
                       </p>
                       <p className="text-xs text-amber-600 dark:text-amber-400">
-                        Si no la reanuadas o cancelas, se reanudará automáticamente.
+                        {t('jobs.willResumeAutomatically', 'If you don\'t resume or cancel it, it will resume automatically.')}
                       </p>
                     </div>
 
@@ -2750,18 +2845,18 @@ export default function JobDetail() {
                         ) : (
                           <>
                             <Play className="h-4 w-4" />
-                            Reanudar
+                            {t('common.resume', 'Resume')}
                           </>
                         )}
                       </button>
                       <button
                         onClick={() => setShowCancelModal(true)}
                         disabled={actionLoading || !canCancelJob()}
-                        title={!canCancelJob() ? "No puedes cancelar con menos de 24h de anticipación" : ""}
+                        title={!canCancelJob() ? t('jobs.cantCancel24h', 'Cannot cancel less than 24h before start') : ""}
                         className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-red-600 hover:bg-red-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <XCircle className="h-4 w-4" />
-                        Cancelar
+                        {t('common.cancel', 'Cancel')}
                       </button>
                     </div>
                   </>
@@ -2785,7 +2880,7 @@ export default function JobDetail() {
                   </div>
                   <div>
                     <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300">
-                      ¡Trabajo terminado!
+                      {t('jobs.jobFinished', 'Job finished!')}
                     </p>
                     <p className="text-sm text-emerald-600 dark:text-emerald-400">
                       El trabajo finalizó el {new Date(job.endDate).toLocaleDateString('es-AR', {
@@ -2797,12 +2892,12 @@ export default function JobDetail() {
                   </div>
                 </div>
                 <p className="text-sm text-emerald-700 dark:text-emerald-300 mb-4">
-                  Confirma que el trabajo fue realizado correctamente para proceder con los pagos al trabajador.
+                  {t('jobs.confirmForWorkerPayment', 'Confirm that the job was completed correctly to proceed with payments to the worker.')}
                 </p>
 
                 {/* Confirmation status */}
                 <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4 mb-4">
-                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">Estado de confirmaciones:</p>
+                  <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">{t('jobs.confirmationStatus', 'Confirmation status')}:</p>
                   <div className="flex items-center gap-4 text-sm">
                     <span className={`flex items-center gap-1 ${contractData.clientConfirmed ? 'text-green-600' : 'text-slate-400'}`}>
                       {contractData.clientConfirmed ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
@@ -2810,7 +2905,7 @@ export default function JobDetail() {
                     </span>
                     <span className={`flex items-center gap-1 ${contractData.doerConfirmed ? 'text-green-600' : 'text-slate-400'}`}>
                       {contractData.doerConfirmed ? <CheckCircle className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
-                      Confirmación del trabajador
+                      {t('jobs.workerConfirmation', 'Worker confirmation')}
                     </span>
                   </div>
                 </div>
@@ -2829,7 +2924,7 @@ export default function JobDetail() {
                     ) : (
                       <>
                         <CheckCircle className="h-4 w-4" />
-                        Confirmar trabajo realizado
+                        {t('jobs.confirmWorkDone', 'Confirm work done')}
                       </>
                     )}
                   </button>
@@ -2850,7 +2945,7 @@ export default function JobDetail() {
                     <p className="text-lg font-bold text-amber-700 dark:text-amber-300">
                       {allContractsData && allContractsData.totalContracts > 1
                         ? `Esperando confirmaciones (${allContractsData.contracts.filter(c => c.doerConfirmed && c.clientConfirmed).length}/${allContractsData.totalContracts})`
-                        : 'Esperando confirmación del trabajador'}
+                        : t('jobs.waitingWorkerConfirmation', 'Waiting for worker confirmation')}
                     </p>
                   </div>
                 </div>
@@ -2874,7 +2969,7 @@ export default function JobDetail() {
                 ) : contractData && (
                   <div className="flex items-center justify-between">
                     <p className="text-sm text-amber-700 dark:text-amber-300">
-                      Ya confirmaste que el trabajo fue realizado. Estamos esperando que el trabajador también confirme para proceder con los pagos.
+                      {t('jobs.youConfirmedWaitingWorker', 'You confirmed that the work was done. We are waiting for the worker to also confirm to proceed with payments.')}
                     </p>
                     <Link
                       to={`/contracts/${contractData.id}`}
@@ -2897,14 +2992,14 @@ export default function JobDetail() {
                   </div>
                   <div>
                     <p className="text-lg font-bold text-green-700 dark:text-green-300">
-                      ¡Trabajo completado!
+                      {t('jobs.jobCompleted', 'Job completed!')}
                     </p>
                   </div>
                 </div>
                 <p className="text-sm text-green-700 dark:text-green-300">
                   ✅ {allContractsData && allContractsData.totalContracts > 1
-                    ? `Todos los ${allContractsData.totalContracts} trabajadores y el cliente confirmaron - Los pagos serán liberados`
-                    : 'Ambos confirmaron - El pago será liberado al trabajador'}
+                    ? t('jobs.allWorkersClientConfirmed', 'All {{count}} workers and client confirmed - Payments will be released', { count: allContractsData.totalContracts })
+                    : t('jobs.bothConfirmedPaymentReleased', 'Both confirmed - Payment will be released to the worker')}
                 </p>
               </div>
             )}
@@ -2920,22 +3015,22 @@ export default function JobDetail() {
                       </div>
                       <div>
                         <h3 className="font-semibold text-blue-800 dark:text-blue-200">
-                          Lo sentimos, ningún trabajador se postuló
+                          {t('jobs.noWorkersApplied', 'Sorry, no workers applied')}
                         </h3>
                         <p className="text-sm text-blue-600 dark:text-blue-300 mt-1">
-                          Tu trabajo expiró antes de recibir postulaciones.
+                          {t('jobs.jobExpiredNoApplications', 'Your job expired before receiving applications.')}
                         </p>
                       </div>
                     </div>
 
                     <div className="bg-blue-100 dark:bg-blue-950/50 rounded-lg p-4 mb-4">
                       <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">
-                        ¿Te gustaría reprogramarlo?
+                        {t('jobs.wouldYouReschedule', 'Would you like to reschedule it?')}
                       </p>
                       <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
-                        <li>• Actualiza las fechas a una más conveniente</li>
-                        <li>• Considera ajustar el presupuesto</li>
-                        <li>• Agrega más detalles a la descripción</li>
+                        <li>• {t('jobs.updateDates', 'Update dates to a more convenient time')}</li>
+                        <li>• {t('jobs.adjustBudget', 'Consider adjusting the budget')}</li>
+                        <li>• {t('jobs.addMoreDetails', 'Add more details to the description')}</li>
                       </ul>
                     </div>
 
@@ -2958,14 +3053,14 @@ export default function JobDetail() {
                         className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-blue-700"
                       >
                         <Calendar className="h-4 w-4" />
-                        Reprogramar
+                        {t('jobs.reschedule', 'Reschedule')}
                       </button>
                       <button
                         onClick={() => setShowDeleteModal(true)}
                         className="flex items-center justify-center gap-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-transparent px-4 py-3 font-semibold text-slate-600 dark:text-slate-300 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
                       >
                         <Trash2 className="h-4 w-4" />
-                        Cancelar
+                        {t('common.cancel', 'Cancel')}
                       </button>
                     </div>
                   </div>
@@ -2973,11 +3068,11 @@ export default function JobDetail() {
                   <>
                     <div className="rounded-2xl border border-red-600 bg-red-900/30 p-4">
                       <p className="text-sm font-medium text-red-300 mb-2">
-                        ❌ Esta publicación fue cancelada
+                        {t('jobs.listingCancelled', 'This listing was cancelled')}
                       </p>
                       {(job.cancellationReason || job.rejectedReason) && (
                         <div className="mt-3 p-3 bg-red-950/50 rounded-lg border border-red-800">
-                          <p className="text-xs text-red-400 font-medium mb-1">Razón:</p>
+                          <p className="text-xs text-red-400 font-medium mb-1">{t('common.reason', 'Reason')}:</p>
                           <p className="text-sm text-red-200">{job.cancellationReason || job.rejectedReason}</p>
                         </div>
                       )}
@@ -3001,14 +3096,14 @@ export default function JobDetail() {
                         className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-sky-700"
                       >
                         <Edit className="h-4 w-4" />
-                        Editar y Resubir
+                        {t('jobs.editAndResubmit', 'Edit and Resubmit')}
                       </button>
                       <button
                         onClick={() => setShowDeleteModal(true)}
                         className="flex items-center justify-center gap-2 rounded-xl border border-red-600 bg-transparent px-4 py-3 font-semibold text-red-400 transition-colors hover:bg-red-900/30"
                       >
                         <Trash2 className="h-4 w-4" />
-                        Eliminar
+                        {t('common.delete', 'Delete')}
                       </button>
                     </div>
                   </>
@@ -3025,21 +3120,21 @@ export default function JobDetail() {
                   </div>
                   <div>
                     <h3 className="font-semibold text-orange-800 dark:text-orange-200">
-                      Trabajo suspendido
+                      {t('jobs.jobSuspended', 'Job suspended')}
                     </h3>
                     <p className="text-sm text-orange-600 dark:text-orange-300 mt-1">
-                      Tu trabajo está suspendido porque no definiste una fecha de finalización antes de las 24 horas previas al inicio.
+                      {t('jobs.suspendedNoEndDate', 'Your job is suspended because you did not set an end date before 24 hours prior to the start.')}
                     </p>
                   </div>
                 </div>
 
                 <div className="bg-orange-100 dark:bg-orange-950/50 rounded-lg p-4 mb-4">
                   <p className="text-sm font-medium text-orange-800 dark:text-orange-200 mb-2">
-                    Para reactivar tu trabajo:
+                    {t('jobs.toReactivateJob', 'To reactivate your job:')}
                   </p>
                   <ul className="text-sm text-orange-700 dark:text-orange-300 space-y-1">
-                    <li>• Edita el trabajo y define una fecha de finalización</li>
-                    <li>• El trabajo se reactivará automáticamente</li>
+                    <li>• {t('jobs.editAndSetEndDate', 'Edit the job and set an end date')}</li>
+                    <li>• {t('jobs.willReactivateAutomatically', 'The job will reactivate automatically')}</li>
                   </ul>
                 </div>
 
@@ -3048,7 +3143,7 @@ export default function JobDetail() {
                   className="w-full flex items-center justify-center gap-2 rounded-xl bg-orange-600 px-4 py-3 font-semibold text-white transition-colors hover:bg-orange-700"
                 >
                   <Edit className="h-4 w-4" />
-                  Editar y definir fecha de fin
+                  {t('jobs.editAndSetEndDate', 'Edit and set end date')}
                 </button>
               </div>
             )}
@@ -3059,7 +3154,7 @@ export default function JobDetail() {
                 <div className="bg-slate-900/50 px-4 py-3 border-b border-slate-700">
                   <h3 className="font-semibold text-white flex items-center gap-2">
                     <Users className="h-5 w-5 text-sky-400" />
-                    Trabajadores del Proyecto ({allContractsData.contracts.length})
+                    {t('jobs.projectWorkers', 'Project Workers')} ({allContractsData.contracts.length})
                   </h3>
                 </div>
                 <div className="divide-y divide-slate-700">
@@ -3082,9 +3177,9 @@ export default function JobDetail() {
                               contract.status === 'awaiting_confirmation' ? 'bg-amber-500/20 text-amber-400' :
                               'bg-slate-500/20 text-slate-400'
                             }`}>
-                              {contract.status === 'completed' ? 'Completado' :
-                               contract.status === 'in_progress' ? 'En progreso' :
-                               contract.status === 'awaiting_confirmation' ? 'Esperando confirmación' :
+                              {contract.status === 'completed' ? t('status.completed', 'Completed') :
+                               contract.status === 'in_progress' ? t('status.inProgress', 'In progress') :
+                               contract.status === 'awaiting_confirmation' ? t('status.awaitingConfirmation', 'Awaiting confirmation') :
                                contract.status}
                             </span>
                           </div>
@@ -3098,7 +3193,7 @@ export default function JobDetail() {
                                 <Clock className="h-4 w-4 text-slate-400" />
                               )}
                               <span className={contract.doerConfirmed ? 'text-green-400' : 'text-slate-400'}>
-                                Trabajador
+                                {t('common.worker', 'Worker')}
                               </span>
                             </div>
                             <div className="flex items-center gap-1 mt-1">
@@ -3108,7 +3203,7 @@ export default function JobDetail() {
                                 <Clock className="h-4 w-4 text-slate-400" />
                               )}
                               <span className={contract.clientConfirmed ? 'text-green-400' : 'text-slate-400'}>
-                                Cliente (tú)
+                                {t('common.client', 'Client')} {t('common.you', '(you)')}
                               </span>
                             </div>
                           </div>
@@ -3126,13 +3221,13 @@ export default function JobDetail() {
                 {/* Summary */}
                 <div className="bg-slate-900/50 px-4 py-3 border-t border-slate-700">
                   <div className="flex justify-between text-xs text-slate-400">
-                    <span>Confirmados por trabajadores:</span>
+                    <span>{t('jobs.confirmedByWorkers', 'Confirmed by workers')}:</span>
                     <span className="font-medium text-white">
                       {allContractsData.contracts.filter(c => c.doerConfirmed).length} / {allContractsData.contracts.length}
                     </span>
                   </div>
                   <div className="flex justify-between text-xs text-slate-400 mt-1">
-                    <span>Confirmados por ti (cliente):</span>
+                    <span>{t('jobs.confirmedByYouClient', 'Confirmed by you (client)')}:</span>
                     <span className="font-medium text-white">
                       {allContractsData.contracts.filter(c => c.clientConfirmed).length} / {allContractsData.contracts.length}
                     </span>
@@ -3147,25 +3242,25 @@ export default function JobDetail() {
                 <div className="bg-slate-900/50 px-4 py-3 border-b border-slate-700">
                   <h3 className="font-semibold text-white flex items-center gap-2">
                     <Users className="h-5 w-5 text-sky-400" />
-                    Contrato del Trabajo
+                    {t('jobs.jobContract', 'Job Contract')}
                   </h3>
                 </div>
                 <div className="p-4">
                   {/* Contract status */}
                   <div className="flex items-center justify-between mb-4">
-                    <span className="text-sm text-slate-400">Estado:</span>
+                    <span className="text-sm text-slate-400">{t('common.status', 'Status')}:</span>
                     <span className={`text-sm px-3 py-1 rounded-full font-medium ${
                       contractData.status === 'completed' ? 'bg-green-500/20 text-green-400' :
                       contractData.status === 'in_progress' ? 'bg-blue-500/20 text-blue-400' :
                       contractData.status === 'awaiting_confirmation' ? 'bg-amber-500/20 text-amber-400' :
                       'bg-slate-500/20 text-slate-400'
                     }`}>
-                      {contractData.status === 'completed' ? 'Completado' :
-                       contractData.status === 'in_progress' ? 'En progreso' :
-                       contractData.status === 'awaiting_confirmation' ? 'Esperando confirmación' :
-                       contractData.status === 'pending' ? 'Pendiente' :
-                       contractData.status === 'ready' ? 'Listo' :
-                       contractData.status === 'accepted' ? 'Aceptado' :
+                      {contractData.status === 'completed' ? t('status.completed', 'Completed') :
+                       contractData.status === 'in_progress' ? t('status.inProgress', 'In progress') :
+                       contractData.status === 'awaiting_confirmation' ? t('status.awaitingConfirmation', 'Awaiting confirmation') :
+                       contractData.status === 'pending' ? t('status.pending', 'Pending') :
+                       contractData.status === 'ready' ? t('status.ready', 'Ready') :
+                       contractData.status === 'accepted' ? t('status.accepted', 'Accepted') :
                        contractData.status}
                     </span>
                   </div>
@@ -3174,14 +3269,14 @@ export default function JobDetail() {
                   {contractData.price && (
                     <div className="space-y-2 mb-4 p-3 bg-slate-900/50 rounded-lg">
                       <div className="flex justify-between text-sm">
-                        <span className="text-slate-400">Precio:</span>
+                        <span className="text-slate-400">{t('common.price', 'Price')}:</span>
                         <span className="text-white font-medium">
                           ${Number(contractData.price || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                         </span>
                       </div>
                       {contractData.commission && (
                         <div className="flex justify-between text-sm">
-                          <span className="text-slate-400">Comisión:</span>
+                          <span className="text-slate-400">{t('common.commission', 'Commission')}:</span>
                           <span className="text-white">
                             ${Number(contractData.commission || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                           </span>
@@ -3189,7 +3284,7 @@ export default function JobDetail() {
                       )}
                       {contractData.totalPrice && (
                         <div className="flex justify-between text-sm pt-2 border-t border-slate-700">
-                          <span className="text-slate-400 font-medium">Total:</span>
+                          <span className="text-slate-400 font-medium">{t('common.total', 'Total')}:</span>
                           <span className="text-sky-400 font-bold">
                             ${Number(contractData.totalPrice || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                           </span>
@@ -3200,7 +3295,7 @@ export default function JobDetail() {
 
                   {/* Confirmation status */}
                   <div className="space-y-2">
-                    <p className="text-xs font-medium text-slate-400 mb-2">Estado de confirmaciones:</p>
+                    <p className="text-xs font-medium text-slate-400 mb-2">{t('jobs.confirmationStatus', 'Confirmation status')}:</p>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         {contractData.doerConfirmed ? (
@@ -3209,7 +3304,7 @@ export default function JobDetail() {
                           <Clock className="h-4 w-4 text-slate-400" />
                         )}
                         <span className={`text-sm ${contractData.doerConfirmed ? 'text-green-400' : 'text-slate-400'}`}>
-                          Trabajador: {contractData.doerConfirmed ? 'Confirmado' : 'Pendiente'}
+                          {t('common.worker', 'Worker')}: {contractData.doerConfirmed ? t('status.confirmed', 'Confirmed') : t('status.pending', 'Pending')}
                         </span>
                       </div>
                     </div>
@@ -3221,7 +3316,7 @@ export default function JobDetail() {
                           <Clock className="h-4 w-4 text-slate-400" />
                         )}
                         <span className={`text-sm ${contractData.clientConfirmed ? 'text-green-400' : 'text-slate-400'}`}>
-                          Cliente (tú): {contractData.clientConfirmed ? 'Confirmado' : 'Pendiente'}
+                          {t('common.client', 'Client')} {t('common.you', '(you)')}: {contractData.clientConfirmed ? t('status.confirmed', 'Confirmed') : t('status.pending', 'Pending')}
                         </span>
                       </div>
                     </div>
@@ -3233,7 +3328,7 @@ export default function JobDetail() {
                     className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors"
                   >
                     <ExternalLink className="h-4 w-4" />
-                    Ver contrato completo
+                    {t('jobs.viewFullContract', 'View full contract')}
                   </Link>
                 </div>
               </div>
@@ -3241,10 +3336,9 @@ export default function JobDetail() {
 
             {/* Tips */}
             <div className="rounded-2xl border border-sky-300 dark:border-sky-600 bg-sky-50 dark:bg-sky-900/30 p-4">
-              <h3 className="mb-2 font-semibold text-sky-700 dark:text-sky-300">💡 Consejo</h3>
+              <h3 className="mb-2 font-semibold text-sky-700 dark:text-sky-300">💡 {t('jobs.detail.tip', 'Tip')}</h3>
               <p className="text-sm text-sky-600 dark:text-sky-200">
-                Lee bien la descripción y asegúrate de tener las herramientas
-                necesarias antes de aplicar.
+                {t('jobs.detail.tipText', 'Read the description carefully and make sure you have the necessary tools before applying.')}
               </p>
             </div>
           </div>
@@ -3259,13 +3353,13 @@ export default function JobDetail() {
                   <XCircle className="h-6 w-6 text-red-500" />
                 </div>
                 <h3 className="text-xl font-bold text-white">
-                  Cancelar Publicación
+                  {t('jobs.cancelListing', 'Cancel Listing')}
                 </h3>
               </div>
 
               <div className="mb-6 space-y-4">
                 <p className="text-slate-300">
-                  ¿Estás seguro de que deseas cancelar esta publicación?
+                  {t('jobs.confirmCancelListing', 'Are you sure you want to cancel this listing?')}
                 </p>
 
                 {/* Time remaining info */}
@@ -3273,10 +3367,10 @@ export default function JobDetail() {
                   <div className="rounded-xl border border-amber-600/50 bg-amber-900/20 p-3">
                     <p className="text-sm text-amber-300">
                       <Clock className="inline h-4 w-4 mr-1" />
-                      Recuerda: Solo puedes cancelar hasta 24 horas antes del inicio del trabajo.
+                      {t('jobs.remember24hCancel', 'Remember: You can only cancel up to 24 hours before the job starts.')}
                       <br />
                       <span className="text-xs text-amber-400 mt-1 block">
-                        Tiempo restante: <strong>{getTimeUntilCancelDeadline()}</strong>
+                        {t('jobs.actions.timeRemaining', 'Time remaining:')} <strong>{getTimeUntilCancelDeadline()}</strong>
                       </span>
                     </p>
                   </div>
@@ -3285,12 +3379,12 @@ export default function JobDetail() {
                 {/* Reason textarea */}
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Razón de cancelación (opcional)
+                    {t('jobs.cancellationReasonOptional', 'Cancellation reason (optional)')}
                   </label>
                   <textarea
                     value={cancellationReason}
                     onChange={(e) => setCancellationReason(e.target.value)}
-                    placeholder="Ej: Ya no necesito el servicio, encontré otra solución..."
+                    placeholder={t('jobs.cancellationReasonPlaceholder', 'E.g.: I no longer need the service, found another solution...')}
                     rows={3}
                     maxLength={500}
                     className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-white placeholder:text-slate-500 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500 resize-none"
@@ -3303,11 +3397,11 @@ export default function JobDetail() {
                 {job.publicationAmount && (
                   <div className="rounded-xl border border-red-600 bg-red-900/30 p-4">
                     <p className="text-sm font-bold text-red-300 mb-2">
-                      ⚠️ Advertencia importante:
+                      {t('common.importantWarning', 'Important warning')}:
                     </p>
                     <p className="text-sm text-red-200">
-                      Al cancelar la publicación <span className="font-bold">perderás el dinero de la comisión pagada</span>{" "}
-                      (${job.publicationAmount?.toLocaleString("es-AR")} ARS). Esta acción no se puede deshacer.
+                      {t('jobs.cancelWarningCommission', 'By cancelling the listing')} <span className="font-bold">{t('jobs.willLoseCommission', 'you will lose the commission paid')}</span>{" "}
+                      (${job.publicationAmount?.toLocaleString("es-AR")} ARS). {t('common.cannotBeUndone', 'This action cannot be undone.')}
                     </p>
                   </div>
                 )}
@@ -3322,7 +3416,7 @@ export default function JobDetail() {
                   disabled={actionLoading}
                   className="flex-1 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600 disabled:opacity-50"
                 >
-                  No, mantener publicado
+                  {t('jobs.keepPublished', 'No, keep published')}
                 </button>
                 <button
                   onClick={handleCancelJob}
@@ -3332,7 +3426,7 @@ export default function JobDetail() {
                   {actionLoading ? (
                     <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                   ) : (
-                    "Sí, cancelar"
+                    t('common.yesCancel', 'Yes, cancel')
                   )}
                 </button>
               </div>
@@ -3349,21 +3443,21 @@ export default function JobDetail() {
                   <Trash2 className="h-6 w-6 text-red-500" />
                 </div>
                 <h3 className="text-xl font-bold text-white">
-                  Eliminar Trabajo
+                  {t('jobs.deleteJob', 'Delete Job')}
                 </h3>
               </div>
 
               <div className="mb-6 space-y-4">
                 <p className="text-slate-300">
-                  ¿Estás seguro de que deseas eliminar este trabajo permanentemente?
+                  {t('jobs.confirmDeletePermanently', 'Are you sure you want to permanently delete this job?')}
                 </p>
 
                 <div className="rounded-xl border border-red-600 bg-red-900/30 p-4">
                   <p className="text-sm font-bold text-red-300 mb-2">
-                    ⚠️ Advertencia:
+                    {t('common.warning', 'Warning')}:
                   </p>
                   <p className="text-sm text-red-200">
-                    Esta acción eliminará el trabajo permanentemente y no se puede deshacer.
+                    {t('jobs.deleteWarningPermanent', 'This action will permanently delete the job and cannot be undone.')}
                   </p>
                 </div>
               </div>
@@ -3374,7 +3468,7 @@ export default function JobDetail() {
                   disabled={deleting}
                   className="flex-1 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600 disabled:opacity-50"
                 >
-                  Cancelar
+                  {t('common.cancel', 'Cancel')}
                 </button>
                 <button
                   onClick={handleDeleteJob}
@@ -3384,7 +3478,7 @@ export default function JobDetail() {
                   {deleting ? (
                     <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                   ) : (
-                    "Sí, eliminar"
+                    t('common.yesDelete', 'Yes, delete')
                   )}
                 </button>
               </div>
@@ -3401,20 +3495,20 @@ export default function JobDetail() {
                   <DollarSign className="h-6 w-6 text-sky-500" />
                 </div>
                 <h3 className="text-xl font-bold text-white">
-                  Cambiar Presupuesto
+                  {t('jobs.changeBudget', 'Change Budget')}
                 </h3>
               </div>
 
               <div className="mb-6 space-y-4">
                 <div className="rounded-xl border border-blue-600/50 bg-blue-900/20 p-3">
                   <p className="text-sm text-blue-300">
-                    Presupuesto actual: <span className="font-bold">${job.price.toLocaleString('es-AR')} ARS</span>
+                    {t('jobs.currentBudget', 'Current budget')}: <span className="font-bold">${Number(job.price || 0).toLocaleString('es-AR')} ARS</span>
                   </p>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Nuevo presupuesto (ARS) *
+                    {t('jobs.newBudgetARS', 'New budget (ARS)')} *
                   </label>
                   <input
                     type="text"
@@ -3426,25 +3520,25 @@ export default function JobDetail() {
                   />
                   {newBudget && (
                     <p className="mt-1 text-xs text-slate-400">
-                      Valor: ${parseArgentineNumber(newBudget).toLocaleString('es-AR')} ARS
+                      {t('common.value', 'Value')}: ${parseArgentineNumber(newBudget).toLocaleString('es-AR')} ARS
                     </p>
                   )}
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-slate-300 mb-2">
-                    Razón del cambio * (mínimo 10 caracteres)
+                    {t('jobs.changeReason', 'Reason for change')} * ({t('jobs.min10chars', 'minimum 10 characters')})
                   </label>
                   <textarea
                     value={budgetReason}
                     onChange={(e) => setBudgetReason(e.target.value)}
-                    placeholder="Ej: Se agregaron tareas adicionales, cambió el alcance del trabajo..."
+                    placeholder={t('jobs.changeReasonPlaceholder', 'E.g.: Additional tasks were added, scope of work changed...')}
                     rows={4}
                     maxLength={500}
                     className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-white placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 resize-none"
                   />
                   <p className="mt-1 text-xs text-slate-500 text-right">
-                    {budgetReason.length}/500 (mínimo 10)
+                    {budgetReason.length}/500 ({t('jobs.min10', 'min 10')})
                   </p>
                 </div>
 
@@ -3456,7 +3550,7 @@ export default function JobDetail() {
 
                 <div className="rounded-xl border border-amber-600/50 bg-amber-900/20 p-3">
                   <p className="text-sm text-amber-300">
-                    <strong>Nota:</strong> Solo puedes cambiar el presupuesto de trabajos que no estén en progreso o completados.
+                    <strong>{t('common.note', 'Note')}:</strong> {t('jobs.budgetChangeNote', 'You can only change the budget of jobs that are not in progress or completed.')}
                   </p>
                 </div>
               </div>
@@ -3472,7 +3566,7 @@ export default function JobDetail() {
                   disabled={changingBudget}
                   className="flex-1 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600 disabled:opacity-50"
                 >
-                  Cancelar
+                  {t('common.cancel', 'Cancel')}
                 </button>
                 <button
                   onClick={handleChangeBudget}
@@ -3482,7 +3576,7 @@ export default function JobDetail() {
                   {changingBudget ? (
                     <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                   ) : (
-                    "Confirmar cambio"
+                    t('common.confirmChange', 'Confirm change')
                   )}
                 </button>
               </div>
@@ -3499,7 +3593,7 @@ export default function JobDetail() {
                   <CheckCircle className="h-6 w-6 text-green-500" />
                 </div>
                 <h3 className="text-xl font-bold text-white">
-                  Confirmar Selección
+                  {t('jobs.confirmSelection', 'Confirm Selection')}
                 </h3>
               </div>
 
@@ -3526,13 +3620,13 @@ export default function JobDetail() {
                         {Number(selectedProposal.freelancer?.rating || 0).toFixed(1)}
                       </span>
                       <span>•</span>
-                      <span>{selectedProposal.freelancer?.completedJobs || 0} trabajos</span>
+                      <span>{selectedProposal.freelancer?.completedJobs || 0} {t('common.jobs', 'jobs')}</span>
                     </div>
                   </div>
                 </div>
 
                 <p className="text-slate-300">
-                  ¿Estás seguro de que deseas seleccionar a <span className="font-semibold text-white">{selectedProposal.freelancer?.name}</span> para este trabajo?
+                  {t('jobs.confirmSelectWorker', 'Are you sure you want to select')} <span className="font-semibold text-white">{selectedProposal.freelancer?.name}</span> {t('jobs.forThisJob', 'for this job?')}
                 </p>
 
                 {/* Monto acordado */}
@@ -3542,13 +3636,13 @@ export default function JobDetail() {
                     : 'border-sky-600 bg-sky-900/30'
                 }`}>
                   <p className={`text-sm ${selectedProposal.isCounterOffer ? 'text-amber-300' : 'text-sky-300'}`}>
-                    <strong>Monto acordado:</strong>{' '}
+                    <strong>{t('jobs.agreedAmount', 'Agreed amount')}:</strong>{' '}
                     <span className="font-bold text-lg">
                       ${(selectedProposal.proposedPrice || job.price)?.toLocaleString('es-AR')} ARS
                     </span>
                     {selectedProposal.isCounterOffer && (
                       <span className="block text-xs mt-1 text-amber-400">
-                        (Contraoferta - diferente al precio original de ${job.price?.toLocaleString('es-AR')} ARS)
+                        ({t('jobs.counterOfferDifferent', 'Counter-offer - different from original price of')} ${job.price?.toLocaleString('es-AR')} ARS)
                       </span>
                     )}
                   </p>
@@ -3556,19 +3650,19 @@ export default function JobDetail() {
 
                 <div className="rounded-xl border border-green-600 bg-green-900/30 p-4">
                   <p className="text-sm text-green-300">
-                    <strong>Al confirmar:</strong>
+                    <strong>{t('jobs.onConfirm', 'On confirm')}:</strong>
                   </p>
                   <ul className="text-sm text-green-200 mt-2 space-y-1">
-                    <li>• Se creará el contrato con el trabajador</li>
-                    <li>• El trabajador recibirá una notificación</li>
+                    <li>• {t('jobs.contractWillBeCreated', 'A contract will be created with the worker')}</li>
+                    <li>• {t('jobs.workerWillBeNotified', 'The worker will receive a notification')}</li>
                     {(job.maxWorkers || 1) > 1 ? (
                       (job.selectedWorkers?.length || 0) + 1 >= (job.maxWorkers || 1) ? (
-                        <li>• Las demás postulaciones serán rechazadas (se completan los {job.maxWorkers} puestos)</li>
+                        <li>• {t('jobs.otherApplicationsRejectedFull', 'Other applications will be rejected (all {{count}} positions filled)', { count: job.maxWorkers })}</li>
                       ) : (
-                        <li>• Las demás postulaciones seguirán pendientes ({(job.maxWorkers || 1) - (job.selectedWorkers?.length || 0) - 1} puesto{(job.maxWorkers || 1) - (job.selectedWorkers?.length || 0) - 1 !== 1 ? 's' : ''} restante{(job.maxWorkers || 1) - (job.selectedWorkers?.length || 0) - 1 !== 1 ? 's' : ''})</li>
+                        <li>• {t('jobs.otherApplicationsPending', 'Other applications will remain pending ({{count}} position(s) remaining)', { count: (job.maxWorkers || 1) - (job.selectedWorkers?.length || 0) - 1 })}</li>
                       )
                     ) : (
-                      <li>• Las demás postulaciones serán rechazadas</li>
+                      <li>• {t('jobs.otherApplicationsRejected', 'Other applications will be rejected')}</li>
                     )}
                   </ul>
                 </div>
@@ -3583,7 +3677,7 @@ export default function JobDetail() {
                   disabled={selectingWorker !== null}
                   className="flex-1 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600 disabled:opacity-50"
                 >
-                  Cancelar
+                  {t('common.cancel', 'Cancel')}
                 </button>
                 <button
                   onClick={() => handleSelectWorker(selectedProposal)}
@@ -3593,7 +3687,7 @@ export default function JobDetail() {
                   {selectingWorker !== null ? (
                     <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                   ) : (
-                    "Confirmar Selección"
+                    t('jobs.confirmSelection', 'Confirm Selection')
                   )}
                 </button>
               </div>
@@ -3610,7 +3704,7 @@ export default function JobDetail() {
                   <DollarSign className="h-6 w-6 text-sky-500" />
                 </div>
                 <h3 className="text-xl font-bold text-white">
-                  Pago Requerido
+                  {t('jobs.paymentRequired', 'Payment Required')}
                 </h3>
               </div>
 
@@ -3622,32 +3716,32 @@ export default function JobDetail() {
                 {/* Payment Breakdown */}
                 <div className="rounded-xl border border-slate-700 bg-slate-800 p-4 space-y-3">
                   <div className="flex justify-between text-sm text-slate-400">
-                    <span>Presupuesto anterior</span>
+                    <span>{t('jobs.previousBudget', 'Previous budget')}</span>
                     <span>${paymentBreakdown.oldPrice.toLocaleString('es-AR')} ARS</span>
                   </div>
                   <div className="flex justify-between text-sm text-slate-400">
-                    <span>Nuevo presupuesto</span>
+                    <span>{t('jobs.newBudget', 'New budget')}</span>
                     <span>${paymentBreakdown.newPrice.toLocaleString('es-AR')} ARS</span>
                   </div>
                   <div className="border-t border-slate-700 pt-3 flex justify-between text-slate-200">
-                    <span>Diferencia</span>
+                    <span>{t('jobs.difference', 'Difference')}</span>
                     <span className="text-orange-400 font-medium">
-                      +${paymentBreakdown.priceDifference.toLocaleString('es-AR')} ARS
+                      +${Number(paymentBreakdown.priceDifference || 0).toLocaleString('es-AR')} ARS
                     </span>
                   </div>
                   <div className="flex justify-between text-sm text-slate-400">
-                    <span>Comisión ({paymentBreakdown.commissionRate}%)</span>
-                    <span>+${paymentBreakdown.commission.toLocaleString('es-AR')} ARS</span>
+                    <span>{t('common.commission', 'Commission')} ({paymentBreakdown.commissionRate}%)</span>
+                    <span>+${Number(paymentBreakdown.commission || 0).toLocaleString('es-AR')} ARS</span>
                   </div>
                   <div className="border-t border-slate-600 pt-3 flex justify-between text-white font-bold text-lg">
-                    <span>Total a pagar</span>
-                    <span className="text-sky-400">${paymentBreakdown.total.toLocaleString('es-AR')} ARS</span>
+                    <span>{t('jobs.totalToPay', 'Total to pay')}</span>
+                    <span className="text-sky-400">${Number(paymentBreakdown.total || 0).toLocaleString('es-AR')} ARS</span>
                   </div>
                 </div>
 
                 <div className="rounded-xl border border-yellow-600 bg-yellow-900/30 p-4">
                   <p className="text-sm text-yellow-300">
-                    <strong>Nota:</strong> El trabajo permanecerá pausado hasta que completes el pago.
+                    <strong>{t('common.note', 'Note')}:</strong> {t('jobs.jobPausedUntilPayment', 'The job will remain paused until you complete the payment.')}
                   </p>
                 </div>
               </div>
@@ -3660,7 +3754,7 @@ export default function JobDetail() {
                   }}
                   className="flex-1 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600"
                 >
-                  Cancelar
+                  {t('common.cancel', 'Cancel')}
                 </button>
                 <button
                   onClick={() => {
@@ -3670,7 +3764,7 @@ export default function JobDetail() {
                   }}
                   className="flex-1 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:from-sky-600 hover:to-sky-700"
                 >
-                  Ir al Pago
+                  {t('jobs.goToPayment', 'Go to Payment')}
                 </button>
               </div>
             </div>
@@ -3686,7 +3780,7 @@ export default function JobDetail() {
                   <ExternalLink className="h-6 w-6 text-purple-500" />
                 </div>
                 <h3 className="text-xl font-bold text-white">
-                  Redirigir al Contrato
+                  {t('jobs.redirectToContract', 'Redirect to Contract')}
                 </h3>
               </div>
 
@@ -3697,7 +3791,7 @@ export default function JobDetail() {
 
                 <div className="rounded-xl border border-purple-600 bg-purple-900/30 p-4">
                   <p className="text-sm text-purple-300">
-                    <strong>Nota:</strong> Para cambiar el presupuesto de un trabajo en progreso, debes hacerlo desde el contrato activo.
+                    <strong>{t('common.note', 'Note')}:</strong> {t('jobs.changeBudgetFromContract', 'To change the budget of a job in progress, you must do it from the active contract.')}
                   </p>
                 </div>
               </div>
@@ -3711,7 +3805,7 @@ export default function JobDetail() {
                   }}
                   className="flex-1 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600"
                 >
-                  Cancelar
+                  {t('common.cancel', 'Cancel')}
                 </button>
                 <button
                   onClick={() => {
@@ -3721,7 +3815,7 @@ export default function JobDetail() {
                   }}
                   className="flex-1 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:from-purple-600 hover:to-purple-700"
                 >
-                  Ir al Contrato
+                  {t('jobs.goToContract', 'Go to Contract')}
                 </button>
               </div>
             </div>
@@ -3737,10 +3831,10 @@ export default function JobDetail() {
                   <CheckCircle className="h-10 w-10 text-green-500" />
                 </div>
                 <h3 className="text-2xl font-bold text-white mb-2">
-                  ¡Gracias por confirmar el trabajo!
+                  {t('jobs.thanksForConfirming', 'Thank you for confirming the job!')}
                 </h3>
                 <p className="text-slate-300">
-                  Gracias por confiar en DoApp, nosotros nos encargamos de que el pago llegue a destino.
+                  {t('jobs.weHandlePayment', 'Thank you for trusting DoApp, we make sure the payment reaches its destination.')}
                 </p>
               </div>
 
@@ -3749,7 +3843,7 @@ export default function JobDetail() {
                   onClick={() => setShowConfirmationSuccessModal(false)}
                   className="rounded-xl bg-gradient-to-r from-green-500 to-green-600 px-8 py-3 font-semibold text-white shadow-lg transition-all hover:from-green-600 hover:to-green-700"
                 >
-                  Entendido
+                  {t('common.understood', 'Understood')}
                 </button>
               </div>
             </div>
@@ -3780,7 +3874,7 @@ export default function JobDetail() {
                   }}
                   className="rounded-xl bg-gradient-to-r from-red-500 to-red-600 px-8 py-3 font-semibold text-white shadow-lg transition-all hover:from-red-600 hover:to-red-700"
                 >
-                  Entendido
+                  {t('common.understood', 'Understood')}
                 </button>
               </div>
             </div>

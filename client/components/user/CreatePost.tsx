@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useTranslation } from 'react-i18next';
 import { X, Upload, Image as ImageIcon, Video, DollarSign, Tag, Info } from "lucide-react";
 import ReactQuill from 'react-quill';
 import 'react-quill/dist/quill.snow.css';
@@ -18,6 +19,7 @@ interface GalleryFile {
 }
 
 export default function CreatePost({ initialType = 'post', onClose, onSuccess, embedded = false }: CreatePostProps) {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState({
     title: "",
     description: "",
@@ -55,7 +57,7 @@ export default function CreatePost({ initialType = 'post', onClose, onSuccess, e
     const selectedFiles = Array.from(e.target.files || []);
 
     if (selectedFiles.length + galleryFiles.length > 10) {
-      setError("Máximo 10 archivos permitidos");
+      setError(t('posts.maxFilesAllowed', 'Maximum 10 files allowed'));
       return;
     }
 
@@ -66,7 +68,7 @@ export default function CreatePost({ initialType = 'post', onClose, onSuccess, e
     });
 
     if (validFiles.length !== selectedFiles.length) {
-      setError("Solo se permiten imágenes y videos");
+      setError(t('posts.onlyImagesAndVideos', 'Only images and videos are allowed'));
       return;
     }
 
@@ -118,12 +120,12 @@ export default function CreatePost({ initialType = 'post', onClose, onSuccess, e
     setError("");
 
     if (!formData.title.trim()) {
-      setError("El título es requerido");
+      setError(t('posts.titleRequired', 'Title is required'));
       return;
     }
 
     if (!formData.description.trim()) {
-      setError("La descripción es requerida");
+      setError(t('posts.descriptionRequired', 'Description is required'));
       return;
     }
 
@@ -163,13 +165,13 @@ export default function CreatePost({ initialType = 'post', onClose, onSuccess, e
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || "Error al crear la publicación");
+        throw new Error(data.message || t('posts.errorCreating', 'Error creating post'));
       }
 
       onSuccess();
       onClose();
     } catch (err: any) {
-      setError(err.message || "Error al crear la publicación");
+      setError(err.message || t('posts.errorCreating', 'Error creating post'));
     } finally {
       setIsSubmitting(false);
     }
@@ -183,7 +185,7 @@ export default function CreatePost({ initialType = 'post', onClose, onSuccess, e
       {!embedded && (
         <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800 z-10">
           <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-            {isArticle ? 'Nuevo Artículo' : 'Nuevo Post'}
+            {isArticle ? t('posts.newArticle', 'New Article') : t('posts.newPost', 'New Post')}
           </h2>
           <button
             onClick={onClose}
@@ -205,7 +207,7 @@ export default function CreatePost({ initialType = 'post', onClose, onSuccess, e
           {/* Title */}
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-              Título *
+              {t('posts.title', 'Title')} *
             </label>
             <input
               type="text"
@@ -220,7 +222,7 @@ export default function CreatePost({ initialType = 'post', onClose, onSuccess, e
           {/* Description - Textarea for Posts, Rich Editor for Articles */}
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-              {isArticle ? 'Contenido del Artículo *' : 'Descripción *'}
+              {isArticle ? t('posts.articleContent', 'Article Content') + ' *' : t('posts.description', 'Description') + ' *'}
             </label>
             {isArticle ? (
               <div className="prose-editor">
@@ -231,7 +233,7 @@ export default function CreatePost({ initialType = 'post', onClose, onSuccess, e
                   modules={modules}
                   formats={formats}
                   className="bg-white dark:bg-slate-700 rounded-lg"
-                  placeholder="Escribe tu artículo aquí... Usa las herramientas de formato para dar estilo."
+                  placeholder={t('posts.writeArticle', 'Write your article here... Use formatting tools to style.')}
                 />
               </div>
             ) : (
@@ -251,7 +253,7 @@ export default function CreatePost({ initialType = 'post', onClose, onSuccess, e
             <div>
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                 <DollarSign className="h-4 w-4 inline mr-1" />
-                Precio (Opcional)
+                {t('posts.priceOptional', 'Price (Optional)')}
               </label>
               <div className="flex gap-3">
                 <select
@@ -279,7 +281,7 @@ export default function CreatePost({ initialType = 'post', onClose, onSuccess, e
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
               <Tag className="h-4 w-4 inline mr-1" />
-              Etiquetas
+              {t('posts.tags', 'Tags')}
             </label>
             <div className="flex gap-2 mb-2">
               <input
@@ -287,11 +289,11 @@ export default function CreatePost({ initialType = 'post', onClose, onSuccess, e
                 value={tagInput}
                 onChange={(e) => setTagInput(e.target.value)}
                 onKeyPress={(e) => e.key === "Enter" && (e.preventDefault(), handleAddTag())}
-                placeholder="Agregar etiqueta"
+                placeholder={t('posts.addTag', 'Add tag')}
                 className="flex-1 px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500"
               />
               <Button type="button" onClick={handleAddTag} variant="secondary">
-                Agregar
+                {t('common.add', 'Add')}
               </Button>
             </div>
             {formData.tags.length > 0 && (
@@ -319,7 +321,7 @@ export default function CreatePost({ initialType = 'post', onClose, onSuccess, e
           <div>
             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
               <ImageIcon className="h-4 w-4 inline mr-1" />
-              {isArticle ? 'Imágenes del Artículo (con descripciones)' : 'Galería'} (Máx. 10 archivos)
+              {isArticle ? t('posts.articleImages', 'Article Images (with descriptions)') : t('posts.gallery', 'Gallery')} ({t('posts.maxFiles', 'Max. 10 files')})
             </label>
             <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-6 text-center">
               <input
@@ -336,7 +338,7 @@ export default function CreatePost({ initialType = 'post', onClose, onSuccess, e
               >
                 <Upload className="h-8 w-8 text-slate-400" />
                 <span className="text-slate-600 dark:text-slate-400">
-                  Haz clic para subir imágenes o videos
+                  {t('posts.clickToUpload', 'Click to upload images or videos')}
                 </span>
               </label>
             </div>
@@ -371,18 +373,18 @@ export default function CreatePost({ initialType = 'post', onClose, onSuccess, e
                       <div className="flex-1">
                         <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
                           <Info className="h-3 w-3 inline mr-1" />
-                          Descripción de la imagen {index + 1}
+                          {t('posts.imageDescription', 'Image description')} {index + 1}
                         </label>
                         <input
                           type="text"
                           value={item.caption}
                           onChange={(e) => updateCaption(index, e.target.value)}
-                          placeholder="Agrega una descripción..."
+                          placeholder={t('posts.addDescription', 'Add a description...')}
                           maxLength={500}
                           className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500"
                         />
                         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                          {item.caption.length}/500 caracteres
+                          {item.caption.length}/500 {t('common.characters', 'characters')}
                         </p>
                       </div>
                     </div>
@@ -400,7 +402,7 @@ export default function CreatePost({ initialType = 'post', onClose, onSuccess, e
               variant="error"
               className="flex-1"
             >
-              Cancelar
+              {t('common.cancel', 'Cancel')}
             </Button>
             <Button
               type="submit"
@@ -408,7 +410,7 @@ export default function CreatePost({ initialType = 'post', onClose, onSuccess, e
               variant="success"
               className="flex-1"
             >
-              {isSubmitting ? "Publicando..." : `Publicar ${isArticle ? 'Artículo' : 'Post'}`}
+              {isSubmitting ? t('posts.publishing', 'Publishing...') : t('posts.publish', 'Publish') + ' ' + (isArticle ? t('posts.article', 'Article') : t('posts.post', 'Post'))}
             </Button>
           </div>
         </form>

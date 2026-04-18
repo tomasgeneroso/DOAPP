@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { AnimatedButton } from "./Button";
 
 interface EmptyStateProps {
@@ -10,12 +11,16 @@ interface EmptyStateProps {
 }
 
 export const EmptyState: React.FC<EmptyStateProps> = ({
-  title = "No hay trabajos disponibles",
-  description = "en este momento.",
+  title,
+  description,
   icon = "📋",
-  actionLabel = "Publicar el primero",
+  actionLabel,
   onAction,
 }) => {
+  const { t } = useTranslation();
+  const displayTitle = title || t('emptyState.noJobsAvailable', 'No jobs available');
+  const displayDescription = description || t('emptyState.atTheMoment', 'at the moment.');
+  const displayActionLabel = actionLabel || t('emptyState.publishFirst', 'Publish the first one');
   return (
     <div className="flex flex-col items-center justify-center py-16 px-10">
       {/* Icono */}
@@ -25,19 +30,19 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
       {/* Título */}
       <h3 className="text-xl font-bold text-[#212121] dark:text-white text-center mb-2">
-        {title}
+        {displayTitle}
       </h3>
 
       {/* Descripción */}
       <p className="text-base text-[#757575] dark:text-[#B0B0B0] text-center mb-8">
-        {description}
+        {displayDescription}
       </p>
 
       {/* Acción */}
       {onAction && (
         <div className="w-full">
           <AnimatedButton onClick={onAction} fullWidth>
-            {actionLabel}
+            {displayActionLabel}
           </AnimatedButton>
         </div>
       )}

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { useSocket } from "../../hooks/useSocket";
@@ -43,6 +44,7 @@ interface JobWithTasks {
 }
 
 export default function WorkInProgress() {
+  const { t } = useTranslation();
   const { token } = useAuth();
   const { registerJobUpdateHandler } = useSocket();
   const [jobsWithTasks, setJobsWithTasks] = useState<JobWithTasks[]>([]);
@@ -69,7 +71,7 @@ export default function WorkInProgress() {
         setError(data.message);
       }
     } catch (err: any) {
-      setError(err.message || "Error al cargar tareas");
+      setError(err.message || t('jobs.errorLoadingTasks', 'Error loading tasks'));
     } finally {
       setLoading(false);
     }
@@ -117,7 +119,7 @@ export default function WorkInProgress() {
         setError(data.message);
       }
     } catch (err: any) {
-      setError(err.message || "Error al actualizar estado");
+      setError(err.message || t('jobs.errorUpdatingStatus', 'Error updating status'));
     } finally {
       setUpdatingTaskId(null);
     }
@@ -167,7 +169,7 @@ export default function WorkInProgress() {
       <div className="flex items-center justify-between mb-6 sm:mb-8">
         <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
           <Clock className="h-7 w-7 text-amber-500" />
-          Trabajo en Proceso
+          {t('jobs.workInProgress', 'Work in Progress')}
         </h2>
       </div>
 
@@ -206,7 +208,7 @@ export default function WorkInProgress() {
                     {job.title}
                   </h3>
                   <p className="text-sm text-amber-700 dark:text-amber-300">
-                    Cliente: {job.client.name}
+                    {t('jobs.client', 'Client')}: {job.client.name}
                   </p>
                 </div>
               </div>
@@ -214,7 +216,7 @@ export default function WorkInProgress() {
                 to={`/jobs/${job.id}`}
                 className="flex items-center gap-1 text-sm font-semibold text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300"
               >
-                Ver trabajo
+                {t('jobs.viewJob', 'View job')}
                 <ChevronRight className="h-4 w-4" />
               </Link>
             </div>
@@ -223,10 +225,10 @@ export default function WorkInProgress() {
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-amber-800 dark:text-amber-200">
-                  Progreso
+                  {t('common.progress', 'Progress')}
                 </span>
                 <span className="text-sm font-bold text-amber-900 dark:text-amber-100">
-                  {completedTasks} / {totalTasks} tareas ({displayProgress}%)
+                  {completedTasks} / {totalTasks} {t('jobs.tasks', 'tasks')} ({displayProgress}%)
                 </span>
               </div>
               <div className="h-2 bg-amber-200 dark:bg-amber-800 rounded-full overflow-hidden">
@@ -242,7 +244,7 @@ export default function WorkInProgress() {
               {tasks
                 .filter(t => t.status !== "completed")
                 .slice(0, 3)
-                .map((task, index) => {
+                .map((task) => {
                   const nextStatus = getNextStatus(task);
                   const isUpdating = updatingTaskId === task.id;
 
@@ -265,8 +267,8 @@ export default function WorkInProgress() {
                           className="flex-shrink-0 flex h-8 w-8 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors disabled:opacity-50"
                           title={
                             nextStatus === "in_progress"
-                              ? "Iniciar tarea"
-                              : "Marcar como completada"
+                              ? t('jobs.startTask', 'Start task')
+                              : t('jobs.markCompleted', 'Mark as completed')
                           }
                         >
                           {isUpdating ? (
@@ -290,12 +292,12 @@ export default function WorkInProgress() {
                         </p>
                         {task.status === "in_progress" && (
                           <span className="text-xs text-amber-600 dark:text-amber-400">
-                            En progreso
+                            {t('jobs.inProgress', 'In progress')}
                           </span>
                         )}
                         {!task.isUnlocked && (
                           <span className="text-xs text-slate-400">
-                            Completa la tarea anterior primero
+                            {t('jobs.completePreviousFirst', 'Complete the previous task first')}
                           </span>
                         )}
                       </div>
@@ -309,7 +311,7 @@ export default function WorkInProgress() {
                   to={`/jobs/${job.id}`}
                   className="block text-center text-sm text-amber-600 dark:text-amber-400 hover:text-amber-700 dark:hover:text-amber-300 py-2"
                 >
-                  +{tasks.filter(t => t.status !== "completed").length - 3} tareas más
+                  +{tasks.filter(t => t.status !== "completed").length - 3} {t('jobs.moreTasks', 'more tasks')}
                 </Link>
               )}
 
@@ -317,7 +319,7 @@ export default function WorkInProgress() {
               {tasks.every(t => t.status === "completed") && (
                 <div className="flex items-center justify-center gap-2 py-4 text-emerald-600 dark:text-emerald-400">
                   <CheckCircle2 className="h-5 w-5" />
-                  <span className="font-semibold">¡Todas las tareas completadas!</span>
+                  <span className="font-semibold">{t('jobs.allTasksCompleted', 'All tasks completed!')}</span>
                 </div>
               )}
             </div>

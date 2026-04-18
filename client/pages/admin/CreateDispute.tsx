@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { adminApi } from "@/lib/adminApi";
 import { ArrowLeft, Send, Search, Upload, X } from "lucide-react";
 
@@ -40,6 +41,7 @@ interface Contract {
 
 export default function AdminCreateDispute() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [users, setUsers] = useState<User[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -107,12 +109,12 @@ export default function AdminCreateDispute() {
     e.preventDefault();
 
     if (!selectedUser) {
-      alert("Debes seleccionar un usuario");
+      alert(t('admin.disputes.mustSelectUser', 'You must select a user'));
       return;
     }
 
     if (!selectedContract) {
-      alert("Debes seleccionar un contrato");
+      alert(t('admin.disputes.mustSelectContract', 'You must select a contract'));
       return;
     }
 
@@ -138,14 +140,14 @@ export default function AdminCreateDispute() {
       const data = await response.json();
 
       if (data.success) {
-        alert("Disputa creada exitosamente");
+        alert(t('admin.disputes.createdSuccessfully', 'Dispute created successfully'));
         navigate("/admin/disputes");
       } else {
         alert(`Error: ${data.message}`);
       }
     } catch (error: any) {
       console.error("Error creating dispute:", error);
-      alert(error.message || "Error al crear la disputa");
+      alert(error.message || t('admin.disputes.errorCreating', 'Error creating dispute'));
     } finally {
       setSubmitting(false);
     }
@@ -163,10 +165,10 @@ export default function AdminCreateDispute() {
         </button>
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Crear Disputa (Admin)
+            {t('admin.disputes.createDispute', 'Create Dispute (Admin)')}
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Crear una disputa en nombre de un usuario
+            {t('admin.disputes.createOnBehalf', 'Create a dispute on behalf of a user')}
           </p>
         </div>
       </div>
@@ -175,7 +177,7 @@ export default function AdminCreateDispute() {
         {/* User Selector */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Seleccionar Usuario
+            {t('admin.disputes.selectUser', 'Select User')}
           </h3>
 
           {!selectedUser ? (
@@ -189,7 +191,7 @@ export default function AdminCreateDispute() {
                     setSearchQuery(e.target.value);
                     setShowUserSelector(true);
                   }}
-                  placeholder="Buscar usuario por nombre o email..."
+                  placeholder={t('admin.disputes.searchUserPlaceholder', 'Search user by name or email...')}
                   className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                 />
               </div>
@@ -263,7 +265,7 @@ export default function AdminCreateDispute() {
                 }}
                 className="px-4 py-2 text-sm text-orange-600 dark:text-orange-400 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition"
               >
-                Cambiar
+                {t('common.change', 'Change')}
               </button>
             </div>
           )}
@@ -273,12 +275,12 @@ export default function AdminCreateDispute() {
         {selectedUser && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Seleccionar Contrato
+              {t('admin.disputes.selectContract', 'Select Contract')}
             </h3>
 
             {contracts.length === 0 ? (
               <p className="text-gray-500 dark:text-gray-400 text-center py-4">
-                Este usuario no tiene contratos activos
+                {t('admin.disputes.noActiveContracts', 'This user has no active contracts')}
               </p>
             ) : (
               <div className="space-y-3">
@@ -296,12 +298,12 @@ export default function AdminCreateDispute() {
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <p className="font-semibold text-gray-900 dark:text-white">
-                          {contract.job?.title || contract.jobId?.title || 'Contrato sin título'}
+                          {contract.job?.title || contract.jobId?.title || t('admin.contracts.untitledContract', 'Untitled contract')}
                         </p>
                         <div className="flex items-center gap-4 mt-2 text-sm text-gray-600 dark:text-gray-400">
-                          <span>Cliente: {contract.client?.name || contract.clientId?.name || 'N/A'}</span>
+                          <span>{t('admin.contracts.client', 'Client')}: {contract.client?.name || contract.clientId?.name || 'N/A'}</span>
                           <span>•</span>
-                          <span>Proveedor: {contract.doer?.name || contract.doerId?.name || 'N/A'}</span>
+                          <span>{t('admin.contracts.provider', 'Provider')}: {contract.doer?.name || contract.doerId?.name || 'N/A'}</span>
                           <span>•</span>
                           <span className="font-semibold">${contract.price}</span>
                         </div>
@@ -318,7 +320,7 @@ export default function AdminCreateDispute() {
                             {contract.status}
                           </span>
                           <span className="text-xs text-gray-500 dark:text-gray-400">
-                            Inicio: {new Date(contract.startDate).toLocaleDateString()}
+                            {t('admin.contracts.start', 'Start')}: {new Date(contract.startDate).toLocaleDateString()}
                           </span>
                         </div>
                       </div>
@@ -334,12 +336,12 @@ export default function AdminCreateDispute() {
         {selectedUser && selectedContract && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 space-y-4">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Detalles de la Disputa
+              {t('admin.disputes.disputeDetails', 'Dispute Details')}
             </h3>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Título *
+                {t('admin.disputes.title', 'Title')} *
               </label>
               <input
                 type="text"
@@ -347,13 +349,13 @@ export default function AdminCreateDispute() {
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                placeholder="Ej: Problema con la entrega del trabajo"
+                placeholder={t('admin.disputes.titlePlaceholder', 'e.g.: Issue with work delivery')}
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Categoría *
+                {t('admin.disputes.category', 'Category')} *
               </label>
               <select
                 required
@@ -361,18 +363,18 @@ export default function AdminCreateDispute() {
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                 className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
               >
-                <option value="payment">Pago</option>
-                <option value="quality">Calidad del Trabajo</option>
-                <option value="delivery">Entrega</option>
-                <option value="communication">Comunicación</option>
-                <option value="terms">Términos del Contrato</option>
-                <option value="other">Otro</option>
+                <option value="payment">{t('admin.disputes.categories.payment', 'Payment')}</option>
+                <option value="quality">{t('admin.disputes.categories.quality', 'Work Quality')}</option>
+                <option value="delivery">{t('admin.disputes.categories.delivery', 'Delivery')}</option>
+                <option value="communication">{t('admin.disputes.categories.communication', 'Communication')}</option>
+                <option value="terms">{t('admin.disputes.categories.terms', 'Contract Terms')}</option>
+                <option value="other">{t('admin.disputes.categories.other', 'Other')}</option>
               </select>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Descripción *
+                {t('common.description', 'Description')} *
               </label>
               <textarea
                 required
@@ -380,13 +382,13 @@ export default function AdminCreateDispute() {
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 rows={6}
                 className="w-full px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                placeholder="Describe el problema en detalle..."
+                placeholder={t('admin.disputes.descriptionPlaceholder', 'Describe the issue in detail...')}
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Archivos Adjuntos (Opcional)
+                {t('admin.disputes.attachments', 'Attachments (Optional)')}
               </label>
               <div className="space-y-3">
                 <div className="flex items-center justify-center w-full">
@@ -394,7 +396,7 @@ export default function AdminCreateDispute() {
                     <div className="flex flex-col items-center justify-center pt-5 pb-6">
                       <Upload className="h-8 w-8 text-gray-400 mb-2" />
                       <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
-                        <span className="font-semibold">Click para subir</span> o arrastra archivos
+                        <span className="font-semibold">{t('common.clickToUpload', 'Click to upload')}</span> {t('common.orDragFiles', 'or drag files')}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
                         PNG, JPG, PDF, MP4 (MAX. 50MB)
@@ -440,7 +442,7 @@ export default function AdminCreateDispute() {
                 onClick={() => navigate("/admin")}
                 className="px-6 py-3 border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition font-semibold"
               >
-                Cancelar
+                {t('common.cancel', 'Cancel')}
               </button>
               <button
                 type="submit"
@@ -448,7 +450,7 @@ export default function AdminCreateDispute() {
                 className="flex-1 px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition font-semibold flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Send className="h-5 w-5" />
-                {submitting ? "Creando..." : "Crear Disputa"}
+                {submitting ? t('admin.disputes.creating', 'Creating...') : t('admin.disputes.createDisputeBtn', 'Create Dispute')}
               </button>
             </div>
           </div>

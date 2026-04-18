@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Contract, JobTask } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
 import Button from '../ui/Button';
@@ -14,6 +15,7 @@ export default function TaskClaimResponse({
   contract,
   onSuccess,
 }: TaskClaimResponseProps) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [claimedTasks, setClaimedTasks] = useState<JobTask[]>([]);
   const [loading, setLoading] = useState(false);
@@ -57,7 +59,7 @@ export default function TaskClaimResponse({
 
   const handleResponse = async (accept: boolean) => {
     if (!accept && !rejectionReason.trim()) {
-      setError('Debes explicar por qué rechazas el reclamo');
+      setError(t('contracts.mustExplainRejection', 'You must explain why you reject the claim'));
       return;
     }
 
@@ -81,7 +83,7 @@ export default function TaskClaimResponse({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Error al responder al reclamo');
+        throw new Error(data.message || t('contracts.errorRespondingClaim', 'Error responding to claim'));
       }
 
       onSuccess();
@@ -99,7 +101,7 @@ export default function TaskClaimResponse({
 
   const clientName = typeof contract.client === 'object'
     ? contract.client.name
-    : 'El cliente';
+    : t('contracts.theClient', 'The client');
 
   return (
     <div className="bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-300 dark:border-amber-700 rounded-lg overflow-hidden">
@@ -111,10 +113,10 @@ export default function TaskClaimResponse({
           </div>
           <div>
             <h3 className="text-lg font-bold text-amber-900 dark:text-amber-100">
-              Reclamo de Tareas Incompletas
+              {t('contracts.incompleteTasksClaim', 'Incomplete Tasks Claim')}
             </h3>
             <p className="text-sm text-amber-700 dark:text-amber-300">
-              {clientName} ha reclamado que algunas tareas no fueron completadas
+              {t('contracts.clientClaimedTasks', '{{name}} has claimed that some tasks were not completed', { name: clientName })}
             </p>
           </div>
         </div>
@@ -127,7 +129,7 @@ export default function TaskClaimResponse({
           <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
             <Clock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             <span className="text-sm">
-              Reclamado el: {contract.taskClaimRequestedAt
+              {t('contracts.claimedOn', 'Claimed on')}: {contract.taskClaimRequestedAt
                 ? new Date(contract.taskClaimRequestedAt).toLocaleDateString('es-AR', {
                     day: 'numeric',
                     month: 'long',
@@ -141,7 +143,7 @@ export default function TaskClaimResponse({
           <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
             <Calendar className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             <span className="text-sm">
-              Nueva fecha propuesta: {contract.taskClaimNewEndDate
+              {t('contracts.proposedNewDate', 'Proposed new date')}: {contract.taskClaimNewEndDate
                 ? new Date(contract.taskClaimNewEndDate).toLocaleDateString('es-AR', {
                     day: 'numeric',
                     month: 'long',
@@ -156,7 +158,7 @@ export default function TaskClaimResponse({
         {contract.taskClaimReason && (
           <div className="bg-white dark:bg-gray-800 rounded-lg p-4">
             <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Motivo del reclamo:
+              {t('contracts.claimReason', 'Claim reason')}:
             </p>
             <p className="text-gray-600 dark:text-gray-400">
               {contract.taskClaimReason}
@@ -169,7 +171,7 @@ export default function TaskClaimResponse({
           <div className="flex items-center gap-2 mb-3">
             <ListChecks className="h-5 w-5 text-amber-600 dark:text-amber-400" />
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Tareas reclamadas ({contract.claimedTaskIds?.length || 0}):
+              {t('contracts.claimedTasks', 'Claimed tasks')} ({contract.claimedTaskIds?.length || 0}):
             </span>
           </div>
 
@@ -200,7 +202,7 @@ export default function TaskClaimResponse({
                 ))
               ) : (
                 <p className="text-gray-500 dark:text-gray-400 text-center py-4">
-                  No se pudieron cargar las tareas reclamadas
+                  {t('contracts.couldNotLoadClaimedTasks', 'Could not load claimed tasks')}
                 </p>
               )}
             </div>
@@ -212,11 +214,9 @@ export default function TaskClaimResponse({
           <div className="flex gap-3">
             <XCircle className="h-5 w-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
             <div className="text-sm text-red-800 dark:text-red-200">
-              <p className="font-medium mb-1">Atención:</p>
+              <p className="font-medium mb-1">{t('common.attention', 'Attention')}:</p>
               <p>
-                Si rechazas este reclamo, se creará automáticamente una disputa
-                y un administrador revisará el caso. Asegurate de tener evidencia
-                de que completaste las tareas.
+                {t('contracts.rejectClaimWarning', 'If you reject this claim, a dispute will be automatically created and an administrator will review the case. Make sure you have evidence that you completed the tasks.')}
               </p>
             </div>
           </div>
@@ -232,17 +232,17 @@ export default function TaskClaimResponse({
         {showRejectForm && (
           <div className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-700">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Explica por qué rechazas el reclamo *
+              {t('contracts.explainWhyRejectClaim', 'Explain why you reject the claim')} *
             </label>
             <Textarea
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.target.value)}
-              placeholder="Explica por qué consideras que las tareas sí fueron completadas..."
+              placeholder={t('contracts.rejectClaimPlaceholder', 'Explain why you believe the tasks were completed...')}
               rows={4}
               required
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              Esta explicación será visible en la disputa que se creará
+              {t('contracts.explanationVisibleInDispute', 'This explanation will be visible in the dispute that will be created')}
             </p>
           </div>
         )}
@@ -257,7 +257,7 @@ export default function TaskClaimResponse({
                 className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white"
               >
                 <CheckCircle className="h-5 w-5" />
-                {loading ? 'Procesando...' : 'Aceptar y Completar Tareas'}
+                {loading ? t('common.processing', 'Processing...') : t('contracts.acceptAndCompleteTasks', 'Accept and Complete Tasks')}
               </Button>
               <Button
                 onClick={() => setShowRejectForm(true)}
@@ -266,7 +266,7 @@ export default function TaskClaimResponse({
                 className="flex-1 flex items-center justify-center gap-2 border-red-300 text-red-600 hover:bg-red-50 dark:border-red-700 dark:text-red-400 dark:hover:bg-red-900/20"
               >
                 <XCircle className="h-5 w-5" />
-                Rechazar Reclamo
+                {t('contracts.rejectClaim', 'Reject Claim')}
               </Button>
             </>
           ) : (
@@ -277,7 +277,7 @@ export default function TaskClaimResponse({
                 variant="secondary"
                 className="flex-1"
               >
-                Cancelar
+                {t('common.cancel', 'Cancel')}
               </Button>
               <Button
                 onClick={() => handleResponse(false)}
@@ -285,7 +285,7 @@ export default function TaskClaimResponse({
                 className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-700 text-white"
               >
                 <XCircle className="h-5 w-5" />
-                {loading ? 'Procesando...' : 'Confirmar Rechazo'}
+                {loading ? t('common.processing', 'Processing...') : t('contracts.confirmRejection', 'Confirm Rejection')}
               </Button>
             </>
           )}
@@ -296,12 +296,12 @@ export default function TaskClaimResponse({
           <div className="flex gap-3">
             <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
             <div className="text-sm text-green-800 dark:text-green-200">
-              <p className="font-medium mb-1">Si aceptas:</p>
+              <p className="font-medium mb-1">{t('contracts.ifYouAccept', 'If you accept')}:</p>
               <ul className="list-disc list-inside space-y-1">
-                <li>El contrato se extenderá hasta la nueva fecha propuesta</li>
-                <li>Las tareas reclamadas volverán a estado "pendiente"</li>
-                <li>Deberás completarlas antes de la nueva fecha</li>
-                <li>El pago se liberará una vez confirmado que todo está completo</li>
+                <li>{t('contracts.contractWillExtend', 'The contract will be extended to the proposed new date')}</li>
+                <li>{t('contracts.tasksWillReset', 'The claimed tasks will return to "pending" status')}</li>
+                <li>{t('contracts.mustCompleteBeforeDate', 'You must complete them before the new date')}</li>
+                <li>{t('contracts.paymentReleasedWhenComplete', 'Payment will be released once everything is confirmed complete')}</li>
               </ul>
             </div>
           </div>

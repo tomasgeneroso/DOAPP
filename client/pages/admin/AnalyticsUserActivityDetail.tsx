@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useParams, Link } from "react-router-dom";
 import { adminApi } from "@/lib/adminApi";
 import {
@@ -134,6 +135,7 @@ function SectionCard({
 }
 
 export default function AnalyticsUserActivityDetail() {
+  const { t } = useTranslation();
   const { userId } = useParams<{ userId: string }>();
   const [data, setData] = useState<UserActivityDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -154,11 +156,11 @@ export default function AnalyticsUserActivityDetail() {
       if (response.success && response.data) {
         setData(response.data);
       } else {
-        setError("No se pudo cargar la actividad del usuario");
+        setError(t('admin.analytics.couldNotLoadActivity', 'Could not load user activity'));
       }
     } catch (err: any) {
       console.error("Error loading user activity:", err);
-      setError(err.message || "Error al cargar los datos");
+      setError(err.message || t('admin.analytics.errorLoadingData', 'Error loading data'));
     } finally {
       setLoading(false);
     }
@@ -180,10 +182,10 @@ export default function AnalyticsUserActivityDetail() {
           className="inline-flex items-center gap-2 text-sky-600 hover:text-sky-700 mb-6"
         >
           <ArrowLeft className="h-4 w-4" />
-          Volver a rankings
+          {t('admin.analytics.backToRankings', 'Back to rankings')}
         </Link>
         <div className="text-center text-red-500 dark:text-red-400 mt-10">
-          {error || "Usuario no encontrado"}
+          {error || t('admin.analytics.userNotFound', 'User not found')}
         </div>
       </div>
     );
@@ -234,7 +236,7 @@ export default function AnalyticsUserActivityDetail() {
             <p className="text-gray-600 dark:text-gray-400">{user.email}</p>
             <p className="text-sm text-gray-500 dark:text-gray-500 flex items-center gap-1 mt-1">
               <Calendar className="h-4 w-4" />
-              Registrado: {formatDate(user.createdAt)}
+              {t('admin.analytics.registered', 'Registered')}: {formatDate(user.createdAt)}
             </p>
           </div>
           <div className="ml-auto">
@@ -242,7 +244,7 @@ export default function AnalyticsUserActivityDetail() {
               to={`/admin/users/${user.id}`}
               className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition"
             >
-              Ver perfil completo
+              {t('admin.analytics.viewFullProfile', 'View full profile')}
             </Link>
           </div>
         </div>
@@ -254,7 +256,7 @@ export default function AnalyticsUserActivityDetail() {
           <div className="flex items-center gap-3">
             <TrendingUp className="h-8 w-8" />
             <div>
-              <p className="text-green-100">Total Ganado (como Doer)</p>
+              <p className="text-green-100">{t('admin.analytics.totalEarned', 'Total Earned (as Doer)')}</p>
               <p className="text-3xl font-bold">
                 {formatCurrency(activity.financials.totalEarned)}
               </p>
@@ -265,7 +267,7 @@ export default function AnalyticsUserActivityDetail() {
           <div className="flex items-center gap-3">
             <TrendingDown className="h-8 w-8" />
             <div>
-              <p className="text-blue-100">Total Gastado (como Cliente)</p>
+              <p className="text-blue-100">{t('admin.analytics.totalSpent', 'Total Spent (as Client)')}</p>
               <p className="text-3xl font-bold">
                 {formatCurrency(activity.financials.totalSpent)}
               </p>
@@ -277,48 +279,48 @@ export default function AnalyticsUserActivityDetail() {
       {/* Activity Stats */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <StatCard
-          label="Disputas abiertas"
+          label={t('admin.analytics.disputesOpened', 'Disputes opened')}
           value={activity.disputes.opened}
           icon={AlertTriangle}
           colorClass="text-red-500 bg-red-100 dark:bg-red-900/20"
         />
         <StatCard
-          label="Disputas en contra"
+          label={t('admin.analytics.disputesAgainst', 'Disputes against')}
           value={activity.disputes.against}
           icon={AlertTriangle}
           colorClass="text-orange-500 bg-orange-100 dark:bg-orange-900/20"
         />
         {isAdmin && (
           <StatCard
-            label="Disputas resueltas"
+            label={t('admin.analytics.disputesResolved', 'Disputes resolved')}
             value={activity.disputes.resolved}
             icon={AlertTriangle}
             colorClass="text-green-500 bg-green-100 dark:bg-green-900/20"
           />
         )}
         <StatCard
-          label="Tickets creados"
+          label={t('admin.analytics.ticketsCreated', 'Tickets created')}
           value={activity.tickets.created}
           icon={FileText}
           colorClass="text-orange-500 bg-orange-100 dark:bg-orange-900/20"
         />
         {isAdmin && (
           <StatCard
-            label="Tickets resueltos"
+            label={t('admin.analytics.ticketsResolved', 'Tickets resolved')}
             value={activity.tickets.resolved}
             icon={FileText}
             colorClass="text-green-500 bg-green-100 dark:bg-green-900/20"
           />
         )}
         <StatCard
-          label="Trabajos publicados"
+          label={t('admin.analytics.jobsPublished', 'Jobs published')}
           value={activity.jobs.created}
           icon={Briefcase}
           colorClass="text-purple-500 bg-purple-100 dark:bg-purple-900/20"
         />
         {isAdmin && (
           <StatCard
-            label="Pagos liberados"
+            label={t('admin.analytics.paymentsReleased', 'Payments released')}
             value={activity.payments.released}
             icon={CreditCard}
             colorClass="text-green-500 bg-green-100 dark:bg-green-900/20"
@@ -329,14 +331,14 @@ export default function AnalyticsUserActivityDetail() {
       {/* Contracts Detail */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <SectionCard
-          title="Actividad como Cliente"
+          title={t('admin.analytics.activityAsClient', 'Activity as Client')}
           icon={User}
           colorClass="text-blue-500 bg-blue-100 dark:bg-blue-900/20"
         >
           <div className="space-y-4">
             <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
               <span className="text-gray-600 dark:text-gray-400">
-                Contratos totales
+                {t('admin.analytics.totalContracts', 'Total contracts')}
               </span>
               <span className="font-bold text-gray-900 dark:text-white">
                 {activity.contracts.asClient.total}
@@ -344,7 +346,7 @@ export default function AnalyticsUserActivityDetail() {
             </div>
             <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
               <span className="text-gray-600 dark:text-gray-400">
-                Contratos completados
+                {t('admin.analytics.completedContracts', 'Completed contracts')}
               </span>
               <span className="font-bold text-green-600 dark:text-green-400">
                 {activity.contracts.asClient.completed}
@@ -352,7 +354,7 @@ export default function AnalyticsUserActivityDetail() {
             </div>
             <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
               <span className="text-gray-600 dark:text-gray-400">
-                Tasa de completacion
+                {t('admin.analytics.completionRate', 'Completion rate')}
               </span>
               <span className="font-bold text-gray-900 dark:text-white">
                 {activity.contracts.asClient.total > 0
@@ -367,7 +369,7 @@ export default function AnalyticsUserActivityDetail() {
             </div>
             <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
               <span className="text-gray-600 dark:text-gray-400">
-                Total gastado
+                {t('admin.analytics.totalSpentLabel', 'Total spent')}
               </span>
               <span className="font-bold text-blue-600 dark:text-blue-400">
                 {formatCurrency(activity.financials.totalSpent)}
@@ -377,14 +379,14 @@ export default function AnalyticsUserActivityDetail() {
         </SectionCard>
 
         <SectionCard
-          title="Actividad como Doer"
+          title={t('admin.analytics.activityAsDoer', 'Activity as Doer')}
           icon={Briefcase}
           colorClass="text-green-500 bg-green-100 dark:bg-green-900/20"
         >
           <div className="space-y-4">
             <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
               <span className="text-gray-600 dark:text-gray-400">
-                Contratos totales
+                {t('admin.analytics.totalContracts', 'Total contracts')}
               </span>
               <span className="font-bold text-gray-900 dark:text-white">
                 {activity.contracts.asDoer.total}
@@ -392,7 +394,7 @@ export default function AnalyticsUserActivityDetail() {
             </div>
             <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
               <span className="text-gray-600 dark:text-gray-400">
-                Contratos completados
+                {t('admin.analytics.completedContracts', 'Completed contracts')}
               </span>
               <span className="font-bold text-green-600 dark:text-green-400">
                 {activity.contracts.asDoer.completed}
@@ -400,7 +402,7 @@ export default function AnalyticsUserActivityDetail() {
             </div>
             <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
               <span className="text-gray-600 dark:text-gray-400">
-                Tasa de completacion
+                {t('admin.analytics.completionRate', 'Completion rate')}
               </span>
               <span className="font-bold text-gray-900 dark:text-white">
                 {activity.contracts.asDoer.total > 0
@@ -415,7 +417,7 @@ export default function AnalyticsUserActivityDetail() {
             </div>
             <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
               <span className="text-gray-600 dark:text-gray-400">
-                Total ganado
+                {t('admin.analytics.totalEarnedLabel', 'Total earned')}
               </span>
               <span className="font-bold text-green-600 dark:text-green-400">
                 {formatCurrency(activity.financials.totalEarned)}
@@ -428,7 +430,7 @@ export default function AnalyticsUserActivityDetail() {
       {/* Admin Activity */}
       {isAdmin && (
         <SectionCard
-          title="Actividad Administrativa"
+          title={t('admin.analytics.adminActivity', 'Administrative Activity')}
           icon={Shield}
           colorClass="text-purple-500 bg-purple-100 dark:bg-purple-900/20"
         >
@@ -438,7 +440,7 @@ export default function AnalyticsUserActivityDetail() {
                 {activity.disputes.resolved}
               </p>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Disputas resueltas
+                {t('admin.analytics.disputesResolved', 'Disputes resolved')}
               </p>
             </div>
             <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg text-center">
@@ -446,7 +448,7 @@ export default function AnalyticsUserActivityDetail() {
                 {activity.tickets.resolved}
               </p>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Tickets resueltos
+                {t('admin.analytics.ticketsResolved', 'Tickets resolved')}
               </p>
             </div>
             <div className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg text-center">
@@ -454,7 +456,7 @@ export default function AnalyticsUserActivityDetail() {
                 {activity.payments.released}
               </p>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Pagos liberados
+                {t('admin.analytics.paymentsReleased', 'Payments released')}
               </p>
             </div>
           </div>

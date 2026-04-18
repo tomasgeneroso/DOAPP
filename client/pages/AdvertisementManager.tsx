@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useMyAdvertisements } from '@/hooks/useAdvertisements';
 
 const AdvertisementManager: React.FC = () => {
+  const { t } = useTranslation();
   const {
     ads,
     loading,
@@ -36,42 +38,42 @@ const AdvertisementManager: React.FC = () => {
   };
 
   const handlePause = async (adId: string) => {
-    if (confirm('¿Pausar esta publicidad?')) {
+    if (confirm(t('ads.confirmPause', 'Pause this advertisement?'))) {
       try {
         await pauseAd(adId);
       } catch (err) {
-        alert('Error al pausar la publicidad');
+        alert(t('ads.pauseError', 'Error pausing advertisement'));
       }
     }
   };
 
   const handleResume = async (adId: string) => {
-    if (confirm('¿Reanudar esta publicidad?')) {
+    if (confirm(t('ads.confirmResume', 'Resume this advertisement?'))) {
       try {
         await resumeAd(adId);
       } catch (err) {
-        alert('Error al reanudar la publicidad');
+        alert(t('ads.resumeError', 'Error resuming advertisement'));
       }
     }
   };
 
   const handleDelete = async (adId: string) => {
-    if (confirm('¿Eliminar esta publicidad? Esta acción no se puede deshacer.')) {
+    if (confirm(t('ads.confirmDelete', 'Delete this advertisement? This action cannot be undone.'))) {
       try {
         await deleteAd(adId);
       } catch (err) {
-        alert('Error al eliminar la publicidad');
+        alert(t('ads.deleteError', 'Error deleting advertisement'));
       }
     }
   };
 
   const getStatusBadge = (status: string) => {
     const badges: Record<string, { bg: string; text: string; label: string }> = {
-      pending: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Pendiente' },
-      active: { bg: 'bg-green-100', text: 'text-green-800', label: 'Activa' },
-      paused: { bg: 'bg-gray-100', text: 'text-gray-800', label: 'Pausada' },
-      expired: { bg: 'bg-red-100', text: 'text-red-800', label: 'Expirada' },
-      rejected: { bg: 'bg-red-100', text: 'text-red-800', label: 'Rechazada' },
+      pending: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: t('ads.status.pending', 'Pending') },
+      active: { bg: 'bg-green-100', text: 'text-green-800', label: t('ads.status.active', 'Active') },
+      paused: { bg: 'bg-gray-100', text: 'text-gray-800', label: t('ads.status.paused', 'Paused') },
+      expired: { bg: 'bg-red-100', text: 'text-red-800', label: t('ads.status.expired', 'Expired') },
+      rejected: { bg: 'bg-red-100', text: 'text-red-800', label: t('ads.status.rejected', 'Rejected') },
     };
 
     const badge = badges[status] || badges.pending;
@@ -100,10 +102,10 @@ const AdvertisementManager: React.FC = () => {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-            Gestor de Publicidad
+            {t('ads.manager', 'Advertisement Manager')}
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Administra tus campañas publicitarias y ve su rendimiento
+            {t('ads.managerDesc', 'Manage your advertising campaigns and see their performance')}
           </p>
         </div>
 
@@ -112,7 +114,7 @@ const AdvertisementManager: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
             <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow">
               <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                Total Anuncios
+                {t('ads.totalAds', 'Total Ads')}
               </h3>
               <p className="text-3xl font-bold text-gray-900 dark:text-white">
                 {stats.totalAds}
@@ -120,7 +122,7 @@ const AdvertisementManager: React.FC = () => {
             </div>
             <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow">
               <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                Activos
+                {t('ads.activeAds', 'Active')}
               </h3>
               <p className="text-3xl font-bold text-green-600 dark:text-green-400">
                 {stats.activeAds}
@@ -128,7 +130,7 @@ const AdvertisementManager: React.FC = () => {
             </div>
             <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow">
               <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                Total Impresiones
+                {t('ads.totalImpressions', 'Total Impressions')}
               </h3>
               <p className="text-3xl font-bold text-blue-600 dark:text-blue-400">
                 {stats.totalImpressions?.toLocaleString()}
@@ -136,7 +138,7 @@ const AdvertisementManager: React.FC = () => {
             </div>
             <div className="bg-white dark:bg-gray-800 rounded-lg p-6 shadow">
               <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-                Total Clicks
+                {t('ads.totalClicks', 'Total Clicks')}
               </h3>
               <p className="text-3xl font-bold text-purple-600 dark:text-purple-400">
                 {stats.totalClicks?.toLocaleString()}
@@ -152,12 +154,12 @@ const AdvertisementManager: React.FC = () => {
             onChange={(e) => setFilterStatus(e.target.value)}
             className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
           >
-            <option value="">Todos los estados</option>
-            <option value="active">Activos</option>
-            <option value="pending">Pendientes</option>
-            <option value="paused">Pausados</option>
-            <option value="expired">Expirados</option>
-            <option value="rejected">Rechazados</option>
+            <option value="">{t('ads.allStatuses', 'All statuses')}</option>
+            <option value="active">{t('ads.filter.active', 'Active')}</option>
+            <option value="pending">{t('ads.filter.pending', 'Pending')}</option>
+            <option value="paused">{t('ads.filter.paused', 'Paused')}</option>
+            <option value="expired">{t('ads.filter.expired', 'Expired')}</option>
+            <option value="rejected">{t('ads.filter.rejected', 'Rejected')}</option>
           </select>
         </div>
 
@@ -174,13 +176,13 @@ const AdvertisementManager: React.FC = () => {
           <div className="text-center py-16 bg-white dark:bg-gray-800 rounded-lg shadow">
             <div className="text-6xl mb-4">📢</div>
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-              No tienes publicidades
+              {t('ads.noAds', 'You have no advertisements')}
             </h3>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Crea tu primera campaña publicitaria
+              {t('ads.createFirst', 'Create your first advertising campaign')}
             </p>
             <button className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-lg transition-colors">
-              Crear Publicidad
+              {t('ads.createAd', 'Create Advertisement')}
             </button>
           </div>
         ) : (
@@ -215,14 +217,14 @@ const AdvertisementManager: React.FC = () => {
                   <div className="grid grid-cols-3 gap-4 mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
                     <div>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Impresiones
+                        {t('ads.impressions', 'Impressions')}
                       </p>
                       <p className="text-lg font-bold text-gray-900 dark:text-white">
                         {ad.impressions}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Clicks</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{t('ads.clicks', 'Clicks')}</p>
                       <p className="text-lg font-bold text-gray-900 dark:text-white">
                         {ad.clicks}
                       </p>
@@ -238,7 +240,7 @@ const AdvertisementManager: React.FC = () => {
                   {/* Info */}
                   <div className="space-y-2 mb-4">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-500 dark:text-gray-400">Tipo:</span>
+                      <span className="text-gray-500 dark:text-gray-400">{t('ads.type', 'Type')}:</span>
                       <span className="font-medium text-gray-900 dark:text-white">
                         {getAdTypeLabel(ad.adType)}
                       </span>
@@ -251,7 +253,7 @@ const AdvertisementManager: React.FC = () => {
                       onClick={() => handleViewPerformance(ad._id)}
                       className="w-full px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition-colors"
                     >
-                      Ver Rendimiento
+                      {t('ads.viewPerformance', 'View Performance')}
                     </button>
 
                     {ad.status === 'active' && (
@@ -259,7 +261,7 @@ const AdvertisementManager: React.FC = () => {
                         onClick={() => handlePause(ad._id)}
                         className="w-full px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white font-medium rounded-lg transition-colors"
                       >
-                        Pausar
+                        {t('ads.pause', 'Pause')}
                       </button>
                     )}
 
@@ -268,7 +270,7 @@ const AdvertisementManager: React.FC = () => {
                         onClick={() => handleResume(ad._id)}
                         className="w-full px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors"
                       >
-                        Reanudar
+                        {t('ads.resume', 'Resume')}
                       </button>
                     )}
 
@@ -277,7 +279,7 @@ const AdvertisementManager: React.FC = () => {
                         onClick={() => handleDelete(ad._id)}
                         className="w-full px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition-colors"
                       >
-                        Eliminar
+                        {t('ads.delete', 'Delete')}
                       </button>
                     )}
                   </div>
@@ -301,34 +303,34 @@ const AdvertisementManager: React.FC = () => {
               onClick={(e) => e.stopPropagation()}
             >
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-                Rendimiento: {selectedAd.title}
+                {t('ads.performanceTitle', 'Performance')}: {selectedAd.title}
               </h2>
 
               <div className="space-y-6">
                 {/* Performance Stats */}
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                    Estadísticas
+                    {t('ads.statistics', 'Statistics')}
                   </h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Impresiones
+                        {t('ads.impressions', 'Impressions')}
                       </p>
                       <p className="text-2xl font-bold text-gray-900 dark:text-white">
                         {performance.performance.impressions?.toLocaleString()}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {performance.performance.impressionsPerDay} por día
+                        {performance.performance.impressionsPerDay} {t('ads.perDay', 'per day')}
                       </p>
                     </div>
                     <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                      <p className="text-sm text-gray-500 dark:text-gray-400">Clicks</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{t('ads.clicks', 'Clicks')}</p>
                       <p className="text-2xl font-bold text-gray-900 dark:text-white">
                         {performance.performance.clicks?.toLocaleString()}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {performance.performance.clicksPerDay} por día
+                        {performance.performance.clicksPerDay} {t('ads.perDay', 'per day')}
                       </p>
                     </div>
                     <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
@@ -339,7 +341,7 @@ const AdvertisementManager: React.FC = () => {
                     </div>
                     <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                       <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Costo Total
+                        {t('ads.totalCost', 'Total Cost')}
                       </p>
                       <p className="text-2xl font-bold text-gray-900 dark:text-white">
                         ${performance.cost.total}
@@ -351,32 +353,32 @@ const AdvertisementManager: React.FC = () => {
                 {/* Duration */}
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                    Duración
+                    {t('ads.duration', 'Duration')}
                   </h3>
                   <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
                     <div className="grid grid-cols-3 gap-4 text-center">
                       <div>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Total
+                          {t('ads.total', 'Total')}
                         </p>
                         <p className="text-xl font-bold text-gray-900 dark:text-white">
-                          {performance.duration.totalDays} días
+                          {performance.duration.totalDays} {t('ads.days', 'days')}
                         </p>
                       </div>
                       <div>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Activos
+                          {t('ads.activeDays', 'Active')}
                         </p>
                         <p className="text-xl font-bold text-green-600 dark:text-green-400">
-                          {performance.duration.daysActive} días
+                          {performance.duration.daysActive} {t('ads.days', 'days')}
                         </p>
                       </div>
                       <div>
                         <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Restantes
+                          {t('ads.remaining', 'Remaining')}
                         </p>
                         <p className="text-xl font-bold text-blue-600 dark:text-blue-400">
-                          {performance.duration.daysRemaining} días
+                          {performance.duration.daysRemaining} {t('ads.days', 'days')}
                         </p>
                       </div>
                     </div>
@@ -386,12 +388,12 @@ const AdvertisementManager: React.FC = () => {
                 {/* Cost Analysis */}
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
-                    Análisis de Costos
+                    {t('ads.costAnalysis', 'Cost Analysis')}
                   </h3>
                   <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2">
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">
-                        Costo por día:
+                        {t('ads.costPerDay', 'Cost per day')}:
                       </span>
                       <span className="font-semibold text-gray-900 dark:text-white">
                         ${performance.cost.perDay}
@@ -399,7 +401,7 @@ const AdvertisementManager: React.FC = () => {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">
-                        Costo por impresión:
+                        {t('ads.costPerImpression', 'Cost per impression')}:
                       </span>
                       <span className="font-semibold text-gray-900 dark:text-white">
                         ${performance.cost.costPerImpression}
@@ -407,7 +409,7 @@ const AdvertisementManager: React.FC = () => {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-600 dark:text-gray-400">
-                        Costo por click:
+                        {t('ads.costPerClick', 'Cost per click')}:
                       </span>
                       <span className="font-semibold text-gray-900 dark:text-white">
                         ${performance.cost.costPerClick}
@@ -423,7 +425,7 @@ const AdvertisementManager: React.FC = () => {
                   }}
                   className="w-full px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white font-medium rounded-lg transition-colors"
                 >
-                  Cerrar
+                  {t('common.close', 'Close')}
                 </button>
               </div>
             </div>

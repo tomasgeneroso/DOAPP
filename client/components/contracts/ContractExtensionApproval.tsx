@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Contract, User } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
 import Button from '../ui/Button';
@@ -13,6 +14,7 @@ export default function ContractExtensionApproval({
   contract,
   onSuccess,
 }: ContractExtensionApprovalProps) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +30,7 @@ export default function ContractExtensionApproval({
     return (
       <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
         <p className="text-yellow-800 dark:text-yellow-200 text-sm">
-          ⏳ Esperando aprobación de la otra parte para la extensión solicitada...
+          {t('contracts.waitingExtensionApproval', 'Waiting for the other party to approve the requested extension...')}
         </p>
       </div>
     );
@@ -51,7 +53,7 @@ export default function ContractExtensionApproval({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Error al aprobar extensión');
+        throw new Error(data.message || t('contracts.errorApprovingExtension', 'Error approving extension'));
       }
 
       onSuccess();
@@ -80,7 +82,7 @@ export default function ContractExtensionApproval({
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Error al rechazar extensión');
+        throw new Error(data.message || t('contracts.errorRejectingExtension', 'Error rejecting extension'));
       }
 
       onSuccess();
@@ -95,7 +97,7 @@ export default function ContractExtensionApproval({
     ? contract.client.name
     : typeof contract.doer === 'object' && contract.extensionRequestedBy === (contract.doer as User)._id
     ? (contract.doer as User).name
-    : 'La otra parte';
+    : t('contracts.otherParty', 'The other party');
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border-2 border-blue-500">
@@ -110,20 +112,20 @@ export default function ContractExtensionApproval({
 
         <div className="flex-1">
           <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
-            Solicitud de Extensión de Contrato
+            {t('contracts.extensionRequest', 'Contract Extension Request')}
           </h3>
 
           <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
             <p>
-              <strong>{requesterName}</strong> solicita extender el contrato:
+              <strong>{requesterName}</strong> {t('contracts.requestsExtension', 'requests to extend the contract')}:
             </p>
             <ul className="list-disc list-inside space-y-1 ml-4">
-              <li><strong>Días adicionales:</strong> {contract.extensionDays} días</li>
+              <li><strong>{t('contracts.additionalDays', 'Additional days')}:</strong> {contract.extensionDays} {t('common.days', 'days')}</li>
               {contract.extensionAmount && contract.extensionAmount > 0 && (
-                <li><strong>Monto adicional:</strong> ${contract.extensionAmount?.toLocaleString('es-AR')} ARS</li>
+                <li><strong>{t('contracts.additionalAmount', 'Additional amount')}:</strong> ${contract.extensionAmount?.toLocaleString('es-AR')} ARS</li>
               )}
               <li>
-                <strong>Nueva fecha de fin:</strong>{' '}
+                <strong>{t('contracts.newEndDate', 'New end date')}:</strong>{' '}
                 {contract.originalEndDate && contract.extensionDays
                   ? new Date(new Date(contract.originalEndDate).getTime() + contract.extensionDays * 24 * 60 * 60 * 1000).toLocaleDateString('es-AR')
                   : 'N/A'}
@@ -131,7 +133,7 @@ export default function ContractExtensionApproval({
             </ul>
             {contract.extensionNotes && (
               <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded">
-                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Notas:</p>
+                <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">{t('common.notes', 'Notes')}:</p>
                 <p className="text-sm">{contract.extensionNotes}</p>
               </div>
             )}
@@ -151,7 +153,7 @@ export default function ContractExtensionApproval({
                 disabled={loading}
                 className="flex-1"
               >
-                {loading ? 'Procesando...' : 'Aprobar Extensión'}
+                {loading ? t('common.processing', 'Processing...') : t('contracts.approveExtension', 'Approve Extension')}
               </Button>
               <Button
                 variant="error"
@@ -159,7 +161,7 @@ export default function ContractExtensionApproval({
                 disabled={loading}
                 className="flex-1"
               >
-                Rechazar
+                {t('common.reject', 'Reject')}
               </Button>
             </div>
           ) : (
@@ -167,7 +169,7 @@ export default function ContractExtensionApproval({
               <Textarea
                 value={rejectionReason}
                 onChange={(e) => setRejectionReason(e.target.value)}
-                placeholder="Explica por qué rechazas la extensión..."
+                placeholder={t('contracts.explainRejection', 'Explain why you reject the extension...')}
                 rows={3}
               />
               <div className="flex gap-3">
@@ -177,7 +179,7 @@ export default function ContractExtensionApproval({
                   disabled={loading}
                   className="flex-1"
                 >
-                  Cancelar
+                  {t('common.cancel', 'Cancel')}
                 </Button>
                 <Button
                   variant="error"
@@ -185,7 +187,7 @@ export default function ContractExtensionApproval({
                   disabled={loading}
                   className="flex-1"
                 >
-                  {loading ? 'Procesando...' : 'Confirmar Rechazo'}
+                  {loading ? t('common.processing', 'Processing...') : t('contracts.confirmRejection', 'Confirm Rejection')}
                 </Button>
               </div>
             </div>
