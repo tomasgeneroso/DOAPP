@@ -2,12 +2,14 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { adminApi } from "@/lib/adminApi";
 import { useSocket } from "@/hooks/useSocket";
+import { useAuth } from "@/hooks/useAuth";
 import type { AdminUser } from "@/types/admin";
-import { Search, Ban, CheckCircle, Trash2, Eye, Wifi, WifiOff, Bell, UserPlus } from "lucide-react";
+import { Search, Ban, CheckCircle, Eye, Wifi, WifiOff, UserPlus, Crown, X } from "lucide-react";
 
 export default function AdminUsers() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { user: currentUser } = useAuth();
   const { isConnected, registerAdminUserCreatedHandler, registerAdminUserUpdatedHandler } = useSocket();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
@@ -15,6 +17,14 @@ export default function AdminUsers() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [realtimeAlert, setRealtimeAlert] = useState<string | null>(null);
+
+  // Membership modal
+  const [membershipModal, setMembershipModal] = useState<{ userId: string; userName: string; currentTier?: string } | null>(null);
+  const [membershipTier, setMembershipTier] = useState<'free' | 'pro' | 'super_pro'>('pro');
+  const [membershipDays, setMembershipDays] = useState("30");
+  const [membershipLoading, setMembershipLoading] = useState(false);
+
+  const isOwner = currentUser?.adminRole === 'owner';
 
   // Real-time handlers
   const handleNewUser = useCallback((data: any) => {
@@ -91,6 +101,29 @@ export default function AdminUsers() {
     }
   };
 
+  const handleAssignMembership = async () => {
+    if (!membershipModal) return;
+    setMembershipLoading(true);
+    try {
+      const days = membershipTier === 'free' ? undefined : Number(membershipDays);
+      const res = await adminApi.users.assignMembership(membershipModal.userId, membershipTier, days);
+      if (res.success) {
+        setUsers(prev => prev.map(u =>
+          (u.id === membershipModal.userId || u._id === membershipModal.userId)
+            ? { ...u, membershipTier, membershipExpiresAt: (res.data as any)?.membershipExpiresAt }
+            : u
+        ));
+        setMembershipModal(null);
+      } else {
+        alert(res.message || 'Error al asignar membresía');
+      }
+    } catch {
+      alert('Error al asignar membresía');
+    } finally {
+      setMembershipLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -160,6 +193,9 @@ export default function AdminUsers() {
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Fecha Registro
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Membresía
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Acciones
@@ -240,6 +276,21 @@ export default function AdminUsers() {
                     </>
                   ) : '-'}
                 </td>
+                <td className="px-6 py-4 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                  {(user as any).membershipTier && (user as any).membershipTier !== 'free' ? (
+                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                      (user as any).membershipTier === 'super_pro'
+                        ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
+                        : 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300'
+                    }`}>
+                      {(user as any).membershipTier === 'super_pro' ? 'SUPER PRO' : 'PRO'}
+                    </span>
+                  ) : (
+                    <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400">
+                      FREE
+                    </span>
+                  )}
+                </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <div className="flex gap-2">
                     <button
@@ -252,6 +303,20 @@ export default function AdminUsers() {
                     >
                       <Eye className="h-5 w-5" />
                     </button>
+                    {isOwner && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMembershipTier(((user as any).membershipTier as any) || 'pro');
+                          setMembershipDays("30");
+                          setMembershipModal({ userId: user.id || user._id!, userName: user.name, currentTier: (user as any).membershipTier });
+                        }}
+                        className="text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300"
+                        title="Asignar membresía"
+                      >
+                        <Crown className="h-5 w-5" />
+                      </button>
+                    )}
                     {user.isBanned ? (
                       <button
                         onClick={(e) => {
@@ -282,6 +347,81 @@ export default function AdminUsers() {
           </tbody>
         </table>
       </div>
+
+      {/* Membership Modal */}
+      {membershipModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl w-full max-w-md">
+            <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-2">
+                <Crown className="h-5 w-5 text-amber-500" />
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white">Asignar Membresía</h2>
+              </div>
+              <button onClick={() => setMembershipModal(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Usuario: <span className="font-semibold text-gray-900 dark:text-white">{membershipModal.userName}</span>
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Plan</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(['free', 'pro', 'super_pro'] as const).map(tier => (
+                    <button
+                      key={tier}
+                      onClick={() => setMembershipTier(tier)}
+                      className={`py-2 px-3 rounded-lg text-sm font-medium border-2 transition-colors ${
+                        membershipTier === tier
+                          ? tier === 'super_pro'
+                            ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300'
+                            : tier === 'pro'
+                              ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300'
+                              : 'border-gray-400 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                          : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:border-gray-300'
+                      }`}
+                    >
+                      {tier === 'super_pro' ? 'SUPER PRO' : tier.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {membershipTier !== 'free' && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Duración (días)</label>
+                  <input
+                    type="number"
+                    value={membershipDays}
+                    onChange={(e) => setMembershipDays(e.target.value)}
+                    min="1"
+                    max="365"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-sky-500"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Expira: {new Date(Date.now() + Number(membershipDays) * 86400000).toLocaleDateString('es-AR')}
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="flex gap-3 p-5 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => setMembershipModal(null)}
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleAssignMembership}
+                disabled={membershipLoading}
+                className="flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors"
+              >
+                {membershipLoading ? 'Guardando...' : 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Pagination */}
       {totalPages > 1 && (

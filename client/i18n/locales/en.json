@@ -135,6 +135,8 @@
     "password": "Password",
     "confirmPassword": "Confirm password",
     "name": "Full name",
+    "firstName": "First name(s)",
+    "lastName": "Last name(s)",
     "username": "Username",
     "phone": "Phone",
     "dni": "ID Number",

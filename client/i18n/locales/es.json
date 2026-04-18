@@ -125,6 +125,8 @@
     "password": "Contrasena",
     "confirmPassword": "Confirmar contrasena",
     "name": "Nombre completo",
+    "firstName": "Nombre/s",
+    "lastName": "Apellido/s",
     "username": "Nombre de usuario",
     "phone": "Telefono",
     "dni": "DNI",

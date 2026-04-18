@@ -73,6 +73,13 @@ export const adminApi = {
       });
       return res.json() as Promise<ApiResponse<void>>;
     },
+    assignMembership: async (id: string, tier: 'free' | 'pro' | 'super_pro', durationDays?: number) => {
+      const res = await fetchWithAuth(`${API_URL}/admin/users/${id}/membership`, {
+        method: "POST",
+        body: JSON.stringify({ tier, durationDays }),
+      });
+      return res.json() as Promise<ApiResponse<{ membershipTier: string; membershipExpiresAt: string }>>;
+    },
   },
   // Contracts
   contracts: {

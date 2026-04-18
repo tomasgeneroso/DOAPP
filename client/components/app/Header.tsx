@@ -7,29 +7,27 @@ import {
   LogOut,
   User as UserIcon,
   PlusCircle,
-  Wallet,
   LayoutDashboard,
   Settings,
   ChevronDown,
   MessageCircle,
   Shield,
   HelpCircle,
-  AlertCircle,
   Gift,
   FileText,
   Briefcase,
   Heart,
-  FileCheck,
 } from "lucide-react";
-import { ThemeToggleCompact } from "../ui/ThemeToggle";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { usePermissions } from "../../hooks/usePermissions";
+import { useTheme } from "../../hooks/useTheme";
+import { Sun, Moon, Globe } from "lucide-react";
 import InvitationCodesModal from "../InvitationCodesModal";
 import NotificationDropdown from "../NotificationDropdown";
 
 export default function Header() {
   const { t, i18n } = useTranslation();
   const { user, logout } = useAuth();
+  const { isDark, toggleTheme } = useTheme();
   const { registerUnreadUpdateHandler } = useSocket();
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -260,20 +258,6 @@ export default function Header() {
             </>
           ) : null}
 
-          {/* Language Selector */}
-          <button
-            onClick={() => {
-              const next = i18n.language === 'es' ? 'en' : 'es';
-              i18n.changeLanguage(next);
-            }}
-            className="flex items-center justify-center w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-sm font-semibold text-slate-700 dark:text-slate-300"
-            title={i18n.language === 'es' ? 'Switch to English' : 'Cambiar a Español'}
-          >
-            {i18n.language === 'es' ? 'EN' : 'ES'}
-          </button>
-
-          <ThemeToggleCompact />
-
           {/* Messages Button */}
           {user && features.chat && (
             <Link
@@ -424,6 +408,32 @@ export default function Header() {
                         </Link>
                       </>
                     )}
+                    <hr
+                      className="my-1 border-slate-200 dark:border-slate-700"
+                      role="separator"
+                    />
+                    {/* Theme Toggle */}
+                    <button
+                      onClick={toggleTheme}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                      role="menuitem"
+                    >
+                      {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                      {isDark ? t('nav.lightMode', 'Light Mode') : t('nav.darkMode', 'Dark Mode')}
+                    </button>
+                    {/* Language Toggle */}
+                    <button
+                      onClick={() => {
+                        const next = i18n.language === 'es' ? 'en' : 'es';
+                        i18n.changeLanguage(next);
+                        localStorage.setItem('language', next);
+                      }}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                      role="menuitem"
+                    >
+                      <Globe className="h-4 w-4" />
+                      {i18n.language === 'es' ? 'English' : 'Español'}
+                    </button>
                     <hr
                       className="my-1 border-slate-200 dark:border-slate-700"
                       role="separator"

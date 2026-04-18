@@ -31,7 +31,8 @@ export default function LoginScreen() {
 
   const [mode, setMode] = useState<FormMode>(initialMode);
   const [formData, setFormData] = useState({
-    name: "",
+    firstName: "",
+    lastName: "",
     username: "",
     email: "",
     password: "",
@@ -137,7 +138,7 @@ export default function LoginScreen() {
           return;
         }
         const newUser = await register({
-          name: formData.name,
+          name: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
           username: formData.username.toLowerCase().trim(),
           email: formData.email,
           password: formData.password,
@@ -279,25 +280,48 @@ export default function LoginScreen() {
           <form className="space-y-4 sm:space-y-6" onSubmit={handleSubmit}>
             {isRegister && (
               <>
-                <div>
-                  <label
-                    htmlFor="name"
-                    className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
-                  >
-                    {t('auth.name')}
-                  </label>
-                  <div className="mt-2">
-                    <input
-                      id="name"
-                      name="name"
-                      type="text"
-                      autoComplete="name"
-                      required={isRegister}
-                      onChange={handleInputChange}
-                      value={formData.name}
-                      placeholder="Juan Pérez"
-                      className="block w-full h-12 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-                    />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label
+                      htmlFor="firstName"
+                      className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
+                    >
+                      {t('auth.firstName', 'Nombre/s')}
+                    </label>
+                    <div className="mt-2">
+                      <input
+                        id="firstName"
+                        name="firstName"
+                        type="text"
+                        autoComplete="given-name"
+                        required={isRegister}
+                        onChange={handleInputChange}
+                        value={formData.firstName}
+                        placeholder="Juan"
+                        className="block w-full h-12 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label
+                      htmlFor="lastName"
+                      className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
+                    >
+                      {t('auth.lastName', 'Apellido/s')}
+                    </label>
+                    <div className="mt-2">
+                      <input
+                        id="lastName"
+                        name="lastName"
+                        type="text"
+                        autoComplete="family-name"
+                        required={isRegister}
+                        onChange={handleInputChange}
+                        value={formData.lastName}
+                        placeholder="Pérez"
+                        className="block w-full h-12 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                      />
+                    </div>
                   </div>
                 </div>
                 <div>

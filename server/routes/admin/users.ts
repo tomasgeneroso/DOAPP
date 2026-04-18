@@ -405,6 +405,59 @@ router.post(
   }
 );
 
+// @route   POST /api/admin/users/:id/membership
+// @desc    Asignar o revocar membresía (solo owner)
+// @access  Owner only
+router.post(
+  "/:id/membership",
+  requireRole("owner"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { tier, durationDays } = req.body;
+
+      const validTiers = ['free', 'pro', 'super_pro'];
+      if (!tier || !validTiers.includes(tier)) {
+        res.status(400).json({ success: false, message: "Tier inválido. Debe ser 'free', 'pro' o 'super_pro'" });
+        return;
+      }
+
+      const user = await User.findByPk(req.params.id);
+      if (!user) {
+        res.status(404).json({ success: false, message: "Usuario no encontrado" });
+        return;
+      }
+
+      if (tier === 'free') {
+        await user.deactivateMembership();
+      } else {
+        const days = durationDays ? Number(durationDays) : 30;
+        const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000);
+        await user.activateMembership(tier as 'pro' | 'super_pro', undefined, endDate);
+      }
+
+      await logAudit({
+        req,
+        action: "update_user",
+        category: "user",
+        severity: getSeverityForAction("update_user"),
+        description: `Membresía de ${user.email} cambiada a ${tier}`,
+        targetModel: "User",
+        targetId: user.id,
+        targetIdentifier: user.email,
+        metadata: { tier, durationDays },
+      });
+
+      res.json({
+        success: true,
+        message: `Membresía actualizada a ${tier}`,
+        data: { membershipTier: user.membershipTier, membershipExpiresAt: user.membershipExpiresAt },
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+    }
+  }
+);
+
 // @route   DELETE /api/admin/users/:id
 // @desc    Eliminar usuario (solo owner después de 2+ infracciones)
 // @access  Owner only
