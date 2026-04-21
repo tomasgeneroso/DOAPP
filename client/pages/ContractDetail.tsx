@@ -508,11 +508,11 @@ export default function ContractDetail() {
                 {hasPermission(PERMISSIONS.DISPUTE_CREATE) && ['in_progress', 'completed', 'awaiting_confirmation'].includes(contract?.status || '') && (
                   <button
                     onClick={() => navigate(`/disputes/new?contractId=${id}`)}
-                    className="flex items-center gap-2 px-6 py-3 bg-white border-2 border-orange-600 text-orange-600 rounded-lg hover:bg-orange-50 transition font-semibold"
-                    title={t('contracts.reportProblemTooltip', 'Report issues related to this contract (work not delivered, quality, etc.)')}
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-5 py-2.5 text-sm font-semibold text-slate-500 dark:text-slate-400 hover:border-red-200 dark:hover:border-red-800/60 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-all duration-200 active:scale-95"
+                    title={t('contracts.reportProblemTooltip', 'Reportar problemas con este contrato')}
                   >
-                    <Flag className="h-5 w-5" />
-                    {t('contracts.reportProblem', 'Report Problem')}
+                    <Flag className="h-4 w-4" />
+                    {t('contracts.reportProblem', 'Reportar problema')}
                   </button>
                 )}
                 {canPayContract && (

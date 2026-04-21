@@ -325,13 +325,7 @@ export default function Index() {
             <p className="mx-auto mt-3 max-w-2xl text-sm text-slate-500 px-2">
               {t('home.subtitleSecond')}
             </p>
-            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 px-4">
-              <Link
-                to="/register"
-                className="w-full max-w-xs sm:w-auto rounded-xl bg-sky-500 px-6 py-3 text-sm sm:text-base font-semibold text-white shadow-lg shadow-sky-500/30 hover:bg-sky-400 hover:scale-105 hover:shadow-sky-500/50 active:scale-95 transition-all duration-200"
-              >
-                {t('home.registerFree')}
-              </Link>
+            <div className="mt-8 flex items-center justify-center px-4">
               <Link
                 to="/login"
                 className="w-full max-w-xs sm:w-auto rounded-xl bg-orange-500 px-6 py-3 text-sm sm:text-base font-semibold text-white shadow-lg shadow-orange-500/30 hover:bg-orange-400 hover:scale-105 hover:shadow-orange-500/50 active:scale-95 transition-all duration-200"

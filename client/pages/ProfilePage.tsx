@@ -607,17 +607,21 @@ export default function ProfilePage() {
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="flex gap-3 flex-wrap">
-                      {/* Share Button - Always visible */}
+                    <div className="flex gap-2.5 flex-wrap">
+                      {/* Share Button */}
                       <div className="relative">
                         <button
                           onClick={() => setShowShareMenu(!showShareMenu)}
-                          className="px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 text-sm font-semibold"
+                          className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-200 active:scale-95 ${
+                            copiedProfileLink
+                              ? 'bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-600 dark:text-green-400'
+                              : 'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-800 dark:hover:text-white'
+                          }`}
                         >
                           {copiedProfileLink ? (
                             <>
-                              <Check className="w-4 h-4 text-green-500" />
-                              <span className="text-green-500">{t('common.copied', 'Copied')}</span>
+                              <Check className="w-4 h-4" />
+                              <span>{t('common.copied', 'Copiado')}</span>
                             </>
                           ) : (
                             <>
@@ -629,29 +633,30 @@ export default function ProfilePage() {
 
                         {/* Share Menu Dropdown */}
                         {showShareMenu && (
-                          <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-slate-800 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 z-50 overflow-hidden">
+                          <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-slate-800 rounded-xl shadow-xl shadow-slate-900/10 border border-slate-200 dark:border-slate-700 z-50 overflow-hidden animate-dropdownIn">
                             <button
                               onClick={copyProfileLink}
-                              className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-left"
+                              className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-colors text-left"
                             >
-                              <Link2 className="w-5 h-5 text-slate-500" />
+                              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-700">
+                                <Link2 className="w-4 h-4 text-slate-500 dark:text-slate-400" />
+                              </div>
                               <div>
-                                <p className="font-medium text-slate-900 dark:text-white">{t('profile.copyLink', 'Copy link')}</p>
-                                <p className="text-xs text-slate-500">{t('profile.copyLinkDesc', 'Copy profile link')}</p>
+                                <p className="font-medium text-slate-900 dark:text-white text-sm">{t('profile.copyLink', 'Copiar enlace')}</p>
+                                <p className="text-xs text-slate-400">{t('profile.copyLinkDesc', 'Copiar link del perfil')}</p>
                               </div>
                             </button>
                             {currentUser && (
                               <button
-                                onClick={() => {
-                                  setShowShareMenu(false);
-                                  setShowShareModal(true);
-                                }}
-                                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-left border-t border-slate-100 dark:border-slate-700"
+                                onClick={() => { setShowShareMenu(false); setShowShareModal(true); }}
+                                className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-colors text-left border-t border-slate-100 dark:border-slate-700/60"
                               >
-                                <Send className="w-5 h-5 text-slate-500" />
+                                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-sky-50 dark:bg-sky-900/30">
+                                  <Send className="w-4 h-4 text-sky-500" />
+                                </div>
                                 <div>
-                                  <p className="font-medium text-slate-900 dark:text-white">{t('profile.sendByMessage', 'Send by message')}</p>
-                                  <p className="text-xs text-slate-500">{t('profile.shareWithUser', 'Share with another user')}</p>
+                                  <p className="font-medium text-slate-900 dark:text-white text-sm">{t('profile.sendByMessage', 'Enviar por mensaje')}</p>
+                                  <p className="text-xs text-slate-400">{t('profile.shareWithUser', 'Compartir con un usuario')}</p>
                                 </div>
                               </button>
                             )}
@@ -662,20 +667,20 @@ export default function ProfilePage() {
                       {/* Chat & Report Buttons (if not own profile) */}
                       {currentUser && !isOwnProfile() && (
                         <>
-                          <Button
+                          <button
                             onClick={handleStartChat}
-                            variant="primary"
-                            className="flex items-center gap-2"
+                            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-sky-500/25 hover:from-sky-400 hover:to-blue-500 hover:shadow-sky-500/35 transition-all duration-200 active:scale-95"
                           >
                             <MessageCircle className="w-4 h-4" />
                             <span>{t('profile.chat', 'Chat')}</span>
-                          </Button>
+                          </button>
                           <button
                             onClick={() => setShowReportModal(true)}
-                            className="px-4 py-2.5 rounded-xl border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-2 text-sm font-semibold"
+                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-500 dark:text-slate-400 hover:border-red-200 dark:hover:border-red-800/60 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-all duration-200 active:scale-95"
+                            title={t('profile.report', 'Reportar')}
                           >
                             <Flag className="w-4 h-4" />
-                            {t('profile.report', 'Report')}
+                            <span className="hidden sm:inline">{t('profile.report', 'Reportar')}</span>
                           </button>
                         </>
                       )}

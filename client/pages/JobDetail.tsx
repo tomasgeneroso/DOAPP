@@ -1489,29 +1489,29 @@ export default function JobDetail() {
                         )}
 
                         {/* Botones de acción: Chat y Reportar Problema */}
-                        <div className="mt-4 flex flex-wrap gap-3">
+                        <div className="mt-4 flex flex-wrap gap-2.5">
                           <button
                             onClick={handleOpenChat}
                             disabled={loadingChat}
-                            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-700 border-2 border-sky-600 text-sky-600 dark:text-sky-400 dark:border-sky-500 rounded-lg hover:bg-sky-50 dark:hover:bg-sky-900/30 transition font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-sky-500/25 hover:from-sky-400 hover:to-blue-500 hover:shadow-sky-500/35 transition-all duration-200 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            <MessageCircle className="h-5 w-5" />
+                            <MessageCircle className="h-4 w-4" />
                             {loadingChat ? t('common.loading', 'Loading...') : t('common.chat', 'Chat')}
                           </button>
                           {['in_progress', 'completed', 'awaiting_confirmation'].includes(contractData.status || '') && (
                             <button
                               onClick={() => navigate(`/disputes/new?contractId=${contractData.id}`)}
-                              className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-700 border-2 border-orange-600 text-orange-600 dark:text-orange-400 dark:border-orange-500 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/30 transition font-semibold"
+                              className="inline-flex items-center gap-2 rounded-xl border border-red-200 dark:border-red-800/60 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-300 dark:hover:border-red-700 transition-all duration-200 active:scale-95"
                             >
-                              <Flag className="h-5 w-5" />
+                              <Flag className="h-4 w-4" />
                               {t('jobs.reportProblem', 'Report Problem')}
                             </button>
                           )}
                           <Link
                             to={`/contracts/${contractData.id}`}
-                            className="flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition font-semibold"
+                            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-600 transition-all duration-200 active:scale-95"
                           >
-                            <ExternalLink className="h-5 w-5" />
+                            <ExternalLink className="h-4 w-4" />
                             {t('jobs.viewContract', 'View Contract')}
                           </Link>
                         </div>
@@ -2482,7 +2482,7 @@ export default function JobDetail() {
                 {job.status === 'completed' && isWorkerOnJob && (
                   <button
                     onClick={() => navigate(`/portfolio/create?fromJob=${job.id || job._id}`)}
-                    className="mt-4 inline-flex items-center gap-2 px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
+                    className="mt-4 inline-flex items-center gap-2 rounded-xl border border-sky-200 dark:border-sky-800/60 bg-sky-50 dark:bg-sky-900/20 px-4 py-2.5 text-sm font-semibold text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/40 hover:border-sky-300 dark:hover:border-sky-700 transition-all duration-200 active:scale-95 shadow-sm"
                   >
                     <Share2 className="h-4 w-4" />
                     {t('jobs.shareToPortfolio', 'Share to Portfolio')}

@@ -284,7 +284,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
               }`}
               title={t('search.usersTooltip', 'Search professionals by username or skills')}
             >
-              <Users className="h-4 w-4" />
+              <Users className="h-5 w-5 shrink-0" />
               {t('home.profilesTab')}
             </button>
           </div>
