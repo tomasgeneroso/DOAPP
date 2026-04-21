@@ -1,12 +1,9 @@
-// Theme constants matching the web app
-// Based on Tailwind CSS colors used in client/global.css and components
-
 import { Platform } from 'react-native';
 
 export const colors = {
-  // Primary - Sky blue (main accent)
+  // ── Primary — Sky blue ─────────────────────────
   primary: {
-    50: '#f0f9ff',
+    50:  '#f0f9ff',
     100: '#e0f2fe',
     200: '#bae6fd',
     300: '#7dd3fc',
@@ -18,16 +15,28 @@ export const colors = {
     900: '#0c4a6e',
   },
 
-  // Secondary - Orange (CTA, highlights)
+  // ── Secondary — Orange (CTA) ───────────────────
   secondary: {
+    50:  '#fff7ed',
+    100: '#ffedd5',
     400: '#fb923c',
     500: '#f97316',
     600: '#ea580c',
+    700: '#c2410c',
   },
 
-  // Neutral - Slate (text, backgrounds)
+  // ── Premium — Violet ───────────────────────────
+  premium: {
+    50:  '#f5f3ff',
+    100: '#ede9fe',
+    500: '#8b5cf6',
+    600: '#7c3aed',
+    700: '#6d28d9',
+  },
+
+  // ── Neutral — Slate ────────────────────────────
   slate: {
-    50: '#f8fafc',
+    50:  '#f8fafc',
     100: '#f1f5f9',
     200: '#e2e8f0',
     300: '#cbd5e1',
@@ -39,12 +48,10 @@ export const colors = {
     900: '#0f172a',
   },
 
-  // Status colors
+  // ── Status ─────────────────────────────────────
   success: {
-    50: '#f0fdf4',
+    50:  '#f0fdf4',
     100: '#dcfce7',
-    200: '#bbf7d0',
-    300: '#86efac',
     400: '#4ade80',
     500: '#22c55e',
     600: '#16a34a',
@@ -52,112 +59,146 @@ export const colors = {
   },
 
   warning: {
-    50: '#fffbeb',
+    50:  '#fffbeb',
     100: '#fef3c7',
-    200: '#fde68a',
-    300: '#fcd34d',
     400: '#fbbf24',
     500: '#eab308',
     600: '#ca8a04',
-    700: '#a16207',
   },
 
   danger: {
-    50: '#fef2f2',
+    50:  '#fef2f2',
     100: '#fee2e2',
-    200: '#fecaca',
-    300: '#fca5a5',
     400: '#f87171',
     500: '#ef4444',
     600: '#dc2626',
     700: '#b91c1c',
   },
 
-  // Background colors (matching web)
+  // ── Brand backgrounds ──────────────────────────
   background: {
-    light: '#FFFFFF',
-    dark: '#121212',
+    light: '#F0F4F8',
+    dark:  '#070d1a',
   },
 
-  // Card colors
   card: {
     light: '#ffffff',
-    dark: '#1e293b', // slate-800
+    dark:  '#0f1624',
   },
 
-  // Text colors
+  // ── Text ───────────────────────────────────────
   text: {
     primary: {
-      light: '#1e293b', // slate-800
-      dark: '#ffffff',
+      light: '#1e293b',
+      dark:  '#ffffff',
     },
     secondary: {
-      light: '#64748b', // slate-500
-      dark: '#94a3b8', // slate-400
+      light: '#475569', // slate-600 — 5.9:1 on white ✓
+      dark:  '#b0c4d8', // ~8:1 on dark bg ✓
     },
     muted: {
-      light: '#94a3b8', // slate-400
-      dark: '#64748b', // slate-500
+      light: '#64748b', // slate-500 — 4.75:1 on white ✓
+      dark:  '#8a9bb0', // ~5.5:1 on dark bg ✓
     },
   },
 
-  // Border colors
+  // ── Borders ────────────────────────────────────
   border: {
-    light: '#e2e8f0', // slate-200
-    dark: '#334155', // slate-700
+    light: '#e2e8f0',
+    dark:  '#1e2d42',
+  },
+
+  // ── Gradients (as array for LinearGradient) ────
+  gradient: {
+    primary:   ['#0284c7', '#2563eb'] as const,
+    secondary: ['#f97316', '#ea580c'] as const,
+    premium:   ['#7c3aed', '#db2777'] as const,
+    hero:      ['#0c4a6e', '#0369a1', '#1d4ed8'] as const,
+    success:   ['#059669', '#16a34a'] as const,
+    card:      ['#f0f9ff', '#eff6ff'] as const,
+    cardDark:  ['#0f1624', '#0c1829'] as const,
+  },
+
+  // ── Glassmorphism surfaces ─────────────────────
+  glass: {
+    light: 'rgba(255, 255, 255, 0.82)',
+    dark:  'rgba(7, 13, 26, 0.82)',
+    border: {
+      light: 'rgba(255, 255, 255, 0.5)',
+      dark:  'rgba(255, 255, 255, 0.08)',
+    },
   },
 };
 
 export const spacing = {
-  xs: 4,
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
+  xs:   4,
+  sm:   8,
+  md:   12,
+  lg:   16,
+  xl:   20,
   '2xl': 24,
   '3xl': 32,
   '4xl': 40,
   '5xl': 48,
+  '6xl': 64,
 };
 
 export const borderRadius = {
-  sm: 4,
-  md: 8,
-  lg: 12,
-  xl: 16,
+  sm:   4,
+  md:   8,
+  lg:   12,
+  xl:   16,
   '2xl': 20,
+  '3xl': 24,
   full: 9999,
 };
 
 export const fontSize = {
-  xs: 12,
-  sm: 14,
-  base: 16,
-  lg: 18,
-  xl: 20,
-  '2xl': 24,
-  '3xl': 30,
-  '4xl': 36,
+  xs:   11,
+  sm:   13,
+  base: 15,
+  lg:   17,
+  xl:   19,
+  '2xl': 22,
+  '3xl': 28,
+  '4xl': 34,
 };
 
 export const fontWeight = {
-  normal: '400' as const,
-  medium: '500' as const,
+  normal:   '400' as const,
+  medium:   '500' as const,
   semibold: '600' as const,
-  bold: '700' as const,
+  bold:     '700' as const,
+  extrabold:'800' as const,
 };
 
-// Shadows disabled for web compatibility
-// Use borders for visual definition instead
-export const shadows = {
-  sm: {},
-  md: {},
-  lg: {},
-};
+export const shadows = Platform.select({
+  ios: {
+    sm: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 3  },
+    md: { shadowColor: '#000', shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.10, shadowRadius: 8  },
+    lg: { shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.14, shadowRadius: 16 },
+    xl: { shadowColor: '#000', shadowOffset: { width: 0, height:10 }, shadowOpacity: 0.18, shadowRadius: 24 },
+    brand: {
+      shadowColor: '#0284c7',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.28,
+      shadowRadius: 12,
+    },
+  },
+  android: {
+    sm:    { elevation: 2  },
+    md:    { elevation: 5  },
+    lg:    { elevation: 10 },
+    xl:    { elevation: 16 },
+    brand: { elevation: 8  },
+  },
+  default: {
+    sm: {}, md: {}, lg: {}, xl: {}, brand: {},
+  },
+}) as { sm: object; md: object; lg: object; xl: object; brand: object };
 
-// Common component styles
+// ── Reusable component styles ──────────────────────
 export const commonStyles = {
-  // Card style matching web
   card: {
     backgroundColor: colors.card.light,
     borderRadius: borderRadius.xl,
@@ -166,19 +207,17 @@ export const commonStyles = {
     borderColor: colors.border.light,
   },
 
-  // Input style matching web
   input: {
     height: 48,
     borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.border.light,
     backgroundColor: colors.card.light,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.lg,
     fontSize: fontSize.base,
     color: colors.text.primary.light,
   },
 
-  // Button primary style
   buttonPrimary: {
     height: 48,
     borderRadius: borderRadius.lg,
@@ -187,40 +226,43 @@ export const commonStyles = {
     alignItems: 'center' as const,
   },
 
-  // Button secondary style
-  buttonSecondary: {
-    height: 48,
-    borderRadius: borderRadius.lg,
-    backgroundColor: colors.secondary[500],
-    justifyContent: 'center' as const,
-    alignItems: 'center' as const,
-  },
-
-  // Button text
   buttonText: {
     color: '#ffffff',
     fontSize: fontSize.base,
     fontWeight: fontWeight.semibold,
+    letterSpacing: 0.2,
   },
 
-  // Page container
   container: {
     flex: 1,
     backgroundColor: colors.background.light,
   },
 
-  // Header style
   header: {
-    padding: spacing.lg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
     backgroundColor: colors.card.light,
     borderBottomWidth: 1,
     borderBottomColor: colors.border.light,
   },
 
-  // Header title
   headerTitle: {
     fontSize: fontSize['2xl'],
     fontWeight: fontWeight.bold,
     color: colors.text.primary.light,
+    letterSpacing: -0.3,
+  },
+
+  sectionTitle: {
+    fontSize: fontSize.lg,
+    fontWeight: fontWeight.bold,
+    letterSpacing: -0.2,
+  },
+
+  badge: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: borderRadius.full,
+    alignSelf: 'flex-start' as const,
   },
 };

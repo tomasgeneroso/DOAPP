@@ -44,9 +44,12 @@ export default function ChatScreen() {
   const [loadingInlineJobs, setLoadingInlineJobs] = useState(false);
   const [selectedJob, setSelectedJob] = useState<any>(null);
 
-  // Get job code (first 8 chars of UUID in uppercase)
   const getJobCode = (jobId: string | undefined): string => {
-    return jobId?.substring(0, 8).toUpperCase() || '';
+    if (!jobId) return 'A0000';
+    const hex = jobId.replace(/-/g, '');
+    const letter = String.fromCharCode(65 + (parseInt(hex[0], 16) % 26));
+    const nums = hex.slice(1, 5).split('').map(c => String(parseInt(c, 16) % 10)).join('');
+    return letter + nums;
   };
 
   const handleCopyJobCode = async () => {
@@ -79,15 +82,18 @@ export default function ChatScreen() {
       else setLoadingMore(true);
 
       const response = await getMessages(id, pageNum);
+      const raw = response as any;
 
-      if (response.success && response.data) {
-        const newMessages = response.data.messages;
+      if (response.success) {
+        // Server returns { success, data: [...messages], pagination: {...} }
+        const newMessages: Message[] = Array.isArray(raw.data) ? raw.data : [];
+        const pagination = raw.pagination;
         if (append) {
           setMessages((prev) => [...prev, ...newMessages]);
         } else {
           setMessages(newMessages);
         }
-        setHasMore(response.data.pagination.page < response.data.pagination.pages);
+        if (pagination) setHasMore(pagination.page < pagination.pages);
         setPage(pageNum);
 
         // Mark as read
@@ -752,16 +758,16 @@ const styles = StyleSheet.create({
   jobCodeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: borderRadius.md,
-    borderWidth: 1,
-    gap: 4,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1.5,
+    gap: 6,
   },
   jobCodeText: {
-    fontSize: fontSize.xs,
+    fontSize: fontSize.sm,
     fontWeight: fontWeight.bold,
-    fontFamily: 'monospace',
+    letterSpacing: 1,
   },
   loadingContainer: {
     flex: 1,

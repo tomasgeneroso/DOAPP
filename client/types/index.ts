@@ -13,7 +13,11 @@ export interface Job {
   endDate?: string; // Optional if endDateFlexible is true
   endDateFlexible?: boolean; // "Todavía no lo sé" - end date not yet determined
   location: string;
-  neighborhood?: string; // Barrio - shown publicly (e.g., "Palermo", "Belgrano")
+  neighborhood?: string;
+  postalCode?: string;
+  addressStreet?: string;
+  addressNumber?: string;
+  addressDetails?: string;
   status: 'open' | 'in_progress' | 'completed' | 'cancelled' | 'draft' | 'pending_payment' | 'pending_approval' | 'paused' | 'suspended';
   postedBy: string;
   client?: {

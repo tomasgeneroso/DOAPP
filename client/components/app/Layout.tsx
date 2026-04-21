@@ -4,11 +4,13 @@ import { useAuth } from "@/hooks/useAuth";
 import Header from "./Header";
 import Footer from "./Footer";
 import ErrorBoundary from "../ErrorBoundary";
+import { useScrollDepth } from "@/hooks/useScrollDepth";
 
 export default function Layout() {
   const { user, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  useScrollDepth();
 
   useEffect(() => {
     // Check if user is banned and redirect to banned screen
@@ -18,7 +20,7 @@ export default function Layout() {
   }, [user, isAuthenticated, navigate, location.pathname]);
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50 dark:bg-slate-900">
+    <div className="flex min-h-screen flex-col bg-[#F5F5F5] dark:bg-slate-900">
       {/* Skip to content link for keyboard users */}
       <a
         href="#main-content"

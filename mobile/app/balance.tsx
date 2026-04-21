@@ -25,6 +25,7 @@ import {
   CreditCard,
   FileText,
   Download,
+  Filter,
 } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -55,6 +56,10 @@ export default function BalanceScreen() {
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [cbu, setCbu] = useState('');
   const [withdrawing, setWithdrawing] = useState(false);
+
+  // Filters
+  const [txFilter, setTxFilter] = useState<'all' | 'income' | 'expense'>('all');
+  const [withdrawalFilter, setWithdrawalFilter] = useState<'all' | 'pending' | 'completed' | 'rejected'>('all');
 
   const fetchData = async () => {
     try {
@@ -140,6 +145,19 @@ export default function BalanceScreen() {
       setWithdrawing(false);
     }
   };
+
+  const filteredTransactions = transactions.filter((tx) => {
+    if (txFilter === 'income') return tx.amount > 0;
+    if (txFilter === 'expense') return tx.amount < 0;
+    return true;
+  });
+
+  const filteredWithdrawals = withdrawals.filter((w) => {
+    if (withdrawalFilter === 'pending') return ['pending', 'approved', 'processing'].includes(w.status);
+    if (withdrawalFilter === 'completed') return w.status === 'completed';
+    if (withdrawalFilter === 'rejected') return w.status === 'rejected';
+    return true;
+  });
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('es-AR', {
@@ -394,10 +412,49 @@ export default function BalanceScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Transaction Filters */}
+        {activeTab === 'transactions' && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow} contentContainerStyle={styles.filterContent}>
+            {([
+              { key: 'all', label: 'Todos' },
+              { key: 'income', label: '↓ Ingresos' },
+              { key: 'expense', label: '↑ Egresos' },
+            ] as { key: typeof txFilter; label: string }[]).map(f => (
+              <TouchableOpacity
+                key={f.key}
+                style={[styles.filterChip, txFilter === f.key && { backgroundColor: themeColors.primary[600], borderColor: themeColors.primary[600] }, { borderColor: themeColors.border }]}
+                onPress={() => setTxFilter(f.key)}
+              >
+                <Text style={[styles.filterChipText, { color: txFilter === f.key ? '#fff' : themeColors.text.secondary }]}>{f.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+
+        {/* Withdrawal Filters */}
+        {activeTab === 'withdrawals' && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow} contentContainerStyle={styles.filterContent}>
+            {([
+              { key: 'all', label: 'Todos' },
+              { key: 'pending', label: 'En proceso' },
+              { key: 'completed', label: 'Completados' },
+              { key: 'rejected', label: 'Rechazados' },
+            ] as { key: typeof withdrawalFilter; label: string }[]).map(f => (
+              <TouchableOpacity
+                key={f.key}
+                style={[styles.filterChip, withdrawalFilter === f.key && { backgroundColor: themeColors.primary[600], borderColor: themeColors.primary[600] }, { borderColor: themeColors.border }]}
+                onPress={() => setWithdrawalFilter(f.key)}
+              >
+                <Text style={[styles.filterChipText, { color: withdrawalFilter === f.key ? '#fff' : themeColors.text.secondary }]}>{f.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+
         {/* Transactions List */}
         {activeTab === 'transactions' && (
           <View style={styles.listContainer}>
-            {transactions.length === 0 ? (
+            {filteredTransactions.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <Wallet size={48} color={themeColors.text.muted} />
                 <Text style={[styles.emptyText, { color: themeColors.text.muted }]}>
@@ -405,7 +462,7 @@ export default function BalanceScreen() {
                 </Text>
               </View>
             ) : (
-              transactions.map((tx) => (
+              filteredTransactions.map((tx) => (
                 <View
                   key={tx._id}
                   style={[styles.transactionItem, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
@@ -439,7 +496,7 @@ export default function BalanceScreen() {
         {/* Withdrawals List */}
         {activeTab === 'withdrawals' && (
           <View style={styles.listContainer}>
-            {withdrawals.length === 0 ? (
+            {filteredWithdrawals.length === 0 ? (
               <View style={styles.emptyContainer}>
                 <CreditCard size={48} color={themeColors.text.muted} />
                 <Text style={[styles.emptyText, { color: themeColors.text.muted }]}>
@@ -447,7 +504,7 @@ export default function BalanceScreen() {
                 </Text>
               </View>
             ) : (
-              withdrawals.map((withdrawal) => (
+              filteredWithdrawals.map((withdrawal) => (
                 <View
                   key={withdrawal._id}
                   style={[styles.withdrawalItem, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
@@ -789,5 +846,24 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     fontWeight: fontWeight.medium,
     color: colors.primary[600],
+  },
+  filterRow: {
+    marginBottom: spacing.sm,
+  },
+  filterContent: {
+    paddingHorizontal: spacing.xs,
+    gap: spacing.sm,
+    flexDirection: 'row',
+  },
+  filterChip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    borderRadius: borderRadius.full,
+    borderWidth: 1,
+    marginRight: spacing.xs,
+  },
+  filterChipText: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
   },
 });

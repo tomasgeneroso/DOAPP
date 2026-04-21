@@ -227,9 +227,6 @@ export default function MembershipScreen() {
           { backgroundColor: themeColors.card, borderColor: currentPlan === 'super_pro' ? colors.secondary[500] : themeColors.border },
           currentPlan === 'super_pro' && styles.planCardActive,
         ]}>
-          <View style={[styles.popularBadge, { backgroundColor: colors.secondary[500] }]}>
-            <Text style={styles.popularText}>Más popular</Text>
-          </View>
           <View style={styles.planHeader}>
             <View style={[styles.planIconWrap, { backgroundColor: colors.secondary[50] }]}>
               <Crown size={20} color={colors.secondary[500]} />
@@ -371,15 +368,6 @@ const styles = StyleSheet.create({
   volumeDesc: { fontSize: fontSize.xs },
   volumeRate: { fontSize: fontSize.sm, fontWeight: fontWeight.bold },
   volumeMin: { fontSize: fontSize.xs, marginTop: spacing.xs },
-  popularBadge: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-    borderBottomLeftRadius: borderRadius.lg,
-  },
-  popularText: { color: '#fff', fontSize: fontSize.xs, fontWeight: fontWeight.semibold },
   dashboardLink: {
     flexDirection: 'row',
     alignItems: 'center',

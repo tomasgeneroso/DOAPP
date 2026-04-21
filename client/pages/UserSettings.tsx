@@ -724,7 +724,7 @@ export default function UserSettings() {
                       >
                         <div className="text-3xl mb-2">{category.icon}</div>
                         <div className="text-sm font-medium text-gray-900 dark:text-white">
-                          {category.label}
+                          {t(category.labelKey, category.label)}
                         </div>
                       </button>
                     ))}

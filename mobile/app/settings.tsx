@@ -28,10 +28,12 @@ import {
   Building2,
   MapPin,
   Save,
+  AtSign,
 } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { updateSettings } from '../services/auth';
+import { post } from '../services/api';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
 
 type SettingsTab = 'general' | 'banking' | 'address';
@@ -120,6 +122,36 @@ export default function SettingsScreen() {
           onPress: async () => {
             await logout();
             router.replace('/(auth)/login');
+          },
+        },
+      ]
+    );
+  };
+
+  const handleEmailChangeRequest = () => {
+    Alert.alert(
+      'Cambiar email',
+      'Para cambiar tu email, debemos verificar tu identidad. Se creará un ticket de soporte y nuestro equipo te contactará.\n\n¿Querés continuar?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Solicitar cambio',
+          onPress: async () => {
+            try {
+              const res = await post<any>('/tickets', {
+                subject: 'Solicitud de cambio de email',
+                message: `El usuario ${user?.name} (${user?.email}) solicita cambiar su dirección de email. Por favor verificar identidad antes de proceder.`,
+                category: 'support',
+                priority: 'medium',
+              });
+              if (res.success) {
+                Alert.alert('Solicitud enviada', 'Creamos un ticket de soporte. Nuestro equipo te contactará para verificar tu identidad y completar el cambio.');
+              } else {
+                Alert.alert('Error', (res as any).message || 'No se pudo crear la solicitud');
+              }
+            } catch {
+              Alert.alert('Error', 'Error de conexión. Intentá de nuevo.');
+            }
           },
         },
       ]
@@ -472,6 +504,26 @@ export default function SettingsScreen() {
 
             <TouchableOpacity
               style={styles.settingRow}
+              onPress={handleEmailChangeRequest}
+            >
+              <View style={styles.settingLeft}>
+                <AtSign size={20} color={themeColors.text.secondary} />
+                <View>
+                  <Text style={[styles.settingLabel, { color: themeColors.text.primary }]}>
+                    Cambiar email
+                  </Text>
+                  <Text style={[styles.settingValue, { color: themeColors.text.muted }]}>
+                    Requiere verificación de identidad
+                  </Text>
+                </View>
+              </View>
+              <ChevronRight size={20} color={themeColors.text.muted} />
+            </TouchableOpacity>
+
+            <View style={[styles.divider, { backgroundColor: themeColors.border }]} />
+
+            <TouchableOpacity
+              style={styles.settingRow}
               onPress={() => Alert.alert('Autenticación de dos factores', 'Próximamente')}
             >
               <View style={styles.settingLeft}>
@@ -508,7 +560,7 @@ export default function SettingsScreen() {
 
             <TouchableOpacity
               style={styles.settingRow}
-              onPress={() => Alert.alert('Términos de servicio', 'Próximamente')}
+              onPress={() => router.push('/legal/terms')}
             >
               <View style={styles.settingLeft}>
                 <FileText size={20} color={themeColors.text.secondary} />
@@ -523,7 +575,7 @@ export default function SettingsScreen() {
 
             <TouchableOpacity
               style={styles.settingRow}
-              onPress={() => Alert.alert('Política de privacidad', 'Próximamente')}
+              onPress={() => router.push('/legal/privacy')}
             >
               <View style={styles.settingLeft}>
                 <FileText size={20} color={themeColors.text.secondary} />

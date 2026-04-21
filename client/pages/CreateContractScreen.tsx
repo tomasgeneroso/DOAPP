@@ -28,6 +28,7 @@ import { CustomDateInput } from "@/components/ui/CustomDatePicker";
 import LocationAutocomplete from "@/components/ui/LocationAutocomplete";
 import StreetAutocomplete from "@/components/ui/StreetAutocomplete";
 import FileUploadWithPreview from "@/components/ui/FileUploadWithPreview";
+import NeighborhoodAutocomplete from "@/components/ui/NeighborhoodAutocomplete";
 
 interface FormFieldProps {
   label: string;
@@ -70,8 +71,11 @@ export default function CreateContractScreen() {
   const [location, setLocation] = useState("");
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [maxWorkers, setMaxWorkers] = useState(1);
+  const [requirements, setRequirements] = useState(['', '', '']);
   const [endDateFlexible, setEndDateFlexible] = useState(false);
   const [singleDelivery, setSingleDelivery] = useState(true);
+  const [neighborhood, setNeighborhood] = useState("");
+  const [postalCode, setPostalCode] = useState("");
   const [addressStreet, setAddressStreet] = useState("");
   const [addressNumber, setAddressNumber] = useState("");
   const [addressDetails, setAddressDetails] = useState("");
@@ -184,6 +188,8 @@ export default function CreateContractScreen() {
     submitData.append("category", selectedCategory);
     submitData.append("tags", JSON.stringify(selectedTags));
     submitData.append("location", formDataFromForm.get("location") as string);
+    if (neighborhood) submitData.append("neighborhood", neighborhood);
+    if (postalCode) submitData.append("postalCode", postalCode);
     submitData.append("addressStreet", addressStreet);
     submitData.append("addressNumber", addressNumber);
     submitData.append("addressDetails", addressDetails);
@@ -195,6 +201,8 @@ export default function CreateContractScreen() {
     submitData.append("remoteOk", formDataFromForm.get("remoteOk") === "on" ? "true" : "false");
     submitData.append("maxWorkers", maxWorkers.toString());
     submitData.append("singleDelivery", singleDelivery.toString());
+    const filledReqs = requirements.filter(r => r.trim());
+    submitData.append("completionRequirements", JSON.stringify(filledReqs));
 
     selectedFiles.forEach((file) => {
       submitData.append("images", file);
@@ -372,7 +380,7 @@ export default function CreateContractScreen() {
                 <option value="">{t('jobs.selectCategory', 'Select category...')}</option>
                 {JOB_CATEGORIES.map((cat) => (
                   <option key={cat.id} value={cat.id}>
-                    {cat.icon} {cat.label}
+                    {cat.icon} {t(cat.labelKey, cat.label)}
                   </option>
                 ))}
               </select>
@@ -478,27 +486,34 @@ export default function CreateContractScreen() {
             {/* Address details */}
             <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
               <div className="sm:col-span-3">
-                <FormField label={t('jobs.streetLabel', 'Street')} icon={Home}>
+                <FormField label={t('jobs.streetLabel', 'Calle')} icon={Home}>
                   <StreetAutocomplete
                     value={addressStreet}
                     onChange={setAddressStreet}
                     location={location}
-                    placeholder={t('jobs.streetPlaceholder')}
+                    placeholder="Ej: Av. Corrientes"
                   />
                 </FormField>
               </div>
               <div className="sm:col-span-3">
-                <FormField label={t('jobs.numberLabel', 'Number')} icon={Hash}>
+                <FormField label={t('jobs.numberLabel', 'Número de puerta')} icon={Hash}>
                   <input
                     type="text"
                     value={addressNumber}
                     onChange={(e) => setAddressNumber(e.target.value)}
-                    placeholder={t('jobs.numberPlaceholder')}
+                    placeholder="Ej: 1234"
                     className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
                   />
                 </FormField>
               </div>
             </div>
+            <NeighborhoodAutocomplete
+              locationValue={location}
+              neighborhood={neighborhood}
+              postalCode={postalCode}
+              onNeighborhoodChange={setNeighborhood}
+              onPostalCodeChange={setPostalCode}
+            />
 
             <FormField
               label={t('jobs.addressDetailsLabel', 'Address details (optional)')}
@@ -674,6 +689,46 @@ export default function CreateContractScreen() {
                   </p>
                 </div>
               )}
+            </FormField>
+
+            {/* Completion Requirements */}
+            <FormField
+              label="Requisitos de finalización"
+              icon={ListTodo}
+              description="Definí los criterios mínimos para que el trabajo sea considerado terminado. Sirven como respaldo ante posibles disputas. Se sugiere a los trabajadores consultar estos requisitos antes de postularse."
+            >
+              <div className="space-y-2">
+                {requirements.map((req, idx) => (
+                  <div key={idx} className="flex gap-2 items-start">
+                    <span className="mt-2.5 text-sm font-semibold text-slate-500 dark:text-slate-400 w-5 shrink-0">{idx + 1}.</span>
+                    <input
+                      type="text"
+                      value={req}
+                      onChange={(e) => {
+                        const updated = [...requirements];
+                        updated[idx] = e.target.value;
+                        setRequirements(updated);
+                      }}
+                      placeholder={idx === 0 ? 'Ej: Sin telas de araña en esquinas de paredes' : idx === 1 ? 'Ej: Pisos barridos y trapeados en todos los ambientes' : 'Ej: Baños desinfectados y limpios'}
+                      className="flex-1 rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm"
+                    />
+                    {requirements.length > 3 && (
+                      <button type="button" onClick={() => setRequirements(requirements.filter((_, i) => i !== idx))} className="mt-1.5 p-1.5 text-red-500 hover:text-red-700">
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                {requirements.length < 8 && (
+                  <button
+                    type="button"
+                    onClick={() => setRequirements([...requirements, ''])}
+                    className="mt-1 flex items-center gap-1.5 text-sm text-sky-600 hover:text-sky-700 dark:text-sky-400"
+                  >
+                    <span className="text-lg leading-none">+</span> Agregar requisito
+                  </button>
+                )}
+              </div>
             </FormField>
 
             <FormField

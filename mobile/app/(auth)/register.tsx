@@ -287,6 +287,10 @@ export default function RegisterScreen() {
                 <TouchableOpacity onPress={() => router.push('/legal/terms' as any)} activeOpacity={0.7}>
                   <Text style={styles.termsLink}>Términos y Condiciones</Text>
                 </TouchableOpacity>
+                <Text style={[styles.termsText, { color: themeColors.text.secondary }]}> y la </Text>
+                <TouchableOpacity onPress={() => router.push('/legal/privacy' as any)} activeOpacity={0.7}>
+                  <Text style={styles.termsLink}>Política de Privacidad</Text>
+                </TouchableOpacity>
               </View>
 
               <TouchableOpacity

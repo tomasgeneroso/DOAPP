@@ -23,6 +23,7 @@ import { JOB_CATEGORIES, JOB_TAGS, canJobsOverlap, getCategoryById } from "../..
 import { CustomDateInput } from "@/components/ui/CustomDatePicker";
 import LocationAutocomplete from "@/components/ui/LocationAutocomplete";
 import FileUploadWithPreview from "@/components/ui/FileUploadWithPreview";
+import NeighborhoodAutocomplete from "@/components/ui/NeighborhoodAutocomplete";
 
 interface FormFieldProps {
   label: string;
@@ -73,6 +74,7 @@ export default function EditJobScreen() {
   const [customTag, setCustomTag] = useState("");
   const [location, setLocation] = useState("");
   const [neighborhood, setNeighborhood] = useState("");
+  const [postalCode, setPostalCode] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [existingImages, setExistingImages] = useState<string[]>([]);
@@ -159,6 +161,7 @@ export default function EditJobScreen() {
           setSelectedTags(job.tags || []);
           setLocation(job.location || "");
           setNeighborhood(job.neighborhood || "");
+          setPostalCode(job.postalCode || "");
           setStartDate(job.startDate ? new Date(job.startDate).toISOString().slice(0, 16) : "");
           setEndDate(job.endDate ? new Date(job.endDate).toISOString().slice(0, 16) : "");
           setEndDateFlexible(job.endDateFlexible || false);
@@ -295,6 +298,7 @@ export default function EditJobScreen() {
     submitData.append("tags", JSON.stringify(selectedTags));
     submitData.append("location", location);
     if (neighborhood) submitData.append("neighborhood", neighborhood);
+    if (postalCode) submitData.append("postalCode", postalCode);
     submitData.append("startDate", startDate);
     submitData.append("endDateFlexible", endDateFlexible.toString());
     if (!endDateFlexible && endDate) {
@@ -491,7 +495,7 @@ export default function EditJobScreen() {
                 <option value="">{t('jobs.selectCategory', 'Select category...')}</option>
                 {JOB_CATEGORIES.map((cat) => (
                   <option key={cat.id} value={cat.id}>
-                    {cat.icon} {cat.label}
+                    {cat.icon} {t(cat.labelKey, cat.label)}
                   </option>
                 ))}
               </select>
@@ -592,17 +596,15 @@ export default function EditJobScreen() {
                   />
                 </FormField>
               </div>
-              <div className="sm:col-span-2">
-                <FormField label={t('jobs.neighborhoodLabel', 'Neighborhood (optional)')} icon={MapPin}>
-                  <input
-                    type="text"
-                    value={neighborhood}
-                    onChange={(e) => setNeighborhood(e.target.value)}
-                    placeholder={t('jobs.locationPlaceholder')}
-                    disabled={fieldsDisabled}
-                    className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed"
-                  />
-                </FormField>
+              <div className="sm:col-span-4">
+                <NeighborhoodAutocomplete
+                  locationValue={location}
+                  neighborhood={neighborhood}
+                  postalCode={postalCode}
+                  onNeighborhoodChange={setNeighborhood}
+                  onPostalCodeChange={setPostalCode}
+                  disabled={fieldsDisabled}
+                />
               </div>
             </div>
 

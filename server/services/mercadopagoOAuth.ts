@@ -155,13 +155,11 @@ class MercadoPagoOAuthService {
         }).toString(),
       });
 
+      const tokenData: OAuthTokenResponse = await response.json().catch(() => ({} as any));
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('❌ OAuth token exchange failed:', errorData);
-        throw new Error(errorData.message || 'Failed to exchange code for token');
+        console.error('❌ OAuth token exchange failed:', tokenData);
+        throw new Error(tokenData.message || 'Failed to exchange code for token');
       }
-
-      const tokenData: OAuthTokenResponse = await response.json();
       console.log('✅ OAuth token obtained for MP user:', tokenData.user_id);
 
       return tokenData;
@@ -194,13 +192,11 @@ class MercadoPagoOAuthService {
         }).toString(),
       });
 
+      const tokenData: OAuthTokenResponse = await response.json().catch(() => ({} as any));
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('❌ OAuth token refresh failed:', errorData);
-        throw new Error(errorData.message || 'Failed to refresh token');
+        console.error('❌ OAuth token refresh failed:', tokenData);
+        throw new Error(tokenData.message || 'Failed to refresh token');
       }
-
-      const tokenData: OAuthTokenResponse = await response.json();
       console.log('✅ OAuth token refreshed for MP user:', tokenData.user_id);
 
       return tokenData;
@@ -386,20 +382,16 @@ class MercadoPagoOAuthService {
         }),
       });
 
+      const paymentResult = await response.json().catch(() => ({} as any));
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('❌ Split payment failed:', errorData);
-
-        // Return detailed error for logging but mark as needing manual payment
+        console.error('❌ Split payment failed:', paymentResult);
         return {
           success: false,
           workerAmount,
           platformFee,
-          error: `MercadoPago error: ${errorData.message || JSON.stringify(errorData)}`,
+          error: `MercadoPago error: ${paymentResult.message || JSON.stringify(paymentResult)}`,
         };
       }
-
-      const paymentResult = await response.json();
       console.log(`✅ Split payment created: ${paymentResult.id}, worker receives $${workerAmount}`);
 
       return {
@@ -474,18 +466,16 @@ class MercadoPagoOAuthService {
         }),
       });
 
+      const result = await response.json().catch(() => ({} as any));
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('❌ Transfer failed:', errorData);
+        console.error('❌ Transfer failed:', result);
         return {
           success: false,
           workerAmount: amount,
           platformFee: 0,
-          error: `Transfer error: ${errorData.message || JSON.stringify(errorData)}`,
+          error: `Transfer error: ${result.message || JSON.stringify(result)}`,
         };
       }
-
-      const result = await response.json();
       console.log(`✅ Transfer completed: ${result.id}, amount: $${amount}`);
 
       return {

@@ -161,13 +161,22 @@ async function request<T>(
   try {
     const headers = await getHeaders(includeAuth);
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      ...options,
-      headers: {
-        ...headers,
-        ...(options.headers || {}),
-      },
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+
+    let response: Response;
+    try {
+      response = await fetch(`${API_URL}${endpoint}`, {
+        ...options,
+        headers: {
+          ...headers,
+          ...(options.headers || {}),
+        },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
 
     const text = await response.text();
     let data: any;
@@ -193,10 +202,11 @@ async function request<T>(
     return data;
   } catch (error: any) {
     console.error('API Error:', error);
+    const isTimeout = error.name === 'AbortError';
     return {
       success: false,
-      message: error.message || 'Error de conexión',
-      error: 'NETWORK_ERROR',
+      message: isTimeout ? 'Tiempo de espera agotado. Verifica tu conexión.' : (error.message || 'Error de conexión'),
+      error: isTimeout ? 'TIMEOUT' : 'NETWORK_ERROR',
     };
   }
 }

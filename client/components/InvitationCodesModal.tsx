@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
 import { InvitationCode } from '../types';
 import Button from './ui/Button';
+import analytics from '../utils/analytics';
 
 interface InvitationCodesModalProps {
   isOpen: boolean;
@@ -45,6 +46,7 @@ export default function InvitationCodesModal({ isOpen, onClose }: InvitationCode
   const copyToClipboard = () => {
     if (invitationData?.referralCode) {
       navigator.clipboard.writeText(invitationData.referralCode);
+      analytics.clipboardCopy('referral_code', invitationData.referralCode);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }

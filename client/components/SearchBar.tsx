@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Search, MapPin, Tag, X, SlidersHorizontal, Briefcase, Users } from "lucide-react";
 import { JOB_CATEGORIES } from "../../shared/constants/categories";
 import { searchLocations } from "../../shared/constants/locations";
+import analytics from "../utils/analytics";
 
 interface SearchBarProps {
   onSearch: (filters: SearchFilters) => void;
@@ -100,6 +101,11 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
   const handleQueryChange = (value: string) => {
     setQuery(value);
 
+    if (searchType === 'users') {
+      setShowQueryLocationSuggestions(false);
+      return;
+    }
+
     // Detectar si el usuario está escribiendo una ubicación
     // Buscar sugerencias si hay al menos 2 caracteres y parece ser texto de ubicación
     if (value.length >= 2) {
@@ -176,6 +182,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
 
   const handleCategoryChange = (value: string) => {
     setCategory(value);
+    if (value) analytics.filterApply('category', value, 'search_bar');
   };
 
   // Trigger search whenever filters change
@@ -191,6 +198,9 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setShowLocationSuggestions(false);
+    analytics.jobSearch(query, { category, location });
+    if (location) analytics.filterApply('location', location, 'search_bar');
+    if (category) analytics.filterApply('category', category, 'search_bar');
     onSearch({
       query,
       location,
@@ -244,13 +254,19 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
         {/* Search Type Toggle */}
         <div className="flex items-center gap-2 mb-2">
           <span className="text-sm text-slate-600 dark:text-slate-400">{t('home.searchLabel')}</span>
-          <div className="flex bg-slate-100 dark:bg-slate-700 rounded-lg p-1">
+          <div className="relative flex bg-slate-100 dark:bg-slate-700 rounded-lg p-1">
+            {/* Sliding pill indicator */}
+            <div
+              className={`absolute inset-y-1 w-[calc(50%-2px)] rounded-md bg-white dark:bg-slate-600 shadow-sm transition-all duration-200 ease-in-out ${
+                searchType === 'users' ? 'left-[calc(50%+1px)]' : 'left-1'
+              }`}
+            />
             <button
               type="button"
-              onClick={() => setSearchType('jobs')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              onClick={() => { setSearchType('jobs'); analytics.filterApply('search_type', 'jobs', 'search_bar'); }}
+              className={`relative z-10 flex items-center justify-center gap-1.5 px-3 py-1.5 w-1/2 rounded-md text-sm font-medium transition-colors duration-200 ${
                 searchType === 'jobs'
-                  ? 'bg-white dark:bg-slate-600 text-sky-600 dark:text-sky-400 shadow-sm'
+                  ? 'text-sky-600 dark:text-sky-400'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
               title={t('search.jobsTooltip', 'Search available jobs by category, location or description')}
@@ -260,10 +276,10 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
             </button>
             <button
               type="button"
-              onClick={() => setSearchType('users')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              onClick={() => { setSearchType('users'); analytics.filterApply('search_type', 'users', 'search_bar'); }}
+              className={`relative z-10 flex items-center justify-center gap-1.5 px-3 py-1.5 w-1/2 rounded-md text-sm font-medium transition-colors duration-200 ${
                 searchType === 'users'
-                  ? 'bg-white dark:bg-slate-600 text-sky-600 dark:text-sky-400 shadow-sm'
+                  ? 'text-sky-600 dark:text-sky-400'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
               title={t('search.usersTooltip', 'Search professionals by username or skills')}
@@ -279,12 +295,34 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
             <input
+              ref={queryInputRef}
               type="text"
               value={query}
               onChange={(e) => handleQueryChange(e.target.value)}
+              onFocus={() => {
+                if (queryLocationSuggestions.length > 0) setShowQueryLocationSuggestions(true);
+              }}
               placeholder={searchType === 'users' ? t('home.searchUsers') : t('home.searchByTitle')}
               className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-transparent"
             />
+            {showQueryLocationSuggestions && queryLocationSuggestions.length > 0 && (
+              <div
+                ref={querySuggestionsRef}
+                className="absolute z-20 top-full left-0 right-0 mt-1 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-lg overflow-hidden"
+              >
+                {queryLocationSuggestions.map((s) => (
+                  <button
+                    key={s.value}
+                    type="button"
+                    onClick={() => handleSelectQueryLocation(s.value)}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-slate-700 dark:text-slate-200 hover:bg-sky-50 dark:hover:bg-slate-700 transition-colors"
+                  >
+                    <MapPin className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Only show filters button for jobs search */}
@@ -393,7 +431,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
                 <option value="">{t('search.allCategories', 'All categories')}</option>
                 {JOB_CATEGORIES.map((cat) => (
                   <option key={cat.id} value={cat.id}>
-                    {cat.icon} {cat.label}
+                    {cat.icon} {t(cat.labelKey, cat.label)}
                   </option>
                 ))}
               </select>
@@ -485,7 +523,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
               </label>
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SearchFilters['sortBy'])}
+                onChange={(e) => { const v = e.target.value as SearchFilters['sortBy']; setSortBy(v); analytics.filterApply('sort_by', v || 'date', 'search_bar'); }}
                 className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent"
               >
                 <option value="date">{t('search.sortByDate', 'Publication date')}</option>

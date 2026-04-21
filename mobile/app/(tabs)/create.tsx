@@ -3,31 +3,31 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import { LogoIcon } from '../../components/ui/Logo';
 
 export default function CreateScreen() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
+  const { colors: themeColors } = useTheme();
 
-  // Redirect to login if not authenticated (after loading completes)
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.replace('/(auth)/login');
     }
   }, [isAuthenticated, isLoading]);
 
-  // Show nothing while loading or redirecting
   if (isLoading || !isAuthenticated) {
     return null;
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['top']}>
+      <View style={[styles.header, { backgroundColor: themeColors.card, borderBottomColor: themeColors.border }]}>
         <View style={styles.headerRow}>
           <LogoIcon size="small" />
-          <Text style={styles.headerTitle}>Publicar</Text>
+          <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>Publicar</Text>
         </View>
       </View>
 
@@ -36,76 +36,48 @@ export default function CreateScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* Option Cards */}
         <TouchableOpacity
-          style={styles.optionCard}
+          style={[styles.optionCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
           onPress={() => router.push('/create-job')}
           activeOpacity={0.7}
         >
-          <View style={styles.optionIconContainer}>
+          <View style={[styles.optionIconContainer, { backgroundColor: themeColors.primary[50] }]}>
             <Text style={styles.optionIcon}>💼</Text>
           </View>
           <View style={styles.optionInfo}>
-            <Text style={styles.optionTitle}>Publicar un trabajo</Text>
-            <Text style={styles.optionDescription}>
+            <Text style={[styles.optionTitle, { color: themeColors.text.primary }]}>Publicar un trabajo</Text>
+            <Text style={[styles.optionDescription, { color: themeColors.text.secondary }]}>
               Encontrá profesionales para tu proyecto o tarea
             </Text>
           </View>
-          <Text style={styles.optionArrow}>›</Text>
+          <Text style={[styles.optionArrow, { color: themeColors.text.muted }]}>›</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.optionCard}
+          style={[styles.optionCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
           onPress={() => router.push('/portfolio/add')}
           activeOpacity={0.7}
         >
-          <View style={styles.optionIconContainer}>
+          <View style={[styles.optionIconContainer, { backgroundColor: themeColors.primary[50] }]}>
             <Text style={styles.optionIcon}>🖼️</Text>
           </View>
           <View style={styles.optionInfo}>
-            <Text style={styles.optionTitle}>Agregar a mi portfolio</Text>
-            <Text style={styles.optionDescription}>
+            <Text style={[styles.optionTitle, { color: themeColors.text.primary }]}>Agregar a mi portfolio</Text>
+            <Text style={[styles.optionDescription, { color: themeColors.text.secondary }]}>
               Mostrá tus trabajos anteriores a potenciales clientes
             </Text>
           </View>
-          <Text style={styles.optionArrow}>›</Text>
+          <Text style={[styles.optionArrow, { color: themeColors.text.muted }]}>›</Text>
         </TouchableOpacity>
 
-        {/* Tips Section */}
-        <View style={styles.tipsSection}>
-          <Text style={styles.tipsTitle}>💡 Tips para publicar</Text>
-
-          <View style={styles.tipItem}>
-            <View style={styles.tipBullet} />
-            <Text style={styles.tipText}>
-              Describí claramente qué necesitás
-            </Text>
-          </View>
-
-          <View style={styles.tipItem}>
-            <View style={styles.tipBullet} />
-            <Text style={styles.tipText}>
-              Especificá la ubicación y fechas
-            </Text>
-          </View>
-
-          <View style={styles.tipItem}>
-            <View style={styles.tipBullet} />
-            <Text style={styles.tipText}>
-              Establecé un presupuesto acorde al mercado
-            </Text>
-          </View>
-        </View>
-
-        {/* Security Notice */}
-        <View style={styles.securityNotice}>
-          <Text style={styles.securityIcon}>🔒</Text>
-          <View style={styles.securityContent}>
-            <Text style={styles.securityTitle}>Pagos seguros</Text>
-            <Text style={styles.securityText}>
-              El dinero queda en garantía hasta que ambas partes confirmen el trabajo completado.
-            </Text>
-          </View>
+        <View style={[styles.tipsSection, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+          <Text style={[styles.tipsTitle, { color: themeColors.text.primary }]}>💡 Tips para publicar</Text>
+          {['Describí claramente qué necesitás', 'Especificá la ubicación y fechas', 'Establecé un presupuesto acorde al mercado', 'Definí requisitos mínimos de finalización para evitar disputas'].map((tip) => (
+            <View key={tip} style={styles.tipItem}>
+              <View style={[styles.tipBullet, { backgroundColor: themeColors.primary[500] }]} />
+              <Text style={[styles.tipText, { color: themeColors.text.secondary }]}>{tip}</Text>
+            </View>
+          ))}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -113,131 +85,44 @@ export default function CreateScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.light,
-  },
+  container: { flex: 1 },
   header: {
     padding: spacing.lg,
-    backgroundColor: colors.card.light,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border.light,
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  headerTitle: {
-    fontSize: fontSize['2xl'],
-    fontWeight: fontWeight.bold,
-    color: colors.text.primary.light,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    padding: spacing.lg,
-  },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  headerTitle: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold },
+  scrollView: { flex: 1 },
+  content: { padding: spacing.lg },
   optionCard: {
-    backgroundColor: colors.card.light,
     borderRadius: borderRadius['2xl'],
     padding: spacing.xl,
     marginBottom: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: colors.border.light,
   },
   optionIconContainer: {
     width: 56,
     height: 56,
     borderRadius: borderRadius.xl,
-    backgroundColor: colors.primary[50],
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: spacing.lg,
   },
-  optionIcon: {
-    fontSize: 28,
-  },
-  optionInfo: {
-    flex: 1,
-  },
-  optionTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
-    color: colors.text.primary.light,
-    marginBottom: spacing.xs,
-  },
-  optionDescription: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary.light,
-    lineHeight: 20,
-  },
-  optionArrow: {
-    fontSize: fontSize['2xl'],
-    color: colors.slate[400],
-    marginLeft: spacing.sm,
-  },
+  optionIcon: { fontSize: 28 },
+  optionInfo: { flex: 1 },
+  optionTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, marginBottom: spacing.xs },
+  optionDescription: { fontSize: fontSize.sm, lineHeight: 20 },
+  optionArrow: { fontSize: fontSize['2xl'], marginLeft: spacing.sm },
   tipsSection: {
-    backgroundColor: colors.primary[50],
     borderRadius: borderRadius.xl,
     padding: spacing.lg,
     marginTop: spacing.md,
     borderWidth: 1,
-    borderColor: colors.primary[200],
   },
-  tipsTitle: {
-    fontSize: fontSize.base,
-    fontWeight: fontWeight.semibold,
-    color: colors.primary[800],
-    marginBottom: spacing.md,
-  },
-  tipItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: spacing.sm,
-  },
-  tipBullet: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.primary[500],
-    marginTop: 7,
-    marginRight: spacing.sm,
-  },
-  tipText: {
-    flex: 1,
-    fontSize: fontSize.sm,
-    color: colors.primary[700],
-    lineHeight: 20,
-  },
-  securityNotice: {
-    flexDirection: 'row',
-    backgroundColor: colors.success[50],
-    borderRadius: borderRadius.xl,
-    padding: spacing.lg,
-    marginTop: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.success[100],
-  },
-  securityIcon: {
-    fontSize: fontSize.xl,
-    marginRight: spacing.md,
-  },
-  securityContent: {
-    flex: 1,
-  },
-  securityTitle: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
-    color: colors.success[600],
-    marginBottom: spacing.xs,
-  },
-  securityText: {
-    fontSize: fontSize.xs,
-    color: colors.success[600],
-    lineHeight: 18,
-  },
+  tipsTitle: { fontSize: fontSize.base, fontWeight: fontWeight.semibold, marginBottom: spacing.md },
+  tipItem: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing.sm },
+  tipBullet: { width: 6, height: 6, borderRadius: 3, marginTop: 7, marginRight: spacing.sm },
+  tipText: { flex: 1, fontSize: fontSize.sm, lineHeight: 20 },
 });

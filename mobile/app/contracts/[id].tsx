@@ -10,6 +10,7 @@ import {
   Alert,
   TextInput,
   Platform,
+  Linking,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -24,6 +25,8 @@ import {
   Clock,
   Shield,
   XCircle,
+  MapPin,
+  Navigation,
 } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
@@ -431,6 +434,47 @@ export default function ContractDetailScreen() {
             )}
           </TouchableOpacity>
         </View>
+
+        {/* Ubicación del trabajo */}
+        {(job?.location || job?.neighborhood || (job as any)?.address) && (
+          <View style={[styles.section, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+            <Text style={[styles.sectionTitle, { color: themeColors.text.primary }]}>
+              Ubicación
+            </Text>
+            <View style={styles.locationCard}>
+              <View style={[styles.locationIconWrap, { backgroundColor: themeColors.primary[50] }]}>
+                <MapPin size={22} color={themeColors.primary[600]} strokeWidth={2} />
+              </View>
+              <View style={styles.locationInfo}>
+                <Text style={[styles.locationMain, { color: themeColors.text.primary }]}>
+                  {job?.neighborhood ? `${job.neighborhood}, ` : ''}{job?.location}
+                </Text>
+                {(job as any)?.postalCode ? (
+                  <Text style={[styles.locationSub, { color: themeColors.text.muted }]}>
+                    CP {(job as any).postalCode}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+            <TouchableOpacity
+              style={[styles.openMapBtn, { backgroundColor: themeColors.primary[600] }]}
+              onPress={() => {
+                const query = encodeURIComponent(
+                  [job?.neighborhood, job?.location].filter(Boolean).join(', ')
+                );
+                const url = Platform.OS === 'ios'
+                  ? `maps://maps.apple.com/?q=${query}`
+                  : `https://www.google.com/maps/search/?api=1&query=${query}`;
+                Linking.openURL(url).catch(() =>
+                  Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`)
+                );
+              }}
+            >
+              <Navigation size={16} color="#fff" strokeWidth={2} />
+              <Text style={styles.openMapBtnText}>Abrir en mapa</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Verificación de Trabajo */}
         {['in_progress', 'awaiting_confirmation', 'completed'].includes(contract.status) && (
@@ -909,6 +953,44 @@ const styles = StyleSheet.create({
   rejectButtonText: {
     color: '#fff',
     fontSize: fontSize.base,
+    fontWeight: fontWeight.semibold,
+  },
+  // Location map section
+  locationCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  locationIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.xl,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  locationInfo: {
+    flex: 1,
+  },
+  locationMain: {
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.medium,
+  },
+  locationSub: {
+    fontSize: fontSize.sm,
+    marginTop: 2,
+  },
+  openMapBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    height: 44,
+    borderRadius: borderRadius.lg,
+  },
+  openMapBtnText: {
+    color: '#fff',
+    fontSize: fontSize.sm,
     fontWeight: fontWeight.semibold,
   },
 });

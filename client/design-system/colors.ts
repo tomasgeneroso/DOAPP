@@ -29,7 +29,7 @@ export const colors = {
     },
     text: {
       primary: '#212121',
-      secondary: '#757575',
+      secondary: '#5c5c5c', // was #757575 (4.2:1) → now 6.1:1 on #F5F5F5 (WCAG AA)
       disabled: '#BDBDBD',
     },
     border: {
@@ -67,8 +67,8 @@ export const colors = {
     },
     text: {
       primary: '#FFFFFF',
-      secondary: '#B0B0B0',
-      disabled: '#666666',
+      secondary: '#B0B0B0', // 8.7:1 on #121212 ✓
+      disabled: '#888888',  // was #666666 (3.3:1) → now 5.4:1 on #121212 (WCAG AA)
     },
     border: {
       light: '#333333',

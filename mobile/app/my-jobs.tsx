@@ -10,7 +10,12 @@ import {
   ActivityIndicator,
   TextInput,
   Switch,
+  Dimensions,
 } from 'react-native';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+// 2 * 16px (spacing.lg) padding + 2px border = 34px total subtract
+const CAL_CELL_SIZE = Math.floor((SCREEN_WIDTH - 34) / 7);
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Briefcase, MapPin, Calendar, DollarSign, ChevronRight, ChevronLeft, Plus, Clock, Eye, EyeOff, Trash2, ChevronDown, ChevronUp, List } from 'lucide-react-native';
@@ -1083,10 +1088,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     overflow: 'hidden',
     marginBottom: spacing.md,
+    width: '100%',
   },
   calCell: {
-    width: `${100 / 7}%` as any,
-    aspectRatio: 1,
+    width: CAL_CELL_SIZE,
+    height: CAL_CELL_SIZE,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 2,

@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
 import { useSocket } from "../../hooks/useSocket";
@@ -17,12 +17,14 @@ import {
   FileText,
   Briefcase,
   Heart,
+  Network,
 } from "lucide-react";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useTheme } from "../../hooks/useTheme";
 import { Sun, Moon, Globe } from "lucide-react";
 import InvitationCodesModal from "../InvitationCodesModal";
 import NotificationDropdown from "../NotificationDropdown";
+import analytics from "../../utils/analytics";
 
 export default function Header() {
   const { t, i18n } = useTranslation();
@@ -30,6 +32,8 @@ export default function Header() {
   const { isDark, toggleTheme } = useTheme();
   const { registerUnreadUpdateHandler } = useSocket();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isVisitorHome = !user && location.pathname === '/';
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showInvitationModal, setShowInvitationModal] = useState(false);
@@ -46,6 +50,11 @@ export default function Header() {
   }, []);
 
   const closeMenu = useCallback(() => {
+    setIsMenuOpen(false);
+  }, []);
+
+  const handleNavClick = useCallback((dest: string) => {
+    analytics.navClick(dest, 'header');
     setIsMenuOpen(false);
   }, []);
 
@@ -144,7 +153,11 @@ export default function Header() {
   }, [user]);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-slate-200 dark:border-slate-700 bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg">
+    <header className={`sticky top-0 z-50 border-b transition-colors duration-300 ${
+      isVisitorHome
+        ? 'border-slate-800/60 bg-[#070d1a]/90 backdrop-blur-xl'
+        : 'border-slate-200/70 dark:border-slate-700/60 bg-white/85 dark:bg-slate-900/85 backdrop-blur-xl shadow-sm shadow-slate-200/40 dark:shadow-slate-900/40'
+    }`}>
       <div className="w-full max-w-[100vw] mx-auto flex h-16 items-center justify-between px-3 sm:px-4">
         <Link
           to="/"
@@ -152,7 +165,7 @@ export default function Header() {
           data-onboarding="logo"
         >
           {/* Logo Icon */}
-          <div className="relative flex h-9 w-9 sm:h-11 sm:w-11 items-center justify-center rounded-xl sm:rounded-2xl bg-gradient-to-br from-sky-500 via-sky-600 to-blue-600 shadow-lg shadow-sky-500/30 transition-all duration-300 group-hover:shadow-xl group-hover:shadow-sky-500/50 group-hover:scale-105">
+          <div className="relative flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl sm:rounded-2xl bg-gradient-to-br from-sky-500 via-sky-600 to-blue-700 shadow-md shadow-sky-600/40 transition-all duration-300 group-hover:shadow-lg group-hover:shadow-sky-500/50 group-hover:scale-105 group-hover:from-sky-400 group-hover:to-blue-600">
             <span className="text-lg sm:text-2xl font-black text-white tracking-tight">
               DO
             </span>
@@ -237,6 +250,7 @@ export default function Header() {
 
               <Link
                 to="/contracts/create"
+                onClick={() => analytics.navClick('/contracts/create', 'header')}
                 className="inline-flex items-center justify-center gap-1 sm:gap-2 rounded-lg sm:rounded-xl bg-slate-900 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white transition-colors hover:bg-black focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 whitespace-nowrap"
                 data-onboarding="create-job"
               >
@@ -262,6 +276,7 @@ export default function Header() {
           {user && features.chat && (
             <Link
               to="/messages"
+              onClick={() => analytics.navClick('/messages', 'header')}
               className="relative flex items-center justify-center w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
               aria-label={t('nav.messages')}
               data-onboarding="messages"
@@ -322,7 +337,7 @@ export default function Header() {
               {/* Menú desplegable */}
               {isMenuOpen && (
                 <div
-                  className="absolute right-0 mt-2 w-56 origin-top-right rounded-xl bg-white dark:bg-slate-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none overflow-hidden z-[100]"
+                  className="absolute right-0 mt-2 w-56 origin-top-right rounded-xl bg-white dark:bg-slate-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none overflow-hidden z-[100] animate-dropdownIn"
                   role="menu"
                   aria-orientation="vertical"
                   aria-labelledby="user-menu-button"
@@ -330,7 +345,7 @@ export default function Header() {
                   <div className="py-1" role="none">
                     <Link
                       to="/dashboard"
-                      onClick={closeMenu}
+                      onClick={() => handleNavClick('/dashboard')}
                       className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                       role="menuitem"
                     >
@@ -339,7 +354,7 @@ export default function Header() {
                     </Link>
                     <Link
                       to={`/profile/${user._id}`}
-                      onClick={closeMenu}
+                      onClick={() => handleNavClick('/profile')}
                       className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                       role="menuitem"
                     >
@@ -348,7 +363,7 @@ export default function Header() {
                     </Link>
                     <Link
                       to="/my-jobs"
-                      onClick={closeMenu}
+                      onClick={() => handleNavClick('/my-jobs')}
                       className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                       role="menuitem"
                     >
@@ -357,7 +372,7 @@ export default function Header() {
                     </Link>
                     <Link
                       to="/settings"
-                      onClick={closeMenu}
+                      onClick={() => handleNavClick('/settings')}
                       className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                       role="menuitem"
                     >
@@ -366,7 +381,7 @@ export default function Header() {
                     </Link>
                     <Link
                       to="/help"
-                      onClick={closeMenu}
+                      onClick={() => handleNavClick('/help')}
                       className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                       role="menuitem"
                     >
@@ -374,8 +389,17 @@ export default function Header() {
                       {t('nav.helpAndSupport', 'Help & Support')}
                     </Link>
                     <Link
+                      to="/sitemap"
+                      onClick={() => handleNavClick('/sitemap')}
+                      className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                      role="menuitem"
+                    >
+                      <Network className="h-4 w-4" aria-hidden="true" />
+                      Sitemap
+                    </Link>
+                    <Link
                       to="/referrals"
-                      onClick={closeMenu}
+                      onClick={() => handleNavClick('/referrals')}
                       className="flex w-full items-center gap-3 px-4 py-3 text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-colors"
                       role="menuitem"
                     >
@@ -454,13 +478,13 @@ export default function Header() {
             <div className="flex items-center gap-1 sm:gap-2">
               <Link
                 to="/login"
-                className="rounded-lg sm:rounded-xl px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 whitespace-nowrap"
+                className={`rounded-lg sm:rounded-xl px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium whitespace-nowrap transition-colors ${isVisitorHome ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
               >
                 {t('nav.login')}
               </Link>
               <Link
                 to="/register"
-                className="rounded-lg sm:rounded-xl bg-sky-500 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white hover:bg-sky-600 whitespace-nowrap"
+                className="rounded-lg sm:rounded-xl bg-sky-500 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white hover:bg-sky-400 transition-colors whitespace-nowrap"
               >
                 {t('nav.register')}
               </Link>

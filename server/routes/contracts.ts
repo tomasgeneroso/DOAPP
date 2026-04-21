@@ -123,7 +123,7 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
         {
           model: Job,
           as: 'job',
-          attributes: ['id', 'title', 'summary', 'location']
+          attributes: ['id', 'title', 'summary', 'location', 'neighborhood', 'postalCode']
         },
         {
           model: User,

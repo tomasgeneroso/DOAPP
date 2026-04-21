@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { JOB_CATEGORIES } from "../../shared/constants/categories";
@@ -6,6 +7,7 @@ import { Check, X } from "lucide-react";
 
 export default function OnboardingScreen() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -109,7 +111,7 @@ export default function OnboardingScreen() {
                         : "text-slate-700 dark:text-slate-300"
                     }`}
                   >
-                    {category.label}
+                    {t(category.labelKey, category.label)}
                   </span>
                 </button>
               );

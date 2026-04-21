@@ -1004,6 +1004,8 @@ router.post(
         category: req.body.category,
         tags: tags || [],
         location: req.body.location,
+        neighborhood: req.body.neighborhood || null,
+        postalCode: req.body.postalCode || null,
         addressStreet: req.body.addressStreet || null,
         addressNumber: req.body.addressNumber || null,
         addressDetails: req.body.addressDetails || null,
@@ -1019,6 +1021,15 @@ router.post(
         maxWorkers, // New: support for multiple workers (1-5)
         selectedWorkers: [], // Initialize empty array
         singleDelivery, // If true, single final delivery; if false, per-task due dates
+        completionRequirements: (() => {
+          const raw = req.body.completionRequirements;
+          if (Array.isArray(raw)) return raw.filter((r: string) => r && r.trim());
+          if (typeof raw === 'string') {
+            try { const parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed.filter((r: string) => r && r.trim()) : []; }
+            catch { return []; }
+          }
+          return [];
+        })(),
       };
 
       const job = await Job.create(jobData);

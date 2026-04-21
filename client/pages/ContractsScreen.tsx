@@ -232,10 +232,10 @@ export default function ContractsScreen() {
         <div className="mb-8 flex items-start justify-between">
           <div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-              {t('contracts.myContracts', 'Mis Contratos')}
+              {t('contracts.myContracts', 'My Contracts')}
             </h1>
             <p className="mt-2 text-slate-600 dark:text-slate-400">
-              {t('contracts.subtitle', 'Administra todos tus contratos activos y completados')}
+              {t('contracts.subtitle', 'Manage all your active and completed contracts')}
             </p>
           </div>
           <div className="flex items-center gap-2 text-sm">

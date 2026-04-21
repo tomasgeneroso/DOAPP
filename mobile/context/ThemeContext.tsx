@@ -13,49 +13,55 @@ interface ThemeContextType {
 }
 
 const lightColors = {
-  background: '#FFFFFF',
-  card: '#FFFFFF',
+  background: '#F0F4F8',
+  card: '#ffffff',
   text: {
-    primary: '#1e293b',
-    secondary: '#64748b',
-    muted: '#94a3b8',
+    primary:   '#1e293b',
+    secondary: '#475569', // slate-600 — 5.9:1 on white ✓
+    muted:     '#64748b', // slate-500 — 4.75:1 on white ✓
   },
   border: '#e2e8f0',
   primary: {
-    50: '#f0f9ff',
+    50:  '#f0f9ff',
     100: '#e0f2fe',
     600: '#0284c7',
   },
   slate: {
-    50: '#f8fafc',
+    50:  '#f8fafc',
     100: '#f1f5f9',
     200: '#e2e8f0',
     400: '#94a3b8',
     600: '#475569',
   },
+  // Glassmorphism surfaces
+  glass: 'rgba(255, 255, 255, 0.82)',
+  glassBorder: 'rgba(255, 255, 255, 0.5)',
 };
 
 const darkColors = {
-  background: '#0f172a',
-  card: '#1e293b',
+  background: '#070d1a',
+  card: '#0f1624',
   text: {
-    primary: '#f1f5f9',
-    secondary: '#94a3b8',
-    muted: '#64748b',
+    primary:   '#f1f5f9',
+    secondary: '#b0c4d8', // ~8:1 on dark bg ✓
+    muted:     '#8a9bb0', // ~5.5:1 on dark bg ✓
   },
-  border: '#334155',
+  border: '#1e2d42',
   primary: {
-    50: '#0c4a6e',
-    100: '#075985',
+    50:  '#082032',
+    100: '#0c3050',
     600: '#38bdf8',
   },
   slate: {
-    50: '#1e293b',
-    100: '#334155',
-    200: '#475569',
+    50:  '#0f1624',
+    100: '#1e2d42',
+    200: '#2a3d56',
     400: '#94a3b8',
     600: '#cbd5e1',
   },
+  // Glassmorphism surfaces
+  glass: 'rgba(7, 13, 26, 0.82)',
+  glassBorder: 'rgba(255, 255, 255, 0.08)',
 };
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);

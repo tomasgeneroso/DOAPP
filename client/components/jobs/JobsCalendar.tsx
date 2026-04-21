@@ -1039,7 +1039,7 @@ function JobsCalendar({ jobs, title, showFilters = true, availabilitySlots = [],
                         : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-600'
                     }`}
                   >
-                    {cat.icon} {cat.label}
+                    {cat.icon} {t(cat.labelKey, cat.label)}
                   </button>
                 ))}
               </div>
@@ -1145,7 +1145,7 @@ function JobsCalendar({ jobs, title, showFilters = true, availabilitySlots = [],
                   <span className="text-3xl">{getCategoryInfo(selectedJob.category)?.icon || '📋'}</span>
                   <div>
                     <h3 className="text-lg font-bold text-white">{selectedJob.title}</h3>
-                    <p className="text-sm text-white/80">{getCategoryInfo(selectedJob.category)?.label}</p>
+                    <p className="text-sm text-white/80">{getCategoryInfo(selectedJob.category) ? t(getCategoryInfo(selectedJob.category)!.labelKey, getCategoryInfo(selectedJob.category)!.label) : ''}</p>
                   </div>
                 </div>
                 <button

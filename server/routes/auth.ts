@@ -506,23 +506,42 @@ router.put("/complete-registration", protect, [
 // @access  Private
 router.put("/update", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { name, phone, bio, avatar } = req.body;
+    const { name, phone, bio, avatar, username, address } = req.body;
 
     const user = await User.findByPk(req.user.id as string);
-    if (user) {
-      await user.update({ name, phone, bio, avatar });
+    if (!user) {
+      res.status(404).json({ success: false, message: "Usuario no encontrado" });
+      return;
     }
+
+    // Validate username uniqueness if changing
+    if (username && username !== user.username) {
+      const existing = await User.findOne({ where: { username: username.toLowerCase() } });
+      if (existing) {
+        res.status(400).json({ success: false, message: "El nombre de usuario ya está en uso" });
+        return;
+      }
+    }
+
+    const updateData: any = { name, phone, bio };
+    if (avatar !== undefined) updateData.avatar = avatar;
+    if (username) updateData.username = username.toLowerCase().trim();
+    if (address) updateData.address = address;
+
+    await user.update(updateData);
 
     res.json({
       success: true,
       user: {
         _id: (user?.id as unknown as string),
-        id: (user?.id as unknown as string), // Alias for compatibility
+        id: (user?.id as unknown as string),
         name: user?.name,
+        username: user?.username,
         email: user?.email,
         phone: user?.phone,
         avatar: user?.avatar,
         bio: user?.bio,
+        address: user?.address,
         rating: user?.rating,
         reviewsCount: user?.reviewsCount,
         completedJobs: user?.completedJobs,
@@ -604,6 +623,7 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
   try {
     const {
       name,
+      username,
       phone,
       bio,
       address,
@@ -676,6 +696,7 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
     // Actualizar usuario
     const updateData: any = {};
     if (name) updateData.name = name;
+    if (username && username !== oldUser.username) updateData.username = username.toLowerCase().trim();
     if (phone !== undefined) updateData.phone = phone;
     if (bio !== undefined) updateData.bio = bio;
     if (address) updateData.address = address;

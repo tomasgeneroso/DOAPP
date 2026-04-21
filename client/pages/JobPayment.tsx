@@ -866,35 +866,41 @@ export default function JobPayment() {
           )}
 
           {/* Actions */}
-          <div className="p-6 bg-gray-50 dark:bg-gray-900">
+          <div className="p-6 bg-slate-50 dark:bg-slate-900/60 space-y-3">
             <button
               onClick={handlePayment}
               disabled={processing}
-              className={`w-full ${isFreeContract ? 'bg-green-600 hover:bg-green-700 disabled:bg-green-400' : 'bg-sky-600 hover:bg-sky-700 disabled:bg-sky-400'} text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center justify-center gap-2`}
+              className={`
+                w-full flex items-center justify-center gap-2.5 rounded-2xl py-3.5 px-6 font-semibold text-white text-base
+                transition-all duration-200 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed
+                ${isFreeContract
+                  ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 shadow-lg shadow-green-500/30 hover:shadow-green-500/40'
+                  : 'bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 shadow-lg shadow-sky-500/30 hover:shadow-sky-500/40'}
+              `}
             >
               {processing ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  {isFreeContract ? t('jobs.publishing', 'Publishing...') : t('common.processing', 'Processing...')}
+                  {isFreeContract ? t('jobs.publishing', 'Publicando...') : t('common.processing', 'Procesando...')}
                 </>
               ) : isFreeContract ? (
                 <>
                   <CreditCard className="w-5 h-5" />
-                  🎉 Publicar Gratis
+                  Publicar gratis
                 </>
               ) : (
                 <>
                   <CreditCard className="w-5 h-5" />
-                  Proceder al Pago
+                  Completar pago
                 </>
               )}
             </button>
             <button
               onClick={isBudgetIncrease ? handleCancelBudgetChange : () => navigate("/")}
               disabled={processing}
-              className="w-full mt-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 font-medium py-2 px-6 rounded-lg transition-colors disabled:opacity-50"
+              className="w-full rounded-2xl py-3 px-6 font-medium text-sm text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
             >
-              {isBudgetIncrease ? t('payments.cancelChange', 'Cancel Change') : t('common.cancel', 'Cancel')}
+              {isBudgetIncrease ? t('payments.cancelChange', 'Cancelar cambio') : t('common.cancel', 'Cancelar')}
             </button>
           </div>
         </div>

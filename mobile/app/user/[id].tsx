@@ -7,13 +7,15 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
+  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
-import { ArrowLeft, Star, MapPin, Calendar, Briefcase, CheckCircle, Award, MessageCircle, Clock } from 'lucide-react-native';
+import { ArrowLeft, Star, MapPin, Calendar, Briefcase, CheckCircle, Award, MessageCircle, Clock, Image as ImageIcon, Heart } from 'lucide-react-native';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import { useTheme } from '../../context/ThemeContext';
-import { get } from '../../services/api';
+import { get, getImageUrl } from '../../services/api';
+import { getCategoryById } from '../../services/jobs';
 
 const DAY_NAMES_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
@@ -54,10 +56,14 @@ export default function UserProfileScreen() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [portfolio, setPortfolio] = useState<any[]>([]);
+  const [reviews, setReviews] = useState<any[]>([]);
 
   useEffect(() => {
     if (id) {
       fetchUserProfile();
+      fetchPortfolio();
+      fetchReviews();
     }
   }, [id]);
 
@@ -76,6 +82,49 @@ export default function UserProfileScreen() {
       setError('Error de conexión');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchPortfolio = async () => {
+    try {
+      const response = await get<any>(`/portfolio/user/${id}`);
+      if (response.success) {
+        const data = (response as any).data;
+        setPortfolio(Array.isArray(data) ? data.slice(0, 6) : []);
+      }
+    } catch {}
+  };
+
+  const fetchReviews = async () => {
+    try {
+      const response = await get<any>(`/reviews/user/${id}`);
+      if (response.success) {
+        const data = (response as any).data || (response as any).reviews || [];
+        setReviews(Array.isArray(data) ? data.slice(0, 5) : []);
+      }
+    } catch {}
+  };
+
+  const startChat = async () => {
+    try {
+      const response = await get<any>(`/chat/conversations`);
+      const conversations = (response as any).conversations || (response as any).data || [];
+      const existing = conversations.find((c: any) => {
+        const parts = c.participants || [];
+        return parts.some((p: any) => (p.id || p._id) === id || p === id);
+      });
+      if (existing) {
+        router.push(`/chat/${existing.id || existing._id}`);
+      } else {
+        const { post } = await import('../../services/api');
+        const newConv = await post<any>('/chat/conversations', { participantId: id });
+        if (newConv.success) {
+          const conv = (newConv as any).conversation || newConv.data;
+          router.push(`/chat/${conv.id || conv._id}`);
+        }
+      }
+    } catch (err) {
+      console.error('Error starting chat:', err);
     }
   };
 
@@ -178,11 +227,6 @@ export default function UserProfileScreen() {
                 </Text>
               </View>
             )}
-            {user.isVerified && (
-              <View style={styles.verifiedBadge}>
-                <CheckCircle size={20} color="#fff" fill={colors.success[500]} />
-              </View>
-            )}
           </View>
 
           {/* Name and Badge */}
@@ -237,7 +281,7 @@ export default function UserProfileScreen() {
           {/* Contact Button */}
           <TouchableOpacity
             style={[styles.contactButton, { backgroundColor: themeColors.primary[600] }]}
-            onPress={() => {/* TODO: Navigate to chat */}}
+            onPress={startChat}
           >
             <MessageCircle size={20} color="#fff" />
             <Text style={styles.contactButtonText}>Contactar</Text>
@@ -311,6 +355,91 @@ export default function UserProfileScreen() {
                 </View>
               ))}
             </View>
+          </View>
+        )}
+
+        {/* Portfolio */}
+        {portfolio.length > 0 && (
+          <View style={[styles.sectionCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+            <Text style={[styles.sectionTitle, { color: themeColors.text.primary }]}>Portfolio</Text>
+            <View style={styles.portfolioGrid}>
+              {portfolio.map((item: any) => {
+                const cat = getCategoryById(item.category);
+                return (
+                  <TouchableOpacity
+                    key={item.id || item._id}
+                    style={[styles.portfolioCard, { backgroundColor: themeColors.background, borderColor: themeColors.border }]}
+                    onPress={() => router.push(`/portfolio/${item.id || item._id}`)}
+                  >
+                    {item.images && item.images.length > 0 ? (
+                      <Image source={{ uri: getImageUrl(item.images[0]) || item.images[0] }} style={styles.portfolioImage} resizeMode="cover" />
+                    ) : (
+                      <View style={[styles.portfolioImagePlaceholder, { backgroundColor: themeColors.slate[100] }]}>
+                        <ImageIcon size={24} color={themeColors.text.muted} />
+                      </View>
+                    )}
+                    <View style={{ padding: spacing.xs }}>
+                      <Text style={[styles.portfolioTitle, { color: themeColors.text.primary }]} numberOfLines={1}>{item.title}</Text>
+                      {cat && <Text style={[styles.portfolioCategory, { color: themeColors.primary[600] }]}>{cat.icon} {cat.label}</Text>}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                        <Heart size={12} color={colors.danger[400]} />
+                        <Text style={[{ fontSize: fontSize.xs, color: themeColors.text.muted }]}>{item.likes || 0}</Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {portfolio.length >= 6 && (
+              <TouchableOpacity onPress={() => router.push(`/user/${id}/portfolio` as any)} style={styles.seeMoreBtn}>
+                <Text style={[styles.seeMoreText, { color: themeColors.primary[600] }]}>Ver todo el portfolio →</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {/* Reviews */}
+        {reviews.length > 0 && (
+          <View style={[styles.sectionCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+            <Text style={[styles.sectionTitle, { color: themeColors.text.primary }]}>Opiniones</Text>
+            {reviews.map((review: any, idx: number) => {
+              const reviewer = review.reviewer;
+              const reviewerName = typeof reviewer === 'object' ? reviewer?.name : 'Usuario';
+              const reviewerAvatar = typeof reviewer === 'object' ? reviewer?.avatar : null;
+              const avgRating = ((review.workQualityRating || 0) + (review.workerRating || 0) + (review.contractRating || 0)) / 3;
+              return (
+                <View key={review._id || idx} style={[styles.reviewItem, { borderTopColor: themeColors.border, borderTopWidth: idx > 0 ? 1 : 0 }]}>
+                  <View style={styles.reviewHeader}>
+                    {reviewerAvatar ? (
+                      <Image source={{ uri: getImageUrl(reviewerAvatar) || reviewerAvatar }} style={styles.reviewAvatar} />
+                    ) : (
+                      <View style={[styles.reviewAvatarPlaceholder, { backgroundColor: themeColors.primary[50] }]}>
+                        <Text style={{ color: themeColors.primary[600], fontSize: fontSize.xs, fontWeight: fontWeight.bold }}>
+                          {reviewerName.substring(0, 1).toUpperCase()}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={{ flex: 1 }}>
+                      <Text style={[{ fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: themeColors.text.primary }]}>{reviewerName}</Text>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        {[1,2,3,4,5].map(s => (
+                          <Star key={s} size={12} color={colors.warning[500]} fill={s <= Math.round(avgRating) ? colors.warning[500] : 'transparent'} />
+                        ))}
+                        <Text style={[{ fontSize: fontSize.xs, color: themeColors.text.muted }]}>{avgRating.toFixed(1)}</Text>
+                      </View>
+                    </View>
+                    <Text style={[{ fontSize: fontSize.xs, color: themeColors.text.muted }]}>
+                      {new Date(review.createdAt).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}
+                    </Text>
+                  </View>
+                  {review.comment && (
+                    <Text style={[{ fontSize: fontSize.sm, color: themeColors.text.secondary, marginTop: spacing.xs, lineHeight: 20 }]} numberOfLines={3}>
+                      "{review.comment}"
+                    </Text>
+                  )}
+                </View>
+              );
+            })}
           </View>
         )}
 
@@ -653,5 +782,74 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xs,
     color: colors.primary[700],
     fontWeight: fontWeight.medium,
+  },
+  sectionCard: {
+    borderRadius: borderRadius.xl,
+    borderWidth: 1,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  sectionTitle: {
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.bold,
+    marginBottom: spacing.md,
+  },
+  portfolioGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  portfolioCard: {
+    width: '47%',
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  portfolioImage: {
+    width: '100%',
+    height: 90,
+  },
+  portfolioImagePlaceholder: {
+    width: '100%',
+    height: 90,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  portfolioTitle: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.semibold,
+  },
+  portfolioCategory: {
+    fontSize: fontSize.xs,
+    marginTop: 2,
+  },
+  seeMoreBtn: {
+    marginTop: spacing.md,
+    alignItems: 'center',
+  },
+  seeMoreText: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+  },
+  reviewItem: {
+    paddingVertical: spacing.md,
+  },
+  reviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  reviewAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  reviewAvatarPlaceholder: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

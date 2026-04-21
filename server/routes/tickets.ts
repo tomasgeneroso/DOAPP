@@ -120,6 +120,25 @@ router.post(
         );
       }
 
+      // Notify support team
+      const supportEmail = process.env.SMTP_USER || process.env.SUPPORT_EMAIL;
+      if (supportEmail) {
+        const adminTicketUrl = `${process.env.CLIENT_URL || 'http://localhost:5173'}/admin/tickets/${ticket.id}`;
+        await emailService.sendEmail({
+          to: supportEmail,
+          subject: `[Nuevo Ticket] ${ticketNumber} - ${subject}`,
+          html: `<p>Nuevo ticket de soporte recibido.</p>
+            <ul>
+              <li><strong>Número:</strong> ${ticketNumber}</li>
+              <li><strong>Usuario:</strong> ${user?.name || 'N/A'} (${user?.email || 'N/A'})</li>
+              <li><strong>Categoría:</strong> ${category}</li>
+              <li><strong>Asunto:</strong> ${subject}</li>
+              <li><strong>Mensaje:</strong> ${message}</li>
+            </ul>
+            <a href="${adminTicketUrl}">Ver ticket en panel admin</a>`,
+        }).catch(() => {}); // Non-blocking
+      }
+
       res.status(201).json({
         success: true,
         ticket,

@@ -190,15 +190,18 @@ export default function MessagesScreen() {
 
     return (
       <TouchableOpacity
-        style={[styles.conversationItem, hasUnread && styles.conversationUnread]}
+        style={[
+          styles.conversationItem,
+          { backgroundColor: hasUnread ? themeColors.primary[50] : themeColors.card, borderBottomColor: themeColors.border },
+        ]}
         onPress={() => router.push(`/chat/${item._id}`)}
         activeOpacity={0.7}
       >
         {other?.avatar ? (
           <Image source={{ uri: other.avatar }} style={styles.avatar} />
         ) : (
-          <View style={styles.avatarPlaceholder}>
-            <Text style={styles.avatarText}>
+          <View style={[styles.avatarPlaceholder, { backgroundColor: themeColors.slate[200] }]}>
+            <Text style={[styles.avatarText, { color: themeColors.slate[500] }]}>
               {other?.name?.charAt(0)?.toUpperCase() || '?'}
             </Text>
           </View>
@@ -206,11 +209,11 @@ export default function MessagesScreen() {
 
         <View style={styles.conversationContent}>
           <View style={styles.conversationHeader}>
-            <Text style={[styles.userName, hasUnread && styles.userNameUnread]}>
+            <Text style={[styles.userName, { color: themeColors.text.primary, fontWeight: hasUnread ? fontWeight.bold : fontWeight.medium }]}>
               {other?.name || 'Usuario'}
             </Text>
             {item.lastMessage && (
-              <Text style={styles.messageTime}>
+              <Text style={[styles.messageTime, { color: themeColors.text.muted }]}>
                 {formatTime(item.lastMessage.createdAt)}
               </Text>
             )}
@@ -218,7 +221,7 @@ export default function MessagesScreen() {
 
           <View style={styles.conversationFooter}>
             <Text
-              style={[styles.lastMessage, hasUnread && styles.lastMessageUnread]}
+              style={[styles.lastMessage, { color: hasUnread ? themeColors.text.primary : themeColors.text.secondary, fontWeight: hasUnread ? fontWeight.medium : fontWeight.normal }]}
               numberOfLines={1}
             >
               {item.lastMessage?.content || 'Sin mensajes'}
@@ -236,11 +239,11 @@ export default function MessagesScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]}>
+        <View style={[styles.header, { backgroundColor: themeColors.card, borderBottomColor: themeColors.border }]}>
           <View style={styles.headerRow}>
             <LogoIcon size="small" />
-            <Text style={styles.headerTitle}>Mensajes</Text>
+            <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>Mensajes</Text>
           </View>
         </View>
         <View style={styles.loadingContainer}>
@@ -251,11 +254,11 @@ export default function MessagesScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: themeColors.background }]} edges={['top']}>
+      <View style={[styles.header, { backgroundColor: themeColors.card, borderBottomColor: themeColors.border }]}>
         <View style={styles.headerRow}>
           <LogoIcon size="small" />
-          <Text style={styles.headerTitle}>Mensajes</Text>
+          <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>Mensajes</Text>
           <View style={{ flex: 1 }} />
           <TouchableOpacity
             onPress={() => setShowNewMessageModal(true)}
@@ -284,8 +287,8 @@ export default function MessagesScreen() {
       ) : (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyIcon}>💬</Text>
-          <Text style={styles.emptyTitle}>Sin conversaciones</Text>
-          <Text style={styles.emptyText}>
+          <Text style={[styles.emptyTitle, { color: themeColors.text.primary }]}>Sin conversaciones</Text>
+          <Text style={[styles.emptyText, { color: themeColors.text.secondary }]}>
             Tus mensajes con clientes y trabajadores aparecerán acá
           </Text>
           <TouchableOpacity
@@ -474,94 +477,35 @@ export default function MessagesScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background.light,
-  },
+  container: { flex: 1 },
   header: {
     padding: spacing.lg,
-    backgroundColor: colors.card.light,
     borderBottomWidth: 1,
-    borderBottomColor: colors.border.light,
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-  },
-  headerTitle: {
-    fontSize: fontSize['2xl'],
-    fontWeight: fontWeight.bold,
-    color: colors.text.primary.light,
-  },
-  listContent: {
-    paddingVertical: spacing.sm,
-  },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  headerTitle: { fontSize: fontSize['2xl'], fontWeight: fontWeight.bold },
+  listContent: { paddingVertical: spacing.sm },
   conversationItem: {
     flexDirection: 'row',
     padding: spacing.lg,
-    backgroundColor: colors.card.light,
     borderBottomWidth: 1,
-    borderBottomColor: colors.slate[100],
   },
-  conversationUnread: {
-    backgroundColor: colors.primary[50],
-  },
-  avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: borderRadius.full,
-    marginRight: spacing.md,
-  },
+  avatar: { width: 52, height: 52, borderRadius: borderRadius.full, marginRight: spacing.md },
   avatarPlaceholder: {
     width: 52,
     height: 52,
     borderRadius: borderRadius.full,
-    backgroundColor: colors.slate[200],
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: spacing.md,
   },
-  avatarText: {
-    fontSize: fontSize.xl,
-    fontWeight: fontWeight.bold,
-    color: colors.slate[500],
-  },
-  conversationContent: {
-    flex: 1,
-    justifyContent: 'center',
-  },
-  conversationHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: spacing.xs,
-  },
-  userName: {
-    fontSize: fontSize.base,
-    fontWeight: fontWeight.medium,
-    color: colors.text.primary.light,
-  },
-  userNameUnread: {
-    fontWeight: fontWeight.bold,
-  },
-  messageTime: {
-    fontSize: fontSize.xs,
-    color: colors.slate[400],
-  },
-  conversationFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  lastMessage: {
-    flex: 1,
-    fontSize: fontSize.sm,
-    color: colors.text.secondary.light,
-  },
-  lastMessageUnread: {
-    color: colors.text.primary.light,
-    fontWeight: fontWeight.medium,
-  },
+  avatarText: { fontSize: fontSize.xl, fontWeight: fontWeight.bold },
+  conversationContent: { flex: 1, justifyContent: 'center' },
+  conversationHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.xs },
+  userName: { fontSize: fontSize.base },
+  messageTime: { fontSize: fontSize.xs },
+  conversationFooter: { flexDirection: 'row', alignItems: 'center' },
+  lastMessage: { flex: 1, fontSize: fontSize.sm },
   unreadBadge: {
     backgroundColor: colors.primary[500],
     borderRadius: borderRadius.full,
@@ -592,17 +536,8 @@ const styles = StyleSheet.create({
     fontSize: 48,
     marginBottom: spacing.lg,
   },
-  emptyTitle: {
-    fontSize: fontSize.lg,
-    fontWeight: fontWeight.semibold,
-    color: colors.text.primary.light,
-    marginBottom: spacing.sm,
-  },
-  emptyText: {
-    fontSize: fontSize.sm,
-    color: colors.text.secondary.light,
-    textAlign: 'center',
-  },
+  emptyTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.semibold, marginBottom: spacing.sm },
+  emptyText: { fontSize: fontSize.sm, textAlign: 'center' },
   emptyBtn: {
     marginTop: spacing.lg,
     paddingHorizontal: spacing.xl,

@@ -444,9 +444,12 @@ export default function JobDetail() {
     }
   };
 
-  // Get job code (first 8 chars of UUID in uppercase)
   const getJobCode = (jobId: string) => {
-    return jobId?.substring(0, 8).toUpperCase() || '';
+    if (!jobId) return 'A0000';
+    const hex = jobId.replace(/-/g, '');
+    const letter = String.fromCharCode(65 + (parseInt(hex[0], 16) % 26));
+    const nums = hex.slice(1, 5).split('').map(c => String(parseInt(c, 16) % 10)).join('');
+    return letter + nums;
   };
 
   const handleCopyJobCode = () => {
@@ -1067,7 +1070,7 @@ export default function JobDetail() {
                     </span>
                     <div className="flex items-center gap-1">
                       <MapPin className="h-4 w-4" />
-                      <span>{job.location}{job.neighborhood ? `, ${job.neighborhood}` : ''}</span>
+                      <span>{[job.addressStreet, job.neighborhood, job.postalCode ? `CP ${job.postalCode}` : null, job.location, 'Argentina'].filter(Boolean).join(', ')}</span>
                     </div>
                     <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-300">
                       <Star className="h-3 w-3 fill-amber-500 text-amber-500" />

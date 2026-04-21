@@ -10,13 +10,15 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Tag } from 'lucide-react-native';
+import { ArrowLeft, Tag, Camera, X } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
-import { post } from '../../services/api';
+import { upload, post } from '../../services/api';
 import { getCategories } from '../../services/jobs';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 
@@ -32,6 +34,7 @@ export default function AddPortfolioScreen() {
   const [category, setCategory] = useState('');
   const [clientName, setClientName] = useState('');
   const [projectDuration, setProjectDuration] = useState('');
+  const [images, setImages] = useState<{ uri: string; name: string; type: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showCategories, setShowCategories] = useState(false);
@@ -45,6 +48,33 @@ export default function AddPortfolioScreen() {
     return Object.keys(newErrors).length === 0;
   };
 
+  const pickImage = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería para subir fotos.');
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsMultipleSelection: true,
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets) {
+      const newImages = result.assets.slice(0, 5 - images.length).map((asset) => ({
+        uri: asset.uri,
+        name: asset.fileName || `photo_${Date.now()}.jpg`,
+        type: asset.mimeType || 'image/jpeg',
+      }));
+      setImages((prev) => [...prev, ...newImages].slice(0, 5));
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async () => {
     if (!isAuthenticated) {
       router.push('/(auth)/login');
@@ -55,15 +85,28 @@ export default function AddPortfolioScreen() {
 
     setLoading(true);
     try {
-      const data = {
-        title: title.trim(),
-        description: description.trim(),
-        category,
-        clientName: clientName.trim() || undefined,
-        projectDuration: projectDuration.trim() || undefined,
-      };
+      let response: any;
 
-      const response = await post<any>('/portfolio', data);
+      if (images.length > 0) {
+        const formData = new FormData();
+        formData.append('title', title.trim());
+        formData.append('description', description.trim());
+        formData.append('category', category);
+        if (clientName.trim()) formData.append('clientName', clientName.trim());
+        if (projectDuration.trim()) formData.append('projectDuration', projectDuration.trim());
+        images.forEach((img) => {
+          formData.append('images', { uri: img.uri, name: img.name, type: img.type } as any);
+        });
+        response = await upload<any>('/portfolio', formData);
+      } else {
+        response = await post<any>('/portfolio', {
+          title: title.trim(),
+          description: description.trim(),
+          category,
+          clientName: clientName.trim() || undefined,
+          projectDuration: projectDuration.trim() || undefined,
+        });
+      }
 
       if (response.success) {
         Alert.alert(
@@ -101,6 +144,32 @@ export default function AddPortfolioScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
+          {/* Photos */}
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: themeColors.text.primary }]}>
+              Fotos <Text style={{ color: themeColors.text.muted, fontWeight: '400' }}>(opcional, máx. 5)</Text>
+            </Text>
+            <View style={styles.imagesRow}>
+              {images.map((img, index) => (
+                <View key={index} style={styles.imageThumbContainer}>
+                  <Image source={{ uri: img.uri }} style={styles.imageThumb} />
+                  <TouchableOpacity style={styles.removeImageBtn} onPress={() => removeImage(index)}>
+                    <X size={12} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+              {images.length < 5 && (
+                <TouchableOpacity
+                  style={[styles.addImageBtn, { backgroundColor: themeColors.slate[100], borderColor: themeColors.border }]}
+                  onPress={pickImage}
+                >
+                  <Camera size={24} color={themeColors.text.muted} />
+                  <Text style={[styles.addImageText, { color: themeColors.text.muted }]}>Agregar</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
           {/* Title */}
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: themeColors.text.primary }]}>Título *</Text>
@@ -140,7 +209,7 @@ export default function AddPortfolioScreen() {
               onPress={() => setShowCategories(!showCategories)}
             >
               <Text style={[styles.selectText, { color: category ? themeColors.text.primary : themeColors.text.muted }]}>
-                {category || 'Seleccionar categoría'}
+                {category ? (() => { const c = categories.find(x => x.id === category); return c ? `${c.icon} ${c.label}` : category; })() : 'Seleccionar categoría'}
               </Text>
               <Text style={{ color: themeColors.text.muted }}>{showCategories ? '▲' : '▼'}</Text>
             </TouchableOpacity>
@@ -151,12 +220,12 @@ export default function AddPortfolioScreen() {
                 <ScrollView style={styles.dropdownScroll} nestedScrollEnabled>
                   {categories.map((cat) => (
                     <TouchableOpacity
-                      key={cat}
-                      style={[styles.dropdownItem, category === cat && { backgroundColor: themeColors.primary[50] }]}
-                      onPress={() => { setCategory(cat); setShowCategories(false); }}
+                      key={cat.id}
+                      style={[styles.dropdownItem, category === cat.id && { backgroundColor: themeColors.primary[50] }]}
+                      onPress={() => { setCategory(cat.id); setShowCategories(false); }}
                     >
-                      <Text style={[styles.dropdownItemText, { color: themeColors.text.primary }, category === cat && { color: themeColors.primary[600] }]}>
-                        {cat}
+                      <Text style={[styles.dropdownItemText, { color: themeColors.text.primary }, category === cat.id && { color: themeColors.primary[600] }]}>
+                        {cat.icon} {cat.label}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -262,6 +331,31 @@ const styles = StyleSheet.create({
   dropdownItem: { paddingVertical: spacing.sm + 2, paddingHorizontal: spacing.md },
   dropdownItemText: { fontSize: fontSize.sm },
   errorText: { color: colors.danger[500], fontSize: fontSize.xs, marginTop: spacing.xs },
+  imagesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  imageThumbContainer: { position: 'relative', width: 80, height: 80 },
+  imageThumb: { width: 80, height: 80, borderRadius: borderRadius.md },
+  removeImageBtn: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  addImageBtn: {
+    width: 80,
+    height: 80,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  addImageText: { fontSize: fontSize.xs },
   button: {
     height: 48,
     backgroundColor: colors.primary[600],

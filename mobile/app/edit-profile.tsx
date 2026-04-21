@@ -11,13 +11,16 @@ import {
   ActivityIndicator,
   Alert,
   Switch,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, User, Camera, Plus, Trash2, Clock, Eye, EyeOff } from 'lucide-react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { updateProfile, updateSettings } from '../services/auth';
+import { upload, getImageUrl } from '../services/api';
 import { AvailabilitySlot, AvailabilitySchedule } from '../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
 import LocationAutocomplete from '../components/ui/LocationAutocomplete';
@@ -36,6 +39,8 @@ export default function EditProfileScreen() {
   const [phone, setPhone] = useState('');
   const [city, setCity] = useState('');
   const [loading, setLoading] = useState(false);
+  const [avatarUri, setAvatarUri] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   // Availability state
   const [availabilitySlots, setAvailabilitySlots] = useState<AvailabilitySlot[]>([]);
@@ -76,6 +81,76 @@ export default function EditProfileScreen() {
     refreshUser().catch(() => {});
     return () => { availabilityLocallyModified.current = false; };
   }, []);
+
+  const handleAvatarChange = async () => {
+    Alert.alert(
+      'Cambiar foto',
+      'Elegí de dónde querés subir tu foto',
+      [
+        {
+          text: 'Cámara',
+          onPress: async () => {
+            const permission = await ImagePicker.requestCameraPermissionsAsync();
+            if (!permission.granted) {
+              Alert.alert('Permiso requerido', 'Necesitamos acceso a la cámara');
+              return;
+            }
+            const result = await ImagePicker.launchCameraAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              allowsEditing: true,
+              aspect: [1, 1],
+              quality: 0.8,
+            });
+            if (!result.canceled && result.assets[0]) {
+              await uploadAvatar(result.assets[0].uri);
+            }
+          },
+        },
+        {
+          text: 'Galería',
+          onPress: async () => {
+            const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (!permission.granted) {
+              Alert.alert('Permiso requerido', 'Necesitamos acceso a tu galería');
+              return;
+            }
+            const result = await ImagePicker.launchImageLibraryAsync({
+              mediaTypes: ImagePicker.MediaTypeOptions.Images,
+              allowsEditing: true,
+              aspect: [1, 1],
+              quality: 0.8,
+            });
+            if (!result.canceled && result.assets[0]) {
+              await uploadAvatar(result.assets[0].uri);
+            }
+          },
+        },
+        { text: 'Cancelar', style: 'cancel' },
+      ]
+    );
+  };
+
+  const uploadAvatar = async (uri: string) => {
+    setUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      const filename = uri.split('/').pop() || 'avatar.jpg';
+      const ext = filename.split('.').pop()?.toLowerCase() || 'jpg';
+      const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
+      formData.append('avatar', { uri, name: filename, type: mimeType } as any);
+      const response = await upload<any>('/users/avatar', formData);
+      if (response.success) {
+        setAvatarUri(uri);
+        await refreshUser();
+      } else {
+        Alert.alert('Error', response.message || 'No se pudo subir la foto');
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Error al subir la foto');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
 
   const getSlotsForDay = (day: number) =>
     availabilitySlots.filter((s) => s.day === day);
@@ -220,21 +295,28 @@ export default function EditProfileScreen() {
           {/* Avatar */}
           <View style={styles.avatarSection}>
             <View style={[styles.avatar, { backgroundColor: themeColors.slate[100] }]}>
-              {user?.avatar ? (
-                <Text style={styles.avatarInitial}>
-                  {user.name?.charAt(0).toUpperCase()}
-                </Text>
+              {avatarUri || user?.avatar ? (
+                <Image
+                  source={{ uri: avatarUri || getImageUrl(user?.avatar) || '' }}
+                  style={styles.avatarImage}
+                />
               ) : (
                 <User size={40} color={themeColors.text.secondary} />
+              )}
+              {uploadingAvatar && (
+                <View style={styles.avatarOverlay}>
+                  <ActivityIndicator color="#fff" />
+                </View>
               )}
             </View>
             <TouchableOpacity
               style={[styles.changeAvatarButton, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
-              onPress={() => Alert.alert('Cambiar foto', 'Próximamente')}
+              onPress={handleAvatarChange}
+              disabled={uploadingAvatar}
             >
               <Camera size={16} color={themeColors.primary[600]} />
               <Text style={[styles.changeAvatarText, { color: themeColors.primary[600] }]}>
-                Cambiar foto
+                {uploadingAvatar ? 'Subiendo...' : 'Cambiar foto'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -355,9 +437,11 @@ export default function EditProfileScreen() {
             <Text style={[styles.infoValue, { color: themeColors.text.primary }]}>
               {user?.email}
             </Text>
-            <Text style={[styles.infoHint, { color: themeColors.text.muted }]}>
-              El email no se puede cambiar
-            </Text>
+            <TouchableOpacity onPress={() => router.push('/settings?tab=email')}>
+              <Text style={[styles.infoHint, { color: themeColors.primary[600] }]}>
+                ¿Querés cambiar tu email? Solicitalo al soporte →
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Availability Schedule */}
@@ -546,6 +630,20 @@ const styles = StyleSheet.create({
     fontSize: 40,
     fontWeight: fontWeight.bold,
     color: colors.primary[600],
+  },
+  avatarImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  avatarOverlay: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   changeAvatarButton: {
     flexDirection: 'row',

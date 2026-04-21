@@ -931,131 +931,35 @@ export default function MyJobsScreen() {
         {/* List View - Published Jobs */}
         {viewMode === "list" && mainTab === "published" && (
           <>
-            {/* Stats Cards */}
+            {/* Stats Cards — clickable filters */}
             <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('common.total', 'Total')}</p>
-                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{jobs.length}</p>
+              {[
+                { key: "all" as const, label: t('common.total', 'Total'), count: jobs.length, icon: <Briefcase className="h-8 w-8 text-slate-400" />, activeColor: "border-sky-500 bg-sky-50 dark:bg-sky-900/20 ring-2 ring-sky-400/20" },
+                { key: "published" as const, label: t('jobs.filter.published', 'Publicados'), count: publishedCount, icon: <CheckCircle className="h-8 w-8 text-green-500" />, numColor: "text-green-600", activeColor: "border-green-500 bg-green-50 dark:bg-green-900/20 ring-2 ring-green-400/20" },
+                { key: "completed" as const, label: t('jobs.filter.completed', 'Completados'), count: completedJobsCount, icon: <Trophy className="h-8 w-8 text-blue-500" />, numColor: "text-blue-600", activeColor: "border-blue-500 bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-400/20" },
+                { key: "disputed" as const, label: t('jobs.filter.disputed', 'En Disputa'), count: disputedJobsCount, icon: <AlertTriangle className="h-8 w-8 text-orange-500" />, numColor: "text-orange-600", activeColor: "border-orange-500 bg-orange-50 dark:bg-orange-900/20 ring-2 ring-orange-400/20" },
+                { key: "pending_payment" as const, label: t('jobs.filter.pendingPayment', 'Pago Pendiente'), count: pendingPaymentCount, icon: <AlertCircle className="h-8 w-8 text-amber-500" />, numColor: "text-amber-600", activeColor: "border-amber-500 bg-amber-50 dark:bg-amber-900/20 ring-2 ring-amber-400/20" },
+                { key: "draft" as const, label: t('jobs.filter.drafts', 'Borradores'), count: draftCount, icon: <FileText className="h-8 w-8 text-slate-400" />, numColor: "text-slate-600", activeColor: "border-slate-500 bg-slate-100 dark:bg-slate-700/50 ring-2 ring-slate-400/20" },
+              ].map(({ key, label, count, icon, numColor, activeColor }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setFilter(key)}
+                  className={`w-full text-left rounded-xl border p-4 transition-all duration-200 cursor-pointer ${
+                    filter === key
+                      ? activeColor
+                      : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">{label}</p>
+                      <p className={`text-2xl font-bold ${numColor ?? (filter === key ? 'text-sky-600 dark:text-sky-400' : 'text-slate-900 dark:text-white')}`}>{count}</p>
+                    </div>
+                    {icon}
                   </div>
-                  <Briefcase className="h-8 w-8 text-slate-400" />
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('jobs.filter.published', 'Publicados')}</p>
-                    <p className="text-2xl font-bold text-green-600">{publishedCount}</p>
-                  </div>
-                  <CheckCircle className="h-8 w-8 text-green-500" />
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('jobs.filter.completed', 'Completados')}</p>
-                    <p className="text-2xl font-bold text-blue-600">{completedJobsCount}</p>
-                  </div>
-                  <Trophy className="h-8 w-8 text-blue-500" />
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('jobs.filter.disputed', 'En Disputa')}</p>
-                    <p className="text-2xl font-bold text-orange-600">{disputedJobsCount}</p>
-                  </div>
-                  <AlertTriangle className="h-8 w-8 text-orange-500" />
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('jobs.filter.pendingPayment', 'Pago Pendiente')}</p>
-                    <p className="text-2xl font-bold text-amber-600">{pendingPaymentCount}</p>
-                  </div>
-                  <AlertCircle className="h-8 w-8 text-amber-500" />
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('jobs.filter.drafts', 'Borradores')}</p>
-                    <p className="text-2xl font-bold text-slate-600">{draftCount}</p>
-                  </div>
-                  <FileText className="h-8 w-8 text-slate-400" />
-                </div>
-              </div>
-            </div>
-
-            {/* Filters */}
-            <div className="mb-6 flex flex-wrap gap-2">
-              <button
-                onClick={() => setFilter("all")}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  filter === "all"
-                    ? "bg-sky-500 text-white"
-                    : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-                }`}
-              >
-                {t('common.all', 'Todos')} ({jobs.length})
-              </button>
-              <button
-                onClick={() => setFilter("published")}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  filter === "published"
-                    ? "bg-sky-500 text-white"
-                    : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-                }`}
-              >
-                {t('jobs.filter.published', 'Publicados')} ({publishedCount})
-              </button>
-              <button
-                onClick={() => setFilter("completed")}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  filter === "completed"
-                    ? "bg-blue-500 text-white"
-                    : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-                }`}
-              >
-                {t('jobs.filter.completed', 'Completados')} ({completedJobsCount})
-              </button>
-              <button
-                onClick={() => setFilter("disputed")}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  filter === "disputed"
-                    ? "bg-orange-500 text-white"
-                    : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-                }`}
-              >
-                {t('jobs.filter.disputed', 'En Disputa')} ({disputedJobsCount})
-              </button>
-              <button
-                onClick={() => setFilter("pending_payment")}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  filter === "pending_payment"
-                    ? "bg-sky-500 text-white"
-                    : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-                }`}
-              >
-                {t('jobs.filter.pendingPayment', 'Pago Pendiente')} ({pendingPaymentCount})
-              </button>
-              <button
-                onClick={() => setFilter("draft")}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  filter === "draft"
-                    ? "bg-sky-500 text-white"
-                    : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-                }`}
-              >
-                {t('jobs.filter.drafts', 'Borradores')} ({draftCount})
-              </button>
+                </button>
+              ))}
             </div>
 
             {/* Jobs List */}
@@ -1228,131 +1132,35 @@ export default function MyJobsScreen() {
         {/* List View - Proposals */}
         {viewMode === "list" && mainTab === "applied" && (
           <>
-            {/* Stats Cards */}
+            {/* Stats Cards — clickable filters */}
             <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6">
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('common.total', 'Total')}</p>
-                    <p className="text-2xl font-bold text-slate-900 dark:text-white">{proposals.length}</p>
+              {[
+                { key: "all" as const, label: t('common.total', 'Total'), count: proposals.length, icon: <Send className="h-8 w-8 text-slate-400" />, activeColor: "border-sky-500 bg-sky-50 dark:bg-sky-900/20 ring-2 ring-sky-400/20" },
+                { key: "pending" as const, label: t('jobs.filter.pending', 'Pendientes'), count: pendingProposalsCount, icon: <Clock className="h-8 w-8 text-amber-500" />, numColor: "text-amber-600", activeColor: "border-amber-500 bg-amber-50 dark:bg-amber-900/20 ring-2 ring-amber-400/20" },
+                { key: "approved" as const, label: t('jobs.filter.approved', 'Aprobadas'), count: approvedProposalsCount, icon: <CheckCircle className="h-8 w-8 text-green-500" />, numColor: "text-green-600", activeColor: "border-green-500 bg-green-50 dark:bg-green-900/20 ring-2 ring-green-400/20" },
+                { key: "completed" as const, label: t('jobs.filter.completed', 'Completados'), count: completedProposalsCount, icon: <Trophy className="h-8 w-8 text-blue-500" />, numColor: "text-blue-600", activeColor: "border-blue-500 bg-blue-50 dark:bg-blue-900/20 ring-2 ring-blue-400/20" },
+                { key: "disputed" as const, label: t('jobs.filter.disputed', 'En Disputa'), count: disputedProposalsCount, icon: <AlertTriangle className="h-8 w-8 text-orange-500" />, numColor: "text-orange-600", activeColor: "border-orange-500 bg-orange-50 dark:bg-orange-900/20 ring-2 ring-orange-400/20" },
+                { key: "rejected" as const, label: t('jobs.filter.rejected', 'Rechazadas'), count: rejectedProposalsCount, icon: <AlertCircle className="h-8 w-8 text-red-500" />, numColor: "text-red-600", activeColor: "border-red-500 bg-red-50 dark:bg-red-900/20 ring-2 ring-red-400/20" },
+              ].map(({ key, label, count, icon, numColor, activeColor }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setProposalFilter(key)}
+                  className={`w-full text-left rounded-xl border p-4 transition-all duration-200 cursor-pointer ${
+                    proposalFilter === key
+                      ? activeColor
+                      : "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">{label}</p>
+                      <p className={`text-2xl font-bold ${numColor ?? (proposalFilter === key ? 'text-sky-600 dark:text-sky-400' : 'text-slate-900 dark:text-white')}`}>{count}</p>
+                    </div>
+                    {icon}
                   </div>
-                  <Send className="h-8 w-8 text-slate-400" />
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('jobs.filter.pending', 'Pendientes')}</p>
-                    <p className="text-2xl font-bold text-amber-600">{pendingProposalsCount}</p>
-                  </div>
-                  <Clock className="h-8 w-8 text-amber-500" />
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('jobs.filter.approved', 'Aprobadas')}</p>
-                    <p className="text-2xl font-bold text-green-600">{approvedProposalsCount}</p>
-                  </div>
-                  <CheckCircle className="h-8 w-8 text-green-500" />
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('jobs.filter.completed', 'Completados')}</p>
-                    <p className="text-2xl font-bold text-blue-600">{completedProposalsCount}</p>
-                  </div>
-                  <Trophy className="h-8 w-8 text-blue-500" />
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('jobs.filter.disputed', 'En Disputa')}</p>
-                    <p className="text-2xl font-bold text-orange-600">{disputedProposalsCount}</p>
-                  </div>
-                  <AlertTriangle className="h-8 w-8 text-orange-500" />
-                </div>
-              </div>
-
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-slate-600 dark:text-slate-400">{t('jobs.filter.rejected', 'Rechazadas')}</p>
-                    <p className="text-2xl font-bold text-red-600">{rejectedProposalsCount}</p>
-                  </div>
-                  <AlertCircle className="h-8 w-8 text-red-500" />
-                </div>
-              </div>
-            </div>
-
-            {/* Filters */}
-            <div className="mb-6 flex flex-wrap gap-2">
-              <button
-                onClick={() => setProposalFilter("all")}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  proposalFilter === "all"
-                    ? "bg-sky-500 text-white"
-                    : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-                }`}
-              >
-                {t('common.all', 'Todas')} ({proposals.length})
-              </button>
-              <button
-                onClick={() => setProposalFilter("pending")}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  proposalFilter === "pending"
-                    ? "bg-sky-500 text-white"
-                    : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-                }`}
-              >
-                {t('jobs.filter.pending', 'Pendientes')} ({pendingProposalsCount})
-              </button>
-              <button
-                onClick={() => setProposalFilter("approved")}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  proposalFilter === "approved"
-                    ? "bg-sky-500 text-white"
-                    : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-                }`}
-              >
-                {t('jobs.filter.approved', 'Aprobadas')} ({approvedProposalsCount})
-              </button>
-              <button
-                onClick={() => setProposalFilter("completed")}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  proposalFilter === "completed"
-                    ? "bg-blue-500 text-white"
-                    : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-                }`}
-              >
-                {t('jobs.filter.completed', 'Completados')} ({completedProposalsCount})
-              </button>
-              <button
-                onClick={() => setProposalFilter("disputed")}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  proposalFilter === "disputed"
-                    ? "bg-orange-500 text-white"
-                    : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-                }`}
-              >
-                {t('jobs.filter.disputed', 'En Disputa')} ({disputedProposalsCount})
-              </button>
-              <button
-                onClick={() => setProposalFilter("rejected")}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  proposalFilter === "rejected"
-                    ? "bg-sky-500 text-white"
-                    : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
-                }`}
-              >
-                {t('jobs.filter.rejected', 'Rechazadas')} ({rejectedProposalsCount})
-              </button>
+                </button>
+              ))}
             </div>
 
             {/* Proposals List */}

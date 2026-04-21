@@ -76,7 +76,11 @@ export default function PortfolioScreen() {
   };
 
   const renderItem = ({ item }: { item: PortfolioItem }) => (
-    <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+    <TouchableOpacity
+      style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
+      onPress={() => router.push(`/portfolio/${item.id}`)}
+      activeOpacity={0.85}
+    >
       {item.images && item.images.length > 0 ? (
         <Image source={{ uri: item.images[0] }} style={styles.cardImage} resizeMode="cover" />
       ) : (
@@ -104,7 +108,7 @@ export default function PortfolioScreen() {
           </TouchableOpacity>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   if (authLoading || loading) {

@@ -144,6 +144,9 @@ export class Job extends Model {
   @Column(DataType.STRING(100))
   neighborhood?: string;
 
+  @Column(DataType.STRING(20))
+  postalCode?: string;
+
   // Address fields for precise location - only shown to assigned worker
   @Column(DataType.STRING(200))
   addressStreet?: string;
@@ -275,6 +278,12 @@ export class Job extends Model {
   @Default([])
   @Column(DataType.ARRAY(DataType.TEXT))
   images!: string[];
+
+  // Minimum completion criteria: list of conditions that must be met for the job to be considered done
+  // Serves as evidence baseline in case of disputes between client and worker
+  @Default([])
+  @Column(DataType.ARRAY(DataType.TEXT))
+  completionRequirements!: string[];
 
   @Default([])
   @Column(DataType.ARRAY(DataType.STRING))

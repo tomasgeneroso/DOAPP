@@ -98,6 +98,7 @@ import EditJobScreen from "./pages/EditJobScreen";
 import NotificationsScreen from "./pages/NotificationsScreen";
 import CompleteRegistration from "./pages/CompleteRegistration";
 import SiteMap from "./pages/SiteMap";
+import AnalyticsReference from "./pages/AnalyticsReference";
 
 export default function App() {
   // Setup fetch interceptor for automatic token handling
@@ -383,6 +384,7 @@ export default function App() {
               {features.blog && <Route path="/blog/:slug" element={<BlogDetailScreen />} />}
               <Route path="/posts/:id" element={<PostDetail />} />
               {features.sitemap && <Route path="/sitemap" element={<SiteMap />} />}
+              <Route path="/analytics-reference" element={<AnalyticsReference />} />
               <Route
                 path="/tickets/new"
                 element={
@@ -439,6 +441,10 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route path="/legal/terminos-y-condiciones" element={<TermsAndConditions />} />
+              <Route path="/legal/privacidad" element={<PrivacyPolicy />} />
+              <Route path="/legal/cookies" element={<CookiesPolicy />} />
+              <Route path="/legal/disputas" element={<DisputeResolution />} />
             </Route>
             <Route path="/login" element={<LoginScreen />} />
             <Route path="/register" element={<LoginScreen />} />
@@ -446,10 +452,6 @@ export default function App() {
             <Route path="/contact" element={<ContactPage />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/legal/terminos-y-condiciones" element={<TermsAndConditions />} />
-            <Route path="/legal/privacidad" element={<PrivacyPolicy />} />
-            <Route path="/legal/cookies" element={<CookiesPolicy />} />
-            <Route path="/legal/disputas" element={<DisputeResolution />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route
               path="/complete-registration"

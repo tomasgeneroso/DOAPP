@@ -216,59 +216,28 @@ export default function HomeScreen() {
     </View>
   );
 
+  const HowItWorksStep = ({ icon, color, num, numColor, title, desc }: { icon: React.ReactNode; color: string; num: string; numColor: string; title: string; desc: string }) => (
+    <View style={styles.stepCompact}>
+      <View style={[styles.stepIconCompact, { backgroundColor: color }]}>
+        {icon}
+        <View style={[styles.stepNumberCompact, { backgroundColor: numColor }]}>
+          <Text style={styles.stepNumberText}>{num}</Text>
+        </View>
+      </View>
+      <Text style={[styles.stepTitleCompact, { color: themeColors.text.primary }]}>{title}</Text>
+      <Text style={[styles.stepDescCompact, { color: themeColors.text.secondary }]}>{desc}</Text>
+    </View>
+  );
+
   const renderHowItWorksClient = () => (
     <View style={[styles.howItWorksCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
       <Text style={[styles.howItWorksTitle, { color: themeColors.text.primary }]}>¿Necesitás un servicio?</Text>
       <Text style={[styles.howItWorksSubtitle, { color: themeColors.text.secondary }]}>Publicá tu trabajo y encontrá profesionales</Text>
-
-      <View style={styles.stepsGrid}>
-        <View style={styles.stepsRow}>
-          <View style={styles.stepGridItem}>
-            <View style={[styles.stepIcon, { backgroundColor: colors.primary[500] }]}>
-              <PlusCircle size={24} color="#fff" strokeWidth={2} />
-            </View>
-            <View style={styles.stepNumber}>
-              <Text style={styles.stepNumberText}>1</Text>
-            </View>
-            <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Publicá</Text>
-            <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Publicá tu servicio con los detalles que necesitás</Text>
-          </View>
-
-          <View style={styles.stepGridItem}>
-            <View style={[styles.stepIcon, { backgroundColor: colors.secondary[500] }]}>
-              <MessageCircle size={24} color="#fff" strokeWidth={2} />
-            </View>
-            <View style={[styles.stepNumber, { backgroundColor: colors.secondary[600] }]}>
-              <Text style={styles.stepNumberText}>2</Text>
-            </View>
-            <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Elegí</Text>
-            <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Recibí propuestas y elegí al mejor perfil</Text>
-          </View>
-        </View>
-
-        <View style={styles.stepsRow}>
-          <View style={styles.stepGridItem}>
-            <View style={[styles.stepIcon, { backgroundColor: '#8b5cf6' }]}>
-              <Lock size={24} color="#fff" strokeWidth={2} />
-            </View>
-            <View style={[styles.stepNumber, { backgroundColor: '#8b5cf6' }]}>
-              <Text style={styles.stepNumberText}>3</Text>
-            </View>
-            <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Pagá Seguro</Text>
-            <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Tu dinero queda en garantía hasta completar</Text>
-          </View>
-
-          <View style={styles.stepGridItem}>
-            <View style={[styles.stepIcon, { backgroundColor: colors.success[500] }]}>
-              <CheckCircle size={24} color="#fff" strokeWidth={2} />
-            </View>
-            <View style={[styles.stepNumber, { backgroundColor: colors.success[600] }]}>
-              <Text style={styles.stepNumberText}>4</Text>
-            </View>
-            <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>¡Listo!</Text>
-            <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Confirmá el servicio prestado y el pago se libera automáticamente</Text>
-          </View>
-        </View>
+      <View style={styles.stepsRowCompact}>
+        <HowItWorksStep icon={<PlusCircle size={20} color="#fff" strokeWidth={2} />} color={colors.primary[500]} num="1" numColor={colors.primary[700]} title="Publicá" desc="Detallá lo que necesitás" />
+        <HowItWorksStep icon={<MessageCircle size={20} color="#fff" strokeWidth={2} />} color={colors.secondary[500]} num="2" numColor={colors.secondary[700]} title="Elegí" desc="Recibí propuestas" />
+        <HowItWorksStep icon={<Lock size={20} color="#fff" strokeWidth={2} />} color="#8b5cf6" num="3" numColor="#6d28d9" title="Pagá Seguro" desc="Dinero en garantía" />
+        <HowItWorksStep icon={<CheckCircle size={20} color="#fff" strokeWidth={2} />} color={colors.success[500]} num="4" numColor={colors.success[700]} title="¡Listo!" desc="Pago liberado" />
       </View>
     </View>
   );
@@ -276,56 +245,12 @@ export default function HomeScreen() {
   const renderHowItWorksWorker = () => (
     <View style={[styles.howItWorksCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
       <Text style={[styles.howItWorksTitle, { color: themeColors.text.primary }]}>¿Ofrecés servicios?</Text>
-      <Text style={[styles.howItWorksSubtitle, { color: themeColors.text.secondary }]}>Encontrá trabajos, mostrá tu portfolio y empezá a ganar</Text>
-
-      <View style={styles.stepsGrid}>
-        <View style={styles.stepsRow}>
-          <View style={styles.stepGridItem}>
-            <View style={[styles.stepIcon, { backgroundColor: colors.primary[500] }]}>
-              <Search size={24} color="#fff" strokeWidth={2} />
-            </View>
-            <View style={styles.stepNumber}>
-              <Text style={styles.stepNumberText}>1</Text>
-            </View>
-            <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Buscá</Text>
-            <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Explorá trabajos que se ajusten a tus habilidades</Text>
-          </View>
-
-          <View style={styles.stepGridItem}>
-            <View style={[styles.stepIcon, { backgroundColor: colors.secondary[500] }]}>
-              <MessageCircle size={24} color="#fff" strokeWidth={2} />
-            </View>
-            <View style={[styles.stepNumber, { backgroundColor: colors.secondary[600] }]}>
-              <Text style={styles.stepNumberText}>2</Text>
-            </View>
-            <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Aplicá</Text>
-            <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Enviá tu propuesta con tu mejor oferta</Text>
-          </View>
-        </View>
-
-        <View style={styles.stepsRow}>
-          <View style={styles.stepGridItem}>
-            <View style={[styles.stepIcon, { backgroundColor: '#8b5cf6' }]}>
-              <Briefcase size={24} color="#fff" strokeWidth={2} />
-            </View>
-            <View style={[styles.stepNumber, { backgroundColor: '#8b5cf6' }]}>
-              <Text style={styles.stepNumberText}>3</Text>
-            </View>
-            <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Trabajá</Text>
-            <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Realizá el trabajo con tranquilidad</Text>
-          </View>
-
-          <View style={styles.stepGridItem}>
-            <View style={[styles.stepIcon, { backgroundColor: colors.success[500] }]}>
-              <CheckCircle size={24} color="#fff" strokeWidth={2} />
-            </View>
-            <View style={[styles.stepNumber, { backgroundColor: colors.success[600] }]}>
-              <Text style={styles.stepNumberText}>4</Text>
-            </View>
-            <Text style={[styles.stepTitle, { color: themeColors.text.primary }]}>Cobrá</Text>
-            <Text style={[styles.stepDescription, { color: themeColors.text.secondary }]}>Recibí tu pago de forma segura y garantizada</Text>
-          </View>
-        </View>
+      <Text style={[styles.howItWorksSubtitle, { color: themeColors.text.secondary }]}>Encontrá trabajos y empezá a ganar</Text>
+      <View style={styles.stepsRowCompact}>
+        <HowItWorksStep icon={<Search size={20} color="#fff" strokeWidth={2} />} color={colors.primary[500]} num="1" numColor={colors.primary[700]} title="Buscá" desc="Encontrá oportunidades" />
+        <HowItWorksStep icon={<MessageCircle size={20} color="#fff" strokeWidth={2} />} color={colors.secondary[500]} num="2" numColor={colors.secondary[700]} title="Aplicá" desc="Enviá tu propuesta" />
+        <HowItWorksStep icon={<Briefcase size={20} color="#fff" strokeWidth={2} />} color="#8b5cf6" num="3" numColor="#6d28d9" title="Trabajá" desc="Con tranquilidad" />
+        <HowItWorksStep icon={<CheckCircle size={20} color="#fff" strokeWidth={2} />} color={colors.success[500]} num="4" numColor={colors.success[700]} title="Cobrá" desc="Pago garantizado" />
       </View>
     </View>
   );
@@ -450,12 +375,12 @@ export default function HomeScreen() {
                   </TouchableOpacity>
                   {categories.map((cat) => (
                     <TouchableOpacity
-                      key={cat}
-                      style={[styles.pickerOption, { borderBottomColor: themeColors.border }, filterCategory === cat && { backgroundColor: themeColors.primary[50] }]}
-                      onPress={() => { setFilterCategory(cat); setShowCategoryPicker(false); }}
+                      key={cat.id}
+                      style={[styles.pickerOption, { borderBottomColor: themeColors.border }, filterCategory === cat.id && { backgroundColor: themeColors.primary[50] }]}
+                      onPress={() => { setFilterCategory(cat.id); setShowCategoryPicker(false); }}
                     >
-                      <Text style={[styles.pickerOptionText, { color: filterCategory === cat ? themeColors.primary[600] : themeColors.text.primary }]}>
-                        {cat}
+                      <Text style={[styles.pickerOptionText, { color: filterCategory === cat.id ? themeColors.primary[600] : themeColors.text.primary }]}>
+                        {cat.icon} {cat.label}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -573,9 +498,10 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Hover Button Effect - Always visible on mobile */}
+        {/* Ver detalles button */}
         <View style={[styles.viewDetailsButton, { backgroundColor: themeColors.primary[600] }]}>
           <Text style={styles.viewDetailsText}>Ver detalles</Text>
+          <ArrowRight size={14} color="#fff" strokeWidth={2} />
         </View>
       </TouchableOpacity>
     );
@@ -614,22 +540,7 @@ export default function HomeScreen() {
       {/* Search & Filters */}
       {renderSearchAndFilters()}
 
-      {/* Protection Banner */}
-      <View style={[styles.protectionBanner, { backgroundColor: isDarkMode ? themeColors.primary[50] : colors.primary[50] }]}>
-        <View style={styles.protectionIconContainer}>
-          <Lock size={20} color={themeColors.primary[600]} strokeWidth={2} />
-        </View>
-        <View style={styles.protectionContent}>
-          <Text style={[styles.protectionTitle, { color: themeColors.text.primary }]}>
-            En Doers, cada contrato queda protegido:
-          </Text>
-          <Text style={[styles.protectionText, { color: themeColors.text.secondary }]}>
-            el dinero se mantiene en garantía hasta que ambas partes confirman que el trabajo fue entregado. Así, vos y el profesional están seguros en todo momento.
-          </Text>
-        </View>
-      </View>
-
-      <Text style={[styles.sectionTitle, { color: themeColors.text.primary }]}>Trabajos Disponibles</Text>
+      <Text style={[styles.sectionTitle, { color: themeColors.text.primary, marginTop: spacing.lg }]}>Trabajos Disponibles</Text>
     </>
   );
 
@@ -652,30 +563,22 @@ export default function HomeScreen() {
         <View style={styles.paymentSection}>
           <Text style={styles.paymentTitle}>Pagos procesados de forma segura:</Text>
           <View style={styles.paymentLogos}>
-            {/* MercadoPago Logo */}
-            <View style={styles.mpLogoContainer}>
-              <Svg width={120} height={32} viewBox="0 0 340 90">
-                <G>
-                  <Path d="M170,8.3c-22.6,0-41,18.4-41,41s18.4,41,41,41s41-18.4,41-41S192.6,8.3,170,8.3z M170,82.3c-18.2,0-33-14.8-33-33s14.8-33,33-33s33,14.8,33,33S188.2,82.3,170,82.3z" fill="#009EE3"/>
-                  <Path d="M170,16.3c-18.2,0-33,14.8-33,33c0,8.5,3.2,16.2,8.5,22c-0.1-0.5-0.2-1-0.2-1.5c0-12.1,11-30.5,24.7-30.5c8.6,0,13.1,5.8,13.1,13.3c0,15.5-16.2,23.7-16.2,23.7c4.5,3.7,7.5,4,11.1,4c14.3,0,25-12.6,25-31C203,31.1,188.2,16.3,170,16.3z" fill="#009EE3"/>
-                  <Path d="M22,58.3h8.8l2.6-16.5h8.8l-2.6,16.5h8.8l3.5-22.2c0.3-1.8-1.1-3.4-2.9-3.4H27.4c-1.5,0-2.8,1.1-3,2.6L22,58.3z" fill="#2D3277"/>
-                  <Path d="M55,58.3h8.8l3.5-22.2c0.3-1.8-1.1-3.4-2.9-3.4h-8.8c-1.5,0-2.8,1.1-3,2.6l-1.1,6.5h8.8L55,58.3z" fill="#2D3277"/>
-                  <Path d="M77.5,32.7H65.1c-1.5,0-2.8,1.1-3,2.6L58.6,58.3h8.8l1.3-8.2h5.7c6.5,0,11.3-4.4,12.1-10.8C87.3,33.6,82.5,32.7,77.5,32.7z M76.7,43.8h-4.5l1-6.5h4.5c2,0,3.1,0.8,2.8,3C80.2,42.5,78.6,43.8,76.7,43.8z" fill="#2D3277"/>
-                  <Path d="M260,32.7h-12.4c-1.5,0-2.8,1.1-3,2.6l-3.5,22.9h8.8l1.3-8.2h5.7c6.5,0,11.3-4.4,12.1-10.8C269.8,33.6,265,32.7,260,32.7z M259.2,43.8h-4.5l1-6.5h4.5c2,0,3.1,0.8,2.8,3C262.7,42.5,261.1,43.8,259.2,43.8z" fill="#2D3277"/>
-                  <Path d="M230,32.7h-8.8c-1.5,0-2.8,1.1-3,2.6l-3.5,22.9h8.8l1.5-9.5c0.2-1.1,1.1-1.8,2.2-1.8h2.4c6.5,0,11.3-4.4,12.1-10.8C242.3,33.6,235,32.7,230,32.7z" fill="#2D3277"/>
-                  <Path d="M100.8,32.7H89.5c-1.5,0-2.8,1.1-3,2.6l-3.5,22.9h8.8l1-6.5h4.5c6.5,0,12.1-4.9,12.8-11.3C111,34.5,106.3,32.7,100.8,32.7z M99.5,44.6h-3.8l0.8-5.7h4c1.8,0,2.7,0.7,2.5,2.6C102.7,43.5,101.2,44.6,99.5,44.6z" fill="#2D3277"/>
-                  <Path d="M286,44.1c0,0,4.2-2.7,4.2-7.5c0-3.8-3.3-3.9-3.3-3.9h-14.3c-1.5,0-2.8,1.1-3,2.6l-3.5,22.9h9.3l1-6.5h2.1l3.7,6.5h10.3L286,44.1z M282.1,44.1h-3.5l0.8-5.3h3.7c1.3,0,2.2,0.5,2,2.2C285,42.9,283.7,44.1,282.1,44.1z" fill="#2D3277"/>
-                  <Path d="M119.5,32.7l-3.5,22.2c-0.3,1.8,1.1,3.4,2.9,3.4h12.3c1.5,0,2.8-1.1,3-2.6l3.5-22.9h-8.8l-2.6,17.3h-3.1l2.6-17.3H119.5z" fill="#2D3277"/>
-                </G>
+            {/* MercadoPago official logo */}
+            <View style={[styles.paymentMethodBadge, { backgroundColor: '#00aeef', borderColor: '#00aeef' }]}>
+              <Svg width={20} height={20} viewBox="0 0 24 24">
+                <Path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0z" fill="#fff"/>
+                <Path d="M17.5 9.5c0-1.5-1.2-2.7-2.7-2.7H9.2C7.7 6.8 6.5 8 6.5 9.5v5c0 1.5 1.2 2.7 2.7 2.7h5.6c1.5 0 2.7-1.2 2.7-2.7v-5z" fill="#00aeef"/>
+                <Path d="M9 11.5l1.5 1.5 3-3" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
               </Svg>
+              <Text style={[styles.paymentMethodText, { color: '#fff', fontWeight: '700' }]}>MercadoPago</Text>
             </View>
-            {/* Bitcoin / Cripto Logo */}
+            {/* Bitcoin / Cripto */}
             <View style={[styles.paymentMethodBadge, { backgroundColor: '#fff7ed', borderColor: '#fdba74' }]}>
-              <Svg width={22} height={22} viewBox="0 0 24 24">
+              <Svg width={20} height={20} viewBox="0 0 24 24">
                 <Path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" fill="#f7931a"/>
                 <Path d="M15.5 10.2c.2-1.4-0.8-2.1-2.3-2.6l.5-1.9-1.1-.3-.4 1.8c-.3-.1-.6-.1-.9-.2l.4-1.8-1.1-.3-.5 1.9c-.2-.1-.5-.1-.7-.2l-1.5-.4-.3 1.2s.8.2.8.2c.5.1.5.4.5.7l-.5 2.2c0 0 .1 0 .1 0l-.1 0-.7 3c-.1.2-.2.4-.6.3 0 0-.8-.2-.8-.2l-.6 1.3 1.4.4c.3.1.5.1.8.2l-.5 1.9 1.1.3.5-1.9c.3.1.6.2.9.2l-.5 1.9 1.1.3.5-1.9c2 .4 3.5.2 4.1-1.6.5-1.4 0-2.3-1.1-2.8.8-.2 1.3-.7 1.5-1.8zm-2.7 3.8c-.4 1.4-2.7.7-3.5.5l.6-2.5c.8.2 3.3.6 2.9 2zm.4-3.8c-.3 1.3-2.3.6-2.9.5l.6-2.3c.7.2 2.7.5 2.3 1.8z" fill="#fff"/>
               </Svg>
-              <Text style={[styles.paymentMethodText, { color: '#f97316' }]}>Cripto</Text>
+              <Text style={[styles.paymentMethodText, { color: '#f97316' }]}>  Cripto</Text>
             </View>
             {/* Transferencia */}
             <View style={[styles.paymentMethodBadge, { backgroundColor: '#dcfce7', borderColor: '#86efac' }]}>
@@ -1107,73 +1010,77 @@ const styles = StyleSheet.create({
   howItWorksCard: {
     backgroundColor: colors.card.light,
     borderRadius: borderRadius.xl,
-    padding: spacing.xl,
-    marginBottom: spacing.xl,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
     borderWidth: 1,
     borderColor: colors.slate[100],
   },
   howItWorksTitle: {
-    fontSize: fontSize.xl,
+    fontSize: fontSize.base,
     fontWeight: fontWeight.bold,
     color: colors.slate[900],
     textAlign: 'center',
-    marginBottom: spacing.xs,
+    marginBottom: 2,
   },
   howItWorksSubtitle: {
-    fontSize: fontSize.sm,
+    fontSize: fontSize.xs,
     color: colors.slate[600],
     textAlign: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
   },
-  stepsGrid: {
-    gap: spacing.md,
-  },
-  stepsRow: {
+  stepsRowCompact: {
     flexDirection: 'row',
-    gap: spacing.md,
+    justifyContent: 'space-between',
+    gap: spacing.xs,
   },
-  stepGridItem: {
+  stepCompact: {
     flex: 1,
     alignItems: 'center',
-    padding: spacing.sm,
-    position: 'relative',
   },
-  stepIcon: {
-    width: 48,
-    height: 48,
+  stepIconCompact: {
+    width: 40,
+    height: 40,
     borderRadius: borderRadius.full,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
+    position: 'relative',
   },
-  stepNumber: {
+  stepNumberCompact: {
     position: 'absolute',
     top: -4,
-    left: '25%',
-    width: 20,
-    height: 20,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.primary[600],
+    right: -4,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
   },
   stepNumberText: {
     color: '#fff',
-    fontSize: fontSize.xs,
+    fontSize: 10,
     fontWeight: fontWeight.bold,
   },
-  stepTitle: {
-    fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
-    color: colors.slate[900],
-    textAlign: 'center',
-    marginBottom: spacing.xs,
-  },
-  stepDescription: {
+  stepTitleCompact: {
     fontSize: fontSize.xs,
+    fontWeight: fontWeight.semibold,
+    textAlign: 'center',
+    marginBottom: 1,
+  },
+  stepDescCompact: {
+    fontSize: 10,
     color: colors.slate[600],
     textAlign: 'center',
+    lineHeight: 13,
   },
+  // kept for old references (unused now)
+  stepsGrid: { gap: spacing.md },
+  stepsRow: { flexDirection: 'row', gap: spacing.md },
+  stepGridItem: { flex: 1, alignItems: 'center', padding: spacing.sm, position: 'relative' },
+  stepIcon: { width: 48, height: 48, borderRadius: borderRadius.full, justifyContent: 'center', alignItems: 'center', marginBottom: spacing.sm },
+  stepNumber: { position: 'absolute', top: -4, left: '25%', width: 20, height: 20, borderRadius: borderRadius.full, backgroundColor: colors.primary[600], justifyContent: 'center', alignItems: 'center' },
+  stepTitle: { fontSize: fontSize.sm, fontWeight: fontWeight.semibold, color: colors.slate[900], textAlign: 'center', marginBottom: spacing.xs },
+  stepDescription: { fontSize: fontSize.xs, color: colors.slate[600], textAlign: 'center' },
   // Security Banner
   securityBanner: {
     flexDirection: 'row',
@@ -1280,9 +1187,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary[500],
     paddingVertical: spacing.sm,
     marginTop: spacing.md,
-    marginHorizontal: -spacing.lg,
-    marginBottom: -spacing.lg,
+    borderRadius: borderRadius.lg,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
   },
   viewDetailsText: {
     color: '#fff',

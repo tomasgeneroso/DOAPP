@@ -217,8 +217,10 @@ export default function LoginScreen() {
           }
         />
       </Helmet>
-      <div className="flex min-h-screen flex-col justify-center bg-slate-50 dark:bg-slate-900 px-4 py-6 sm:px-6 sm:py-12 lg:px-8">
-        <div className="mx-auto w-full max-w-[95%] sm:max-w-md rounded-2xl bg-white dark:bg-slate-800 p-5 shadow-lg sm:p-8 md:p-12">
+      {/* Background layer: covers full viewport regardless of body zoom */}
+      <div className="fixed inset-0 bg-slate-50 dark:bg-slate-900 -z-10" aria-hidden="true" />
+      <div className="flex min-h-screen flex-col justify-center px-4 py-6 sm:px-6 sm:py-12 lg:px-8">
+        <div className="mx-auto w-full max-w-[95%] sm:max-w-md rounded-2xl bg-white dark:bg-slate-800 p-5 shadow-lg sm:p-8 md:p-12 animate-scaleIn">
           <Link
             to="/"
             className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white mb-6"

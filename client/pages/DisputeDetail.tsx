@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { useDropzone } from 'react-dropzone';
 import { useAuth } from '../hooks/useAuth';
+import { getImageUrl } from '../utils/imageUrl';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -307,21 +308,21 @@ const DisputeDetail: React.FC = () => {
                   {dispute.evidence.map((attachment, index) => (
                     <a
                       key={index}
-                      href={attachment.fileUrl}
+                      href={getImageUrl(attachment.fileUrl)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="group relative aspect-square rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-700 hover:ring-2 hover:ring-red-500 transition-all hover:shadow-lg"
                     >
                       {attachment.fileType === 'image' ? (
                         <img
-                          src={attachment.fileUrl}
+                          src={getImageUrl(attachment.fileUrl)}
                           alt={attachment.fileName}
                           className="w-full h-full object-cover transition-transform group-hover:scale-105"
                         />
                       ) : attachment.fileType === 'video' ? (
                         <div className="relative w-full h-full">
                           <video
-                            src={attachment.fileUrl}
+                            src={getImageUrl(attachment.fileUrl)}
                             className="w-full h-full object-cover"
                           />
                           <div className="absolute inset-0 flex items-center justify-center">
@@ -455,13 +456,13 @@ const DisputeDetail: React.FC = () => {
                               {msg.attachments.map((att, attIdx) => (
                                 <a
                                   key={attIdx}
-                                  href={att.fileUrl}
+                                  href={getImageUrl(att.fileUrl)}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-gray-600 rounded-lg border border-gray-200 dark:border-gray-500 hover:border-red-400 transition-colors"
                                 >
                                   {att.fileType === 'image' ? (
-                                    <img src={att.fileUrl} alt={att.fileName} className="w-8 h-8 object-cover rounded" />
+                                    <img src={getImageUrl(att.fileUrl)} alt={att.fileName} className="w-8 h-8 object-cover rounded" />
                                   ) : att.fileType === 'pdf' ? (
                                     <svg className="w-6 h-6 text-red-500" fill="currentColor" viewBox="0 0 20 20">
                                       <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />

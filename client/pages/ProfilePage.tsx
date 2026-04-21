@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useTranslation } from 'react-i18next';
 import { User } from '../types';
+import { getCategoryById } from '../../shared/constants/categories';
 import { getImageUrl } from '../utils/imageUrl';
 import MultipleRatings from '../components/user/MultipleRatings';
 import PostCard from '../components/user/PostCard';
@@ -45,7 +46,7 @@ import {
 export default function ProfilePage() {
   const { userId, username } = useParams<{ userId?: string; username?: string }>();
   const { t } = useTranslation();
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, token } = useAuth();
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -400,15 +401,15 @@ export default function ProfilePage() {
   }, [shareSearchQuery]);
 
   const handleStartChat = async () => {
-    if (!userId || !user) return;
+    if (!userId || !user || !token) return;
 
     try {
       const response = await fetch('/api/chat/conversations', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
-        credentials: 'include',
         body: JSON.stringify({
           participants: [userId],
         }),
@@ -417,7 +418,8 @@ export default function ProfilePage() {
       const data = await response.json();
 
       if (data.success) {
-        window.location.href = `/messages?conversation=${data.conversation._id}`;
+        const convId = data.conversation?.id || data.conversation?._id;
+        navigate(`/messages?conversation=${convId}`);
       }
     } catch (err: any) {
       console.error('Error starting chat:', err);
@@ -526,7 +528,7 @@ export default function ProfilePage() {
                     className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-black/50 hover:bg-black/70 text-white text-sm font-medium cursor-pointer transition-colors backdrop-blur-sm"
                   >
                     <Camera className="w-4 h-4" />
-                    Cambiar Portada
+                    {t('profile.changeCover', 'Change Cover')}
                   </label>
                 </div>
               )}
@@ -634,8 +636,8 @@ export default function ProfilePage() {
                             >
                               <Link2 className="w-5 h-5 text-slate-500" />
                               <div>
-                                <p className="font-medium text-slate-900 dark:text-white">Copiar enlace</p>
-                                <p className="text-xs text-slate-500">Copia el link del perfil</p>
+                                <p className="font-medium text-slate-900 dark:text-white">{t('profile.copyLink', 'Copy link')}</p>
+                                <p className="text-xs text-slate-500">{t('profile.copyLinkDesc', 'Copy profile link')}</p>
                               </div>
                             </button>
                             {currentUser && (
@@ -648,8 +650,8 @@ export default function ProfilePage() {
                               >
                                 <Send className="w-5 h-5 text-slate-500" />
                                 <div>
-                                  <p className="font-medium text-slate-900 dark:text-white">Enviar por mensaje</p>
-                                  <p className="text-xs text-slate-500">Compartir con otro usuario</p>
+                                  <p className="font-medium text-slate-900 dark:text-white">{t('profile.sendByMessage', 'Send by message')}</p>
+                                  <p className="text-xs text-slate-500">{t('profile.shareWithUser', 'Share with another user')}</p>
                                 </div>
                               </button>
                             )}
@@ -703,7 +705,7 @@ export default function ProfilePage() {
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-slate-400" />
                       <span className="text-slate-600 dark:text-slate-400">
-                        {t('profile.memberSince')} 2023
+                        {t('profile.memberSince')} {user.createdAt ? new Date(user.createdAt).getFullYear() : ''}
                       </span>
                     </div>
                   </div>
@@ -745,7 +747,7 @@ export default function ProfilePage() {
                     className="mt-4 w-full py-2 px-4 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-sm font-medium text-slate-700 dark:text-slate-300 transition-colors flex items-center justify-center gap-2"
                   >
                     <Quote className="w-4 h-4" />
-                    Ver {user.reviewsCount} opiniones
+                    {t('profile.viewOpinions', { count: user.reviewsCount || 0, defaultValue: 'See {{count}} reviews' })}
                   </button>
                 )}
               </div>
@@ -756,12 +758,12 @@ export default function ProfilePage() {
                   <div className="flex items-center gap-3 mb-4">
                     <Gift className="h-6 w-6" />
                     <h2 className="text-xl font-bold">
-                      Código de Invitación
+                      {t('profile.invitationCode', 'Invitation Code')}
                     </h2>
                   </div>
 
                   <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 mb-4">
-                    <p className="text-sm text-white/80 mb-2">Tu código:</p>
+                    <p className="text-sm text-white/80 mb-2">{t('profile.yourCode', 'Your code:')}</p>
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-2xl font-bold tracking-wider">
                         {referralStats.referralCode}
@@ -784,14 +786,14 @@ export default function ProfilePage() {
                     <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
                       <div className="flex items-center gap-2 mb-1">
                         <Users className="h-4 w-4" />
-                        <p className="text-sm text-white/80">Total referidos</p>
+                        <p className="text-sm text-white/80">{t('profile.totalReferrals', 'Total referrals')}</p>
                       </div>
                       <p className="text-2xl font-bold">{referralStats.totalReferrals || 0}</p>
                     </div>
                     <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
                       <div className="flex items-center gap-2 mb-1">
                         <Gift className="h-4 w-4" />
-                        <p className="text-sm text-white/80">Contratos gratis</p>
+                        <p className="text-sm text-white/80">{t('dashboard.freeContracts', 'Free contracts')}</p>
                       </div>
                       <p className="text-2xl font-bold">{referralStats.freeContractsRemaining || 0}</p>
                     </div>
@@ -802,7 +804,7 @@ export default function ProfilePage() {
                       href="/referrals"
                       className="text-sm text-white/90 hover:text-white underline"
                     >
-                      Ver detalles completos →
+                      {t('profile.viewFullDetails', 'View full details')} →
                     </a>
                   </div>
                 </div>
@@ -841,7 +843,7 @@ export default function ProfilePage() {
                       <div className="flex items-center gap-3">
                         <span className="text-2xl">📋</span>
                         <span className="font-semibold text-slate-900 dark:text-white">
-                          Todos los trabajos
+                          {t('profile.allJobs', 'All jobs')}
                         </span>
                       </div>
                       <ChevronRight className="w-5 h-5 text-slate-400" />
@@ -861,7 +863,7 @@ export default function ProfilePage() {
                           <span className="text-2xl">{category.icon}</span>
                           <div className="text-left">
                             <span className="font-semibold text-slate-900 dark:text-white">
-                              {category.label}
+                              {(() => { const cat = getCategoryById(category.id); return cat ? t(cat.labelKey, cat.label) : category.label; })()}
                             </span>
                             <span className="ml-2 text-sm text-sky-600 dark:text-sky-400 font-medium">
                               ({category.count})
@@ -891,13 +893,13 @@ export default function ProfilePage() {
                     {t('home.myPublications')}
                   </h2>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
-                    Trabajos que has publicado como cliente
+                    {t('profile.myPublicationsDesc', "Jobs you've published as a client")}
                   </p>
                   <Link
                     to="/my-jobs"
                     className="inline-flex items-center gap-1 text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 text-sm font-medium"
                   >
-                    Ver todos mis trabajos →
+                    {t('profile.viewAllMyJobs', 'See all my jobs')} →
                   </Link>
                 </div>
               )}
@@ -907,16 +909,16 @@ export default function ProfilePage() {
                 <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                     <CheckCircle className="h-5 w-5 text-green-500" />
-                    {t('profile.jobsIDid', 'Jobs I Completed')}
+                    {t('profile.jobsIDid', 'Trabajos que Realicé')}
                   </h2>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
-                    Contratos donde trabajaste como profesional
+                    {t('profile.jobsIDidDesc', 'Contracts where you worked as a professional')}
                   </p>
                   <Link
                     to="/contracts?role=doer"
                     className="inline-flex items-center gap-1 text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 text-sm font-medium"
                   >
-                    Ver mis trabajos realizados →
+                    {t('profile.viewMyJobsDone', 'See my completed jobs')} →
                   </Link>
                 </div>
               )}
@@ -976,7 +978,7 @@ export default function ProfilePage() {
                         </h2>
                         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                           {selectedCategory
-                            ? `${t('profile.showingJobsFrom', 'Showing jobs from')} ${completedByCategory.find(c => c.id === selectedCategory)?.label}`
+                            ? `${t('profile.showingJobsFrom', 'Showing jobs from')} ${(() => { const cat = getCategoryById(selectedCategory!); const apiCat = completedByCategory.find(c => c.id === selectedCategory); return cat ? t(cat.labelKey, cat.label) : apiCat?.label || ''; })()}`
                             : `${completedJobs.length} ${t('profile.jobsCompleted', 'jobs completed')}`}
                         </p>
                       </div>
@@ -1003,9 +1005,9 @@ export default function ProfilePage() {
                       </h3>
                       <p className="text-slate-600 dark:text-slate-400 max-w-md mx-auto">
                         {selectedCategory
-                          ? 'Aún no hay trabajos completados en esta categoría. ¡Pero seguro pronto habrá!'
+                          ? t('profile.noCategoryJobs', 'No completed jobs in this category yet. But there will be soon!')
                           : isOwnProfile()
-                            ? 'Completá tu primer trabajo y empezá a construir tu reputación. Cada proyecto es una oportunidad para brillar.'
+                            ? t('profile.portfolioWaitingDesc', 'Complete your first job and start building your reputation. Every project is an opportunity to shine.')
                             : t('profile.readyToShowTalent', 'This professional is ready to showcase their talent. You could be the first to hire them!')}
                       </p>
                       {isOwnProfile() && !selectedCategory && (
@@ -1015,14 +1017,14 @@ export default function ProfilePage() {
                             className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-medium transition-all shadow-sm"
                           >
                             <Briefcase className="w-4 h-4" />
-                            Explorar trabajos disponibles
+                            {t('profile.exploreJobs', 'Explore available jobs')}
                           </Link>
                           <Link
                             to="/my-jobs"
                             className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-medium transition-all shadow-sm"
                           >
                             <FileText className="w-4 h-4" />
-                            Ver mis publicaciones
+                            {t('profile.viewMyPublications', 'Mis Publicaciones')}
                           </Link>
                         </div>
                       )}
@@ -1079,7 +1081,7 @@ export default function ProfilePage() {
                                     className="w-6 h-6 rounded-full"
                                   />
                                   <span className="text-sm text-slate-600 dark:text-slate-400">
-                                    Cliente: {contract.client.name}
+                                    {t('profile.client', 'Client')}: {contract.client.name}
                                   </span>
                                 </div>
                               )}
@@ -1114,7 +1116,7 @@ export default function ProfilePage() {
                                   to={`/jobs/${contract.job?.id}`}
                                   className="text-sm text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1"
                                 >
-                                  Ver trabajo
+                                  {t('profile.viewJob', 'View job')}
                                   <ExternalLink className="w-3 h-3" />
                                 </Link>
                               </div>
@@ -1139,7 +1141,7 @@ export default function ProfilePage() {
                         {t('profile.posts', 'Posts')}
                       </h2>
                       <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                        {posts.length} publicaciones
+                        {posts.length} {t('profile.publicationsCount', 'publications')}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1161,7 +1163,7 @@ export default function ProfilePage() {
                             : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
                         }`}
                       >
-                        Artículos
+                        {t('profile.articles', 'Articles')}
                       </button>
                     </div>
                   </div>
@@ -1176,7 +1178,7 @@ export default function ProfilePage() {
                         className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-medium transition-colors text-sm"
                       >
                         <Plus className="w-4 h-4" />
-                        Crear Post
+                        {t('profile.createPost', 'Create Post')}
                       </button>
                       <button
                         onClick={() => {
@@ -1186,7 +1188,7 @@ export default function ProfilePage() {
                         className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-lg font-medium transition-colors text-sm"
                       >
                         <Plus className="w-4 h-4" />
-                        Escribir Artículo
+                        {t('profile.writeArticle', 'Write Article')}
                       </button>
                     </div>
                   )}
@@ -1284,7 +1286,7 @@ export default function ProfilePage() {
                                   to={`/posts/${post.id || post._id}`}
                                   className="text-sm text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1"
                                 >
-                                  Ver más
+                                  {t('profile.seeMore', 'See more')}
                                   <ExternalLink className="w-3 h-3" />
                                 </Link>
                               </div>
@@ -1355,7 +1357,7 @@ export default function ProfilePage() {
                     type="text"
                     value={shareSearchQuery}
                     onChange={(e) => setShareSearchQuery(e.target.value)}
-                    placeholder="Buscar usuario por nombre o @usuario..."
+                    placeholder={t('profile.searchUserPlaceholder', 'Search user by name or @username...')}
                     className="w-full px-4 py-3 pl-10 border border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
                   />
                   <MessageCircle className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -1371,7 +1373,7 @@ export default function ProfilePage() {
                 ) : shareSearchResults.length === 0 ? (
                   <div className="text-center py-8 text-slate-500 dark:text-slate-400">
                     {shareSearchQuery.length < 2
-                      ? 'Escribí al menos 2 caracteres para buscar'
+                      ? t('profile.writeAtLeast2', 'Write at least 2 characters to search')
                       : t('profile.noUsersFound', 'No users found')}
                   </div>
                 ) : (
@@ -1408,7 +1410,7 @@ export default function ProfilePage() {
               {/* Profile Preview */}
               {user && (
                 <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Se compartirá:</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">{t('profile.willBeShared', 'Will be shared:')}</p>
                   <div className="flex items-center gap-3">
                     <img
                       src={getImageUrl(user.avatar)}
@@ -1444,10 +1446,10 @@ export default function ProfilePage() {
               <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
                 <div>
                   <h3 className="text-xl font-bold text-slate-900 dark:text-white">
-                    Reseñas de {user?.name}
+                    {t('profile.reviewsOf', 'Reviews of')} {user?.name}
                   </h3>
                   <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                    {userReviews.length} opiniones de clientes
+                    {userReviews.length} {t('profile.clientOpinions', 'client reviews')}
                   </p>
                 </div>
                 <button
@@ -1527,25 +1529,25 @@ export default function ProfilePage() {
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
                             {review.communication && (
                               <div className="text-center p-2 bg-white dark:bg-slate-800 rounded-lg">
-                                <p className="text-xs text-slate-500 dark:text-slate-400">Comunicación</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">{t('profile.communication', 'Communication')}</p>
                                 <p className="font-semibold text-slate-900 dark:text-white">{review.communication}</p>
                               </div>
                             )}
                             {review.professionalism && (
                               <div className="text-center p-2 bg-white dark:bg-slate-800 rounded-lg">
-                                <p className="text-xs text-slate-500 dark:text-slate-400">Profesionalismo</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">{t('profile.professionalism', 'Professionalism')}</p>
                                 <p className="font-semibold text-slate-900 dark:text-white">{review.professionalism}</p>
                               </div>
                             )}
                             {review.quality && (
                               <div className="text-center p-2 bg-white dark:bg-slate-800 rounded-lg">
-                                <p className="text-xs text-slate-500 dark:text-slate-400">Calidad</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">{t('profile.quality', 'Quality')}</p>
                                 <p className="font-semibold text-slate-900 dark:text-white">{review.quality}</p>
                               </div>
                             )}
                             {review.timeliness && (
                               <div className="text-center p-2 bg-white dark:bg-slate-800 rounded-lg">
-                                <p className="text-xs text-slate-500 dark:text-slate-400">Puntualidad</p>
+                                <p className="text-xs text-slate-500 dark:text-slate-400">{t('profile.punctuality', 'Punctuality')}</p>
                                 <p className="font-semibold text-slate-900 dark:text-white">{review.timeliness}</p>
                               </div>
                             )}
@@ -1566,7 +1568,7 @@ export default function ProfilePage() {
                         {review.response && (
                           <div className="mt-3 ml-6 p-3 bg-sky-50 dark:bg-sky-900/20 rounded-lg border-l-4 border-sky-500">
                             <p className="text-xs font-semibold text-sky-700 dark:text-sky-400 mb-1">
-                              Respuesta de {user?.name}:
+                              {t('profile.responseFrom', 'Response from')} {user?.name}:
                             </p>
                             <p className="text-sm text-slate-700 dark:text-slate-300">
                               {review.response}

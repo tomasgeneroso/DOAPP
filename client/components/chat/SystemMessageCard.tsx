@@ -391,10 +391,12 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
               )}
             </div>
           )}
-          {data.location && (
+          {(data.location || message.metadata?.directProposal?.location) && (
             <div className="flex items-center gap-2 text-sm">
-              <MapPin className="h-4 w-4 text-slate-500 flex-shrink-0" />
-              <span className="text-slate-700 dark:text-slate-300 truncate">{data.location}</span>
+              <MapPin className="h-4 w-4 text-red-400 flex-shrink-0" />
+              <span className="text-slate-700 dark:text-slate-300 truncate">
+                {data.location || message.metadata?.directProposal?.location}
+              </span>
             </div>
           )}
 

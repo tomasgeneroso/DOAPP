@@ -110,13 +110,11 @@ export async function exchangeCodeForTokens(code: string, state: string): Promis
     body: params.toString(),
   });
 
+  const data = await response.json().catch(() => ({} as any));
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    console.error('🐦 Twitter token error:', errorData);
-    throw new Error(`Twitter token error: ${errorData.error_description || errorData.error || 'Unknown error'}`);
+    console.error('🐦 Twitter token error:', data);
+    throw new Error(`Twitter token error: ${data.error_description || data.error || 'Unknown error'}`);
   }
-
-  const data = await response.json();
   console.log('🐦 Tokens received successfully');
 
   return {
@@ -143,13 +141,11 @@ export async function getUserProfile(accessToken: string): Promise<{
     },
   });
 
+  const data = await response.json().catch(() => ({} as any));
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    console.error('🐦 Twitter API error:', error);
-    throw new Error(`Twitter API error: ${error.detail || error.title || 'Unknown error'}`);
+    console.error('🐦 Twitter API error:', data);
+    throw new Error(`Twitter API error: ${data.detail || data.title || 'Unknown error'}`);
   }
-
-  const data = await response.json();
   console.log('🐦 User profile fetched:', data.data.username);
 
   return {
@@ -186,12 +182,10 @@ export async function refreshAccessToken(refreshToken: string): Promise<{
     body: params.toString(),
   });
 
+  const data = await response.json().catch(() => ({} as any));
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(`Twitter refresh error: ${errorData.error_description || errorData.error || 'Unknown error'}`);
+    throw new Error(`Twitter refresh error: ${data.error_description || data.error || 'Unknown error'}`);
   }
-
-  const data = await response.json();
 
   return {
     accessToken: data.access_token,

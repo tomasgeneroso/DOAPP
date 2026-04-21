@@ -15,6 +15,7 @@ export interface Job {
   endDateFlexible?: boolean;
   location: string;
   neighborhood?: string;
+  postalCode?: string;
   status: 'open' | 'in_progress' | 'completed' | 'cancelled' | 'draft' | 'pending_payment' | 'pending_approval' | 'paused' | 'suspended';
   postedBy: string;
   client?: UserSummary | string;

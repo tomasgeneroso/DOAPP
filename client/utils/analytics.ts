@@ -364,6 +364,39 @@ export const analytics = {
   funnelStep: (funnelName: string, step: number, stepName: string) => {
     trackEvent(`funnel_${funnelName}_step_${step}`, "funnel", stepName);
   },
+
+  // Navigation click tracking
+  navClick: (destination: string, location: 'header' | 'footer' | 'sidebar' | 'mobile_tab') => {
+    window.gtag?.("event", "nav_click", {
+      destination,
+      nav_location: location,
+    });
+  },
+
+  // Clipboard copy tracking
+  clipboardCopy: (content_type: string, content_value?: string) => {
+    window.gtag?.("event", "clipboard_copy", {
+      content_type,
+      content_value,
+    });
+  },
+
+  // Filter / search interaction tracking
+  filterApply: (filter_name: string, filter_value: string, context?: string) => {
+    window.gtag?.("event", "filter_apply", {
+      filter_name,
+      filter_value,
+      context,
+    });
+  },
+
+  // Scroll depth milestone tracking (25 / 50 / 75 / 100)
+  scrollDepth: (percent: 25 | 50 | 75 | 100, page_path?: string) => {
+    window.gtag?.("event", "scroll_depth", {
+      percent_scrolled: percent,
+      page_path: page_path || window.location.pathname,
+    });
+  },
 };
 
 export default analytics;

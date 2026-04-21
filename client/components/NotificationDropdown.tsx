@@ -315,7 +315,7 @@ export default function NotificationDropdown() {
       {/* Dropdown */}
       {isOpen && (
         <div
-          className="absolute right-0 mt-2 w-80 sm:w-96 origin-top-right rounded-xl bg-white dark:bg-slate-800 shadow-xl ring-1 ring-black ring-opacity-5 z-[100] overflow-hidden"
+          className="absolute right-0 mt-2 w-80 sm:w-96 origin-top-right rounded-xl bg-white dark:bg-slate-800 shadow-xl ring-1 ring-black ring-opacity-5 z-[100] overflow-hidden animate-dropdownIn"
           role="menu"
           aria-orientation="vertical"
           aria-label={t('nav.notifications')}

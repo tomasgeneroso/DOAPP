@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,11 +19,16 @@ import {
   ArrowLeft,
   MapPin,
   Calendar,
+  Clock,
   DollarSign,
   FileText,
   Tag,
   Users,
   CheckCircle,
+  ClipboardList,
+  Plus,
+  Trash2,
+  ChevronDown,
 } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
@@ -51,10 +57,23 @@ export default function CreateJobScreen() {
   const [price, setPrice] = useState('');
   const [location, setLocation] = useState('');
   const [neighborhood, setNeighborhood] = useState('');
+  const [postalCode, setPostalCode] = useState('');
   const [startDate, setStartDate] = useState('');
+  const [startTime, setStartTime] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [endTime, setEndTime] = useState('');
   const [endDateFlexible, setEndDateFlexible] = useState(false);
+
+  // Date/time picker modal state
+  const [pickerVisible, setPickerVisible] = useState(false);
+  const [pickerTarget, setPickerTarget] = useState<'startDate' | 'startTime' | 'endDate' | 'endTime'>('startDate');
+  const [pickerDay, setPickerDay] = useState(1);
+  const [pickerMonth, setPickerMonth] = useState(new Date().getMonth() + 1);
+  const [pickerYear, setPickerYear] = useState(new Date().getFullYear());
+  const [pickerHour, setPickerHour] = useState(9);
+  const [pickerMinute, setPickerMinute] = useState(0);
   const [maxWorkers, setMaxWorkers] = useState('1');
+  const [requirements, setRequirements] = useState(['', '', '']);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showCategories, setShowCategories] = useState(false);
@@ -71,11 +90,61 @@ export default function CreateJobScreen() {
   };
 
   // Auto-format date input: add "/" after DD and MM
-  // Simple date filter: only allow digits and slashes, max 10 chars
   const handleDateInput = (text: string, setter: (v: string) => void) => {
-    const cleaned = text.replace(/[^\d/]/g, '').substring(0, 10);
-    setter(cleaned);
+    const digits = text.replace(/\D/g, '').substring(0, 8);
+    let formatted = digits;
+    if (digits.length >= 3) formatted = digits.slice(0, 2) + '/' + digits.slice(2);
+    if (digits.length >= 5) formatted = digits.slice(0, 2) + '/' + digits.slice(2, 4) + '/' + digits.slice(4);
+    setter(formatted);
   };
+
+  // Date/time picker helpers
+  const MONTHS = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  const daysInMonth = (month: number, year: number) => new Date(year, month, 0).getDate();
+  const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() + i);
+  const days = Array.from({ length: daysInMonth(pickerMonth, pickerYear) }, (_, i) => i + 1);
+  const hours = Array.from({ length: 24 }, (_, i) => i);
+  const minutes = [0, 15, 30, 45];
+
+  const openPicker = (target: typeof pickerTarget) => {
+    const now = new Date();
+    if (target === 'startDate') {
+      const d = parseDMY(startDate) || now;
+      setPickerDay(d.getDate()); setPickerMonth(d.getMonth() + 1); setPickerYear(d.getFullYear());
+    } else if (target === 'endDate') {
+      const d = parseDMY(endDate) || now;
+      setPickerDay(d.getDate()); setPickerMonth(d.getMonth() + 1); setPickerYear(d.getFullYear());
+    } else if (target === 'startTime') {
+      const [h = 9, m = 0] = startTime.split(':').map(Number);
+      setPickerHour(h); setPickerMinute(m);
+    } else {
+      const [h = 9, m = 0] = endTime.split(':').map(Number);
+      setPickerHour(h); setPickerMinute(m);
+    }
+    setPickerTarget(target);
+    setPickerVisible(true);
+  };
+
+  const parseDMY = (s: string): Date | null => {
+    const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!m) return null;
+    return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  };
+
+  const confirmPicker = () => {
+    if (pickerTarget === 'startDate') {
+      setStartDate(`${String(pickerDay).padStart(2,'0')}/${String(pickerMonth).padStart(2,'0')}/${pickerYear}`);
+    } else if (pickerTarget === 'endDate') {
+      setEndDate(`${String(pickerDay).padStart(2,'0')}/${String(pickerMonth).padStart(2,'0')}/${pickerYear}`);
+    } else if (pickerTarget === 'startTime') {
+      setStartTime(`${String(pickerHour).padStart(2,'0')}:${String(pickerMinute).padStart(2,'0')}`);
+    } else {
+      setEndTime(`${String(pickerHour).padStart(2,'0')}:${String(pickerMinute).padStart(2,'0')}`);
+    }
+    setPickerVisible(false);
+  };
+
+  const isTimePicker = pickerTarget === 'startTime' || pickerTarget === 'endTime';
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -89,6 +158,7 @@ export default function CreateJobScreen() {
     if (!location.trim()) newErrors.location = 'La ubicación es requerida';
     if (!startDate.trim()) newErrors.startDate = 'La fecha de inicio es requerida';
     else if (!isValidDate(startDate)) newErrors.startDate = 'Fecha inválida. Usá formato DD/MM/AAAA (ej: 25/03/2026)';
+    if (!startTime.trim()) newErrors.startTime = 'La hora de inicio es requerida';
     if (endDate && !endDateFlexible && !isValidDate(endDate)) newErrors.endDate = 'Fecha inválida. Usá formato DD/MM/AAAA';
 
     setErrors(newErrors);
@@ -106,11 +176,15 @@ export default function CreateJobScreen() {
     setLoading(true);
     try {
       const desc = description.trim();
-      // Convert DD/MM/YYYY to ISO 8601 (YYYY-MM-DD)
-      const toISO = (dateStr: string): string => {
+      // Convert DD/MM/YYYY [HH:MM] to ISO 8601
+      const toISO = (dateStr: string, timeStr?: string): string => {
         const parts = dateStr.split('/');
-        if (parts.length === 3) return `${parts[2]}-${parts[1]}-${parts[0]}`;
-        return dateStr; // Already ISO or other format
+        if (parts.length === 3) {
+          const isoDate = `${parts[2]}-${parts[1]}-${parts[0]}`;
+          if (timeStr) return `${isoDate}T${timeStr}:00.000Z`;
+          return isoDate;
+        }
+        return dateStr;
       };
       const jobData = {
         title: title.trim(),
@@ -121,10 +195,12 @@ export default function CreateJobScreen() {
         budget: parseFloat(price),
         location: location.trim(),
         neighborhood: neighborhood.trim() || undefined,
-        startDate: toISO(startDate),
-        endDate: endDateFlexible ? undefined : (endDate ? toISO(endDate) : undefined),
+        postalCode: postalCode.trim() || undefined,
+        startDate: toISO(startDate, startTime || undefined),
+        endDate: endDateFlexible ? undefined : (endDate ? toISO(endDate, endTime || undefined) : undefined),
         endDateFlexible,
         maxWorkers: parseInt(maxWorkers) || 1,
+        completionRequirements: requirements.filter(r => r.trim()),
       };
 
       const response = await createJob(jobData);
@@ -292,7 +368,9 @@ export default function CreateJobScreen() {
                     fontSize: fontSize.base,
                   }}
                 >
-                  {category || 'Selecciona una categoría'}
+                  {category
+                    ? `${categories.find(c => c.id === category)?.icon || ''} ${categories.find(c => c.id === category)?.label || category}`
+                    : 'Selecciona una categoría'}
                 </Text>
               </TouchableOpacity>
               {errors.category && <Text style={styles.errorText}>{errors.category}</Text>}
@@ -301,25 +379,25 @@ export default function CreateJobScreen() {
                 <View style={[styles.categoriesList, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
                   {categories.map((cat) => (
                     <TouchableOpacity
-                      key={cat}
+                      key={cat.id}
                       style={[
                         styles.categoryItem,
-                        category === cat && { backgroundColor: themeColors.primary[50] },
+                        category === cat.id && { backgroundColor: themeColors.primary[50] },
                       ]}
                       onPress={() => {
-                        setCategory(cat);
+                        setCategory(cat.id);
                         setShowCategories(false);
                       }}
                     >
                       <Text
                         style={[
                           styles.categoryItemText,
-                          { color: category === cat ? themeColors.primary[600] : themeColors.text.primary },
+                          { color: category === cat.id ? themeColors.primary[600] : themeColors.text.primary },
                         ]}
                       >
-                        {cat}
+                        {cat.icon} {cat.label}
                       </Text>
-                      {category === cat && <CheckCircle size={18} color={themeColors.primary[600]} />}
+                      {category === cat.id && <CheckCircle size={18} color={themeColors.primary[600]} />}
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -404,34 +482,10 @@ export default function CreateJobScreen() {
               />
             </View>
 
-            {/* Start Date */}
+            {/* Postal Code */}
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: themeColors.text.primary }]}>
-                <Calendar size={16} color={themeColors.text.secondary} /> Fecha de inicio *
-              </Text>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: themeColors.slate[50],
-                    borderColor: errors.startDate ? colors.danger[500] : themeColors.border,
-                    color: themeColors.text.primary,
-                  },
-                ]}
-                placeholder="DD/MM/AAAA"
-                placeholderTextColor={themeColors.text.muted}
-                value={startDate}
-                onChangeText={(t) => handleDateInput(t, setStartDate)}
-                keyboardType="numeric"
-                maxLength={10}
-              />
-              {errors.startDate && <Text style={styles.errorText}>{errors.startDate}</Text>}
-            </View>
-
-            {/* End Date */}
-            <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: themeColors.text.primary }]}>
-                Fecha de fin
+                Código postal (opcional)
               </Text>
               <TextInput
                 style={[
@@ -442,14 +496,106 @@ export default function CreateJobScreen() {
                     color: themeColors.text.primary,
                   },
                 ]}
-                placeholder="DD/MM/AAAA"
+                placeholder="Ej: 1425"
                 placeholderTextColor={themeColors.text.muted}
-                value={endDate}
-                onChangeText={(t) => handleDateInput(t, setEndDate)}
+                value={postalCode}
+                onChangeText={setPostalCode}
                 keyboardType="numeric"
                 maxLength={10}
-                editable={!endDateFlexible}
               />
+            </View>
+
+            {/* Start Date + Time */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: themeColors.text.primary }]}>
+                <Calendar size={16} color={themeColors.text.secondary} /> Fecha y hora de inicio *
+              </Text>
+              <View style={styles.dateTimeRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.datePickerBtn,
+                    {
+                      backgroundColor: themeColors.slate[50],
+                      borderColor: errors.startDate ? colors.danger[500] : themeColors.border,
+                      flex: 3,
+                    },
+                  ]}
+                  onPress={() => openPicker('startDate')}
+                >
+                  <Calendar size={16} color={startDate ? themeColors.text.primary : themeColors.text.muted} strokeWidth={2} />
+                  <Text style={[styles.datePickerText, { color: startDate ? themeColors.text.primary : themeColors.text.muted }]}>
+                    {startDate || 'DD/MM/AAAA'}
+                  </Text>
+                  <ChevronDown size={16} color={themeColors.text.muted} strokeWidth={2} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.datePickerBtn,
+                    {
+                      backgroundColor: themeColors.slate[50],
+                      borderColor: errors.startTime ? colors.danger[500] : themeColors.border,
+                      flex: 2,
+                    },
+                  ]}
+                  onPress={() => openPicker('startTime')}
+                >
+                  <Clock size={16} color={startTime ? themeColors.text.primary : themeColors.text.muted} strokeWidth={2} />
+                  <Text style={[styles.datePickerText, { color: startTime ? themeColors.text.primary : themeColors.text.muted }]}>
+                    {startTime || 'HH:MM'}
+                  </Text>
+                  <ChevronDown size={16} color={themeColors.text.muted} strokeWidth={2} />
+                </TouchableOpacity>
+              </View>
+              {errors.startDate && <Text style={styles.errorText}>{errors.startDate}</Text>}
+              {errors.startTime && <Text style={styles.errorText}>{errors.startTime}</Text>}
+            </View>
+
+            {/* End Date + Time */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: themeColors.text.primary }]}>
+                Fecha y hora de fin
+              </Text>
+              <View style={styles.dateTimeRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.datePickerBtn,
+                    {
+                      backgroundColor: endDateFlexible ? themeColors.slate[100] : themeColors.slate[50],
+                      borderColor: errors.endDate ? colors.danger[500] : themeColors.border,
+                      flex: 3,
+                      opacity: endDateFlexible ? 0.5 : 1,
+                    },
+                  ]}
+                  onPress={() => !endDateFlexible && openPicker('endDate')}
+                  disabled={endDateFlexible}
+                >
+                  <Calendar size={16} color={endDate ? themeColors.text.primary : themeColors.text.muted} strokeWidth={2} />
+                  <Text style={[styles.datePickerText, { color: endDate ? themeColors.text.primary : themeColors.text.muted }]}>
+                    {endDate || 'DD/MM/AAAA'}
+                  </Text>
+                  <ChevronDown size={16} color={themeColors.text.muted} strokeWidth={2} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.datePickerBtn,
+                    {
+                      backgroundColor: endDateFlexible ? themeColors.slate[100] : themeColors.slate[50],
+                      borderColor: themeColors.border,
+                      flex: 2,
+                      opacity: endDateFlexible ? 0.5 : 1,
+                    },
+                  ]}
+                  onPress={() => !endDateFlexible && openPicker('endTime')}
+                  disabled={endDateFlexible}
+                >
+                  <Clock size={16} color={endTime ? themeColors.text.primary : themeColors.text.muted} strokeWidth={2} />
+                  <Text style={[styles.datePickerText, { color: endTime ? themeColors.text.primary : themeColors.text.muted }]}>
+                    {endTime || 'HH:MM'}
+                  </Text>
+                  <ChevronDown size={16} color={themeColors.text.muted} strokeWidth={2} />
+                </TouchableOpacity>
+              </View>
+              {errors.endDate && <Text style={styles.errorText}>{errors.endDate}</Text>}
 
               <TouchableOpacity
                 style={styles.checkboxRow}
@@ -471,6 +617,94 @@ export default function CreateJobScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
+
+            {/* Date/Time Picker Modal */}
+            <Modal visible={pickerVisible} transparent animationType="slide">
+              <TouchableOpacity style={styles.pickerOverlay} activeOpacity={1} onPress={() => setPickerVisible(false)} />
+              <View style={[styles.pickerSheet, { backgroundColor: themeColors.card }]}>
+                <View style={[styles.pickerHeader, { borderBottomColor: themeColors.border }]}>
+                  <TouchableOpacity onPress={() => setPickerVisible(false)}>
+                    <Text style={[styles.pickerCancel, { color: themeColors.text.secondary }]}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <Text style={[styles.pickerTitle, { color: themeColors.text.primary }]}>
+                    {pickerTarget === 'startDate' ? 'Fecha de inicio'
+                      : pickerTarget === 'endDate' ? 'Fecha de fin'
+                      : pickerTarget === 'startTime' ? 'Hora de inicio'
+                      : 'Hora de fin'}
+                  </Text>
+                  <TouchableOpacity onPress={confirmPicker}>
+                    <Text style={[styles.pickerConfirm, { color: themeColors.primary[600] }]}>Listo</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {isTimePicker ? (
+                  <View style={styles.pickerColumns}>
+                    {/* Hour column */}
+                    <View style={styles.pickerColumn}>
+                      <Text style={[styles.pickerColLabel, { color: themeColors.text.muted }]}>Hora</Text>
+                      <ScrollView style={styles.pickerScroll} showsVerticalScrollIndicator={false}>
+                        {hours.map((h) => (
+                          <TouchableOpacity key={h} style={[styles.pickerItem, pickerHour === h && { backgroundColor: themeColors.primary[50] }]} onPress={() => setPickerHour(h)}>
+                            <Text style={[styles.pickerItemText, { color: pickerHour === h ? themeColors.primary[600] : themeColors.text.primary }, pickerHour === h && { fontWeight: fontWeight.bold }]}>
+                              {String(h).padStart(2, '0')}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                    {/* Minute column */}
+                    <View style={styles.pickerColumn}>
+                      <Text style={[styles.pickerColLabel, { color: themeColors.text.muted }]}>Min</Text>
+                      <ScrollView style={styles.pickerScroll} showsVerticalScrollIndicator={false}>
+                        {minutes.map((m) => (
+                          <TouchableOpacity key={m} style={[styles.pickerItem, pickerMinute === m && { backgroundColor: themeColors.primary[50] }]} onPress={() => setPickerMinute(m)}>
+                            <Text style={[styles.pickerItemText, { color: pickerMinute === m ? themeColors.primary[600] : themeColors.text.primary }, pickerMinute === m && { fontWeight: fontWeight.bold }]}>
+                              {String(m).padStart(2, '0')}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.pickerColumns}>
+                    {/* Day */}
+                    <View style={styles.pickerColumn}>
+                      <Text style={[styles.pickerColLabel, { color: themeColors.text.muted }]}>Día</Text>
+                      <ScrollView style={styles.pickerScroll} showsVerticalScrollIndicator={false}>
+                        {days.map((d) => (
+                          <TouchableOpacity key={d} style={[styles.pickerItem, pickerDay === d && { backgroundColor: themeColors.primary[50] }]} onPress={() => setPickerDay(d)}>
+                            <Text style={[styles.pickerItemText, { color: pickerDay === d ? themeColors.primary[600] : themeColors.text.primary }, pickerDay === d && { fontWeight: fontWeight.bold }]}>{String(d).padStart(2,'0')}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                    {/* Month */}
+                    <View style={[styles.pickerColumn, { flex: 1.6 }]}>
+                      <Text style={[styles.pickerColLabel, { color: themeColors.text.muted }]}>Mes</Text>
+                      <ScrollView style={styles.pickerScroll} showsVerticalScrollIndicator={false}>
+                        {MONTHS.map((name, i) => (
+                          <TouchableOpacity key={i+1} style={[styles.pickerItem, pickerMonth === i+1 && { backgroundColor: themeColors.primary[50] }]} onPress={() => setPickerMonth(i+1)}>
+                            <Text style={[styles.pickerItemText, { color: pickerMonth === i+1 ? themeColors.primary[600] : themeColors.text.primary }, pickerMonth === i+1 && { fontWeight: fontWeight.bold }]}>{name}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                    {/* Year */}
+                    <View style={[styles.pickerColumn, { flex: 1.6 }]}>
+                      <Text style={[styles.pickerColLabel, { color: themeColors.text.muted }]}>Año</Text>
+                      <ScrollView style={styles.pickerScroll} showsVerticalScrollIndicator={false}>
+                        {years.map((y) => (
+                          <TouchableOpacity key={y} style={[styles.pickerItem, pickerYear === y && { backgroundColor: themeColors.primary[50] }]} onPress={() => setPickerYear(y)}>
+                            <Text style={[styles.pickerItemText, { color: pickerYear === y ? themeColors.primary[600] : themeColors.text.primary }, pickerYear === y && { fontWeight: fontWeight.bold }]}>{y}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  </View>
+                )}
+              </View>
+            </Modal>
 
             {/* Max Workers */}
             <View style={styles.inputGroup}>
@@ -495,6 +729,59 @@ export default function CreateJobScreen() {
               <Text style={[styles.helperText, { color: themeColors.text.muted }]}>
                 Para trabajos que requieren múltiples personas
               </Text>
+            </View>
+
+            {/* Completion Requirements */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: themeColors.text.primary }]}>
+                <ClipboardList size={16} color={themeColors.text.secondary} /> Requisitos de finalización
+              </Text>
+              <View style={[styles.requirementsInfo, { backgroundColor: themeColors.primary[50] }]}>
+                <Text style={[styles.requirementsInfoText, { color: themeColors.primary[700] }]}>
+                  Definí los criterios mínimos para considerar el trabajo terminado. Esto sirve como respaldo ante posibles disputas. Al postularse, se recomienda a los trabajadores consultar estos requisitos.
+                </Text>
+              </View>
+              {requirements.map((req, idx) => (
+                <View key={idx} style={styles.requirementRow}>
+                  <Text style={[styles.requirementIndex, { color: themeColors.text.muted }]}>{idx + 1}.</Text>
+                  <TextInput
+                    style={[
+                      styles.requirementInput,
+                      {
+                        backgroundColor: themeColors.slate[50],
+                        borderColor: themeColors.border,
+                        color: themeColors.text.primary,
+                      },
+                    ]}
+                    placeholder={`Ej: ${idx === 0 ? 'Sin telas de araña en esquinas de paredes' : idx === 1 ? 'Pisos barridos y trapeados en todos los ambientes' : 'Baños desinfectados y limpios'}`}
+                    placeholderTextColor={themeColors.text.muted}
+                    value={req}
+                    onChangeText={(text) => {
+                      const updated = [...requirements];
+                      updated[idx] = text;
+                      setRequirements(updated);
+                    }}
+                    multiline
+                  />
+                  {requirements.length > 3 && (
+                    <TouchableOpacity
+                      onPress={() => setRequirements(requirements.filter((_, i) => i !== idx))}
+                      style={styles.removeRequirementBtn}
+                    >
+                      <Trash2 size={16} color={colors.danger[500]} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))}
+              {requirements.length < 8 && (
+                <TouchableOpacity
+                  style={[styles.addRequirementBtn, { borderColor: themeColors.primary[400] }]}
+                  onPress={() => setRequirements([...requirements, ''])}
+                >
+                  <Plus size={16} color={themeColors.primary[600]} />
+                  <Text style={[styles.addRequirementText, { color: themeColors.primary[600] }]}>Agregar requisito</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {/* Submit Button */}
@@ -625,6 +912,56 @@ const styles = StyleSheet.create({
   checkboxLabel: {
     fontSize: fontSize.sm,
   },
+  requirementsInfo: {
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  requirementsInfoText: {
+    fontSize: fontSize.xs,
+    lineHeight: 18,
+  },
+  requirementRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  requirementIndex: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.semibold,
+    marginTop: 14,
+    width: 18,
+  },
+  requirementInput: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontSize: fontSize.sm,
+  },
+  removeRequirementBtn: {
+    marginTop: 12,
+    padding: 4,
+  },
+  addRequirementBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    marginTop: spacing.xs,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    alignSelf: 'flex-start',
+  },
+  addRequirementText: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+  },
   submitButton: {
     height: 52,
     backgroundColor: colors.primary[600],
@@ -640,5 +977,87 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: fontSize.lg,
     fontWeight: fontWeight.semibold,
+  },
+  // Date/time picker
+  dateTimeRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  datePickerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 48,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    paddingHorizontal: spacing.md,
+    gap: spacing.xs,
+  },
+  datePickerText: {
+    flex: 1,
+    fontSize: fontSize.base,
+  },
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  pickerSheet: {
+    borderTopLeftRadius: borderRadius['2xl'],
+    borderTopRightRadius: borderRadius['2xl'],
+    paddingBottom: 32,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 16,
+  },
+  pickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderBottomWidth: 1,
+  },
+  pickerTitle: {
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.semibold,
+  },
+  pickerCancel: {
+    fontSize: fontSize.base,
+  },
+  pickerConfirm: {
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.semibold,
+  },
+  pickerColumns: {
+    flexDirection: 'row',
+    height: 220,
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
+  },
+  pickerColumn: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  pickerColLabel: {
+    fontSize: fontSize.xs,
+    textAlign: 'center',
+    marginBottom: spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  pickerScroll: {
+    flex: 1,
+  },
+  pickerItem: {
+    paddingVertical: 10,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.md,
+    marginHorizontal: 2,
+    marginVertical: 1,
+  },
+  pickerItemText: {
+    fontSize: fontSize.base,
+    textAlign: 'center',
   },
 });

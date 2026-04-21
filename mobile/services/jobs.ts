@@ -1,5 +1,8 @@
 import { Job, PaginatedResponse, ApiResponse } from '../types';
 import { get, post, put, del } from './api';
+import { JOB_CATEGORIES, getCategoryById } from '../../shared/constants/categories';
+
+export { getCategoryById };
 
 /**
  * Servicio para gestión de trabajos
@@ -128,31 +131,8 @@ export async function createJobPaymentOrder(jobId: string, paymentMethod: 'merca
 }
 
 /**
- * Obtener categorías de trabajos
+ * Obtener categorías de trabajos (sincronizado con shared/constants/categories)
  */
-export function getCategories(): string[] {
-  // Las categorías están definidas localmente para evitar una llamada API
-  return [
-    'Limpieza',
-    'Jardinería',
-    'Plomería',
-    'Electricidad',
-    'Carpintería',
-    'Pintura',
-    'Mudanzas',
-    'Reparaciones',
-    'Cuidado de mascotas',
-    'Cuidado de niños',
-    'Cuidado de adultos mayores',
-    'Clases particulares',
-    'Diseño gráfico',
-    'Programación',
-    'Marketing digital',
-    'Fotografía',
-    'Video',
-    'Música',
-    'Traducción',
-    'Redacción',
-    'Otro'
-  ];
+export function getCategories() {
+  return JOB_CATEGORIES;
 }
