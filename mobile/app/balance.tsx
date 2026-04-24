@@ -324,6 +324,12 @@ export default function BalanceScreen() {
               maxLength={22}
             />
 
+            <View style={{ backgroundColor: '#eff6ff', padding: 12, borderRadius: 12, marginBottom: 12 }}>
+              <Text style={{ fontSize: 12, color: '#1e40af', lineHeight: 18 }}>
+                Los retiros se procesan cada <Text style={{ fontWeight: '700' }}>7 días hábiles</Text>. El depósito se realizará en la cuenta bancaria configurada en tu perfil. Asegurate de tener tu CBU/alias actualizados en Configuración.
+              </Text>
+            </View>
+
             <View style={styles.formActions}>
               <TouchableOpacity
                 style={[styles.cancelButton, { borderColor: themeColors.border }]}

@@ -456,12 +456,13 @@ export default function WithdrawalRequestPage() {
             {/* Info Box */}
             <div className="mt-6 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
               <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2 text-sm">
-                Tiempos de Procesamiento
+                Información sobre retiros
               </h3>
-              <ul className="space-y-1 text-xs text-blue-800 dark:text-blue-200">
-                <li>• Aprobación: 24-48 horas</li>
-                <li>• Transferencia: 1-3 días hábiles</li>
-                <li>• Mínimo: $1,000 ARS</li>
+              <ul className="space-y-1.5 text-xs text-blue-800 dark:text-blue-200">
+                <li>• Los retiros se procesan cada <strong>7 días hábiles</strong></li>
+                <li>• El depósito se realizará en la cuenta bancaria configurada en tu perfil</li>
+                <li>• Monto mínimo por retiro: <strong>$1,000 ARS</strong></li>
+                <li>• Asegurate de tener tu CBU/alias actualizados en <a href="/settings" className="underline font-medium hover:text-blue-600 dark:hover:text-blue-300">Configuración</a></li>
               </ul>
             </div>
           </div>
