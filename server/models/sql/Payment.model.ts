@@ -9,6 +9,7 @@ import {
   HasMany,
   Default,
   Index,
+  AllowNull,
 } from 'sequelize-typescript';
 import { User } from './User.model.js';
 import { Contract } from './Contract.model.js';
@@ -37,7 +38,9 @@ export type PaymentStatus =
   | 'awaiting_confirmation'
   | 'disputed'
   | 'completed'
+  | 'approved'
   | 'failed'
+  | 'rejected'
   | 'refunded'
   | 'cancelled';
 
@@ -49,7 +52,8 @@ export type PaymentType =
   | 'membership'
   | 'job_publication'
   | 'contract'
-  | 'budget_increase';
+  | 'budget_increase'
+  | 'quote_payment';
 
 export type PaymentMethod = 'paypal' | 'mercadopago';
 
@@ -88,7 +92,11 @@ export class Payment extends Model {
   @BelongsTo(() => Contract)
   contract?: Contract;
 
+  @Column(DataType.UUID)
+  quoteId?: string;
+
   @ForeignKey(() => User)
+  @AllowNull(false)
   @Index
   @Column(DataType.UUID)
   payerId!: string;
@@ -118,6 +126,7 @@ export class Payment extends Model {
   amount!: number;
 
   @Default('ARS')
+  @AllowNull(false)
   @Column(DataType.STRING(10))
   currency!: string;
 
@@ -135,10 +144,12 @@ export class Payment extends Model {
   // ============================================
 
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.DECIMAL(12, 2))
   platformFee!: number;
 
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.DECIMAL(5, 2))
   platformFeePercentage!: number;
 
@@ -147,15 +158,18 @@ export class Payment extends Model {
   // ============================================
 
   @Default('pending')
+  @AllowNull(false)
   @Index
   @Column(DataType.STRING(30))
   status!: PaymentStatus;
 
+  @AllowNull(false)
   @Index
   @Column(DataType.STRING(30))
   paymentType!: PaymentType;
 
   @Default('mercadopago')
+  @AllowNull(false)
   @Index
   @Column(DataType.STRING(20))
   paymentMethod!: PaymentMethod;
@@ -215,6 +229,7 @@ export class Payment extends Model {
   // ============================================
 
   @Default(true) // Por defecto todos los pagos en Argentina van a escrow
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   isEscrow!: boolean;
 
@@ -238,6 +253,7 @@ export class Payment extends Model {
   // ============================================
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   payerConfirmed!: boolean;
 
@@ -245,6 +261,7 @@ export class Payment extends Model {
   payerConfirmedAt?: Date;
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   recipientConfirmed!: boolean;
 
@@ -293,6 +310,7 @@ export class Payment extends Model {
   // ============================================
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   pendingVerification!: boolean;
 

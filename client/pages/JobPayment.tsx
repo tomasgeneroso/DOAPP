@@ -8,6 +8,7 @@ import { CreditCard, ArrowLeft, Loader2, Calendar, FileText, Upload, Eye } from 
 import PaymentMethodSelector, { PaymentMethod, BinancePaymentData, BankTransferPaymentData } from "@/components/payments/PaymentMethodSelector";
 
 export default function JobPayment() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -866,6 +867,23 @@ export default function JobPayment() {
           )}
 
           {/* Actions */}
+          {/* Tips before payment */}
+          <div className="px-6 pb-2">
+            <div className="rounded-xl border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-base">💡</span>
+                <span className="text-sm font-semibold text-amber-800 dark:text-amber-200">Antes de publicar</span>
+              </div>
+              <ul className="space-y-1.5 text-xs text-amber-700 dark:text-amber-300">
+                <li className="flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span> Las comisiones <strong>no se devuelven</strong> salvo que canceles antes de seleccionar un trabajador y más de 42hs antes del inicio.</li>
+                <li className="flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span> Verificá el <strong>código del trabajador</strong> cuando llegue al lugar de trabajo para mayor seguridad.</li>
+                <li className="flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span> Publicá los <strong>requisitos de finalización</strong> con detalle para evitar disputas.</li>
+                <li className="flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span> Si el trabajo no se completa correctamente, podés abrir una <strong>disputa</strong> y el dinero queda retenido en escrow hasta resolverse.</li>
+                <li className="flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span> Revisá el perfil y las reseñas del trabajador antes de seleccionarlo.</li>
+              </ul>
+            </div>
+          </div>
+
           <div className="p-6 bg-slate-50 dark:bg-slate-900/60 space-y-3">
             <button
               onClick={handlePayment}

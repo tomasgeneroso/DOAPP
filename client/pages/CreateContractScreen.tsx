@@ -72,6 +72,7 @@ export default function CreateContractScreen() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [maxWorkers, setMaxWorkers] = useState(1);
   const [requirements, setRequirements] = useState(['', '', '']);
+  const [vacancyTaskAssignments, setVacancyTaskAssignments] = useState<Array<{ slot: number; taskName: string }>>([]);
   const [endDateFlexible, setEndDateFlexible] = useState(false);
   const [singleDelivery, setSingleDelivery] = useState(true);
   const [neighborhood, setNeighborhood] = useState("");
@@ -149,7 +150,10 @@ export default function CreateContractScreen() {
           const newCategoryInfo = getCategoryById(selectedCategory);
 
           setOverlapWarning({
-            message: `Los trabajos de ${newCategoryInfo?.label || selectedCategory} no pueden superponerse con trabajos de ${existingCategoryInfo?.label || existingJob.category}. Solo se permite superposición entre trabajos presenciales y remotos (tecnología).`,
+            message: t('jobs.overlapMessage', '{{newCat}} jobs cannot overlap with {{existingCat}} jobs. Overlap is only allowed between in-person and remote (technology) jobs.', {
+              newCat: newCategoryInfo?.label || selectedCategory,
+              existingCat: existingCategoryInfo?.label || existingJob.category,
+            }),
             jobTitle: existingJob.title
           });
           return;
@@ -203,6 +207,9 @@ export default function CreateContractScreen() {
     submitData.append("singleDelivery", singleDelivery.toString());
     const filledReqs = requirements.filter(r => r.trim());
     submitData.append("completionRequirements", JSON.stringify(filledReqs));
+    submitData.append("vacancyTaskAssignments", JSON.stringify(
+      vacancyTaskAssignments.filter(v => v.taskName.trim())
+    ));
 
     selectedFiles.forEach((file) => {
       submitData.append("images", file);
@@ -689,13 +696,54 @@ export default function CreateContractScreen() {
                   </p>
                 </div>
               )}
+
+              {/* Asignación vacante → tarea (solo si hay tareas y hay tareas definidas) */}
+              {!singleDelivery && maxWorkers >= 1 && requirements.filter(r => r.trim()).length > 0 && (
+                <div className="mt-4 border border-purple-200 dark:border-purple-800 rounded-xl p-4 bg-purple-50 dark:bg-purple-900/20">
+                  <p className="text-sm font-semibold text-purple-800 dark:text-purple-300 mb-3 flex items-center gap-2">
+                    <ListTodo className="h-4 w-4" />
+                    Asignar tarea por vacante
+                  </p>
+                  <div className="space-y-2">
+                    {Array.from({ length: maxWorkers }, (_, i) => i + 1).map(slot => {
+                      const current = vacancyTaskAssignments.find(v => v.slot === slot);
+                      return (
+                        <div key={slot} className="flex items-center gap-3">
+                          <span className="w-24 shrink-0 text-sm font-medium text-purple-700 dark:text-purple-300">
+                            Vacante {slot}
+                          </span>
+                          <select
+                            value={current?.taskName || ''}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setVacancyTaskAssignments(prev => {
+                                const filtered = prev.filter(v => v.slot !== slot);
+                                return val ? [...filtered, { slot, taskName: val }] : filtered;
+                              });
+                            }}
+                            className="flex-1 rounded-lg border border-purple-300 dark:border-purple-700 bg-white dark:bg-slate-700 text-sm text-slate-900 dark:text-white px-3 py-1.5 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          >
+                            <option value="">Sin tarea asignada</option>
+                            {requirements.filter(r => r.trim()).map((req, idx) => (
+                              <option key={idx} value={req}>{req}</option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-2 text-xs text-purple-600 dark:text-purple-400">
+                    Al seleccionar al trabajador, se le asignará automáticamente la tarea correspondiente a su vacante.
+                  </p>
+                </div>
+              )}
             </FormField>
 
             {/* Completion Requirements */}
             <FormField
-              label="Requisitos de finalización"
+              label={t('contracts.completionRequirementsLabel', 'Completion requirements')}
               icon={ListTodo}
-              description="Definí los criterios mínimos para que el trabajo sea considerado terminado. Sirven como respaldo ante posibles disputas. Se sugiere a los trabajadores consultar estos requisitos antes de postularse."
+              description={t('contracts.completionRequirementsDesc', 'Define the minimum criteria for the job to be considered done. These serve as backup in case of disputes.')}
             >
               <div className="space-y-2">
                 {requirements.map((req, idx) => (
@@ -709,7 +757,13 @@ export default function CreateContractScreen() {
                         updated[idx] = e.target.value;
                         setRequirements(updated);
                       }}
-                      placeholder={idx === 0 ? 'Ej: Sin telas de araña en esquinas de paredes' : idx === 1 ? 'Ej: Pisos barridos y trapeados en todos los ambientes' : 'Ej: Baños desinfectados y limpios'}
+                      placeholder={
+                        idx === 0
+                          ? t('contracts.requirementPlaceholder0', 'E.g.: No cobwebs in wall corners')
+                          : idx === 1
+                          ? t('contracts.requirementPlaceholder1', 'E.g.: All floors swept and mopped')
+                          : t('contracts.requirementPlaceholder2', 'E.g.: Bathrooms disinfected and clean')
+                      }
                       className="flex-1 rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm"
                     />
                     {requirements.length > 3 && (
@@ -725,7 +779,7 @@ export default function CreateContractScreen() {
                     onClick={() => setRequirements([...requirements, ''])}
                     className="mt-1 flex items-center gap-1.5 text-sm text-sky-600 hover:text-sky-700 dark:text-sky-400"
                   >
-                    <span className="text-lg leading-none">+</span> Agregar requisito
+                    <span className="text-lg leading-none">+</span> {t('contracts.addRequirement', 'Add requirement')}
                   </button>
                 )}
               </div>
@@ -737,7 +791,7 @@ export default function CreateContractScreen() {
             >
               <FileUploadWithPreview
                 label=""
-                description="PNG, JPG, GIF hasta 10MB"
+                description={t('common.imageUploadHint', 'PNG, JPG, GIF up to 10MB')}
                 name="images"
                 maxSizeMB={10}
                 maxFiles={5}

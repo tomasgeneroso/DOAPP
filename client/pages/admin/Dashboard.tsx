@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Helmet } from "react-helmet-async";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { adminApi } from "@/lib/adminApi";
@@ -101,6 +102,10 @@ export default function AdminDashboard() {
 
   return (
     <div>
+      <Helmet>
+        <title>Dashboard - Admin | DoApp</title>
+        <meta name="robots" content="noindex, nofollow" />
+      </Helmet>
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
         <p className="text-gray-600 mt-2">
@@ -212,13 +217,15 @@ export default function AdminDashboard() {
                 <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
                   Estructura de Comisiones por Tipo de Usuario
                 </h4>
-                <ResponsiveContainer width="100%" height={180}>
+                <ResponsiveContainer width="100%" height={200}>
                   <BarChart
                     data={[
-                      { tipo: 'Estándar', comision: 8, color: '#ef4444' },
-                      { tipo: 'PRO', comision: 3, color: '#8b5cf6' },
-                      { tipo: 'SUPER PRO', comision: 2, color: '#f59e0b' },
+                      { tipo: 'FREE', comision: 0, label: '0%' },
+                      { tipo: 'Estándar', comision: 8, label: '8%' },
+                      { tipo: 'PRO', comision: 3, label: '3%' },
+                      { tipo: 'SUPER PRO', comision: 1, label: '1%' },
                     ]}
+                    margin={{ top: 16, right: 8, left: 0, bottom: 0 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                     <XAxis dataKey="tipo" tick={{ fill: '#9ca3af', fontSize: 12 }} />
@@ -228,15 +235,22 @@ export default function AdminDashboard() {
                       contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
                       labelStyle={{ color: '#f3f4f6' }}
                     />
-                    <Bar dataKey="comision" radius={[4, 4, 0, 0]}>
+                    <Bar dataKey="comision" radius={[4, 4, 0, 0]} label={{ position: 'top', fill: '#9ca3af', fontSize: 12, formatter: (value: any) => value > 0 ? `${value}%` : '0%' } as any}>
+                      <Cell fill="#22c55e" />
                       <Cell fill="#ef4444" />
                       <Cell fill="#8b5cf6" />
                       <Cell fill="#f59e0b" />
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>
-                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-2">
-                  Contratos menores a $8000 ARS tienen comisión mínima de $1000 ARS
+                <div className="flex flex-wrap items-center justify-center gap-4 mt-3 text-xs text-gray-500 dark:text-gray-400">
+                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-green-500" />FREE — 0% (contratos gratuitos)</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-red-500" />Estándar — 8%</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-violet-500" />PRO — 3%</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-amber-500" />SUPER PRO — 1%</span>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
+                  Mínimo $1.000 ARS por contrato · Plan Familia y FREE: sin comisión
                 </p>
               </div>
             </div>
@@ -285,47 +299,40 @@ export default function AdminDashboard() {
                     Distribución de Membresías Activas
                   </h4>
                   <ResponsiveContainer width="100%" height={200}>
-                    <PieChart>
-                      <Pie
-                        data={[
-                          {
-                            name: 'PRO',
-                            value: companyBalance.revenue?.memberships?.proCount || 0,
-                            color: '#8b5cf6',
-                            price: '$4.999/mes'
-                          },
-                          {
-                            name: 'SUPER PRO',
-                            value: companyBalance.revenue?.memberships?.superProCount || 0,
-                            color: '#f59e0b',
-                            price: '$8.999/mes'
-                          },
-                        ]}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, value, percent }: any) => Number(value) > 0 ? `${name}: ${value} (${(Number(percent) * 100).toFixed(0)}%)` : ''}
-                        outerRadius={70}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        <Cell fill="#8b5cf6" />
-                        <Cell fill="#f59e0b" />
-                      </Pie>
+                    <BarChart
+                      data={[
+                        { name: 'FREE', usuarios: companyBalance.revenue?.memberships?.freeCount ?? (companyBalance.revenue?.users?.total || 0) - (companyBalance.revenue?.memberships?.proCount || 0) - (companyBalance.revenue?.memberships?.superProCount || 0) },
+                        { name: 'PRO', usuarios: companyBalance.revenue?.memberships?.proCount || 0 },
+                        { name: 'SUPER PRO', usuarios: companyBalance.revenue?.memberships?.superProCount || 0 },
+                      ]}
+                      margin={{ top: 16, right: 8, left: 0, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                      <XAxis dataKey="name" tick={{ fill: '#9ca3af', fontSize: 12 }} />
+                      <YAxis tick={{ fill: '#9ca3af', fontSize: 12 }} allowDecimals={false} />
                       <Tooltip
-                        formatter={(value: number, name: string) => [value, name]}
+                        formatter={(value: number) => [value, 'Usuarios']}
                         contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
                         labelStyle={{ color: '#f3f4f6' }}
                       />
-                    </PieChart>
+                      <Bar dataKey="usuarios" radius={[4, 4, 0, 0]} label={{ position: 'top', fill: '#9ca3af', fontSize: 12 }}>
+                        <Cell fill="#22c55e" />
+                        <Cell fill="#8b5cf6" />
+                        <Cell fill="#f59e0b" />
+                      </Bar>
+                    </BarChart>
                   </ResponsiveContainer>
                   <div className="flex justify-center gap-6 mt-2">
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                      <div className="w-3 h-3 rounded-full bg-green-500" />
+                      <span className="text-xs text-gray-600 dark:text-gray-400">FREE</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full bg-purple-500" />
                       <span className="text-xs text-gray-600 dark:text-gray-400">PRO ({companyBalance.revenue?.memberships?.proCount || 0})</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-amber-500"></div>
+                      <div className="w-3 h-3 rounded-full bg-amber-500" />
                       <span className="text-xs text-gray-600 dark:text-gray-400">SUPER PRO ({companyBalance.revenue?.memberships?.superProCount || 0})</span>
                     </div>
                   </div>

@@ -17,15 +17,20 @@
     scroll-behavior: smooth;
   }
 
-  /* UI compacta en desktop (75%) */
+  /* Fondo HTML cubre todo el viewport en ambos modos */
+  html {
+    min-height: 100%;
+    background-color: #F0F4F8;
+  }
+  html.dark {
+    background-color: rgb(15, 23, 42); /* slate-900 */
+  }
+
+  /* UI compacta en desktop (75%) — min-height compensa el zoom */
   @media (min-width: 769px) {
     body {
       zoom: 0.75;
-      -moz-transform: scale(0.75);
-      -moz-transform-origin: top left;
-    }
-    @supports (-moz-appearance: none) {
-      body { width: 133.33%; }
+      min-height: 134vh; /* 100vh / 0.75 ≈ 133.33vh, cubre el viewport completo */
     }
   }
 
@@ -53,6 +58,25 @@
   select {
     font-size: 16px !important;
   }
+}
+
+/* ── CLS Prevention ─────────────────────────────────── */
+/* Reserve space for images before they load */
+img {
+  display: block;
+}
+
+/* Rounded avatar images — always square, no reflow */
+img.rounded-full,
+img[class*="rounded-full"] {
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+}
+
+/* Job card images */
+img[class*="object-cover"] {
+  aspect-ratio: auto;
+  object-fit: cover;
 }
 
 @layer components {

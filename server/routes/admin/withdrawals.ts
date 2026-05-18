@@ -111,7 +111,7 @@ router.post("/:id/approve", protect, requireRole('admin', 'super_admin', 'owner'
 
     // Send push notification
     const userId = typeof user === 'object' && 'id' in user ? user.id : user;
-    await fcmService.sendToUser(userId.toString(), {
+    await fcmService.sendToUser({ userId: userId.toString(),
       title: 'Retiro Aprobado',
       body: `Tu retiro de $${withdrawal.amount.toLocaleString("es-AR")} ha sido aprobado y será procesado pronto.`,
       data: { type: 'withdrawal_approved', withdrawalId: withdrawal.id.toString() }
@@ -255,7 +255,7 @@ router.post("/:id/complete", protect, requireRole('admin', 'super_admin', 'owner
     await emailService.sendWithdrawalCompleted(userObj.email, userObj.name, withdrawal.amount, newBalance);
 
     // Send push notification
-    await fcmService.sendToUser(userId.toString(), {
+    await fcmService.sendToUser({ userId: userId.toString(),
       title: 'Retiro Completado',
       body: `Tu retiro de $${withdrawal.amount.toLocaleString("es-AR")} ha sido transferido exitosamente.`,
       data: { type: 'withdrawal_completed', withdrawalId: withdrawal.id.toString() }
@@ -330,7 +330,7 @@ router.post("/:id/reject", protect, requireRole('admin', 'super_admin', 'owner')
 
     // Send push notification
     const userId = typeof user === 'object' && 'id' in user ? user.id : user;
-    await fcmService.sendToUser(userId.toString(), {
+    await fcmService.sendToUser({ userId: userId.toString(),
       title: 'Retiro Rechazado',
       body: `Tu solicitud de retiro ha sido rechazada. Revisa el motivo en tu perfil.`,
       data: { type: 'withdrawal_rejected', withdrawalId: withdrawal.id.toString() }

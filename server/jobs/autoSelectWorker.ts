@@ -6,7 +6,7 @@ import { User } from '../models/sql/User.model.js';
 import { Notification } from '../models/sql/Notification.model.js';
 import { ChatMessage } from '../models/sql/ChatMessage.model.js';
 import emailService from '../services/email.js';
-import socketService from '../services/socket.js';
+import { getIO } from '../services/socket.js';
 import { Op } from 'sequelize';
 
 /**
@@ -229,7 +229,7 @@ export function startAutoSelectWorkerJob() {
               });
 
               if (updatedMessage) {
-                socketService.getIO().to(`conversation:${chatMessage.conversationId}`).emit('message:updated', updatedMessage);
+                getIO()?.to(`conversation:${chatMessage.conversationId}`).emit('message:updated', updatedMessage);
               }
             }
           }

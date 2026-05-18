@@ -34,6 +34,7 @@ import {
   Share2,
   MoreVertical,
   Headphones,
+  ClipboardList,
 } from "lucide-react";
 import type { Job } from "@/types";
 import { getClientInfo } from "@/lib/utils";
@@ -645,7 +646,6 @@ export default function JobDetail() {
       return;
     }
 
-    // Redirect to application summary page
     navigate(`/jobs/${id}/apply`);
   };
 
@@ -2535,22 +2535,36 @@ export default function JobDetail() {
                 : !job.doerId) && (
                 <div className="space-y-3">
                   {hasApplied ? (
-                    <div className="w-full rounded-xl bg-gradient-to-r from-green-500 to-green-600 px-6 py-3 text-center shadow-lg shadow-green-500/30">
-                      <div className="flex items-center justify-center gap-2 text-lg font-semibold text-white">
-                        <CheckCircle className="h-5 w-5" />
-                        <span>
+                    <div className="space-y-2">
+                      <div className="w-full rounded-xl bg-gradient-to-r from-green-500 to-green-600 px-6 py-3 text-center shadow-lg shadow-green-500/30">
+                        <div className="flex items-center justify-center gap-2 text-lg font-semibold text-white">
+                          <CheckCircle className="h-5 w-5" />
+                          <span>
+                            {t(
+                              "jobs.alreadyApplied",
+                              "You already applied to this job!",
+                            )}
+                          </span>
+                        </div>
+                        <p className="text-sm text-green-100 mt-1">
                           {t(
-                            "jobs.alreadyApplied",
-                            "You already applied to this job!",
+                            "jobs.clientWillReview",
+                            "The client will review your proposal soon",
                           )}
-                        </span>
+                        </p>
                       </div>
-                      <p className="text-sm text-green-100 mt-1">
-                        {t(
-                          "jobs.clientWillReview",
-                          "The client will review your proposal soon",
-                        )}
-                      </p>
+                      {(user?.role === 'doer' || user?.role === 'both') && (
+                        <button
+                          onClick={() => {
+                            const clientId = typeof job.client === 'object' ? (job.client?._id || job.client?.id) : job.postedBy;
+                            navigate(`/quotes/new?recipientId=${clientId}&jobId=${job._id || job.id}`);
+                          }}
+                          className="w-full flex items-center justify-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-700 px-6 py-3 text-base font-semibold text-white transition-all"
+                        >
+                          <ClipboardList className="h-5 w-5" />
+                          {t("jobs.sendQuote", "Enviar cotización")}
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <button
@@ -3468,32 +3482,31 @@ export default function JobDetail() {
                                 </div>
 
                                 {/* Monto propuesto */}
-                                <div className="mt-2 flex items-center gap-2">
+                                <div className="mt-3 flex items-center gap-2 flex-wrap">
                                   <div
-                                    className={`px-2.5 py-1 rounded-lg text-sm font-medium ${
+                                    className={`px-4 py-2.5 rounded-xl text-base font-bold flex items-center gap-1.5 ${
                                       proposal.isCounterOffer
-                                        ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-600"
-                                        : "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-300 dark:border-green-600"
+                                        ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-2 border-amber-400 dark:border-amber-600"
+                                        : "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-2 border-green-400 dark:border-green-600"
                                     }`}
                                   >
-                                    <DollarSign className="inline h-3.5 w-3.5 mr-0.5" />
+                                    <DollarSign className="inline h-4 w-4" />
                                     {(
                                       proposal.proposedPrice || job.price
                                     )?.toLocaleString("es-AR")}{" "}
                                     ARS
                                   </div>
                                   {proposal.isCounterOffer && (
-                                    <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-                                      ({t("jobs.counterOffer", "Counter-offer")}
-                                      )
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500 text-white">
+                                      {t("jobs.counterOffer", "Contraoferta")}
                                     </span>
                                   )}
                                   {!proposal.isCounterOffer &&
                                     proposal.proposedPrice === job.price && (
-                                      <span className="text-xs text-green-600 dark:text-green-400">
+                                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-500 text-white">
                                         {t(
                                           "jobs.acceptedOriginalPrice",
-                                          "Accepted the original price",
+                                          "Precio original",
                                         )}
                                       </span>
                                     )}
@@ -3532,7 +3545,9 @@ export default function JobDetail() {
                                     ) : (
                                       <>
                                         <CheckCircle className="h-4 w-4" />
-                                        {t("common.select", "Select")}
+                                        {proposal.isCounterOffer
+                                          ? t("common.accept", "Aceptar")
+                                          : t("common.select", "Seleccionar")}
                                       </>
                                     )}
                                   </button>
@@ -3554,6 +3569,22 @@ export default function JobDetail() {
                               <p className="mt-3 text-sm text-slate-600 dark:text-slate-300 line-clamp-2">
                                 "{proposal.coverLetter}"
                               </p>
+                            )}
+
+                            {/* Quote badge if worker applied with quote */}
+                            {proposal.quote && (
+                              <div className="mt-3 flex items-center gap-2 flex-wrap">
+                                <Link
+                                  to={`/quotes/${proposal.quote.id}`}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-50 dark:bg-sky-900/30 border border-sky-200 dark:border-sky-700 text-sm font-medium text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/50 transition-colors"
+                                >
+                                  <ClipboardList className="h-4 w-4" />
+                                  Ver cotización #{proposal.quote.quoteNumber}
+                                  <span className="text-sky-600 dark:text-sky-400 font-semibold">
+                                    · ${Number(proposal.quote.total).toLocaleString('es-AR')} ARS
+                                  </span>
+                                </Link>
+                              </div>
                             )}
 
                             {/* View Full Proposal Link for Counter-offers */}

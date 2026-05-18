@@ -409,7 +409,7 @@ class CacheService {
   private startCleanup(): void {
     if (this.cleanupInterval) return;
     // Cleanup every minute
-    this.cleanupInterval = setInterval(() => this.cleanup(), 60000);
+    this.cleanupInterval = setInterval(() => this.cleanup(), 60000) as unknown as NodeJS.Timeout;
   }
 
   /**

@@ -32,7 +32,7 @@ export class Ticket extends Model {
     defaultValue: DataType.UUIDV4,
     primaryKey: true,
   })
-  id!: string;
+  declare id: string;
 
   @AllowNull(false)
   @Index

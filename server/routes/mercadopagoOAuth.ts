@@ -26,16 +26,16 @@ router.get('/status', protect, async (req: AuthRequest, res: Response): Promise<
       return;
     }
 
-    const isLinked = user.hasMercadopagoLinked();
-    const prefersPayout = user.prefersMercadopagoPayout;
+    const isLinked = (user as any).hasMercadopagoLinked();
+    const prefersPayout = (user as any).prefersMercadopagoPayout;
 
     res.json({
       success: true,
       data: {
         isLinked,
         prefersPayout,
-        linkedAt: user.mercadopagoLinkedAt,
-        email: user.mercadopagoEmail,
+        linkedAt: (user as any).mercadopagoLinkedAt,
+        email: (user as any).mercadopagoEmail,
         // Don't expose sensitive data like access tokens
       },
     });
@@ -154,7 +154,7 @@ router.put('/payout-preference', protect, async (req: AuthRequest, res: Response
     }
 
     // If user wants MercadoPago payout but doesn't have it linked
-    if (prefersMercadopago && !user.hasMercadopagoLinked()) {
+    if (prefersMercadopago && !(user as any).hasMercadopagoLinked()) {
       res.status(400).json({
         success: false,
         message: 'Debe vincular su cuenta de MercadoPago primero para activar pagos automáticos',
@@ -162,7 +162,7 @@ router.put('/payout-preference', protect, async (req: AuthRequest, res: Response
       return;
     }
 
-    user.prefersMercadopagoPayout = prefersMercadopago;
+    (user as any).prefersMercadopagoPayout = prefersMercadopago;
     await user.save();
 
     res.json({
@@ -171,7 +171,7 @@ router.put('/payout-preference', protect, async (req: AuthRequest, res: Response
         ? 'Pagos automáticos por MercadoPago activados'
         : 'Pagos manuales por transferencia bancaria activados',
       data: {
-        prefersMercadopago: user.prefersMercadopagoPayout,
+        prefersMercadopago: (user as any).prefersMercadopagoPayout,
       },
     });
   } catch (error: any) {

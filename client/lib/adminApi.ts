@@ -198,6 +198,13 @@ export const adminApi = {
       });
       return res.json() as Promise<ApiResponse<Ticket>>;
     },
+    updatePriority: async (id: string, priority: string) => {
+      const res = await fetchWithAuth(`${API_URL}/admin/tickets/${id}/priority`, {
+        method: "PUT",
+        body: JSON.stringify({ priority }),
+      });
+      return res.json() as Promise<ApiResponse<{ id: string; priority: string }>>;
+    },
   },
   // Analytics
   analytics: {

@@ -59,7 +59,7 @@ router.get("/jobs", async (req: Request, res: Response): Promise<void> => {
     if (page) filters.page = parseInt(page as string);
     if (limit) filters.limit = parseInt(limit as string);
 
-    const result = await searchService.searchJobs(filters);
+    const result = await searchService.searchJobs(filters) as any;
 
     res.json({
       success: true,
@@ -157,6 +157,39 @@ router.get("/suggestions", async (req: Request, res: Response): Promise<void> =>
       success: false,
       message: error.message || "Error del servidor",
     });
+  }
+});
+
+/**
+ * Geocode location via OpenStreetMap Nominatim proxy
+ * GET /api/search/geocode?q=query
+ */
+router.get("/geocode", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { q } = req.query;
+    if (!q || (q as string).length < 2) {
+      res.json({ success: true, results: [] });
+      return;
+    }
+
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent((q as string) + ', Argentina')}&format=json&limit=7&accept-language=es&addressdetails=0`;
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'DOAPP/1.0', 'Accept-Language': 'es' },
+    });
+
+    if (!response.ok) {
+      res.json({ success: true, results: [] });
+      return;
+    }
+
+    const data = await response.json() as any[];
+    const results = data.map((item: any) =>
+      item.display_name.replace(/,\s*Argentina$/i, '').trim()
+    );
+
+    res.json({ success: true, results });
+  } catch {
+    res.json({ success: true, results: [] });
   }
 });
 

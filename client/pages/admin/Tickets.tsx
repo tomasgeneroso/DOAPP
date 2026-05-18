@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { adminApi } from "@/lib/adminApi";
 import { useSocket } from "@/hooks/useSocket";
 import type { Ticket } from "@/types/admin";
-import { Plus, Search, ArrowUpDown, ArrowUp, ArrowDown, Wifi, WifiOff, Bell } from "lucide-react";
+import { Plus, Search, ArrowUpDown, ArrowUp, ArrowDown, Wifi, WifiOff, Bell, Inbox, Clock, CheckCircle, XCircle } from "lucide-react";
 
 type SortField = 'subject' | 'category' | 'priority' | 'status' | 'date' | 'user';
 type SortDirection = 'asc' | 'desc' | null;
@@ -14,6 +14,8 @@ export default function AdminTickets() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [priorityFilter, setPriorityFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
@@ -46,7 +48,7 @@ export default function AdminTickets() {
   useEffect(() => {
     loadTickets();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, search, statusFilter]);
+  }, [page, search, statusFilter, categoryFilter, priorityFilter]);
 
   const loadTickets = async () => {
     try {
@@ -56,6 +58,8 @@ export default function AdminTickets() {
       };
       if (search) params.search = search;
       if (statusFilter) params.status = statusFilter;
+      if (categoryFilter) params.category = categoryFilter;
+      if (priorityFilter) params.priority = priorityFilter;
 
       const res = await adminApi.tickets.list(params);
       if (res.success && res.data) {
@@ -228,43 +232,91 @@ export default function AdminTickets() {
         </Link>
       </div>
 
+      {/* Stats cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        {[
+          { label: "Abiertos", value: tickets.filter(t => t.status === "open").length, icon: Inbox, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/20", onClick: () => setStatusFilter("open") },
+          { label: "En progreso", value: tickets.filter(t => t.status === "in_progress" || t.status === "assigned").length, icon: Clock, color: "text-yellow-600 dark:text-yellow-400", bg: "bg-yellow-50 dark:bg-yellow-900/20", onClick: () => setStatusFilter("in_progress") },
+          { label: "Resueltos", value: tickets.filter(t => t.status === "resolved").length, icon: CheckCircle, color: "text-green-600 dark:text-green-400", bg: "bg-green-50 dark:bg-green-900/20", onClick: () => setStatusFilter("resolved") },
+          { label: "Cerrados", value: tickets.filter(t => t.status === "closed").length, icon: XCircle, color: "text-slate-500 dark:text-slate-400", bg: "bg-slate-50 dark:bg-slate-700/30", onClick: () => setStatusFilter("closed") },
+        ].map(card => (
+          <button
+            key={card.label}
+            onClick={card.onClick}
+            className={`${card.bg} rounded-xl p-4 text-left border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-colors`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{card.label}</span>
+              <card.icon className={`h-4 w-4 ${card.color}`} />
+            </div>
+            <p className={`text-2xl font-bold ${card.color}`}>{card.value}</p>
+          </button>
+        ))}
+      </div>
+
       {/* Filters */}
-      <div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="relative md:col-span-2">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3">
+        <div className="relative lg:col-span-2">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Buscar por ID, número de ticket o asunto..."
+            placeholder="Buscar por ID, número o asunto..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-gray-900 dark:text-white placeholder-gray-400"
+            className="w-full pl-9 pr-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm text-gray-900 dark:text-white placeholder-gray-400"
           />
         </div>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-gray-900 dark:text-white"
+          className="px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm text-gray-900 dark:text-white"
         >
           <option value="">Todos los estados</option>
           <option value="open">Abiertos</option>
           <option value="assigned">Asignados</option>
           <option value="in_progress">En progreso</option>
+          <option value="waiting_user">Esperando usuario</option>
           <option value="resolved">Resueltos</option>
           <option value="closed">Cerrados</option>
         </select>
-        <div className="flex items-center gap-2">
+        <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          className="px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm text-gray-900 dark:text-white"
+        >
+          <option value="">Todas las categorías</option>
+          <option value="bug">Bug</option>
+          <option value="feature">Feature</option>
+          <option value="support">Soporte</option>
+          <option value="report_user">Denuncia usuario</option>
+          <option value="report_contract">Denuncia contrato</option>
+          <option value="payment">Pago</option>
+          <option value="other">Otro</option>
+        </select>
+        <select
+          value={priorityFilter}
+          onChange={(e) => setPriorityFilter(e.target.value)}
+          className="px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm text-gray-900 dark:text-white"
+        >
+          <option value="">Todas las prioridades</option>
+          <option value="urgent">Urgente</option>
+          <option value="high">Alta</option>
+          <option value="medium">Media</option>
+          <option value="low">Baja</option>
+        </select>
+        <div className="flex items-center gap-1.5">
           <input
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
-            className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm text-gray-900 dark:text-white"
+            className="w-full px-2 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-xs text-gray-900 dark:text-white"
           />
-          <span className="text-gray-400">-</span>
+          <span className="text-gray-400 shrink-0">—</span>
           <input
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm text-gray-900 dark:text-white"
+            className="w-full px-2 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-xs text-gray-900 dark:text-white"
           />
         </div>
       </div>
@@ -348,7 +400,7 @@ export default function AdminTickets() {
                   <div className="text-xs text-gray-500 dark:text-gray-400">Por {ticket.creator?.name || ticket.user?.name || 'N/A'}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                  {ticket.category}
+                  {({ bug: "Bug", feature: "Feature", support: "Soporte", report_user: "Denuncia usuario", report_contract: "Denuncia contrato", payment: "Pago", dispute: "Disputa", other: "Otro" } as Record<string, string>)[ticket.category] || ticket.category}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span

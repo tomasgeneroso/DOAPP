@@ -21,7 +21,7 @@ router.post('/mercadopago', async (req, res) => {
 
   try {
     const { type, data, action } = req.body;
-    const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+    const ip = req.ip || (Array.isArray(req.headers['x-forwarded-for']) ? req.headers['x-forwarded-for'][0] : req.headers['x-forwarded-for'] as string) || 'unknown';
 
     // Log webhook recibido
     logger.webhook('mercadopago', type || action || 'unknown', 'Webhook received', {
@@ -120,8 +120,8 @@ async function handlePaymentWebhook(data: any, ip: string) {
     // Save payment method details
     foundPayment.paymentTypeId = paymentMethodInfo.payment_type_id;
     foundPayment.paymentMethodId = paymentMethodInfo.payment_method_id;
-    foundPayment.cardLastFourDigits = paymentMethodInfo.card_last_four_digits;
-    foundPayment.cardBrand = paymentMethodInfo.card_brand;
+    foundPayment.cardLastFourDigits = paymentMethodInfo.card_last_four_digits ?? undefined;
+    foundPayment.cardBrand = paymentMethodInfo.card_brand ?? undefined;
 
     if (status === 'succeeded' || status === 'approved') {
       await handleApprovedPayment(foundPayment, metadata);
@@ -223,7 +223,7 @@ async function handleApprovedPayment(payment: any, metadata: any) {
     const contract = await Contract.findByPk(payment.contractId);
     if (contract) {
       // Contract stays pending until admin verifies payment
-      contract.paymentStatus = 'pending_verification';
+      (contract as any).paymentStatus = 'pending_verification';
       contract.paymentDate = new Date();
       await contract.save();
 
@@ -379,7 +379,7 @@ async function handleRefundedPayment(payment: any) {
         client.name,
         payment.amount || 0,
         `Reembolso del contrato "${jobTitle}"`,
-        client.balance || 0
+        client.balanceArs || 0
       );
     }
 
@@ -565,7 +565,7 @@ async function handleSubscriptionWebhook(data: any, action: string, ip: string) 
 router.post('/mercadopago/subscription', async (req, res) => {
   try {
     const { type, data, action } = req.body;
-    const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+    const ip = req.ip || (Array.isArray(req.headers['x-forwarded-for']) ? req.headers['x-forwarded-for'][0] : req.headers['x-forwarded-for'] as string) || 'unknown';
 
     logger.webhook('mercadopago', 'subscription', 'Subscription webhook received (legacy)', {
       data: { type, action, dataId: data?.id },

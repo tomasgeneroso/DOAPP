@@ -42,8 +42,8 @@ router.get("/dashboard", protect, async (req: AuthRequest, res: Response) => {
     }
 
     // Calculate updated analytics
-    const totalImpressions = ad.analytics.impressions;
-    const totalClicks = ad.analytics.clicks;
+    const totalImpressions = (ad as any).analytics.impressions;
+    const totalClicks = (ad as any).analytics.clicks;
     const ctr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
     const cpm = totalImpressions > 0 ? (promoter.pricing.totalPaid / totalImpressions) * 1000 : 0;
     const cpc = totalClicks > 0 ? promoter.pricing.totalPaid / totalClicks : 0;
@@ -76,7 +76,7 @@ router.get("/dashboard", protect, async (req: AuthRequest, res: Response) => {
         title: ad.title,
         description: ad.description,
         imageUrl: ad.imageUrl,
-        link: ad.link,
+        link: (ad as any).link,
         status: ad.status,
       },
       pricing: {
@@ -89,11 +89,11 @@ router.get("/dashboard", protect, async (req: AuthRequest, res: Response) => {
       analytics: {
         impressions: {
           total: totalImpressions,
-          daily: ad.analytics.dailyImpressions || 0,
+          daily: (ad as any).analytics.dailyImpressions || 0,
         },
         clicks: {
           total: totalClicks,
-          daily: ad.analytics.dailyClicks || 0,
+          daily: (ad as any).analytics.dailyClicks || 0,
         },
         ctr: ctr.toFixed(2),
         cpm: cpm.toFixed(2),
@@ -134,7 +134,7 @@ router.get("/analytics/history", protect, async (req: AuthRequest, res: Response
     daysAgo.setDate(daysAgo.getDate() - Number(period));
 
     // Filter performance data by date range
-    const performanceHistory = ad.analytics.performanceHistory
+    const performanceHistory = (ad as any).analytics.performanceHistory
       ?.filter((entry: any) => new Date(entry.date) >= daysAgo)
       .map((entry: any) => ({
         date: entry.date,

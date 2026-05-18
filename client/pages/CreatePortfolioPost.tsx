@@ -51,7 +51,10 @@ export default function CreatePortfolioPost() {
   const [tags, setTags] = useState('');
   const [images, setImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
-  const [publishAsPost, setPublishAsPost] = useState(true); // Auto-post to profile (default on)
+  const [rating, setRating] = useState(0);
+  const [review, setReview] = useState('');
+  const [hoveredStar, setHoveredStar] = useState(0);
+  const [publishAsPost, setPublishAsPost] = useState(true);
 
   useEffect(() => {
     if (jobId) {
@@ -124,6 +127,20 @@ export default function CreatePortfolioPost() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (!title.trim()) {
+      setError(t('portfolio.titleRequired', 'El título es requerido'));
+      return;
+    }
+    if (!description.trim()) {
+      setError(t('portfolio.descriptionRequired', 'La descripción es requerida'));
+      return;
+    }
+    if (!category) {
+      setError(t('portfolio.categoryRequired', 'La categoría es requerida'));
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -137,6 +154,8 @@ export default function CreatePortfolioPost() {
         price: jobData?.price,
         clientName: jobData?.client?.name || 'Cliente DoApp',
         projectDuration: calculateDuration(),
+        ...(rating > 0 && { contractRating: rating }),
+        ...(review.trim() && { contractReview: review.trim() }),
       };
 
       const response = await fetch('/api/portfolio', {
@@ -151,7 +170,8 @@ export default function CreatePortfolioPost() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || t('portfolio.createError', 'Error creating portfolio'));
+        const errorMsg = data.message || data.errors?.[0]?.msg || t('portfolio.createError', 'Error creating portfolio');
+        throw new Error(errorMsg);
       }
 
       const portfolioId = data.data?._id || data.data?.id;
@@ -460,6 +480,60 @@ export default function CreatePortfolioPost() {
                 {t('portfolio.imageFormats', 'JPG, PNG, WebP - Max 5MB each')}
               </span>
             </button>
+          </div>
+
+          {/* Reputación y opinión */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-white mb-1">
+              {t('portfolio.reputationTitle', 'Reputation & Opinion')}
+            </h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+              {t('portfolio.reputationDesc', 'Optional: rate the work and add a note about the experience')}
+            </p>
+
+            {/* Stars */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                {t('portfolio.ratingLabel', 'Work rating')}
+              </label>
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    type="button"
+                    onClick={() => setRating(rating === star ? 0 : star)}
+                    onMouseEnter={() => setHoveredStar(star)}
+                    onMouseLeave={() => setHoveredStar(0)}
+                    className="text-3xl transition-transform hover:scale-110 focus:outline-none"
+                  >
+                    <span className={star <= (hoveredStar || rating) ? 'text-yellow-400' : 'text-slate-300 dark:text-slate-600'}>
+                      ★
+                    </span>
+                  </button>
+                ))}
+                {rating > 0 && (
+                  <span className="ml-2 text-sm text-slate-500 dark:text-slate-400">
+                    {['', t('portfolio.stars.1','Very bad'), t('portfolio.stars.2','Bad'), t('portfolio.stars.3','Regular'), t('portfolio.stars.4','Good'), t('portfolio.stars.5','Excellent')][rating]}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Review */}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                {t('portfolio.reviewLabel', 'Opinion or notable details (optional)')}
+              </label>
+              <textarea
+                value={review}
+                onChange={(e) => setReview(e.target.value)}
+                rows={3}
+                maxLength={500}
+                className="w-full px-4 py-3 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 focus:border-transparent resize-none text-sm"
+                placeholder={t('portfolio.reviewPlaceholder', 'Describe the results, client satisfaction, or key details of the project...')}
+              />
+              <p className="text-xs text-slate-400 mt-1 text-right">{review.length}/500</p>
+            </div>
           </div>
 
           {/* Auto-publish as Post Toggle */}

@@ -353,6 +353,152 @@ class PDFGenerator {
   }
 
   /**
+   * Generate quote/cotización PDF matching the invoice template style
+   */
+  async generateQuote(quote: any): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const quotesDir = path.join(this.uploadsDir, 'quotes');
+      if (!fs.existsSync(quotesDir)) fs.mkdirSync(quotesDir, { recursive: true });
+
+      const filename = `${quote.quoteNumber}_${Date.now()}.pdf`;
+      const filepath = path.join(quotesDir, filename);
+
+      const doc = new PDFDocument({ margin: 50, size: 'A4' });
+      const stream = fs.createWriteStream(filepath);
+      doc.pipe(stream);
+
+      const pageWidth = doc.page.width - 100; // account for margins
+      const col2Start = 350;
+
+      // ── Header ──────────────────────────────────────────────────────────
+      const senderName = quote.senderInfo?.name || quote.sender?.name || 'Remitente';
+      const senderAddress = quote.senderInfo?.address || '';
+      const senderCity = quote.senderInfo?.city || '';
+
+      doc.fontSize(18).font('Helvetica-Bold').text(senderName, 50, 50);
+      doc.fontSize(9).font('Helvetica');
+      if (senderAddress) doc.text(senderAddress, 50, doc.y);
+      if (senderCity) doc.text(senderCity, 50, doc.y);
+
+      doc.fontSize(28).font('Helvetica-Bold').text('COTIZACIÓN', col2Start, 50, { width: pageWidth - col2Start + 50, align: 'right' });
+
+      doc.moveTo(50, 120).lineTo(doc.page.width - 50, 120).strokeColor('#cccccc').stroke();
+      doc.moveDown(0.5);
+
+      // ── Billing / Recipient / Quote info ─────────────────────────────────
+      const infoY = 135;
+      const col3Start = col2Start - 100;
+
+      // "A:" column
+      doc.fontSize(9).font('Helvetica-Bold').text('A:', 50, infoY);
+      doc.font('Helvetica').fontSize(9);
+      const recipientName = quote.recipientInfo?.name || quote.recipient?.name || '';
+      const recipientAddress = quote.recipientInfo?.address || '';
+      const recipientCity = quote.recipientInfo?.city || '';
+      doc.text(recipientName, 50, infoY + 14);
+      if (recipientAddress) doc.text(recipientAddress, 50, doc.y);
+      if (recipientCity) doc.text(recipientCity, 50, doc.y);
+
+      // Quote metadata column (right)
+      const metaItems: [string, string][] = [
+        ['Nº de cotización', quote.quoteNumber],
+        ['Fecha', new Date(quote.createdAt || Date.now()).toLocaleDateString('es-AR')],
+      ];
+      if (quote.job?.title) metaItems.push(['Trabajo', quote.job.title]);
+      if (quote.validUntil) {
+        metaItems.push(['Fecha vencimiento', new Date(quote.validUntil).toLocaleDateString('es-AR')]);
+      }
+
+      let metaY = infoY;
+      for (const [label, value] of metaItems) {
+        doc.font('Helvetica-Bold').fontSize(8).text(label, col3Start, metaY, { width: 100 });
+        doc.font('Helvetica').fontSize(8).text(value, col3Start + 100, metaY, { width: 100 });
+        metaY += 15;
+      }
+
+      // ── Items table ──────────────────────────────────────────────────────
+      const tableTop = Math.max(doc.y + 20, 235);
+      const colWidths = { cant: 50, desc: pageWidth - 230, unit: 100, amount: 80 };
+      const colX = {
+        cant: 50,
+        desc: 100,
+        unit: 100 + colWidths.desc,
+        amount: 100 + colWidths.desc + colWidths.unit,
+      };
+
+      // Table header
+      doc.rect(50, tableTop, pageWidth, 20).fillAndStroke('#f0f0f0', '#cccccc');
+      doc.fillColor('#000000').fontSize(9).font('Helvetica-Bold');
+      doc.text('CANT.', colX.cant, tableTop + 5, { width: colWidths.cant, align: 'center' });
+      doc.text('DESCRIPCIÓN', colX.desc, tableTop + 5, { width: colWidths.desc });
+      doc.text('PRECIO UNITARIO', colX.unit, tableTop + 5, { width: colWidths.unit, align: 'right' });
+      doc.text('IMPORTE', colX.amount, tableTop + 5, { width: colWidths.amount, align: 'right' });
+
+      // Rows
+      let rowY = tableTop + 20;
+      doc.font('Helvetica').fontSize(9);
+      const items: any[] = quote.items || [];
+
+      for (const item of items) {
+        const rowHeight = 22;
+        doc.rect(50, rowY, pageWidth, rowHeight).strokeColor('#eeeeee').stroke();
+        doc.fillColor('#000000');
+        doc.text(String(item.qty), colX.cant, rowY + 6, { width: colWidths.cant, align: 'center' });
+        doc.text(String(item.description), colX.desc, rowY + 6, { width: colWidths.desc });
+        doc.text(`$${Number(item.unitPrice).toLocaleString('es-AR')}`, colX.unit, rowY + 6, { width: colWidths.unit, align: 'right' });
+        doc.text(`$${Number(item.amount).toLocaleString('es-AR')}`, colX.amount, rowY + 6, { width: colWidths.amount, align: 'right' });
+        rowY += rowHeight;
+      }
+
+      // ── Totals ────────────────────────────────────────────────────────────
+      const totalsX = colX.unit;
+      const totalsWidth = colWidths.unit + colWidths.amount;
+      rowY += 8;
+
+      const addTotal = (label: string, value: string, bold = false) => {
+        doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(bold ? 10 : 9);
+        doc.text(label, totalsX, rowY, { width: colWidths.unit, align: 'left' });
+        doc.text(value, colX.amount, rowY, { width: colWidths.amount, align: 'right' });
+        rowY += bold ? 18 : 15;
+      };
+
+      addTotal('Subtotal', `$${Number(quote.subtotal).toLocaleString('es-AR')}`);
+      addTotal(`IVA ${Number(quote.taxRate).toFixed(1)}%`, `$${Number(quote.taxAmount).toLocaleString('es-AR')}`);
+
+      for (const other of (quote.otherTaxes || []) as any[]) {
+        addTotal(`${other.name} ${other.rate}%`, `$${Number(other.amount).toLocaleString('es-AR')}`);
+      }
+
+      doc.moveTo(totalsX, rowY).lineTo(50 + pageWidth, rowY).strokeColor('#333333').lineWidth(1).stroke();
+      rowY += 6;
+      addTotal('TOTAL', `$${Number(quote.total).toLocaleString('es-AR')} ARS`, true);
+
+      // ── Signature area ────────────────────────────────────────────────────
+      rowY += 30;
+      doc.moveTo(col2Start, rowY + 40).lineTo(50 + pageWidth, rowY + 40).strokeColor('#333333').lineWidth(0.5).stroke();
+      doc.font('Helvetica').fontSize(8).text('Firma', col2Start, rowY + 45, { width: pageWidth - col2Start + 50, align: 'center' });
+
+      // ── Footer ────────────────────────────────────────────────────────────
+      const footerY = doc.page.height - 100;
+      doc.moveTo(50, footerY).lineTo(doc.page.width - 50, footerY).strokeColor('#cccccc').stroke();
+
+      doc.fontSize(8).font('Helvetica-Bold').text('Condiciones y forma de pago', 50, footerY + 8);
+      if (quote.paymentTerms) {
+        doc.font('Helvetica').text(quote.paymentTerms, 50, doc.y + 2);
+      }
+      if (quote.notes) {
+        doc.font('Helvetica-Bold').text('Observaciones', 50, doc.y + 6);
+        doc.font('Helvetica').text(quote.notes, 50, doc.y + 2);
+      }
+
+      doc.end();
+
+      stream.on('finish', () => resolve(filepath));
+      stream.on('error', reject);
+    });
+  }
+
+  /**
    * Get file URL for download
    */
   getFileUrl(filepath: string, req: any): string {
@@ -364,4 +510,6 @@ class PDFGenerator {
   }
 }
 
-export default new PDFGenerator();
+const pdfGenerator = new PDFGenerator();
+export const generateQuotePDF = (quote: any) => pdfGenerator.generateQuote(quote);
+export default pdfGenerator;

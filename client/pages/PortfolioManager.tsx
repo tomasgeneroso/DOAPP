@@ -60,6 +60,19 @@ export default function PortfolioManager() {
     setError(null);
     setSuccess(null);
 
+    if (!formData.title.trim()) {
+      setError('El título es requerido');
+      return;
+    }
+    if (!formData.description.trim()) {
+      setError('La descripción es requerida');
+      return;
+    }
+    if (!formData.category) {
+      setError('La categoría es requerida');
+      return;
+    }
+
     try {
       const token = localStorage.getItem('token');
       const response = await fetch('/api/portfolio', {
@@ -78,7 +91,8 @@ export default function PortfolioManager() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.message || 'Error al crear item de portafolio');
+        const errorMsg = data.message || data.errors?.[0]?.msg || 'Error al crear item de portafolio';
+        throw new Error(errorMsg);
       }
 
       setSuccess('Item de portafolio creado exitosamente');

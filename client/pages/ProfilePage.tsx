@@ -12,6 +12,7 @@ import PostComments from '../components/user/PostComments';
 import ReportProfileModal from '../components/user/ReportProfileModal';
 import { useAuth } from '../hooks/useAuth';
 import Button from '../components/ui/Button';
+import WorkerModeToggle from '../components/profile/WorkerModeToggle';
 import {
   MapPin,
   Calendar,
@@ -188,13 +189,16 @@ export default function ProfilePage() {
 
       // Fetch completed jobs list with optional category filter
       const categoryParam = category ? `&category=${category}` : '';
+      const jobHeaders: Record<string, string> = {};
+      if (token) jobHeaders['Authorization'] = `Bearer ${token}`;
       const response = await fetch(`/api/users/${idToUse}/completed-jobs?limit=20${categoryParam}`, {
         credentials: 'include',
+        headers: jobHeaders,
       });
       const data = await response.json();
 
       if (data.success) {
-        setCompletedJobs(data.contracts || []);
+        setCompletedJobs(data.contracts || data.jobs || []);
       }
     } catch (err: any) {
       console.error('Error fetching completed jobs:', err);
@@ -209,13 +213,16 @@ export default function ProfilePage() {
 
     try {
       setReviewsLoading(true);
+      const headers: Record<string, string> = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
       const response = await fetch(`/api/reviews/user/${idToUse}?limit=50`, {
         credentials: 'include',
+        headers,
       });
       const data = await response.json();
 
       if (data.success) {
-        setUserReviews(data.data || []);
+        setUserReviews(data.reviews || data.data || []);
       }
     } catch (err: any) {
       console.error('Error fetching reviews:', err);
@@ -401,25 +408,29 @@ export default function ProfilePage() {
   }, [shareSearchQuery]);
 
   const handleStartChat = async () => {
-    if (!userId || !user || !token) return;
+    // Use the loaded profile's actual ID, not the URL param (which can be a username)
+    const participantId = user?.id || user?._id;
+    if (!participantId || !token) return;
 
     try {
-      const response = await fetch('/api/chat/conversations', {
+      const response = await fetch('/api/chat/conversations/find-or-create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          participants: [userId],
-        }),
+        body: JSON.stringify({ participantId }),
       });
 
       const data = await response.json();
 
       if (data.success) {
-        const convId = data.conversation?.id || data.conversation?._id;
-        navigate(`/messages?conversation=${convId}`);
+        const convId = data.data?.id || data.data?._id || data.conversation?.id || data.conversation?._id;
+        if (convId) {
+          navigate(`/messages/${convId}`);
+        }
+      } else {
+        console.error('Error starting chat:', data.message);
       }
     } catch (err: any) {
       console.error('Error starting chat:', err);
@@ -633,7 +644,7 @@ export default function ProfilePage() {
 
                         {/* Share Menu Dropdown */}
                         {showShareMenu && (
-                          <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-slate-800 rounded-xl shadow-xl shadow-slate-900/10 border border-slate-200 dark:border-slate-700 z-50 overflow-hidden animate-dropdownIn">
+                          <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-slate-800 rounded-xl shadow-xl shadow-slate-900/10 border border-slate-200 dark:border-slate-700 z-[100] animate-dropdownIn">
                             <button
                               onClick={copyProfileLink}
                               className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700/80 transition-colors text-left"
@@ -710,7 +721,7 @@ export default function ProfilePage() {
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-slate-400" />
                       <span className="text-slate-600 dark:text-slate-400">
-                        {t('profile.memberSince')} {user.createdAt ? new Date(user.createdAt).getFullYear() : ''}
+                        {t('profile.memberSince')} {(user as any).createdAt ? new Date((user as any).createdAt).getFullYear() : ''}
                       </span>
                     </div>
                   </div>
@@ -718,6 +729,13 @@ export default function ProfilePage() {
               </div>
             </div>
           </div>
+
+          {/* Worker/Client Mode Toggle (own profile only) */}
+          {isOwnProfile() && (
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 mb-6">
+              <WorkerModeToggle />
+            </div>
+          )}
 
           {/* Grid Layout */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -1037,9 +1055,10 @@ export default function ProfilePage() {
                   ) : (
                     <div className="space-y-4">
                       {completedJobs.map((contract) => (
-                        <div
+                        <Link
                           key={contract.id}
-                          className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-sky-300 dark:hover:border-sky-600 transition-colors"
+                          to={`/jobs/${contract.job?.id}`}
+                          className="block p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-sky-300 dark:hover:border-sky-600 hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors cursor-pointer"
                         >
                           <div className="flex gap-4">
                             {/* Job Image */}
@@ -1117,17 +1136,14 @@ export default function ProfilePage() {
                                     ${contract.price?.toLocaleString('es-AR')}
                                   </span>
                                 </div>
-                                <Link
-                                  to={`/jobs/${contract.job?.id}`}
-                                  className="text-sm text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1"
-                                >
+                                <span className="text-sm text-sky-600 dark:text-sky-400 flex items-center gap-1">
                                   {t('profile.viewJob', 'View job')}
                                   <ExternalLink className="w-3 h-3" />
-                                </Link>
+                                </span>
                               </div>
                             </div>
                           </div>
-                        </div>
+                        </Link>
                       ))}
                     </div>
                   )}

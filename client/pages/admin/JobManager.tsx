@@ -1,7 +1,22 @@
 import { useState, useEffect, useCallback } from "react";
+import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
-import { Briefcase, CheckCircle, XCircle, Clock, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Image as ImageIcon, FileText, Download, Bell, Pause, Play, Ban, Plus } from "lucide-react";
+import { Briefcase, CheckCircle, XCircle, Clock, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Image as ImageIcon, FileText, Download, Bell, Pause, Play, Ban, Plus, UserCheck, UserX } from "lucide-react";
 import { Link } from "react-router-dom";
+
+// Safe date formatter — never throws on null/undefined/invalid dates
+const safeDate = (value: any, opts?: Intl.DateTimeFormatOptions): string => {
+  if (!value) return '-';
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return '-';
+  return d.toLocaleDateString('es-AR', opts);
+};
+const safeDateTime = (value: any): string => {
+  if (!value) return '-';
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return '-';
+  return `${d.toLocaleDateString('es-AR')} ${d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}`;
+};
 import { useSocket } from "../../hooks/useSocket";
 
 interface PaymentProof {
@@ -75,6 +90,8 @@ export default function AdminJobManager() {
   const [actionModal, setActionModal] = useState<{ jobId: string; jobTitle: string; action: 'pause' | 'cancel' } | null>(null);
   const [actionReason, setActionReason] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
+  const [reviewerLoading, setReviewerLoading] = useState<string | null>(null);
+  const currentUserId = (() => { try { return JSON.parse(localStorage.getItem('user') || '{}').id; } catch { return null; } })();
   const [permanentCancel, setPermanentCancel] = useState(false);
 
   const { registerAdminJobCreatedHandler, registerAdminJobUpdatedHandler, isConnected } = useSocket();
@@ -197,6 +214,30 @@ export default function AdminJobManager() {
     } catch (error) {
       console.error("Error updating job status:", error);
       alert("Error al actualizar el estado");
+    }
+  };
+
+  const handleToggleReviewer = async (jobId: string) => {
+    setReviewerLoading(jobId);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/admin/jobs/${jobId}/toggle-reviewer`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setJobs(prev => prev.map(j => j.id === jobId ? {
+          ...j,
+          reviewedBy: data.reviewedBy,
+          reviewedAt: data.reviewedAt,
+          reviewer: data.reviewer,
+        } : j));
+      }
+    } catch {
+      alert('Error al actualizar el revisor');
+    } finally {
+      setReviewerLoading(null);
     }
   };
 
@@ -399,6 +440,10 @@ export default function AdminJobManager() {
 
   return (
     <div className="space-y-6">
+      <Helmet>
+        <title>Gestión de Publicaciones - Admin | DoApp</title>
+        <meta name="robots" content="noindex, nofollow" />
+      </Helmet>
       {/* Real-time connection indicator */}
       <div className="flex items-center justify-between">
         <div>
@@ -679,7 +724,7 @@ export default function AdminJobManager() {
                             </span>
                           </button>
                           <span className="text-xs text-gray-500 dark:text-gray-400">
-                            {new Date(job.paymentProof.uploadedAt).toLocaleDateString('es-AR')}
+                            {safeDate(job.paymentProof.uploadedAt)}
                           </span>
                         </div>
                       ) : (
@@ -706,26 +751,38 @@ export default function AdminJobManager() {
                       ) : null}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {job.reviewer ? (
-                        <div className="text-sm">
-                          <p className="font-medium text-gray-900 dark:text-white">{job.reviewer.name}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {job.reviewedAt && new Date(job.reviewedAt).toLocaleDateString('es-AR', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: '2-digit',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </p>
-                        </div>
-                      ) : (
-                        <span className="text-sm text-gray-400">-</span>
-                      )}
+                      <div className="flex flex-col gap-1">
+                        {job.reviewer && (
+                          <div className="text-xs">
+                            <p className="font-semibold text-gray-900 dark:text-white">{job.reviewer.name}</p>
+                            <p className="text-gray-400">{safeDate(job.reviewedAt, { day: '2-digit', month: '2-digit', year: '2-digit' })}</p>
+                          </div>
+                        )}
+                        <button
+                          onClick={() => handleToggleReviewer(job.id)}
+                          disabled={reviewerLoading === job.id}
+                          title={job.reviewer?.id === currentUserId ? 'Quitar mi revisión' : 'Marcarme como revisor'}
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors disabled:opacity-50 ${
+                            job.reviewer?.id === currentUserId
+                              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 hover:bg-red-100 dark:hover:bg-red-900/30 hover:text-red-700 dark:hover:text-red-300'
+                              : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-green-100 dark:hover:bg-green-900/30 hover:text-green-700 dark:hover:text-green-300'
+                          }`}
+                        >
+                          {reviewerLoading === job.id ? (
+                            <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin" />
+                          ) : job.reviewer?.id === currentUserId ? (
+                            <><UserCheck className="w-3 h-3" /> Revisado por mí</>
+                          ) : job.reviewer ? (
+                            <><UserCheck className="w-3 h-3" /> Tomar revisión</>
+                          ) : (
+                            <><UserX className="w-3 h-3" /> Sin revisar</>
+                          )}
+                        </button>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      <div>{new Date(job.createdAt).toLocaleDateString('es-AR')}</div>
-                      <div className="text-xs">{new Date(job.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</div>
+                      <div>{safeDate(job.createdAt)}</div>
+                      <div className="text-xs">{safeDateTime(job.createdAt).split(' ').slice(1).join(' ')}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <div className="flex items-center gap-2">
@@ -813,7 +870,7 @@ export default function AdminJobManager() {
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{t('admin.jobs.paymentProof', 'Payment Proof')}</h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {selectedProof.fileName} • {t('admin.jobs.uploadedOn', 'Uploaded on')} {new Date(selectedProof.uploadedAt).toLocaleDateString()}
+                  {selectedProof.fileName} • {t('admin.jobs.uploadedOn', 'Uploaded on')} {safeDate(selectedProof.uploadedAt)}
                 </p>
               </div>
               <div className="flex items-center gap-2">

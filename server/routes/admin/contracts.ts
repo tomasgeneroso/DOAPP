@@ -782,7 +782,7 @@ router.post(
         timestamp: new Date(),
       };
 
-      const statusHistory = contract.statusHistory || [];
+      const statusHistory: any[] = (contract as any).statusHistory || [];
       statusHistory.push(statusChangeLog);
 
       await contract.update({
@@ -1153,7 +1153,7 @@ router.post(
       const otherParty = request.otherParty as any;
 
       // Approve the request
-      await request.approve(req.user.id, resolutionNote || 'Solicitud aprobada', refundApproved, refundAmount);
+      await request.approve(req.user.id, resolutionNote || 'Solicitud aprobada', refundAmount);
 
       // Cancel the contract
       await contract.update({
@@ -1395,7 +1395,7 @@ router.post(
         return;
       }
 
-      await request.addNote(req.user.id, note.trim());
+      await request.addNote(req.user.id, (req.user as any).name || 'Admin', note.trim());
 
       res.json({
         success: true,

@@ -150,7 +150,7 @@ export class SocketService {
       const conversation = await Conversation.findByPk(conversationId);
 
       if (!conversation) {
-        socket.emit("error", { message: "Conversation not found" });
+        socket.emit("socket_error", { message: "Conversation not found" });
         return;
       }
 
@@ -163,7 +163,7 @@ export class SocketService {
       console.log(`🔍 Join conversation check: userId=${userId}, participants=${JSON.stringify(participantIds)}, isParticipant=${isParticipant}`);
 
       if (!isParticipant) {
-        socket.emit("error", { message: "You are not a participant in this conversation" });
+        socket.emit("socket_error", { message: "You are not a participant in this conversation" });
         return;
       }
 
@@ -189,7 +189,7 @@ export class SocketService {
       });
     } catch (error: any) {
       console.error("Join conversation error:", error);
-      socket.emit("error", { message: error.message });
+      socket.emit("socket_error", { message: error.message });
     }
   }
 
@@ -212,7 +212,7 @@ export class SocketService {
 
       if (!isParticipant) {
         console.log(`❌ Message rejected: userId=${senderId}, participants=${JSON.stringify(participantIds)}`);
-        socket.emit("error", { message: "You are not a participant in this conversation" });
+        socket.emit("socket_error", { message: "You are not a participant in this conversation" });
         return;
       }
 
@@ -339,7 +339,7 @@ export class SocketService {
       }
     } catch (error: any) {
       console.error("Send message error:", error);
-      socket.emit("error", { message: error.message });
+      socket.emit("socket_error", { message: error.message });
     }
   }
 
@@ -452,10 +452,6 @@ export class SocketService {
     if (socketId) {
       this.io.to(socketId).emit(event, data);
     }
-  }
-
-  public getIO(): Server {
-    return this.io;
   }
 
   // Broadcast updates to specific users
@@ -583,11 +579,6 @@ export class SocketService {
   // ============================================
   // USER NOTIFICATION BROADCASTS
   // ============================================
-
-  // Send notification to specific user
-  public notifyUser(userId: string, notification: any) {
-    this.broadcastToUser(userId, "notification:new", notification);
-  }
 
   // Broadcast ticket status changed
   public notifyTicketStatusChanged(ticket: any, previousStatus: string) {

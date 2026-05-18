@@ -94,10 +94,14 @@ import AdminJobManager from "./pages/admin/JobManager";
 import AdminFamilyCodes from "./pages/admin/FamilyCodes";
 import AdminPerformanceMonitor from "./pages/admin/PerformanceMonitor";
 import AdminSearch from "./pages/admin/AdminSearch";
+import DatabaseDiagram from "./pages/admin/DatabaseDiagram";
+import SecurityPanel from "./pages/admin/SecurityPanel";
 import EditJobScreen from "./pages/EditJobScreen";
 import NotificationsScreen from "./pages/NotificationsScreen";
 import CompleteRegistration from "./pages/CompleteRegistration";
 import SiteMap from "./pages/SiteMap";
+import QuoteForm from "./pages/QuoteForm";
+import QuoteDetail from "./pages/QuoteDetail";
 import AnalyticsReference from "./pages/AnalyticsReference";
 
 export default function App() {
@@ -356,6 +360,30 @@ export default function App() {
                 }
               />
               <Route
+                path="/quotes/new"
+                element={
+                  <ProtectedRoute>
+                    <QuoteForm />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/quotes/:id/edit"
+                element={
+                  <ProtectedRoute>
+                    <QuoteForm />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/quotes/:id"
+                element={
+                  <ProtectedRoute>
+                    <QuoteDetail />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
                 path="/balance"
                 element={
                   <ProtectedRoute>
@@ -385,14 +413,7 @@ export default function App() {
               <Route path="/posts/:id" element={<PostDetail />} />
               {features.sitemap && <Route path="/sitemap" element={<SiteMap />} />}
               <Route path="/analytics-reference" element={<AnalyticsReference />} />
-              <Route
-                path="/tickets/new"
-                element={
-                  <ProtectedRoute>
-                    <CreateTicket />
-                  </ProtectedRoute>
-                }
-              />
+              <Route path="/tickets/new" element={<CreateTicket />} />
               <Route
                 path="/tickets/:id"
                 element={
@@ -433,14 +454,7 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
-              <Route
-                path="/help"
-                element={
-                  <ProtectedRoute>
-                    <HelpPage />
-                  </ProtectedRoute>
-                }
-              />
+              <Route path="/help" element={<HelpPage />} />
               <Route path="/legal/terminos-y-condiciones" element={<TermsAndConditions />} />
               <Route path="/legal/privacidad" element={<PrivacyPolicy />} />
               <Route path="/legal/cookies" element={<CookiesPolicy />} />
@@ -505,6 +519,8 @@ export default function App() {
               <Route path="family-codes" element={<AdminFamilyCodes />} />
               <Route path="performance" element={<AdminPerformanceMonitor />} />
               <Route path="search" element={<AdminSearch />} />
+              <Route path="database" element={<DatabaseDiagram />} />
+              <Route path="security" element={<SecurityPanel />} />
             </Route>
                 </Routes>
               </OnboardingProvider>

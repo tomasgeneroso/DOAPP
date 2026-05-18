@@ -139,6 +139,17 @@ export class User extends Model {
   dni?: string;
 
   @Column(DataType.TEXT)
+  dniPhotoFront?: string;
+
+  @Column(DataType.TEXT)
+  dniPhotoBack?: string;
+
+  @Default(false)
+  @AllowNull(false)
+  @Column(DataType.BOOLEAN)
+  dniVerified!: boolean;
+
+  @Column(DataType.TEXT)
   avatar?: string;
 
   @Column(DataType.TEXT)
@@ -149,38 +160,47 @@ export class User extends Model {
   // ============================================
 
   @Default(0.0)
+  @AllowNull(false)
   @Column(DataType.DECIMAL(3, 2))
   rating!: number;
 
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.INTEGER)
   reviewsCount!: number;
 
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.INTEGER)
   completedJobs!: number;
 
   @Default(0.0)
+  @AllowNull(false)
   @Column(DataType.DECIMAL(3, 2))
   workQualityRating!: number;
 
   @Default(0.0)
+  @AllowNull(false)
   @Column(DataType.DECIMAL(3, 2))
   workerRating!: number;
 
   @Default(0.0)
+  @AllowNull(false)
   @Column(DataType.DECIMAL(3, 2))
   contractRating!: number;
 
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.INTEGER)
   workQualityReviewsCount!: number;
 
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.INTEGER)
   workerReviewsCount!: number;
 
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.INTEGER)
   contractReviewsCount!: number;
 
@@ -189,6 +209,7 @@ export class User extends Model {
   // ============================================
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   termsAccepted!: boolean;
 
@@ -196,6 +217,7 @@ export class User extends Model {
   termsAcceptedAt?: Date;
 
   @Default('user')
+  @AllowNull(false)
   @Index
   @Column(DataType.STRING(20))
   role!: 'user' | 'client' | 'doer' | 'both';
@@ -204,10 +226,12 @@ export class User extends Model {
   adminRole?: 'owner' | 'super_admin' | 'admin' | 'support' | 'marketing' | 'dpo';
 
   @Default([])
+  @AllowNull(false)
   @Column(DataType.ARRAY(DataType.TEXT))
   permissions!: string[];
 
   @Default(false)
+  @AllowNull(false)
   @Index
   @Column(DataType.BOOLEAN)
   isVerified!: boolean;
@@ -229,6 +253,7 @@ export class User extends Model {
   // ============================================
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   twoFactorEnabled!: boolean;
 
@@ -253,6 +278,7 @@ export class User extends Model {
   lastActivity?: Date;
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   isBanned!: boolean;
 
@@ -273,14 +299,17 @@ export class User extends Model {
   banExpiresAt?: Date;
 
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.INTEGER)
   infractions!: number;
 
   @Default(100)
+  @AllowNull(false)
   @Column(DataType.INTEGER)
   trustScore!: number;
 
   @Default('none')
+  @AllowNull(false)
   @Column(DataType.STRING(20))
   verificationLevel!: 'none' | 'email' | 'phone' | 'document' | 'full';
 
@@ -289,6 +318,7 @@ export class User extends Model {
   // ============================================
 
   @Default([])
+  @AllowNull(false)
   @Column(DataType.ARRAY(DataType.TEXT))
   fcmTokens!: string[];
 
@@ -300,10 +330,12 @@ export class User extends Model {
   // ============================================
 
   @Default([])
+  @AllowNull(false)
   @Column(DataType.ARRAY(DataType.TEXT))
   interests!: string[];
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   onboardingCompleted!: boolean;
 
@@ -314,6 +346,7 @@ export class User extends Model {
   bankingInfo?: BankingInfo;
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   dontAskBankingInfo!: boolean;
 
@@ -328,6 +361,7 @@ export class User extends Model {
   availabilitySchedule?: AvailabilitySchedule;
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   isAvailabilityPublic!: boolean;
 
@@ -336,6 +370,7 @@ export class User extends Model {
   // ============================================
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   hasMembership!: boolean;
 
@@ -347,18 +382,22 @@ export class User extends Model {
   membershipExpiresAt?: Date;
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   isPremiumVerified!: boolean;
 
   @Default(8.0)
+  @AllowNull(false)
   @Column(DataType.DECIMAL(5, 2))
   currentCommissionRate!: number;
 
   @Default(3)
+  @AllowNull(false)
   @Column(DataType.INTEGER)
   freeContractsRemaining!: number;
 
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.INTEGER)
   proContractsUsedThisMonth!: number;
 
@@ -367,6 +406,7 @@ export class User extends Model {
   // ============================================
 
   @Default(0.0)
+  @AllowNull(false)
   @Column(DataType.DECIMAL(12, 2))
   balanceArs!: number;
 
@@ -388,22 +428,27 @@ export class User extends Model {
   referrer?: User;
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   referralBonusAwarded!: boolean;
 
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.INTEGER)
   referralTier!: number;
 
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.INTEGER)
   totalReferrals!: number;
 
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.INTEGER)
   completedReferrals!: number;
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   isEarlyUser!: boolean;
 
@@ -411,10 +456,12 @@ export class User extends Model {
   earlyUserNumber?: number;
 
   @Default(3)
+  @AllowNull(false)
   @Column(DataType.INTEGER)
   invitationCodesRemaining!: number;
 
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.INTEGER)
   invitationCodesUsed!: number;
 
@@ -426,10 +473,12 @@ export class User extends Model {
   // Indica si el usuario ganó el descuento permanente (3%) por completar 3 referidos
   // NOTA: Este descuento ahora dura solo 1 mes desde que se otorga
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   hasReferralDiscount!: boolean;
 
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.INTEGER)
   referralBenefitsUsed!: number;
 
@@ -442,6 +491,7 @@ export class User extends Model {
   familyCodeId?: string;
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   hasFamilyPlan!: boolean;
 
@@ -450,14 +500,17 @@ export class User extends Model {
   // ============================================
 
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.INTEGER)
   profileSharesCount!: number;
 
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.INTEGER)
   profileSharesViaLink!: number;
 
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.INTEGER)
   profileSharesViaMessage!: number;
 

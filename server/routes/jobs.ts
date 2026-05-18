@@ -372,29 +372,23 @@ const getTasksWithStatus = async (jobId: string): Promise<any[]> => {
       order: [['orderIndex', 'ASC']],
     });
 
-    // Manually fetch user data if needed
-    const tasksWithData = await Promise.all(tasks.map(async (task) => {
-      const taskData = task.toJSON();
+    // Batch-fetch all referenced users in a single query
+    const userIds = [...new Set([
+      ...tasks.map(t => t.createdById).filter(Boolean),
+      ...tasks.map(t => t.completedById).filter(Boolean),
+    ])] as string[];
+    const users = userIds.length > 0
+      ? await User.findAll({ where: { id: userIds }, attributes: ['id', 'name', 'avatar'] })
+      : [];
+    const userMap = Object.fromEntries(users.map(u => [u.id, u.toJSON()]));
+
+    const tasksWithData = tasks.map(task => {
+      const taskData = task.toJSON() as any;
       taskData.isUnlocked = task.isUnlocked(tasks);
-
-      // Fetch createdBy user if present
-      if (task.createdById) {
-        const createdByUser = await User.findByPk(task.createdById, {
-          attributes: ['id', 'name', 'avatar']
-        });
-        taskData.createdBy = createdByUser?.toJSON() || null;
-      }
-
-      // Fetch completedBy user if present
-      if (task.completedById) {
-        const completedByUser = await User.findByPk(task.completedById, {
-          attributes: ['id', 'name', 'avatar']
-        });
-        taskData.completedBy = completedByUser?.toJSON() || null;
-      }
-
+      taskData.createdBy = task.createdById ? (userMap[task.createdById] || null) : null;
+      taskData.completedBy = task.completedById ? (userMap[task.completedById] || null) : null;
       return taskData;
-    }));
+    });
 
     return tasksWithData;
   } catch (error: any) {
@@ -1030,6 +1024,15 @@ router.post(
           }
           return [];
         })(),
+        vacancyTaskAssignments: (() => {
+          const raw = req.body.vacancyTaskAssignments;
+          if (Array.isArray(raw)) return raw;
+          if (typeof raw === 'string') {
+            try { return JSON.parse(raw) || []; }
+            catch { return []; }
+          }
+          return [];
+        })(),
       };
 
       const job = await Job.create(jobData);
@@ -1183,6 +1186,15 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
         updateData.tags = JSON.parse(updateData.tags);
       } catch (e) {
         updateData.tags = [];
+      }
+    }
+
+    // Parse vacancyTaskAssignments if sent as JSON string
+    if (updateData.vacancyTaskAssignments && typeof updateData.vacancyTaskAssignments === 'string') {
+      try {
+        updateData.vacancyTaskAssignments = JSON.parse(updateData.vacancyTaskAssignments);
+      } catch (e) {
+        updateData.vacancyTaskAssignments = [];
       }
     }
 
@@ -2251,6 +2263,17 @@ router.patch("/:id/pause", protect, async (req: AuthRequest, res: Response): Pro
       return;
     }
 
+    // Si ya hay trabajadores seleccionados, no se puede pausar unilateralmente
+    const hasAssignedWorkers = job.selectedWorkers && Array.isArray(job.selectedWorkers) && job.selectedWorkers.length > 0;
+    if (hasAssignedWorkers) {
+      res.status(400).json({
+        success: false,
+        message: "No podés pausar este trabajo porque ya tenés trabajadores asignados. Necesitás su aprobación para pausarlo.",
+        requiresWorkerApproval: true,
+      });
+      return;
+    }
+
     // Verificar que falten más de 24 horas para el inicio del trabajo
     const now = new Date();
     const startDate = new Date(job.startDate);
@@ -2503,17 +2526,16 @@ router.get("/:id/worker-allocations", protect, async (req: AuthRequest, res: Res
       : (job.allocatedTotal || 0);
 
     // Get worker details for each allocation
-    const allocationsWithDetails = await Promise.all(
-      (job.workerAllocations || []).map(async (allocation) => {
-        const worker = await User.findByPk(allocation.workerId, {
-          attributes: ['id', 'name', 'email', 'avatar']
-        });
-        return {
-          ...allocation,
-          worker: worker?.toJSON() || null
-        };
-      })
-    );
+    const allocationList = job.workerAllocations || [];
+    const workerIds = allocationList.map((a: any) => a.workerId).filter(Boolean);
+    const workerUsers = workerIds.length > 0
+      ? await User.findAll({ where: { id: workerIds }, attributes: ['id', 'name', 'email', 'avatar'] })
+      : [];
+    const workerMap = Object.fromEntries(workerUsers.map(u => [u.id, u.toJSON()]));
+    const allocationsWithDetails = allocationList.map((allocation: any) => ({
+      ...allocation,
+      worker: workerMap[allocation.workerId] || null,
+    }));
 
     res.json({
       success: true,

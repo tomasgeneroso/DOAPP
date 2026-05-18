@@ -97,14 +97,14 @@ class AdvertisementService {
    * Balance ad mix based on configuration
    */
   private balanceAdMix(
-    ads: IAdvertisement[],
+    ads: any[],
     config: AdPlacementConfig
-  ): IAdvertisement[] {
+  ): any[] {
     const model1Ads = ads.filter((ad) => ad.adType === 'model1');
     const model2Ads = ads.filter((ad) => ad.adType === 'model2');
     const model3Ads = ads.filter((ad) => ad.adType === 'model3');
 
-    const balanced: IAdvertisement[] = [
+    const balanced: any[] = [
       ...model1Ads.slice(0, config.model1Count),
       ...model2Ads.slice(0, config.model2Count),
       ...model3Ads.slice(0, config.model3Count),
@@ -117,7 +117,7 @@ class AdvertisementService {
    * Integrate ads into job listings
    * Returns array with jobs and ads mixed based on ad type
    */
-  integrateAdsIntoJobs(jobs: any[], ads: IAdvertisement[]): any[] {
+  integrateAdsIntoJobs(jobs: any[], ads: any[]): any[] {
     if (ads.length === 0) return jobs;
 
     const result: any[] = [];
@@ -320,7 +320,7 @@ class AdvertisementService {
 
     return {
       ad: {
-        id: ad._id,
+        id: ad.id,
         title: ad.title,
         type: ad.adType,
         status: ad.status,

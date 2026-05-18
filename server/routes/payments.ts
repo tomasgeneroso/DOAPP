@@ -16,7 +16,6 @@ import path from 'path';
 import fs from 'fs';
 import { Invoice } from '../models/sql/Invoice.model.js';
 import { getUserInvoices, getInvoiceById } from '../services/invoiceService.js';
-import fs from 'fs';
 import logger from "../services/logger.js";
 import { socketService } from "../index.js";
 import { calculateCommission } from "../services/commissionService.js";
@@ -386,11 +385,13 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
       : contract.clientId;
 
     // Calculate platform fee
-    const platformFee = paypalService.calculatePlatformFee(parseFloat(amount));
+    const paypalService = (await import('../services/paypalService.js').catch(() => ({ default: null }))).default;
+    if (!paypalService) { res.status(503).json({ success: false, message: 'PayPal not available' }); return; }
+    const platformFee = (paypalService as any).calculatePlatformFee(parseFloat(amount));
     const totalAmount = parseFloat(amount) + platformFee;
 
     // Create PayPal order
-    const paypalOrder = await paypalService.createOrder({
+    const paypalOrder = await (paypalService as any).createOrder({
       amount: totalAmount.toFixed(2),
       currency: "USD",
       description: description || `Payment for contract ${(contract as any).job?.title || contract.id}`,
@@ -549,7 +550,7 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
     }
 
     // Capture the PayPal order
-    const captureResult = await paypalService.captureOrder(orderId);
+    const captureResult = await (paypalService as any)?.captureOrder(orderId);
 
     // Update payment record
     payment.status = captureResult.status === "COMPLETED" ? "completed" : "processing";
@@ -648,8 +649,8 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
       if (user) {
         user.hasMembership = true;
         user.membershipTier = plan === "SUPER_PRO" ? "super_pro" : "pro";
-        user.monthlyFreeContractsLimit = 3;
-        user.monthlyContractsUsed = 0;
+        (user as any).monthlyFreeContractsLimit = 3;
+        (user as any).monthlyContractsUsed = 0;
         await user.save();
         console.log("✅ Usuario actualizado con membresía", plan);
       }
@@ -818,6 +819,50 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
       console.log("⚠️ [CAPTURE] No contract found for contractId:", payment.contractId);
     }
 
+    // Handle quote payment — mark quote accepted after payment
+    if (payment.paymentType === 'quote_payment' && payment.quoteId) {
+      const { Quote } = await import('../models/sql/Quote.model.js');
+      const quote = await Quote.findByPk(payment.quoteId);
+      if (quote) {
+        await quote.update({ status: 'accepted' });
+
+        if ((quote as any).conversationId) {
+          const { ChatMessage } = await import('../models/sql/ChatMessage.model.js');
+          await ChatMessage.create({
+            conversationId: (quote as any).conversationId,
+            senderId: payment.payerId,
+            message: `Pago confirmado||Cotización pagada y aceptada||Monto: $${Number(payment.amount).toLocaleString('es-AR')} ARS`,
+            type: 'system',
+            metadata: { action: 'quote_payment_confirmed', quoteId: quote.id, paymentId: payment.id },
+          } as any);
+        }
+
+        await Notification.create({
+          recipientId: (quote as any).senderId,
+          type: 'success',
+          category: 'payment',
+          title: 'Cotización pagada y aceptada',
+          message: `Recibiste el pago por tu cotización "${(quote as any).title}". El monto neto estará disponible en tu balance.`,
+          relatedModel: 'Quote',
+          relatedId: quote.id,
+          actionUrl: `/quotes/${quote.id}`,
+          actionText: 'Ver cotización',
+          sentVia: ['in_app'],
+        });
+
+        socketService.notifyUser((quote as any).senderId, 'notification:new', {
+          title: 'Cotización pagada',
+          message: `Recibiste el pago de "${(quote as any).title}"`,
+        });
+
+        res.json({
+          success: true,
+          data: { paymentId: payment.id, status: payment.status, quoteId: quote.id, quoteAccepted: true },
+        });
+        return;
+      }
+    }
+
     // Create notifications (for contract payments)
     const payer = await User.findByPk(payment.payerId);
     const recipient = await User.findByPk(payment.recipientId);
@@ -963,7 +1008,8 @@ router.post("/:paymentId/refund", protect, async (req: AuthRequest, res: Respons
     }
 
     // Process refund through PayPal
-    const refundResult = await paypalService.refundPayment(
+    const paypalService = (await import('../services/paypalService.js').catch(() => ({ default: null }))).default;
+    const refundResult = await (paypalService as any)?.refundPayment(
       payment.paypalCaptureId,
       payment.amount.toString(),
       payment.currency
@@ -1209,7 +1255,8 @@ router.post("/job-publication/:jobId", protect, async (req: AuthRequest, res: Re
     const amount = job.publicationAmount || 10; // Default $10 USD
 
     // Create PayPal order
-    const paypalOrder = await paypalService.createOrder({
+    const paypalService = (await import('../services/paypalService.js').catch(() => ({ default: null }))).default;
+    const paypalOrder = await (paypalService as any)?.createOrder({
       amount: amount.toFixed(2),
       currency: "USD",
       description: `Publicación de trabajo: ${job.title}`,
@@ -1284,7 +1331,7 @@ router.post("/contract/:contractId", protect, async (req: AuthRequest, res: Resp
     }
 
     // Check if already paid
-    if (contract.status === "active" || contract.status === "completed") {
+    if (contract.status === "in_progress" || contract.status === "completed") {
       res.status(400).json({ success: false, message: "Contract already paid" });
       return;
     }
@@ -1306,7 +1353,7 @@ router.post("/contract/:contractId", protect, async (req: AuthRequest, res: Resp
 
     // Create MercadoPago preference
     const mercadoPagoService = (await import('../services/mercadopago.js')).default;
-    const preference = await mercadoPagoService.createPreference({
+    const preference = await (mercadoPagoService as any).createPreference({
       title: `Contrato: ${jobTitle}`,
       description: `Pago con escrow para ${jobTitle}`,
       price: contract.totalPrice,
@@ -1333,7 +1380,7 @@ router.post("/contract/:contractId", protect, async (req: AuthRequest, res: Resp
     });
 
     // Update contract with payment reference
-    contract.paymentId = payment.id as any;
+    (contract as any).paymentId = payment.id;
     await contract.save();
 
     res.json({

@@ -54,11 +54,11 @@ async function calculateAnalytics(userId: string) {
 
   // Profile views - already tracked in real-time
   const uniqueVisitors = new Set(
-    analytics.profileViews.history
+    (analytics as any).profileViews.history
       .filter((visit: any) => visit.visitorId)
       .map((visit: any) => visit.visitorId.toString())
   );
-  analytics.profileViews.unique = uniqueVisitors.size;
+  (analytics as any).profileViews.unique = uniqueVisitors.size;
 
   // Conversations
   const conversations = await Conversation.findAll({
@@ -68,24 +68,24 @@ async function calculateAnalytics(userId: string) {
     include: [{ association: 'participants' }]
   });
 
-  analytics.conversations.total = conversations.length;
+  (analytics as any).conversations.total = conversations.length;
 
   const conversationPartners: any[] = [];
   let withCompletedContract = 0;
 
   for (const conv of conversations) {
-    const otherUser = conv.participants.find(
-      (p: any) => p.id.toString() !== userId
+    const otherUserId = conv.participants.find(
+      (p: string) => p !== userId
     );
 
-    if (!otherUser) continue;
+    if (!otherUserId) continue;
 
     // Check if had contract with this user
     const contracts = await Contract.findAll({
       where: {
         [Op.or]: [
-          { clientId: userId, doerId: otherUser.id },
-          { clientId: otherUser.id, doerId: userId },
+          { clientId: userId, doerId: otherUserId },
+          { clientId: otherUserId, doerId: userId },
         ],
         status: "completed",
       }
@@ -102,15 +102,15 @@ async function calculateAnalytics(userId: string) {
     });
 
     conversationPartners.push({
-      userId: otherUser.id,
+      userId: otherUserId,
       hadContract: contracts.length > 0,
       contractsCount: contracts.length,
       lastMessageAt: lastMessage?.createdAt || conv.updatedAt,
     });
   }
 
-  analytics.conversations.withCompletedContract = withCompletedContract;
-  analytics.conversations.conversationPartners = conversationPartners;
+  (analytics as any).conversations.withCompletedContract = withCompletedContract;
+  (analytics as any).conversations.conversationPartners = conversationPartners;
 
   // Contracts analytics
   const completedContracts = await Contract.findAll({
@@ -121,7 +121,7 @@ async function calculateAnalytics(userId: string) {
     include: [{ association: 'client' }]
   });
 
-  analytics.contracts.totalCompleted = completedContracts.length;
+  (analytics as any).contracts.totalCompleted = completedContracts.length;
 
   let totalEarnings = 0;
   let totalRating = 0;
@@ -138,24 +138,24 @@ async function calculateAnalytics(userId: string) {
     totalEarnings += earnings;
 
     // Ratings
-    if (contract.doerRating) {
-      totalRating += contract.doerRating;
+    if ((contract as any).doerRating) {
+      totalRating += (contract as any).doerRating;
       ratingCount++;
     }
 
     // Repeat clients
-    const clientId = contract.client.id.toString();
+    const clientId = (typeof contract.client === "object" ? (contract.client as any)?.id : contract.client).toString();
     clientMap.set(clientId, (clientMap.get(clientId) || 0) + 1);
 
     // Success rate (no disputes)
-    if (!contract.dispute) {
+    if (!contract.disputeId) {
       successfulContracts++;
     }
 
     // Completion time
-    if (contract.completedAt && contract.createdAt) {
+    if ((contract as any).completedAt && contract.createdAt) {
       const days = Math.ceil(
-        (contract.completedAt.getTime() - contract.createdAt.getTime()) /
+        ((contract as any).completedAt.getTime() - contract.createdAt.getTime()) /
           (1000 * 60 * 60 * 24)
       );
       totalCompletionTime += days;
@@ -169,9 +169,9 @@ async function calculateAnalytics(userId: string) {
     categoryMap.set(category, catData);
 
     // Monthly stats
-    const month = contract.completedAt
-      ? `${contract.completedAt.getFullYear()}-${String(
-          contract.completedAt.getMonth() + 1
+    const month = (contract as any).completedAt
+      ? `${(contract as any).completedAt.getFullYear()}-${String(
+          (contract as any).completedAt.getMonth() + 1
         ).padStart(2, "0")}`
       : undefined;
 
@@ -188,19 +188,19 @@ async function calculateAnalytics(userId: string) {
     }
   }
 
-  analytics.contracts.totalEarnings = totalEarnings;
-  analytics.contracts.averageRating = ratingCount > 0 ? totalRating / ratingCount : 0;
-  analytics.contracts.repeatClients = Array.from(clientMap.values()).filter(
+  (analytics as any).contracts.totalEarnings = totalEarnings;
+  (analytics as any).contracts.averageRating = ratingCount > 0 ? totalRating / ratingCount : 0;
+  (analytics as any).contracts.repeatClients = Array.from(clientMap.values()).filter(
     (count) => count > 1
   ).length;
-  analytics.contracts.successRate =
+  (analytics as any).contracts.successRate =
     completedContracts.length > 0
       ? (successfulContracts / completedContracts.length) * 100
       : 0;
-  analytics.contracts.averageCompletionTime =
+  (analytics as any).contracts.averageCompletionTime =
     completedContracts.length > 0 ? totalCompletionTime / completedContracts.length : 0;
 
-  analytics.contracts.byCategory = Array.from(categoryMap.entries()).map(
+  (analytics as any).contracts.byCategory = Array.from(categoryMap.entries()).map(
     ([category, data]: [string, any]) => ({
       category,
       count: data.count,
@@ -208,7 +208,7 @@ async function calculateAnalytics(userId: string) {
     })
   );
 
-  analytics.contracts.monthlyStats = Array.from(monthlyMap.entries()).map(
+  (analytics as any).contracts.monthlyStats = Array.from(monthlyMap.entries()).map(
     ([month, data]: [string, any]) => ({
       month,
       completed: data.completed,
@@ -226,9 +226,9 @@ async function calculateAnalytics(userId: string) {
     }
   });
 
-  analytics.engagement.proposalsSent = proposalsSent;
-  analytics.engagement.proposalsAccepted = proposalsAccepted;
-  analytics.engagement.acceptanceRate =
+  (analytics as any).engagement.proposalsSent = proposalsSent;
+  (analytics as any).engagement.proposalsAccepted = proposalsAccepted;
+  (analytics as any).engagement.acceptanceRate =
     proposalsSent > 0 ? (proposalsAccepted / proposalsSent) * 100 : 0;
 
   const jobsPosted = await Job.count({ where: { clientId: userId } });
@@ -239,8 +239,8 @@ async function calculateAnalytics(userId: string) {
     }
   });
 
-  analytics.engagement.jobsPosted = jobsPosted;
-  analytics.engagement.jobsCompleted = jobsCompleted;
+  (analytics as any).engagement.jobsPosted = jobsPosted;
+  (analytics as any).engagement.jobsCompleted = jobsCompleted;
 
   // Calculate response time (would need message timestamps)
   // For now, set to 0 - implement based on your ChatMessage model
@@ -289,32 +289,32 @@ router.post("/profile-view", protect, async (req: AuthRequest, res: Response) =>
 
     // Check if this visitor already viewed recently (within 1 hour)
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    const recentView = analytics.profileViews.history.find(
+    const recentView = (analytics as any).profileViews.history.find(
       (view: any) =>
         view.visitorId?.toString() === req.user.id.toString() &&
         view.timestamp > oneHourAgo
     );
 
     if (!recentView) {
-      analytics.profileViews.total++;
-      analytics.profileViews.history.push({
+      (analytics as any).profileViews.total++;
+      (analytics as any).profileViews.history.push({
         visitorId: req.user.id,
         timestamp: new Date(),
         referrer: referrer || undefined,
       });
 
       // Keep only last 1000 views
-      if (analytics.profileViews.history.length > 1000) {
-        analytics.profileViews.history = analytics.profileViews.history.slice(-1000);
+      if ((analytics as any).profileViews.history.length > 1000) {
+        (analytics as any).profileViews.history = (analytics as any).profileViews.history.slice(-1000);
       }
 
       // Update unique count
       const uniqueVisitors = new Set(
-        analytics.profileViews.history
+        (analytics as any).profileViews.history
           .filter((visit: any) => visit.visitorId)
           .map((visit: any) => visit.visitorId.toString())
       );
-      analytics.profileViews.unique = uniqueVisitors.size;
+      (analytics as any).profileViews.unique = uniqueVisitors.size;
 
       await analytics.save();
     }

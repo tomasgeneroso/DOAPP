@@ -1,4 +1,4 @@
-import { Router, Response } from "express";
+import { Router, Request, Response } from "express";
 import { body, validationResult } from "express-validator";
 import { Ticket } from "../models/sql/Ticket.model.js";
 import { User } from "../models/sql/User.model.js";
@@ -18,6 +18,111 @@ router.get("/test", (req, res) => {
   console.log("🎫 Test route hit!");
   res.json({ success: true, message: "Tickets route is working!" });
 });
+
+/**
+ * Create a ticket as a guest (no auth required)
+ * The email must match an existing user account.
+ * POST /api/tickets/guest
+ */
+router.post(
+  "/guest",
+  uploadTicketAttachments,
+  [
+    body("email").isEmail().withMessage("Email inválido").normalizeEmail(),
+    body("subject").trim().notEmpty().withMessage("El asunto es requerido").isLength({ max: 200 }),
+    body("message").trim().notEmpty().withMessage("El mensaje es requerido"),
+    body("category").isIn(["bug", "feature", "support", "report_user", "payment", "other"]).withMessage("Categoría inválida"),
+  ],
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({ success: false, errors: errors.array(), message: errors.array()[0]?.msg });
+        return;
+      }
+
+      const { email, subject, category = "support", priority = "medium", message } = req.body;
+
+      const user = await User.findOne({ where: { email } });
+      if (!user) {
+        res.status(404).json({
+          success: false,
+          message: "No encontramos una cuenta registrada con ese email. Verificá el correo o iniciá sesión.",
+          field: "email",
+        });
+        return;
+      }
+
+      const validPriorities = ["low", "medium", "high", "urgent"];
+      const safePriority = validPriorities.includes(priority) ? priority : "medium";
+
+      const files = (req as any).files as Express.Multer.File[];
+      const attachments = files?.length ? files.map((file) => ({
+        fileName: file.originalname,
+        fileUrl: getFileUrl(file.path, req),
+        fileType: (file.mimetype === "application/pdf" ? "pdf" : "image") as "image" | "pdf",
+        fileSize: file.size,
+        uploadedAt: new Date(),
+      })) : [];
+
+      const ticketCount = await Ticket.count();
+      const ticketNumber = `TK-${String(ticketCount + 1).padStart(6, "0")}`;
+
+      const ticket = await Ticket.create({
+        ticketNumber,
+        subject,
+        category,
+        priority: safePriority,
+        status: "open",
+        createdBy: user.id,
+        messages: [{
+          author: user.id,
+          message,
+          isInternal: false,
+          attachments: attachments.length ? attachments : undefined,
+          createdAt: new Date(),
+        }],
+      });
+
+      // Confirmation email to user
+      await emailService.sendTicketCreatedEmail(ticket.id, ticketNumber, subject, user.email, user.name).catch(() => {});
+
+      // Notify support team
+      const supportEmail = process.env.SMTP_USER || process.env.SUPPORT_EMAIL;
+      if (supportEmail) {
+        const adminUrl = `${process.env.CLIENT_URL || "http://localhost:5173"}/admin/tickets/${ticket.id}`;
+        await emailService.sendEmail({
+          to: supportEmail,
+          subject: `[Ticket Invitado] ${ticketNumber} - ${subject}`,
+          html: `<p>Ticket creado sin sesión (email del usuario: ${user.email}).</p>
+            <ul>
+              <li><strong>Número:</strong> ${ticketNumber}</li>
+              <li><strong>Usuario:</strong> ${user.name} (${user.email})</li>
+              <li><strong>Categoría:</strong> ${category}</li>
+              <li><strong>Asunto:</strong> ${subject}</li>
+              <li><strong>Mensaje:</strong> ${message}</li>
+            </ul>
+            <a href="${adminUrl}">Ver ticket en panel admin</a>`,
+        }).catch(() => {});
+      }
+
+      res.status(201).json({
+        success: true,
+        message: "Ticket creado. Te enviamos un email de confirmación.",
+        ticket: {
+          id: ticket.id,
+          ticketNumber: ticket.ticketNumber,
+          subject: ticket.subject,
+          status: ticket.status,
+          category: ticket.category,
+        },
+      });
+    } catch (error: any) {
+      console.error("Guest ticket error:", error);
+      res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+    }
+  }
+);
 
 /**
  * Create a new ticket

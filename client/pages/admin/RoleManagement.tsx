@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Shield, UserCog, Search, Check, X, ChevronDown } from "lucide-react";
+import { Shield, UserCog, Search, Check, X, Lock, Eye, EyeOff, KeyRound } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 interface User {
   _id: string;
@@ -31,6 +32,9 @@ interface Permission {
 
 export default function RoleManagement() {
   const { t } = useTranslation();
+  const { user: currentUser } = useAuth();
+  const isOwner = currentUser?.adminRole === "owner";
+
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [allPermissions, setAllPermissions] = useState<Permission[]>([]);
@@ -43,9 +47,26 @@ export default function RoleManagement() {
   const [newRole, setNewRole] = useState<string>("");
   const [customPermissions, setCustomPermissions] = useState<string[]>([]);
 
+  // Password confirmation modal
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [passwordModalRole, setPasswordModalRole] = useState<"owner" | "admin">("admin");
+  const [rolePassword, setRolePassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+
+  // Security settings (owner only)
+  const [showSecuritySettings, setShowSecuritySettings] = useState(false);
+  const [securityRole, setSecurityRole] = useState<"owner" | "admin">("admin");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [passwordStatus, setPasswordStatus] = useState<{ ownerPasswordSet: boolean; adminPasswordSet: boolean } | null>(null);
+
   useEffect(() => {
     fetchRolesAndPermissions();
     fetchUsers();
+    if (isOwner) fetchPasswordStatus();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRole, searchQuery]);
 
@@ -91,8 +112,28 @@ export default function RoleManagement() {
     }
   };
 
-  const handleAssignRole = async () => {
+  const fetchPasswordStatus = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/admin/roles/security/status", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) setPasswordStatus(data.data);
+    } catch {}
+  };
+
+  const handleAssignRole = async (password?: string) => {
     if (!selectedUser || !newRole) return;
+
+    // Roles that require password
+    if ((newRole === "owner" || newRole === "admin") && !password) {
+      setPasswordModalRole(newRole as "owner" | "admin");
+      setRolePassword("");
+      setPasswordError("");
+      setShowPasswordModal(true);
+      return;
+    }
 
     try {
       const token = localStorage.getItem("token");
@@ -102,20 +143,71 @@ export default function RoleManagement() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ adminRole: newRole }),
+        body: JSON.stringify({ adminRole: newRole, rolePassword: password }),
       });
 
       const data = await response.json();
       if (data.success) {
-        alert(t('admin.roles.roleAssignedSuccess', 'Role assigned successfully'));
         setShowRoleModal(false);
+        setShowPasswordModal(false);
+        setRolePassword("");
         fetchUsers();
       } else {
-        alert(data.message || t('admin.roles.errorAssigningRole', 'Error assigning role'));
+        if (password) {
+          setPasswordError(data.message || "Contraseña incorrecta");
+        } else {
+          alert(data.message || t('admin.roles.errorAssigningRole', 'Error assigning role'));
+        }
       }
     } catch (error) {
       console.error("Error assigning role:", error);
       alert(t('admin.roles.errorAssigningRole', 'Error assigning role'));
+    }
+  };
+
+  const handlePasswordConfirm = async () => {
+    if (!rolePassword.trim()) {
+      setPasswordError("Ingresá la contraseña");
+      return;
+    }
+    setPasswordError("");
+    await handleAssignRole(rolePassword);
+  };
+
+  const handleSaveSecurityPassword = async () => {
+    if (newPassword.length < 8) {
+      alert("La contraseña debe tener al menos 8 caracteres");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      alert("Las contraseñas no coinciden");
+      return;
+    }
+    setSavingPassword(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/admin/roles/security/passwords", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ role: securityRole, newPassword, confirmPassword }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNewPassword("");
+        setConfirmPassword("");
+        setShowSecuritySettings(false);
+        fetchPasswordStatus();
+        alert(`Contraseña para rol '${securityRole}' guardada correctamente`);
+      } else {
+        alert(data.message || "Error al guardar contraseña");
+      }
+    } catch {
+      alert("Error al guardar contraseña");
+    } finally {
+      setSavingPassword(false);
     }
   };
 
@@ -289,9 +381,12 @@ export default function RoleManagement() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
                         <img
-                          src={user.avatar || "/default-avatar.png"}
+                          src={user.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.name)}`}
                           alt={user.name}
                           className="h-8 w-8 rounded-full object-cover"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.name)}`;
+                          }}
                         />
                         <span className="text-sm font-medium text-slate-900 dark:text-white">
                           {user.name}
@@ -370,12 +465,19 @@ export default function RoleManagement() {
                     className="w-full px-4 py-2 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
                     <option value="none">{t('admin.roles.noAdminRole', 'No admin role')}</option>
+                    {isOwner && <option value="owner">Owner 🔒</option>}
                     <option value="super_admin">Super Admin</option>
-                    <option value="admin">Admin</option>
+                    <option value="admin">Admin 🔒</option>
                     <option value="support">Support</option>
                     <option value="marketing">Marketing</option>
                     <option value="dpo">Data Protection Officer</option>
                   </select>
+                  {(newRole === "owner" || newRole === "admin") && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1 mt-1">
+                      <Lock className="h-3 w-3" />
+                      Este rol requiere contraseña de seguridad al asignar
+                    </p>
+                  )}
                 </div>
                 {newRole !== "none" && (
                   <div className="p-3 bg-sky-50 dark:bg-sky-900/20 rounded-lg">
@@ -387,7 +489,7 @@ export default function RoleManagement() {
               </div>
               <div className="flex gap-3 mt-6">
                 <button
-                  onClick={handleAssignRole}
+                  onClick={() => handleAssignRole()}
                   className="flex-1 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition"
                 >
                   {t('admin.roles.assign', 'Assign')}
@@ -401,6 +503,174 @@ export default function RoleManagement() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Password confirmation modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl max-w-sm w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="h-10 w-10 rounded-full bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+                <KeyRound className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  Contraseña requerida
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Rol: <span className="font-semibold capitalize">{passwordModalRole}</span>
+                </p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">
+              Para asignar el rol <strong>{passwordModalRole}</strong> ingresá la contraseña de seguridad configurada por el owner.
+            </p>
+            <div className="relative mb-2">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={rolePassword}
+                onChange={e => { setRolePassword(e.target.value); setPasswordError(""); }}
+                onKeyDown={e => e.key === "Enter" && handlePasswordConfirm()}
+                placeholder="Contraseña de seguridad"
+                autoFocus
+                className={`w-full px-4 py-2.5 pr-10 border rounded-xl text-sm bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 ${passwordError ? "border-red-400 focus:ring-red-400" : "border-slate-200 dark:border-slate-700 focus:ring-sky-500"}`}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {passwordError && (
+              <p className="text-xs text-red-500 mb-3 flex items-center gap-1">
+                <X className="h-3 w-3" /> {passwordError}
+              </p>
+            )}
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={() => { setShowPasswordModal(false); setRolePassword(""); setPasswordError(""); }}
+                className="flex-1 px-4 py-2 text-sm border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handlePasswordConfirm}
+                className="flex-1 px-4 py-2 text-sm bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-medium transition"
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Security settings (owner only) */}
+      {isOwner && (
+        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="h-9 w-9 rounded-lg bg-amber-100 dark:bg-amber-900/20 flex items-center justify-center">
+                <Lock className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-900 dark:text-white">Contraseñas de seguridad</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Protegen la asignación de roles críticos
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowSecuritySettings(v => !v)}
+              className="px-3 py-1.5 text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/40 rounded-lg transition font-medium"
+            >
+              {showSecuritySettings ? "Cerrar" : "Configurar"}
+            </button>
+          </div>
+
+          {passwordStatus && (
+            <div className="flex gap-4 mb-4">
+              <div className="flex items-center gap-2 text-sm">
+                <span className={`h-2 w-2 rounded-full ${passwordStatus.ownerPasswordSet ? "bg-green-500" : "bg-red-400"}`} />
+                <span className="text-slate-600 dark:text-slate-400">
+                  Owner: {passwordStatus.ownerPasswordSet ? "configurada" : "no configurada"}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <span className={`h-2 w-2 rounded-full ${passwordStatus.adminPasswordSet ? "bg-green-500" : "bg-red-400"}`} />
+                <span className="text-slate-600 dark:text-slate-400">
+                  Admin: {passwordStatus.adminPasswordSet ? "configurada" : "no configurada"}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {showSecuritySettings && (
+            <div className="border-t border-slate-200 dark:border-slate-700 pt-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  Configurar contraseña para rol
+                </label>
+                <div className="flex gap-2 mb-3">
+                  {(["owner", "admin"] as const).map(r => (
+                    <button
+                      key={r}
+                      onClick={() => setSecurityRole(r)}
+                      className={`px-4 py-1.5 text-sm rounded-lg font-medium transition ${
+                        securityRole === r
+                          ? "bg-amber-500 text-white"
+                          : "bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600"
+                      }`}
+                    >
+                      {r === "owner" ? "Owner" : "Admin"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
+                  Nueva contraseña (mín. 8 caracteres)
+                </label>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? "text" : "password"}
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    placeholder="Nueva contraseña"
+                    className="w-full px-4 py-2.5 pr-10 border border-slate-200 dark:border-slate-700 rounded-xl text-sm bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(v => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
+                  Confirmar contraseña
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="Repetir contraseña"
+                  className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-sm bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+              <button
+                onClick={handleSaveSecurityPassword}
+                disabled={savingPassword || !newPassword || !confirmPassword}
+                className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition"
+              >
+                {savingPassword ? "Guardando..." : `Guardar contraseña de ${securityRole}`}
+              </button>
+            </div>
+          )}
         </div>
       )}
 

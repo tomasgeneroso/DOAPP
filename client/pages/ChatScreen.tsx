@@ -25,8 +25,25 @@ import {
   Key,
   Copy,
   Plus,
-  Handshake
+  Handshake,
+  ClipboardList,
+  MessageSquare,
+  Sparkles,
+  ChevronRight,
 } from 'lucide-react';
+import QuoteMessage from '../components/chat/QuoteMessage';
+
+interface ConversationPreview {
+  id?: string;
+  _id?: string;
+  participants: Array<{ id?: string; _id?: string; name: string; avatar?: string }>;
+  lastMessage?: string;
+  lastMessageAt?: string;
+  unreadCount?: Record<string, number>;
+  jobId?: { title?: string } | string;
+  contractId?: string;
+  type?: string;
+}
 
 interface Message {
   id?: string; // PostgreSQL
@@ -162,6 +179,22 @@ export default function ChatScreen() {
   // Direct proposal modal
   const [showDirectProposalModal, setShowDirectProposalModal] = useState(false);
 
+  // Price proposal (in-chat)
+  const [showPriceProposal, setShowPriceProposal] = useState(false);
+  const [priceProposalAmount, setPriceProposalAmount] = useState('');
+  const [priceProposalLoading, setPriceProposalLoading] = useState(false);
+  const [jobForProposal, setJobForProposal] = useState<Job | null>(null);
+  const [allMyJobs, setAllMyJobs] = useState<Job[]>([]);
+  const [selectedProposalJob, setSelectedProposalJob] = useState<Job | null>(null);
+  const [loadingMyJobs, setLoadingMyJobs] = useState(false);
+
+  // Sidebar conversations
+  const [conversations, setConversations] = useState<ConversationPreview[]>([]);
+  const [loadingConversations, setLoadingConversations] = useState(false);
+
+  // Suggested presentation text
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
   // Limpiar el location.state después de usarlo para evitar que persista en refresh
   useEffect(() => {
     if (location.state?.jobContext) {
@@ -173,8 +206,16 @@ export default function ChatScreen() {
 
   useEffect(() => {
     if (conversationId) {
+      // Reset state when conversation changes
+      setMessages([]);
+      setConversationData(null);
+      setOtherParticipant(null);
+      setContractData(null);
+      setJobForProposal(null);
+      setSelectedProposalJob(null);
+      setLoading(true);
+
       fetchConversationData();
-      // Join socket conversation
       if (isConnected) {
         joinConversation(conversationId);
       }
@@ -353,6 +394,28 @@ export default function ChatScreen() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
+  const fetchConversations = async () => {
+    if (!token) return;
+    setLoadingConversations(true);
+    try {
+      const res = await fetch('/api/chat/conversations', { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success) setConversations(data.data || []);
+    } catch {}
+    setLoadingConversations(false);
+  };
+
+  const fetchMyJobs = async () => {
+    if (!token || allMyJobs.length > 0) return;
+    setLoadingMyJobs(true);
+    try {
+      const res = await fetch('/api/jobs?status=open&limit=50', { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success) setAllMyJobs(data.jobs || []);
+    } catch {}
+    setLoadingMyJobs(false);
+  };
+
   // Fetch contract data when conversationData has contractId
   useEffect(() => {
     const fetchContractData = async () => {
@@ -389,6 +452,18 @@ export default function ChatScreen() {
 
     fetchContractData();
   }, [conversationData?.contractId, token]);
+
+  // Fetch job data for price proposal
+  useEffect(() => {
+    if (!conversationData?.jobId || !token) return;
+    fetch(`/api/jobs/${conversationData.jobId}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(d => { if (d.success && d.job) { setJobForProposal(d.job); setSelectedProposalJob(d.job); } })
+      .catch(() => {});
+  }, [conversationData?.jobId, token]);
+
+  // Fetch sidebar conversations on mount
+  useEffect(() => { fetchConversations(); }, [token]);
 
   // Calculate time until job start for alerts
   const getTimeUntilJobStart = () => {
@@ -562,6 +637,34 @@ export default function ChatScreen() {
     } finally {
       setSending(false);
     }
+  };
+
+  const handlePriceProposalSubmit = async () => {
+    const targetJob = selectedProposalJob || jobForProposal;
+    if (!priceProposalAmount || !targetJob || !token) return;
+    setPriceProposalLoading(true);
+    try {
+      const res = await fetch('/api/proposals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          job: targetJob.id || (targetJob as any)._id,
+          coverLetter: `Te propongo un precio de $${Number(priceProposalAmount).toLocaleString('es-AR')} ARS para este trabajo.`,
+          proposedPrice: parseFloat(priceProposalAmount),
+          estimatedDuration: 1,
+          isCounterOffer: true,
+          originalJobPrice: targetJob.price,
+          conversationId,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setShowPriceProposal(false);
+        setPriceProposalAmount('');
+        fetchConversationData();
+      }
+    } catch {}
+    setPriceProposalLoading(false);
   };
 
   const handleModalSubmit = async (data: any) => {
@@ -782,13 +885,87 @@ export default function ChatScreen() {
     );
   }
 
+  // Sidebar helpers
+  const getSidebarName = (conv: ConversationPreview) => {
+    const other = conv.participants.find(p => (p.id || p._id) !== user?.id);
+    return other?.name || 'Chat';
+  };
+  const getSidebarLastMsg = (conv: ConversationPreview) => {
+    if (!conv.lastMessage) return '';
+    return conv.lastMessage.includes('||') ? conv.lastMessage.split('||')[0] : conv.lastMessage;
+  };
+  const getUnread = (conv: ConversationPreview) => {
+    const uid = user?.id || (user as any)?._id || '';
+    return conv.unreadCount?.[uid] || 0;
+  };
+
+  const SUGGESTION_TEXTS = [
+    `Hola! Vi tu trabajo y me interesa. Tengo experiencia en el área y puedo comenzar a la brevedad. Quedamos en contacto?`,
+    `Buenas! Me interesa este trabajo. Soy confiable, puntual y tengo las herramientas necesarias. Cuándo podríamos coordinar?`,
+    `Hola, vi tu publicación y me parece que puedo ayudarte. Tengo disponibilidad y experiencia. Podemos hablar más del proyecto?`,
+  ];
+
   return (
     <>
       <Helmet>
         <title>Chat - DOAPP</title>
       </Helmet>
 
-      <div className="flex flex-col h-screen bg-slate-50 dark:bg-slate-900">
+      <div className="flex h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden">
+
+        {/* ─── Sidebar: conversaciones ─── */}
+        <aside className="hidden md:flex flex-col w-72 lg:w-80 border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 flex-shrink-0">
+          <div className="px-4 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-sky-500" />
+            <h2 className="font-semibold text-slate-900 dark:text-white text-sm">Mensajes</h2>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            {loadingConversations ? (
+              <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-sky-500" /></div>
+            ) : conversations.length === 0 ? (
+              <div className="px-4 py-8 text-center text-xs text-slate-400">Sin conversaciones</div>
+            ) : (
+              conversations.map(conv => {
+                const cid = conv.id || conv._id || '';
+                const isActive = cid === conversationId;
+                const unread = getUnread(conv);
+                return (
+                  <button
+                    key={cid}
+                    onClick={() => navigate(`/chat/${cid}`)}
+                    className={`w-full text-left flex items-start gap-3 px-4 py-3 transition-colors ${
+                      isActive
+                        ? 'bg-sky-50 dark:bg-sky-900/20 border-r-2 border-sky-500'
+                        : 'hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                    }`}
+                  >
+                    <div className="flex-shrink-0 w-9 h-9 rounded-full bg-sky-100 dark:bg-sky-900 flex items-center justify-center">
+                      <UserIcon className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-1">
+                        <p className={`text-sm truncate ${isActive ? 'font-bold text-sky-700 dark:text-sky-300' : 'font-semibold text-slate-900 dark:text-white'}`}>
+                          {getSidebarName(conv)}
+                        </p>
+                        {unread > 0 && (
+                          <span className="flex-shrink-0 w-4 h-4 rounded-full bg-sky-500 text-white text-[10px] flex items-center justify-center font-bold">
+                            {unread > 9 ? '9+' : unread}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        {getSidebarLastMsg(conv) || (conv.contractId ? 'Contrato activo' : 'Sin mensajes')}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </aside>
+
+        {/* ─── Main chat column ─── */}
+        <div className="flex flex-col flex-1 min-w-0">
         {/* Header */}
         <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 px-4 py-4">
           <div className="container mx-auto max-w-4xl flex items-center justify-between gap-4">
@@ -839,17 +1016,37 @@ export default function ChatScreen() {
 
             {/* Actions */}
             <div className="flex items-center gap-2">
-              {/* Direct Proposal Button - Only show if no existing job context */}
-              {otherParticipant && !jobContext && (
+              {/* Quote Button */}
+              {otherParticipant && (
                 <button
-                  onClick={() => setShowDirectProposalModal(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg transition-colors"
-                  title={t('chat.proposeDirectContract', 'Propose a direct contract')}
+                  onClick={() => {
+                    const recipientId = otherParticipant.id || otherParticipant._id || '';
+                    const params = new URLSearchParams({ recipientId, conversationId: conversationId || '' });
+                    if (conversationData?.jobId) params.set('jobId', conversationData.jobId);
+                    window.location.href = `/quotes/new?${params.toString()}`;
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-lg transition-colors"
+                  title="Cotizar: generá una factura/presupuesto formal para este trabajo"
                 >
-                  <Handshake className="h-5 w-5" />
-                  <span className="hidden sm:inline">{t('chat.proposeContract', 'Propose Contract')}</span>
+                  <ClipboardList className="h-5 w-5" />
+                  <span className="hidden sm:inline">Cotizar / Facturar</span>
                 </button>
               )}
+
+              {/* Propose Price Button */}
+              <button
+                onClick={() => { setShowPriceProposal(p => !p); if (!showPriceProposal) fetchMyJobs(); }}
+                className={`flex items-center gap-2 px-4 py-2 font-semibold rounded-lg transition-colors ${
+                  showPriceProposal
+                    ? 'bg-amber-500 text-white'
+                    : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/50'
+                }`}
+                title="Proponer cambio de precio"
+              >
+                <DollarSign className="h-5 w-5" />
+                <span className="hidden sm:inline">Proponer precio</span>
+              </button>
+
 
               {/* Participant Profile */}
               {otherParticipant && (
@@ -888,6 +1085,112 @@ export default function ChatScreen() {
             </div>
           </div>
         </div>
+
+        {/* Inline Price Proposal Panel */}
+        {showPriceProposal && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-700 px-4 py-4">
+            <div className="container mx-auto max-w-4xl">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                  <span className="text-sm font-semibold text-amber-800 dark:text-amber-200">Proponer precio</span>
+                </div>
+                <button onClick={() => setShowPriceProposal(false)} className="p-1 rounded-lg text-amber-500 hover:text-amber-700 hover:bg-amber-100 dark:hover:bg-amber-800/40 transition-colors">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Job selector */}
+              <div className="mb-3">
+                <p className="text-xs text-amber-700 dark:text-amber-400 mb-1.5 font-medium">Seleccioná el trabajo</p>
+                {loadingMyJobs ? (
+                  <div className="flex items-center gap-2 text-xs text-amber-600"><Loader2 className="h-3 w-3 animate-spin" /> Cargando trabajos...</div>
+                ) : (
+                  <div className="flex flex-wrap gap-2 max-h-28 overflow-y-auto">
+                    {/* Job from conversation (if any) */}
+                    {jobForProposal && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedProposalJob(jobForProposal)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                          selectedProposalJob?.id === jobForProposal.id
+                            ? 'bg-amber-500 text-white border-amber-500'
+                            : 'bg-white dark:bg-slate-700 text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-600 hover:border-amber-500'
+                        }`}
+                      >
+                        <Briefcase className="h-3 w-3" />
+                        {jobForProposal.title}
+                        <span className="opacity-70">${Number(jobForProposal.price).toLocaleString('es-AR')}</span>
+                      </button>
+                    )}
+                    {/* Other open jobs */}
+                    {allMyJobs.filter(j => j.id !== jobForProposal?.id && (j as any)._id !== (jobForProposal as any)?._id).map(job => (
+                      <button
+                        key={job.id || (job as any)._id}
+                        type="button"
+                        onClick={() => setSelectedProposalJob(job)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                          (selectedProposalJob?.id || (selectedProposalJob as any)?._id) === (job.id || (job as any)._id)
+                            ? 'bg-amber-500 text-white border-amber-500'
+                            : 'bg-white dark:bg-slate-700 text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-600 hover:border-amber-500'
+                        }`}
+                      >
+                        <Briefcase className="h-3 w-3" />
+                        {job.title}
+                        <span className="opacity-70">${Number(job.price).toLocaleString('es-AR')}</span>
+                      </button>
+                    ))}
+                    {!jobForProposal && allMyJobs.length === 0 && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400">No tenés trabajos abiertos</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Selected job info */}
+              {selectedProposalJob && (
+                <div className="flex items-center gap-3 mb-3 px-3 py-2.5 rounded-lg bg-amber-100/60 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-amber-900 dark:text-amber-100 truncate">{selectedProposalJob.title}</p>
+                    <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                      Precio publicado: ${Number(selectedProposalJob.price).toLocaleString('es-AR')} ARS
+                    </p>
+                  </div>
+                  <Link to={`/jobs/${selectedProposalJob.id || (selectedProposalJob as any)._id}`} target="_blank" className="shrink-0 text-xs font-semibold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1">
+                    <Briefcase className="h-3 w-3" /> Ver
+                  </Link>
+                </div>
+              )}
+
+              {/* Price input */}
+              <div className="flex items-center gap-3">
+                <div className="relative flex-1 max-w-xs">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 font-semibold text-sm">$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={priceProposalAmount}
+                    onChange={e => setPriceProposalAmount(e.target.value)}
+                    placeholder={selectedProposalJob ? String(selectedProposalJob.price) : '0'}
+                    className="w-full pl-8 pr-4 py-2.5 border border-amber-300 dark:border-amber-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-base font-semibold focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+                    autoFocus
+                  />
+                </div>
+                <span className="text-sm text-amber-700 dark:text-amber-300 font-medium">ARS</span>
+                <button
+                  onClick={handlePriceProposalSubmit}
+                  disabled={priceProposalLoading || !priceProposalAmount || !selectedProposalJob}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-amber-500 hover:bg-amber-600 active:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+                >
+                  {priceProposalLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  Enviar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Jobs List */}
         {showJobsList && (
@@ -1129,11 +1432,32 @@ export default function ChatScreen() {
               }
 
               // Detect system messages - check for || delimiter or system type/action
+              const isQuoteMessage = message.metadata?.action === 'quote';
+
+              // Hide job_application system message if a quote message already covers this proposal
+              const hasQuoteForSameProposal = message.metadata?.action === 'job_application' &&
+                message.metadata?.proposalId &&
+                messages.some(m => m.metadata?.action === 'quote' && m.metadata?.proposalId === message.metadata?.proposalId);
+
               const isSystemMessage =
-                message.type === 'system' ||
-                messageText.includes('||') ||
-                message.metadata?.action === 'job_application' ||
-                message.metadata?.action === 'direct_contract_proposal';
+                !isQuoteMessage &&
+                !hasQuoteForSameProposal && (
+                  message.type === 'system' ||
+                  messageText.includes('||') ||
+                  message.metadata?.action === 'job_application' ||
+                  message.metadata?.action === 'direct_contract_proposal'
+                );
+
+              if (isQuoteMessage) {
+                return (
+                  <QuoteMessage
+                    key={message.id || message._id}
+                    message={message as any}
+                    onRefresh={fetchConversationData}
+                    token={token}
+                  />
+                );
+              }
 
               if (isSystemMessage) {
                 return (
@@ -1186,6 +1510,37 @@ export default function ChatScreen() {
           </div>
         </div>
 
+        {/* Suggested presentation texts */}
+        {messages.length === 0 && !loading && (
+          <div className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 px-4 py-3">
+            <div className="container mx-auto max-w-4xl">
+              <button
+                type="button"
+                onClick={() => setShowSuggestions(p => !p)}
+                className="flex items-center gap-2 text-xs text-sky-600 dark:text-sky-400 hover:text-sky-700 font-medium mb-2"
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Sugerencias de presentación
+                <ChevronRight className={`h-3.5 w-3.5 transition-transform ${showSuggestions ? 'rotate-90' : ''}`} />
+              </button>
+              {showSuggestions && (
+                <div className="flex flex-col gap-1.5">
+                  {SUGGESTION_TEXTS.map((text, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => { setNewMessage(text); setShowSuggestions(false); }}
+                      className="text-left text-xs px-3 py-2 rounded-lg bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-700 text-slate-700 dark:text-slate-300 hover:bg-sky-100 dark:hover:bg-sky-900/40 transition-colors line-clamp-2"
+                    >
+                      {text}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Input */}
         <div className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 px-4 py-4">
           <div className="container mx-auto max-w-4xl">
@@ -1194,7 +1549,7 @@ export default function ChatScreen() {
                 type="text"
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
-                placeholder={t('chat.writeMessage', 'Write a message...')}
+                placeholder={t('chat.writeMessage', 'Escribí un mensaje...')}
                 className="flex-1 px-4 py-3 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-slate-900 dark:text-white"
               />
               <button
@@ -1203,11 +1558,13 @@ export default function ChatScreen() {
                 className="px-6 py-3 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 <Send className="h-5 w-5" />
-                {t('common.send', 'Send')}
+                {t('common.send', 'Enviar')}
               </button>
             </form>
           </div>
         </div>
+
+        </div>{/* end main chat column */}
       </div>
 
       {/* Contract Modal */}

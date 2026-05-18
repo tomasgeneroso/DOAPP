@@ -114,11 +114,13 @@ export class Ticket extends Model {
   category!: TicketCategory;
 
   @Default('medium')
+  @AllowNull(false)
   @Index
   @Column(DataType.STRING(20))
   priority!: TicketPriority;
 
   @Default('open')
+  @AllowNull(false)
   @Index
   @Column(DataType.STRING(20))
   status!: TicketStatus;
@@ -163,6 +165,7 @@ export class Ticket extends Model {
   // ============================================
 
   @Default([])
+  @AllowNull(false)
   @Column(DataType.JSONB)
   messages!: ITicketMessage[];
 
@@ -171,6 +174,7 @@ export class Ticket extends Model {
   // ============================================
 
   @Default([])
+  @AllowNull(false)
   @Column(DataType.ARRAY(DataType.STRING))
   tags!: string[];
 

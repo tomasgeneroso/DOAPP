@@ -15,7 +15,7 @@ router.use(protect);
 // @access  Private
 router.post("/setup", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const user = await User.findByPk(req.user._id);
+    const user = await User.findByPk(req.user.id);
 
     if (!user) {
       res.status(404).json({
@@ -87,7 +87,7 @@ router.post("/verify", async (req: AuthRequest, res: Response): Promise<void> =>
       return;
     }
 
-    const user = await User.findByPk(req.user._id).select("+twoFactorSecret");
+    const user = await User.findByPk(req.user.id);
 
     if (!user || !user.twoFactorSecret) {
       res.status(400).json({
@@ -124,7 +124,7 @@ router.post("/verify", async (req: AuthRequest, res: Response): Promise<void> =>
       severity: "high",
       description: "2FA habilitado",
       targetModel: "User",
-      targetId: user._id.toString(),
+      targetId: user.id.toString(),
       targetIdentifier: user.email,
     });
 
@@ -155,7 +155,7 @@ router.post("/disable", async (req: AuthRequest, res: Response): Promise<void> =
       return;
     }
 
-    const user = await User.findByPk(req.user._id).select("+password +twoFactorSecret");
+    const user = await User.findByPk(req.user.id);
 
     if (!user) {
       res.status(404).json({
@@ -188,7 +188,7 @@ router.post("/disable", async (req: AuthRequest, res: Response): Promise<void> =
       severity: "high",
       description: "2FA deshabilitado",
       targetModel: "User",
-      targetId: user._id.toString(),
+      targetId: user.id.toString(),
       targetIdentifier: user.email,
     });
 
@@ -219,7 +219,7 @@ router.post("/validate", async (req: AuthRequest, res: Response): Promise<void> 
       return;
     }
 
-    const user = await User.findByPk(req.user._id).select("+twoFactorSecret +twoFactorBackupCodes");
+    const user = await User.findByPk(req.user.id);
 
     if (!user || !user.twoFactorEnabled || !user.twoFactorSecret) {
       res.status(400).json({
@@ -273,7 +273,7 @@ router.post("/validate", async (req: AuthRequest, res: Response): Promise<void> 
 // @access  Private
 router.get("/backup-codes", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const user = await User.findByPk(req.user._id).select("+twoFactorBackupCodes");
+    const user = await User.findByPk(req.user.id);
 
     if (!user || !user.twoFactorEnabled) {
       res.status(400).json({
@@ -301,7 +301,7 @@ router.get("/backup-codes", async (req: AuthRequest, res: Response): Promise<voi
       severity: "medium",
       description: "Backup codes 2FA regenerados",
       targetModel: "User",
-      targetId: user._id.toString(),
+      targetId: user.id.toString(),
       targetIdentifier: user.email,
     });
 

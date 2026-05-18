@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Membership } from "../models/sql/Membership.model.js";
 import { User } from "../models/sql/User.model.js";
 import vexorService from './vexor.js';

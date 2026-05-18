@@ -128,6 +128,7 @@ export class Job extends Model {
   category!: string;
 
   @Default([])
+  @AllowNull(false)
   @Column(DataType.ARRAY(DataType.STRING))
   tags!: string[];
 
@@ -166,6 +167,7 @@ export class Job extends Model {
   longitude?: number;
 
   @Default(false)
+  @AllowNull(false)
   @Index
   @Column(DataType.BOOLEAN)
   remoteOk!: boolean;
@@ -185,12 +187,14 @@ export class Job extends Model {
   // If true, end date is not yet determined ("Todavía no lo sé")
   // Job will be suspended 24h before start if still true
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   endDateFlexible!: boolean;
 
   // If true, the job has a single delivery (no per-task deadlines)
   // If false, each task can have its own due date as a guide
   @Default(true)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   singleDelivery!: boolean;
 
@@ -199,16 +203,19 @@ export class Job extends Model {
   // ============================================
 
   @Default('draft')
+  @AllowNull(false)
   @Index
   @Column(DataType.STRING(20))
   status!: JobStatus;
 
   @Default('medium')
+  @AllowNull(false)
   @Index
   @Column(DataType.STRING(20))
   urgency!: JobUrgency;
 
   @Default('intermediate')
+  @AllowNull(false)
   @Index
   @Column(DataType.STRING(20))
   experienceLevel!: ExperienceLevel;
@@ -247,6 +254,7 @@ export class Job extends Model {
   cancelledByRole?: string; // 'owner' (job owner) or 'admin' (admin user)
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   permanentlyCancelled!: boolean; // When true, user cannot edit/resubmit this job
 
@@ -276,20 +284,24 @@ export class Job extends Model {
   // ============================================
 
   @Default([])
+  @AllowNull(false)
   @Column(DataType.ARRAY(DataType.TEXT))
   images!: string[];
 
   // Minimum completion criteria: list of conditions that must be met for the job to be considered done
   // Serves as evidence baseline in case of disputes between client and worker
   @Default([])
+  @AllowNull(false)
   @Column(DataType.ARRAY(DataType.TEXT))
   completionRequirements!: string[];
 
   @Default([])
+  @AllowNull(false)
   @Column(DataType.ARRAY(DataType.STRING))
   toolsRequired!: string[];
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   materialsProvided!: boolean;
 
@@ -322,6 +334,7 @@ export class Job extends Model {
   // ============================================
 
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.INTEGER)
   views!: number;
 
@@ -330,6 +343,7 @@ export class Job extends Model {
   // ============================================
 
   @Default(1)
+  @AllowNull(false)
   @Column({
     type: DataType.INTEGER,
     validate: {
@@ -340,6 +354,7 @@ export class Job extends Model {
   maxWorkers!: number;
 
   @Default([])
+  @AllowNull(false)
   @Column(DataType.ARRAY(DataType.UUID))
   selectedWorkers!: string[];
 
@@ -348,16 +363,27 @@ export class Job extends Model {
 
   // Worker payment allocations - stores {workerId, allocatedAmount, percentage} for each worker
   @Default([])
+  @AllowNull(false)
   @Column(DataType.JSONB)
   workerAllocations!: Array<{
     workerId: string;
     allocatedAmount: number;
     percentage: number;
     allocatedAt: Date;
+    taskName?: string;
+  }>;
+
+  @Default([])
+  @AllowNull(false)
+  @Column(DataType.JSONB)
+  vacancyTaskAssignments!: Array<{
+    slot: number;       // 1-based vacancy slot number
+    taskName: string;   // task name for this vacancy
   }>;
 
   // Sum of all allocated amounts
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.DECIMAL(12, 2))
   allocatedTotal!: number;
 
@@ -370,14 +396,17 @@ export class Job extends Model {
   // ============================================
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   reminder12hSent!: boolean;
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   reminder6hSent!: boolean;
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   reminder2hSent!: boolean;
 
@@ -395,6 +424,7 @@ export class Job extends Model {
   priceChangedAt?: Date;
 
   @Default([])
+  @AllowNull(false)
   @Column(DataType.JSONB)
   priceHistory!: Array<{
     oldPrice: number;
@@ -413,6 +443,7 @@ export class Job extends Model {
   publicationPaymentId?: string;
 
   @Default(false)
+  @AllowNull(false)
   @Index
   @Column(DataType.BOOLEAN)
   publicationPaid!: boolean;
@@ -421,10 +452,12 @@ export class Job extends Model {
   publicationPaidAt?: Date;
 
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.DECIMAL(12, 2))
   publicationAmount!: number;
 
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.DECIMAL(12, 2))
   pendingPaymentAmount!: number;
 
@@ -454,6 +487,7 @@ export class Job extends Model {
 
   // Workers who have accepted the price decrease [{workerId, acceptedAt}]
   @Default([])
+  @AllowNull(false)
   @Column(DataType.JSONB)
   priceDecreaseAcceptances!: Array<{
     workerId: string;
@@ -462,6 +496,7 @@ export class Job extends Model {
 
   // Workers who have rejected the price decrease [{workerId, rejectedAt}]
   @Default([])
+  @AllowNull(false)
   @Column(DataType.JSONB)
   priceDecreaseRejections!: Array<{
     workerId: string;

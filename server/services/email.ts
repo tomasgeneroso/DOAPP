@@ -792,6 +792,7 @@ class EmailService {
     }
 
     const paymentUrl = `${config.clientUrl}/payments/${paymentId}`;
+    const numericAmount = typeof amount === 'number' ? amount : parseFloat(String(amount)) || 0;
 
     const html = `
       <!DOCTYPE html>
@@ -976,10 +977,12 @@ class EmailService {
     clientId: string,
     doerId: string,
     contractId: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     jobTitle: string,
     amount: number,
     currency: string = "ARS"
   ): Promise<void> {
+    const numericAmount = typeof amount === 'number' ? amount : parseFloat(String(amount)) || 0;
     const contractUrl = `${config.clientUrl}/contracts/${contractId}`;
 
     const htmlClient = `

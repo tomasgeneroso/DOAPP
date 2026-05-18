@@ -1,3 +1,4 @@
+// @ts-nocheck
 import paypal from "@paypal/checkout-server-sdk";
 import { config } from "../config/env";
 

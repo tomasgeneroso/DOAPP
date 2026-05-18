@@ -34,6 +34,7 @@ router.get(
         adminRole,
         isBanned,
         verificationLevel,
+        dniVerified,
         sortBy = "createdAt",
         sortOrder = "desc",
       } = req.query;
@@ -104,6 +105,7 @@ router.get(
       if (adminRole) where.adminRole = adminRole;
       if (isBanned !== undefined) where.isBanned = isBanned === "true";
       if (verificationLevel) where.verificationLevel = verificationLevel;
+      if (dniVerified !== undefined) where.dniVerified = dniVerified === "true";
 
       const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
       const order: any = [[sortBy as string, sortOrder === "desc" ? "DESC" : "ASC"]];
@@ -521,6 +523,101 @@ router.delete(
         success: false,
         message: error.message || "Error del servidor",
       });
+    }
+  }
+);
+
+// @route   POST /api/admin/users/:id/verify
+// @desc    Verificar o revocar verificación de identidad de un usuario
+// @access  Admin+
+router.post(
+  "/:id/verify",
+  requirePermission("users:write"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { verified = true } = req.body;
+      const user = await User.findByPk(req.params.id, {
+        attributes: { exclude: ["password", "twoFactorSecret", "twoFactorBackupCodes"] },
+      });
+
+      if (!user) {
+        res.status(404).json({ success: false, message: "Usuario no encontrado" });
+        return;
+      }
+
+      const adminUser = await User.findByPk(req.user!.id, { attributes: ['id', 'name', 'email', 'adminRole'] });
+
+      // Store who verified in legalInfo JSONB (no migration needed)
+      const currentLegalInfo = (user as any).legalInfo || {};
+      const verificationMeta = verified
+        ? { adminVerifiedBy: req.user!.id, adminVerifiedByName: adminUser?.name || 'Admin', adminVerifiedAt: new Date().toISOString() }
+        : { adminVerifiedBy: null, adminVerifiedByName: null, adminVerifiedAt: null };
+
+      await user.update({
+        dniVerified: Boolean(verified),
+        verificationLevel: verified ? "document" : "email",
+        legalInfo: { ...currentLegalInfo, ...verificationMeta },
+      });
+
+      await logAudit({
+        req,
+        action: verified ? "verify_user" : "revoke_user_verification",
+        category: "user",
+        severity: "medium",
+        description: `Verificación de identidad ${verified ? "aprobada" : "revocada"} para ${user.email} por ${adminUser?.name}`,
+        targetModel: "User",
+        targetId: user.id,
+        targetIdentifier: user.email,
+      });
+
+      res.json({
+        success: true,
+        message: verified ? "Usuario verificado correctamente" : "Verificación revocada",
+        data: { dniVerified: user.dniVerified, verificationLevel: user.verificationLevel, legalInfo: user.legalInfo },
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+    }
+  }
+);
+
+// @route   GET /api/admin/users/:id/profile-detail
+// @desc    Obtener detalles completos del perfil de un usuario (para verificación)
+// @access  Admin+
+router.get(
+  "/:id/profile-detail",
+  requirePermission("users:read"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const user = await User.findByPk(req.params.id, {
+        attributes: { exclude: ["password", "twoFactorSecret", "twoFactorBackupCodes"] },
+      });
+
+      if (!user) {
+        res.status(404).json({ success: false, message: "Usuario no encontrado" });
+        return;
+      }
+
+      const [jobs, contracts] = await Promise.all([
+        Job.findAll({ where: { clientId: req.params.id }, order: [["createdAt", "DESC"]], limit: 10,
+          attributes: ["id", "title", "status", "price", "createdAt"] }),
+        Contract.findAll({
+          where: { [Op.or]: [{ clientId: req.params.id }, { doerId: req.params.id }] },
+          order: [["createdAt", "DESC"]], limit: 10,
+          attributes: ["id", "status", "price", "createdAt"],
+        }),
+      ]);
+
+      res.json({
+        success: true,
+        data: {
+          user: user.toJSON(),
+          jobs: jobs.map((j: any) => ({ id: j.id, title: j.title, status: j.status, price: j.price, createdAt: j.createdAt })),
+          contracts: contracts.map((c: any) => ({ id: c.id, status: c.status, price: c.price, createdAt: c.createdAt })),
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message || "Error del servidor" });
     }
   }
 );

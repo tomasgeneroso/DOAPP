@@ -6,7 +6,7 @@ import { User } from "../models/sql/User.model.js";
 import { Notification } from "../models/sql/Notification.model.js";
 import { body, validationResult } from "express-validator";
 import { Op } from "sequelize";
-import sequelize from "../config/database.js";
+import { sequelize } from "../config/database.js";
 
 const router = Router();
 

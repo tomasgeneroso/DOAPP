@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import ReactDatePicker, { registerLocale } from "react-datepicker";
 import { es } from "date-fns/locale/es";
 import "react-datepicker/dist/react-datepicker.css";
-import { Calendar, Clock, X } from "lucide-react";
+import { Calendar, Clock, X, ChevronLeft, ChevronRight } from "lucide-react";
 
 registerLocale("es", es);
 
@@ -118,6 +118,29 @@ export const CustomDatePicker = forwardRef<HTMLDivElement, CustomDatePickerProps
             calendarClassName="custom-datepicker-calendar"
             popperClassName="custom-datepicker-popper"
             wrapperClassName="flex-1"
+            renderCustomHeader={({ date, decreaseMonth, increaseMonth, prevMonthButtonDisabled, nextMonthButtonDisabled }) => (
+              <div className="flex items-center justify-between px-3 py-2">
+                <button
+                  type="button"
+                  onClick={decreaseMonth}
+                  disabled={prevMonthButtonDisabled}
+                  className="p-1.5 rounded-lg bg-white/20 hover:bg-white/35 disabled:opacity-40 transition-colors"
+                >
+                  <ChevronLeft className="h-4 w-4 text-white" />
+                </button>
+                <span className="text-white font-semibold text-base capitalize">
+                  {date.toLocaleString('es', { month: 'long', year: 'numeric' })}
+                </span>
+                <button
+                  type="button"
+                  onClick={increaseMonth}
+                  disabled={nextMonthButtonDisabled}
+                  className="p-1.5 rounded-lg bg-white/20 hover:bg-white/35 disabled:opacity-40 transition-colors"
+                >
+                  <ChevronRight className="h-4 w-4 text-white" />
+                </button>
+              </div>
+            )}
           />
 
           {/* Botón de limpiar */}

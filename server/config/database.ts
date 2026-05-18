@@ -145,6 +145,7 @@ async function registerModels() {
   const { default: PaymentProof } = await import('../models/sql/PaymentProof.model.js');
   const { FamilyCode } = await import('../models/sql/FamilyCode.model.js');
   const { Invoice } = await import('../models/sql/Invoice.model.js');
+  const { Quote } = await import('../models/sql/Quote.model.js');
 
   // Add models to sequelize
   sequelize.addModels([
@@ -186,6 +187,7 @@ async function registerModels() {
     ContactMessage,
     FamilyCode,
     Invoice,
+    Quote,
   ]);
 }
 

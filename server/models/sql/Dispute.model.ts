@@ -176,6 +176,7 @@ export class Dispute extends Model {
   detailedDescription!: string;
 
   @Default([])
+  @AllowNull(false)
   @Column(DataType.JSONB)
   evidence!: IAttachment[]; // Pruebas iniciales (fotos, videos, PDFs)
 
@@ -184,11 +185,13 @@ export class Dispute extends Model {
   // ============================================
 
   @Default('open')
+  @AllowNull(false)
   @Index
   @Column(DataType.STRING(30))
   status!: DisputeStatus;
 
   @Default('medium')
+  @AllowNull(false)
   @Index
   @Column(DataType.STRING(20))
   priority!: DisputePriority;
@@ -247,6 +250,7 @@ export class Dispute extends Model {
   refundAmount?: number; // Si es refund parcial
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   platformFeeRefunded!: boolean; // Si se devolvió la comisión de la plataforma (NO por defecto)
 
@@ -255,6 +259,7 @@ export class Dispute extends Model {
   // ============================================
 
   @Default([])
+  @AllowNull(false)
   @Column(DataType.JSONB)
   messages!: IDisputeMessage[];
 
@@ -263,6 +268,7 @@ export class Dispute extends Model {
   // ============================================
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   emailSentToSupport!: boolean;
 
@@ -270,6 +276,7 @@ export class Dispute extends Model {
   emailSentAt?: Date;
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   emailSentToParties!: boolean;
 
@@ -294,10 +301,12 @@ export class Dispute extends Model {
   // ============================================
 
   @Default('medium')
+  @AllowNull(false)
   @Column(DataType.STRING(20))
   importanceLevel!: ImportanceLevel;
 
   @Default([])
+  @AllowNull(false)
   @Column(DataType.JSONB)
   logs!: IAuditLog[];
 

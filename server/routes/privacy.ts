@@ -165,7 +165,7 @@ router.get("/export", protect, async (req: AuthRequest, res: Response): Promise<
         accountInfo: {
           createdAt: user?.createdAt,
           lastLogin: user?.lastLogin,
-          lastLoginIP: user?.lastLoginIP,
+          lastLoginIP: user?.lastLoginIp,
           isVerified: user?.isVerified,
           verificationLevel: user?.verificationLevel,
         },
@@ -179,7 +179,7 @@ router.get("/export", protect, async (req: AuthRequest, res: Response): Promise<
       },
       contracts: contracts.map((c) => ({
         id: c.id,
-        title: c.title,
+        title: (c as any).title,
         status: c.status,
         price: c.price,
         createdAt: c.createdAt,

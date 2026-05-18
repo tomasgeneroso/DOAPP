@@ -213,22 +213,28 @@ router.post(
       await partnerMatchingCode.save();
 
       // Notify both parties
-      await Notification.create([
+      await Notification.bulkCreate([
         {
-          userId: partnerId,
-          type: "matching_verified",
+          recipientId: partnerId,
+          type: "info",
+          category: "contract",
           title: "Verificación exitosa",
           message: "Tu contraparte ha verificado tu código correctamente",
-          metadata: { contractId },
+          relatedModel: "Contract",
+          relatedId: contractId,
+          sentVia: ["in_app"],
         },
         {
-          userId,
-          type: "matching_verified",
+          recipientId: userId,
+          type: "info",
+          category: "contract",
           title: "Verificación exitosa",
           message: "Has verificado el código de tu contraparte correctamente",
-          metadata: { contractId },
+          relatedModel: "Contract",
+          relatedId: contractId,
+          sentVia: ["in_app"],
         },
-      ]);
+      ] as any[]);
 
       res.json({
         success: true,
@@ -329,11 +335,12 @@ router.get("/status/:contractId", protect, async (req: AuthRequest, res: Respons
     });
 
     const myCode = codes.find((c) => c.userId === userId);
+    const clientId = typeof contract.client === 'object' ? (contract.client as any)?.id : contract.client;
     const partnerId =
-      contract.client === userId
+      clientId?.toString() === userId?.toString()
         ? contract.doer
         : contract.client;
-    const partnerCode = codes.find((c) => c.userId === partnerId);
+    const partnerCode = codes.find((c) => (c as any).userId?.toString() === (partnerId as any)?.toString?.());
 
     res.json({
       success: true,

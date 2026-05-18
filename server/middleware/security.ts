@@ -6,15 +6,15 @@ import { Request, Response, NextFunction } from "express";
  * Very permissive to allow multiple login attempts
  */
 export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // 1000 attempts - effectively unlimited for normal use
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 30, // 30 intentos por IP cada 15 minutos
   message: {
     success: false,
-    message: "Demasiados intentos de inicio de sesión. Intenta nuevamente en 15 minutos.",
+    message: "Demasiados intentos. Intenta nuevamente en 15 minutos.",
   },
   standardHeaders: true,
   legacyHeaders: false,
-  skipSuccessfulRequests: true, // Don't count successful requests
+  skipSuccessfulRequests: true,
 });
 
 /**

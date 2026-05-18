@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Search, MapPin, Tag, X, SlidersHorizontal, Briefcase, Users } from "lucide-react";
+import { Search, MapPin, Tag, X, SlidersHorizontal, Briefcase, Users, Loader2 } from "lucide-react";
 import { JOB_CATEGORIES } from "../../shared/constants/categories";
 import { searchLocations } from "../../shared/constants/locations";
+import { useMapboxGeocoding, hasMapboxToken } from "../hooks/useMapboxGeocoding";
 import analytics from "../utils/analytics";
 
 interface SearchBarProps {
@@ -36,6 +37,9 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
   const [showLocationSuggestions, setShowLocationSuggestions] = useState(false);
   const [showQueryLocationSuggestions, setShowQueryLocationSuggestions] = useState(false);
   const [queryLocationSuggestions, setQueryLocationSuggestions] = useState<ReturnType<typeof searchLocations>>([]);
+  const useMapbox = hasMapboxToken();
+  const locationMapbox = useMapboxGeocoding();
+  const queryMapbox = useMapboxGeocoding();
   const locationInputRef = useRef<HTMLInputElement>(null);
   const queryInputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
@@ -103,66 +107,58 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
 
     if (searchType === 'users') {
       setShowQueryLocationSuggestions(false);
+      queryMapbox.clear();
       return;
     }
 
-    // Detectar si el usuario está escribiendo una ubicación
-    // Buscar sugerencias si hay al menos 2 caracteres y parece ser texto de ubicación
     if (value.length >= 2) {
-      // Extraer la última palabra o frase después de coma/espacio
-      const words = value.trim().split(/\s+/);
-      const lastWord = words[words.length - 1];
-
-      // También buscar después de comas (para casos como "plomero en Palermo, CABA")
       const parts = value.split(',');
       const lastPart = parts[parts.length - 1].trim();
-
-      // Buscar con la última palabra o la última parte después de coma
+      const words = value.trim().split(/\s+/);
+      const lastWord = words[words.length - 1];
       const searchTerm = lastPart.length > lastWord.length ? lastPart : lastWord;
 
       if (searchTerm.length >= 2) {
-        const suggestions = searchLocations(searchTerm, 8);
-        if (suggestions.length > 0) {
-          setQueryLocationSuggestions(suggestions);
+        if (useMapbox) {
+          queryMapbox.search(searchTerm);
           setShowQueryLocationSuggestions(true);
         } else {
-          setShowQueryLocationSuggestions(false);
+          const staticSugs = searchLocations(searchTerm, 8);
+          if (staticSugs.length > 0) {
+            setQueryLocationSuggestions(staticSugs);
+            setShowQueryLocationSuggestions(true);
+          } else {
+            setShowQueryLocationSuggestions(false);
+          }
         }
       } else {
         setShowQueryLocationSuggestions(false);
+        queryMapbox.clear();
       }
     } else {
       setShowQueryLocationSuggestions(false);
+      queryMapbox.clear();
     }
   };
 
   const handleSelectQueryLocation = (locationValue: string) => {
-    // Extraer el nombre corto de la ciudad para agregarlo al query
-    const locationLabel = queryLocationSuggestions.find(s => s.value === locationValue)?.label || locationValue;
+    const locationLabel = useMapbox
+      ? queryMapbox.features.find((f) => f.place_name === locationValue)?.place_name ?? locationValue
+      : queryLocationSuggestions.find((s) => s.value === locationValue)?.label ?? locationValue;
 
-    // Si el query ya tiene contenido, agregar la ubicación al final
-    // Si está vacío, solo poner la ubicación
     const currentQuery = query.trim();
-
-    // Remover la última palabra/parte que se estaba escribiendo
     let newQuery = currentQuery;
 
-    // Si hay una coma, reemplazar todo después de la última coma
     if (currentQuery.includes(',')) {
       const parts = currentQuery.split(',');
       parts[parts.length - 1] = '';
       newQuery = parts.join(',').trim();
-      if (newQuery) {
-        newQuery += ', ' + locationLabel;
-      } else {
-        newQuery = locationLabel;
-      }
+      newQuery = newQuery ? `${newQuery}, ${locationLabel}` : locationLabel;
     } else {
-      // Si no hay coma, remover la última palabra y agregar la ubicación
       const words = currentQuery.split(/\s+/);
       if (words.length > 1) {
         words[words.length - 1] = '';
-        newQuery = words.join(' ').trim() + ' en ' + locationLabel;
+        newQuery = `${words.join(' ').trim()} en ${locationLabel}`;
       } else {
         newQuery = locationLabel;
       }
@@ -171,13 +167,25 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
     setQuery(newQuery);
     setLocation(locationValue);
     setShowQueryLocationSuggestions(false);
+    queryMapbox.clear();
   };
 
   const handleLocationChange = (value: string) => {
     setLocation(value);
-    const suggestions = searchLocations(value);
-    setLocationSuggestions(suggestions);
-    setShowLocationSuggestions(suggestions.length > 0);
+    if (value.length >= 2) {
+      if (useMapbox) {
+        locationMapbox.search(value);
+        setShowLocationSuggestions(true);
+      } else {
+        const suggestions = searchLocations(value);
+        setLocationSuggestions(suggestions);
+        setShowLocationSuggestions(suggestions.length > 0);
+      }
+    } else {
+      locationMapbox.clear();
+      setLocationSuggestions([]);
+      setShowLocationSuggestions(false);
+    }
   };
 
   const handleCategoryChange = (value: string) => {
@@ -193,6 +201,7 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
   const handleSelectLocation = (locationValue: string) => {
     setLocation(locationValue);
     setShowLocationSuggestions(false);
+    locationMapbox.clear();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -305,22 +314,35 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
               placeholder={searchType === 'users' ? t('home.searchUsers') : t('home.searchByTitle')}
               className="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-transparent"
             />
-            {showQueryLocationSuggestions && queryLocationSuggestions.length > 0 && (
+            {showQueryLocationSuggestions && (useMapbox ? queryMapbox.features.length > 0 : queryLocationSuggestions.length > 0) && (
               <div
                 ref={querySuggestionsRef}
                 className="absolute z-20 top-full left-0 right-0 mt-1 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-lg overflow-hidden"
               >
-                {queryLocationSuggestions.map((s) => (
-                  <button
-                    key={s.value}
-                    type="button"
-                    onClick={() => handleSelectQueryLocation(s.value)}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-slate-700 dark:text-slate-200 hover:bg-sky-50 dark:hover:bg-slate-700 transition-colors"
-                  >
-                    <MapPin className="h-4 w-4 text-slate-400 flex-shrink-0" />
-                    {s.label}
-                  </button>
-                ))}
+                {useMapbox
+                  ? queryMapbox.features.map((f) => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => handleSelectQueryLocation(f.place_name)}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-slate-700 dark:text-slate-200 hover:bg-sky-50 dark:hover:bg-slate-700 transition-colors"
+                      >
+                        <MapPin className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                        {f.place_name}
+                      </button>
+                    ))
+                  : queryLocationSuggestions.map((s) => (
+                      <button
+                        key={s.value}
+                        type="button"
+                        onClick={() => handleSelectQueryLocation(s.value)}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-left text-slate-700 dark:text-slate-200 hover:bg-sky-50 dark:hover:bg-slate-700 transition-colors"
+                      >
+                        <MapPin className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                        {s.label}
+                      </button>
+                    ))
+                }
               </div>
             )}
           </div>
@@ -379,40 +401,59 @@ export default function SearchBar({ onSearch, onSearchChange }: SearchBarProps) 
                 <MapPin className="inline h-4 w-4 mr-1" />
                 {t('jobs.location', 'Location')}
               </label>
-              <input
-                ref={locationInputRef}
-                type="text"
-                value={location}
-                onChange={(e) => handleLocationChange(e.target.value)}
-                onFocus={() => location && setShowLocationSuggestions(locationSuggestions.length > 0)}
-                placeholder={t('search.locationPlaceholder', 'E.g.: Palermo, CABA or specific area')}
-                className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-transparent"
-              />
+              <div className="relative">
+                <input
+                  ref={locationInputRef}
+                  type="text"
+                  value={location}
+                  onChange={(e) => handleLocationChange(e.target.value)}
+                  onFocus={() => {
+                    if (useMapbox ? locationMapbox.features.length > 0 : locationSuggestions.length > 0) {
+                      setShowLocationSuggestions(true);
+                    }
+                  }}
+                  placeholder={t('search.locationPlaceholder', 'Ej: Palermo, CABA o dirección')}
+                  className="w-full px-4 py-2 pr-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                  autoComplete="off"
+                />
+                {locationMapbox.loading && (
+                  <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-slate-400" />
+                )}
+              </div>
 
               {/* Autocomplete suggestions */}
-              {showLocationSuggestions && locationSuggestions.length > 0 && (
+              {showLocationSuggestions && (useMapbox ? locationMapbox.features.length > 0 : locationSuggestions.length > 0) && (
                 <div
                   ref={suggestionsRef}
                   className="absolute z-10 w-full mt-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg shadow-lg max-h-60 overflow-y-auto"
                 >
-                  {locationSuggestions.map((suggestion, index) => (
-                    <button
-                      key={index}
-                      type="button"
-                      onClick={() => handleSelectLocation(suggestion.value)}
-                      className="w-full px-4 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 text-sm transition-colors"
-                    >
-                      <MapPin className="h-4 w-4 text-sky-500 flex-shrink-0" />
-                      <div className="flex-1">
-                        <div className="text-slate-900 dark:text-white font-medium">
-                          {suggestion.label}
-                        </div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400">
-                          {suggestion.zone} • {suggestion.city}
-                        </div>
-                      </div>
-                    </button>
-                  ))}
+                  {useMapbox
+                    ? locationMapbox.features.map((feature) => (
+                        <button
+                          key={feature.id}
+                          type="button"
+                          onClick={() => handleSelectLocation(feature.place_name)}
+                          className="w-full px-4 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 text-sm transition-colors"
+                        >
+                          <MapPin className="h-4 w-4 text-sky-500 flex-shrink-0" />
+                          <span className="text-slate-900 dark:text-white truncate">{feature.place_name}</span>
+                        </button>
+                      ))
+                    : locationSuggestions.map((suggestion, index) => (
+                        <button
+                          key={index}
+                          type="button"
+                          onClick={() => handleSelectLocation(suggestion.value)}
+                          className="w-full px-4 py-2 text-left hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2 text-sm transition-colors"
+                        >
+                          <MapPin className="h-4 w-4 text-sky-500 flex-shrink-0" />
+                          <div className="flex-1">
+                            <div className="text-slate-900 dark:text-white font-medium">{suggestion.label}</div>
+                            <div className="text-xs text-slate-500 dark:text-slate-400">{suggestion.zone} • {suggestion.city}</div>
+                          </div>
+                        </button>
+                      ))
+                  }
                 </div>
               )}
             </div>

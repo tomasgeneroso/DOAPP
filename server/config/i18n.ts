@@ -10,7 +10,7 @@ const __dirname = path.dirname(__filename);
 /**
  * Initialize i18next for server-side internationalization
  */
-i18next
+(i18next as any)
   .use(Backend)
   .use(middleware.LanguageDetector)
   .init({
@@ -47,7 +47,7 @@ i18next
 
     // Development options
     saveMissing: process.env.NODE_ENV === "development",
-    missingKeyHandler: (lng, ns, key) => {
+    missingKeyHandler: (lng: any, ns: any, key: any) => {
       if (process.env.NODE_ENV === "development") {
         console.warn(`Missing translation: ${lng}/${ns}/${key}`);
       }

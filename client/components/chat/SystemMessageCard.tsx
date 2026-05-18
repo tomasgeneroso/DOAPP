@@ -26,12 +26,12 @@ interface SystemMessageCardProps {
     id?: string;
     _id?: string;
     message: string;
-    sender: {
+    sender?: {
       id?: string;
       _id?: string;
-      name: string;
+      name?: string;
       avatar?: string;
-    };
+    } | null;
     metadata?: {
       jobId?: string;
       proposalId?: string;
@@ -149,7 +149,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
   const navigate = useNavigate();
   const { header, title, data } = parseSystemMessage(message.message);
 
-  const isCurrentUser = (message.sender.id || message.sender._id) === currentUserId;
+  const isCurrentUser = (message.sender?.id || message.sender?._id) === currentUserId;
   const isPending = message.metadata?.proposalStatus === 'pending';
   const isApproved = message.metadata?.proposalStatus === 'approved';
   const isRejected = message.metadata?.proposalStatus === 'rejected';
@@ -187,7 +187,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
     if (isDirectProposal) {
       return isCurrentUser
         ? t('chat.contractProposalSent', 'Contract proposal sent')
-        : t('chat.userProposesContract', '{{name}} proposes a contract to you', { name: message.sender.name });
+        : t('chat.userProposesContract', '{{name}} proposes a contract to you', { name: message.sender?.name || '' });
     }
     // Check for counter-offer
     const isCounterOffer = message.metadata?.isCounterOffer;
@@ -195,12 +195,12 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
       if (isCurrentUser) {
         return t('chat.youSentCounterOffer', 'You sent a counter-offer');
       }
-      return t('chat.userSentCounterOffer', '{{name}} sent a counter-offer', { name: message.sender.name });
+      return t('chat.userSentCounterOffer', '{{name}} sent a counter-offer', { name: message.sender?.name || '' });
     }
     if (isCurrentUser) {
-      return t('chat.youAppliedToJob', 'You applied to this job');
+      return t('chat.youAppliedToJob', 'Te postulaste a este trabajo');
     }
-    return t('chat.userWantsToWork', '{{name}} wants to work with you', { name: message.sender.name });
+    return t('chat.userWantsToWork', '{{name}} wants to work with you', { name: message.sender?.name || '' });
   };
 
   // Handle accept proposal
@@ -507,11 +507,11 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
             {/* View all applicants button */}
             {!isCurrentUser && message.metadata?.jobId && !isDirectProposal && (
               <button
-                onClick={() => navigate(`/jobs/${message.metadata?.jobId}/applications`)}
+                onClick={() => navigate(`/jobs/${message.metadata?.jobId}`)}
                 className="w-full mt-2 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors"
               >
                 <Users className="h-4 w-4" />
-                {t('chat.viewAllApplicants', 'View all applicants')}
+                {t('chat.viewAllApplicants', 'Ver todos los aplicantes')}
               </button>
             )}
 

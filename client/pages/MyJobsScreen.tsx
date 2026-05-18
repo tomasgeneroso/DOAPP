@@ -44,6 +44,7 @@ interface Job {
   createdAt: string;
   startDate: string;
   endDate?: string;
+  singleDelivery?: boolean;
   payment?: {
     id: string;
     status: string;
@@ -120,6 +121,9 @@ type ViewMode = "list" | "calendar";
 export default function MyJobsScreen() {
   const { t } = useTranslation();
   const { user, token, refreshUser } = useAuth();
+  const isClientOnly = user?.role === 'client' || user?.role === 'user';
+  const isWorkerOnly = user?.role === 'doer';
+  const isWorker = user?.role === 'doer' || user?.role === 'both';
   const { isConnected, registerJobUpdateHandler, registerMyJobsRefreshHandler, registerJobsRefreshHandler, registerNewProposalHandler } = useSocket();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -129,7 +133,10 @@ export default function MyJobsScreen() {
   const [loadingProposals, setLoadingProposals] = useState(true);
   const [mainTab, setMainTab] = useState<MainTab>(() => {
     const tabParam = searchParams.get("tab");
-    return tabParam === "applied" ? "applied" : "published";
+    // Workers default to "applied"; clients can only see "published"
+    if (tabParam === "applied" && (user?.role === 'doer' || user?.role === 'both')) return "applied";
+    if (user?.role === 'doer') return "applied";
+    return "published";
   });
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     const viewParam = searchParams.get("view");
@@ -269,7 +276,7 @@ export default function MyJobsScreen() {
     const now = new Date();
     jobs.forEach(job => {
       if (job.endDate && new Date(job.endDate) <= now &&
-          (job.status === 'open' || job.status === 'in_progress') &&
+          job.status === 'in_progress' &&
           !jobContracts[job.id]) {
         fetchJobContract(job.id);
       }
@@ -893,28 +900,32 @@ export default function MyJobsScreen() {
 
         {/* Main Tabs */}
         <div className="mb-6 flex gap-2 border-b border-slate-200 dark:border-slate-700">
-          <button
-            onClick={() => setMainTab("published")}
-            className={`flex items-center gap-2 px-4 py-3 font-medium border-b-2 transition-colors ${
-              mainTab === "published"
-                ? "border-sky-500 text-sky-600 dark:text-sky-400"
-                : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-            }`}
-          >
-            <Briefcase className="h-5 w-5" />
-            {t('jobs.myPublications', 'Mis Publicaciones')} ({jobs.length})
-          </button>
-          <button
-            onClick={() => setMainTab("applied")}
-            className={`flex items-center gap-2 px-4 py-3 font-medium border-b-2 transition-colors ${
-              mainTab === "applied"
-                ? "border-sky-500 text-sky-600 dark:text-sky-400"
-                : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-            }`}
-          >
-            <Send className="h-5 w-5" />
-            {t('jobs.myApplications', 'Mis Postulaciones')} ({proposals.length})
-          </button>
+          {!isWorkerOnly && (
+            <button
+              onClick={() => setMainTab("published")}
+              className={`flex items-center gap-2 px-4 py-3 font-medium border-b-2 transition-colors ${
+                mainTab === "published"
+                  ? "border-sky-500 text-sky-600 dark:text-sky-400"
+                  : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              <Briefcase className="h-5 w-5" />
+              {t('jobs.myPublications', 'Mis Publicaciones')} ({jobs.length})
+            </button>
+          )}
+          {!isClientOnly && (
+            <button
+              onClick={() => setMainTab("applied")}
+              className={`flex items-center gap-2 px-4 py-3 font-medium border-b-2 transition-colors ${
+                mainTab === "applied"
+                  ? "border-sky-500 text-sky-600 dark:text-sky-400"
+                  : "border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+              }`}
+            >
+              <Send className="h-5 w-5" />
+              {t('jobs.myApplications', 'Mis Postulaciones')} ({proposals.length})
+            </button>
+          )}
         </div>
 
         {/* Calendar View */}
@@ -1001,8 +1012,18 @@ export default function MyJobsScreen() {
                             {getStatusLabel(job.status)}
                           </span>
                           {getPaymentStatusBadge(job)}
+                          {/* Tipo de entrega */}
+                          {job.singleDelivery === false ? (
+                            <span className="px-3 py-1 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
+                              Por tareas
+                            </span>
+                          ) : (
+                            <span className="px-3 py-1 rounded-full text-xs font-medium bg-sky-100 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300">
+                              Entrega única
+                            </span>
+                          )}
                           {job.category && (
-                            <div className="flex items-center gap-1 px-3 py-1 bg-sky-100 dark:bg-sky-900/20 text-sky-800 dark:text-sky-400 rounded-full text-xs">
+                            <div className="flex items-center gap-1 px-3 py-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 rounded-full text-xs">
                               <Tag className="h-3 w-3" />
                               <span>{job.category}</span>
                             </div>

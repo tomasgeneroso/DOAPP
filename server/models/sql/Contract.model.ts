@@ -178,6 +178,7 @@ export class Contract extends Model {
   price!: number;
 
   @Default(0)
+  @AllowNull(false)
   @Column({
     type: DataType.DECIMAL(12, 2),
     validate: {
@@ -191,6 +192,7 @@ export class Contract extends Model {
   totalPrice!: number;
 
   @Default('pending')
+  @AllowNull(false)
   @Index
   @Column(DataType.STRING(30))
   status!: ContractStatus;
@@ -200,6 +202,7 @@ export class Contract extends Model {
   // ============================================
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   termsAccepted!: boolean;
 
@@ -207,10 +210,12 @@ export class Contract extends Model {
   termsAcceptedAt?: Date;
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   termsAcceptedByClient!: boolean;
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   termsAcceptedByDoer!: boolean;
 
@@ -243,6 +248,7 @@ export class Contract extends Model {
   // ============================================
 
   @Default([])
+  @AllowNull(false)
   @Column(DataType.JSONB)
   deliveries!: Delivery[];
 
@@ -278,6 +284,7 @@ export class Contract extends Model {
   // ============================================
 
   @Default('pending')
+  @AllowNull(false)
   @Index
   @Column(DataType.STRING(20))
   paymentStatus!: PaymentStatus;
@@ -286,14 +293,17 @@ export class Contract extends Model {
   paymentDate?: Date;
 
   @Default(true)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   escrowEnabled!: boolean;
 
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.DECIMAL(12, 2))
   escrowAmount!: number;
 
   @Default('pending')
+  @AllowNull(false)
   @Column(DataType.STRING(20))
   escrowStatus!: 'pending' | 'held_escrow' | 'released' | 'refunded';
 
@@ -332,6 +342,7 @@ export class Contract extends Model {
   pairingExpiry?: Date;
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   clientConfirmedPairing!: boolean;
 
@@ -339,6 +350,7 @@ export class Contract extends Model {
   clientPairingConfirmedAt?: Date;
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   doerConfirmedPairing!: boolean;
 
@@ -350,6 +362,7 @@ export class Contract extends Model {
   // ============================================
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   clientConfirmed!: boolean;
 
@@ -357,6 +370,7 @@ export class Contract extends Model {
   clientConfirmedAt?: Date;
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   doerConfirmed!: boolean;
 
@@ -370,6 +384,7 @@ export class Contract extends Model {
 
   // Confirmation reminder sent
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   confirmationReminderSent!: boolean;
 
@@ -394,6 +409,7 @@ export class Contract extends Model {
 
   // History of confirmation proposals
   @Default([])
+  @AllowNull(false)
   @Column(DataType.JSONB)
   confirmationHistory!: ConfirmationHistoryEntry[];
 
@@ -419,6 +435,7 @@ export class Contract extends Model {
   // ============================================
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   hasBeenExtended!: boolean;
 
@@ -459,6 +476,7 @@ export class Contract extends Model {
   // ============================================
 
   @Default([])
+  @AllowNull(false)
   @Column(DataType.JSONB)
   priceModificationHistory!: PriceModification[];
 
@@ -470,11 +488,13 @@ export class Contract extends Model {
   // ============================================
 
   @Default([])
+  @AllowNull(false)
   @Column(DataType.JSONB)
   extensionHistory!: ExtensionRecord[];
 
   // Count of total extensions (for display purposes)
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.INTEGER)
   extensionCount!: number;
 
@@ -495,6 +515,7 @@ export class Contract extends Model {
   // ============================================
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   hasPendingTaskClaim!: boolean;
 
@@ -515,6 +536,7 @@ export class Contract extends Model {
   taskClaimReason?: string;
 
   @Default([])
+  @AllowNull(false)
   @Column(DataType.JSONB)
   claimedTaskIds!: string[];
 
@@ -528,6 +550,7 @@ export class Contract extends Model {
   taskClaimRejectionReason?: string;
 
   @Default([])
+  @AllowNull(false)
   @Column(DataType.JSONB)
   taskClaimHistory!: Array<{
     claimedTaskIds: string[];
@@ -568,6 +591,7 @@ export class Contract extends Model {
   // ============================================
 
   @Default(false)
+  @AllowNull(false)
   @Index
   @Column(DataType.BOOLEAN)
   isDeleted!: boolean;
@@ -586,12 +610,15 @@ export class Contract extends Model {
   deletionReason?: string;
 
   @Default(0)
+  @AllowNull(false)
   @Column(DataType.INTEGER)
   infractions!: number;
 
   @Default(false)
+  @AllowNull(false)
   @Column(DataType.BOOLEAN)
   isHidden!: boolean;
+  statusHistory: never[] | undefined;
 
   // ============================================
   // METHODS

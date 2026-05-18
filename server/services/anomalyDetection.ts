@@ -114,12 +114,12 @@ class AnomalyDetectionService {
    * Verificar si es un dispositivo nuevo
    */
   private async isNewDevice(
-    userId: mongoose.Types.ObjectId,
+    userId: string,
     deviceFingerprint?: string
   ): Promise<boolean> {
     if (!deviceFingerprint) return true;
 
-    const device = await LoginDevice.findOne({
+    const device = await (LoginDevice as any)?.findOne?.({
       userId,
       deviceFingerprint,
     });
@@ -131,10 +131,10 @@ class AnomalyDetectionService {
    * Verificar si es una IP nueva
    */
   private async isNewIP(
-    userId: mongoose.Types.ObjectId,
+    userId: string,
     ipAddress: string
   ): Promise<boolean> {
-    const device = await LoginDevice.findOne({
+    const device = await (LoginDevice as any)?.findOne?.({
       userId,
       ipAddress,
     });
@@ -146,7 +146,7 @@ class AnomalyDetectionService {
    * Detectar cambio significativo de ubicación
    */
   private async detectLocationChange(
-    userId: mongoose.Types.ObjectId,
+    userId: string,
     country?: string,
     city?: string
   ): Promise<{
@@ -159,7 +159,7 @@ class AnomalyDetectionService {
     }
 
     // Obtener último login del usuario
-    const lastDevice = await LoginDevice.findOne({ userId })
+    const lastDevice = await (LoginDevice as any)?.findOne?.({ userId })
       .sort({ lastLoginAt: -1 })
       .limit(1);
 
@@ -192,7 +192,7 @@ class AnomalyDetectionService {
    * Obtener número de intentos fallidos recientes (últimas 24 horas)
    */
   private async getRecentFailedAttempts(
-    userId: mongoose.Types.ObjectId
+    userId: string
   ): Promise<number> {
     // Esto requeriría un modelo de LoginAttempts que aún no tenemos
     // Por ahora retornamos 0
@@ -212,12 +212,14 @@ class AnomalyDetectionService {
    * Detectar viaje imposible (logins desde ubicaciones distantes en poco tiempo)
    */
   private async detectImpossibleTravel(
-    userId: mongoose.Types.ObjectId
+    userId: string
   ): Promise<boolean> {
     // Obtener últimos 2 logins
-    const recentDevices = await LoginDevice.findAll({ where: { userId } })
-      .sort({ lastLoginAt: -1 })
-      .limit(2);
+    const recentDevices = await LoginDevice.findAll({
+      where: { userId },
+      order: [['lastLoginAt', 'DESC']],
+      limit: 2,
+    } as any);
 
     if (recentDevices.length < 2) {
       return false;

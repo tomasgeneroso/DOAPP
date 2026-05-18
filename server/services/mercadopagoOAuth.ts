@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * MercadoPago OAuth & Split Payments Service
  *

@@ -6,6 +6,7 @@ import { requirePermission } from "../../middleware/permissions.js";
 import type { AuthRequest } from "../../types/index.js";
 import { ROLE_PERMISSIONS, PERMISSIONS } from "../../config/permissions.js";
 import { logAudit } from "../../utils/auditLog.js";
+import { verifyRolePassword, setRolePassword, hasRolePassword } from "../../utils/rolePasswordStore.js";
 import { Op } from 'sequelize';
 
 const router = Router();
@@ -213,7 +214,7 @@ router.put(
   [
     body("adminRole")
       .optional()
-      .isIn(["super_admin", "admin", "support", "marketing", "dpo", "none"])
+      .isIn(["owner", "super_admin", "admin", "support", "marketing", "dpo", "none"])
       .withMessage("Invalid admin role"),
   ],
   async (req: AuthRequest, res: Response) => {
@@ -227,23 +228,56 @@ router.put(
       }
 
       const { userId } = req.params;
-      const { adminRole } = req.body;
-
-      // Cannot assign owner role
-      if (adminRole === "owner") {
-        return res.status(403).json({
-          success: false,
-          message: "No se puede asignar el rol de owner",
-        });
-      }
+      const { adminRole, rolePassword } = req.body;
 
       // Check permissions
       const adminUser = await User.findByPk(req.user.id);
       if (!adminUser) {
-        return res.status(404).json({
-          success: false,
-          message: "Admin no encontrado",
-        });
+        return res.status(404).json({ success: false, message: "Admin no encontrado" });
+      }
+
+      // owner role: only current owner can assign, requires owner password
+      if (adminRole === "owner") {
+        if (adminUser.adminRole !== "owner") {
+          return res.status(403).json({
+            success: false,
+            message: "Solo el owner puede asignar el rol de owner",
+          });
+        }
+        if (!rolePassword) {
+          return res.status(403).json({
+            success: false,
+            message: "Se requiere la contraseña de owner para asignar este rol",
+            requiresPassword: true,
+            passwordRole: "owner",
+          });
+        }
+        const validPassword = await verifyRolePassword("owner", rolePassword);
+        if (!validPassword) {
+          return res.status(403).json({
+            success: false,
+            message: "Contraseña de owner incorrecta",
+          });
+        }
+      }
+
+      // admin role: requires admin password
+      if (adminRole === "admin") {
+        if (!rolePassword) {
+          return res.status(403).json({
+            success: false,
+            message: "Se requiere la contraseña de admin para asignar este rol",
+            requiresPassword: true,
+            passwordRole: "admin",
+          });
+        }
+        const validPassword = await verifyRolePassword("admin", rolePassword);
+        if (!validPassword) {
+          return res.status(403).json({
+            success: false,
+            message: "Contraseña de admin incorrecta",
+          });
+        }
       }
 
       // Only owner and super_admin can assign super_admin role
@@ -530,6 +564,77 @@ router.put(
         success: false,
         message: "Error al actualizar permisos del rol",
       });
+    }
+  }
+);
+
+/**
+ * GET /api/admin/roles/security/status
+ * Check if role passwords are configured (owner only)
+ */
+router.get("/security/status", async (req: AuthRequest, res: Response) => {
+  try {
+    const adminUser = await User.findByPk(req.user.id);
+    if (!adminUser || adminUser.adminRole !== "owner") {
+      return res.status(403).json({ success: false, message: "Solo el owner puede acceder" });
+    }
+    res.json({
+      success: true,
+      data: {
+        ownerPasswordSet: hasRolePassword("owner"),
+        adminPasswordSet: hasRolePassword("admin"),
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: "Error al verificar contraseñas" });
+  }
+});
+
+/**
+ * PUT /api/admin/roles/security/passwords
+ * Set/update role assignment passwords (owner only)
+ */
+router.put(
+  "/security/passwords",
+  [
+    body("role").isIn(["owner", "admin"]).withMessage("Role must be owner or admin"),
+    body("newPassword").isLength({ min: 8 }).withMessage("Password must be at least 8 characters"),
+    body("confirmPassword").custom((value, { req }) => {
+      if (value !== req.body.newPassword) throw new Error("Passwords do not match");
+      return true;
+    }),
+  ],
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ success: false, errors: errors.array() });
+      }
+
+      const adminUser = await User.findByPk(req.user.id);
+      if (!adminUser || adminUser.adminRole !== "owner") {
+        return res.status(403).json({ success: false, message: "Solo el owner puede configurar contraseñas de roles" });
+      }
+
+      const { role, newPassword } = req.body;
+      await setRolePassword(role, newPassword);
+
+      await logAudit({
+        req,
+        action: "role_password_updated",
+        category: "role",
+        severity: "critical",
+        description: `Contraseña de asignación para rol '${role}' actualizada`,
+        metadata: { role },
+      });
+
+      res.json({
+        success: true,
+        message: `Contraseña para rol '${role}' actualizada correctamente`,
+      });
+    } catch (error: any) {
+      console.error("Error setting role password:", error);
+      res.status(500).json({ success: false, message: "Error al actualizar contraseña" });
     }
   }
 );

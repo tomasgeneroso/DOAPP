@@ -66,7 +66,7 @@ export function startAutoConfirmContractsJob() {
             const doer = contract.doer as any;
 
             // Calcular el monto a pagar al trabajador
-            const workerPaymentAmount = contract.workerPaymentAmount || contract.allocatedAmount || contract.price;
+            const workerPaymentAmount = (contract as any).workerPaymentAmount || contract.allocatedAmount || contract.price;
 
             // Marcar como confirmado por ambos
             contract.clientConfirmed = true;
@@ -74,7 +74,7 @@ export function startAutoConfirmContractsJob() {
             contract.doerConfirmed = true;
             contract.doerConfirmedAt = contract.doerConfirmedAt || now;
             contract.status = 'completed';
-            contract.completedAt = now;
+            (contract as any).completedAt = now;
             contract.paymentStatus = 'pending_payout'; // Pendiente de pago por admin (no automático)
             contract.escrowStatus = 'released';
             // Usar horas propuestas si existen, sino las originales
@@ -85,7 +85,7 @@ export function startAutoConfirmContractsJob() {
             // Crear transacción de balance como pendiente (el admin debe verificar y procesar el pago)
             if (workerPaymentAmount > 0 && doer) {
               const doerUser = await User.findByPk(doer.id);
-              const currentBalance = parseFloat(doerUser?.balance as any) || 0;
+              const currentBalance = parseFloat(doerUser?.balanceArs as any) || 0;
 
               // Crear transacción pendiente (no se acredita aún)
               // Note: balanceAfter = balanceBefore because status is 'pending' - actual credit happens when admin processes

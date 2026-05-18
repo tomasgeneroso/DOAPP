@@ -29,6 +29,7 @@ interface FormFieldProps {
   label: string;
   icon: React.ElementType;
   description?: string;
+  required?: boolean;
   children: React.ReactNode;
 }
 
@@ -36,6 +37,7 @@ function FormField({
   label,
   icon: Icon,
   description,
+  required,
   children,
 }: FormFieldProps) {
   return (
@@ -44,6 +46,7 @@ function FormField({
         <div className="flex items-center gap-2">
           <Icon className="h-4 w-4 text-sky-600 dark:text-sky-400" aria-hidden="true" />
           {label}
+          {required && <span className="text-red-500 font-bold">*</span>}
         </div>
       </label>
       {children}
@@ -434,6 +437,7 @@ export default function EditJobScreen() {
             <FormField
               label={t('jobs.titleLabel', 'Job title')}
               icon={FileText}
+              required
               description={t('jobs.titleDescription', 'Be clear and specific.')}
             >
               <input
@@ -450,6 +454,7 @@ export default function EditJobScreen() {
             <FormField
               label={t('jobs.summaryLabel', 'Brief summary')}
               icon={FileText}
+              required
               description={t('jobs.summaryDescription', 'A short summary of the job (max 200 characters)')}
             >
               <input
@@ -467,6 +472,7 @@ export default function EditJobScreen() {
             <FormField
               label={t('jobs.descriptionLabel', 'Detailed description')}
               icon={FileText}
+              required
               description={t('jobs.descriptionDescription', 'Include all important details of the required service.')}
             >
               <textarea
@@ -483,6 +489,7 @@ export default function EditJobScreen() {
             <FormField
               label={t('jobs.categoryLabel', 'Category')}
               icon={Tag}
+              required
               description={t('jobs.categoryDescription', 'Select the category that best describes your job')}
             >
               <select
@@ -565,7 +572,7 @@ export default function EditJobScreen() {
 
             <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
               <div className="sm:col-span-3">
-                <FormField label={t('jobs.budgetLabel', 'Budget (ARS)')} icon={DollarSign}>
+                <FormField label={t('jobs.budgetLabel', 'Budget (ARS)')} icon={DollarSign} required>
                   <input
                     type="number"
                     value={price}
@@ -585,7 +592,7 @@ export default function EditJobScreen() {
                 </FormField>
               </div>
               <div className="sm:col-span-2">
-                <FormField label={t('jobs.cityLabel', 'City')} icon={MapPin}>
+                <FormField label={t('jobs.cityLabel', 'City')} icon={MapPin} required>
                   <LocationAutocomplete
                     value={location}
                     onChange={setLocation}
@@ -626,7 +633,7 @@ export default function EditJobScreen() {
                 </div>
               )}
               <div className="sm:col-span-3">
-                <FormField label={t('jobs.startDateLabel', 'Start date')} icon={Calendar}>
+                <FormField label={t('jobs.startDateLabel', 'Start date')} icon={Calendar} required>
                   <input
                     type="datetime-local"
                     value={startDate}
@@ -719,7 +726,7 @@ export default function EditJobScreen() {
             >
               <FileUploadWithPreview
                 label=""
-                description="PNG, JPG, GIF hasta 10MB"
+                description={t('common.imageUploadHint', 'PNG, JPG, GIF up to 10MB')}
                 name="images"
                 maxSizeMB={10}
                 maxFiles={5 - existingImages.length}

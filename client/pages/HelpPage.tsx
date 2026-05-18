@@ -22,6 +22,7 @@ import {
   AlertTriangle,
   Filter,
   Ticket,
+  LogIn,
 } from "lucide-react";
 
 interface DisputeItem {
@@ -88,8 +89,9 @@ const priorityLabels: Record<string, { label: string; tKey: string; color: strin
 
 export default function HelpPage() {
   const { t } = useTranslation();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { hasPermission, PERMISSIONS } = usePermissions();
+  const isGuest = !token || !user;
   const [activeTab, setActiveTab] = useState<'overview' | 'disputes' | 'tickets'>('overview');
   const [disputes, setDisputes] = useState<DisputeItem[]>([]);
   const [tickets, setTickets] = useState<TicketItem[]>([]);
@@ -165,16 +167,15 @@ export default function HelpPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            {hasPermission(PERMISSIONS.TICKET_CREATE) && (
-              <Link
-                to="/tickets/new"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                <Ticket className="h-4 w-4" />
-                {t('help.newTicket', 'New Ticket')}
-              </Link>
-            )}
-            {hasPermission(PERMISSIONS.DISPUTE_CREATE) && (
+            {/* Always show Create Ticket button (guests can use it with email) */}
+            <Link
+              to="/tickets/new"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <Ticket className="h-4 w-4" />
+              {t('help.newTicket', 'New Ticket')}
+            </Link>
+            {!isGuest && hasPermission(PERMISSIONS.DISPUTE_CREATE) && (
               <Link
                 to="/disputes/create"
                 className="inline-flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
@@ -185,6 +186,22 @@ export default function HelpPage() {
             )}
           </div>
         </div>
+
+        {/* Guest banner */}
+        {isGuest && (
+          <div className="bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg p-4 mb-6 flex items-start gap-3">
+            <LogIn className="h-5 w-5 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm text-sky-800 dark:text-sky-200">
+                <span className="font-medium">Podés crear un ticket sin iniciar sesión</span> — solo necesitás ingresar tu email registrado.{' '}
+                <Link to="/login?redirect=/help" className="underline hover:no-underline font-medium">
+                  Iniciá sesión
+                </Link>{' '}
+                para ver tus tickets y disputas anteriores.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 mb-6">
@@ -249,28 +266,30 @@ export default function HelpPage() {
               <div className="space-y-6">
                 {/* Quick Actions */}
                 <div className="grid md:grid-cols-2 gap-4">
-                  {hasPermission(PERMISSIONS.TICKET_CREATE) && (
-                    <Link
-                      to="/tickets/new"
-                      className="bg-slate-50 dark:bg-slate-700/50 rounded-lg border-2 border-blue-200 dark:border-blue-800 p-5 hover:border-blue-400 dark:hover:border-blue-600 transition-colors group"
-                    >
-                      <div className="flex items-start gap-4">
-                        <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-lg group-hover:bg-blue-200 dark:group-hover:bg-blue-900/50 transition">
-                          <Ticket className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                            {t('help.createTicket', 'Create Support Ticket')}
-                          </h3>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            {t('help.createTicketDesc', 'Report bugs, request features, or get general help')}
-                          </p>
-                        </div>
+                  {/* Ticket — always visible */}
+                  <Link
+                    to="/tickets/new"
+                    className="bg-slate-50 dark:bg-slate-700/50 rounded-lg border-2 border-blue-200 dark:border-blue-800 p-5 hover:border-blue-400 dark:hover:border-blue-600 transition-colors group"
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-lg group-hover:bg-blue-200 dark:group-hover:bg-blue-900/50 transition">
+                        <Ticket className="h-6 w-6 text-blue-600 dark:text-blue-400" />
                       </div>
-                    </Link>
-                  )}
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+                          {t('help.createTicket', 'Create Support Ticket')}
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {isGuest
+                            ? 'Sin iniciar sesión — solo necesitás tu email registrado'
+                            : t('help.createTicketDesc', 'Report bugs, request features, or get general help')}
+                        </p>
+                      </div>
+                    </div>
+                  </Link>
 
-                  {hasPermission(PERMISSIONS.DISPUTE_CREATE) && (
+                  {/* Dispute — requires auth */}
+                  {!isGuest && hasPermission(PERMISSIONS.DISPUTE_CREATE) ? (
                     <Link
                       to="/disputes/create"
                       className="bg-slate-50 dark:bg-slate-700/50 rounded-lg border-2 border-orange-200 dark:border-orange-800 p-5 hover:border-orange-400 dark:hover:border-orange-600 transition-colors group"
@@ -289,7 +308,26 @@ export default function HelpPage() {
                         </div>
                       </div>
                     </Link>
-                  )}
+                  ) : isGuest ? (
+                    <Link
+                      to="/login?redirect=/disputes/create"
+                      className="bg-slate-50 dark:bg-slate-700/50 rounded-lg border-2 border-orange-200 dark:border-orange-800 p-5 hover:border-orange-400 dark:hover:border-orange-600 transition-colors group"
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="bg-orange-100 dark:bg-orange-900/30 p-3 rounded-lg group-hover:bg-orange-200 dark:group-hover:bg-orange-900/50 transition">
+                          <AlertCircle className="h-6 w-6 text-orange-600 dark:text-orange-400" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+                            {t('help.openDispute', 'Open a Dispute')}
+                          </h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            Iniciá sesión para abrir una disputa sobre un contrato
+                          </p>
+                        </div>
+                      </div>
+                    </Link>
+                  ) : null}
 
                   <Link
                     to="/contact"
@@ -310,24 +348,26 @@ export default function HelpPage() {
                     </div>
                   </Link>
 
-                  <Link
-                    to="/contracts"
-                    className="bg-slate-50 dark:bg-slate-700/50 rounded-lg border-2 border-purple-200 dark:border-purple-800 p-5 hover:border-purple-400 dark:hover:border-purple-600 transition-colors group"
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="bg-purple-100 dark:bg-purple-900/30 p-3 rounded-lg group-hover:bg-purple-200 dark:group-hover:bg-purple-900/50 transition">
-                        <FileText className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                  {!isGuest && (
+                    <Link
+                      to="/contracts"
+                      className="bg-slate-50 dark:bg-slate-700/50 rounded-lg border-2 border-purple-200 dark:border-purple-800 p-5 hover:border-purple-400 dark:hover:border-purple-600 transition-colors group"
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="bg-purple-100 dark:bg-purple-900/30 p-3 rounded-lg group-hover:bg-purple-200 dark:group-hover:bg-purple-900/50 transition">
+                          <FileText className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
+                            {t('help.viewContracts', 'View My Contracts')}
+                          </h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">
+                            {t('help.viewContractsDesc', 'Report from a specific contract')}
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                          {t('help.viewContracts', 'View My Contracts')}
-                        </h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
-                          {t('help.viewContractsDesc', 'Report from a specific contract')}
-                        </p>
-                      </div>
-                    </div>
-                  </Link>
+                    </Link>
+                  )}
                 </div>
 
                 {/* FAQ Section */}
@@ -384,6 +424,18 @@ export default function HelpPage() {
             {/* Disputes Tab */}
             {activeTab === 'disputes' && (
               <div>
+                {isGuest ? (
+                  <div className="text-center py-12">
+                    <AlertCircle className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+                    <p className="text-slate-700 dark:text-slate-200 font-medium mb-2">Iniciá sesión para ver tus disputas</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Las disputas están vinculadas a contratos y requieren autenticación.</p>
+                    <Link to="/login?redirect=/help" className="inline-flex items-center gap-2 px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg transition">
+                      <LogIn className="h-4 w-4" />
+                      Iniciar sesión
+                    </Link>
+                  </div>
+                ) : (
+                <>
                 {/* Status Filter */}
                 <div className="flex items-center gap-2 mb-4 pb-4 border-b border-slate-200 dark:border-slate-700">
                   <Filter className="h-4 w-4 text-slate-500" />
@@ -466,12 +518,34 @@ export default function HelpPage() {
                     })}
                   </div>
                 )}
+                </>
+                )}
               </div>
             )}
 
             {/* Tickets Tab */}
             {activeTab === 'tickets' && (
               <div>
+                {isGuest ? (
+                  <div className="text-center py-12">
+                    <Ticket className="h-12 w-12 text-slate-400 mx-auto mb-4" />
+                    <p className="text-slate-700 dark:text-slate-200 font-medium mb-2">Iniciá sesión para ver tus tickets</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+                      ¿Creaste un ticket sin sesión? Guardá el número de ticket que te enviamos por email e iniciá sesión para ver su estado.
+                    </p>
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                      <Link to="/login?redirect=/help" className="inline-flex items-center gap-2 px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg transition">
+                        <LogIn className="h-4 w-4" />
+                        Iniciar sesión
+                      </Link>
+                      <Link to="/tickets/new" className="inline-flex items-center gap-2 px-5 py-2.5 border border-sky-300 dark:border-sky-700 text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded-lg transition">
+                        <Plus className="h-4 w-4" />
+                        Crear ticket sin sesión
+                      </Link>
+                    </div>
+                  </div>
+                ) : (
+                <>
                 {/* Status Filter */}
                 <div className="flex items-center gap-2 mb-4 pb-4 border-b border-slate-200 dark:border-slate-700">
                   <Filter className="h-4 w-4 text-slate-500" />
@@ -548,6 +622,8 @@ export default function HelpPage() {
                       );
                     })}
                   </div>
+                )}
+                </>
                 )}
               </div>
             )}

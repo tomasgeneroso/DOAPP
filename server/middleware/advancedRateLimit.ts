@@ -1,45 +1,78 @@
 import { Request, Response, NextFunction } from "express";
-import { RateLimiterMemory } from "rate-limiter-flexible";
+import { RateLimiterPostgres, RateLimiterMemory } from "rate-limiter-flexible";
+import { Pool } from "pg";
 
-/**
- * Advanced Rate Limiting with Memory
- * Provides per-user, per-endpoint rate limiting
- */
-
-// Rate limiter instances - initialized immediately
-const authLimiter = new RateLimiterMemory({
-  keyPrefix: "rl:auth",
-  points: 20, // Aumentado de 5 a 20 - permite más intentos de login
-  duration: 15 * 60,
-  blockDuration: 5 * 60, // Reducido de 15 a 5 minutos
+// Dedicated small pool for rate limiting only (doesn't interfere with Sequelize pool)
+const pgPool = new Pool({
+  host: process.env.DB_HOST || "localhost",
+  port: parseInt(process.env.DB_PORT || "5432"),
+  database: process.env.DB_NAME || "doapp",
+  user: process.env.DB_USER || "postgres",
+  password: String(process.env.DB_PASSWORD || ""),
+  max: 3,
+  idleTimeoutMillis: 30000,
 });
 
-const apiLimiter = new RateLimiterMemory({
-  keyPrefix: "rl:api",
-  points: 500, // Aumentado de 100 a 500 - apps SPA hacen muchas requests
-  duration: 15 * 60,
-});
+const TABLE = "rate_limits";
 
-const strictLimiter = new RateLimiterMemory({
-  keyPrefix: "rl:strict",
-  points: 10, // Aumentado de 3 a 10
-  duration: 60 * 60,
-  blockDuration: 30 * 60, // Reducido de 60 a 30 minutos
-});
+// Each limiter gets a memory insurance fallback — if PG is temporarily unavailable
+// the server keeps working and limits are enforced in-memory until PG comes back.
 
-const perUserLimiter = new RateLimiterMemory({
-  keyPrefix: "rl:user",
-  points: 500, // Aumentado de 200 a 500
-  duration: 60 * 60,
-});
+const authLimiter = new RateLimiterPostgres(
+  {
+    storeClient: pgPool,
+    tableName: TABLE,
+    keyPrefix: "rl:auth",
+    points: 20,
+    duration: 15 * 60,
+    blockDuration: 5 * 60,
+    insuranceLimiter: new RateLimiterMemory({ keyPrefix: "rl:auth:mem", points: 20, duration: 15 * 60, blockDuration: 5 * 60 }),
+  },
+  (err) => {
+    if (err) console.warn("⚠️  RateLimiter: PG store error, using memory fallback:", err.message);
+    else console.log(`✅ RateLimiter: PostgreSQL store ready (table: ${TABLE})`);
+  }
+);
 
-console.log("✅ Memory-based rate limiters initialized");
+const apiLimiter = new RateLimiterPostgres(
+  {
+    storeClient: pgPool,
+    tableName: TABLE,
+    keyPrefix: "rl:api",
+    points: 500,
+    duration: 15 * 60,
+    insuranceLimiter: new RateLimiterMemory({ keyPrefix: "rl:api:mem", points: 500, duration: 15 * 60 }),
+  },
+  (err) => { if (err) console.warn("⚠️  RateLimiter API PG error:", err.message); }
+);
 
-/**
- * Create rate limit middleware
- */
+const strictLimiter = new RateLimiterPostgres(
+  {
+    storeClient: pgPool,
+    tableName: TABLE,
+    keyPrefix: "rl:strict",
+    points: 10,
+    duration: 60 * 60,
+    blockDuration: 30 * 60,
+    insuranceLimiter: new RateLimiterMemory({ keyPrefix: "rl:strict:mem", points: 10, duration: 60 * 60, blockDuration: 30 * 60 }),
+  },
+  (err) => { if (err) console.warn("⚠️  RateLimiter strict PG error:", err.message); }
+);
+
+const perUserLimiter = new RateLimiterPostgres(
+  {
+    storeClient: pgPool,
+    tableName: TABLE,
+    keyPrefix: "rl:user",
+    points: 500,
+    duration: 60 * 60,
+    insuranceLimiter: new RateLimiterMemory({ keyPrefix: "rl:user:mem", points: 500, duration: 60 * 60 }),
+  },
+  (err) => { if (err) console.warn("⚠️  RateLimiter perUser PG error:", err.message); }
+);
+
 function createRateLimitMiddleware(
-  limiter: RateLimiterMemory,
+  limiter: RateLimiterPostgres,
   keyGenerator?: (req: Request) => string
 ) {
   return async (req: Request, res: Response, next: NextFunction) => {
@@ -52,50 +85,27 @@ function createRateLimitMiddleware(
       next();
     } catch (rejRes: any) {
       const retryAfter = Math.ceil(rejRes.msBeforeNext / 1000) || 1;
-
       res.set("Retry-After", String(retryAfter));
       res.set("X-RateLimit-Limit", String(limiter.points));
       res.set("X-RateLimit-Remaining", String(rejRes.remainingPoints || 0));
       res.set("X-RateLimit-Reset", String(Date.now() + rejRes.msBeforeNext));
-
       res.status(429).json({
         success: false,
         message: "Demasiadas solicitudes. Por favor, intenta de nuevo más tarde.",
-        retryAfter: retryAfter,
+        retryAfter,
       });
     }
   };
 }
 
-/**
- * Auth endpoints rate limiter (5 requests per 15 minutes)
- */
 export const authRateLimit = createRateLimitMiddleware(authLimiter);
-
-/**
- * API endpoints rate limiter (100 requests per 15 minutes)
- */
 export const apiRateLimit = createRateLimitMiddleware(apiLimiter);
-
-/**
- * Strict rate limiter (3 requests per hour)
- */
 export const strictRateLimit = createRateLimitMiddleware(strictLimiter);
-
-/**
- * Per-user rate limiter (200 requests per hour)
- */
 export const perUserRateLimit = createRateLimitMiddleware(
   perUserLimiter,
-  (req: any) => {
-    // Use user ID if authenticated, otherwise fall back to IP
-    return req.user?._id?.toString() || req.ip || "unknown";
-  }
+  (req: any) => req.user?._id?.toString() || req.ip || "unknown"
 );
 
-/**
- * Custom rate limiter with configurable options
- */
 export function customRateLimit(options: {
   points: number;
   duration: number;
@@ -103,24 +113,27 @@ export function customRateLimit(options: {
   keyPrefix?: string;
   keyGenerator?: (req: Request) => string;
 }) {
-  const limiter = new RateLimiterMemory({
-    keyPrefix: options.keyPrefix || "rl:custom",
-    points: options.points,
-    duration: options.duration,
-    blockDuration: options.blockDuration,
-  });
-
+  const limiter = new RateLimiterPostgres(
+    {
+      storeClient: pgPool,
+      tableName: TABLE,
+      keyPrefix: options.keyPrefix || "rl:custom",
+      points: options.points,
+      duration: options.duration,
+      blockDuration: options.blockDuration,
+      insuranceLimiter: new RateLimiterMemory({
+        keyPrefix: `${options.keyPrefix || "rl:custom"}:mem`,
+        points: options.points,
+        duration: options.duration,
+        blockDuration: options.blockDuration,
+      }),
+    },
+    (err) => { if (err) console.warn("⚠️  RateLimiter custom PG error:", err.message); }
+  );
   return createRateLimitMiddleware(limiter, options.keyGenerator);
 }
 
-/**
- * Endpoint-specific rate limiter
- */
-export function endpointRateLimit(
-  endpoint: string,
-  points: number = 20,
-  duration: number = 60
-) {
+export function endpointRateLimit(endpoint: string, points = 20, duration = 60) {
   return customRateLimit({
     points,
     duration,
@@ -132,11 +145,4 @@ export function endpointRateLimit(
   });
 }
 
-export default {
-  authRateLimit,
-  apiRateLimit,
-  strictRateLimit,
-  perUserRateLimit,
-  customRateLimit,
-  endpointRateLimit,
-};
+export default { authRateLimit, apiRateLimit, strictRateLimit, perUserRateLimit, customRateLimit, endpointRateLimit };

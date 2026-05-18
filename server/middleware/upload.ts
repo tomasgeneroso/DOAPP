@@ -46,9 +46,10 @@ const PORTFOLIO_DIR = path.join(UPLOAD_DIR, "portfolio");
 const DISPUTE_DIR = path.join(UPLOAD_DIR, "disputes");
 const BLOG_DIR = path.join(UPLOAD_DIR, "blogs");
 const PROPOSALS_DIR = path.join(UPLOAD_DIR, "proposals");
+const DNI_DIR = path.join(UPLOAD_DIR, "dni");
 
 // Ensure directories exist
-[UPLOAD_DIR, AVATAR_DIR, DOCUMENT_DIR, PORTFOLIO_DIR, DISPUTE_DIR, BLOG_DIR, PROPOSALS_DIR].forEach((dir) => {
+[UPLOAD_DIR, AVATAR_DIR, DOCUMENT_DIR, PORTFOLIO_DIR, DISPUTE_DIR, BLOG_DIR, PROPOSALS_DIR, DNI_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -401,6 +402,47 @@ export const uploadBlogCover = multer({
     files: 1,
   },
 });
+
+/**
+ * Storage configuration for DNI photos
+ */
+const dniStorage = multer.diskStorage({
+  destination: (req, file, callback) => {
+    callback(null, DNI_DIR);
+  },
+  filename: (req, file, callback) => {
+    const uniqueName = generateUniqueFilename(sanitizeFilename(file.originalname));
+    callback(null, uniqueName);
+  },
+});
+
+const dniFileFilter = (
+  req: Express.Request,
+  file: Express.Multer.File,
+  callback: multer.FileFilterCallback
+) => {
+  const allowed = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
+  if (allowed.includes(file.mimetype)) {
+    callback(null, true);
+  } else {
+    callback(new Error("Solo se permiten imágenes (JPG, PNG) o PDF"));
+  }
+};
+
+/**
+ * Upload middleware for DNI photos — 1 PDF or up to 2 images (front + back)
+ */
+export const uploadDniPhotos = multer({
+  storage: dniStorage,
+  fileFilter: dniFileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB
+    files: 2,
+  },
+}).fields([
+  { name: "dniPhotoFront", maxCount: 1 },
+  { name: "dniPhotoBack", maxCount: 1 },
+]);
 
 /**
  * Delete uploaded file

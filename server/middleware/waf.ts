@@ -1098,6 +1098,17 @@ export function addThreatIP(ip: string): void {
 /**
  * Obtener IPs con mayor bot score
  */
+export function getTemporarilyBlockedIPs(): Array<{ ip: string; blockedUntil: number; requests: number; botScore: number }> {
+  const now = Date.now();
+  const result: Array<{ ip: string; blockedUntil: number; requests: number; botScore: number }> = [];
+  for (const [ip, state] of ipStates.entries()) {
+    if (state.blocked && state.blockedUntil && state.blockedUntil > now) {
+      result.push({ ip, blockedUntil: state.blockedUntil, requests: state.requests, botScore: state.botScore });
+    }
+  }
+  return result.sort((a, b) => b.requests - a.requests);
+}
+
 export function getSuspiciousBots(): Array<{ ip: string; botScore: number; requests: number }> {
   const suspicious: Array<{ ip: string; botScore: number; requests: number }> = [];
 

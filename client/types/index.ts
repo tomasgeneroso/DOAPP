@@ -106,7 +106,7 @@ export interface User {
   workerReviewsCount?: number;
   contractReviewsCount?: number;
   completedJobs: number;
-  role: 'user' | 'admin';
+  role: 'user' | 'admin' | 'client' | 'doer' | 'both';
   adminRole?: 'owner' | 'super_admin' | 'admin' | 'support' | 'marketing' | 'dpo';
   permissions?: string[];
   isVerified: boolean;
@@ -466,6 +466,54 @@ export interface Review {
   contractRating?: number;
   comment?: string;
   response?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QuoteItem {
+  qty: number;
+  description: string;
+  unitPrice: number;
+  amount: number;
+}
+
+export interface QuotePartyInfo {
+  name: string;
+  address?: string;
+  city?: string;
+  cuit?: string;
+  email?: string;
+  phone?: string;
+}
+
+export type QuoteStatus = 'draft' | 'sent' | 'accepted' | 'rejected' | 'expired' | 'cancelled';
+
+export interface Quote {
+  id: string;
+  quoteNumber: string;
+  status: QuoteStatus;
+  senderId: string;
+  sender?: { id: string; name: string; email: string; avatar?: string };
+  recipientId: string;
+  recipient?: { id: string; name: string; email: string; avatar?: string };
+  jobId?: string;
+  job?: { id: string; title: string; status: string };
+  proposalId?: string;
+  conversationId?: string;
+  title: string;
+  items: QuoteItem[];
+  subtotal: number;
+  taxRate: number;
+  taxAmount: number;
+  otherTaxes: Array<{ name: string; rate: number; amount: number }>;
+  total: number;
+  notes?: string;
+  paymentTerms?: string;
+  validUntil?: string;
+  rejectionReason?: string;
+  revisionCount: number;
+  senderInfo?: QuotePartyInfo;
+  recipientInfo?: QuotePartyInfo;
   createdAt: string;
   updatedAt: string;
 }

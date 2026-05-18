@@ -17,23 +17,35 @@ const lightColors = {
   card: '#ffffff',
   text: {
     primary:   '#1e293b',
-    secondary: '#475569', // slate-600 — 5.9:1 on white ✓
-    muted:     '#64748b', // slate-500 — 4.75:1 on white ✓
+    secondary: '#475569',
+    muted:     '#64748b',
   },
+  textSecondary: '#475569',
   border: '#e2e8f0',
   primary: {
     50:  '#f0f9ff',
     100: '#e0f2fe',
+    200: '#bae6fd',
+    300: '#7dd3fc',
+    400: '#38bdf8',
+    500: '#0ea5e9',
     600: '#0284c7',
+    700: '#0369a1',
   },
   slate: {
     50:  '#f8fafc',
     100: '#f1f5f9',
     200: '#e2e8f0',
+    300: '#cbd5e1',
     400: '#94a3b8',
+    500: '#64748b',
     600: '#475569',
+    700: '#334155',
+    800: '#1e293b',
   },
-  // Glassmorphism surfaces
+  success: '#16a34a',
+  error:   '#dc2626',
+  warning: '#d97706',
   glass: 'rgba(255, 255, 255, 0.82)',
   glassBorder: 'rgba(255, 255, 255, 0.5)',
 };
@@ -43,23 +55,35 @@ const darkColors = {
   card: '#0f1624',
   text: {
     primary:   '#f1f5f9',
-    secondary: '#b0c4d8', // ~8:1 on dark bg ✓
-    muted:     '#8a9bb0', // ~5.5:1 on dark bg ✓
+    secondary: '#b0c4d8',
+    muted:     '#8a9bb0',
   },
+  textSecondary: '#b0c4d8',
   border: '#1e2d42',
   primary: {
     50:  '#082032',
     100: '#0c3050',
+    200: '#0e4070',
+    300: '#1260a8',
+    400: '#1d80d8',
+    500: '#38bdf8',
     600: '#38bdf8',
+    700: '#7dd3fc',
   },
   slate: {
     50:  '#0f1624',
     100: '#1e2d42',
     200: '#2a3d56',
+    300: '#3d566e',
     400: '#94a3b8',
+    500: '#b0c4d8',
     600: '#cbd5e1',
+    700: '#e2eaf2',
+    800: '#f1f5f9',
   },
-  // Glassmorphism surfaces
+  success: '#22c55e',
+  error:   '#ef4444',
+  warning: '#f59e0b',
   glass: 'rgba(7, 13, 26, 0.82)',
   glassBorder: 'rgba(255, 255, 255, 0.08)',
 };

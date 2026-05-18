@@ -28,7 +28,7 @@ import analytics from "../../utils/analytics";
 
 export default function Header() {
   const { t, i18n } = useTranslation();
-  const { user, logout } = useAuth();
+  const { user, logout, token } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const { registerUnreadUpdateHandler } = useSocket();
   const navigate = useNavigate();
@@ -59,19 +59,19 @@ export default function Header() {
   }, []);
 
   const fetchUnreadCount = useCallback(async () => {
+    if (!token) return;
     try {
       const response = await fetch("/api/chat/unread-count", {
-        credentials: "include",
+        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
       if (data.success) {
-        // Use unreadConversations (number of chats with unread messages)
         setUnreadCount(data.unreadConversations || 0);
       }
     } catch (error) {
       console.error("Error fetching unread count:", error);
     }
-  }, []);
+  }, [token]);
 
   // Fetch initial unread count
   useEffect(() => {
@@ -187,26 +187,21 @@ export default function Header() {
                   <div className="flex flex-col">
                     {contractsBadge.isFreeUser ? (
                       <span className="text-xs font-semibold text-green-700 dark:text-green-300">
-                        {contractsBadge.totalFreeRemaining} {t('nav.freeContracts')}
+                        {contractsBadge.totalFreeRemaining} {contractsBadge.totalFreeRemaining === 1 ? t('nav.freeContractSingle', 'fee-free post available') : t('nav.freeContractPlural', 'fee-free posts available')}
                       </span>
                     ) : (
                       <>
                         <span className="text-xs font-semibold text-green-700 dark:text-green-300">
-                          {contractsBadge.totalFreeRemaining} contrato
-                          {contractsBadge.totalFreeRemaining !== 1 ? "s" : ""}{" "}
-                          gratis
+                          {contractsBadge.totalFreeRemaining} {contractsBadge.totalFreeRemaining === 1 ? t('nav.freeContractSingle', 'fee-free post available') : t('nav.freeContractPlural', 'fee-free posts available')}
                         </span>
                         {contractsBadge.freeContractsRemaining > 0 && (
                           <span className="text-[10px] text-green-600 dark:text-green-400">
-                            {contractsBadge.freeContractsRemaining} inicial
-                            {contractsBadge.freeContractsRemaining !== 1
-                              ? "es"
-                              : ""}
+                            {contractsBadge.freeContractsRemaining} {contractsBadge.freeContractsRemaining === 1 ? t('nav.freeInitialSingle', 'initial') : t('nav.freeInitialPlural', 'initial')}
                           </span>
                         )}
                         {contractsBadge.monthlyFreeRemaining > 0 && (
                           <span className="text-[10px] text-green-600 dark:text-green-400">
-                            {contractsBadge.monthlyFreeRemaining} este mes
+                            {contractsBadge.monthlyFreeRemaining} {t('nav.freeThisMonth', 'this month')}
                           </span>
                         )}
                       </>
@@ -219,10 +214,10 @@ export default function Header() {
                   <Heart className="h-4 w-4 text-pink-600 dark:text-pink-400 fill-pink-500" />
                   <div className="flex flex-col">
                     <span className="text-xs font-semibold text-pink-700 dark:text-pink-300">
-                      Sin comisión
+                      {t('nav.noCommission', 'No commission')}
                     </span>
                     <span className="text-[10px] text-pink-600 dark:text-pink-400">
-                      PLAN FAMILIA
+                      {t('nav.familyPlan', 'FAMILY PLAN')}
                     </span>
                   </div>
                 </div>

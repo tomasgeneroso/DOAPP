@@ -1,6 +1,7 @@
 import express, { Request, Response } from "express";
 import { body, param, validationResult } from "express-validator";
 import { Proposal } from "../models/sql/Proposal.model.js";
+import { Quote } from "../models/sql/Quote.model.js";
 import { Job } from "../models/sql/Job.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
 import { Conversation } from "../models/sql/Conversation.model.js";
@@ -85,7 +86,7 @@ async function createOrUpdateGroupChat(job: Job, workerIds: string[]): Promise<C
 
       // Send real-time notification
       const { socketService } = await import('../index.js');
-      socketService.notifyUser(participantId, notification.toJSON());
+      socketService.notifyUser(participantId, "notification:new", notification.toJSON());
     }
 
     return groupChat;
@@ -232,6 +233,13 @@ router.get("/job/:jobId",
       return;
     }
 
+    const cacheKey = `proposals:job:${req.params.jobId}`;
+    const cached = cacheService.get(cacheKey);
+    if (cached) {
+      res.json({ success: true, count: (cached as any[]).length, proposals: cached });
+      return;
+    }
+
     const proposals = await Proposal.findAll({
       where: { jobId: req.params.jobId },
       include: [
@@ -244,10 +252,27 @@ router.get("/job/:jobId",
       order: [['createdAt', 'DESC']]
     });
 
+    // Attach quote data for each proposal (workers who applied via quote)
+    const proposalIds = proposals.map(p => p.id);
+    const quotes = proposalIds.length > 0
+      ? await Quote.findAll({
+          where: { proposalId: proposalIds },
+          attributes: ['id', 'proposalId', 'quoteNumber', 'title', 'total', 'status'],
+        })
+      : [];
+    const quoteByProposalId = Object.fromEntries(quotes.map(q => [q.proposalId, q]));
+
+    const proposalsWithQuote = proposals.map(p => ({
+      ...p.toJSON(),
+      quote: quoteByProposalId[p.id] || null,
+    }));
+
+    cacheService.set(cacheKey, proposalsWithQuote, 30); // 30s cache
+
     res.json({
       success: true,
       count: proposals.length,
-      proposals,
+      proposals: proposalsWithQuote,
     });
   } catch (error: any) {
     res.status(500).json({
@@ -627,7 +652,7 @@ router.post(
         });
 
         // Send real-time notification to job owner
-        socketService.notifyUser(job.clientId, notification.toJSON());
+        socketService.notifyUser(job.clientId, "notification:new", notification.toJSON());
       } catch (notifError: any) {
         // Use silentError to always capture this, even in production
         logger.silentError('proposals', 'Failed to create proposal notification', notifError, {
@@ -794,15 +819,10 @@ router.put("/:id/approve",
         return;
       }
     } else {
-      // Default: use proposed price or equal split
-      if (maxWorkers === 1) {
-        // Single worker: use proposal price
-        workerAllocation = proposal.proposedPrice;
-      } else {
-        // Multiple workers: use proposal price as allocation
-        // The client can later adjust via the allocation endpoint
-        workerAllocation = proposal.proposedPrice;
-      }
+      // Default: use proposed price; fallback to job price if worker applied without specifying amount
+      workerAllocation = (proposal.proposedPrice && proposal.proposedPrice > 0)
+        ? proposal.proposedPrice
+        : jobPrice;
     }
 
     // Validar monto mínimo de $5000 ARS ANTES de modificar el job
@@ -810,7 +830,7 @@ router.put("/:id/approve",
     if (workerAllocation < MINIMUM_CONTRACT_AMOUNT) {
       res.status(400).json({
         success: false,
-        message: `El monto mínimo del contrato es de $${MINIMUM_CONTRACT_AMOUNT.toLocaleString()} ARS. El monto propuesto es $${workerAllocation.toLocaleString()} ARS`,
+        message: `El monto mínimo del contrato es de $${MINIMUM_CONTRACT_AMOUNT.toLocaleString()} ARS. El presupuesto del trabajo es $${jobPrice.toLocaleString()} ARS`,
       });
       return;
     }
@@ -819,12 +839,19 @@ router.put("/:id/approve",
     const percentageOfBudget = (workerAllocation / jobPrice) * 100;
 
     // Update job's worker allocations
+    // Resolve task name from vacancyTaskAssignments if available
+    const vacancySlot = (job as any).vacancyTaskAssignments?.find(
+      (v: any) => !currentWorkers.includes(v.taskName) && v.slot === updatedWorkers.length
+    ) || (job as any).vacancyTaskAssignments?.[updatedWorkers.length - 1];
+    const assignedTaskName: string | undefined = vacancySlot?.taskName || undefined;
+
     const currentAllocations = job.workerAllocations || [];
     currentAllocations.push({
       workerId: proposal.freelancerId,
       allocatedAmount: workerAllocation,
       percentage: percentageOfBudget,
       allocatedAt: new Date(),
+      ...(assignedTaskName ? { taskName: assignedTaskName } : {}),
     });
     job.workerAllocations = currentAllocations;
     // Mark the array as changed for Sequelize to detect the update
@@ -984,7 +1011,7 @@ router.put("/:id/approve",
     });
 
     // Send real-time notification
-    socketService.notifyUser(proposal.freelancerId, notification.toJSON());
+    socketService.notifyUser(proposal.freelancerId, "notification:new", notification.toJSON());
 
     // Notify admin panel of new contract
     const populatedContract = await Contract.findByPk(contract.id, {
@@ -996,9 +1023,10 @@ router.put("/:id/approve",
     });
     socketService.notifyNewContract(populatedContract?.toJSON());
 
-    // Invalidate job cache to ensure fresh data on next fetch
+    // Invalidate job and proposals cache
     cacheService.delPattern(`jobs:*`);
     cacheService.delPattern(`job:${job.id}*`);
+    cacheService.del(`proposals:job:${job.id}`);
 
     // Emit job update event with updated job data for real-time UI refresh
     const updatedJob = await Job.findByPk(job.id, {
@@ -1017,7 +1045,7 @@ router.put("/:id/approve",
     });
 
     // Also emit jobs:refresh for the list views
-    socketService.io.emit("jobs:refresh", {
+    (socketService as any).io?.emit("jobs:refresh", {
       action: "worker_selected",
       jobId: job.id,
       job: updatedJob?.toJSON()
@@ -1429,7 +1457,7 @@ router.post(
 
       // Crear mensaje automático del sistema con nuevo formato
       const endDateText = endDate
-        ? `Finalización estimada: ${endDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })} a las ${endDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`
+        ? `Finalización estimada: ${endDate!.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })} a las ${endDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`
         : `Finalización: Por definir (fecha flexible)`;
       const systemMessageText = `${req.user.name} se postuló al trabajo||${job.title}||Inicio: ${startDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })} a las ${startDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}\n${endDateText}\nPrecio Acordado: $${jobPrice.toLocaleString("es-AR")} ARS\nUbicación: ${job.location}\n\n⏳ Puedes ser seleccionado hasta 48 horas antes del inicio del trabajo.`;
 
@@ -1523,7 +1551,7 @@ router.post(
                     <p><strong>Cliente:</strong> ${clientUser.name}</p>
                     <p><strong>Ubicación:</strong> ${job.location}</p>
                     <p><strong>Inicio:</strong> ${startDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
-                    <p><strong>Fin:</strong> ${endDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                    <p><strong>Fin:</strong> ${endDate!.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
                     <p><strong>Pago:</strong> $${jobPrice.toLocaleString("es-AR")}</p>
                   </div>
                   <div class="warning-box">
@@ -1568,7 +1596,7 @@ router.post(
                     <h3>${job.title}</h3>
                     <p><strong>Candidato:</strong> ${req.user.name}</p>
                     <p><strong>Inicio:</strong> ${startDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
-                    <p><strong>Fin:</strong> ${endDate.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+                    <p><strong>Fin:</strong> ${endDate!.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
                     <p><strong>Pago:</strong> $${jobPrice.toLocaleString("es-AR")}</p>
                   </div>
                   <p>Puedes revisar todas las postulaciones y seleccionar al trabajador ideal.</p>
@@ -2087,7 +2115,7 @@ router.put(
             lastMessage: 'Propuesta de contrato aceptada',
             lastMessageAt: new Date(),
           },
-          { where: { id: proposal.conversationId } }
+          { where: { id: proposal.conversationId }, individualHooks: false }
         );
       }
 

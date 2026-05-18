@@ -101,7 +101,7 @@ router.get("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
     }
 
     // Usuarios normales solo ven sus tickets
-    const createdById = typeof ticket.createdBy === 'object' ? ticket.createdBy.id : ticket.createdBy;
+    const createdById = typeof ticket.createdBy === "object" ? (ticket.createdBy as any)?.id : ticket.createdBy;
     if (!req.user.adminRole && createdById.toString() !== req.user._id.toString()) {
       res.status(403).json({
         success: false,
@@ -113,6 +113,22 @@ router.get("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
     // Filtrar mensajes internos si no es staff
     if (!req.user.adminRole && ticket.messages) {
       ticket.messages = ticket.messages.filter((msg: any) => !msg.isInternal);
+    }
+
+    // Populate message authors
+    if (ticket.messages && ticket.messages.length > 0) {
+      const authorIds = [...new Set(ticket.messages.map((m: any) => m.author).filter(Boolean))];
+      if (authorIds.length > 0) {
+        const authors = await User.findAll({
+          where: { id: authorIds as string[] },
+          attributes: ['id', 'name', 'email', 'avatar', 'adminRole'],
+        });
+        const authorMap = Object.fromEntries(authors.map(u => [u.id, u]));
+        ticket.messages = ticket.messages.map((msg: any) => ({
+          ...msg,
+          author: authorMap[msg.author] || { id: msg.author, name: 'Usuario' },
+        }));
+      }
     }
 
     res.json({
@@ -204,7 +220,7 @@ router.post("/:id/messages", async (req: AuthRequest, res: Response): Promise<vo
     }
 
     // Usuarios normales solo pueden comentar en sus tickets
-    const createdById = typeof ticket.createdBy === 'object' ? ticket.createdBy.id : ticket.createdBy;
+    const createdById = typeof ticket.createdBy === "object" ? (ticket.createdBy as any)?.id : ticket.createdBy;
     if (!req.user.adminRole && createdById.toString() !== req.user._id.toString()) {
       res.status(403).json({
         success: false,
@@ -229,7 +245,7 @@ router.post("/:id/messages", async (req: AuthRequest, res: Response): Promise<vo
 
     // Notificar al creador si el mensaje es de staff
     if (req.user.adminRole && !messageIsInternal) {
-      const notifyRecipientId = typeof ticket.createdBy === 'object' ? ticket.createdBy.id : ticket.createdBy;
+      const notifyRecipientId = typeof ticket.createdBy === "object" ? (ticket.createdBy as any)?.id : ticket.createdBy;
       await Notification.create({
         recipientId: notifyRecipientId,
         type: "info",
@@ -374,6 +390,41 @@ router.put(
   }
 );
 
+// @route   PUT /api/admin/tickets/:id/priority
+// @desc    Cambiar prioridad del ticket
+// @access  Support+
+router.put(
+  "/:id/priority",
+  requirePermission("tickets:update"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { priority } = req.body;
+      const validPriorities = ['low', 'medium', 'high', 'urgent'];
+
+      if (!priority || !validPriorities.includes(priority)) {
+        res.status(400).json({ success: false, message: "Prioridad inválida" });
+        return;
+      }
+
+      const ticket = await Ticket.findByPk(req.params.id);
+      if (!ticket) {
+        res.status(404).json({ success: false, message: "Ticket no encontrado" });
+        return;
+      }
+
+      await ticket.update({ priority });
+
+      res.json({
+        success: true,
+        message: "Prioridad actualizada correctamente",
+        data: { id: ticket.id, priority: ticket.priority },
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+    }
+  }
+);
+
 // @route   PUT /api/admin/tickets/:id/close
 // @desc    Cerrar ticket
 // @access  Support+
@@ -421,7 +472,7 @@ router.put(
       });
 
       // Notificar al creador
-      const createdById = typeof ticket.createdBy === 'object' ? ticket.createdBy.id : ticket.createdBy;
+      const createdById = typeof ticket.createdBy === "object" ? (ticket.createdBy as any)?.id : ticket.createdBy;
       await Notification.create({
         recipientId: createdById,
         type: "success",

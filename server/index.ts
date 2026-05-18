@@ -18,6 +18,8 @@ import {
   preventDirectoryTraversal,
   securityHeaders,
   apiLimiter,
+  authLimiter,
+  strictLimiter,
 } from "./middleware/security.js";
 import { wafMiddleware } from "./middleware/waf.js";
 // TEMPORARILY DISABLED - DEBUGGING
@@ -39,6 +41,7 @@ import usersRoutes from "./routes/users.js";
 
 // Admin routes
 import adminUsersRoutes from "./routes/admin/users.js";
+import adminSecurityRoutes from "./routes/admin/security.js";
 import adminContractsRoutes from "./routes/admin/contracts.js";
 import adminTicketsRoutes from "./routes/admin/tickets.js";
 import adminAnalyticsRoutes from "./routes/admin/analytics.js";
@@ -79,6 +82,9 @@ import disputesRoutes from "./routes/disputes.js";
 
 // Proposal routes
 import proposalsRoutes from "./routes/proposals.js";
+
+// Quote routes
+import quotesRoutes from "./routes/quotes.js";
 
 // Referral routes
 import referralsRoutes from "./routes/referrals.js";
@@ -240,7 +246,7 @@ app.use("/uploads", (req, res, next) => {
 import { features } from '../shared/featureFlags.js';
 
 // API Routes (core - always enabled)
-app.use("/api/auth", authRoutes);
+app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/jobs", jobsRoutes);
 app.use("/api/contracts", contractsRoutes);
@@ -261,6 +267,7 @@ if (features.inAppNotifications) app.use("/api/notifications", notificationsRout
 if (features.portfolio) app.use("/api/portfolio", portfolioRoutes);
 if (features.disputes) app.use("/api/disputes", disputesRoutes);
 if (features.proposals) app.use("/api/proposals", proposalsRoutes);
+app.use("/api/quotes", quotesRoutes);
 if (features.referrals) app.use("/api/referrals", referralsRoutes);
 if (features.membership) app.use("/api/membership", membershipRoutes);
 if (features.advertisements) app.use("/api/advertisements", advertisementsRoutes);
@@ -279,6 +286,7 @@ app.get("/api/features", (_req, res) => {
 
 // Admin Routes
 app.use("/api/admin/users", adminUsersRoutes);
+app.use("/api/admin/security", adminSecurityRoutes);
 app.use("/api/admin/contracts", adminContractsRoutes);
 app.use("/api/admin/tickets", adminTicketsRoutes);
 app.use("/api/admin/analytics", adminAnalyticsRoutes);

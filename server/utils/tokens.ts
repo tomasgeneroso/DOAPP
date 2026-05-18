@@ -7,9 +7,8 @@ import { Op } from 'sequelize';
 // Generar access token (JWT corto)
 export const generateAccessToken = (userId: string): string => {
   const options: SignOptions = {
-    expiresIn: config.jwtExpire || "7d", // 7 días por defecto, configurable desde .env
+    expiresIn: (config.jwtExpire || "7d") as any,
   };
-
   return jwt.sign({ id: userId }, config.jwtSecret as Secret, options);
 };
 
@@ -22,12 +21,12 @@ export const generateRefreshToken = async (
   const token = crypto.randomBytes(40).toString("hex");
 
   await RefreshToken.create({
-    user: userId,
+    userId,
     token,
-    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 días
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     createdByIp: ip,
     userAgent,
-  });
+  } as any);
 
   return token;
 };
@@ -38,7 +37,7 @@ export const revokeRefreshToken = async (
   ip: string,
   reason?: string
 ): Promise<void> => {
-  const refreshToken = await RefreshToken.findOne({ token });
+  const refreshToken = await RefreshToken.findOne({ where: { token } });
 
   if (refreshToken && !refreshToken.isRevoked) {
     refreshToken.isRevoked = true;
@@ -54,13 +53,13 @@ export const revokeAllUserTokens = async (
   userId: string,
   reason?: string
 ): Promise<void> => {
-  await RefreshToken.updateMany(
-    { user: userId, isRevoked: false },
+  await RefreshToken.update(
     {
       isRevoked: true,
       revokedAt: new Date(),
       revokedReason: reason || "All tokens revoked",
-    }
+    },
+    { where: { userId, isRevoked: false } as any }
   );
 };
 
@@ -69,51 +68,37 @@ export const refreshAccessToken = async (
   token: string,
   ip: string
 ): Promise<{ accessToken: string; refreshToken: string } | null> => {
-  const refreshToken = await RefreshToken.findOne({ token }).populate("user");
+  const refreshToken = await RefreshToken.findOne({ where: { token } });
 
-  if (!refreshToken) {
-    return null;
-  }
+  if (!refreshToken) return null;
+  if (refreshToken.isRevoked) return null;
+  if (new Date() >= refreshToken.expiresAt) return null;
 
-  // Verificar si está revocado
-  if (refreshToken.isRevoked) {
-    return null;
-  }
+  const userId = (refreshToken as any).userId || (refreshToken as any).user;
+  const accessToken = generateAccessToken(userId.toString());
 
-  // Verificar si expiró
-  if (new Date() >= refreshToken.expiresAt) {
-    return null;
-  }
-
-  // Generar nuevo access token
-  const accessToken = generateAccessToken(refreshToken.user.toString());
-
-  // Generar nuevo refresh token (rotation)
   const newRefreshToken = await generateRefreshToken(
-    refreshToken.user.toString(),
+    userId.toString(),
     ip,
     refreshToken.userAgent
   );
 
-  // Revocar el token viejo y apuntar al nuevo
   refreshToken.isRevoked = true;
   refreshToken.revokedAt = new Date();
   refreshToken.revokedReason = "Replaced by rotation";
   refreshToken.replacedByToken = newRefreshToken;
   await refreshToken.save();
 
-  return {
-    accessToken,
-    refreshToken: newRefreshToken,
-  };
+  return { accessToken, refreshToken: newRefreshToken };
 };
 
-// Limpiar tokens expirados (llamar periódicamente)
+// Limpiar tokens expirados
 export const cleanupExpiredTokens = async (): Promise<number> => {
-  const result = await RefreshToken.deleteMany({
-    expiresAt: { [Op.lt]: new Date() },
-    isRevoked: true,
+  const count = await RefreshToken.destroy({
+    where: {
+      expiresAt: { [Op.lt]: new Date() },
+      isRevoked: true,
+    } as any,
   });
-
-  return result.deletedCount || 0;
+  return count;
 };

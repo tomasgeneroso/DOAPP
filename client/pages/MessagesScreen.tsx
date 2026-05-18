@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { useSocket } from "../hooks/useSocket";
 import { SkeletonConversationItem, SkeletonMessage } from "../components/ui/Skeleton";
+import { SystemMessageCard } from "../components/chat/SystemMessageCard";
+import QuoteMessage from "../components/chat/QuoteMessage";
 import {
   MessageCircle,
   User as UserIcon,
@@ -23,6 +25,7 @@ import {
   DollarSign,
   ExternalLink,
   Loader2,
+  ClipboardList,
 } from "lucide-react";
 
 interface Conversation {
@@ -128,9 +131,15 @@ export default function MessagesScreen() {
 
   // Combine socket messages with local messages (socket messages take priority for new ones)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const messages = [...localMessages, ...(socketMessages as unknown as Message[]).filter(
-    sm => !localMessages.find(lm => getId(lm) === getId(sm as any))
-  )];
+  const messages = [
+    ...localMessages,
+    ...(socketMessages as unknown as Message[]).filter(sm => {
+      const smConvId = (sm as any).conversationId;
+      // Only include socket messages that belong to the current conversation
+      if (smConvId && conversationIdParam && smConvId !== conversationIdParam) return false;
+      return !localMessages.find(lm => getId(lm) === getId(sm as any));
+    }),
+  ];
 
   useEffect(() => {
     fetchConversations();
@@ -463,6 +472,15 @@ export default function MessagesScreen() {
     }
   };
 
+  const cleanPreview = (msg?: string): string => {
+    if (!msg) return "Sin mensajes";
+    if (msg.includes('||')) {
+      const parts = msg.split('||');
+      return parts[1] || parts[0];
+    }
+    return msg;
+  };
+
   const filteredConversations = conversations.filter((conv) => {
     const other = getOtherParticipant(conv.participants);
     const jobTitle = conv.job?.title || conv.jobId?.title || conv.contract?.job?.title || '';
@@ -590,8 +608,12 @@ export default function MessagesScreen() {
                   <button
                     key={getId(conversation)}
                     onClick={() => handleSelectConversation(conversation)}
-                    className={`w-full p-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors ${
-                      isActive ? "bg-slate-100 dark:bg-slate-700" : ""
+                    className={`w-full p-3 flex items-center gap-3 transition-colors border-l-2 ${
+                      isActive
+                        ? "bg-sky-50 dark:bg-sky-900/20 border-sky-500 hover:bg-sky-100 dark:hover:bg-sky-900/30"
+                        : unreadCount > 0
+                          ? "bg-sky-50/40 dark:bg-sky-900/10 border-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20"
+                          : "border-transparent hover:bg-slate-50 dark:hover:bg-slate-700"
                     }`}
                   >
                     {/* Avatar */}
@@ -615,7 +637,7 @@ export default function MessagesScreen() {
                     {/* Content */}
                     <div className="flex-1 min-w-0 text-left">
                       <div className="flex items-center justify-between mb-1">
-                        <h3 className="font-semibold text-slate-900 dark:text-white truncate">
+                        <h3 className={`${unreadCount > 0 ? 'font-bold' : 'font-semibold'} text-slate-900 dark:text-white truncate`}>
                           {other?.name || "Usuario desconocido"}
                         </h3>
                         {conversation.lastMessageAt && (
@@ -633,8 +655,8 @@ export default function MessagesScreen() {
                       )}
 
                       <div className="flex items-center justify-between">
-                        <p className="text-sm text-slate-600 dark:text-slate-400 truncate">
-                          {conversation.lastMessage || "Sin mensajes"}
+                        <p className={`text-sm truncate ${unreadCount > 0 ? 'font-medium text-slate-800 dark:text-slate-200' : 'text-slate-500 dark:text-slate-400'}`}>
+                          {cleanPreview(conversation.lastMessage)}
                         </p>
                         {unreadCount > 0 && (
                           <span className="flex-shrink-0 ml-2 bg-sky-600 text-white text-xs font-bold rounded-full h-5 min-w-[20px] px-1.5 flex items-center justify-center">
@@ -687,6 +709,34 @@ export default function MessagesScreen() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {/* Cotizar / Facturar — mismo estilo que ChatScreen */}
+                  <button
+                    onClick={() => {
+                      const recipientId = getId(otherParticipant);
+                      const params = new URLSearchParams({ recipientId, conversationId: conversationIdParam || '' });
+                      if (activeConversation?.jobId) {
+                        const jid = typeof activeConversation.jobId === 'object' ? (activeConversation.jobId as any).id || '' : activeConversation.jobId;
+                        if (jid) params.set('jobId', jid);
+                      }
+                      navigate(`/quotes/new?${params.toString()}`);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-lg transition-colors"
+                    title="Cotizar: generá una factura/presupuesto formal para este trabajo"
+                  >
+                    <ClipboardList className="h-5 w-5" />
+                    <span className="hidden sm:inline">Cotizar / Facturar</span>
+                  </button>
+
+                  {/* Proponer precio — mismo estilo que ChatScreen */}
+                  <button
+                    onClick={() => navigate(`/chat/${conversationIdParam}`)}
+                    className="flex items-center gap-2 px-4 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-900/50 font-semibold rounded-lg transition-colors"
+                    title="Proponer precio"
+                  >
+                    <DollarSign className="h-5 w-5" />
+                    <span className="hidden sm:inline">Proponer precio</span>
+                  </button>
+
                   {/* Ver Perfil */}
                   <button
                     onClick={() => navigate(`/profile/${getId(otherParticipant)}`)}
@@ -694,19 +744,6 @@ export default function MessagesScreen() {
                     title="Ver perfil"
                   >
                     <UserIcon className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-                  </button>
-
-                  {/* Ver Trabajos */}
-                  <button
-                    onClick={() => navigate(`/jobs?user=${getId(otherParticipant)}`)}
-                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
-                    title="Ver trabajos publicados"
-                  >
-                    <Briefcase className="h-5 w-5 text-slate-600 dark:text-slate-400" />
-                  </button>
-
-                  <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors">
-                    <MoreVertical className="h-5 w-5 text-slate-600 dark:text-slate-400" />
                   </button>
                 </div>
               </div>
@@ -718,100 +755,71 @@ export default function MessagesScreen() {
               >
                 <div className="max-w-4xl mx-auto space-y-4">
                   {messages.map((message, index) => {
-                    const userId = user?.id || user?._id;
-                    const isCurrentUser = getId(message.sender) === userId;
+                    const currentUserId = user?.id || user?._id;
+                    const isCurrentUser = getId(message.sender) === currentUserId;
+                    const msgText = String((message as any).message || (message as any).content || '');
                     const showDate =
                       index === 0 ||
                       formatMessageDate(messages[index - 1].createdAt) !==
                         formatMessageDate(message.createdAt);
 
-                    // Job attachment system message
-                    if (message.type === 'system' && message.metadata?.action === 'job_attachment') {
-                      const meta = message.metadata;
+                    const dateSeparator = showDate ? (
+                      <div className="flex justify-center my-4">
+                        <span className="px-3 py-1 bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-400 text-xs rounded-lg shadow-sm">
+                          {formatMessageDate(message.createdAt)}
+                        </span>
+                      </div>
+                    ) : null;
+
+                    // Quote message card
+                    if ((message as any).metadata?.action === 'quote') {
                       return (
                         <div key={getId(message) || index}>
-                          {showDate && (
-                            <div className="flex justify-center my-4">
-                              <span className="px-3 py-1 bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-400 text-xs rounded-lg shadow-sm">
-                                {formatMessageDate(message.createdAt)}
-                              </span>
-                            </div>
-                          )}
-                          <div className={`flex ${isCurrentUser ? "justify-end" : "justify-start"}`}>
-                            <div className="max-w-[75%] rounded-xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
-                              <div className="px-4 py-2 bg-sky-50 dark:bg-sky-900/30 border-b border-slate-200 dark:border-slate-700">
-                                <p className="text-xs text-sky-600 dark:text-sky-400 font-medium flex items-center gap-1">
-                                  <Briefcase className="h-3 w-3" />
-                                  {isCurrentUser ? t('chat.youSharedJob') : `${message.sender?.name || 'Usuario'} ${t('chat.sharedJob')}`}
-                                </p>
-                              </div>
-                              <div className="p-4">
-                                <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-2">{meta.jobTitle}</h4>
-                                <div className="space-y-1">
-                                  <p className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
-                                    <DollarSign className="h-3 w-3 text-green-500" />
-                                    ${Number(meta.jobPrice).toLocaleString('es-AR')}
-                                  </p>
-                                  {meta.jobLocation && (
-                                    <p className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
-                                      <MapPin className="h-3 w-3 text-red-400" />
-                                      {meta.jobLocation}
-                                    </p>
-                                  )}
-                                  {meta.jobCategory && (
-                                    <p className="text-xs text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
-                                      <Briefcase className="h-3 w-3 text-purple-400" />
-                                      {meta.jobCategory}
-                                    </p>
-                                  )}
-                                </div>
-                                <button
-                                  onClick={() => navigate(`/jobs/${meta.jobId}`)}
-                                  className="mt-3 w-full py-1.5 text-xs font-medium text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-900/20 hover:bg-sky-100 dark:hover:bg-sky-900/40 rounded-lg transition-colors flex items-center justify-center gap-1"
-                                >
-                                  <ExternalLink className="h-3 w-3" />
-                                  {t('chat.viewJob')}
-                                </button>
-                              </div>
-                              <div className="px-4 pb-2 text-right">
-                                <span className="text-xs text-slate-400">{formatTime(message.createdAt)}</span>
-                              </div>
-                            </div>
-                          </div>
+                          {dateSeparator}
+                          <QuoteMessage
+                            message={message as any}
+                            onRefresh={() => fetchMessages(conversationIdParam!)}
+                            token={token}
+                          />
                         </div>
                       );
                     }
 
+                    // System message (proposal, job_application, etc.)
+                    const isSystemMessage =
+                      message.type === 'system' ||
+                      msgText.includes('||') ||
+                      (message as any).metadata?.action === 'job_application' ||
+                      (message as any).metadata?.action === 'direct_contract_proposal' ||
+                      (message as any).metadata?.action === 'job_attachment';
+
+                    if (isSystemMessage) {
+                      return (
+                        <div key={getId(message) || index}>
+                          {dateSeparator}
+                          <SystemMessageCard
+                            message={message as any}
+                            currentUserId={currentUserId}
+                            onRefresh={() => fetchMessages(conversationIdParam!)}
+                            token={token}
+                          />
+                        </div>
+                      );
+                    }
+
+                    // Regular text message
                     return (
                       <div key={getId(message) || index}>
-                        {showDate && (
-                          <div className="flex justify-center my-4">
-                            <span className="px-3 py-1 bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-400 text-xs rounded-lg shadow-sm">
-                              {formatMessageDate(message.createdAt)}
-                            </span>
-                          </div>
-                        )}
-
-                        <div
-                          className={`flex ${isCurrentUser ? "justify-end" : "justify-start"}`}
-                        >
-                          <div
-                            className={`max-w-[70%] px-4 py-2 rounded-lg ${
-                              isCurrentUser
-                                ? "bg-sky-500 text-white"
-                                : "bg-white dark:bg-slate-800 text-slate-900 dark:text-white"
-                            } shadow-sm`}
-                          >
-                            <p className="text-sm whitespace-pre-wrap break-words">
-                              {message.message}
-                            </p>
-                            <span
-                              className={`text-xs mt-1 block text-right ${
-                                isCurrentUser
-                                  ? "text-sky-100"
-                                  : "text-slate-500 dark:text-slate-400"
-                              }`}
-                            >
+                        {dateSeparator}
+                        <div className={`flex ${isCurrentUser ? "justify-end" : "justify-start"}`}>
+                          <div className={`max-w-[70%] px-4 py-2 rounded-2xl shadow-sm ${
+                            isCurrentUser
+                              ? "bg-sky-500 text-white"
+                              : "bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700"
+                          }`}>
+                            <p className="text-sm font-medium mb-0.5 opacity-70">{message.sender?.name}</p>
+                            <p className="text-sm whitespace-pre-wrap break-words">{msgText}</p>
+                            <span className={`text-xs mt-1 block text-right ${isCurrentUser ? "text-sky-100" : "text-slate-500 dark:text-slate-400"}`}>
                               {formatTime(message.createdAt)}
                             </span>
                           </div>

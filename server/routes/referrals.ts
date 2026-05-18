@@ -134,7 +134,7 @@ router.get("/my-invitations", protect, async (req: AuthRequest, res: Response): 
         codesRemaining: user.invitationCodesRemaining,
         codesUsed: user.invitationCodesUsed,
         maxCodes: 3,
-        invitedUsers: user.invitedUsers,
+        invitedUsers: (user as any).invitedUsers,
       },
     });
   } catch (error: any) {
@@ -214,7 +214,7 @@ router.post("/use-code", protect, async (req: AuthRequest, res: Response): Promi
     }
 
     // Verificar que el referidor no haya alcanzado el límite de 3 invitados
-    if (referrer.invitedUsers && referrer.invitedUsers.length >= 3) {
+    if ((referrer as any).invitedUsers && (referrer as any).invitedUsers.length >= 3) {
       res.status(400).json({
         success: false,
         message: "Este usuario ya alcanzó el límite de invitaciones",

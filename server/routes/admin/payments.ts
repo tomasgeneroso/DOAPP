@@ -774,7 +774,7 @@ router.post("/:paymentId/reject", protect, requireRole('admin', 'super_admin', '
 
       if (contract) {
         // Update contract status
-        contract.paymentStatus = 'failed';
+        (contract as any).paymentStatus = 'failed';
         await contract.save();
 
         const job = contract.job as any;
@@ -1114,9 +1114,9 @@ router.post("/:paymentId/cancel-reject", protect, requireRole('admin', 'super_ad
 
     for (const proof of rejectedProofs) {
       proof.status = 'pending';
-      proof.verifiedBy = null;
-      proof.verifiedAt = null;
-      proof.rejectionReason = null;
+      proof.verifiedBy = undefined;
+      proof.verifiedAt = undefined;
+      proof.rejectionReason = undefined;
       await proof.save();
       console.log(`[ADMIN CANCEL-REJECT] Proof ${proof.id} reverted to pending`);
     }
@@ -1127,7 +1127,7 @@ router.post("/:paymentId/cancel-reject", protect, requireRole('admin', 'super_ad
         include: [{ model: Job, as: 'job', attributes: ['id', 'title'] }]
       });
 
-      if (contract && contract.paymentStatus === 'failed') {
+      if (contract && (contract as any).paymentStatus === 'failed') {
         contract.paymentStatus = 'pending';
         await contract.save();
         console.log(`[ADMIN CANCEL-REJECT] Contract ${contract.id} payment status reverted to pending`);

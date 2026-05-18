@@ -110,7 +110,7 @@ class FCMService {
             sound: payload.sound || "default",
             clickAction: payload.clickAction,
             channelId: "default",
-            badge: payload.badge,
+            // badge: payload.badge, // not in AndroidNotification
           },
         },
         apns: {
@@ -120,7 +120,7 @@ class FCMService {
                 title: payload.title,
                 body: payload.body,
               },
-              badge: payload.badge,
+              // badge: payload.badge, // not in AndroidNotification
               sound: payload.sound || "default",
             },
           },
@@ -130,7 +130,7 @@ class FCMService {
             title: payload.title,
             body: payload.body,
             icon: payload.imageUrl,
-            badge: "/icons/badge.png",
+            // badge: not in AndroidNotification
           },
         },
       };
@@ -150,7 +150,7 @@ class FCMService {
 
         // Remove invalid tokens from user
         if (failedTokens.length > 0) {
-          await User.findByIdAndUpdate(payload.userId, {
+          await (User as any).findByIdAndUpdate(payload.userId, {
             $pull: { fcmTokens: { [Op.in]: failedTokens } },
           });
         }

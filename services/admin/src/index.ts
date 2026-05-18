@@ -30,8 +30,8 @@ if (!config.isProduction) {
 // HELPERS
 // ===========================================
 
-const getUserId = (req: express.Request): string | null => {
-  return req.headers['x-user-id'] as string || null;
+const getUserId = (req: express.Request): string | undefined => {
+  return req.headers['x-user-id'] as string || undefined;
 };
 
 const getAdminRole = (req: express.Request): string | null => {

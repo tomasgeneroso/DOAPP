@@ -3,11 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="description" content="DoApp es la plataforma freelance argentina donde publicás trabajos o encontrás oportunidades. Pagos seguros con escrow, tu dinero protegido hasta confirmar el trabajo." />
     <meta name="keywords" content="freelance, trabajo, argentina, pagos seguros, escrow, mercadopago, contratos, doapp" />
     <meta name="author" content="DoApp" />
-    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.svg" />
     <link rel="canonical" href="https://doapparg.site/" />
     <meta name="theme-color" content="#0ea5e9" />
+    <meta name="robots" content="index, follow" />
+    <meta name="geo.region" content="AR" />
+    <meta name="geo.placename" content="Argentina" />
 
     <!-- DNS Prefetch para recursos externos (carga más rápida) -->
     <link rel="dns-prefetch" href="//fonts.googleapis.com" />
@@ -21,22 +26,28 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 
+    <!-- Preload main script -->
+    <link rel="preload" as="script" href="/client/main.tsx" />
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="DoApp" />
+    <meta property="og:locale" content="es_AR" />
     <meta property="og:title" content="DoApp - Plataforma Freelance Argentina | Pagos Seguros con Escrow" />
     <meta property="og:description" content="DoApp es la plataforma freelance argentina donde publicás trabajos o encontrás oportunidades. Pagos seguros con escrow, tu dinero protegido hasta confirmar el trabajo." />
     <meta property="og:url" content="https://doapparg.site/" />
+    <!-- Note: /og-image.png must be created and placed in /public -->
     <meta property="og:image" content="https://doapparg.site/og-image.png" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@doapparg" />
     <meta name="twitter:title" content="DoApp - Plataforma Freelance Argentina | Pagos Seguros con Escrow" />
     <meta name="twitter:description" content="DoApp es la plataforma freelance argentina donde publicás trabajos o encontrás oportunidades. Pagos seguros con escrow." />
+    <!-- Note: /og-image.png must be created and placed in /public -->
     <meta name="twitter:image" content="https://doapparg.site/og-image.png" />
 
-    <title>DoApp</title>
+    <title>DoApp - Plataforma Freelance Argentina | Pagos Seguros con Escrow</title>
 
     <!-- Apply dark mode before React mounts to prevent flash -->
     <script>
@@ -61,6 +72,81 @@
   </head>
 
   <body>
+    <!-- Reserve space before React hydrates to prevent CLS -->
+    <style>
+      #root { min-height: 100vh; }
+      /* Prevent avatar images from causing CLS */
+      img { display: block; }
+      img[src*="dicebear"], img[src*="avatar"] { aspect-ratio: 1 / 1; }
+    </style>
+
+    <!-- Static H1 for search engine crawlers (visually hidden) -->
+    <h1 style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;">
+      DoApp - Plataforma Freelance Argentina con Pagos Seguros mediante Escrow
+    </h1>
+
+    <!-- JSON-LD Structured Data: WebSite -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "DoApp",
+      "url": "https://doapparg.site/",
+      "description": "Plataforma freelance argentina con pagos seguros mediante escrow. Publicá trabajos o encontrá oportunidades.",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://doapparg.site/?search={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
+
+    <!-- JSON-LD Structured Data: Organization -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "DoApp",
+      "url": "https://doapparg.site/",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://doapparg.site/favicon.ico"
+      },
+      "sameAs": [
+        "https://twitter.com/doapparg",
+        "https://www.instagram.com/doapparg"
+      ]
+    }
+    </script>
+
+    <!-- JSON-LD Structured Data: BreadcrumbList -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": [
+        {
+          "@type": "ListItem",
+          "position": 1,
+          "name": "Inicio",
+          "item": "https://doapparg.site/"
+        },
+        {
+          "@type": "ListItem",
+          "position": 2,
+          "name": "Blog",
+          "item": "https://doapparg.site/blog"
+        },
+        {
+          "@type": "ListItem",
+          "position": 3,
+          "name": "Ayuda",
+          "item": "https://doapparg.site/help"
+        }
+      ]
+    }
+    </script>
+
     <div id="root"></div>
 
     <!-- Register Firebase Service Worker for Push Notifications -->

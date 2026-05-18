@@ -4,6 +4,7 @@ import jwt, { Secret, SignOptions } from "jsonwebtoken";
 import { User } from "../models/sql/User.model.js";
 import { Referral } from "../models/sql/Referral.model.js";
 import { FamilyCode } from "../models/sql/FamilyCode.model.js";
+import { sequelize } from "../config/database.js";
 import { config } from "../config/env.js";
 import { protect } from "../middleware/auth.js";
 import type { AuthRequest } from "../types/index.js";
@@ -20,10 +21,13 @@ import { PasswordResetToken } from "../models/sql/PasswordResetToken.model.js";
 import emailService from "../services/email.js";
 import anomalyDetection from "../services/anomalyDetection.js";
 import { createAuditLog, getClientIp, getUserAgent } from "../utils/auditLogger.js";
-import { uploadAvatar, uploadCover } from "../middleware/upload.js";
+import { uploadAvatar, uploadCover, uploadDniPhotos } from "../middleware/upload.js";
 import twitterOAuth from "../services/twitterOAuth.js";
 
 const router = express.Router();
+
+// LoginDevice is not yet implemented in the SQL migration
+const LoginDevice: any = null;
 
 // Generar JWT Token (legacy - para compatibilidad)
 const generateToken = (id: string): string => {
@@ -303,7 +307,7 @@ router.post(
 
       // Actualizar último login
       user.lastLogin = new Date();
-      user.lastLoginIP = clientIp;
+      user.lastLoginIp = clientIp;
       await user.save();
 
       // Generar token
@@ -335,7 +339,7 @@ router.post(
         hasMembership: user.hasMembership,
         isPremiumVerified: user.isPremiumVerified,
         monthlyContractsUsed: user.proContractsUsedThisMonth,
-        monthlyFreeContractsLimit: user.monthlyFreeContractsLimit,
+        monthlyFreeContractsLimit: (user as any).monthlyFreeContractsLimit,
         balance: user.balanceArs,
         availabilitySchedule: user.availabilitySchedule,
         isAvailabilityPublic: user.isAvailabilityPublic,
@@ -422,9 +426,9 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         membershipTier: user?.membershipTier,
         hasMembership: user?.hasMembership,
         isPremiumVerified: user?.isPremiumVerified,
-        monthlyContractsUsed: user?.monthlyContractsUsed,
-        monthlyFreeContractsLimit: user?.monthlyFreeContractsLimit,
-        balance: user?.balance,
+        monthlyContractsUsed: (user as any)?.monthlyContractsUsed,
+        monthlyFreeContractsLimit: (user as any)?.monthlyFreeContractsLimit,
+        balance: user?.balanceArs,
         hasFamilyPlan: user?.hasFamilyPlan,
         familyCodeId: user?.familyCodeId,
         dni: user?.dni,
@@ -725,7 +729,7 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
 
     // Crear audit log si hubo cambios
     if (changes.length > 0) {
-      await createAuditLog({
+      await (createAuditLog as any)({
         userId: req.user.id,
         action: "user.settings_updated",
         entity: "user",
@@ -783,6 +787,30 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
   }
 });
 
+// PUT /api/auth/mode – toggle worker/client mode on user role
+router.put('/mode', protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { mode } = req.body; // 'doer' | 'client' | 'both'
+    const validModes = ['doer', 'client', 'both'];
+    if (!mode || !validModes.includes(mode)) {
+      res.status(400).json({ success: false, message: 'Modo inválido. Usa: doer, client, both' });
+      return;
+    }
+
+    const user = await User.findByPk(req.user.id as string);
+    if (!user) {
+      res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+      return;
+    }
+
+    await user.update({ role: mode });
+
+    res.json({ success: true, message: 'Modo actualizado correctamente', role: mode });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // --- Rutas de Autenticación Social ---
 
 // Google
@@ -798,7 +826,7 @@ router.get(
     session: false,
   }),
   (req: Request, res: Response) => {
-    const user = req.user as IUser;
+    const user = req.user as any;
     const token = generateToken((user.id as unknown as string));
 
     // Set token in httpOnly cookie
@@ -830,7 +858,7 @@ router.get(
     session: false,
   }),
   (req: Request, res: Response) => {
-    const user = req.user as IUser;
+    const user = req.user as any;
     const token = generateToken((user.id as unknown as string));
 
     // Check if user needs to complete registration (no DNI)
@@ -886,7 +914,7 @@ router.post("/facebook/token", async (req: Request, res: Response): Promise<void
 
     // Update last login
     user.lastLogin = new Date();
-    user.lastLoginIP = getClientIp(req);
+    user.lastLoginIp = getClientIp(req);
     await user.save();
 
     // Generate tokens
@@ -1513,7 +1541,7 @@ router.get("/has-password", protect, async (req: AuthRequest, res: Response): Pr
 // @access  Private
 router.get("/devices", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const devices = await (LoginDevice as any).getUserDevices(req.user.id);
+    const devices = await ((LoginDevice as any) ?? { getUserDevices: async () => [] }).getUserDevices(req.user.id);
 
     res.json({
       success: true,
@@ -1544,7 +1572,7 @@ router.get("/devices", protect, async (req: AuthRequest, res: Response): Promise
 // @access  Private
 router.post("/devices/:id/trust", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const device = await LoginDevice.findOne({
+    const device = await ((LoginDevice as any) ?? { findOne: () => null }).findOne({
       where: {
         id: req.params.id,
         userId: req.user.id,
@@ -1687,12 +1715,13 @@ router.post("/facebook/deauthorize", async (req: Request, res: Response): Promis
 
       if (user) {
         // Log the deauthorization
-        await createAuditLog({
+        await (createAuditLog as any)({
           userId: user.id as string,
           action: "facebook_deauthorize",
-          resource: "user",
-          resourceId: user.id as string,
-          details: {
+          description: "Facebook app deauthorized",
+          entity: "user",
+          entityId: user.id as string,
+          metadata: {
             facebookId: facebookUserId,
             timestamp: new Date().toISOString(),
           },
@@ -1748,19 +1777,19 @@ router.post("/facebook/data-deletion", async (req: Request, res: Response): Prom
 
       if (user) {
         // Create audit log for data deletion request
-        await createAuditLog({
+        await (createAuditLog as any)({
           userId: user.id as string,
           action: "data_deletion_request",
-          resource: "user",
-          resourceId: user.id as string,
-          details: {
+          entity: "user",
+          entityId: user.id as string,
+          metadata: {
             facebookId: facebookUserId,
             timestamp: new Date().toISOString(),
             source: "facebook",
           },
           ipAddress: getClientIp(req),
           userAgent: getUserAgent(req),
-          severity: "high",
+          // severity: "high" (not in AuditLog type)
         });
 
         // Generate a unique confirmation code
@@ -1773,15 +1802,10 @@ router.post("/facebook/data-deletion", async (req: Request, res: Response): Prom
 
         // Send notification email to user
         try {
-          await emailService.sendEmail({
+          await (emailService as any).sendEmail({
             to: user.email || "",
             subject: "Solicitud de Eliminación de Datos - DOAPP",
-            template: "data-deletion-request",
-            context: {
-              userName: user.name,
-              confirmationCode,
-              requestDate: new Date().toLocaleDateString("es-AR"),
-            },
+            html: `<p>Hola ${user.name}, tu código de confirmación es: <strong>${confirmationCode}</strong></p><p>Fecha: ${new Date().toLocaleDateString("es-AR")}</p>`,
           });
         } catch (emailError) {
           console.error("Failed to send data deletion email:", emailError);
@@ -1843,55 +1867,48 @@ router.post("/activate-family-code", protect, async (req: AuthRequest, res: Resp
       return;
     }
 
-    // Buscar el código
-    const familyCode = await FamilyCode.findOne({
-      where: { code: code.toUpperCase().trim() },
-    });
-
-    if (!familyCode) {
-      res.status(404).json({
-        success: false,
-        message: "Código no válido",
+    // Wrap in transaction with row-level lock to prevent race conditions
+    // where two users try to activate the same code simultaneously
+    await sequelize.transaction(async (t) => {
+      const familyCode = await FamilyCode.findOne({
+        where: { code: code.toUpperCase().trim() },
+        lock: t.LOCK.UPDATE, // SELECT FOR UPDATE — blocks concurrent reads until commit
+        transaction: t,
       });
-      return;
-    }
 
-    // Verificar si el código está disponible
-    if (!familyCode.isActive) {
-      res.status(400).json({
-        success: false,
-        message: "Este código ya no está activo",
-      });
-      return;
-    }
+      if (!familyCode) {
+        const err: any = new Error("Código no válido");
+        err.status = 404;
+        throw err;
+      }
 
-    if (familyCode.usedById) {
-      res.status(400).json({
-        success: false,
-        message: "Este código ya fue utilizado",
-      });
-      return;
-    }
+      if (!familyCode.isActive) {
+        const err: any = new Error("Este código ya no está activo");
+        err.status = 400;
+        throw err;
+      }
 
-    if (familyCode.expiresAt && new Date() > new Date(familyCode.expiresAt)) {
-      res.status(400).json({
-        success: false,
-        message: "Este código ha expirado",
-      });
-      return;
-    }
+      if (familyCode.usedById) {
+        const err: any = new Error("Este código ya fue utilizado");
+        err.status = 400;
+        throw err;
+      }
 
-    // Activar el plan familia para el usuario
-    await user.update({
-      familyCodeId: familyCode.id,
-      hasFamilyPlan: true,
-      currentCommissionRate: 0, // Sin comisión
-    });
+      if (familyCode.expiresAt && new Date() > new Date(familyCode.expiresAt)) {
+        const err: any = new Error("Este código ha expirado");
+        err.status = 400;
+        throw err;
+      }
 
-    // Marcar el código como usado
-    await familyCode.update({
-      usedById: user.id,
-      usedAt: new Date(),
+      await familyCode.update(
+        { usedById: user.id, usedAt: new Date() },
+        { transaction: t }
+      );
+
+      await user.update(
+        { familyCodeId: familyCode.id, hasFamilyPlan: true, currentCommissionRate: 0 },
+        { transaction: t }
+      );
     });
 
     res.json({
@@ -1904,7 +1921,7 @@ router.post("/activate-family-code", protect, async (req: AuthRequest, res: Resp
     });
   } catch (error: any) {
     console.error("Error activating family code:", error);
-    res.status(500).json({
+    res.status(error.status || 500).json({
       success: false,
       message: error.message || "Error del servidor",
     });
@@ -1957,6 +1974,52 @@ router.get("/family-plan-status", protect, async (req: AuthRequest, res: Respons
       message: error.message || "Error del servidor",
     });
   }
+});
+
+// @route   POST /api/auth/dni-photos
+// @desc    Upload DNI front/back photos (images or PDF)
+// @access  Private
+router.post("/dni-photos", protect, (req: AuthRequest, res: Response): void => {
+  uploadDniPhotos(req as any, res, async (err) => {
+    if (err) {
+      res.status(400).json({ success: false, message: err.message });
+      return;
+    }
+
+    try {
+      const files = (req as any).files as Record<string, Express.Multer.File[]> | undefined;
+
+      if (!files || (!files.dniPhotoFront && !files.dniPhotoBack)) {
+        res.status(400).json({ success: false, message: "Debés subir al menos una foto del DNI" });
+        return;
+      }
+
+      const user = await User.findByPk(req.user!.id);
+      if (!user) {
+        res.status(404).json({ success: false, message: "Usuario no encontrado" });
+        return;
+      }
+
+      const updates: Record<string, string> = {};
+      if (files.dniPhotoFront?.[0]) {
+        updates.dniPhotoFront = `/uploads/dni/${files.dniPhotoFront[0].filename}`;
+      }
+      if (files.dniPhotoBack?.[0]) {
+        updates.dniPhotoBack = `/uploads/dni/${files.dniPhotoBack[0].filename}`;
+      }
+
+      await user.update(updates);
+
+      res.json({
+        success: true,
+        message: "Fotos del DNI enviadas correctamente. Serán verificadas por el equipo.",
+        dniPhotoFront: (user as any).dniPhotoFront,
+        dniPhotoBack: (user as any).dniPhotoBack,
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
 });
 
 export default router;

@@ -128,22 +128,20 @@ export default function LocationCircleMap({ location }: LocationCircleMapProps) 
       }).addTo(map);
 
       // Dibujar círculo de 1km
-      const circle = L.circle([lat, lng], {
+      L.circle([lat, lng], {
         color: '#0ea5e9',
         fillColor: '#0ea5e9',
         fillOpacity: 0.2,
-        radius: 1000 // 1km en metros
+        radius: 1000
       }).addTo(map);
 
-      // Ajustar vista al círculo
-      map.fitBounds(circle.getBounds(), { padding: [50, 50] });
-
-      // Añadir ícono central
+      // Añadir ícono central — iconAnchor centra el punto exactamente en [lat,lng]
       const customIcon = L.divIcon({
-        className: 'custom-map-marker',
-        html: '<div style="background-color: #0ea5e9; width: 24px; height: 24px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>',
-        iconSize: [24, 24],
-        iconAnchor: [12, 12]
+        className: '',
+        html: '<div style="background-color:#0ea5e9;width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);margin:0;padding:0;"></div>',
+        iconSize: [16, 16],
+        iconAnchor: [8, 8],
+        popupAnchor: [0, -8],
       });
 
       L.marker([lat, lng], { icon: customIcon }).addTo(map);

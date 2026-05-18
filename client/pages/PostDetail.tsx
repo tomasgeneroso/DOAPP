@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { Heart, MessageCircle, Eye, ArrowLeft, Calendar, DollarSign, Tag, ChevronLeft, ChevronRight, Share2 } from "lucide-react";
@@ -44,6 +45,7 @@ interface Post {
 }
 
 export default function PostDetail() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, token } = useAuth();

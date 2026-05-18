@@ -104,6 +104,7 @@ export interface TicketMessage {
 }
 
 export interface Ticket {
+  contractId: import("react/jsx-runtime").JSX.Element;
   id: string;
   _id?: string;
   ticketNumber: string;

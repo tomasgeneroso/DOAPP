@@ -4,6 +4,7 @@ import { Contract } from "../models/sql/Contract.model.js";
 import { Job } from "../models/sql/Job.model.js";
 import { User } from "../models/sql/User.model.js";
 import { Referral } from "../models/sql/Referral.model.js";
+import { Notification as NotificationModel } from "../models/sql/Notification.model.js";
 import { protect } from "../middleware/auth.js";
 import type { AuthRequest } from "../types/index.js";
 import { socketService } from "../index.js";
@@ -64,8 +65,8 @@ async function processReferralCredit(userId: any, contractId: any): Promise<void
       // This is their first completed contract!
       // Update referral status
       referral.status = "completed";
-      referral.firstContractId = contractId;
-      referral.firstContractCompletedAt = new Date();
+      (referral as any).firstContractId = contractId;
+      (referral as any).firstContractCompletedAt = new Date();
       await referral.save();
 
       // Credit the referrer with a free contract
@@ -74,9 +75,7 @@ async function processReferralCredit(userId: any, contractId: any): Promise<void
         referrer.freeContractsRemaining += 1;
         await referrer.save();
 
-        // Update referral to credited
-        referral.status = "credited";
-        referral.creditedAt = new Date();
+        (referral as any).creditedAt = new Date();
         await referral.save();
 
         console.log(`Referral credit applied: User ${userId} completed first contract, credited referrer ${referrer.id}`);
@@ -271,7 +270,7 @@ router.get("/debug-job/:jobId", protect, async (req: AuthRequest, res: Response)
         currentUserId: userId,
         jobExists: !!job,
         jobId: job?.id,
-        jobCode: job?.code,
+        jobCode: ((job as any)?.code),
         jobStatus: job?.status,
         jobClientId: job?.clientId,
         jobClient: job?.client,
@@ -1204,7 +1203,7 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
     if (job && (job.maxWorkers || 1) > 1) {
       const BalanceTransaction = (await import('../models/sql/BalanceTransaction.model.js')).default;
       const worker = await User.findByPk(contract.doerId);
-      const currentBalance = worker?.availableBalance || 0;
+      const currentBalance = worker?.balanceArs || 0;
       const newBalance = currentBalance + paymentAmount;
 
       await BalanceTransaction.create({
@@ -1228,7 +1227,7 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
       });
 
       if (worker) {
-        worker.availableBalance = newBalance;
+        worker.balanceArs = newBalance;
         await worker.save();
       }
 
@@ -1365,7 +1364,7 @@ router.post("/:id/reject-confirmation", protect, async (req: AuthRequest, res: R
 
     // Notificar a la otra parte
     const otherPartyId = isClient ? contract.doerId.toString() : contract.clientId.toString();
-    await Notification.create({
+    await NotificationModel.create({
       recipientId: otherPartyId,
       type: 'warning',
       category: 'contract',
@@ -1689,7 +1688,7 @@ router.post("/:id/request-cancellation", protect, async (req: AuthRequest, res: 
     const { Notification } = await import('../models/sql/Notification.model.js');
 
     // Notify other party
-    await Notification.create({
+    await NotificationModel.create({
       recipientId: otherPartyId,
       type: 'warning',
       category: 'contract',
@@ -1912,7 +1911,7 @@ router.post("/:id/request-extension", protect, async (req: AuthRequest, res: Res
     await contract.save();
 
     // *** NOTIFICACIÓN MEJORADA: Crear notificación persistente para el trabajador ***
-    await Notification.create({
+    await NotificationModel.create({
       recipientId: contract.doerId,
       type: 'warning',
       category: 'contract',
@@ -2035,7 +2034,7 @@ router.post("/:id/approve-extension", protect, async (req: AuthRequest, res: Res
     await contract.save();
 
     // *** Crear notificación persistente para el cliente (quien solicitó) ***
-    await Notification.create({
+    await NotificationModel.create({
       recipientId: contract.clientId,
       type: 'success',
       category: 'contract',
@@ -2134,7 +2133,7 @@ router.post("/:id/reject-extension", protect, async (req: AuthRequest, res: Resp
     await contract.save();
 
     // *** Crear notificación persistente para el cliente (quien solicitó) ***
-    await Notification.create({
+    await NotificationModel.create({
       recipientId: contract.clientId,
       type: 'warning',
       category: 'contract',
@@ -2407,21 +2406,21 @@ router.put("/:id/modify-price", protect, async (req: AuthRequest, res: Response)
 
     if (priceDifference > 0) {
       // Price increased - check if user has enough balance
-      if (client.balance < priceDifference) {
+      if (client.balanceArs < priceDifference) {
         // User needs to pay the difference via MercadoPago
         res.status(402).json({
           success: false,
           message: "Debes pagar la diferencia para aumentar el precio",
           requiresPayment: true,
           amountRequired: priceDifference,
-          currentBalance: client.balance
+          currentBalance: client.balanceArs
         });
         return;
       }
 
       // Deduct from user balance
-      const balanceBefore = client.balance;
-      client.balance -= priceDifference;
+      const balanceBefore = client.balanceArs;
+      client.balanceArs -= priceDifference;
       await client.save();
 
       // Create transaction record
@@ -2430,7 +2429,7 @@ router.put("/:id/modify-price", protect, async (req: AuthRequest, res: Response)
         type: 'payment',
         amount: -priceDifference,
         balanceBefore,
-        balanceAfter: client.balance,
+        balanceAfter: client.balanceArs,
         description: `Pago de diferencia por aumento de precio de contrato`,
         relatedContractId: contract.id,
         metadata: {
@@ -2444,8 +2443,8 @@ router.put("/:id/modify-price", protect, async (req: AuthRequest, res: Response)
     } else if (priceDifference < 0) {
       // Price decreased - refund to user balance
       const refundAmount = Math.abs(priceDifference);
-      const balanceBefore = client.balance;
-      client.balance += refundAmount;
+      const balanceBefore = client.balanceArs;
+      client.balanceArs += refundAmount;
       await client.save();
 
       // Create transaction record
@@ -2454,7 +2453,7 @@ router.put("/:id/modify-price", protect, async (req: AuthRequest, res: Response)
         type: 'refund',
         amount: refundAmount,
         balanceBefore,
-        balanceAfter: client.balance,
+        balanceAfter: client.balanceArs,
         description: `Reembolso por reducción de precio de contrato`,
         relatedContractId: contract.id,
         metadata: {
@@ -2497,7 +2496,7 @@ router.put("/:id/modify-price", protect, async (req: AuthRequest, res: Response)
     const jobToUpdate = await Job.findByPk(contract.jobId);
     if (jobToUpdate) {
       jobToUpdate.price = newPrice;
-      jobToUpdate.budget = newPrice;
+      (jobToUpdate as any).budget = newPrice;
       await jobToUpdate.save();
     }
 
@@ -2522,7 +2521,7 @@ router.put("/:id/modify-price", protect, async (req: AuthRequest, res: Response)
         client.name,
         Math.abs(priceDifference),
         `Reducción de precio en contrato ${contract.id}`,
-        client.balance
+        client.balanceArs
       );
     }
 
@@ -2535,7 +2534,7 @@ router.put("/:id/modify-price", protect, async (req: AuthRequest, res: Response)
           : 'Precio actualizado',
       contract,
       transaction,
-      newBalance: client.balance
+      newBalance: client.balanceArs
     });
   } catch (error: any) {
     console.error("Error modifying contract price:", error);
@@ -2630,7 +2629,7 @@ router.post("/:id/request-price-change", protect, async (req: AuthRequest, res: 
 
       // Check if client can afford the difference + commission
       const totalRequired = priceDifference + additionalCommission;
-      if (client.balance < totalRequired) {
+      if (client.balanceArs < totalRequired) {
         res.status(402).json({
           success: false,
           message: "No tienes suficiente saldo para pagar la diferencia + comisión",
@@ -2638,7 +2637,7 @@ router.post("/:id/request-price-change", protect, async (req: AuthRequest, res: 
           amountRequired: totalRequired,
           priceDifference,
           additionalCommission,
-          currentBalance: client.balance
+          currentBalance: client.balanceArs
         });
         return;
       }
@@ -2657,15 +2656,17 @@ router.post("/:id/request-price-change", protect, async (req: AuthRequest, res: 
     await contract.save();
 
     // Notify doer
-    const notificationService = (await import('../services/notification.js')).default;
-    await notificationService.createNotification({
-      userId: contract.doerId,
-      type: 'contract_price_change_request',
+    await NotificationModel.create({
+      recipientId: contract.doerId,
+      type: 'info',
+      category: 'contract',
       title: 'Solicitud de cambio de precio',
       message: `El cliente ha solicitado cambiar el precio del contrato de $${previousPrice.toLocaleString('es-AR')} a $${newPrice.toLocaleString('es-AR')}. Razón: ${reason}`,
-      relatedContractId: contract.id,
-      actionUrl: `/contracts/${contract.id}`
-    });
+      relatedModel: 'Contract',
+      relatedId: contract.id,
+      actionUrl: `/contracts/${contract.id}`,
+      sentVia: ['in_app'],
+    } as any);
 
     res.status(200).json({
       success: true,
@@ -2745,8 +2746,8 @@ router.post("/:id/approve-price-change", protect, async (req: AuthRequest, res: 
         const additionalCommission = commissionResult.commission;
         const totalDeduct = priceDifference + additionalCommission;
 
-        const balanceBefore = client.balance;
-        client.balance -= totalDeduct;
+        const balanceBefore = client.balanceArs;
+        client.balanceArs -= totalDeduct;
         await client.save();
 
         transaction = await BalanceTransaction.create({
@@ -2754,7 +2755,7 @@ router.post("/:id/approve-price-change", protect, async (req: AuthRequest, res: 
           type: 'payment',
           amount: -totalDeduct,
           balanceBefore,
-          balanceAfter: client.balance,
+          balanceAfter: client.balanceArs,
           description: `Pago de diferencia + comisión por aumento de precio de contrato`,
           relatedContractId: contract.id,
           metadata: {
@@ -2773,8 +2774,8 @@ router.post("/:id/approve-price-change", protect, async (req: AuthRequest, res: 
       } else if (priceDifference < 0) {
         // Price decreased - refund to client
         const refundAmount = Math.abs(priceDifference);
-        const balanceBefore = client.balance;
-        client.balance += refundAmount;
+        const balanceBefore = client.balanceArs;
+        client.balanceArs += refundAmount;
         await client.save();
 
         transaction = await BalanceTransaction.create({
@@ -2782,7 +2783,7 @@ router.post("/:id/approve-price-change", protect, async (req: AuthRequest, res: 
           type: 'refund',
           amount: refundAmount,
           balanceBefore,
-          balanceAfter: client.balance,
+          balanceAfter: client.balanceArs,
           description: `Reembolso por reducción de precio de contrato`,
           relatedContractId: contract.id,
           metadata: {
@@ -2829,22 +2830,24 @@ router.post("/:id/approve-price-change", protect, async (req: AuthRequest, res: 
       }
 
       // Notify client
-      const notificationService = (await import('../services/notification.js')).default;
-      await notificationService.createNotification({
-        userId: contract.clientId,
-        type: 'contract_price_change_approved',
+      await NotificationModel.create({
+        recipientId: contract.clientId,
+        type: 'success',
+        category: 'contract',
         title: 'Cambio de precio aprobado',
         message: `El trabajador ha aprobado el cambio de precio del contrato a $${newPrice.toLocaleString('es-AR')}`,
-        relatedContractId: contract.id,
-        actionUrl: `/contracts/${contract.id}`
-      });
+        relatedModel: 'Contract',
+        relatedId: contract.id,
+        actionUrl: `/contracts/${contract.id}`,
+        sentVia: ['in_app'],
+      } as any);
 
       res.status(200).json({
         success: true,
         message: "Cambio de precio aprobado y aplicado",
         contract,
         transaction,
-        newBalance: client.balance
+        newBalance: client.balanceArs
       });
     } else {
       // Doer rejected
@@ -2852,15 +2855,17 @@ router.post("/:id/approve-price-change", protect, async (req: AuthRequest, res: 
       await contract.save();
 
       // Notify client
-      const notificationService = (await import('../services/notification.js')).default;
-      await notificationService.createNotification({
-        userId: contract.clientId,
-        type: 'contract_price_change_rejected',
+      await NotificationModel.create({
+        recipientId: contract.clientId,
+        type: 'warning',
+        category: 'contract',
         title: 'Cambio de precio rechazado',
         message: `El trabajador ha rechazado el cambio de precio del contrato`,
-        relatedContractId: contract.id,
-        actionUrl: `/contracts/${contract.id}`
-      });
+        relatedModel: 'Contract',
+        relatedId: contract.id,
+        actionUrl: `/contracts/${contract.id}`,
+        sentVia: ['in_app'],
+      } as any);
 
       res.status(200).json({
         success: true,
@@ -2982,20 +2987,22 @@ router.post("/:id/claim-tasks", protect, async (req: AuthRequest, res: Response)
     await contract.save();
 
     // Notify the worker
-    const notificationService = (await import('../services/notification.js')).default;
-    await notificationService.createNotification({
-      userId: contract.doerId,
-      type: 'task_claim',
+    await NotificationModel.create({
+      recipientId: contract.doerId,
+      type: 'warning',
+      category: 'contract',
       title: 'Reclamo de tareas pendientes',
       message: `El cliente ha reclamado ${tasks.length} tarea(s) como no completada(s). Tienes 48 horas para responder.`,
-      relatedContractId: contract.id,
-      actionUrl: `/contracts/${contract.id}`
-    });
+      relatedModel: 'Contract',
+      relatedId: contract.id,
+      actionUrl: `/contracts/${contract.id}`,
+      sentVia: ['in_app'],
+    } as any);
 
     // Send email notification
-    const emailService = await import('../services/email.js');
+    const emailService = (await import('../services/email.js')).default;
     if (contract.doer?.email) {
-      await emailService.sendEmail(
+      await (emailService as any).sendEmail(
         contract.doer.email,
         'Reclamo de tareas pendientes en DoApp',
         'task-claim',
@@ -3062,7 +3069,6 @@ router.post("/:id/respond-task-claim", protect, async (req: AuthRequest, res: Re
     }
 
     const { JobTask } = await import('../models/sql/JobTask.model.js');
-    const notificationService = (await import('../services/notification.js')).default;
 
     // Add to claim history
     contract.taskClaimHistory = [
@@ -3110,14 +3116,17 @@ router.post("/:id/respond-task-claim", protect, async (req: AuthRequest, res: Re
       await contract.save();
 
       // Notify client
-      await notificationService.createNotification({
-        userId: contract.clientId,
-        type: 'task_claim_accepted',
+      await NotificationModel.create({
+        recipientId: contract.clientId,
+        type: 'success',
+        category: 'contract',
         title: 'Reclamo aceptado',
         message: `El trabajador aceptó completar las tareas reclamadas. Nueva fecha de entrega: ${contract.taskClaimNewEndDate?.toLocaleDateString('es-AR')}`,
-        relatedContractId: contract.id,
-        actionUrl: `/contracts/${contract.id}`
-      });
+        relatedModel: 'Contract',
+        relatedId: contract.id,
+        actionUrl: `/contracts/${contract.id}`,
+        sentVia: ['in_app'],
+      } as any);
 
       res.json({
         success: true,
@@ -3157,25 +3166,28 @@ router.post("/:id/respond-task-claim", protect, async (req: AuthRequest, res: Re
       await contract.save();
 
       // Notify both parties
-      await notificationService.createNotification({
-        userId: contract.clientId,
-        type: 'dispute_created',
+      await NotificationModel.create({
+        recipientId: contract.clientId,
+        type: 'warning',
+        category: 'contract',
         title: 'Disputa creada automáticamente',
         message: `El trabajador rechazó el reclamo de tareas. Se ha abierto una disputa para resolver el conflicto.`,
-        relatedContractId: contract.id,
-        relatedDisputeId: dispute.id,
-        actionUrl: `/disputes/${dispute.id}`
-      });
-
-      await notificationService.createNotification({
-        userId: contract.doerId,
-        type: 'dispute_created',
+        relatedModel: 'Contract',
+        relatedId: contract.id,
+        actionUrl: `/disputes/${dispute.id}`,
+        sentVia: ['in_app'],
+      } as any);
+      await NotificationModel.create({
+        recipientId: contract.doerId,
+        type: 'warning',
+        category: 'contract',
         title: 'Disputa creada',
         message: `Has rechazado el reclamo de tareas. Se ha abierto una disputa para resolver el conflicto.`,
-        relatedContractId: contract.id,
-        relatedDisputeId: dispute.id,
-        actionUrl: `/disputes/${dispute.id}`
-      });
+        relatedModel: 'Contract',
+        relatedId: contract.id,
+        actionUrl: `/disputes/${dispute.id}`,
+        sentVia: ['in_app'],
+      } as any);
 
       res.json({
         success: true,

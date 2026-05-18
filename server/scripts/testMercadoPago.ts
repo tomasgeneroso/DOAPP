@@ -67,6 +67,7 @@ const testMercadoPago = async () => {
     const testPreference = await preferenceService.create({
       body: {
         items: [{
+          id: 'test-item-001',
           title: 'Test - Publicación DOAPP',
           description: 'Prueba de integración MercadoPago',
           quantity: 1,

@@ -73,10 +73,10 @@ export class AuditLog extends Model {
   action!: string;
 
   @Column({
-    type: DataType.ENUM('user', 'contract', 'ticket', 'role', 'permission', 'system'),
+    type: DataType.ENUM('user', 'contract', 'ticket', 'role', 'permission', 'payment', 'system'),
     allowNull: false,
   })
-  category!: 'user' | 'contract' | 'ticket' | 'role' | 'permission' | 'system';
+  category!: 'user' | 'contract' | 'ticket' | 'role' | 'permission' | 'payment' | 'system';
 
   @Column({
     type: DataType.ENUM('low', 'medium', 'high', 'critical'),
@@ -174,7 +174,7 @@ export class AuditLog extends Model {
     performedBy: string;
     adminRole: string;
     action: string;
-    category: 'user' | 'contract' | 'ticket' | 'role' | 'permission' | 'system';
+    category: 'user' | 'contract' | 'ticket' | 'role' | 'permission' | 'payment' | 'system';
     severity?: 'low' | 'medium' | 'high' | 'critical';
     targetModel?: string;
     targetId?: string;
@@ -214,7 +214,7 @@ export class AuditLog extends Model {
   static async getLogsByPerformer(
     performedBy: string,
     options?: {
-      category?: 'user' | 'contract' | 'ticket' | 'role' | 'permission' | 'system';
+      category?: 'user' | 'contract' | 'ticket' | 'role' | 'permission' | 'payment' | 'system';
       severity?: 'low' | 'medium' | 'high' | 'critical';
       limit?: number;
       offset?: number;

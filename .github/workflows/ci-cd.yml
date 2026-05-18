@@ -15,7 +15,7 @@ env:
 
 jobs:
   # ============================================
-  # Lint & Type Check
+  # Lint & Type Check (solo server — mobile y client tienen errores conocidos)
   # ============================================
   lint:
     name: Lint & Type Check
@@ -34,14 +34,24 @@ jobs:
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
 
-      - name: Run ESLint
-        run: npm run lint || true
+      - name: Run ESLint (server)
+        run: npx eslint server/routes server/middleware server/services --ext .ts --max-warnings 50 || true
 
-      - name: Run TypeScript check
-        run: npx tsc --noEmit || true
+      - name: TypeScript check (server only)
+        run: npx tsc --noEmit --project tsconfig.server.json
+        continue-on-error: true
+
+      - name: Check for critical security issues
+        run: |
+          echo "🔍 Checking for hardcoded secrets..."
+          if grep -rn "sk-[a-zA-Z0-9]" server/ --include="*.ts" | grep -v ".env"; then
+            echo "⚠️  Possible API key found in server code"
+            exit 1
+          fi
+          echo "✅ No hardcoded secrets found"
 
   # ============================================
-  # Build (verifica que compila correctamente)
+  # Build
   # ============================================
   build:
     name: Build Application
@@ -65,14 +75,22 @@ jobs:
         run: npm run build:client
         env:
           VITE_API_URL: https://doapparg.site/api
-          VITE_GOOGLE_ANALYTICS_ID: ${{ secrets.VITE_GOOGLE_ANALYTICS_ID }}
-          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
-          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
-          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
-          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
-          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
-          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
-          VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
+          VITE_GOOGLE_ANALYTICS_ID: "${{ secrets.VITE_GOOGLE_ANALYTICS_ID }}"
+          VITE_FIREBASE_API_KEY: "${{ secrets.VITE_FIREBASE_API_KEY }}"
+          VITE_FIREBASE_AUTH_DOMAIN: "${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}"
+          VITE_FIREBASE_PROJECT_ID: "${{ secrets.VITE_FIREBASE_PROJECT_ID }}"
+          VITE_FIREBASE_STORAGE_BUCKET: "${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}"
+          VITE_FIREBASE_MESSAGING_SENDER_ID: "${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}"
+          VITE_FIREBASE_APP_ID: "${{ secrets.VITE_FIREBASE_APP_ID }}"
+          VITE_FIREBASE_MEASUREMENT_ID: "${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}"
+
+      - name: Verify build output
+        run: |
+          if [ ! -d "dist/public" ] && [ ! -d "dist" ]; then
+            echo "❌ Build output not found"
+            exit 1
+          fi
+          echo "✅ Build output verified"
 
   # ============================================
   # Deploy to Hostinger VPS
@@ -92,7 +110,11 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
           script: |
+            set -e
             cd /var/www/doapp
+
+            echo "📋 Current commit before deploy:"
+            git rev-parse --short HEAD
 
             echo "📥 Pulling latest code..."
             git pull origin master
@@ -103,13 +125,32 @@ jobs:
             echo "🔨 Building frontend..."
             npm run build:client
 
+            echo "🗄️  Running database migrations..."
+            npx sequelize-cli db:migrate
+            echo "✅ Migrations completed"
+
             echo "🔄 Restarting application..."
             pm2 restart doapp || pm2 start ecosystem.config.cjs
 
+            echo "⏳ Waiting for app to start..."
+            sleep 5
+
             echo "✅ Deploy completed!"
             pm2 status
+            echo "📋 New commit:"
+            git rev-parse --short HEAD
 
       - name: Health Check
         run: |
-          sleep 10
-          curl -f https://doapparg.site/api/health || echo "Health check failed but deploy may still be successful"
+          echo "⏳ Waiting for server to be ready..."
+          sleep 15
+          for i in 1 2 3; do
+            if curl -sf https://doapparg.site/api/health; then
+              echo "✅ Health check passed"
+              exit 0
+            fi
+            echo "Retry $i/3..."
+            sleep 10
+          done
+          echo "❌ Health check failed after 3 attempts"
+          exit 1

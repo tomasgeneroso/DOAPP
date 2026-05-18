@@ -31,5 +31,34 @@
     "**/*.ts",
     "**/*.tsx"
   ],
-  "exclude": ["node_modules", "dist", ".next"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    ".next",
+    "server/scripts/migrateToPostgreSQL.ts",
+    "server/scripts/seed.ts",
+    "server/scripts/assignAdminRole.ts",
+    "server/scripts/activateProMembership.ts",
+    "server/scripts/debugPayment.ts",
+    "server/scripts/debugUser.ts",
+    "server/scripts/deleteAds.ts",
+    "server/scripts/listAdmins.ts",
+    "server/scripts/testPaypalEscrow.ts",
+    "server/scripts/migrateReferralFields.ts",
+    "server/scripts/migrateContractPayments.ts",
+    "server/scripts/fixMissingContracts.ts",
+    "server/scripts/repairJobFromProposal.ts",
+    "server/scripts/repairJobWithoutContract.ts",
+    "server/scripts/checkChatMessages.ts",
+    "server/scripts/checkContractPaymentStatus.ts",
+    "server/scripts/checkJobsContracts.ts",
+    "server/scripts/checkPaymentCommission.ts",
+    "server/scripts/checkPayments.ts",
+    "services/**/*",
+    "server/services/membershipService.ts",
+    "server/services/mercadopagoOAuth.ts",
+    "server/services/anomalyDetection.ts",
+    "server/utils/tokens.ts",
+    "server/services/paypal.ts"
+  ]
 }

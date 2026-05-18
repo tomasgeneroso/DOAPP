@@ -113,14 +113,15 @@ router.get("/summary", protect, async (req: AuthRequest, res: Response): Promise
     }
 
     // Calculate totals by type using raw SQL aggregation
-    const stats = await sequelize.query(
+    const { QueryTypes } = await import('sequelize');
+    const stats = await (sequelize as any).query(
       `SELECT type, SUM(amount) as total, COUNT(*) as count
        FROM "balance_transactions"
        WHERE "user_id" = :userId
        GROUP BY type`,
       {
         replacements: { userId },
-        type: sequelize.QueryTypes.SELECT as any
+        type: QueryTypes.SELECT,
       }
     ) as Array<{ type: string; total: number; count: number }>;
 
@@ -252,7 +253,8 @@ router.post("/withdraw", protect, async (req: AuthRequest, res: Response): Promi
 
     // Send push notification
     const fcmService = (await import('../services/fcm.js')).default;
-    await fcmService.sendToUser(userId.toString(), {
+    await fcmService.sendToUser({
+      userId: userId.toString(),
       title: 'Solicitud de Retiro Recibida',
       body: `Tu solicitud de retiro por $${amount.toLocaleString("es-AR")} está siendo procesada.`,
       data: { type: 'withdrawal_requested', withdrawalId: withdrawal.id.toString() }

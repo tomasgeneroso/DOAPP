@@ -1,4 +1,4 @@
-import { useState, useEffect, FormEvent, ChangeEvent } from "react";
+import { useState, useEffect, useRef, FormEvent, ChangeEvent } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
@@ -6,10 +6,11 @@ import { useFacebookLogin } from "../hooks/useFacebookLogin";
 import { Helmet } from "react-helmet-async";
 import { AnimatedButton } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input"; // Asegúrate que este componente se esté usando
-import { Chrome, Facebook, Twitter, Eye, EyeOff, Home } from "lucide-react";
+import { Chrome, Facebook, Twitter, Eye, EyeOff, Home, Upload, X, FileText, Image } from "lucide-react";
 import TokenExpiredNotice from "../components/TokenExpiredNotice";
 import MembershipOfferModal from "../components/MembershipOfferModal";
 import { analytics, identifyUser } from "../utils/analytics";
+import { ThemeToggle } from "../components/ui/ThemeToggle";
 
 type FormMode = "login" | "register";
 
@@ -44,6 +45,14 @@ export default function LoginScreen() {
   });
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const [usernameDebounce, setUsernameDebounce] = useState<ReturnType<typeof setTimeout> | null>(null);
+  // DNI photos
+  const [dniMode, setDniMode] = useState<'images' | 'pdf'>('images');
+  const [dniPhotoFront, setDniPhotoFront] = useState<File | null>(null);
+  const [dniPhotoBack, setDniPhotoBack] = useState<File | null>(null);
+  const [dniPdf, setDniPdf] = useState<File | null>(null);
+  const frontInputRef = useRef<HTMLInputElement>(null);
+  const backInputRef = useRef<HTMLInputElement>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [errorField, setErrorField] = useState<'email' | 'password' | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -155,6 +164,28 @@ export default function LoginScreen() {
           identifyUser(newUser.id);
         }
 
+        // Upload DNI photos if provided
+        const hasDniFiles = dniMode === 'pdf' ? !!dniPdf : (!!dniPhotoFront || !!dniPhotoBack);
+        if (hasDniFiles) {
+          try {
+            const token = localStorage.getItem('token');
+            const fd = new FormData();
+            if (dniMode === 'pdf' && dniPdf) {
+              fd.append('dniPhotoFront', dniPdf);
+            } else {
+              if (dniPhotoFront) fd.append('dniPhotoFront', dniPhotoFront);
+              if (dniPhotoBack) fd.append('dniPhotoBack', dniPhotoBack);
+            }
+            await fetch('/api/auth/dni-photos', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}` },
+              body: fd,
+            });
+          } catch {
+            // Non-blocking — user can upload later from profile
+          }
+        }
+
         // Mark that user just registered to trigger membership check
         setJustRegistered(true);
       }
@@ -219,6 +250,10 @@ export default function LoginScreen() {
       </Helmet>
       {/* Background layer: covers full viewport regardless of body zoom */}
       <div className="fixed inset-0 bg-slate-50 dark:bg-slate-900 -z-10" aria-hidden="true" />
+      {/* Theme toggle fixed top-right */}
+      <div className="fixed top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
       <div className="flex min-h-screen flex-col justify-center px-4 py-6 sm:px-6 sm:py-12 lg:px-8">
         <div className="mx-auto w-full max-w-[95%] sm:max-w-md rounded-2xl bg-white dark:bg-slate-800 p-5 shadow-lg sm:p-8 md:p-12 animate-scaleIn">
           <Link
@@ -512,6 +547,117 @@ export default function LoginScreen() {
                     {t('auth.dniHelper')}
                   </p>
                 </div>
+
+                {/* DNI Photos */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300">
+                      Foto del DNI <span className="text-slate-400">(opcional)</span>
+                    </label>
+                    <div className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => { setDniMode('images'); setDniPdf(null); }}
+                        className={`px-3 py-1.5 flex items-center gap-1 transition-colors ${dniMode === 'images' ? 'bg-sky-500 text-white' : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600'}`}
+                      >
+                        <Image className="w-3 h-3" /> 2 fotos
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setDniMode('pdf'); setDniPhotoFront(null); setDniPhotoBack(null); }}
+                        className={`px-3 py-1.5 flex items-center gap-1 transition-colors ${dniMode === 'pdf' ? 'bg-sky-500 text-white' : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600'}`}
+                      >
+                        <FileText className="w-3 h-3" /> PDF
+                      </button>
+                    </div>
+                  </div>
+
+                  {dniMode === 'images' ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      {/* Front */}
+                      <div>
+                        <input ref={frontInputRef} type="file" accept="image/jpeg,image/jpg,image/png" className="hidden"
+                          onChange={(e) => setDniPhotoFront(e.target.files?.[0] ?? null)} />
+                        <button type="button" onClick={() => frontInputRef.current?.click()}
+                          className={`w-full h-24 rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1 text-xs transition-colors ${dniPhotoFront ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20' : 'border-slate-300 dark:border-slate-600 hover:border-sky-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                        >
+                          {dniPhotoFront ? (
+                            <>
+                              <img src={URL.createObjectURL(dniPhotoFront)} alt="DNI frente" className="h-14 w-full object-cover rounded" />
+                              <span className="text-sky-600 dark:text-sky-400 font-medium truncate max-w-full px-1">{dniPhotoFront.name}</span>
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-5 h-5 text-slate-400" />
+                              <span className="text-slate-500 dark:text-slate-400">Frente del DNI</span>
+                              <span className="text-slate-400 text-[10px]">JPG o PNG</span>
+                            </>
+                          )}
+                        </button>
+                        {dniPhotoFront && (
+                          <button type="button" onClick={() => setDniPhotoFront(null)} className="mt-1 text-xs text-red-500 hover:text-red-600 flex items-center gap-1">
+                            <X className="w-3 h-3" /> Quitar
+                          </button>
+                        )}
+                      </div>
+                      {/* Back */}
+                      <div>
+                        <input ref={backInputRef} type="file" accept="image/jpeg,image/jpg,image/png" className="hidden"
+                          onChange={(e) => setDniPhotoBack(e.target.files?.[0] ?? null)} />
+                        <button type="button" onClick={() => backInputRef.current?.click()}
+                          className={`w-full h-24 rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1 text-xs transition-colors ${dniPhotoBack ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20' : 'border-slate-300 dark:border-slate-600 hover:border-sky-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                        >
+                          {dniPhotoBack ? (
+                            <>
+                              <img src={URL.createObjectURL(dniPhotoBack)} alt="DNI dorso" className="h-14 w-full object-cover rounded" />
+                              <span className="text-sky-600 dark:text-sky-400 font-medium truncate max-w-full px-1">{dniPhotoBack.name}</span>
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-5 h-5 text-slate-400" />
+                              <span className="text-slate-500 dark:text-slate-400">Dorso del DNI</span>
+                              <span className="text-slate-400 text-[10px]">JPG o PNG</span>
+                            </>
+                          )}
+                        </button>
+                        {dniPhotoBack && (
+                          <button type="button" onClick={() => setDniPhotoBack(null)} className="mt-1 text-xs text-red-500 hover:text-red-600 flex items-center gap-1">
+                            <X className="w-3 h-3" /> Quitar
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <input ref={pdfInputRef} type="file" accept="application/pdf" className="hidden"
+                        onChange={(e) => setDniPdf(e.target.files?.[0] ?? null)} />
+                      <button type="button" onClick={() => pdfInputRef.current?.click()}
+                        className={`w-full h-20 rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1 text-xs transition-colors ${dniPdf ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20' : 'border-slate-300 dark:border-slate-600 hover:border-sky-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                      >
+                        {dniPdf ? (
+                          <>
+                            <FileText className="w-6 h-6 text-sky-500" />
+                            <span className="text-sky-600 dark:text-sky-400 font-medium truncate max-w-full px-2">{dniPdf.name}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-5 h-5 text-slate-400" />
+                            <span className="text-slate-500 dark:text-slate-400">PDF con ambas caras del DNI</span>
+                          </>
+                        )}
+                      </button>
+                      {dniPdf && (
+                        <button type="button" onClick={() => setDniPdf(null)} className="mt-1 text-xs text-red-500 hover:text-red-600 flex items-center gap-1">
+                          <X className="w-3 h-3" /> Quitar
+                        </button>
+                      )}
+                    </div>
+                  )}
+                  <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">
+                    Podés subir las fotos ahora o más tarde desde tu perfil. Se usará para verificar tu identidad.
+                  </p>
+                </div>
+
                 <div>
                   <label
                     htmlFor="referralCode"

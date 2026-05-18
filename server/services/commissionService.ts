@@ -131,7 +131,7 @@ export async function calculateCommission(
   }
 
   const hasFamilyPlan = user.hasFamilyPlan === true;
-  const membershipType = user.membershipType || 'free';
+  const membershipType = user.membershipTier || 'free';
   const freeContractsRemaining = user.freeContractsRemaining || 0;
 
   // 1. Family plan = 0% commission
@@ -241,7 +241,7 @@ export async function getUserCommissionRate(userId: string): Promise<{
     };
   }
 
-  const membershipType = user?.membershipType || 'free';
+  const membershipType = user?.membershipTier || 'free';
   const monthlyVolume = await getUserMonthlyVolume(userId);
 
   if (membershipType === 'super_pro') {

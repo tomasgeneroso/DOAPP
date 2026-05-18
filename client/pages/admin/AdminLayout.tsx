@@ -124,6 +124,7 @@ export default function AdminLayout() {
       items: [
         { path: "/admin/roles", icon: Shield, label: t('admin.sidebar.assignRoles', 'Assign Roles'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/role-permissions", icon: Lock, label: t('admin.sidebar.permissions', 'Permissions'), roles: ["owner", "super_admin"] },
+        { path: "/admin/security", icon: AlertTriangle, label: 'Seguridad', roles: ["owner", "super_admin"] },
         { path: "/admin/settings", icon: Settings, label: t('admin.sidebar.settings', 'Settings'), roles: ["owner", "super_admin"] },
       ]
     },

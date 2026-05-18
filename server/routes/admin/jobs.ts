@@ -273,7 +273,7 @@ router.put(
       });
 
       // Send real-time notification
-      socketService.notifyUser(job.clientId, notification.toJSON());
+      socketService.notifyUser(job.clientId, "notification:new", notification.toJSON());
 
       res.json({
         success: true,
@@ -447,6 +447,46 @@ router.put(
         success: false,
         message: error.message || 'Error al ejecutar acción',
       });
+    }
+  }
+);
+
+// PUT /api/admin/jobs/:id/toggle-reviewer
+// Toggle current admin user as reviewer (click to set, click again to unset)
+router.put(
+  '/:id/toggle-reviewer',
+  protect,
+  requireAdminRole,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const job = await Job.findByPk(req.params.id, {
+        include: [{ model: User, as: 'reviewer', attributes: ['id', 'name', 'email'] }],
+      });
+
+      if (!job) {
+        res.status(404).json({ success: false, message: 'Trabajo no encontrado' });
+        return;
+      }
+
+      const userId = req.user.id;
+
+      if ((job as any).reviewedBy === userId) {
+        // Already reviewed by this user — unset
+        await (job as any).update({ reviewedBy: null, reviewedAt: null });
+        res.json({ success: true, reviewed: false, reviewedBy: null, reviewedAt: null, reviewer: null });
+      } else {
+        // Set reviewer
+        await (job as any).update({ reviewedBy: userId, reviewedAt: new Date() });
+        res.json({
+          success: true,
+          reviewed: true,
+          reviewedBy: userId,
+          reviewedAt: new Date(),
+          reviewer: { id: req.user.id, name: req.user.name },
+        });
+      }
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
     }
   }
 );

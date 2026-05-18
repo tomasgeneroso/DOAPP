@@ -318,7 +318,7 @@ router.put(
       }
 
       const contract = changeRequest.contract as any;
-      const requester = changeRequest.requestedById;
+      const requester = changeRequest.requestedBy;
 
       // Verificar que quien responde NO es quien solicitó
       if (requester === userId) {
@@ -343,7 +343,7 @@ router.put(
 
       // Actualizar solicitud
       changeRequest.status = accept ? 'accepted' : 'rejected';
-      changeRequest.respondedById = req.user.id;
+      changeRequest.respondedBy = req.user.id;
       changeRequest.respondedAt = new Date();
       await changeRequest.save();
 
@@ -462,14 +462,14 @@ router.post('/escalate-expired', async (req, res: Response): Promise<void> => {
     for (const request of expiredRequests) {
       const contract = request.contract as any;
       const requesterUser =
-        request.requestedById === contract.client.id
+        request.requestedBy === contract.client.id
           ? contract.client
           : contract.doer;
       const jobTitle = contract.job?.title || 'Contrato';
 
       // Crear ticket de soporte
       const ticket = await Ticket.create({
-        userId: request.requestedById,
+        userId: request.requestedBy,
         subject: `Solicitud de ${request.type === 'cancel' ? 'cancelación' : 'modificación'} sin respuesta - ${jobTitle}`,
         message: `
           Solicitud automáticamente escalada después de 2 días sin respuesta.

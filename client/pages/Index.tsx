@@ -36,6 +36,7 @@ export default function Index() {
   const [myJobs, setMyJobs] = useState<Job[]>([]);
   const [jobsLoading, setJobsLoading] = useState(true);
   const [searchType, setSearchType] = useState<'jobs' | 'users'>('jobs');
+  const [howItWorksTab, setHowItWorksTab] = useState<'client' | 'worker'>('client');
   const { ads, recordImpression, recordClick } = useAdvertisements({
     placement: "jobs_list",
   });
@@ -173,7 +174,9 @@ export default function Index() {
       }
 
       const response = await fetch(`/api/jobs?${params.toString()}`);
-      const data = await response.json();
+      const text = await response.text();
+      if (!text) return;
+      const data = JSON.parse(text);
       if (data.success) {
         setJobs(data.jobs);
       }
@@ -313,30 +316,228 @@ export default function Index() {
             <div style={{ position:'absolute', width:'50vw', height:'55vh', bottom:'8%', right:'-5%', background:'radial-gradient(ellipse at center, rgba(249,115,22,0.18) 0%, transparent 65%)', animation:'blobFloat2 12s ease-in-out infinite', willChange:'transform' }} />
             <div style={{ position:'absolute', width:'45vw', height:'45vh', top:'40%', left:'28%', background:'radial-gradient(ellipse at center, rgba(99,102,241,0.15) 0%, transparent 65%)', animation:'blobFloat3 10s ease-in-out infinite', willChange:'transform' }} />
           </div>
-          {/* Hero */}
-          <div className="px-3 sm:px-4 pt-12 sm:pt-16 pb-10 text-center" style={{ position:'relative', zIndex:1 }}>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-white px-2">
+          {/* Hero — full screen */}
+          <div className="flex flex-col items-center justify-center text-center px-4"
+               style={{ position:'relative', zIndex:1, minHeight:'100vh' }}>
+            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight text-white leading-tight max-w-4xl">
               {t('home.title')}{" "}
               <span className="text-sky-400">{t('home.titleHighlight')}</span>
             </h1>
-            <p className="mx-auto mt-4 sm:mt-6 max-w-2xl text-base sm:text-lg leading-7 text-slate-400 px-2">
+            <p className="mx-auto mt-6 max-w-xl text-lg sm:text-xl leading-7 text-slate-300">
               {t('home.subtitle')}
             </p>
-            <p className="mx-auto mt-3 max-w-2xl text-sm text-slate-500 px-2">
+            <p className="mx-auto mt-3 max-w-lg text-sm text-slate-500">
               {t('home.subtitleSecond')}
             </p>
-            <div className="mt-8 flex items-center justify-center px-4">
+            <div className="mt-10 flex flex-col sm:flex-row items-center gap-4">
               <Link
                 to="/login"
-                className="w-full max-w-xs sm:w-auto rounded-xl bg-orange-500 px-6 py-3 text-sm sm:text-base font-semibold text-white shadow-lg shadow-orange-500/30 hover:bg-orange-400 hover:scale-105 hover:shadow-orange-500/50 active:scale-95 transition-all duration-200"
+                className="w-64 sm:w-auto rounded-xl bg-orange-500 px-10 py-4 text-base font-bold text-white shadow-xl shadow-orange-500/30 hover:bg-orange-400 hover:scale-105 hover:shadow-orange-500/50 active:scale-95 transition-all duration-200"
               >
                 {t('home.publishJob')}
               </Link>
+              <Link
+                to="/register"
+                className="w-64 sm:w-auto rounded-xl border-2 border-slate-600 px-10 py-4 text-base font-semibold text-slate-300 hover:border-sky-500 hover:text-white transition-all duration-200"
+              >
+                Ver trabajos disponibles
+              </Link>
+            </div>
+            {/* Scroll indicator */}
+            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 opacity-50">
+              <span className="text-xs text-slate-500 uppercase tracking-widest">Scroll</span>
+              <div className="w-px h-8 bg-gradient-to-b from-slate-500 to-transparent" />
             </div>
           </div>
 
-          {/* Showcase section */}
-          <div className="relative px-3 sm:px-4 py-14 sm:py-20 overflow-hidden" style={{ zIndex:1 }}>
+          {/* ── SECTION DIVIDER ── */}
+          <div className="w-full border-t border-slate-800/60" style={{ position:'relative', zIndex:1 }} />
+
+          {/* ① How it works — unified tabbed section */}
+          <div className="px-3 sm:px-4 py-16 sm:py-20 max-w-6xl mx-auto" style={{ position:'relative', zIndex:1 }}>
+            {/* Heading */}
+            <div className="text-center mb-10">
+              <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight">
+                {t('home.howItWorks')}
+              </h2>
+              <p className="mt-3 text-slate-400 text-sm sm:text-base">
+                {t('home.howItWorksSubtitle')}
+              </p>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex justify-center mb-8">
+              <div className="inline-flex rounded-xl bg-slate-900 border border-slate-700 p-1 gap-1">
+                <button
+                  onClick={() => setHowItWorksTab('client')}
+                  className={`px-6 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                    howItWorksTab === 'client'
+                      ? 'bg-sky-500 text-white shadow-lg shadow-sky-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {t('home.tabNeedService')}
+                </button>
+                <button
+                  onClick={() => setHowItWorksTab('worker')}
+                  className={`px-6 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                    howItWorksTab === 'worker'
+                      ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {t('home.tabOfferSkills')}
+                </button>
+              </div>
+            </div>
+
+            {/* Steps */}
+            <div className="bg-slate-800 rounded-2xl p-6 sm:p-8 border border-slate-700 transition-colors duration-300">
+              <p className="text-center text-slate-400 mb-8 text-sm">
+                {howItWorksTab === 'client' ? t('home.needServiceDesc') : t('home.offerServicesDesc')}
+              </p>
+
+              {(() => {
+                const stepColors = [
+                  { bg: 'bg-gradient-to-br from-sky-500 to-sky-600', badge: 'bg-sky-600', arrow: 'text-sky-400' },
+                  { bg: 'bg-gradient-to-br from-orange-500 to-orange-600', badge: 'bg-orange-600', arrow: 'text-orange-400' },
+                  { bg: 'bg-gradient-to-br from-purple-500 to-purple-600', badge: 'bg-purple-600', arrow: 'text-purple-400' },
+                  { bg: 'bg-gradient-to-br from-green-500 to-green-600', badge: 'bg-green-600', arrow: 'text-green-400' },
+                ];
+                const clientSteps = [
+                  { icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />, title: t('home.step1Client'), desc: t('home.step1ClientDesc') },
+                  { icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />, title: t('home.step2Client'), desc: t('home.step2ClientDesc') },
+                  { icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />, title: t('home.step3Client'), desc: t('home.step3ClientDesc') },
+                  { icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />, title: t('home.step4Client'), desc: t('home.step4ClientDesc') },
+                ];
+                const workerSteps = [
+                  { icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />, title: t('home.step1Worker'), desc: t('home.step1WorkerDesc') },
+                  { icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />, title: t('home.step2Worker'), desc: t('home.step2WorkerDesc') },
+                  { icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />, title: t('home.step3Worker'), desc: t('home.step3WorkerDesc') },
+                  { icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />, title: t('home.step4Worker'), desc: t('home.step4WorkerDesc') },
+                ];
+                const steps = howItWorksTab === 'client' ? clientSteps : workerSteps;
+                return (
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6 md:gap-4 overflow-visible pt-4">
+                    {steps.map(({ icon, title, desc }, i) => (
+                      <div key={i} className="group flex flex-col items-center text-center relative overflow-visible hover:-translate-y-1 transition-transform duration-300">
+                        <div className={`w-16 h-16 ${stepColors[i].bg} rounded-2xl flex items-center justify-center shadow-lg mb-4 transition-all duration-300 group-hover:scale-110 group-hover:shadow-xl group-hover:-translate-y-1`}>
+                          <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">{icon}</svg>
+                        </div>
+                        <div className={`absolute -top-2 -left-2 w-8 h-8 ${stepColors[i].badge} rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md z-10`}>{i + 1}</div>
+                        <h3 className="font-semibold text-white mb-2">{title}</h3>
+                        <p className="text-sm text-slate-400">{desc}</p>
+                        {i < steps.length - 1 && (
+                          <div className={`hidden md:block absolute top-8 -right-4 ${stepColors[i].arrow}`}>
+                            <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z" /></svg>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {/* CTA below steps */}
+              <div className="mt-10 flex justify-center">
+                <Link
+                  to="/register"
+                  className={`px-8 py-3 rounded-xl text-sm font-bold text-white shadow-lg transition-all duration-200 hover:scale-105 active:scale-95 ${
+                    howItWorksTab === 'client'
+                      ? 'bg-sky-500 hover:bg-sky-400 shadow-sky-500/30'
+                      : 'bg-orange-500 hover:bg-orange-400 shadow-orange-500/30'
+                  }`}
+                >
+                  {howItWorksTab === 'client' ? t('home.publishJob') : t('home.registerFree')}
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          {/* ── SECTION DIVIDER ── */}
+          <div className="w-full border-t border-slate-800/60" style={{ position:'relative', zIndex:1 }} />
+
+          {/* ③ Trabajos disponibles — preview para visitantes */}
+          <div className="px-3 sm:px-4 py-16 sm:py-20 max-w-6xl mx-auto" style={{ position:'relative', zIndex:1 }}>
+            <div className="flex items-end justify-between mb-8">
+              <div>
+                <span className="inline-block px-4 py-1.5 bg-sky-500/20 text-sky-400 text-xs font-bold uppercase tracking-widest rounded-full border border-sky-500/30 mb-3">
+                  En este momento
+                </span>
+                <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight">
+                  {t('home.availableJobs')}
+                </h2>
+              </div>
+              <Link
+                to="/register"
+                className="hidden sm:inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-sm font-semibold transition-colors"
+              >
+                Ver todos
+              </Link>
+            </div>
+            {jobsLoading ? (
+              <div className="flex justify-center py-16">
+                <div className="h-12 w-12 animate-spin rounded-full border-4 border-solid border-sky-500 border-t-transparent" />
+              </div>
+            ) : jobs.length === 0 ? (
+              <div className="text-center py-16">
+                <Briefcase className="h-16 w-16 text-slate-700 mx-auto mb-4" />
+                <p className="text-slate-400">{t('home.noJobsYet')}</p>
+              </div>
+            ) : (
+              <>
+                <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                  {jobs.slice(0, 6).map((job) => (
+                    <Link
+                      key={`visitor-job-${job.id}`}
+                      to="/register"
+                      className="group relative flex flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-800/80 p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-sky-500/60 hover:shadow-xl hover:shadow-sky-900/30"
+                    >
+                      <div className="absolute right-4 top-4 rounded-full bg-sky-500 px-3 py-1 text-sm font-bold text-white shadow-lg shadow-sky-500/30">
+                        ${job.price.toLocaleString('es-AR')}
+                      </div>
+                      <h3 className="mb-1 pr-20 text-base font-bold text-white group-hover:text-sky-400 transition-colors">
+                        {job.title}
+                      </h3>
+                      {job.client && typeof job.client === 'object' && (
+                        <div className="mb-2 flex items-center gap-1 text-amber-400">
+                          <Star className="h-3.5 w-3.5 fill-current" />
+                          <span className="text-xs text-slate-400">
+                            {(typeof job.client.rating === 'number' ? job.client.rating : parseFloat(job.client.rating as any) || 0).toFixed(1)}
+                          </span>
+                        </div>
+                      )}
+                      <p className="mb-4 line-clamp-2 text-sm text-slate-400">{job.summary}</p>
+                      <div className="mt-auto space-y-1.5 border-t border-slate-700 pt-3">
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                          <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                          <span className="truncate">{[job.neighborhood, job.location, 'Argentina'].filter(Boolean).join(', ')}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-slate-500">
+                          <Calendar className="h-3.5 w-3.5 flex-shrink-0" />
+                          <span>{new Date(job.startDate).toLocaleDateString('es-AR')}</span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+                <div className="mt-8 text-center sm:hidden">
+                  <Link
+                    to="/register"
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-sm font-semibold transition-colors"
+                  >
+                    Ver todos los trabajos
+                  </Link>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* ── SECTION DIVIDER ── */}
+          <div className="w-full border-t border-slate-800/60" style={{ position:'relative', zIndex:1 }} />
+
+          {/* ④ Showcase — Cada detalle, bajo control */}
+          <div className="relative px-3 sm:px-4 py-20 sm:py-28 overflow-hidden" style={{ zIndex:1 }}>
             <div className="relative max-w-6xl mx-auto">
               <div className="text-center mb-10">
                 <span className="inline-block px-4 py-1.5 bg-orange-500/20 text-orange-400 text-xs font-bold uppercase tracking-widest rounded-full border border-orange-500/30 mb-4">
@@ -349,10 +550,7 @@ export default function Index() {
                   Publicá lo que necesitás, elegí al mejor profesional y pagá de forma segura.
                 </p>
               </div>
-
-              {/* Job mockup card */}
               <div className="max-w-2xl mx-auto bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-2xl shadow-black/40 hover:-translate-y-2 hover:border-sky-500/40 hover:shadow-sky-500/10 transition-all duration-500 cursor-default group/card">
-                {/* Header */}
                 <div className="flex items-start justify-between gap-4 mb-5">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
@@ -362,56 +560,35 @@ export default function Index() {
                     <h3 className="text-lg font-bold text-white leading-tight">Reparación de plomería urgente</h3>
                     <p className="text-slate-400 text-sm mt-1 line-clamp-2">Necesito un plomero para arreglar una pérdida de agua en la cocina. Trabajo de media jornada.</p>
                   </div>
-                  <span className="flex-shrink-0 bg-sky-500 text-white text-base font-bold px-4 py-1.5 rounded-full shadow-lg shadow-sky-500/20 group-hover/card:shadow-sky-500/50 group-hover/card:scale-105 transition-all duration-300">
-                    $18.000
-                  </span>
+                  <span className="flex-shrink-0 bg-sky-500 text-white text-base font-bold px-4 py-1.5 rounded-full shadow-lg shadow-sky-500/20 group-hover/card:shadow-sky-500/50 group-hover/card:scale-105 transition-all duration-300">$18.000</span>
                 </div>
-
-                {/* Date grid */}
                 <div className="grid grid-cols-2 gap-3 mb-5">
-                  {[
-                    { label: 'Fecha inicio', value: '15 Feb 2025' },
-                    { label: 'Hora inicio', value: '09:00 hs' },
-                    { label: 'Fecha fin', value: '15 Feb 2025' },
-                    { label: 'Hora fin', value: '14:00 hs' },
-                  ].map(({ label, value }) => (
+                  {[{ label: 'Fecha inicio', value: '15 Feb 2025' }, { label: 'Hora inicio', value: '09:00 hs' }, { label: 'Fecha fin', value: '15 Feb 2025' }, { label: 'Hora fin', value: '14:00 hs' }].map(({ label, value }) => (
                     <div key={label} className="bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 hover:border-sky-600/40 hover:bg-slate-800/80 transition-colors duration-200">
                       <p className="text-xs text-slate-500 mb-0.5">{label}</p>
                       <p className="text-sm font-semibold text-white">{value}</p>
                     </div>
                   ))}
                 </div>
-
-                {/* Info row */}
                 <div className="grid grid-cols-3 gap-3 mb-5">
-                  {[
-                    { label: 'Partes', value: '1 cliente · 1 profesional' },
-                    { label: 'Pago', value: 'Garantizado en escrow' },
-                    { label: 'Ubicación', value: 'Palermo, CABA' },
-                  ].map(({ label, value }) => (
+                  {[{ label: 'Partes', value: '1 cliente · 1 profesional' }, { label: 'Pago', value: 'Garantizado en escrow' }, { label: 'Ubicación', value: 'Palermo, CABA' }].map(({ label, value }) => (
                     <div key={label} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 hover:border-sky-600/40 hover:bg-slate-800/80 transition-colors duration-200">
                       <p className="text-xs text-slate-500 mb-1">{label}</p>
                       <p className="text-xs font-medium text-slate-300 leading-tight">{value}</p>
                     </div>
                   ))}
                 </div>
-
-                {/* Publisher row */}
                 <div className="flex items-center gap-4 pt-4 border-t border-slate-700">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-500 to-sky-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 group-hover/card:ring-2 group-hover/card:ring-sky-400/50 transition-all duration-300">
-                    MC
-                  </div>
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-500 to-sky-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 group-hover/card:ring-2 group-hover/card:ring-sky-400/50 transition-all duration-300">MC</div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-slate-500 mb-1">Publicado por</p>
                     <p className="text-sm font-semibold text-white">María C.</p>
                     <div className="flex items-center gap-2 mt-1.5">
                       {['Calidad', 'Trato', 'Puntualidad'].map((label) => (
                         <div key={label} className="flex-1">
-                          <div className="flex justify-between mb-0.5">
-                            <span className="text-[10px] text-slate-500">{label}</span>
-                          </div>
-                          <div className="h-1 bg-[#1e2d42] rounded-full overflow-hidden">
-                            <div className="h-full bg-sky-500 rounded-full" style={{ width: `${75 + Math.random() * 20}%` }} />
+                          <span className="text-[10px] text-slate-500">{label}</span>
+                          <div className="h-1 bg-[#1e2d42] rounded-full overflow-hidden mt-0.5">
+                            <div className="h-full bg-sky-500 rounded-full" style={{ width: `${label === 'Calidad' ? 92 : label === 'Trato' ? 88 : 95}%` }} />
                           </div>
                         </div>
                       ))}
@@ -422,210 +599,10 @@ export default function Index() {
             </div>
           </div>
 
-          {/* How it works — Para Clientes */}
-          <div className="px-3 sm:px-4 pt-4 pb-6 max-w-6xl mx-auto" style={{ position:'relative', zIndex:1 }}>
-          <div className="bg-slate-800 rounded-2xl p-6 sm:p-8 border border-slate-700 hover:border-slate-600 transition-colors duration-300">
-            <h2 className="text-xl sm:text-2xl font-bold text-center text-white mb-2">
-              {t('home.needService')}
-            </h2>
-            <p className="text-center text-slate-400 mb-8">
-              {t('home.needServiceDesc')}
-            </p>
+          {/* ── SECTION DIVIDER ── */}
+          <div className="w-full border-t border-slate-800/60" style={{ position:'relative', zIndex:1 }} />
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 md:gap-4 overflow-visible pt-4">
-              {/* Step 1 */}
-              <div className="group flex flex-col items-center text-center relative overflow-visible hover:-translate-y-1 transition-transform duration-300 animate-floatIn">
-                <div className="w-16 h-16 bg-gradient-to-br from-sky-500 to-sky-600 rounded-2xl flex items-center justify-center shadow-lg mb-4 transition-all duration-300 group-hover:scale-110 group-hover:shadow-xl group-hover:-translate-y-1">
-                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                </div>
-                <div className="absolute -top-2 -left-2 w-8 h-8 bg-sky-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md z-10">
-                  1
-                </div>
-                <h3 className="font-semibold text-white mb-2">
-                  {t('home.step1Client')}
-                </h3>
-                <p className="text-sm text-slate-400">
-                  {t('home.step1ClientDesc')}
-                </p>
-                <div className="hidden md:block absolute top-8 -right-4 text-sky-400">
-                  <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z" />
-                  </svg>
-                </div>
-              </div>
-
-              {/* Step 2 */}
-              <div className="group flex flex-col items-center text-center relative overflow-visible hover:-translate-y-1 transition-transform duration-300 animate-floatIn-1">
-                <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg mb-4 transition-all duration-300 group-hover:scale-110 group-hover:shadow-xl group-hover:-translate-y-1">
-                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                </div>
-                <div className="absolute -top-2 -left-2 w-8 h-8 bg-orange-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md z-10">
-                  2
-                </div>
-                <h3 className="font-semibold text-white mb-2">
-                  {t('home.step2Client')}
-                </h3>
-                <p className="text-sm text-slate-400">
-                  {t('home.step2ClientDesc')}
-                </p>
-                <div className="hidden md:block absolute top-8 -right-4 text-orange-400">
-                  <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z" />
-                  </svg>
-                </div>
-              </div>
-
-              {/* Step 3 */}
-              <div className="group flex flex-col items-center text-center relative overflow-visible hover:-translate-y-1 transition-transform duration-300 animate-floatIn-2">
-                <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg mb-4 transition-all duration-300 group-hover:scale-110 group-hover:shadow-xl group-hover:-translate-y-1">
-                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                </div>
-                <div className="absolute -top-2 -left-2 w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md z-10">
-                  3
-                </div>
-                <h3 className="font-semibold text-white mb-2">
-                  {t('home.step3Client')}
-                </h3>
-                <p className="text-sm text-slate-400">
-                  {t('home.step3ClientDesc')}
-                </p>
-                <div className="hidden md:block absolute top-8 -right-4 text-purple-400">
-                  <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z" />
-                  </svg>
-                </div>
-              </div>
-
-              {/* Step 4 */}
-              <div className="group flex flex-col items-center text-center relative overflow-visible hover:-translate-y-1 transition-transform duration-300 animate-floatIn-3">
-                <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center shadow-lg mb-4 transition-all duration-300 group-hover:scale-110 group-hover:shadow-xl group-hover:-translate-y-1">
-                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div className="absolute -top-2 -left-2 w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md z-10">
-                  4
-                </div>
-                <h3 className="font-semibold text-white mb-2">
-                  {t('home.step4Client')}
-                </h3>
-                <p className="text-sm text-slate-400">
-                  {t('home.step4ClientDesc')}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-          {/* How it works — Para Trabajadores */}
-          <div className="mt-4 pb-6 max-w-6xl mx-auto" style={{ position:'relative', zIndex:1 }}>
-          <div className="bg-slate-800 rounded-2xl p-6 sm:p-8 border border-slate-700 hover:border-slate-600 transition-colors duration-300">
-            <h2 className="text-xl sm:text-2xl font-bold text-center text-white mb-2">
-              {t('home.offerServices')}
-            </h2>
-            <p className="text-center text-slate-400 mb-8">
-              {t('home.offerServicesDesc')}
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 md:gap-4 overflow-visible pt-4">
-              {/* Step 1 */}
-              <div className="group flex flex-col items-center text-center relative overflow-visible hover:-translate-y-1 transition-transform duration-300">
-                <div className="w-16 h-16 bg-gradient-to-br from-sky-500 to-sky-600 rounded-2xl flex items-center justify-center shadow-lg mb-4 transition-all duration-300 group-hover:scale-110 group-hover:shadow-xl group-hover:-translate-y-1">
-                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </div>
-                <div className="absolute -top-2 -left-2 w-8 h-8 bg-sky-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md z-10">
-                  1
-                </div>
-                <h3 className="font-semibold text-white mb-2">
-                  {t('home.step1Worker')}
-                </h3>
-                <p className="text-sm text-slate-400">
-                  {t('home.step1WorkerDesc')}
-                </p>
-                <div className="hidden md:block absolute top-8 -right-4 text-sky-400">
-                  <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z" />
-                  </svg>
-                </div>
-              </div>
-
-              {/* Step 2 */}
-              <div className="group flex flex-col items-center text-center relative overflow-visible hover:-translate-y-1 transition-transform duration-300">
-                <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg mb-4 transition-all duration-300 group-hover:scale-110 group-hover:shadow-xl group-hover:-translate-y-1">
-                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                  </svg>
-                </div>
-                <div className="absolute -top-2 -left-2 w-8 h-8 bg-orange-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md z-10">
-                  2
-                </div>
-                <h3 className="font-semibold text-white mb-2">
-                  {t('home.step2Worker')}
-                </h3>
-                <p className="text-sm text-slate-400">
-                  {t('home.step2WorkerDesc')}
-                </p>
-                <div className="hidden md:block absolute top-8 -right-4 text-orange-400">
-                  <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z" />
-                  </svg>
-                </div>
-              </div>
-
-              {/* Step 3 */}
-              <div className="group flex flex-col items-center text-center relative overflow-visible hover:-translate-y-1 transition-transform duration-300">
-                <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg mb-4 transition-all duration-300 group-hover:scale-110 group-hover:shadow-xl group-hover:-translate-y-1">
-                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <div className="absolute -top-2 -left-2 w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md z-10">
-                  3
-                </div>
-                <h3 className="font-semibold text-white mb-2">
-                  {t('home.step3Worker')}
-                </h3>
-                <p className="text-sm text-slate-400">
-                  {t('home.step3WorkerDesc')}
-                </p>
-                <div className="hidden md:block absolute top-8 -right-4 text-purple-400">
-                  <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M13.025 1l-2.847 2.828 6.176 6.176h-16.354v3.992h16.354l-6.176 6.176 2.847 2.828 10.975-11z" />
-                  </svg>
-                </div>
-              </div>
-
-              {/* Step 4 */}
-              <div className="group flex flex-col items-center text-center relative overflow-visible hover:-translate-y-1 transition-transform duration-300">
-                <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center shadow-lg mb-4 transition-all duration-300 group-hover:scale-110 group-hover:shadow-xl group-hover:-translate-y-1">
-                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div className="absolute -top-2 -left-2 w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md z-10">
-                  4
-                </div>
-                <h3 className="font-semibold text-white mb-2">
-                  {t('home.step4Worker')}
-                </h3>
-                <p className="text-sm text-slate-400">
-                  {t('home.step4WorkerDesc')}
-                </p>
-              </div>
-            </div>
-
-          </div>
-          </div>
-
-          {/* Payment methods */}
+          {/* ⑤ Payment methods — Elegí cómo pagar o cobrar */}
           <div className="relative px-3 sm:px-4 py-14 sm:py-16 overflow-hidden" style={{ zIndex:1 }}>
           <div className="relative max-w-4xl mx-auto">
             <div className="text-center mb-10">
@@ -639,14 +616,10 @@ export default function Index() {
                 Tu dinero queda en garantía hasta que ambas partes confirmen el trabajo. Sin sorpresas.
               </p>
             </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-              {/* MercadoPago */}
               <div className="group bg-slate-800 border border-slate-700 rounded-2xl p-6 flex flex-col gap-3 hover:border-sky-500/50 hover:scale-[1.02] hover:-translate-y-1 transition-all duration-300 cursor-default">
                 <div className="w-10 h-10 rounded-xl bg-sky-500/10 flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:bg-sky-500/20">
-                  <svg className="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                  </svg>
+                  <svg className="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>
                 </div>
                 <div>
                   <p className="text-white font-semibold text-sm">Mercado Pago</p>
@@ -654,13 +627,9 @@ export default function Index() {
                 </div>
                 <span className="text-xs font-bold text-sky-400 bg-sky-500/10 border border-sky-500/20 px-2.5 py-1 rounded-full self-start">Popular</span>
               </div>
-
-              {/* Transferencia */}
               <div className="group bg-slate-800 border border-slate-700 rounded-2xl p-6 flex flex-col gap-3 hover:border-green-500/50 hover:scale-[1.02] hover:-translate-y-1 transition-all duration-300 cursor-default">
                 <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:bg-green-500/20">
-                  <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                  </svg>
+                  <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
                 </div>
                 <div>
                   <p className="text-white font-semibold text-sm">Transferencia bancaria</p>
@@ -668,13 +637,9 @@ export default function Index() {
                 </div>
                 <span className="text-xs font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded-full self-start">Sin comisión bancaria</span>
               </div>
-
-              {/* Cripto */}
               <div className="group bg-slate-800 border border-slate-700 rounded-2xl p-6 flex flex-col gap-3 hover:border-orange-500/50 hover:scale-[1.02] hover:-translate-y-1 transition-all duration-300 cursor-default">
                 <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:bg-orange-500/20">
-                  <svg className="w-5 h-5 text-orange-400" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M23.638 14.904c-1.602 6.43-8.113 10.34-14.542 8.736C2.67 22.05-1.244 15.525.362 9.105 1.962 2.67 8.475-1.243 14.9.358c6.43 1.605 10.342 8.115 8.738 14.546zm-6.35-4.613c.24-1.59-.974-2.45-2.64-3.03l.54-2.153-1.315-.33-.525 2.107c-.345-.087-.705-.167-1.064-.25l.526-2.127-1.32-.33-.54 2.165c-.285-.067-.565-.132-.84-.2l-1.815-.45-.35 1.407s.975.225.955.238c.535.136.63.486.615.766l-1.477 5.92c-.075.166-.24.406-.614.314.015.02-.96-.24-.96-.24l-.66 1.51 1.71.426.93.242-.54 2.19 1.32.327.54-2.17c.36.1.705.19 1.05.273l-.51 2.154 1.32.33.545-2.19c2.24.427 3.93.257 4.64-1.774.57-1.637-.03-2.58-1.217-3.196.854-.193 1.5-.76 1.68-1.93h.01zm-3.01 4.22c-.404 1.64-3.157.75-4.05.53l.72-2.9c.896.23 3.757.67 3.33 2.37zm.41-4.24c-.37 1.49-2.662.735-3.405.55l.654-2.64c.744.18 3.137.52 2.75 2.084v.006z"/>
-                  </svg>
+                  <svg className="w-5 h-5 text-orange-400" viewBox="0 0 24 24" fill="currentColor"><path d="M23.638 14.904c-1.602 6.43-8.113 10.34-14.542 8.736C2.67 22.05-1.244 15.525.362 9.105 1.962 2.67 8.475-1.243 14.9.358c6.43 1.605 10.342 8.115 8.738 14.546zm-6.35-4.613c.24-1.59-.974-2.45-2.64-3.03l.54-2.153-1.315-.33-.525 2.107c-.345-.087-.705-.167-1.064-.25l.526-2.127-1.32-.33-.54 2.165c-.285-.067-.565-.132-.84-.2l-1.815-.45-.35 1.407s.975.225.955.238c.535.136.63.486.615.766l-1.477 5.92c-.075.166-.24.406-.614.314.015.02-.96-.24-.96-.24l-.66 1.51 1.71.426.93.242-.54 2.19 1.32.327.54-2.17c.36.1.705.19 1.05.273l-.51 2.154 1.32.33.545-2.19c2.24.427 3.93.257 4.64-1.774.57-1.637-.03-2.58-1.217-3.196.854-.193 1.5-.76 1.68-1.93h.01zm-3.01 4.22c-.404 1.64-3.157.75-4.05.53l.72-2.9c.896.23 3.757.67 3.33 2.37zm.41-4.24c-.37 1.49-2.662.735-3.405.55l.654-2.64c.744.18 3.137.52 2.75 2.084v.006z"/></svg>
                 </div>
                 <div>
                   <p className="text-white font-semibold text-sm">Cripto (USDT/BTC)</p>
@@ -926,7 +891,7 @@ export default function Index() {
         )}
 
         {/* Lista de trabajos disponibles */}
-        {searchType === 'jobs' && (
+        {user && searchType === 'jobs' && (
           <div key="jobs-section" id="trabajos-disponibles" className="mt-10 sm:mt-16 px-2 animate-fadeInUp" data-onboarding="jobs-list">
             <div className="flex items-center justify-between mb-6 sm:mb-8">
               <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">

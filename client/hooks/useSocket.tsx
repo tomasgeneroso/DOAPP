@@ -246,7 +246,7 @@ export function useSocket() {
     });
 
     // Error handler
-    socketInstance.on("error", (error) => {
+    socketInstance.on("socket_error", (error) => {
       console.error("Socket error:", error);
     });
 

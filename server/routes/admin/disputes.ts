@@ -420,7 +420,7 @@ router.post(
       );
 
       // Emit socket event to notify contract update
-      const { default: socketService } = await import("../../services/socket.js");
+      const { getIO } = await import("../../services/socket.js");
       await contract.reload({
         include: [
           { model: User, as: "client", attributes: ["id", "name", "email"] },
@@ -428,7 +428,7 @@ router.post(
           { model: Job, as: "job", attributes: ["id", "title"] },
         ],
       });
-      socketService.notifyContractUpdate(contract.id, contract.clientId, contract.doerId, {
+      getIO()?.to(`user:${contract.clientId}`).to(`user:${contract.doerId}`).emit('contract:updated', {
         contract: contract.toJSON(),
         action: "dispute_resolved",
         resolutionType,

@@ -29,7 +29,7 @@ export class AuditLog extends Model {
     defaultValue: DataType.UUIDV4,
     primaryKey: true,
   })
-  id!: string;
+  declare id: string;
 
   @Index
   @Column(DataType.UUID)
