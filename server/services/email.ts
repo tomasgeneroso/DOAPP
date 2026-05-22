@@ -293,1700 +293,654 @@ class EmailService {
     }
   }
 
+  // ─────────────────────────────────────────────────────────────────────────
+  // SHARED TEMPLATE
+  // ─────────────────────────────────────────────────────────────────────────
+
+  private tpl(opts: {
+    title: string;
+    body: string;
+    eyebrow?: string;
+    cta?: { label: string; url: string };
+    accent?: 'sky' | 'green' | 'amber' | 'red' | 'orange';
+    amount?: string;
+    amountLabel?: string;
+  }): string {
+    const palette = {
+      sky:    { btn: 'linear-gradient(135deg,#0284c7 0%,#2563eb 100%)', pill: '#dbeafe', pillText: '#1d4ed8', amount: '#0ea5e9' },
+      green:  { btn: 'linear-gradient(135deg,#16a34a 0%,#15803d 100%)', pill: '#dcfce7', pillText: '#15803d', amount: '#22c55e' },
+      amber:  { btn: 'linear-gradient(135deg,#d97706 0%,#b45309 100%)', pill: '#fef3c7', pillText: '#b45309', amount: '#f59e0b' },
+      red:    { btn: 'linear-gradient(135deg,#dc2626 0%,#b91c1c 100%)', pill: '#fee2e2', pillText: '#b91c1c', amount: '#ef4444' },
+      orange: { btn: 'linear-gradient(135deg,#ea580c 0%,#c2410c 100%)', pill: '#ffedd5', pillText: '#c2410c', amount: '#f97316' },
+    };
+    const p = palette[opts.accent || 'sky'];
+    const year = new Date().getFullYear();
+    const base = config.clientUrl || 'https://doapparg.site';
+
+    return `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${opts.title}</title>
+</head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f1f5f9;">
+    <tr><td style="padding:32px 16px;">
+      <table role="presentation" width="100%" style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 32px rgba(0,0,0,0.10);" cellspacing="0" cellpadding="0" border="0">
+
+        <!-- HEADER -->
+        <tr><td style="background:linear-gradient(135deg,#0c1a2e 0%,#070d1a 100%);padding:26px 40px;">
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+            <tr>
+              <td style="vertical-align:middle;">
+                <span style="display:inline-block;background:#38bdf8;color:#0c1a2e;font-size:19px;font-weight:900;padding:5px 11px;border-radius:8px;letter-spacing:-0.5px;line-height:1.2;">DO</span>
+              </td>
+              <td style="vertical-align:middle;padding-left:7px;">
+                <span style="color:#ffffff;font-size:19px;font-weight:900;letter-spacing:-0.5px;line-height:1.2;">APP</span>
+              </td>
+            </tr>
+          </table>
+        </td></tr>
+
+        <!-- GRADIENT BAR -->
+        <tr><td style="background:linear-gradient(90deg,#38bdf8 0%,#0ea5e9 50%,#2563eb 100%);height:3px;padding:0;font-size:1px;line-height:1px;">&#8203;</td></tr>
+
+        <!-- EYEBROW + TITLE -->
+        <tr><td style="padding:36px 40px 12px;text-align:center;">
+          ${opts.eyebrow ? `<div style="margin-bottom:14px;"><span style="display:inline-block;background:${p.pill};color:${p.pillText};font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:4px 14px;border-radius:999px;">${opts.eyebrow}</span></div>` : ''}
+          <h1 style="margin:0;font-size:28px;font-weight:800;color:#0f172a;line-height:1.25;letter-spacing:-0.5px;">${opts.title}</h1>
+        </td></tr>
+
+        <!-- BODY -->
+        <tr><td style="padding:8px 40px 32px;">
+          <div style="font-size:15.5px;line-height:1.75;color:#334155;">
+            ${opts.body}
+          </div>
+
+          ${opts.amount ? `
+          <div style="text-align:center;margin:28px 0;">
+            <p style="margin:0 0 4px;font-size:11.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.07em;font-weight:700;">${opts.amountLabel || 'Monto'}</p>
+            <p style="margin:0;font-size:40px;font-weight:800;color:${p.amount};letter-spacing:-1.5px;">${opts.amount}</p>
+          </div>` : ''}
+
+          ${opts.cta ? `
+          <div style="text-align:center;margin:32px 0 10px;">
+            <a href="${opts.cta.url}" style="display:inline-block;padding:14px 40px;background:${p.btn};color:#ffffff;text-decoration:none;font-weight:700;font-size:15.5px;border-radius:10px;letter-spacing:0.02em;">${opts.cta.label}</a>
+          </div>
+          <div style="text-align:center;margin-bottom:8px;">
+            <p style="margin:0;font-size:12px;color:#94a3b8;">O copiá este enlace:<br><a href="${opts.cta.url}" style="color:#0ea5e9;word-break:break-all;font-size:11px;">${opts.cta.url}</a></p>
+          </div>` : ''}
+        </td></tr>
+
+        <!-- FOOTER -->
+        <tr><td style="background:#0f172a;padding:28px 40px;text-align:center;border-radius:0 0 16px 16px;">
+          <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="width:100%;margin-bottom:16px;">
+            <tr>
+              <td style="text-align:center;">
+                <a href="https://apps.apple.com" style="display:inline-block;margin:0 4px;padding:7px 14px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:7px;color:#94a3b8;text-decoration:none;font-size:11.5px;font-weight:600;">&#xf8ff; App Store</a>
+                <a href="https://play.google.com" style="display:inline-block;margin:0 4px;padding:7px 14px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:7px;color:#94a3b8;text-decoration:none;font-size:11.5px;font-weight:600;">&#9654; Google Play</a>
+              </td>
+            </tr>
+          </table>
+          <p style="margin:0 0 10px;">
+            <a href="${base}/help" style="color:#64748b;font-size:12px;text-decoration:none;margin:0 8px;">Centro de ayuda</a>
+            <span style="color:#334155;">&nbsp;·&nbsp;</span>
+            <a href="${base}/legal/privacidad" style="color:#64748b;font-size:12px;text-decoration:none;margin:0 8px;">Privacidad</a>
+          </p>
+          <p style="margin:0 0 4px;font-size:11px;color:#475569;">© ${year} DOAPP · La plataforma de trabajos argentina</p>
+          <p style="margin:0;font-size:11px;color:#334155;">Correo automático — por favor no respondás.</p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+  }
+
+  /** Callout box: info | warning | success | danger */
+  private callout(type: 'info' | 'warning' | 'success' | 'danger', title: string, content: string): string {
+    const s = {
+      info:    { bg: '#f0f9ff', border: '#bae6fd', icon: 'ℹ️', titleColor: '#0c4a6e', textColor: '#0c4a6e' },
+      warning: { bg: '#fffbeb', border: '#fde68a', icon: '⚠️', titleColor: '#78350f', textColor: '#78350f' },
+      success: { bg: '#f0fdf4', border: '#bbf7d0', icon: '✅', titleColor: '#14532d', textColor: '#14532d' },
+      danger:  { bg: '#fef2f2', border: '#fecaca', icon: '🚨', titleColor: '#7f1d1d', textColor: '#7f1d1d' },
+    }[type];
+    return `<table role="presentation" style="width:100%;background:${s.bg};border:1px solid ${s.border};border-radius:10px;margin:20px 0;" cellspacing="0" cellpadding="0" border="0">
+      <tr>
+        <td style="padding:14px 12px 14px 16px;vertical-align:top;width:28px;font-size:18px;">${s.icon}</td>
+        <td style="padding:14px 16px 14px 4px;">
+          ${title ? `<p style="margin:0 0 3px;font-size:13.5px;font-weight:700;color:${s.titleColor};">${title}</p>` : ''}
+          <div style="font-size:13.5px;line-height:1.6;color:${s.textColor};">${content}</div>
+        </td>
+      </tr>
+    </table>`;
+  }
+
+  /** Receipt-style detail card */
+  private detailCard(rows: Array<{ label: string; value: string; highlight?: boolean }>): string {
+    const rowsHtml = rows.map((r, i) => `
+      <tr>
+        <td style="padding:11px 0;${i < rows.length - 1 ? 'border-bottom:1px solid #e2e8f0;' : ''}font-size:13.5px;color:#64748b;font-weight:500;">${r.label}</td>
+        <td style="padding:11px 0;${i < rows.length - 1 ? 'border-bottom:1px solid #e2e8f0;' : ''}font-size:13.5px;color:${r.highlight ? '#0284c7' : '#0f172a'};font-weight:${r.highlight ? '700' : '600'};text-align:right;">${r.value}</td>
+      </tr>`).join('');
+    return `<table role="presentation" style="width:100%;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;margin:20px 0;" cellspacing="0" cellpadding="0" border="0">
+      <tr><td style="padding:4px 20px;">
+        <table role="presentation" style="width:100%;border-collapse:collapse;" cellspacing="0" cellpadding="0" border="0">${rowsHtml}</table>
+      </td></tr>
+    </table>`;
+  }
+
+
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // TEMPLATES
+  // ─────────────────────────────────────────────────────────────────────────
+
   /**
    * Send welcome email
    */
   async sendWelcomeEmail(userId: string, userName: string): Promise<void> {
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .button { display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-            .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>¡Bienvenido a DoApp!</h1>
-            </div>
-            <div class="content">
-              <p>Hola ${userName},</p>
-              <p>¡Gracias por unirte a DoApp! Estamos emocionados de tenerte en nuestra comunidad.</p>
-              <p>DoApp es la plataforma donde puedes encontrar trabajos o contratar profesionales de confianza para tus proyectos.</p>
-              <h3>Primeros pasos:</h3>
-              <ul>
-                <li>Completa tu perfil para destacar</li>
-                <li>Explora trabajos disponibles</li>
-                <li>Publica tu primer trabajo o postúlate a uno</li>
-              </ul>
-              <a href="${config.clientUrl}/profile" class="button">Completar mi perfil</a>
-              <p>Si tienes alguna pregunta, no dudes en contactarnos.</p>
-              <p>¡Bienvenido a bordo!</p>
-              <p>El equipo de DoApp</p>
-            </div>
-            <div class="footer">
-              <p>© 2025 DoApp. Todos los derechos reservados.</p>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    await this.sendToUser(userId, "¡Bienvenido a DoApp!", html);
+    const html = this.tpl({
+      eyebrow: 'Bienvenida',
+      title: `¡Hola, ${userName}!`,
+      body: `
+        <p>Hola <strong>${userName}</strong>,</p>
+        <p>¡Gracias por unirte a DOAPP! Somos la plataforma argentina donde podés encontrar trabajadores de confianza o publicar tu primer trabajo.</p>
+        ${this.callout('info', 'Primeros pasos', `
+          <ul style="margin:6px 0 0;padding-left:18px;">
+            <li>Completá tu perfil para destacar</li>
+            <li>Explorá los trabajos disponibles</li>
+            <li>Publicá tu primer trabajo o postulate a uno</li>
+          </ul>
+        `)}
+        <p>Si tenés alguna pregunta, nuestro equipo está disponible en el <a href="${config.clientUrl}/help" style="color:#0ea5e9;">Centro de Ayuda</a>.</p>
+      `,
+      cta: { label: '🚀 Ir a DOAPP', url: `${config.clientUrl}/` },
+    });
+    await this.sendToUser(userId, '¡Bienvenido a DOAPP!', html);
   }
 
   /**
-   * Send email verification
+   * Send email verification.
+   * verificationUrl: the full URL including the token query param.
    */
   async sendVerificationEmail(
     email: string,
     userName: string,
-    verificationToken: string
+    verificationUrl: string   // full URL, e.g. /verify-email?token=xxx
   ): Promise<boolean> {
-    const verificationUrl = `${config.clientUrl}/verify-email?token=${verificationToken}`;
-
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .button { display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-            .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>Verifica tu email</h1>
-            </div>
-            <div class="content">
-              <p>Hola ${userName},</p>
-              <p>Gracias por registrarte en DoApp. Para completar tu registro, por favor verifica tu dirección de email.</p>
-              <a href="${verificationUrl}" class="button">Verificar mi email</a>
-              <p>O copia y pega este enlace en tu navegador:</p>
-              <p style="word-break: break-all; color: #667eea;">${verificationUrl}</p>
-              <p>Este enlace expirará en 24 horas.</p>
-              <p>Si no creaste esta cuenta, puedes ignorar este email.</p>
-            </div>
-            <div class="footer">
-              <p>© 2025 DoApp. Todos los derechos reservados.</p>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    return await this.sendEmail({
-      to: email,
-      subject: "Verifica tu email - DoApp",
-      html,
+    const html = this.tpl({
+      eyebrow: 'Verificación',
+      title: 'Verificá tu email',
+      body: `
+        <p>Hola <strong>${userName}</strong>,</p>
+        <p>Gracias por registrarte en DOAPP. Para activar tu cuenta hacé clic en el botón de abajo.</p>
+        ${this.callout('warning', 'Importante', 'Este enlace <strong>expira en 24 horas</strong>. Si no creaste esta cuenta podés ignorar este email.')}
+      `,
+      cta: { label: '✅ Verificar mi email', url: verificationUrl },
     });
+    return await this.sendEmail({ to: email, subject: 'Verificá tu email · DOAPP', html });
   }
 
-  /**
-   * Send password reset email
-   */
-  async sendPasswordResetEmail(
-    email: string,
-    userName: string,
-    resetToken: string
-  ): Promise<boolean> {
-    const resetUrl = `${config.clientUrl}/reset-password?token=${resetToken}`;
-
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-              line-height: 1.6;
-              color: #333;
-              background-color: #f5f5f5;
-              margin: 0;
-              padding: 0;
-            }
-            .email-wrapper {
-              max-width: 600px;
-              margin: 40px auto;
-              background-color: white;
-              border-radius: 12px;
-              overflow: hidden;
-              box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            }
-            .logo-section {
-              text-align: center;
-              padding: 40px 20px 20px;
-              background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
-            }
-            .logo {
-              font-size: 48px;
-              font-weight: bold;
-              color: white;
-              margin: 0;
-              letter-spacing: -1px;
-            }
-            .subtitle {
-              text-align: center;
-              font-size: 24px;
-              font-weight: 600;
-              color: #0ea5e9;
-              margin: 30px 0 20px;
-              padding: 0 20px;
-            }
-            .content {
-              padding: 30px 40px;
-              text-align: center;
-            }
-            .greeting {
-              font-size: 16px;
-              color: #475569;
-              margin-bottom: 20px;
-            }
-            .message {
-              font-size: 15px;
-              color: #64748b;
-              margin-bottom: 30px;
-              line-height: 1.8;
-            }
-            .button {
-              display: inline-block;
-              padding: 14px 40px;
-              background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%);
-              color: white !important;
-              text-decoration: none;
-              border-radius: 8px;
-              margin: 20px 0;
-              font-weight: 600;
-              font-size: 16px;
-              box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
-              transition: transform 0.2s;
-            }
-            .button:hover {
-              transform: translateY(-2px);
-            }
-            .link-section {
-              margin: 30px 0;
-              padding: 20px;
-              background: #f8fafc;
-              border-radius: 8px;
-              border: 1px solid #e2e8f0;
-            }
-            .link-label {
-              font-size: 13px;
-              color: #64748b;
-              margin-bottom: 10px;
-            }
-            .reset-link {
-              word-break: break-all;
-              color: #0ea5e9;
-              font-size: 13px;
-              text-decoration: none;
-            }
-            .warning {
-              background: #fef3c7;
-              border: 1px solid #fbbf24;
-              border-left: 4px solid #f59e0b;
-              padding: 16px;
-              margin: 25px 0;
-              border-radius: 8px;
-              text-align: left;
-            }
-            .warning-title {
-              font-weight: 600;
-              color: #92400e;
-              margin-bottom: 5px;
-            }
-            .warning-text {
-              color: #78350f;
-              font-size: 14px;
-            }
-            .security-note {
-              font-size: 14px;
-              color: #64748b;
-              margin-top: 25px;
-              padding-top: 20px;
-              border-top: 1px solid #e2e8f0;
-            }
-            .footer {
-              text-align: center;
-              padding: 30px 20px;
-              background: #f8fafc;
-              color: #94a3b8;
-              font-size: 13px;
-              border-top: 1px solid #e2e8f0;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="email-wrapper">
-            <div class="logo-section">
-              <h1 class="logo">Doers</h1>
-            </div>
-
-            <h2 class="subtitle">Restablecer Contraseña</h2>
-
-            <div class="content">
-              <p class="greeting">Hola <strong>${userName}</strong>,</p>
-
-              <p class="message">
-                Recibimos una solicitud para restablecer la contraseña de tu cuenta en Doers.
-                Si fuiste tú, haz clic en el botón de abajo para crear una nueva contraseña.
-              </p>
-
-              <a href="${resetUrl}" class="button">Restablecer mi contraseña</a>
-
-              <div class="link-section">
-                <p class="link-label">O copia y pega este enlace en tu navegador:</p>
-                <a href="${resetUrl}" class="reset-link">${resetUrl}</a>
-              </div>
-
-              <div class="warning">
-                <div class="warning-title">⚠️ Importante</div>
-                <div class="warning-text">
-                  Este enlace expirará en <strong>24 horas</strong> por razones de seguridad.
-                </div>
-              </div>
-
-              <p class="security-note">
-                Si no solicitaste restablecer tu contraseña, puedes ignorar este email de forma segura.
-                Tu contraseña permanecerá sin cambios.
-              </p>
-            </div>
-
-            <div class="footer">
-              <p>© 2025 Doers. Todos los derechos reservados.</p>
-              <p style="margin-top: 10px;">La plataforma segura para contratar y trabajar</p>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    return await this.sendEmail({
-      to: email,
-      subject: "Restablecer contraseña - DoApp",
-      html,
+  async sendPasswordResetEmail(email: string, userName: string, resetToken: string): Promise<boolean> {
+    const url = `${config.clientUrl}/reset-password?token=${resetToken}`;
+    const html = this.tpl({
+      eyebrow: 'Seguridad',
+      accent: 'red',
+      title: 'Restablecer contraseña',
+      body: `
+        <p>Hola <strong>${userName}</strong>,</p>
+        <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta en DOAPP.</p>
+        ${this.callout('warning', 'Importante', 'Este enlace <strong>expira en 24 horas</strong>. Si no solicitaste el cambio, ignorá este email — tu contraseña no se modificará.')}
+      `,
+      cta: { label: '🔐 Restablecer mi contraseña', url },
     });
+    return await this.sendEmail({ to: email, subject: 'Restablecer contraseña · DOAPP', html });
   }
 
-  /**
-   * Send password changed confirmation email
-   */
-  async sendPasswordChangedEmail(
-    email: string,
-    userName: string
-  ): Promise<boolean> {
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .button { display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-            .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
-            .warning { background: #fee2e2; border-left: 4px solid #dc2626; padding: 15px; margin: 20px 0; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>✅ Contraseña actualizada</h1>
-            </div>
-            <div class="content">
-              <p>Hola ${userName},</p>
-              <p>Tu contraseña de DoApp ha sido actualizada correctamente.</p>
-              <div class="warning">
-                <strong>⚠️ ¿No fuiste tú?</strong><br>
-                Si no realizaste este cambio, por favor contacta con nuestro soporte inmediatamente.
-              </div>
-              <a href="${config.clientUrl}/support" class="button">Contactar soporte</a>
-              <p>Por seguridad, todas tus sesiones activas han sido cerradas. Deberás iniciar sesión nuevamente con tu nueva contraseña.</p>
-              <p>Gracias por mantener tu cuenta segura.</p>
-              <p>El equipo de DoApp</p>
-            </div>
-            <div class="footer">
-              <p>© 2025 DoApp. Todos los derechos reservados.</p>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    return await this.sendEmail({
-      to: email,
-      subject: "Tu contraseña ha sido actualizada - DoApp",
-      html,
+  async sendPasswordChangedEmail(email: string, userName: string): Promise<boolean> {
+    const html = this.tpl({
+      eyebrow: 'Seguridad',
+      accent: 'green',
+      title: 'Contraseña actualizada',
+      body: `
+        <p>Hola <strong>${userName}</strong>,</p>
+        <p>Tu contraseña de DOAPP fue actualizada correctamente.</p>
+        ${this.callout('danger', '¿No fuiste vos?', 'Contactá con soporte inmediatamente. Todas tus sesiones activas fueron cerradas.')}
+      `,
+      cta: { label: 'Contactar soporte', url: `${config.clientUrl}/help` },
     });
+    return await this.sendEmail({ to: email, subject: 'Contraseña actualizada · DOAPP', html });
   }
 
-  /**
-   * Send new message notification
-   */
-  async sendNewMessageNotification(
-    userId: string,
-    senderName: string,
-    messagePreview: string,
-    conversationId: string
-  ): Promise<void> {
+  async sendNewMessageNotification(userId: string, senderName: string, messagePreview: string, conversationId: string): Promise<void> {
     const user = await User.findByPk(userId);
-    if (!user?.notificationPreferences?.newMessage) {
-      return;
-    }
-
-    const conversationUrl = `${config.clientUrl}/chat/${conversationId}`;
-
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .message-box { background: white; border-left: 4px solid #667eea; padding: 15px; margin: 20px 0; }
-            .button { display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h2>💬 Nuevo mensaje</h2>
-            </div>
-            <div class="content">
-              <p>Hola,</p>
-              <p><strong>${senderName}</strong> te ha enviado un mensaje:</p>
-              <div class="message-box">
-                <p>${messagePreview}</p>
-              </div>
-              <a href="${conversationUrl}" class="button">Ver conversación</a>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
+    if (!user?.notificationPreferences?.newMessage) return;
+    const html = this.tpl({
+      eyebrow: 'Mensaje',
+      title: `Nuevo mensaje de ${senderName}`,
+      body: `
+        <p>Hola <strong>${user.name}</strong>,</p>
+        <p><strong>${senderName}</strong> te envió un mensaje:</p>
+        ${this.callout('info', '', `<em>"${messagePreview}"</em>`)}
+      `,
+      cta: { label: '💬 Ver conversación', url: `${config.clientUrl}/chat/${conversationId}` },
+    });
     await this.sendToUser(userId, `Nuevo mensaje de ${senderName}`, html);
   }
 
-  /**
-   * Send job update notification
-   */
-  async sendJobUpdateNotification(
-    userId: string,
-    jobTitle: string,
-    updateType: string,
-    jobId: string
-  ): Promise<void> {
+  async sendJobUpdateNotification(userId: string, jobTitle: string, updateType: string, jobId: string): Promise<void> {
     const user = await User.findByPk(userId);
-    if (!user?.notificationPreferences?.jobUpdate) {
-      return;
-    }
-
-    const jobUrl = `${config.clientUrl}/jobs/${jobId}`;
-
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .button { display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h2>📋 Actualización de trabajo</h2>
-            </div>
-            <div class="content">
-              <p>Hola,</p>
-              <p><strong>${updateType}</strong></p>
-              <p>Trabajo: ${jobTitle}</p>
-              <a href="${jobUrl}" class="button">Ver detalles</a>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
+    if (!user?.notificationPreferences?.jobUpdate) return;
+    const html = this.tpl({
+      eyebrow: 'Publicación',
+      title: 'Actualización de publicación',
+      body: `
+        <p>Hola <strong>${user.name}</strong>,</p>
+        <p>${updateType}</p>
+        ${this.callout('info', '', `<strong>Publicación:</strong> ${jobTitle}`)}
+      `,
+      cta: { label: 'Ver publicación', url: `${config.clientUrl}/jobs/${jobId}` },
+    });
     await this.sendToUser(userId, `Actualización: ${jobTitle}`, html);
   }
 
-  /**
-   * Send contract update notification
-   */
-  async sendContractUpdateNotification(
-    userId: string,
-    contractTitle: string,
-    updateType: string,
-    contractId: string
-  ): Promise<void> {
+  async sendContractUpdateNotification(userId: string, contractTitle: string, updateType: string, contractId: string): Promise<void> {
     const user = await User.findByPk(userId);
-    if (!user?.notificationPreferences?.contractUpdate) {
-      return;
-    }
-
-    const contractUrl = `${config.clientUrl}/contracts/${contractId}`;
-
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .button { display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h2>📄 Actualización de contrato</h2>
-            </div>
-            <div class="content">
-              <p>Hola,</p>
-              <p><strong>${updateType}</strong></p>
-              <p>Contrato: ${contractTitle}</p>
-              <a href="${contractUrl}" class="button">Ver contrato</a>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
+    if (!user?.notificationPreferences?.contractUpdate) return;
+    const html = this.tpl({
+      eyebrow: 'Contrato',
+      title: 'Actualización de contrato',
+      body: `
+        <p>Hola <strong>${user.name}</strong>,</p>
+        <p>${updateType}</p>
+        ${this.callout('info', '', `<strong>Contrato:</strong> ${contractTitle}`)}
+      `,
+      cta: { label: 'Ver contrato', url: `${config.clientUrl}/contracts/${contractId}` },
+    });
     await this.sendToUser(userId, `Contrato actualizado: ${contractTitle}`, html);
   }
 
-  /**
-   * Send payment notification
-   */
-  async sendPaymentNotification(
-    userId: string,
-    amount: number,
-    updateType: string,
-    paymentId: string
-  ): Promise<void> {
+  async sendPaymentNotification(userId: string, amount: number, updateType: string, _paymentId: string): Promise<void> {
     const user = await User.findByPk(userId);
-    if (!user?.notificationPreferences?.paymentUpdate) {
-      return;
-    }
-
-    const paymentUrl = `${config.clientUrl}/payments/${paymentId}`;
+    if (!user?.notificationPreferences?.paymentUpdate) return;
     const numericAmount = typeof amount === 'number' ? amount : parseFloat(String(amount)) || 0;
-
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .amount { font-size: 36px; color: #10b981; font-weight: bold; text-align: center; margin: 20px 0; }
-            .button { display: inline-block; padding: 12px 30px; background: #10b981; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h2>💰 Actualización de pago</h2>
-            </div>
-            <div class="content">
-              <p>Hola,</p>
-              <p><strong>${updateType}</strong></p>
-              <div class="amount">$${numericAmount.toFixed(2)}</div>
-              <a href="${paymentUrl}" class="button">Ver detalles del pago</a>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    await this.sendToUser(userId, `Pago de $${numericAmount.toFixed(2)}`, html);
+    const html = this.tpl({
+      eyebrow: 'Pago',
+      accent: 'green',
+      title: 'Actualización de pago',
+      body: `<p>Hola <strong>${user.name}</strong>,</p><p>${updateType}</p>`,
+      amount: `$${numericAmount.toLocaleString('es-AR')} ARS`,
+      cta: { label: 'Ver balance', url: `${config.clientUrl}/balance` },
+    });
+    await this.sendToUser(userId, `Pago: $${numericAmount.toFixed(2)}`, html);
   }
 
-  /**
-   * Send contract created notification (Argentina)
-   */
-  async sendContractCreatedEmail(
-    clientId: string,
-    doerId: string,
-    contractId: string,
-    jobTitle: string,
-    price: number,
-    currency: string = "ARS"
-  ): Promise<void> {
-    const contractUrl = `${config.clientUrl}/contracts/${contractId}`;
+  async sendContractCreatedEmail(clientId: string, doerId: string, contractId: string, jobTitle: string, price: number, currency = 'ARS'): Promise<void> {
+    const url = `${config.clientUrl}/contracts/${contractId}`;
+    const makeHtml = (name: string, role: 'client' | 'doer') => this.tpl({
+      eyebrow: 'Contrato',
+      accent: 'green',
+      title: role === 'client' ? 'Contrato creado' : '¡Te seleccionaron!',
+      body: `
+        <p>Hola <strong>${name}</strong>,</p>
+        <p>${role === 'client' ? 'Creaste un nuevo contrato para la siguiente publicación.' : 'Fuiste seleccionado para trabajar en este contrato.'}</p>
+        ${this.detailCard([
+          { label: 'Publicación', value: jobTitle },
+          { label: 'Monto', value: `${currency} $${price.toLocaleString('es-AR')}`, highlight: true },
+        ])}
+        ${role === 'client'
+          ? this.callout('info', 'Próximos pasos', '<ul style="margin:4px 0 0;padding-left:18px;"><li>El trabajador debe aceptar el contrato</li><li>Realizá el pago (escrow)</li><li>Al finalizar, ambas partes confirman</li></ul>')
+          : '<p>Revisá los detalles y aceptá el contrato para comenzar.</p>'}
+      `,
+      cta: { label: 'Ver contrato', url },
+    });
 
-    const htmlClient = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .button { display: inline-block; padding: 12px 30px; background: #10b981; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-            .amount { font-size: 28px; color: #10b981; font-weight: bold; margin: 15px 0; }
-            .info-box { background: white; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>✅ Contrato Creado</h1>
-            </div>
-            <div class="content">
-              <p>Hola,</p>
-              <p>Has creado un nuevo contrato exitosamente.</p>
-              <div class="info-box">
-                <p><strong>Trabajo:</strong> ${jobTitle}</p>
-                <p class="amount">${currency} $${price.toFixed(2)}</p>
-              </div>
-              <p><strong>Próximos pasos:</strong></p>
-              <ul>
-                <li>El doer debe aceptar el contrato</li>
-                <li>Deberás realizar el pago que se mantendrá en escrow</li>
-                <li>Una vez completado el trabajo, ambas partes deberán confirmar</li>
-              </ul>
-              <a href="${contractUrl}" class="button">Ver Contrato</a>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    const htmlDoer = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .button { display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-            .amount { font-size: 28px; color: #667eea; font-weight: bold; margin: 15px 0; }
-            .info-box { background: white; border-left: 4px solid #667eea; padding: 15px; margin: 20px 0; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>🎉 Nuevo Contrato</h1>
-            </div>
-            <div class="content">
-              <p>Hola,</p>
-              <p>Has recibido un nuevo contrato de trabajo.</p>
-              <div class="info-box">
-                <p><strong>Trabajo:</strong> ${jobTitle}</p>
-                <p class="amount">${currency} $${price.toFixed(2)}</p>
-              </div>
-              <p><strong>¿Qué sigue?</strong></p>
-              <ul>
-                <li>Revisa los detalles del contrato</li>
-                <li>Acepta el contrato si estás de acuerdo</li>
-                <li>El pago se mantendrá en escrow hasta completar el trabajo</li>
-              </ul>
-              <a href="${contractUrl}" class="button">Revisar y Aceptar</a>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    await Promise.all([
-      this.sendToUser(clientId, `Contrato creado: ${jobTitle}`, htmlClient),
-      this.sendToUser(doerId, `Nuevo contrato: ${jobTitle}`, htmlDoer),
-    ]);
+    const client = await User.findByPk(clientId);
+    const doer = await User.findByPk(doerId);
+    if (client?.email) await this.sendEmail({ to: client.email, subject: `Contrato creado: ${jobTitle}`, html: makeHtml(client.name, 'client') });
+    if (doer?.email) await this.sendEmail({ to: doer.email, subject: `Te seleccionaron: ${jobTitle}`, html: makeHtml(doer.name, 'doer') });
   }
 
-  /**
-   * Send contract accepted notification (Argentina)
-   */
-  async sendContractAcceptedEmail(
-    clientId: string,
-    doerId: string,
-    contractId: string,
-    jobTitle: string
-  ): Promise<void> {
-    const contractUrl = `${config.clientUrl}/contracts/${contractId}`;
-
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .button { display: inline-block; padding: 12px 30px; background: #10b981; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-            .info-box { background: white; border-left: 4px solid #10b981; padding: 15px; margin: 20px 0; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>✅ Contrato Aceptado</h1>
-            </div>
-            <div class="content">
-              <p>Hola,</p>
-              <p>El contrato ha sido aceptado por el doer.</p>
-              <div class="info-box">
-                <p><strong>Trabajo:</strong> ${jobTitle}</p>
-              </div>
-              <p><strong>Próximo paso:</strong></p>
-              <p>Realiza el pago para que el doer pueda comenzar a trabajar. El pago se mantendrá en escrow hasta que ambas partes confirmen la finalización del trabajo.</p>
-              <a href="${contractUrl}" class="button">Realizar Pago</a>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    await this.sendToUser(clientId, `Contrato aceptado: ${jobTitle}`, html);
+  async sendContractAcceptedEmail(clientId: string, doerId: string, contractId: string, jobTitle: string): Promise<void> {
+    const url = `${config.clientUrl}/contracts/${contractId}`;
+    const makeHtml = (name: string) => this.tpl({
+      eyebrow: 'Contrato',
+      accent: 'green',
+      title: 'Contrato aceptado',
+      body: `
+        <p>Hola <strong>${name}</strong>,</p>
+        <p>Ambas partes aceptaron el contrato para <strong>${jobTitle}</strong>. ¡El trabajo puede comenzar!</p>
+        ${this.callout('success', '¡Listo para comenzar!', 'El contrato está activo. Coordiná con la otra parte para arrancar.')}
+      `,
+      cta: { label: 'Ver contrato', url },
+    });
+    const client = await User.findByPk(clientId);
+    const doer = await User.findByPk(doerId);
+    if (client?.email) await this.sendEmail({ to: client.email, subject: `Contrato aceptado: ${jobTitle}`, html: makeHtml(client.name) });
+    if (doer?.email) await this.sendEmail({ to: doer.email, subject: `Contrato aceptado: ${jobTitle}`, html: makeHtml(doer.name) });
   }
 
-  /**
-   * Send payment in escrow notification (Argentina)
-   */
-  async sendPaymentEscrowEmail(
-    clientId: string,
-    doerId: string,
-    contractId: string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    jobTitle: string,
-    amount: number,
-    currency: string = "ARS"
-  ): Promise<void> {
-    const numericAmount = typeof amount === 'number' ? amount : parseFloat(String(amount)) || 0;
-    const contractUrl = `${config.clientUrl}/contracts/${contractId}`;
-
-    const htmlClient = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .amount { font-size: 32px; color: #10b981; font-weight: bold; text-align: center; margin: 20px 0; }
-            .info-box { background: #ecfdf5; border: 1px solid #10b981; padding: 20px; margin: 20px 0; border-radius: 8px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>🔒 Pago en Escrow</h1>
-            </div>
-            <div class="content">
-              <p>Hola,</p>
-              <p>Tu pago ha sido recibido y se encuentra en escrow (custodia segura).</p>
-              <div class="amount">${currency} $${numericAmount.toFixed(2)}</div>
-              <div class="info-box">
-                <p><strong>Trabajo:</strong> ${jobTitle}</p>
-                <p><strong>¿Qué es el escrow?</strong></p>
-                <p>Tu dinero está protegido y solo se liberará cuando ambas partes (tú y el doer) confirmen que el trabajo fue completado satisfactoriamente.</p>
-              </div>
-              <p>El doer ya puede comenzar a trabajar. Una vez finalizado, ambos deberán confirmar la entrega del servicio.</p>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    const htmlDoer = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .button { display: inline-block; padding: 12px 30px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-            .amount { font-size: 32px; color: #667eea; font-weight: bold; text-align: center; margin: 20px 0; }
-            .info-box { background: #ede9fe; border: 1px solid #667eea; padding: 20px; margin: 20px 0; border-radius: 8px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>🚀 Puedes Comenzar</h1>
-            </div>
-            <div class="content">
-              <p>Hola,</p>
-              <p>¡Buenas noticias! El pago está asegurado y ya puedes comenzar a trabajar.</p>
-              <div class="amount">${currency} $${numericAmount.toFixed(2)}</div>
-              <div class="info-box">
-                <p><strong>Trabajo:</strong> ${jobTitle}</p>
-                <p><strong>Pago protegido:</strong></p>
-                <p>El dinero está en escrow y se te liberará cuando ambas partes confirmen que completaste el trabajo satisfactoriamente.</p>
-              </div>
-              <a href="${contractUrl}" class="button">Ver Detalles del Contrato</a>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    await Promise.all([
-      this.sendToUser(clientId, `Pago en escrow: ${jobTitle}`, htmlClient),
-      this.sendToUser(doerId, `Pago asegurado: ${jobTitle}`, htmlDoer),
-    ]);
+  async sendPaymentEscrowEmail(userId: string, jobTitle: string, amount: number, currency: string, contractId: string): Promise<void> {
+    const user = await User.findByPk(userId);
+    if (!user?.email) return;
+    const html = this.tpl({
+      eyebrow: 'Pago',
+      accent: 'green',
+      title: 'Pago en escrow',
+      body: `
+        <p>Hola <strong>${user.name}</strong>,</p>
+        <p>El pago por <strong>${jobTitle}</strong> está retenido en escrow de forma segura.</p>
+        ${this.callout('info', '¿Qué es el escrow?', 'El dinero se libera automáticamente al trabajador cuando ambas partes confirmen la finalización del trabajo.')}
+      `,
+      amount: `${currency} $${Number(amount).toLocaleString('es-AR')}`,
+      cta: { label: 'Ver contrato', url: `${config.clientUrl}/contracts/${contractId}` },
+    });
+    await this.sendEmail({ to: user.email, subject: `Pago en escrow: ${jobTitle}`, html });
   }
 
-  /**
-   * Send contract awaiting confirmation notification (Argentina)
-   */
-  async sendContractAwaitingConfirmationEmail(
-    userId: string,
-    otherPartyName: string,
-    contractId: string,
-    jobTitle: string,
-    isClient: boolean
-  ): Promise<void> {
-    const contractUrl = `${config.clientUrl}/contracts/${contractId}`;
-
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .button { display: inline-block; padding: 12px 30px; background: #f59e0b; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-            .info-box { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>⏳ Confirmación Pendiente</h1>
-            </div>
-            <div class="content">
-              <p>Hola,</p>
-              <p><strong>${otherPartyName}</strong> ha confirmado que el trabajo está completo.</p>
-              <div class="info-box">
-                <p><strong>Trabajo:</strong> ${jobTitle}</p>
-                <p>${isClient ? '¿El trabajo fue completado satisfactoriamente?' : '¿Confirmaste que entregaste el trabajo?'}</p>
-              </div>
-              <p><strong>Acción requerida:</strong></p>
-              <p>Por favor, revisa el trabajo y confirma si está completado. Una vez que ambos confirmen, ${isClient ? 'el pago será liberado al doer' : 'recibirás tu pago'}.</p>
-              <p>Si hay algún problema, puedes abrir una disputa.</p>
-              <a href="${contractUrl}" class="button">Revisar y Confirmar</a>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    await this.sendToUser(userId, `Confirmación requerida: ${jobTitle}`, html);
+  async sendContractAwaitingConfirmationEmail(to: string, userName: string, jobTitle: string, contractId: string, isClient: boolean): Promise<void> {
+    const html = this.tpl({
+      eyebrow: 'Contrato',
+      accent: 'amber',
+      title: 'Confirmación pendiente',
+      body: `
+        <p>Hola <strong>${userName}</strong>,</p>
+        <p>El trabajo <strong>${jobTitle}</strong> está pendiente de confirmación.</p>
+        ${isClient
+          ? this.callout('warning', 'Tu acción es requerida', 'El trabajador marcó el trabajo como completado. Revisá el trabajo y confirmá si estás conforme.')
+          : this.callout('info', 'En espera', 'Marcaste el trabajo como completado. Esperá que el cliente confirme.')}
+        <p style="font-size:13px;color:#94a3b8;text-align:center;margin-top:16px;">Si no se confirma en 2 horas, se liberará automáticamente.</p>
+      `,
+      cta: { label: 'Confirmar trabajo', url: `${config.clientUrl}/contracts/${contractId}` },
+    });
+    await this.sendEmail({ to, subject: `Confirmación pendiente: ${jobTitle}`, html });
   }
 
-  /**
-   * Send contract completed notification (Argentina)
-   */
-  async sendContractCompletedEmail(
-    clientId: string,
-    doerId: string,
-    contractId: string,
-    jobTitle: string,
-    amount: number | string,
-    currency: string = "ARS"
-  ): Promise<void> {
-    // Ensure amount is a number
-    const numericAmount = typeof amount === 'string' ? parseFloat(amount) : (amount || 0);
-    const contractUrl = `${config.clientUrl}/contracts/${contractId}`;
+  async sendContractCompletedEmail(clientId: string, doerId: string, contractId: string, jobTitle: string, workerAmount: number, currency = 'ARS'): Promise<void> {
+    const url = `${config.clientUrl}/contracts/${contractId}`;
+    const doer = await User.findByPk(doerId);
+    const client = await User.findByPk(clientId);
 
-    const htmlClient = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .button { display: inline-block; padding: 12px 30px; background: #10b981; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-            .success-box { background: #ecfdf5; border: 1px solid #10b981; padding: 20px; margin: 20px 0; border-radius: 8px; text-align: center; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>🎉 Contrato Completado</h1>
-            </div>
-            <div class="content">
-              <p>Hola,</p>
-              <p>¡Felicidades! El contrato ha sido completado exitosamente.</p>
-              <div class="success-box">
-                <h3 style="color: #10b981; margin-top: 0;">✅ ${jobTitle}</h3>
-                <p>El pago de <strong>${currency} $${numericAmount.toFixed(2)}</strong> ha sido liberado al doer.</p>
-              </div>
-              <p><strong>¿Qué sigue?</strong></p>
-              <p>Deja una reseña para ayudar a otros usuarios a conocer tu experiencia trabajando con este doer.</p>
-              <a href="${contractUrl}" class="button">Dejar Reseña</a>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    const htmlDoer = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .button { display: inline-block; padding: 12px 30px; background: #10b981; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-            .amount { font-size: 36px; color: #10b981; font-weight: bold; text-align: center; margin: 20px 0; }
-            .success-box { background: #ecfdf5; border: 1px solid #10b981; padding: 20px; margin: 20px 0; border-radius: 8px; text-align: center; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>💰 Pago Recibido</h1>
-            </div>
-            <div class="content">
-              <p>Hola,</p>
-              <p>¡Excelente trabajo! El pago ha sido liberado.</p>
-              <div class="success-box">
-                <h3 style="color: #10b981; margin-top: 0;">✅ ${jobTitle}</h3>
-                <div class="amount">${currency} $${numericAmount.toFixed(2)}</div>
-                <p>El dinero ha sido transferido a tu cuenta.</p>
-              </div>
-              <p>Invita al cliente a dejar una reseña para aumentar tu reputación en la plataforma.</p>
-              <a href="${contractUrl}" class="button">Ver Detalles</a>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    await Promise.all([
-      this.sendToUser(clientId, `Contrato completado: ${jobTitle}`, htmlClient),
-      this.sendToUser(doerId, `Pago recibido: ${jobTitle}`, htmlDoer),
-    ]);
-  }
-
-  /**
-   * Send dispute created notification (Argentina)
-   */
-  async sendDisputeCreatedEmail(
-    disputeId: string,
-    initiatorId: string,
-    respondentId: string,
-    contractId: string,
-    jobTitle: string,
-    reason: string
-  ): Promise<void> {
-    const disputeUrl = `${config.clientUrl}/disputes/${disputeId}`;
-    const contractUrl = `${config.clientUrl}/contracts/${contractId}`;
-
-    const htmlRespondent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .button { display: inline-block; padding: 12px 30px; background: #ef4444; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-            .warning-box { background: #fee2e2; border-left: 4px solid #ef4444; padding: 15px; margin: 20px 0; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>⚠️ Disputa Abierta</h1>
-            </div>
-            <div class="content">
-              <p>Hola,</p>
-              <p>Se ha abierto una disputa sobre un contrato.</p>
-              <div class="warning-box">
-                <p><strong>Trabajo:</strong> ${jobTitle}</p>
-                <p><strong>Motivo:</strong> ${reason}</p>
-              </div>
-              <p><strong>¿Qué significa esto?</strong></p>
-              <ul>
-                <li>El pago está pausado en escrow</li>
-                <li>Un administrador revisará el caso</li>
-                <li>Ambas partes pueden aportar evidencia</li>
-              </ul>
-              <p><strong>Próximos pasos:</strong></p>
-              <p>Revisa los detalles de la disputa y proporciona tu versión de los hechos. Puedes adjuntar fotos, videos o documentos como evidencia.</p>
-              <a href="${disputeUrl}" class="button">Ver Disputa</a>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    const htmlInitiator = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .button { display: inline-block; padding: 12px 30px; background: #f59e0b; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-            .info-box { background: #fef3c7; border-left: 4px solid #f59e0b; padding: 15px; margin: 20px 0; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>📋 Disputa Registrada</h1>
-            </div>
-            <div class="content">
-              <p>Hola,</p>
-              <p>Tu disputa ha sido registrada correctamente.</p>
-              <div class="info-box">
-                <p><strong>Trabajo:</strong> ${jobTitle}</p>
-                <p><strong>Motivo:</strong> ${reason}</p>
-              </div>
-              <p><strong>¿Qué sigue?</strong></p>
-              <ul>
-                <li>El pago permanecerá en escrow hasta resolver</li>
-                <li>Un administrador revisará el caso</li>
-                <li>Ambas partes serán contactadas</li>
-                <li>Se resolverá en un plazo de 3-5 días hábiles</li>
-              </ul>
-              <p>Puedes agregar más evidencia (fotos, videos, documentos) para respaldar tu caso.</p>
-              <a href="${disputeUrl}" class="button">Ver Mi Disputa</a>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    await Promise.all([
-      this.sendToUser(respondentId, `Disputa abierta: ${jobTitle}`, htmlRespondent),
-      this.sendToUser(initiatorId, `Disputa registrada: ${jobTitle}`, htmlInitiator),
-    ]);
-  }
-
-  /**
-   * Send dispute resolved notification (Argentina)
-   */
-  async sendDisputeResolvedEmail(
-    disputeId: string,
-    clientId: string,
-    doerId: string,
-    jobTitle: string,
-    resolution: string,
-    resolutionType: "full_release" | "full_refund" | "partial_refund" | "no_action"
-  ): Promise<void> {
-    const disputeUrl = `${config.clientUrl}/disputes/${disputeId}`;
-
-    let outcome = "";
-    let headerColor = "#10b981";
-
-    switch (resolutionType) {
-      case "full_release":
-        outcome = "El pago completo ha sido liberado al doer.";
-        break;
-      case "full_refund":
-        outcome = "El pago completo ha sido reembolsado al cliente.";
-        break;
-      case "partial_refund":
-        outcome = "Se ha realizado un reembolso parcial.";
-        headerColor = "#f59e0b";
-        break;
-      case "no_action":
-        outcome = "No se realizarán cambios al pago.";
-        headerColor = "#6b7280";
-        break;
+    if (doer?.email) {
+      const html = this.tpl({
+        eyebrow: 'Contrato',
+        accent: 'green',
+        title: '¡Trabajo completado!',
+        body: `
+          <p>Hola <strong>${doer.name}</strong>,</p>
+          <p>El trabajo <strong>${jobTitle}</strong> fue confirmado. Tu pago fue acreditado a tu balance.</p>
+          ${this.callout('success', '¡Excelente trabajo!', 'El dinero ya está disponible en tu balance para retirarlo cuando quieras.')}
+        `,
+        amount: `${currency} $${workerAmount.toLocaleString('es-AR')}`,
+        amountLabel: 'Monto acreditado',
+        cta: { label: 'Ver balance', url: `${config.clientUrl}/balance` },
+      });
+      await this.sendEmail({ to: doer.email, subject: `Trabajo completado: ${jobTitle}`, html });
     }
-
-    const html = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, ${headerColor} 0%, ${headerColor}dd 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-            .button { display: inline-block; padding: 12px 30px; background: ${headerColor}; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-            .resolution-box { background: white; border-left: 4px solid ${headerColor}; padding: 20px; margin: 20px 0; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>✅ Disputa Resuelta</h1>
-            </div>
-            <div class="content">
-              <p>Hola,</p>
-              <p>La disputa ha sido resuelta por nuestro equipo de administración.</p>
-              <div class="resolution-box">
-                <p><strong>Trabajo:</strong> ${jobTitle}</p>
-                <p><strong>Resolución:</strong></p>
-                <p>${resolution}</p>
-                <p><strong>Resultado:</strong> ${outcome}</p>
-              </div>
-              <p>Si tienes preguntas sobre esta resolución, puedes contactar a nuestro equipo de soporte.</p>
-              <a href="${disputeUrl}" class="button">Ver Detalles</a>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    await Promise.all([
-      this.sendToUser(clientId, `Disputa resuelta: ${jobTitle}`, html),
-      this.sendToUser(doerId, `Disputa resuelta: ${jobTitle}`, html),
-    ]);
+    if (client?.email) {
+      const html = this.tpl({
+        eyebrow: 'Contrato',
+        accent: 'green',
+        title: 'Trabajo completado',
+        body: `
+          <p>Hola <strong>${client.name}</strong>,</p>
+          <p>El trabajo <strong>${jobTitle}</strong> fue completado exitosamente.</p>
+          ${this.callout('info', 'Dejá una reseña', 'Tu opinión ayuda a la comunidad. Calificá al trabajador desde el contrato.')}
+        `,
+        cta: { label: 'Ver contrato y dejar reseña', url },
+      });
+      await this.sendEmail({ to: client.email, subject: `Trabajo completado: ${jobTitle}`, html });
+    }
   }
 
-  /**
-   * Strip HTML tags from text
-   */
-  private stripHtml(html: string): string {
-    return html.replace(/<[^>]*>/g, "");
+  async sendDisputeCreatedEmail(clientId: string, doerId: string, disputeId: string, contractTitle: string, reason: string): Promise<void> {
+    const url = `${config.clientUrl}/disputes/${disputeId}`;
+    const makeHtml = (name: string) => this.tpl({
+      eyebrow: 'Disputa',
+      accent: 'orange',
+      title: 'Disputa abierta',
+      body: `
+        <p>Hola <strong>${name}</strong>,</p>
+        <p>Se abrió una disputa en el contrato <strong>${contractTitle}</strong>.</p>
+        ${this.detailCard([{ label: 'Motivo', value: reason }])}
+        ${this.callout('warning', 'Próximos pasos', 'Nuestro equipo revisará el caso. Podés agregar evidencia y mensajes en el panel de disputa.')}
+      `,
+      cta: { label: 'Ver disputa', url },
+    });
+    const client = await User.findByPk(clientId);
+    const doer = await User.findByPk(doerId);
+    if (client?.email) await this.sendEmail({ to: client.email, subject: `Disputa abierta: ${contractTitle}`, html: makeHtml(client.name) });
+    if (doer?.email) await this.sendEmail({ to: doer.email, subject: `Disputa abierta: ${contractTitle}`, html: makeHtml(doer.name) });
   }
 
-  /**
-   * Send withdrawal requested notification
-   */
+  async sendDisputeResolvedEmail(userId: string, disputeId: string, resolution: string, amount: number, currency = 'ARS'): Promise<void> {
+    const user = await User.findByPk(userId);
+    if (!user?.email) return;
+    const html = this.tpl({
+      eyebrow: 'Disputa',
+      accent: 'green',
+      title: 'Disputa resuelta',
+      body: `
+        <p>Hola <strong>${user.name}</strong>,</p>
+        <p>La disputa fue resuelta por nuestro equipo de moderación.</p>
+        ${this.callout('success', 'Resolución', resolution)}
+      `,
+      amount: amount > 0 ? `${currency} $${amount.toLocaleString('es-AR')}` : undefined,
+      cta: { label: 'Ver disputa', url: `${config.clientUrl}/disputes/${disputeId}` },
+    });
+    await this.sendEmail({ to: user.email, subject: 'Disputa resuelta · DOAPP', html });
+  }
+
   async sendWithdrawalRequested(to: string, userName: string, amount: number): Promise<void> {
-    const subject = "Solicitud de Retiro Recibida - Doers";
-    const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
-          .button { display: inline-block; padding: 12px 30px; background: #0EA5E9; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
-          .amount { font-size: 32px; font-weight: bold; color: #0EA5E9; margin: 20px 0; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>💰 Solicitud de Retiro Recibida</h1>
-          </div>
-          <div class="content">
-            <p>Hola ${userName},</p>
-            <p>Hemos recibido tu solicitud de retiro:</p>
-            <div class="amount">$${amount.toLocaleString("es-AR")} ARS</div>
-            <p><strong>Estado:</strong> Pendiente de aprobación</p>
-            <p><strong>Tiempo estimado:</strong> 24-48 horas hábiles</p>
-            <p>Te notificaremos cuando tu retiro sea procesado y transferido a tu cuenta bancaria.</p>
-            <a href="${config.clientUrl}/balance" class="button">Ver Mis Retiros</a>
-            <p>Si no solicitaste este retiro, contacta a soporte inmediatamente.</p>
-          </div>
-          <div class="footer">
-            <p>© ${new Date().getFullYear()} Doers. Todos los derechos reservados.</p>
-            <p>Este es un correo automático, por favor no respondas.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
-
-    await this.sendEmail({ to, subject, html });
+    const html = this.tpl({
+      eyebrow: 'Retiro',
+      title: 'Retiro solicitado',
+      body: `
+        <p>Hola <strong>${userName}</strong>,</p>
+        <p>Recibimos tu solicitud de retiro. La procesaremos en los próximos días hábiles.</p>
+        ${this.callout('info', '', 'Recibirás un email de confirmación cuando la transferencia sea procesada.')}
+      `,
+      amount: `$${amount.toLocaleString('es-AR')} ARS`,
+      amountLabel: 'Monto solicitado',
+      cta: { label: 'Ver balance', url: `${config.clientUrl}/balance` },
+    });
+    await this.sendEmail({ to, subject: 'Solicitud de retiro · DOAPP', html });
   }
 
-  /**
-   * Send withdrawal approved notification
-   */
   async sendWithdrawalApproved(to: string, userName: string, amount: number): Promise<void> {
-    const subject = "Retiro Aprobado - Doers";
-    const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
-          .button { display: inline-block; padding: 12px 30px; background: #10B981; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
-          .amount { font-size: 32px; font-weight: bold; color: #10B981; margin: 20px 0; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>✅ Retiro Aprobado</h1>
-          </div>
-          <div class="content">
-            <p>Hola ${userName},</p>
-            <p>¡Buenas noticias! Tu solicitud de retiro ha sido aprobada:</p>
-            <div class="amount">$${amount.toLocaleString("es-AR")} ARS</div>
-            <p><strong>Estado:</strong> Aprobado - En proceso de transferencia</p>
-            <p>Estamos procesando tu retiro y será transferido a tu cuenta bancaria en las próximas horas.</p>
-            <a href="${config.clientUrl}/balance" class="button">Ver Estado</a>
-          </div>
-          <div class="footer">
-            <p>© ${new Date().getFullYear()} Doers. Todos los derechos reservados.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
-
-    await this.sendEmail({ to, subject, html });
+    const html = this.tpl({
+      eyebrow: 'Retiro',
+      accent: 'green',
+      title: 'Retiro aprobado',
+      body: `
+        <p>Hola <strong>${userName}</strong>,</p>
+        <p>Tu solicitud de retiro fue aprobada. Procederemos a transferirte el dinero a tu CBU en breve.</p>
+      `,
+      amount: `$${amount.toLocaleString('es-AR')} ARS`,
+      amountLabel: 'Monto aprobado',
+    });
+    await this.sendEmail({ to, subject: 'Retiro aprobado · DOAPP', html });
   }
 
-  /**
-   * Send withdrawal completed notification
-   */
   async sendWithdrawalCompleted(to: string, userName: string, amount: number, newBalance: number): Promise<void> {
-    const subject = "Retiro Completado - Doers";
-    const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
-          .button { display: inline-block; padding: 12px 30px; background: #10B981; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
-          .amount { font-size: 32px; font-weight: bold; color: #10B981; margin: 20px 0; }
-          .balance { background: #e0f2fe; padding: 15px; border-radius: 8px; margin: 20px 0; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>✨ Retiro Completado</h1>
-          </div>
-          <div class="content">
-            <p>Hola ${userName},</p>
-            <p>¡Tu retiro ha sido completado exitosamente!</p>
-            <div class="amount">$${amount.toLocaleString("es-AR")} ARS</div>
-            <p><strong>Estado:</strong> Transferido</p>
-            <p>El dinero ha sido transferido a tu cuenta bancaria. Puede tardar de 24 a 72 horas en reflejarse según tu banco.</p>
-            <div class="balance">
-              <p><strong>Tu nuevo saldo disponible:</strong></p>
-              <p style="font-size: 24px; font-weight: bold; color: #0EA5E9;">$${newBalance.toLocaleString("es-AR")} ARS</p>
-            </div>
-            <a href="${config.clientUrl}/balance" class="button">Ver Historial</a>
-          </div>
-          <div class="footer">
-            <p>© ${new Date().getFullYear()} Doers. Todos los derechos reservados.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
-
-    await this.sendEmail({ to, subject, html });
+    const html = this.tpl({
+      eyebrow: 'Retiro',
+      accent: 'green',
+      title: '¡Retiro completado!',
+      body: `
+        <p>Hola <strong>${userName}</strong>,</p>
+        <p>Tu retiro fue procesado exitosamente. El dinero ya está en camino a tu CBU.</p>
+        ${this.callout('success', 'Balance actualizado', `Tu nuevo balance disponible es <strong>$${newBalance.toLocaleString('es-AR')} ARS</strong>`)}
+      `,
+      amount: `$${amount.toLocaleString('es-AR')} ARS`,
+      amountLabel: 'Transferido',
+    });
+    await this.sendEmail({ to, subject: 'Retiro completado · DOAPP', html });
   }
 
-  /**
-   * Send withdrawal rejected notification
-   */
   async sendWithdrawalRejected(to: string, userName: string, amount: number, reason: string): Promise<void> {
-    const subject = "Solicitud de Retiro Rechazada - Doers";
-    const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: linear-gradient(135deg, #EF4444 0%, #DC2626 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
-          .button { display: inline-block; padding: 12px 30px; background: #0EA5E9; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
-          .reason { background: #fee2e2; padding: 15px; border-left: 4px solid #EF4444; border-radius: 4px; margin: 20px 0; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>❌ Solicitud Rechazada</h1>
-          </div>
-          <div class="content">
-            <p>Hola ${userName},</p>
-            <p>Lamentamos informarte que tu solicitud de retiro por <strong>$${amount.toLocaleString("es-AR")} ARS</strong> ha sido rechazada.</p>
-            <div class="reason">
-              <p><strong>Motivo:</strong></p>
-              <p>${reason}</p>
-            </div>
-            <p>Tu saldo no ha sido afectado y permanece disponible en tu cuenta.</p>
-            <p>Si tienes preguntas, por favor contacta a nuestro equipo de soporte.</p>
-            <a href="${config.clientUrl}/contact?subject=withdrawal" class="button">Contactar Soporte</a>
-          </div>
-          <div class="footer">
-            <p>© ${new Date().getFullYear()} Doers. Todos los derechos reservados.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
-
-    await this.sendEmail({ to, subject, html });
+    const html = this.tpl({
+      eyebrow: 'Retiro',
+      accent: 'red',
+      title: 'Retiro rechazado',
+      body: `
+        <p>Hola <strong>${userName}</strong>,</p>
+        <p>Tu solicitud de retiro no pudo ser procesada.</p>
+        ${this.callout('danger', 'Motivo del rechazo', reason)}
+        <p>El monto de <strong>$${amount.toLocaleString('es-AR')} ARS</strong> fue devuelto a tu balance disponible.</p>
+      `,
+      cta: { label: 'Ver balance', url: `${config.clientUrl}/balance` },
+    });
+    await this.sendEmail({ to, subject: 'Retiro rechazado · DOAPP', html });
   }
 
-  /**
-   * Send price modification notification
-   */
   async sendPriceModificationEmail(to: string, userName: string, contractId: string, previousPrice: number, newPrice: number, isIncrease: boolean, balanceChange: number): Promise<void> {
-    const subject = isIncrease ? "Precio de Contrato Aumentado - Doers" : "Precio de Contrato Reducido - Doers";
-    const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
-          .button { display: inline-block; padding: 12px 30px; background: #0EA5E9; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
-          .price-change { background: ${isIncrease ? '#fee2e2' : '#d1fae5'}; padding: 20px; border-radius: 8px; margin: 20px 0; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>💰 Precio de Contrato Modificado</h1>
-          </div>
-          <div class="content">
-            <p>Hola ${userName},</p>
-            <p>El precio de tu contrato ha sido modificado:</p>
-            <div class="price-change">
-              <p><strong>Precio anterior:</strong> $${previousPrice.toLocaleString("es-AR")} ARS</p>
-              <p><strong>Nuevo precio:</strong> $${newPrice.toLocaleString("es-AR")} ARS</p>
-              <p><strong>Diferencia:</strong> ${isIncrease ? '+' : '-'}$${Math.abs(balanceChange).toLocaleString("es-AR")} ARS</p>
-            </div>
-            <p>${isIncrease
-              ? `Se ha descontado $${Math.abs(balanceChange).toLocaleString("es-AR")} de tu saldo disponible.`
-              : `Se ha acreditado $${Math.abs(balanceChange).toLocaleString("es-AR")} a tu saldo disponible.`
-            }</p>
-            <a href="${config.clientUrl}/contracts/${contractId}" class="button">Ver Contrato</a>
-          </div>
-          <div class="footer">
-            <p>© ${new Date().getFullYear()} Doers. Todos los derechos reservados.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
-
-    await this.sendEmail({ to, subject, html });
+    const html = this.tpl({
+      eyebrow: 'Contrato',
+      accent: isIncrease ? 'amber' : 'sky',
+      title: isIncrease ? 'Precio aumentado' : 'Precio reducido',
+      body: `
+        <p>Hola <strong>${userName}</strong>,</p>
+        <p>El precio del contrato fue modificado.</p>
+        ${this.detailCard([
+          { label: 'Precio anterior', value: `$${previousPrice.toLocaleString('es-AR')} ARS` },
+          { label: 'Precio nuevo', value: `$${newPrice.toLocaleString('es-AR')} ARS`, highlight: true },
+          { label: isIncrease ? 'Cargo adicional' : 'Reembolso', value: `$${Math.abs(balanceChange).toLocaleString('es-AR')} ARS` },
+        ])}
+      `,
+      cta: { label: 'Ver contrato', url: `${config.clientUrl}/contracts/${contractId}` },
+    });
+    await this.sendEmail({ to, subject: `Precio modificado · DOAPP`, html });
   }
 
-  /**
-   * Send balance refund notification
-   */
   async sendBalanceRefundEmail(to: string, userName: string, amount: number, reason: string, newBalance: number): Promise<void> {
-    const subject = "Reembolso Acreditado - Doers";
-    const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
-          .button { display: inline-block; padding: 12px 30px; background: #10B981; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
-          .amount { font-size: 32px; font-weight: bold; color: #10B981; margin: 20px 0; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>💵 Reembolso Acreditado</h1>
-          </div>
-          <div class="content">
-            <p>Hola ${userName},</p>
-            <p>Se ha acreditado un reembolso a tu saldo:</p>
-            <div class="amount">+$${amount.toLocaleString("es-AR")} ARS</div>
-            <p><strong>Motivo:</strong> ${reason}</p>
-            <p><strong>Tu nuevo saldo:</strong> $${newBalance.toLocaleString("es-AR")} ARS</p>
-            <p>Puedes usar este saldo para futuros contratos en la plataforma.</p>
-            <a href="${config.clientUrl}/balance" class="button">Ver Mi Saldo</a>
-          </div>
-          <div class="footer">
-            <p>© ${new Date().getFullYear()} Doers. Todos los derechos reservados.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
-
-    await this.sendEmail({ to, subject, html });
+    const html = this.tpl({
+      eyebrow: 'Pago',
+      accent: 'green',
+      title: 'Reembolso acreditado',
+      body: `
+        <p>Hola <strong>${userName}</strong>,</p>
+        <p>Se acreditó un reembolso a tu balance.</p>
+        ${this.detailCard([
+          { label: 'Motivo', value: reason },
+          { label: 'Nuevo balance', value: `$${newBalance.toLocaleString('es-AR')} ARS`, highlight: true },
+        ])}
+      `,
+      amount: `$${amount.toLocaleString('es-AR')} ARS`,
+      amountLabel: 'Reembolso',
+      cta: { label: 'Ver balance', url: `${config.clientUrl}/balance` },
+    });
+    await this.sendEmail({ to, subject: 'Reembolso acreditado · DOAPP', html });
   }
 
-  /**
-   * Send job completion confirmation reminder
-   */
   async sendConfirmationReminder(to: string, userName: string, jobTitle: string, contractId: string, isClient: boolean): Promise<void> {
-    const subject = "Recordatorio: Confirma que el trabajo fue completado - Doers";
-    const contractUrl = `${config.clientUrl}/contracts/${contractId}`;
-    const roleText = isClient ? "el trabajador" : "el cliente";
-    const actionText = isClient
-      ? "Confirma que el trabajo fue realizado correctamente para que el trabajador reciba su pago."
-      : "Confirma que entregaste el trabajo correctamente para recibir tu pago.";
-
-    const html = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-          .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
-          .button { display: inline-block; padding: 14px 35px; background: linear-gradient(135deg, #10B981 0%, #059669 100%); color: white; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: bold; }
-          .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
-          .job-box { background: white; border-left: 4px solid #10B981; padding: 20px; margin: 20px 0; border-radius: 8px; }
-          .emoji { font-size: 48px; margin-bottom: 10px; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <div class="emoji">✅</div>
-            <h1>¡El trabajo ha terminado!</h1>
-          </div>
-          <div class="content">
-            <p>Hola ${userName},</p>
-            <p>El trabajo ha llegado a su fecha de finalización y necesita tu confirmación.</p>
-            <div class="job-box">
-              <h3 style="margin-top: 0; color: #059669;">${jobTitle}</h3>
-              <p>${actionText}</p>
-            </div>
-            <p>Una vez que tanto tú como ${roleText} confirmen, el proceso de pago se completará automáticamente.</p>
-            <center>
-              <a href="${contractUrl}" class="button">Confirmar trabajo</a>
-            </center>
-            <p style="color: #666; font-size: 14px; margin-top: 20px;">
-              Si tienes algún problema con el trabajo realizado, puedes abrir una disputa desde la página del contrato.
-            </p>
-          </div>
-          <div class="footer">
-            <p>© ${new Date().getFullYear()} Doers. Todos los derechos reservados.</p>
-            <p>Este es un correo automático, por favor no respondas.</p>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
-
-    await this.sendEmail({ to, subject, html });
+    const html = this.tpl({
+      eyebrow: 'Recordatorio',
+      accent: 'amber',
+      title: 'Confirmación pendiente',
+      body: `
+        <p>Hola <strong>${userName}</strong>,</p>
+        <p>El trabajo <strong>${jobTitle}</strong> está esperando tu confirmación.</p>
+        ${isClient
+          ? this.callout('warning', 'Tu acción es requerida', 'Revisá el trabajo realizado y confirmá si estás conforme. Si no confirmás en las próximas horas, el sistema lo confirmará automáticamente.')
+          : this.callout('info', 'En espera del cliente', 'Confirmá las horas trabajadas para que el cliente pueda aprobar el pago.')
+        }
+      `,
+      cta: { label: 'Confirmar ahora', url: `${config.clientUrl}/contracts/${contractId}` },
+    });
+    await this.sendEmail({ to, subject: `Confirmación pendiente: ${jobTitle}`, html });
   }
 
-  /**
-   * Send banking info required email when a worker completes a job but has no banking data
-   */
-  async sendBankingInfoRequiredEmail(userId: string, contractId: string, amount: number): Promise<void> {
+  async sendBankingInfoRequiredEmail(userId: string, _contractId: string, amount: number): Promise<void> {
     try {
       const user = await User.findByPk(userId);
       if (!user?.email) return;
-
-      const settingsUrl = `${config.clientUrl}/settings?tab=banking`;
-      const contractUrl = `${config.clientUrl}/contracts/${contractId}`;
-
-      const subject = "⚠️ Datos bancarios requeridos para recibir tu pago - Doers";
-      const html = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #F59E0B 0%, #D97706 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
-            .button { display: inline-block; padding: 14px 35px; background: linear-gradient(135deg, #0EA5E9 0%, #0284C7 100%); color: white; text-decoration: none; border-radius: 8px; margin: 20px 0; font-weight: bold; }
-            .footer { text-align: center; margin-top: 30px; color: #666; font-size: 12px; }
-            .amount { font-size: 32px; font-weight: bold; color: #10B981; margin: 20px 0; }
-            .warning-box { background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 20px; margin: 20px 0; border-radius: 8px; }
-            .emoji { font-size: 48px; margin-bottom: 10px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <div class="emoji">💳</div>
-              <h1>Datos Bancarios Requeridos</h1>
-            </div>
-            <div class="content">
-              <p>Hola ${user.name},</p>
-              <p>¡Felicitaciones! Tu trabajo ha sido completado exitosamente. Tienes un pago pendiente de:</p>
-              <div class="amount">$${amount.toLocaleString("es-AR")} ARS</div>
-              <div class="warning-box">
-                <strong>⚠️ Acción requerida:</strong>
-                <p style="margin-bottom: 0;">Para poder transferirte el dinero, necesitamos que completes tus datos bancarios (CBU/CVU) en la configuración de tu perfil.</p>
-              </div>
-              <p>¿Qué necesitamos?</p>
-              <ul>
-                <li><strong>CBU o CVU:</strong> 22 dígitos de tu cuenta bancaria o billetera virtual</li>
-                <li><strong>Alias (opcional):</strong> Tu alias bancario para verificación</li>
-              </ul>
-              <center>
-                <a href="${settingsUrl}" class="button">Completar Datos Bancarios</a>
-              </center>
-              <p style="color: #666; font-size: 14px; margin-top: 20px;">
-                Una vez que completes tus datos, nuestro equipo procesará tu pago lo antes posible.
-              </p>
-            </div>
-            <div class="footer">
-              <p>© ${new Date().getFullYear()} Doers. Todos los derechos reservados.</p>
-              <p>Este es un correo automático, por favor no respondas.</p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `;
-
-      await this.sendEmail({ to: user.email, subject, html });
-      console.log(`📧 Banking info required email sent to ${user.email}`);
+      const html = this.tpl({
+        eyebrow: 'Cuenta',
+        accent: 'amber',
+        title: 'Datos bancarios requeridos',
+        body: `
+          <p>Hola <strong>${user.name}</strong>,</p>
+          <p>¡Tu trabajo fue completado y tenés un pago pendiente! Pero necesitamos tus datos bancarios para transferirte el dinero.</p>
+          ${this.callout('warning', 'Acción requerida', 'Agregá tu CBU o CVU (22 dígitos) en la configuración de tu perfil para recibir el pago.')}
+        `,
+        amount: `$${amount.toLocaleString('es-AR')} ARS`,
+        amountLabel: 'Monto pendiente',
+        cta: { label: 'Completar datos bancarios', url: `${config.clientUrl}/settings?tab=banking` },
+      });
+      await this.sendEmail({ to: user.email, subject: 'Datos bancarios requeridos · DOAPP', html });
     } catch (error) {
       console.error('Error sending banking info required email:', error);
     }
   }
 
-  /**
-   * Send ticket created notification
-   */
-  async sendTicketCreatedEmail(
-    ticketId: string,
-    ticketNumber: string,
-    subject: string,
-    userEmail: string,
-    userName: string
-  ): Promise<void> {
+  async sendTicketCreatedEmail(ticketId: string, ticketNumber: string, subject: string, userEmail: string, userName: string): Promise<void> {
     try {
-      const ticketUrl = `${config.clientUrl}/tickets/${ticketId}`;
-
-      const html = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <style>
-              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-              .header { background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-              .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-              .button { display: inline-block; padding: 12px 30px; background: #0ea5e9; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-              .info-box { background: #e0f2fe; border-left: 4px solid #0ea5e9; padding: 15px; margin: 20px 0; }
-              .ticket-number { font-size: 24px; font-weight: bold; color: #0284c7; }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <h1>🎫 Ticket de Soporte Creado</h1>
-              </div>
-              <div class="content">
-                <p>Hola ${userName},</p>
-                <p>Tu ticket de soporte ha sido creado exitosamente.</p>
-                <div class="info-box">
-                  <p><strong>Número de ticket:</strong> <span class="ticket-number">${ticketNumber}</span></p>
-                  <p><strong>Asunto:</strong> ${subject}</p>
-                </div>
-                <p><strong>¿Qué sigue?</strong></p>
-                <ul>
-                  <li>Nuestro equipo revisará tu consulta</li>
-                  <li>Recibirás una respuesta lo antes posible</li>
-                  <li>Puedes agregar más información en cualquier momento</li>
-                </ul>
-                <p>Te notificaremos por email cuando haya actualizaciones en tu ticket.</p>
-                <a href="${ticketUrl}" class="button">Ver Ticket</a>
-                <p style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 14px;">
-                  Este es un correo automático, por favor no respondas. Para agregar información, usa el enlace de arriba.
-                </p>
-              </div>
-            </div>
-          </body>
-        </html>
-      `;
-
-      await this.sendEmail({
-        to: userEmail,
-        subject: `Ticket ${ticketNumber} creado - ${subject}`,
-        html,
+      const html = this.tpl({
+        eyebrow: 'Soporte',
+        title: `Ticket #${ticketNumber} creado`,
+        body: `
+          <p>Hola <strong>${userName}</strong>,</p>
+          <p>Tu ticket de soporte fue creado correctamente.</p>
+          ${this.detailCard([
+            { label: 'Número', value: `#${ticketNumber}` },
+            { label: 'Asunto', value: subject },
+          ])}
+          <p>Nuestro equipo responderá lo antes posible. Podés agregar más información desde el panel.</p>
+        `,
+        cta: { label: 'Ver ticket', url: `${config.clientUrl}/tickets/${ticketId}` },
       });
-
-      console.log(`📧 Ticket created email sent to ${userEmail}`);
+      await this.sendEmail({ to: userEmail, subject: `Ticket #${ticketNumber} creado · DOAPP`, html });
     } catch (error) {
       console.error('Error sending ticket created email:', error);
     }
   }
 
-  /**
-   * Send ticket message notification
-   */
-  async sendTicketMessageEmail(
-    ticketId: string,
-    ticketNumber: string,
-    subject: string,
-    recipientEmail: string,
-    recipientName: string,
-    senderName: string,
-    message: string,
-    isAdminReply: boolean
-  ): Promise<void> {
+  async sendTicketMessageEmail(ticketId: string, ticketNumber: string, subject: string, recipientEmail: string, recipientName: string, senderName: string, message: string, isAdminReply: boolean): Promise<void> {
     try {
-      const ticketUrl = `${config.clientUrl}/tickets/${ticketId}`;
-
-      const html = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <style>
-              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-              .header { background: linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-              .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-              .button { display: inline-block; padding: 12px 30px; background: #0ea5e9; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-              .message-box { background: white; border-left: 4px solid #0ea5e9; padding: 20px; margin: 20px 0; border-radius: 5px; }
-              .admin-badge { display: inline-block; background: #10b981; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <h1>💬 Nuevo Mensaje en tu Ticket</h1>
-              </div>
-              <div class="content">
-                <p>Hola ${recipientName},</p>
-                <p>${isAdminReply ? '<span class="admin-badge">SOPORTE</span> ' : ''}${senderName} ha respondido en tu ticket <strong>${ticketNumber}</strong>:</p>
-                <div class="message-box">
-                  <p><strong>${subject}</strong></p>
-                  <p style="margin-top: 15px;">${message.substring(0, 300)}${message.length > 300 ? '...' : ''}</p>
-                </div>
-                <p>Haz clic en el botón para ver el mensaje completo y responder.</p>
-                <a href="${ticketUrl}" class="button">Ver Ticket</a>
-                <p style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 14px;">
-                  Este es un correo automático, por favor no respondas. Para responder, usa el enlace de arriba.
-                </p>
-              </div>
-            </div>
-          </body>
-        </html>
-      `;
-
-      await this.sendEmail({
-        to: recipientEmail,
-        subject: `Nuevo mensaje en ticket ${ticketNumber}`,
-        html,
+      const preview = message.length > 200 ? message.substring(0, 200) + '…' : message;
+      const html = this.tpl({
+        eyebrow: 'Soporte',
+        title: `Respuesta en ticket #${ticketNumber}`,
+        body: `
+          <p>Hola <strong>${recipientName}</strong>,</p>
+          <p>${isAdminReply ? '<strong>Soporte DOAPP</strong>' : `<strong>${senderName}</strong>`} respondió en tu ticket <strong>${subject}</strong>:</p>
+          ${this.callout('info', '', `<em>"${preview}"</em>`)}
+        `,
+        cta: { label: 'Ver ticket completo', url: `${config.clientUrl}/tickets/${ticketId}` },
       });
-
-      console.log(`📧 Ticket message email sent to ${recipientEmail}`);
+      await this.sendEmail({ to: recipientEmail, subject: `Respuesta en ticket #${ticketNumber} · DOAPP`, html });
     } catch (error) {
       console.error('Error sending ticket message email:', error);
     }
   }
 
-  /**
-   * Send dispute message notification
-   */
-  async sendDisputeMessageEmail(
-    disputeId: string,
-    recipientEmail: string,
-    recipientName: string,
-    senderName: string,
-    message: string,
-    isAdminMessage: boolean
-  ): Promise<void> {
+  async sendDisputeMessageEmail(disputeId: string, recipientEmail: string, recipientName: string, senderName: string, message: string, isAdminMessage: boolean): Promise<void> {
     try {
-      const disputeUrl = `${config.clientUrl}/disputes/${disputeId}`;
-
-      const html = `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <style>
-              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-              .header { background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-              .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-              .button { display: inline-block; padding: 12px 30px; background: #f97316; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-              .message-box { background: white; border-left: 4px solid #f97316; padding: 20px; margin: 20px 0; border-radius: 5px; }
-              .admin-badge { display: inline-block; background: #10b981; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; }
-            </style>
-          </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <h1>⚠️ Nuevo Mensaje en Disputa</h1>
-              </div>
-              <div class="content">
-                <p>Hola ${recipientName},</p>
-                <p>${isAdminMessage ? '<span class="admin-badge">ADMINISTRADOR</span> ' : ''}${senderName} ha enviado un mensaje en la disputa:</p>
-                <div class="message-box">
-                  <p>${message.substring(0, 300)}${message.length > 300 ? '...' : ''}</p>
-                </div>
-                <p>Es importante que revises este mensaje y respondas si es necesario para ayudar a resolver la disputa.</p>
-                <a href="${disputeUrl}" class="button">Ver Disputa</a>
-                <p style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 14px;">
-                  Este es un correo automático, por favor no respondas. Para responder, usa el enlace de arriba.
-                </p>
-              </div>
-            </div>
-          </body>
-        </html>
-      `;
-
-      await this.sendEmail({
-        to: recipientEmail,
-        subject: `Nuevo mensaje en disputa - DoApp`,
-        html,
+      const preview = message.length > 200 ? message.substring(0, 200) + '…' : message;
+      const html = this.tpl({
+        eyebrow: 'Disputa',
+        accent: 'orange',
+        title: 'Nuevo mensaje en disputa',
+        body: `
+          <p>Hola <strong>${recipientName}</strong>,</p>
+          <p>${isAdminMessage ? '<strong>Moderador DOAPP</strong>' : `<strong>${senderName}</strong>`} envió un mensaje en la disputa:</p>
+          ${this.callout('warning', '', `<em>"${preview}"</em>`)}
+          <p>Es importante que respondas para ayudar a resolver la situación.</p>
+        `,
+        cta: { label: 'Ver disputa', url: `${config.clientUrl}/disputes/${disputeId}` },
       });
-
-      console.log(`📧 Dispute message email sent to ${recipientEmail}`);
+      await this.sendEmail({ to: recipientEmail, subject: 'Nuevo mensaje en disputa · DOAPP', html });
     } catch (error) {
       console.error('Error sending dispute message email:', error);
     }
+  }
+
+  private stripHtml(html: string): string {
+    return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
   }
 }
 

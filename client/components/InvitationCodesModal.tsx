@@ -148,11 +148,11 @@ export default function InvitationCodesModal({ isOpen, onClose }: InvitationCode
                 <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
                   <li className="flex items-start gap-2">
                     <span className="text-purple-600 dark:text-purple-400 font-bold">{t('referrals.firstInvitee', '1st invitee')}:</span>
-                    <span>{t('referrals.firstBenefit', '2 free contracts when they complete their first contract')}</span>
+                    <span>{t('referrals.firstBenefit', '2 publicaciones libres de comisión cuando completen su primer contrato')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-purple-600 dark:text-purple-400 font-bold">{t('referrals.secondInvitee', '2nd invitee')}:</span>
-                    <span>{t('referrals.secondBenefit', '1 free contract when they complete their first contract')}</span>
+                    <span>{t('referrals.secondBenefit', '1 publicación libre de comisión cuando completen su primer contrato')}</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <span className="text-purple-600 dark:text-purple-400 font-bold">{t('referrals.thirdInvitee', '3rd invitee')}:</span>

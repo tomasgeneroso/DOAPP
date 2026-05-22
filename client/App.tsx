@@ -12,6 +12,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import { features } from "../shared/featureFlags";
 import Index from "./pages/Index";
 import LoginScreen from "./pages/LoginScreen";
+import VerifyEmailPage from "./pages/VerifyEmailPage";
 import AuthCallback from "./pages/AuthCallback";
 import CreateContractScreen from "./pages/CreateContractScreen";
 import JobDetail from "./pages/JobDetail";
@@ -461,6 +462,7 @@ export default function App() {
               <Route path="/legal/disputas" element={<DisputeResolution />} />
             </Route>
             <Route path="/login" element={<LoginScreen />} />
+            <Route path="/verify-email" element={<VerifyEmailPage />} />
             <Route path="/register" element={<LoginScreen />} />
             <Route path="/banned" element={<BannedUserScreen />} />
             <Route path="/contact" element={<ContactPage />} />

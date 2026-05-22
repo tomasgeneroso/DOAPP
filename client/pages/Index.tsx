@@ -667,42 +667,15 @@ export default function Index() {
 
       {/* Search Bar + Jobs */}
       <div className={`w-full px-3 sm:px-4 pb-20 sm:pb-28${(!user && !isLoading) ? ' dark' : ''}`} style={(!user && !isLoading) ? { position:'relative', zIndex:1 } : undefined}>
-        {/* Search Bar */}
-        <div className="mt-8 sm:mt-12 max-w-4xl mx-auto px-2" data-onboarding="search">
-          <SearchBar
-            onSearch={handleSearch}
-            onSearchChange={handleSearchChange}
-          />
-
-          {/* Texto de apoyo - Visible siempre */}
-          {!isLoading && (
-            <div className="mt-6 sm:mt-8 text-center px-2">
-              <div className="inline-flex items-start sm:items-center justify-center gap-2 px-4 sm:px-6 py-3 sm:py-4 bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg max-w-full">
-                <svg
-                  className="w-5 h-5 sm:w-6 sm:h-6 text-sky-600 dark:text-sky-400 flex-shrink-0 mt-0.5 sm:mt-0"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                  />
-                </svg>
-                <div className="text-left">
-                  <p className="text-xs sm:text-sm font-semibold text-sky-900 dark:text-sky-300">
-                    {t('home.securityBanner')}
-                  </p>
-                  <p className="text-[11px] sm:text-xs text-sky-700 dark:text-sky-400 mt-1">
-                    {t('home.securityDesc')}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
+        {/* Search Bar — solo para usuarios no logueados */}
+        {!user && (
+          <div className="mt-8 sm:mt-12 max-w-4xl mx-auto px-2" data-onboarding="search">
+            <SearchBar
+              onSearch={handleSearch}
+              onSearchChange={handleSearchChange}
+            />
+          </div>
+        )}
 
         {/* Trabajo en Proceso - Only show for authenticated users */}
         {user && <WorkInProgress />}
@@ -890,11 +863,21 @@ export default function Index() {
           </div>
         )}
 
+        {/* Search bar para usuarios logueados — siempre visible */}
+        {user && (
+          <div className="mt-8 px-2" data-onboarding="search">
+            <SearchBar
+              onSearch={handleSearch}
+              onSearchChange={handleSearchChange}
+            />
+          </div>
+        )}
+
         {/* Lista de trabajos disponibles */}
         {user && searchType === 'jobs' && (
-          <div key="jobs-section" id="trabajos-disponibles" className="mt-10 sm:mt-16 px-2 animate-fadeInUp" data-onboarding="jobs-list">
-            <div className="flex items-center justify-between mb-6 sm:mb-8">
-              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+          <div key="jobs-section" id="trabajos-disponibles" className="mt-8 sm:mt-10 px-2 animate-fadeInUp" data-onboarding="jobs-list">
+            <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white" data-onboarding="jobs-list-title">
                 {t('home.availableJobs')}
               </h2>
             </div>

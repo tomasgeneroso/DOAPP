@@ -389,7 +389,7 @@ export default function ContractSummary() {
                     </p>
                     {(user.freeContractsRemaining ?? 0) > 0 && (
                       <p className="mt-2 text-green-700 dark:text-green-300 font-semibold">
-                        {t('contracts.summary.freeContracts', 'You have {{count}} free contract(s) available', { count: user.freeContractsRemaining })}
+                        {t('contracts.summary.freeContracts', 'Tenés {{count}} contrato(s) libre(s) de comisión disponible(s)', { count: user.freeContractsRemaining })}
                       </p>
                     )}
                   </div>

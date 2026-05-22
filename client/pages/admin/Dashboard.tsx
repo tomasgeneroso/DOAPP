@@ -250,7 +250,7 @@ export default function AdminDashboard() {
                   <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-amber-500" />SUPER PRO — 1%</span>
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
-                  Mínimo $1.000 ARS por contrato · Plan Familia y FREE: sin comisión
+                  Mínimo $1.000 ARS · Plan Familia y publicaciones libres de comisión: 0%
                 </p>
               </div>
             </div>

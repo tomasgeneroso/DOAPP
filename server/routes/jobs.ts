@@ -797,7 +797,8 @@ router.get("/:id",
         {
           model: User,
           as: 'doer',
-          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount', 'phone'],
+          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount', 'phone',
+            'profession', 'licenseNumber', 'licenseCategory', 'licenseCertNumber', 'licenseDocumentUrl', 'licenseVerified'],
           required: false
         }
       ]
@@ -822,7 +823,8 @@ router.get("/:id",
     if (jobData.selectedWorkers && jobData.selectedWorkers.length > 0) {
       const selectedWorkersData = await User.findAll({
         where: { id: { [Op.in]: jobData.selectedWorkers } },
-        attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount']
+        attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount',
+          'profession', 'licenseNumber', 'licenseCategory', 'licenseCertNumber', 'licenseDocumentUrl', 'licenseVerified']
       });
       jobData.selectedWorkersData = selectedWorkersData.map((w: any) => ({
         ...w.toJSON(),
@@ -1003,6 +1005,8 @@ router.post(
         addressStreet: req.body.addressStreet || null,
         addressNumber: req.body.addressNumber || null,
         addressDetails: req.body.addressDetails || null,
+        latitude: req.body.latitude ? parseFloat(req.body.latitude) : null,
+        longitude: req.body.longitude ? parseFloat(req.body.longitude) : null,
         startDate: req.body.startDate,
         endDate: endDateFlexible ? null : req.body.endDate,
         endDateFlexible,
@@ -2305,6 +2309,42 @@ router.patch("/:id/pause", protect, async (req: AuthRequest, res: Response): Pro
       success: false,
       message: error.message || "Error del servidor",
     });
+  }
+});
+
+// @route   POST /api/jobs/:id/request-pause-approval
+// @desc    Solicita al trabajador asignado que apruebe la pausa
+// @access  Private (job owner only)
+router.post("/:id/request-pause-approval", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const job = await Job.findByPk(req.params.id, {
+      include: [
+        { model: User, as: 'client', attributes: ['id', 'name'] },
+      ]
+    });
+
+    if (!job) { res.status(404).json({ success: false, message: "Trabajo no encontrado" }); return; }
+    if (job.clientId !== req.user.id) { res.status(403).json({ success: false, message: "Sin permiso" }); return; }
+    if (job.status !== "open") { res.status(400).json({ success: false, message: "Solo trabajos abiertos" }); return; }
+
+    const workers = job.selectedWorkers && Array.isArray(job.selectedWorkers) ? job.selectedWorkers : [];
+    if (workers.length === 0) { res.status(400).json({ success: false, message: "No hay trabajadores asignados" }); return; }
+
+    // Notify each assigned worker
+    const { Notification } = await import('../models/sql/Notification.model.js');
+    for (const workerId of workers) {
+      await Notification.create({
+        userId: workerId,
+        type: 'pause_approval_request',
+        title: 'Solicitud de pausa',
+        message: `El cliente solicita pausar "${job.title}". Respondé para confirmar o rechazar.`,
+        metadata: { jobId: job.id, clientId: req.user.id, action: 'pause_approval_request' },
+      });
+    }
+
+    res.json({ success: true, message: `Solicitud enviada a ${workers.length} trabajador(es).` });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

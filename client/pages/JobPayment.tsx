@@ -478,10 +478,10 @@ export default function JobPayment() {
                     {freeContractsRemaining > 0 ? (
                       <>
                         <p>
-                          Este es uno de tus contratos gratuitos iniciales. No pagarás comisión de publicación.
+                          Esta publicación es libre de comisión. No pagarás comisión de publicación.
                         </p>
                         <p className="mt-1 text-xs">
-                          Contratos gratis restantes: <strong>{freeContractsRemaining}</strong>
+                          Publicaciones libres de comisión restantes: <strong>{freeContractsRemaining}</strong>
                           {freeContractsRemaining > 1 ? ` • Quedan ${freeContractsRemaining - 1} después de este` : ' • Este es el último'}
                         </p>
                       </>
@@ -491,7 +491,7 @@ export default function JobPayment() {
                           Este es uno de tus {monthlyFreeLimit} contratos mensuales sin comisión. No pagarás comisión de publicación.
                         </p>
                         <p className="mt-1 text-xs">
-                          Usando contrato mensual gratis: <strong>{proContractsUsed + 1} de {monthlyFreeLimit}</strong> este mes
+                          Usando publicación mensual libre de comisión: <strong>{proContractsUsed + 1} de {monthlyFreeLimit}</strong> este mes
                           {monthlyFreeRemaining > 1 ? ` • Quedan ${monthlyFreeRemaining - 1} más` : ' • Este es el último este mes'}
                         </p>
                       </>
@@ -584,7 +584,7 @@ export default function JobPayment() {
                       <span className="font-medium">Comisión de publicación {!isFreeContract && `(${commissionRate}%)`}</span>
                       {isFreeContract && (
                         <span className="text-xs text-green-600 dark:text-green-400 mt-1">
-                          ✨ Gratis - {freeContractsRemaining > 0 ? `${freeContractsRemaining} restantes` : `${proContractsUsed + 1} de ${monthlyFreeLimit} este mes`}
+                          ✨ Libre de comisión — {freeContractsRemaining > 0 ? `${freeContractsRemaining} restantes` : `${proContractsUsed + 1} de ${monthlyFreeLimit} este mes`}
                         </span>
                       )}
                       {!isFreeContract && jobPrice < 8000 && (
@@ -606,6 +606,21 @@ export default function JobPayment() {
                 </>
               )}
             </div>
+          </div>
+
+          {/* Tips before paying */}
+          <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-amber-50 dark:bg-amber-900/10">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-lg">💡</span>
+              <h3 className="font-semibold text-amber-900 dark:text-amber-200">Consejos antes de publicar</h3>
+            </div>
+            <ul className="space-y-2 text-sm text-amber-800 dark:text-amber-300">
+              <li className="flex items-start gap-2"><span className="mt-0.5">🔑</span> <span>Pedile al trabajador que te muestre su <strong>código de verificación</strong> al iniciar el trabajo para confirmar su identidad.</span></li>
+              <li className="flex items-start gap-2"><span className="mt-0.5">💰</span> <span>La comisión de publicación <strong>no se devuelve</strong> una vez que un trabajador es seleccionado. Podés cancelar con reembolso total solo hasta ese momento o hasta 24hs antes del inicio.</span></li>
+              <li className="flex items-start gap-2"><span className="mt-0.5">📋</span> <span>Describí el trabajo con <strong>la mayor cantidad de detalle posible</strong>: materiales necesarios, acceso al lugar, horario exacto. Evita malentendidos.</span></li>
+              <li className="flex items-start gap-2"><span className="mt-0.5">💬</span> <span>Toda comunicación y negociación de precio debe hacerse <strong>dentro de la plataforma</strong> para estar protegido.</span></li>
+              <li className="flex items-start gap-2"><span className="mt-0.5">⭐</span> <span>Después de completado el trabajo, acordate de <strong>dejar una reseña</strong>: ayuda a otros clientes y mejora el ecosistema.</span></li>
+            </ul>
           </div>
 
           {/* Info */}
@@ -904,7 +919,7 @@ export default function JobPayment() {
               ) : isFreeContract ? (
                 <>
                   <CreditCard className="w-5 h-5" />
-                  Publicar gratis
+                  Publicar sin comisión
                 </>
               ) : (
                 <>

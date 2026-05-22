@@ -79,7 +79,7 @@ export default function ReferralsScreen() {
     <>
       <Helmet>
         <title>{t('referrals.pageTitle', 'Referrals - DoApp')}</title>
-        <meta name="description" content={t('referrals.metaDescription', 'Invite your friends and earn commission-free contracts')} />
+        <meta name="description" content={t('referrals.metaDescription', 'Invite your friends and earn commission-free publications')} />
       </Helmet>
 
       <div className="container mx-auto px-4 py-8 max-w-6xl">

@@ -16,11 +16,15 @@ import {
   MessageCircle,
   HelpCircle,
   PlayCircle,
+  Briefcase,
+  Upload,
+  ShieldCheck,
+  X,
 } from "lucide-react";
 import { JOB_CATEGORIES } from "../../shared/constants/categories";
 import { useOnboarding } from "../hooks/useOnboarding";
 
-type TabType = "basic" | "address" | "banking" | "legal" | "interests" | "notifications" | "help";
+type TabType = "basic" | "profession" | "address" | "banking" | "legal" | "interests" | "notifications" | "help";
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -170,6 +174,230 @@ function PasswordSection() {
   );
 }
 
+// ── Profesiones reguladas que requieren matrícula ─────────────────────────
+const REGULATED_PROFESSIONS = ['gasista', 'electricista', 'plomero', 'maestro_mayor_obras', 'instalador_aire'];
+const PROFESSION_OPTIONS = [
+  { value: '', label: 'Sin especificar' },
+  { value: 'gasista', label: 'Gasista matriculado' },
+  { value: 'electricista', label: 'Electricista matriculado' },
+  { value: 'plomero', label: 'Plomero' },
+  { value: 'maestro_mayor_obras', label: 'Maestro Mayor de Obras' },
+  { value: 'instalador_aire', label: 'Instalador de Aire Acondicionado / Termomecánica' },
+  { value: 'pintor', label: 'Pintor' },
+  { value: 'carpintero', label: 'Carpintero' },
+  { value: 'jardinero', label: 'Jardinero' },
+  { value: 'limpieza', label: 'Limpieza' },
+  { value: 'mecanico', label: 'Mecánico' },
+  { value: 'otro', label: 'Otro' },
+];
+
+function ProfessionTab({
+  profession, setProfession,
+  licenseNumber, setLicenseNumber,
+  licenseCategory, setLicenseCategory,
+  licenseCertNumber, setLicenseCertNumber,
+  licenseDocumentUrl, setLicenseDocumentUrl,
+  licenseVerified,
+  licenseFile, setLicenseFile,
+  licenseUploading, setLicenseUploading,
+  token,
+}: {
+  profession: string; setProfession: (v: string) => void;
+  licenseNumber: string; setLicenseNumber: (v: string) => void;
+  licenseCategory: string; setLicenseCategory: (v: string) => void;
+  licenseCertNumber: string; setLicenseCertNumber: (v: string) => void;
+  licenseDocumentUrl: string; setLicenseDocumentUrl: (v: string) => void;
+  licenseVerified: boolean;
+  licenseFile: File | null; setLicenseFile: (f: File | null) => void;
+  licenseUploading: boolean; setLicenseUploading: (v: boolean) => void;
+  token: string;
+}) {
+  const isRegulated = REGULATED_PROFESSIONS.includes(profession);
+
+  const handleUpload = async () => {
+    if (!licenseFile) return;
+    setLicenseUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append('licenseDocument', licenseFile);
+      const res = await fetch('/api/auth/license-document', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: fd,
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLicenseDocumentUrl(data.licenseDocumentUrl);
+        setLicenseFile(null);
+      }
+    } finally {
+      setLicenseUploading(false);
+    }
+  };
+
+  const profLabel = PROFESSION_OPTIONS.find(p => p.value === profession)?.label;
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+        <Briefcase className="w-5 h-5 text-sky-500" />
+        Profesión y matrícula
+      </h2>
+
+      {/* Selector de profesión */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+          Profesión
+        </label>
+        <select
+          value={profession}
+          onChange={e => setProfession(e.target.value)}
+          className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
+        >
+          {PROFESSION_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        {isRegulated && (
+          <p className="mt-2 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+            <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+            Esta profesión requiere matrícula, categoría, número de certificado y foto/PDF del documento.
+          </p>
+        )}
+      </div>
+
+      {/* Campos de matrícula — solo para profesiones reguladas */}
+      {isRegulated && (
+        <div className="space-y-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-700 rounded-xl p-5">
+          <div className="flex items-center gap-2 mb-1">
+            {licenseVerified ? (
+              <span className="flex items-center gap-1.5 text-green-600 dark:text-green-400 text-sm font-semibold">
+                <ShieldCheck className="w-4 h-4" /> Matrícula verificada por DOAPP
+              </span>
+            ) : (
+              <span className="text-xs text-slate-500 dark:text-slate-400">
+                Tu matrícula será verificada por el equipo de DOAPP.
+              </span>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                Número de matrícula <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={licenseNumber}
+                onChange={e => setLicenseNumber(e.target.value)}
+                placeholder="Ej: 12345"
+                required={isRegulated}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                Categoría <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={licenseCategory}
+                onChange={e => setLicenseCategory(e.target.value)}
+                placeholder="Ej: A, B, Clase 1..."
+                required={isRegulated}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
+                N° de certificado <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={licenseCertNumber}
+                onChange={e => setLicenseCertNumber(e.target.value)}
+                placeholder="Ej: CERT-2024-001"
+                required={isRegulated}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 text-sm"
+              />
+            </div>
+          </div>
+
+          {/* Upload documento */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+              Foto o PDF del certificado <span className="text-red-500">*</span>
+            </label>
+            {licenseDocumentUrl ? (
+              <div className="flex items-center gap-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-700">
+                <ShieldCheck className="w-5 h-5 text-green-500 flex-shrink-0" />
+                <span className="text-sm text-green-700 dark:text-green-300 flex-1 truncate">
+                  Documento cargado
+                </span>
+                <a
+                  href={licenseDocumentUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-sky-600 hover:text-sky-700 underline"
+                >
+                  Ver
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setLicenseDocumentUrl('')}
+                  className="text-red-400 hover:text-red-500"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <label className="flex flex-col items-center justify-center gap-2 h-28 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg cursor-pointer hover:border-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors">
+                  <Upload className="w-6 h-6 text-slate-400" />
+                  <span className="text-sm text-slate-500 dark:text-slate-400">
+                    {licenseFile ? licenseFile.name : 'Hacé clic o arrastrá el archivo aquí'}
+                  </span>
+                  <span className="text-xs text-slate-400">JPG, PNG, WEBP o PDF — máx. 10 MB</span>
+                  <input
+                    type="file"
+                    className="hidden"
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    onChange={e => setLicenseFile(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+                {licenseFile && (
+                  <button
+                    type="button"
+                    onClick={handleUpload}
+                    disabled={licenseUploading}
+                    className="flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-medium transition disabled:opacity-50"
+                  >
+                    {licenseUploading ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Upload className="w-4 h-4" />
+                    )}
+                    {licenseUploading ? 'Subiendo...' : 'Subir documento'}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Preview para profesiones no reguladas */}
+      {profession && !isRegulated && (
+        <div className="bg-sky-50 dark:bg-sky-900/10 border border-sky-200 dark:border-sky-700 rounded-xl p-4">
+          <p className="text-sm text-sky-700 dark:text-sky-300">
+            Tu profesión <strong>{profLabel}</strong> no requiere matrícula. Se mostrará en tu perfil público.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function UserSettings() {
   const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
@@ -183,7 +411,7 @@ export default function UserSettings() {
   // Handle tab from URL query parameter
   useEffect(() => {
     const tabParam = searchParams.get("tab");
-    if (tabParam && ["basic", "address", "banking", "legal", "interests", "notifications", "help"].includes(tabParam)) {
+    if (tabParam && ["basic", "profession", "address", "banking", "legal", "interests", "notifications", "help"].includes(tabParam)) {
       setActiveTab(tabParam as TabType);
     }
   }, [searchParams]);
@@ -217,6 +445,16 @@ export default function UserSettings() {
 
   // Interests
   const [interests, setInterests] = useState<string[]>([]);
+
+  // Profesión y matrícula
+  const [profession, setProfession] = useState("");
+  const [licenseNumber, setLicenseNumber] = useState("");
+  const [licenseCategory, setLicenseCategory] = useState("");
+  const [licenseCertNumber, setLicenseCertNumber] = useState("");
+  const [licenseDocumentUrl, setLicenseDocumentUrl] = useState("");
+  const [licenseVerified, setLicenseVerified] = useState(false);
+  const [licenseFile, setLicenseFile] = useState<File | null>(null);
+  const [licenseUploading, setLicenseUploading] = useState(false);
 
   // Notifications
   const [notifPrefs, setNotifPrefs] = useState({
@@ -253,6 +491,12 @@ export default function UserSettings() {
       setTaxStatus(user.legalInfo?.taxStatus || "freelancer");
       setTaxId(user.legalInfo?.taxId || "");
       setInterests(user.interests || []);
+      setProfession(user.profession || "");
+      setLicenseNumber(user.licenseNumber || "");
+      setLicenseCategory(user.licenseCategory || "");
+      setLicenseCertNumber(user.licenseCertNumber || "");
+      setLicenseDocumentUrl(user.licenseDocumentUrl || "");
+      setLicenseVerified(user.licenseVerified || false);
       if (user.notificationPreferences) {
         setNotifPrefs(user.notificationPreferences);
       }
@@ -288,6 +532,10 @@ export default function UserSettings() {
           legalInfo: { idType, idNumber, taxStatus, taxId },
           interests,
           notificationPreferences: notifPrefs,
+          profession: profession || null,
+          licenseNumber: licenseNumber || null,
+          licenseCategory: licenseCategory || null,
+          licenseCertNumber: licenseCertNumber || null,
         }),
       });
 
@@ -316,6 +564,7 @@ export default function UserSettings() {
 
   const tabs = [
     { id: "basic", label: t('settings.tabs.basic'), icon: User },
+    { id: "profession", label: "Profesión", icon: Briefcase },
     { id: "address", label: t('settings.tabs.address'), icon: MapPin },
     { id: "banking", label: t('settings.tabs.banking'), icon: CreditCard },
     { id: "legal", label: t('settings.tabs.legal'), icon: FileText },
@@ -440,6 +689,20 @@ export default function UserSettings() {
                   {/* Password Section */}
                   <PasswordSection />
                 </div>
+              )}
+
+              {activeTab === "profession" && (
+                <ProfessionTab
+                  profession={profession} setProfession={setProfession}
+                  licenseNumber={licenseNumber} setLicenseNumber={setLicenseNumber}
+                  licenseCategory={licenseCategory} setLicenseCategory={setLicenseCategory}
+                  licenseCertNumber={licenseCertNumber} setLicenseCertNumber={setLicenseCertNumber}
+                  licenseDocumentUrl={licenseDocumentUrl} setLicenseDocumentUrl={setLicenseDocumentUrl}
+                  licenseVerified={licenseVerified}
+                  licenseFile={licenseFile} setLicenseFile={setLicenseFile}
+                  licenseUploading={licenseUploading} setLicenseUploading={setLicenseUploading}
+                  token={localStorage.getItem('token') || ''}
+                />
               )}
 
               {activeTab === "address" && (

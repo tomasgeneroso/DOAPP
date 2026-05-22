@@ -47,9 +47,10 @@ const DISPUTE_DIR = path.join(UPLOAD_DIR, "disputes");
 const BLOG_DIR = path.join(UPLOAD_DIR, "blogs");
 const PROPOSALS_DIR = path.join(UPLOAD_DIR, "proposals");
 const DNI_DIR = path.join(UPLOAD_DIR, "dni");
+const LICENSE_DIR = path.join(UPLOAD_DIR, "licenses");
 
 // Ensure directories exist
-[UPLOAD_DIR, AVATAR_DIR, DOCUMENT_DIR, PORTFOLIO_DIR, DISPUTE_DIR, BLOG_DIR, PROPOSALS_DIR, DNI_DIR].forEach((dir) => {
+[UPLOAD_DIR, AVATAR_DIR, DOCUMENT_DIR, PORTFOLIO_DIR, DISPUTE_DIR, BLOG_DIR, PROPOSALS_DIR, DNI_DIR, LICENSE_DIR].forEach((dir) => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -443,6 +444,26 @@ export const uploadDniPhotos = multer({
   { name: "dniPhotoFront", maxCount: 1 },
   { name: "dniPhotoBack", maxCount: 1 },
 ]);
+
+// License document storage (foto o PDF de matrícula)
+const licenseStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, LICENSE_DIR),
+  filename: (_req, file, cb) => {
+    const uniqueSuffix = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `license-${uniqueSuffix}${ext}`);
+  },
+});
+
+export const uploadLicenseDocument = multer({
+  storage: licenseStorage,
+  fileFilter: (_req, file, cb) => {
+    const allowed = [...ALLOWED_IMAGE_TYPES, 'application/pdf'];
+    if (allowed.includes(file.mimetype)) cb(null, true);
+    else cb(new Error('Solo se aceptan imágenes (JPG, PNG, WEBP) o PDF'));
+  },
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+}).single('licenseDocument');
 
 /**
  * Delete uploaded file

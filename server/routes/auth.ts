@@ -21,13 +21,29 @@ import { PasswordResetToken } from "../models/sql/PasswordResetToken.model.js";
 import emailService from "../services/email.js";
 import anomalyDetection from "../services/anomalyDetection.js";
 import { createAuditLog, getClientIp, getUserAgent } from "../utils/auditLogger.js";
-import { uploadAvatar, uploadCover, uploadDniPhotos } from "../middleware/upload.js";
+import { uploadAvatar, uploadCover, uploadDniPhotos, uploadLicenseDocument, getFileUrl } from "../middleware/upload.js";
 import twitterOAuth from "../services/twitterOAuth.js";
 
 const router = express.Router();
 
 // LoginDevice is not yet implemented in the SQL migration
 const LoginDevice: any = null;
+
+// ── Email verification helper ─────────────────────────────────────────────────
+import crypto from 'crypto';
+
+function generateVerificationToken(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+async function sendVerificationEmailToUser(user: User): Promise<void> {
+  const token = generateVerificationToken();
+  user.verificationToken = token;
+  user.verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+  await user.save();
+  const url = `${config.clientUrl || 'http://localhost:5173'}/verify-email?token=${token}`;
+  await emailService.sendVerificationEmail(user.email, user.name, url).catch(() => {});
+}
 
 // Generar JWT Token (legacy - para compatibilidad)
 const generateToken = (id: string): string => {
@@ -168,6 +184,9 @@ router.post(
         await referrer.save();
       }
 
+      // Send email verification (non-blocking)
+      await sendVerificationEmailToUser(user);
+
       // Generar token
       const token = generateToken(user.id.toString());
 
@@ -182,6 +201,7 @@ router.post(
       res.status(201).json({
         success: true,
         token, // Mantener para compatibilidad temporal
+        requiresEmailVerification: true,
         user: {
           _id: user.id,
           id: user.id, // Alias for compatibility
@@ -269,6 +289,17 @@ router.post(
         return;
       }
 
+      // Verificar que el email esté verificado
+      if (!user.isVerified) {
+        res.status(403).json({
+          success: false,
+          message: "Debés verificar tu email antes de ingresar. Revisá tu casilla de correo.",
+          emailNotVerified: true,
+          email: user.email,
+        });
+        return;
+      }
+
       // Registrar dispositivo y login
       const clientIp = getClientIp(req);
       const userAgent = req.headers["user-agent"] || "unknown";
@@ -323,7 +354,7 @@ router.post(
 
       const userData = {
         _id: user.id,
-        id: user.id, // Alias for compatibility
+        id: user.id,
         name: user.name,
         username: user.username,
         email: user.email,
@@ -335,12 +366,29 @@ router.post(
         role: user.role,
         adminRole: user.adminRole,
         permissions: user.permissions,
+        isVerified: user.isVerified,
+        onboardingCompleted: user.onboardingCompleted,
+        interests: user.interests,
+        membershipType: user.membershipTier,   // alias para frontend
         membershipTier: user.membershipTier,
         hasMembership: user.hasMembership,
         isPremiumVerified: user.isPremiumVerified,
+        freeContractsRemaining: user.freeContractsRemaining,
+        referralDiscountActive: (user as any).referralDiscountActive,
         monthlyContractsUsed: user.proContractsUsedThisMonth,
         monthlyFreeContractsLimit: (user as any).monthlyFreeContractsLimit,
         balance: user.balanceArs,
+        bankingInfo: user.bankingInfo ? {
+          accountHolder: user.bankingInfo.accountHolder,
+          bankType: user.bankingInfo.bankType,
+          bankName: user.bankingInfo.bankName,
+          accountType: user.bankingInfo.accountType,
+          cbu: user.bankingInfo.cbu ? user.getMaskedCBU() : undefined,
+          alias: user.bankingInfo.alias,
+        } : undefined,
+        notificationPreferences: user.notificationPreferences,
+        referralCode: user.referralCode,
+        hasFamilyPlan: user.hasFamilyPlan,
         availabilitySchedule: user.availabilitySchedule,
         isAvailabilityPublic: user.isAvailabilityPublic,
       };
@@ -401,6 +449,12 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         rating: user?.rating,
         reviewsCount: user?.reviewsCount,
         completedJobs: user?.completedJobs,
+        puntualidadRating: user?.puntualidadRating,
+        presencialidadRating: user?.presencialidadRating,
+        comoPersonaRating: user?.comoPersonaRating,
+        precioJustoRating: user?.precioJustoRating,
+        calidadTrabajoRating: user?.calidadTrabajoRating,
+        profesionalidadRating: user?.profesionalidadRating,
         role: user?.role,
         adminRole: user?.adminRole,
         permissions: user?.permissions,
@@ -435,6 +489,12 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         needsDni: !user?.dni && (!!user?.googleId || !!user?.facebookId), // True if OAuth user without DNI
         availabilitySchedule: user?.availabilitySchedule,
         isAvailabilityPublic: user?.isAvailabilityPublic,
+        profession: user?.profession,
+        licenseNumber: user?.licenseNumber,
+        licenseCategory: user?.licenseCategory,
+        licenseCertNumber: user?.licenseCertNumber,
+        licenseDocumentUrl: user?.licenseDocumentUrl,
+        licenseVerified: user?.licenseVerified,
       },
     });
   } catch (error: any) {
@@ -638,6 +698,10 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
       notificationPreferences,
       availabilitySchedule,
       isAvailabilityPublic,
+      profession,
+      licenseNumber,
+      licenseCategory,
+      licenseCertNumber,
     } = req.body;
 
     // Obtener usuario actual para comparar cambios
@@ -721,6 +785,10 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
     if (notificationPreferences) updateData.notificationPreferences = notificationPreferences;
     if (availabilitySchedule !== undefined) updateData.availabilitySchedule = availabilitySchedule;
     if (isAvailabilityPublic !== undefined) updateData.isAvailabilityPublic = isAvailabilityPublic;
+    if (profession !== undefined) updateData.profession = profession || null;
+    if (licenseNumber !== undefined) updateData.licenseNumber = licenseNumber || null;
+    if (licenseCategory !== undefined) updateData.licenseCategory = licenseCategory || null;
+    if (licenseCertNumber !== undefined) updateData.licenseCertNumber = licenseCertNumber || null;
 
     const user = await User.findByPk(req.user.id as string);
     if (user) {
@@ -1261,6 +1329,57 @@ router.post("/logout-all", protect, async (req: AuthRequest, res: Response): Pro
     });
   }
 });
+
+// @route   GET /api/auth/verify-email
+// @desc    Verificar email con token
+// @access  Public
+router.get("/verify-email", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { token } = req.query as { token: string };
+    if (!token) { res.status(400).json({ success: false, message: "Token requerido" }); return; }
+
+    const user = await User.findOne({ where: { verificationToken: token } });
+    if (!user) { res.status(400).json({ success: false, message: "Token inválido o expirado" }); return; }
+    if (user.verificationTokenExpiry && new Date() > user.verificationTokenExpiry) {
+      res.status(400).json({ success: false, message: "El token expiró. Solicitá uno nuevo." }); return;
+    }
+
+    user.isVerified = true;
+    user.verificationToken = undefined;
+    user.verificationTokenExpiry = undefined;
+    await user.save();
+
+    res.json({ success: true, message: "Email verificado correctamente. Ya podés iniciar sesión." });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// @route   POST /api/auth/resend-verification
+// @desc    Reenviar email de verificación
+// @access  Public
+router.post("/resend-verification",
+  [body("email").isEmail().withMessage("Email inválido")],
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const { email } = req.body;
+      const user = await User.findOne({ where: { email } });
+      if (!user) {
+        // Don't reveal if user exists
+        res.json({ success: true, message: "Si el email está registrado, te enviamos un nuevo enlace." });
+        return;
+      }
+      if (user.isVerified) {
+        res.json({ success: true, message: "Tu email ya está verificado." });
+        return;
+      }
+      await sendVerificationEmailToUser(user);
+      res.json({ success: true, message: "Te enviamos un nuevo enlace de verificación." });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+);
 
 // @route   POST /api/auth/forgot-password
 // @desc    Solicitar reset de contraseña
@@ -2015,6 +2134,39 @@ router.post("/dni-photos", protect, (req: AuthRequest, res: Response): void => {
         message: "Fotos del DNI enviadas correctamente. Serán verificadas por el equipo.",
         dniPhotoFront: (user as any).dniPhotoFront,
         dniPhotoBack: (user as any).dniPhotoBack,
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+});
+
+// @route   POST /api/auth/license-document
+// @desc    Upload matrícula/certificado (imagen o PDF)
+// @access  Private
+router.post("/license-document", protect, (req: AuthRequest, res: Response): void => {
+  uploadLicenseDocument(req as any, res, async (err: any) => {
+    if (err) {
+      res.status(400).json({ success: false, message: err.message });
+      return;
+    }
+    try {
+      const file = (req as any).file as Express.Multer.File | undefined;
+      if (!file) {
+        res.status(400).json({ success: false, message: "Debés subir un documento (imagen o PDF)" });
+        return;
+      }
+      const user = await User.findByPk(req.user!.id);
+      if (!user) {
+        res.status(404).json({ success: false, message: "Usuario no encontrado" });
+        return;
+      }
+      const docUrl = `/uploads/licenses/${file.filename}`;
+      await user.update({ licenseDocumentUrl: docUrl });
+      res.json({
+        success: true,
+        message: "Documento de matrícula subido correctamente.",
+        licenseDocumentUrl: docUrl,
       });
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message });

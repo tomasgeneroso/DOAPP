@@ -31,11 +31,18 @@ export interface Job {
   } | string;
   doer?: {
     _id?: string;
-    id?: string; // PostgreSQL UUID
+    id?: string;
     name: string;
     rating: number;
     reviewsCount: number;
     avatar?: string;
+    phone?: string;
+    profession?: string;
+    licenseNumber?: string;
+    licenseCategory?: string;
+    licenseCertNumber?: string;
+    licenseDocumentUrl?: string;
+    licenseVerified?: boolean;
   } | string;
   rejectedReason?: string;
   cancellationReason?: string;
@@ -105,6 +112,13 @@ export interface User {
   workQualityReviewsCount?: number;
   workerReviewsCount?: number;
   contractReviewsCount?: number;
+  // Per-dimension ratings
+  puntualidadRating?: number;
+  presencialidadRating?: number;
+  comoPersonaRating?: number;
+  precioJustoRating?: number;
+  calidadTrabajoRating?: number;
+  profesionalidadRating?: number;
   completedJobs: number;
   role: 'user' | 'admin' | 'client' | 'doer' | 'both';
   adminRole?: 'owner' | 'super_admin' | 'admin' | 'support' | 'marketing' | 'dpo';
@@ -112,6 +126,12 @@ export interface User {
   isVerified: boolean;
   interests?: string[];
   onboardingCompleted?: boolean;
+  profession?: string;
+  licenseNumber?: string;
+  licenseCategory?: string;
+  licenseCertNumber?: string;
+  licenseDocumentUrl?: string;
+  licenseVerified?: boolean;
   address?: {
     street?: string;
     city?: string;

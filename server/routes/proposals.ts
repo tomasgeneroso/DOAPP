@@ -246,7 +246,8 @@ router.get("/job/:jobId",
         {
           model: User,
           as: 'freelancer',
-          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount', 'completedJobs']
+          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount', 'completedJobs',
+            'profession', 'licenseNumber', 'licenseCategory', 'licenseCertNumber', 'licenseVerified']
         }
       ],
       order: [['createdAt', 'DESC']]

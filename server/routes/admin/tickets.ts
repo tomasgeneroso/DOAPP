@@ -339,7 +339,7 @@ router.put(
   requirePermission("tickets:update"),
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { status } = req.body;
+      const { status, resolution } = req.body;
 
       if (!status) {
         res.status(400).json({
@@ -359,7 +359,11 @@ router.put(
         return;
       }
 
-      await ticket.update({ status });
+      const updateData: any = { status };
+      if (resolution) updateData.resolution = resolution;
+      if (status === 'resolved' && !ticket.resolvedAt) updateData.resolvedAt = new Date();
+      if (status === 'closed') updateData.closedAt = new Date();
+      await ticket.update(updateData);
       await ticket.reload({
         include: [{ model: User, as: 'creator', attributes: ['name', 'email'] }]
       });

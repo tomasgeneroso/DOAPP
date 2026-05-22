@@ -381,12 +381,14 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
             </div>
           )}
           {data.price && (
-            <div className="flex items-center gap-2 text-sm">
-              <DollarSign className="h-4 w-4 text-green-600 flex-shrink-0" />
-              <span className="font-semibold text-green-700 dark:text-green-400">{data.price}</span>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                <DollarSign className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0" />
+                <span className="text-lg font-bold text-green-700 dark:text-green-300">{data.price}</span>
+              </div>
               {data.originalPrice && (
-                <span className="text-slate-500 dark:text-slate-400 line-through text-xs">
-                  ({t('common.original', 'Original')}: {data.originalPrice})
+                <span className="text-slate-500 dark:text-slate-400 line-through text-sm">
+                  {t('common.original', 'Original')}: {data.originalPrice}
                 </span>
               )}
             </div>
@@ -505,9 +507,12 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
             )}
 
             {/* View all applicants button */}
-            {!isCurrentUser && message.metadata?.jobId && !isDirectProposal && (
+            {!isCurrentUser && message.metadata?.jobId && (
               <button
-                onClick={() => navigate(`/jobs/${message.metadata?.jobId}`)}
+                onClick={() => {
+                  const jobUrl = `/jobs/${message.metadata?.jobId}`;
+                  navigate(jobUrl, { state: { scrollTo: 'proposals' } });
+                }}
                 className="w-full mt-2 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors"
               >
                 <Users className="h-4 w-4" />

@@ -310,8 +310,8 @@ router.put(
 
       // Update role
       const previousRole = user.adminRole;
-      if (adminRole === "none") {
-        user.adminRole = undefined;
+      if (adminRole === "none" || adminRole === null) {
+        user.adminRole = null as any;
         user.permissions = [];
       } else {
         user.adminRole = adminRole;

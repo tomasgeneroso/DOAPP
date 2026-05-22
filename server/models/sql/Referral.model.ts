@@ -285,9 +285,9 @@ export class Referral extends Model {
   getRewardDescription(): string {
     switch (this.rewardType) {
       case 'two_free':
-        return '2 contratos gratis';
+        return '2 publicaciones libres de comisión';
       case 'one_free':
-        return '1 contrato gratis';
+        return '1 publicación libre de comisión';
       case 'reduced_commission':
         return '3% de comisión permanente';
       default:

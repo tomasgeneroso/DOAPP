@@ -44,7 +44,8 @@ jobs:
       - name: Check for critical security issues
         run: |
           echo "🔍 Checking for hardcoded secrets..."
-          if grep -rn "sk-[a-zA-Z0-9]" server/ --include="*.ts" | grep -v ".env"; then
+          # Require 20+ chars after sk- to avoid false positives (e.g. "task-claim" contains "sk-c")
+          if grep -rn --include="*.ts" -E "sk-[a-zA-Z0-9]{20,}" server/ | grep -v "process\.env" | grep -v "\.env"; then
             echo "⚠️  Possible API key found in server code"
             exit 1
           fi

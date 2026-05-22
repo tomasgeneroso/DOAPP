@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { Crown, X, Check, Sparkles } from 'lucide-react';
-import Button from './ui/Button';
+import { Crown, X, Check, Sparkles, Zap } from 'lucide-react';
 
 interface MembershipOfferModalProps {
   isOpen: boolean;
@@ -16,17 +15,11 @@ export default function MembershipOfferModal({ isOpen, onClose, onUpgrade }: Mem
   const [selectedPlan, setSelectedPlan] = useState<'free' | 'monthly' | 'quarterly' | 'super_pro'>('monthly');
 
   const handleUpgrade = (plan: 'monthly' | 'quarterly' | 'super_pro') => {
-    console.log('🔵 handleUpgrade called with plan:', plan);
-    console.log('🔵 onUpgrade prop:', onUpgrade);
-
     if (onUpgrade) {
-      console.log('🔵 Calling onUpgrade callback');
       onUpgrade(plan);
     } else {
-      console.log('🔵 Closing modal and navigating to checkout');
       onClose();
       navigate(`/membership/checkout?plan=${plan}`);
-      console.log('🔵 Navigation triggered to:', `/membership/checkout?plan=${plan}`);
     }
   };
 
@@ -35,204 +28,172 @@ export default function MembershipOfferModal({ isOpen, onClose, onUpgrade }: Mem
   const plans = [
     {
       id: 'free',
-      name: 'Free',
-      subtitle: t('membership.toGetStarted', 'To get started'),
-      price: t('membership.free', 'Free'),
-      priceDetail: t('membership.always', 'always'),
+      name: 'Versión Gratis',
+      price: 'Gratis',
+      priceNote: 'siempre',
+      color: 'slate',
       features: [
-        t('membership.freeFeature1', '3 free contracts for the first 1000 users'),
-        t('membership.freeFeature2', 'Fixed 8% commission'),
-        t('membership.freeFeature3', '3 invitation codes'),
+        '3 publicaciones sin comisión*',
+        '8% comisión fija',
+        '3 códigos de invitación',
       ],
     },
     {
       id: 'monthly',
-      name: t('membership.proMonthly', 'PRO Monthly'),
-      subtitle: t('membership.mostPopular', 'Most popular'),
+      name: 'PRO Mensual',
       price: '$4.999',
-      priceDetail: 'ARS/' + t('membership.month', 'month'),
+      priceNote: 'ARS/mes',
+      badge: 'MÁS POPULAR',
+      badgeColor: 'sky',
+      color: 'sky',
       isPopular: true,
       features: [
-        t('membership.proFeature1', '1 monthly contract without commission'),
-        t('membership.proFeature2', '2 unique initial free contracts'),
-        t('membership.proFeature3', 'Additional contracts: 3% commission'),
-        t('membership.proFeature4', 'Priority in search results'),
-        t('membership.proFeature5', 'Identity verification'),
-        t('membership.proFeature6', 'Golden PRO badge'),
+        '1 publicación/mes sin comisión',
+        '2 publicaciones iniciales gratis',
+        '3% comisión adicional',
+        'Prioridad en búsquedas',
+        'Badge PRO dorado',
       ],
     },
     {
       id: 'quarterly',
-      name: t('membership.proQuarterly', 'PRO Quarterly'),
-      subtitle: t('membership.bestValue', 'Best value'),
+      name: 'PRO Trimestral',
       price: '$13.347',
-      priceDetail: 'ARS ' + t('membership.every3Months', 'every 3 months'),
-      savings: t('membership.save', 'Save') + ' $1.650',
+      priceNote: 'ARS/3 meses',
+      badge: 'Ahorrá $1.650',
+      badgeColor: 'green',
+      color: 'sky',
+      savings: true,
       features: [
-        t('membership.proFeature1', '1 monthly contract without commission'),
-        t('membership.proFeature2', '2 unique initial free contracts'),
-        t('membership.proFeature3', 'Additional contracts: 3% commission'),
-        t('membership.proFeature4', 'Priority in search results'),
-        t('membership.proFeature5', 'Identity verification'),
-        t('membership.proFeature6', 'Golden PRO badge'),
+        '1 publicación/mes sin comisión',
+        '2 publicaciones iniciales gratis',
+        '3% comisión adicional',
+        'Prioridad en búsquedas',
+        'Badge PRO dorado',
       ],
     },
     {
       id: 'super_pro',
       name: 'SUPER PRO',
-      subtitle: t('membership.forProfessionals', 'For professionals'),
       price: '$8.999',
-      priceDetail: 'ARS/' + t('membership.month', 'month'),
+      priceNote: 'ARS/mes',
+      badge: 'PREMIUM',
+      badgeColor: 'purple',
+      color: 'purple',
       isSuperPro: true,
       features: [
-        t('membership.superProFeature1', 'Everything in PRO +'),
-        t('membership.superProFeature2', '2 monthly contracts without commission'),
-        t('membership.superProFeature3', '2 unique initial free contracts'),
-        t('membership.superProFeature4', 'Additional contracts: 1% commission'),
-        t('membership.superProFeature5', 'Advanced analytics'),
-        t('membership.superProFeature6', 'Detailed monthly reports'),
+        '2 publicaciones/mes sin comisión',
+        '2 publicaciones iniciales gratis',
+        '1% comisión adicional',
+        'Analytics avanzados',
+        'Reportes mensuales',
       ],
     },
   ];
 
   const selectedPlanData = plans.find(p => p.id === selectedPlan);
 
+  const btnGradient = selectedPlanData?.isSuperPro
+    ? 'from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
+    : 'from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700';
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="relative bg-gradient-to-r from-sky-600 to-sky-500 text-white p-6 rounded-t-xl">
-          <button
-            onClick={onClose}
-            className="absolute top-4 right-4 text-white hover:text-gray-200"
-          >
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-3">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-3xl flex flex-col" style={{ maxHeight: 'calc(100vh - 24px)' }}>
+
+        {/* Header compacto */}
+        <div className="relative bg-gradient-to-r from-sky-600 to-blue-700 text-white px-6 py-4 rounded-t-2xl flex items-center gap-3 flex-shrink-0">
+          <Crown className="w-7 h-7 text-yellow-300 flex-shrink-0" />
+          <div>
+            <h2 className="text-lg font-bold leading-tight">{t('membership.welcomeToDoapp', '¡Bienvenido a DOAPP!')}</h2>
+            <p className="text-sky-100 text-xs">{t('membership.boostExperience', 'Elegí el plan que mejor se adapta a vos')}</p>
+          </div>
+          <button onClick={onClose} className="absolute top-3 right-3 text-white/70 hover:text-white">
             <X className="w-5 h-5" />
           </button>
-          <div className="text-center">
-            <Crown className="w-12 h-12 text-yellow-300 mx-auto mb-2" />
-            <h2 className="text-2xl font-bold">{t('membership.welcomeToDoapp', 'Welcome to DOAPP!')}</h2>
-            <p className="text-sky-100 text-sm mt-1">{t('membership.boostExperience', 'Boost your experience with a PRO membership')}</p>
-          </div>
         </div>
 
-        {/* Plans Grid */}
-        <div className="p-6">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6 pt-3">
-            {plans.map((plan) => (
+        {/* Plans grid — no scroll */}
+        <div className="grid grid-cols-4 gap-2 px-4 pt-4 pb-2 flex-shrink-0">
+          {plans.map((plan) => {
+            const isSelected = selectedPlan === plan.id;
+            const borderColor = isSelected
+              ? plan.color === 'purple' ? 'border-purple-500' : 'border-sky-500'
+              : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600';
+
+            return (
               <div
                 key={plan.id}
-                className={`relative border-2 rounded-lg p-4 transition-all cursor-pointer ${
-                  selectedPlan === plan.id
-                    ? (plan as any).isSuperPro
-                      ? 'border-purple-500 shadow-lg shadow-purple-200 dark:shadow-purple-900/50'
-                      : 'border-sky-500 shadow-lg'
-                    : 'border-gray-200 dark:border-gray-700 hover:border-sky-300'
-                } ${
-                  (plan as any).isPopular
-                    ? 'ring-2 ring-sky-200 dark:ring-sky-800'
-                    : (plan as any).isSuperPro
-                    ? 'ring-2 ring-purple-200 dark:ring-purple-800'
-                    : ''
-                }`}
                 onClick={() => setSelectedPlan(plan.id as any)}
+                className={`relative border-2 rounded-xl p-3 cursor-pointer transition-all ${borderColor} ${isSelected ? 'shadow-md' : ''}`}
               >
-                {(plan as any).isPopular && (
-                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
-                    <span className="bg-sky-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
-                      {t('membership.mostPopularBadge', 'MOST POPULAR')}
+                {/* Badge */}
+                {plan.badge && (
+                  <div className="absolute -top-2.5 left-1/2 -translate-x-1/2 z-10">
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap text-white flex items-center gap-0.5 ${
+                      plan.badgeColor === 'green' ? 'bg-green-500' :
+                      plan.badgeColor === 'purple' ? 'bg-gradient-to-r from-purple-600 to-pink-600' :
+                      'bg-sky-500'
+                    }`}>
+                      {plan.badgeColor === 'purple' && <Sparkles className="w-2.5 h-2.5" />}
+                      {plan.badge}
                     </span>
                   </div>
                 )}
 
-                {(plan as any).isSuperPro && (
-                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
-                    <span className="bg-gradient-to-r from-purple-600 to-pink-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1">
-                      <Sparkles className="w-3 h-3" />
-                      PREMIUM
-                    </span>
-                  </div>
-                )}
-
-                {(plan as any).savings && (
-                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
-                    <span className="bg-green-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap">
-                      {(plan as any).savings}
-                    </span>
-                  </div>
-                )}
-
-                <div className="text-center mb-3">
-                  <h3 className="text-sm font-bold text-gray-900 dark:text-white">
-                    {plan.name}
-                  </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {plan.subtitle}
-                  </p>
+                {/* Name + price */}
+                <div className="text-center mb-2 mt-1">
+                  <p className="text-xs font-bold text-slate-800 dark:text-white leading-tight">{plan.name}</p>
+                  <p className={`text-base font-extrabold mt-1 ${
+                    plan.isSuperPro ? 'text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600' :
+                    plan.id === 'free' ? 'text-slate-600 dark:text-slate-300' :
+                    'text-transparent bg-clip-text bg-gradient-to-r from-sky-600 to-blue-600'
+                  }`}>{plan.price}</p>
+                  <p className="text-[10px] text-slate-400 leading-none">{plan.priceNote}</p>
                 </div>
 
-                <div className="text-center mb-3">
-                  <div className={`text-xl font-bold ${
-                    plan.id === 'free'
-                      ? 'text-gray-700 dark:text-gray-300'
-                      : (plan as any).isSuperPro
-                      ? 'text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-pink-600'
-                      : 'text-transparent bg-clip-text bg-gradient-to-r from-sky-600 to-sky-500'
-                  }`}>
-                    {plan.price}
-                  </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {plan.priceDetail}
-                  </p>
-                </div>
-
-                <ul className="space-y-1.5 text-xs">
-                  {plan.features.map((feature, index) => (
-                    <li key={index} className="flex items-start gap-1.5">
-                      <Check className="w-3.5 h-3.5 text-green-500 flex-shrink-0 mt-0.5" />
-                      <span className="text-gray-700 dark:text-gray-300">{feature}</span>
+                {/* Features */}
+                <ul className="space-y-1">
+                  {plan.features.map((f, i) => (
+                    <li key={i} className="flex items-start gap-1">
+                      <Check className="w-3 h-3 text-green-500 flex-shrink-0 mt-0.5" />
+                      <span className="text-[10px] text-slate-600 dark:text-slate-300 leading-tight">{f}</span>
                     </li>
                   ))}
                 </ul>
 
-                {selectedPlan === plan.id && plan.id !== 'free' && (
-                  <div className="absolute inset-0 border-2 border-sky-500 rounded-lg pointer-events-none">
-                    <div className="absolute top-2 right-2 w-5 h-5 bg-sky-500 rounded-full flex items-center justify-center">
-                      <Check className="w-3 h-3 text-white" />
-                    </div>
+                {/* Selected check */}
+                {isSelected && plan.id !== 'free' && (
+                  <div className={`absolute top-2 right-2 w-4 h-4 rounded-full flex items-center justify-center ${plan.isSuperPro ? 'bg-purple-500' : 'bg-sky-500'}`}>
+                    <Check className="w-2.5 h-2.5 text-white" />
                   </div>
                 )}
               </div>
-            ))}
-          </div>
+            );
+          })}
+        </div>
 
-          {/* Action Buttons */}
-          <div className="flex flex-col gap-3">
-            {selectedPlan !== 'free' && (
-              <Button
-                variant="primary"
-                onClick={() => handleUpgrade(selectedPlan as any)}
-                className={`w-full ${
-                  (selectedPlanData as any)?.isSuperPro
-                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
-                    : 'bg-gradient-to-r from-sky-600 to-sky-500 hover:from-sky-700 hover:to-sky-600'
-                }`}
-              >
-                <Crown className="w-4 h-4 mr-2 inline-block" />
-                {t('membership.activate', 'Activate')} {selectedPlanData?.name}
-              </Button>
-            )}
-            <Button
-              variant="secondary"
-              onClick={onClose}
-              className="w-full border-2 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300"
+        {/* Note */}
+        <p className="text-[10px] text-slate-400 text-center px-4">*Para los primeros 1.000 usuarios</p>
+
+        {/* Actions */}
+        <div className="px-4 pb-4 pt-2 flex flex-col gap-2 flex-shrink-0">
+          {selectedPlan !== 'free' && (
+            <button
+              onClick={() => handleUpgrade(selectedPlan as any)}
+              className={`w-full py-2.5 rounded-xl font-semibold text-sm text-white bg-gradient-to-r ${btnGradient} transition-all flex items-center justify-center gap-2`}
             >
-              {t('membership.continueWithFree', 'Continue with FREE plan')}
-            </Button>
-          </div>
-
-          <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-3">
-            {t('membership.cancelAnytime', 'Cancel anytime')} • {t('membership.alwaysUpgrade', 'You can always upgrade')}
-          </p>
+              <Zap className="w-4 h-4" />
+              Activar {selectedPlanData?.name}
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="w-full py-2 rounded-xl font-medium text-sm border-2 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+          >
+            Continuar con Versión Gratis
+          </button>
+          <p className="text-[10px] text-center text-slate-400">Cancelás cuando quieras · Siempre podés subir de plan</p>
         </div>
       </div>
     </div>

@@ -65,7 +65,9 @@ export default function OnboardingTooltip() {
       setTargetElement(target);
 
       const rawRect = target.getBoundingClientRect();
-      // Compensate for CSS zoom (0.75 on desktop)
+      // Compensate for CSS zoom (0.75 on desktop).
+      // getBoundingClientRect returns visual (post-zoom) pixels.
+      // Fixed positioned elements use CSS pixels = visual / zoom.
       const zoom = parseFloat(getComputedStyle(document.documentElement).zoom || '1') || 1;
       const rect = {
         top: rawRect.top / zoom,
@@ -75,7 +77,8 @@ export default function OnboardingTooltip() {
         width: rawRect.width / zoom,
         height: rawRect.height / zoom,
       };
-      setTargetRect(rawRect);
+      // Use zoom-compensated rect for the highlight box (also fixed-positioned)
+      setTargetRect(rect as unknown as DOMRect);
       const tooltipWidth = 350;
       const tooltipHeight = 200;
       const padding = 16;

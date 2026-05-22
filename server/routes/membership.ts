@@ -151,7 +151,7 @@ router.get("/pricing", async (req, res) => {
           currency: 'ARS',
           commissionRate: 8,
           benefits: [
-            '3 contratos gratis (primeros 1000 usuarios)',
+            '3 publicaciones libres de comisión (primeros 1000 usuarios)',
             'Comisión fija del 8%',
             '3 códigos de invitación',
           ],
@@ -164,7 +164,7 @@ router.get("/pricing", async (req, res) => {
           commissionRate: 3,
           benefits: [
             '1 contrato mensual sin comisión (0%)',
-            '2 contratos gratis iniciales únicos',
+            '2 publicaciones iniciales libres de comisión',
             'Contratos adicionales: 3% de comisión',
             'Prioridad en búsquedas',
             'KYC Premium - Verificación completa',
@@ -182,7 +182,7 @@ router.get("/pricing", async (req, res) => {
           commissionRate: 1,
           benefits: [
             'Todos los beneficios de PRO',
-            '2 contratos mensuales sin comisión (0%)',
+            '2 publicaciones mensuales sin comisión (0%)',
             'Contratos adicionales: 1% de comisión',
             'Estadísticas avanzadas de perfil',
             'Analytics de visitas y conversaciones',

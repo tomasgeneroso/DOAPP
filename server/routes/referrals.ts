@@ -73,19 +73,19 @@ router.get("/info", async (req, res): Promise<void> => {
         maxReferrals: 3,
         referredBenefits: {
           title: "Beneficios para ti al registrarte con un código:",
-          items: ["1 contrato gratis (solo primeros 1000 usuarios)"],
+          items: ["1 publicación libre de comisión (solo primeros 1000 usuarios)"],
         },
         referrerBenefits: {
           title: "Beneficios por cada referido que complete su primer contrato:",
           items: [
             {
               position: 1,
-              reward: "2 contratos gratis",
+              reward: "2 publicaciones libres de comisión",
               description: "Cuando tu primer referido complete su primer contrato",
             },
             {
               position: 2,
-              reward: "1 contrato gratis",
+              reward: "1 publicación libre de comisión",
               description: "Cuando tu segundo referido complete su primer contrato",
             },
             {

@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
+const LocationPinMap = lazy(() => import('../components/LocationPinMap'));
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
@@ -80,6 +81,8 @@ export default function CreateContractScreen() {
   const [addressStreet, setAddressStreet] = useState("");
   const [addressNumber, setAddressNumber] = useState("");
   const [addressDetails, setAddressDetails] = useState("");
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
 
   // Banking prompt modal state
   const [showBankingModal, setShowBankingModal] = useState(false);
@@ -197,6 +200,10 @@ export default function CreateContractScreen() {
     submitData.append("addressStreet", addressStreet);
     submitData.append("addressNumber", addressNumber);
     submitData.append("addressDetails", addressDetails);
+    if (latitude !== null && longitude !== null) {
+      submitData.append("latitude", latitude.toString());
+      submitData.append("longitude", longitude.toString());
+    }
     submitData.append("startDate", formDataFromForm.get("startDate") as string);
     submitData.append("endDateFlexible", endDateFlexible.toString());
     if (!endDateFlexible) {
@@ -321,12 +328,27 @@ export default function CreateContractScreen() {
           </Link>
         </div>
 
-        <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
-          {t('contracts.publishNewJob', 'Publish a new job')}
-        </h1>
-        <p className="mt-2 text-lg leading-8 text-gray-600 dark:text-slate-400">
-          {t('contracts.publishDescription', 'Describe the service you need so professionals can apply.')}
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-4xl">
+              {t('contracts.publishNewJob', 'Publicar un trabajo')}
+            </h1>
+            <p className="mt-2 text-lg leading-8 text-gray-600 dark:text-slate-400">
+              {t('contracts.publishDescription', 'Describe el servicio que necesitás para que los profesionales puedan aplicar.')}
+            </p>
+          </div>
+          {/* Publicaciones sin comisión disponibles */}
+          <div className={`flex-shrink-0 rounded-xl px-4 py-3 text-center border-2 ${
+            (user?.freeContractsRemaining ?? 0) > 0
+              ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700'
+              : 'bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700'
+          }`}>
+            <p className={`text-2xl font-extrabold leading-none ${
+              (user?.freeContractsRemaining ?? 0) > 0 ? 'text-green-600 dark:text-green-400' : 'text-slate-400'
+            }`}>{user?.freeContractsRemaining ?? 0}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">publicaciones<br/>sin comisión</p>
+          </div>
+        </div>
 
         <form onSubmit={handleSubmit} className="mt-10 space-y-8">
           <div className="space-y-6 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/50 p-6 shadow-sm">
@@ -535,6 +557,23 @@ export default function CreateContractScreen() {
                 className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
               />
             </FormField>
+
+            {/* Mapa de ubicación */}
+            <Suspense fallback={
+              <div className="rounded-xl border border-slate-200 dark:border-slate-600 h-[310px] flex items-center justify-center bg-slate-50 dark:bg-slate-800">
+                <div className="text-slate-400 text-sm flex items-center gap-2">
+                  <MapPin className="w-4 h-4" />
+                  Cargando mapa...
+                </div>
+              </div>
+            }>
+              <LocationPinMap
+                address={[addressStreet, addressNumber, location].filter(Boolean).join(', ')}
+                initialLat={latitude ?? undefined}
+                initialLng={longitude ?? undefined}
+                onCoordinatesChange={(lat, lng) => { setLatitude(lat); setLongitude(lng); }}
+              />
+            </Suspense>
 
             <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
               <div className="sm:col-span-3">

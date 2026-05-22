@@ -387,7 +387,19 @@ export default function Dashboard() {
                 </Link>
               )}
             </div>
-            <DollarSign className="h-16 w-16 opacity-20" />
+            <div className="text-right flex-shrink-0">
+              <DollarSign className="h-12 w-12 opacity-20 mb-4 ml-auto" />
+              {/* Publicaciones libres de comisión */}
+              <div className="bg-white/15 rounded-xl px-4 py-3 text-center min-w-[120px]">
+                <p className="text-2xl font-extrabold leading-none">{freeContractsRemaining}</p>
+                <p className="text-xs opacity-80 mt-1 leading-tight">publicaciones{'\n'}sin comisión</p>
+                {freeContractsRemaining === 0 && (
+                  <Link to="/membership" className="mt-2 block text-[10px] font-semibold underline opacity-80 hover:opacity-100">
+                    Obtener más
+                  </Link>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 

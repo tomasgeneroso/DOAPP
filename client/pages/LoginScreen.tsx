@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, FormEvent, ChangeEvent } from "react";
+import React, { useState, useEffect, useRef, FormEvent, ChangeEvent } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
@@ -6,13 +6,82 @@ import { useFacebookLogin } from "../hooks/useFacebookLogin";
 import { Helmet } from "react-helmet-async";
 import { AnimatedButton } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input"; // Asegúrate que este componente se esté usando
-import { Chrome, Facebook, Twitter, Eye, EyeOff, Home, Upload, X, FileText, Image } from "lucide-react";
+import { Chrome, Facebook, Twitter, Eye, EyeOff, Home, Upload, X, FileText, Image, Camera } from "lucide-react";
 import TokenExpiredNotice from "../components/TokenExpiredNotice";
 import MembershipOfferModal from "../components/MembershipOfferModal";
+import CameraCapture from "../components/CameraCapture";
 import { analytics, identifyUser } from "../utils/analytics";
 import { ThemeToggle } from "../components/ui/ThemeToggle";
 
 type FormMode = "login" | "register";
+
+// ── Sub-component: DNI photo slot with gallery + camera options ───────────────
+function DniPhotoSlot({
+  label,
+  photo,
+  onPhoto,
+  fileRef,
+}: {
+  label: string;
+  photo: File | null;
+  onPhoto: (f: File | null) => void;
+  fileRef: React.RefObject<HTMLInputElement>;
+}) {
+  const [showCamera, setShowCamera] = useState(false);
+
+  return (
+    <div>
+      {/* Gallery input */}
+      <input ref={fileRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" className="hidden"
+        onChange={(e) => onPhoto(e.target.files?.[0] ?? null)} />
+
+      {/* Camera modal */}
+      {showCamera && (
+        <CameraCapture
+          label={label}
+          onCapture={(file) => { onPhoto(file); setShowCamera(false); }}
+          onClose={() => setShowCamera(false)}
+        />
+      )}
+
+      {photo ? (
+        /* Preview */
+        <div className="rounded-lg border-2 border-sky-500 bg-sky-50 dark:bg-sky-900/20 overflow-hidden">
+          <img src={URL.createObjectURL(photo)} alt={label} className="w-full h-20 object-cover" />
+          <div className="flex items-center justify-between px-2 py-1">
+            <span className="text-[10px] text-sky-600 dark:text-sky-400 truncate flex-1">{photo.name}</span>
+            <button type="button" onClick={() => onPhoto(null)} className="text-red-500 hover:text-red-600 ml-1 shrink-0">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* Pick options */
+        <div className="rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600">
+          <p className="text-[10px] text-center text-slate-500 dark:text-slate-400 pt-2 pb-0.5 font-medium px-1">{label}</p>
+          <div className="flex gap-1 p-2">
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs text-slate-600 dark:text-slate-300"
+            >
+              <Upload className="w-4 h-4" />
+              <span>Galería</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCamera(true)}
+              className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-lg bg-sky-100 dark:bg-sky-900/30 hover:bg-sky-200 dark:hover:bg-sky-900/50 transition-colors text-xs text-sky-700 dark:text-sky-300"
+            >
+              <Camera className="w-4 h-4" />
+              <span>Cámara</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function LoginScreen() {
   const { t } = useTranslation();
@@ -59,6 +128,10 @@ export default function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showMembershipOffer, setShowMembershipOffer] = useState(false);
   const [justRegistered, setJustRegistered] = useState(false);
+  const [emailNotVerified, setEmailNotVerified] = useState<string | null>(null);
+  const [resendingVerification, setResendingVerification] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
+  const [registrationPendingVerification, setRegistrationPendingVerification] = useState(false);
   const { login, register, user } = useAuth();
   const { loginWithFacebook, isLoading: fbLoading, error: fbError } = useFacebookLogin();
 
@@ -133,16 +206,45 @@ export default function LoginScreen() {
 
     try {
       if (mode === "login") {
-        const user = await login(formData.email, formData.password);
-        // Track login event
-        analytics.login('email');
-        if (user?.id) {
-          identifyUser(user.id);
+        try {
+          const user = await login(formData.email, formData.password);
+          analytics.login('email');
+          if (user?.id) identifyUser(user.id);
+          navigate(from, { replace: true });
+        } catch (err: any) {
+          if (err.emailNotVerified) {
+            setEmailNotVerified(err.email || formData.email);
+            setError(null);
+          } else {
+            throw err;
+          }
         }
-        navigate(from, { replace: true }); // Redirect to original page or home
+        return;
       } else {
         if (!formData.termsAccepted) {
           setError("Debes aceptar los términos y condiciones.");
+          setIsLoading(false);
+          return;
+        }
+
+        // Validar número de DNI obligatorio
+        if (!formData.dni.trim()) {
+          setError("El número de DNI es obligatorio.");
+          setIsLoading(false);
+          return;
+        }
+        if (!/^\d{7,9}$/.test(formData.dni.trim())) {
+          setError("El DNI debe tener entre 7 y 9 dígitos.");
+          setIsLoading(false);
+          return;
+        }
+
+        // Validar fotos de DNI obligatorias
+        const hasDniForValidation = dniMode === 'pdf' ? !!dniPdf : (!!dniPhotoFront && !!dniPhotoBack);
+        if (!hasDniForValidation) {
+          setError(dniMode === 'pdf'
+            ? "El PDF del DNI es obligatorio."
+            : "Debés subir la foto de frente Y dorso del DNI.");
           setIsLoading(false);
           return;
         }
@@ -186,8 +288,8 @@ export default function LoginScreen() {
           }
         }
 
-        // Mark that user just registered to trigger membership check
-        setJustRegistered(true);
+        // Show email verification pending screen instead of navigating
+        setRegistrationPendingVerification(true);
       }
     } catch (err: any) {
       const errorMessage = err.message || "Ocurrió un error. Por favor, intenta de nuevo.";
@@ -233,7 +335,68 @@ export default function LoginScreen() {
     }, 100);
   };
 
+  const handleResendVerification = async (emailAddr: string) => {
+    setResendingVerification(true);
+    setVerificationSent(false);
+    try {
+      await fetch('/api/auth/resend-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: emailAddr }),
+      });
+      setVerificationSent(true);
+    } finally {
+      setResendingVerification(false);
+    }
+  };
+
   const isRegister = mode === "register";
+
+  // ── Pantalla: registro completado, verificar email ───────────────────────
+  if (registrationPendingVerification) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 px-4">
+        <div className="max-w-md w-full bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-8 text-center">
+          <div className="flex justify-center mb-5">
+            <div className="h-16 w-16 rounded-full bg-sky-100 dark:bg-sky-900/30 flex items-center justify-center">
+              <span className="text-3xl">📧</span>
+            </div>
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">¡Registrado!</h2>
+          <p className="text-slate-600 dark:text-slate-400 mb-4">
+            Te enviamos un email de verificación. Revisá tu casilla y hacé clic en el enlace para activar tu cuenta.
+          </p>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+            No te va a llegar el correo? Revisá la carpeta de spam o solicitá un nuevo enlace.
+          </p>
+          {verificationSent && (
+            <p className="text-sm text-green-600 dark:text-green-400 mb-4">✓ Nuevo enlace enviado.</p>
+          )}
+          <button
+            onClick={() => handleResendVerification(formData.email)}
+            disabled={resendingVerification}
+            className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded-xl transition disabled:opacity-50 mb-3"
+          >
+            {resendingVerification ? 'Enviando...' : 'Reenviar email de verificación'}
+          </button>
+          <button
+            onClick={() => {
+              setRegistrationPendingVerification(false);
+              setMode('login');
+              setFormData({ firstName: '', lastName: '', username: '', email: '', password: '', phone: '', dni: '', referralCode: '', cbu: '', termsAccepted: false });
+              setDniPhotoFront(null);
+              setDniPhotoBack(null);
+              setDniPdf(null);
+              setError(null);
+            }}
+            className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+          >
+            Ir a iniciar sesión
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -323,7 +486,7 @@ export default function LoginScreen() {
                       htmlFor="firstName"
                       className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
                     >
-                      {t('auth.firstName', 'Nombre/s')}
+                      {t('auth.firstName', 'Nombre/s')} <span className="text-red-500">*</span>
                     </label>
                     <div className="mt-2">
                       <input
@@ -344,7 +507,7 @@ export default function LoginScreen() {
                       htmlFor="lastName"
                       className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
                     >
-                      {t('auth.lastName', 'Apellido/s')}
+                      {t('auth.lastName', 'Apellido/s')} <span className="text-red-500">*</span>
                     </label>
                     <div className="mt-2">
                       <input
@@ -366,7 +529,7 @@ export default function LoginScreen() {
                     htmlFor="username"
                     className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
                   >
-                    {t('auth.username')}
+                    {t('auth.username')} <span className="text-red-500">*</span>
                   </label>
                   <div className="mt-2 relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500">@</span>
@@ -416,7 +579,7 @@ export default function LoginScreen() {
                 htmlFor="email"
                 className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
               >
-                {t('auth.email')}
+                {t('auth.email')} <span className="text-red-500">*</span>
               </label>
               <div className="mt-2">
                 <input
@@ -448,7 +611,7 @@ export default function LoginScreen() {
                   htmlFor="password"
                   className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
                 >
-                  {t('auth.password')}
+                  {t('auth.password')} <span className="text-red-500">*</span>
                 </label>
                 {!isRegister && (
                   <div className="text-sm">
@@ -506,7 +669,7 @@ export default function LoginScreen() {
                     htmlFor="phone"
                     className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
                   >
-                    {t('auth.phone')}
+                    {t('auth.phone')} <span className="text-red-500">*</span>
                   </label>
                   <div className="mt-2">
                     <input
@@ -527,7 +690,7 @@ export default function LoginScreen() {
                     htmlFor="dni"
                     className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
                   >
-                    {t('auth.dni')}
+                    {t('auth.dni')} <span className="text-red-500">*</span>
                   </label>
                   <div className="mt-2">
                     <input
@@ -552,7 +715,7 @@ export default function LoginScreen() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300">
-                      Foto del DNI <span className="text-slate-400">(opcional)</span>
+                      Foto del DNI <span className="text-red-500">*</span>
                     </label>
                     <div className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600 text-xs">
                       <button
@@ -574,58 +737,20 @@ export default function LoginScreen() {
 
                   {dniMode === 'images' ? (
                     <div className="grid grid-cols-2 gap-3">
-                      {/* Front */}
-                      <div>
-                        <input ref={frontInputRef} type="file" accept="image/jpeg,image/jpg,image/png" className="hidden"
-                          onChange={(e) => setDniPhotoFront(e.target.files?.[0] ?? null)} />
-                        <button type="button" onClick={() => frontInputRef.current?.click()}
-                          className={`w-full h-24 rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1 text-xs transition-colors ${dniPhotoFront ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20' : 'border-slate-300 dark:border-slate-600 hover:border-sky-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
-                        >
-                          {dniPhotoFront ? (
-                            <>
-                              <img src={URL.createObjectURL(dniPhotoFront)} alt="DNI frente" className="h-14 w-full object-cover rounded" />
-                              <span className="text-sky-600 dark:text-sky-400 font-medium truncate max-w-full px-1">{dniPhotoFront.name}</span>
-                            </>
-                          ) : (
-                            <>
-                              <Upload className="w-5 h-5 text-slate-400" />
-                              <span className="text-slate-500 dark:text-slate-400">Frente del DNI</span>
-                              <span className="text-slate-400 text-[10px]">JPG o PNG</span>
-                            </>
-                          )}
-                        </button>
-                        {dniPhotoFront && (
-                          <button type="button" onClick={() => setDniPhotoFront(null)} className="mt-1 text-xs text-red-500 hover:text-red-600 flex items-center gap-1">
-                            <X className="w-3 h-3" /> Quitar
-                          </button>
-                        )}
-                      </div>
-                      {/* Back */}
-                      <div>
-                        <input ref={backInputRef} type="file" accept="image/jpeg,image/jpg,image/png" className="hidden"
-                          onChange={(e) => setDniPhotoBack(e.target.files?.[0] ?? null)} />
-                        <button type="button" onClick={() => backInputRef.current?.click()}
-                          className={`w-full h-24 rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1 text-xs transition-colors ${dniPhotoBack ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20' : 'border-slate-300 dark:border-slate-600 hover:border-sky-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
-                        >
-                          {dniPhotoBack ? (
-                            <>
-                              <img src={URL.createObjectURL(dniPhotoBack)} alt="DNI dorso" className="h-14 w-full object-cover rounded" />
-                              <span className="text-sky-600 dark:text-sky-400 font-medium truncate max-w-full px-1">{dniPhotoBack.name}</span>
-                            </>
-                          ) : (
-                            <>
-                              <Upload className="w-5 h-5 text-slate-400" />
-                              <span className="text-slate-500 dark:text-slate-400">Dorso del DNI</span>
-                              <span className="text-slate-400 text-[10px]">JPG o PNG</span>
-                            </>
-                          )}
-                        </button>
-                        {dniPhotoBack && (
-                          <button type="button" onClick={() => setDniPhotoBack(null)} className="mt-1 text-xs text-red-500 hover:text-red-600 flex items-center gap-1">
-                            <X className="w-3 h-3" /> Quitar
-                          </button>
-                        )}
-                      </div>
+                      {/* ── Frente ── */}
+                      <DniPhotoSlot
+                        label="Frente del DNI"
+                        photo={dniPhotoFront}
+                        onPhoto={setDniPhotoFront}
+                        fileRef={frontInputRef}
+                      />
+                      {/* ── Dorso ── */}
+                      <DniPhotoSlot
+                        label="Dorso del DNI"
+                        photo={dniPhotoBack}
+                        onPhoto={setDniPhotoBack}
+                        fileRef={backInputRef}
+                      />
                     </div>
                   ) : (
                     <div>
@@ -653,8 +778,8 @@ export default function LoginScreen() {
                       )}
                     </div>
                   )}
-                  <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">
-                    Podés subir las fotos ahora o más tarde desde tu perfil. Se usará para verificar tu identidad.
+                  <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                    Requerido para verificar tu identidad y operar en la plataforma.
                   </p>
                 </div>
 
@@ -729,6 +854,27 @@ export default function LoginScreen() {
                   </label>
                 </div>
               </>
+            )}
+
+            {/* Email not verified banner */}
+            {emailNotVerified && (
+              <div className="rounded-xl p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700">
+                <p className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-1">📧 Email no verificado</p>
+                <p className="text-sm text-amber-700 dark:text-amber-300 mb-3">
+                  Debés verificar tu email antes de ingresar. Revisá tu casilla de correo (incluyendo spam).
+                </p>
+                {verificationSent && (
+                  <p className="text-xs text-green-600 dark:text-green-400 mb-2">✓ Nuevo enlace enviado a {emailNotVerified}</p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleResendVerification(emailNotVerified)}
+                  disabled={resendingVerification}
+                  className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
+                >
+                  {resendingVerification ? 'Enviando...' : 'Reenviar email de verificación'}
+                </button>
+              </div>
             )}
 
             {error && !errorField && (

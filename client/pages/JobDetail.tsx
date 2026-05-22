@@ -99,6 +99,9 @@ export default function JobDetail() {
   const [budgetReason, setBudgetReason] = useState("");
   const [changingBudget, setChangingBudget] = useState(false);
   const [showClientMenu, setShowClientMenu] = useState(false);
+  const [showPauseApprovalModal, setShowPauseApprovalModal] = useState(false);
+  const [requestingPauseApproval, setRequestingPauseApproval] = useState(false);
+  const proposalsSectionRef = useRef<HTMLDivElement | null>(null);
 
   // Modal de confirmación de pago por aumento de presupuesto
   const [showPaymentConfirmModal, setShowPaymentConfirmModal] = useState(false);
@@ -235,8 +238,17 @@ export default function JobDetail() {
       if (data.jobId === id || data.job?.id === id) {
         console.log("📝 Job updated:", data);
         if (data.job && typeof data.job === "object") {
-          // Merge with existing job to preserve all fields
           setJob((prev) => (prev ? { ...prev, ...data.job } : data.job));
+        } else if (data.selectedWorkers !== undefined || data.status !== undefined) {
+          // Partial update (e.g. auto-selection from cron) — merge fields directly
+          setJob((prev) => {
+            if (!prev) return prev;
+            return {
+              ...prev,
+              ...(data.selectedWorkers !== undefined && { selectedWorkers: data.selectedWorkers }),
+              ...(data.status !== undefined && { status: data.status }),
+            };
+          });
         }
       }
     },
@@ -323,6 +335,15 @@ export default function JobDetail() {
 
     lastPathRef.current = currentPath;
   }, [location.pathname, id]);
+
+  // Scroll to proposals section when navigating from chat "Ver todos los aplicantes"
+  useEffect(() => {
+    if ((location.state as any)?.scrollTo === 'proposals' && proposalsSectionRef.current) {
+      setTimeout(() => {
+        proposalsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 600);
+    }
+  }, [location.state, job]);
 
   // Fetch proposals if user is the job owner
   useEffect(() => {
@@ -772,6 +793,8 @@ export default function JobDetail() {
         if (jobData.success) {
           setJob(jobData.job);
         }
+      } else if (data.requiresWorkerApproval) {
+        setShowPauseApprovalModal(true);
       } else {
         setError(
           data.message || t("jobs.errorPausing", "Error pausing the listing"),
@@ -783,6 +806,29 @@ export default function JobDetail() {
       );
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handleRequestPauseApproval = async () => {
+    if (!job || !token) return;
+    setRequestingPauseApproval(true);
+    try {
+      const response = await fetch(`/api/jobs/${job.id}/request-pause-approval`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      setShowPauseApprovalModal(false);
+      if (data.success) {
+        setError(null);
+        alert(t("jobs.pauseApprovalSent", "Se envió la solicitud de pausa al trabajador. Esperá su respuesta."));
+      } else {
+        setError(data.message || "Error al enviar solicitud");
+      }
+    } catch {
+      setError("Error al enviar solicitud de pausa");
+    } finally {
+      setRequestingPauseApproval(false);
     }
   };
 
@@ -988,11 +1034,18 @@ export default function JobDetail() {
         setShowBudgetModal(false);
         setNewBudget("");
         setBudgetReason("");
-        // Refresh job data
-        const jobResponse = await fetch(`/api/jobs/${id}`);
+        // Refresh job + proposals so price change is reflected everywhere
+        const [jobResponse, proposalsResponse] = await Promise.all([
+          fetch(`/api/jobs/${id}`),
+          token ? fetch(`/api/proposals/job/${id}`, { headers: { Authorization: `Bearer ${token}` } }) : Promise.resolve(null),
+        ]);
         const jobData = await jobResponse.json();
         if (jobData.success) {
           setJob(jobData.job);
+        }
+        if (proposalsResponse) {
+          const proposalsData = await proposalsResponse.json();
+          if (proposalsData.success) setProposals(proposalsData.proposals || []);
         }
       } else {
         setError(
@@ -2491,6 +2544,38 @@ export default function JobDetail() {
                     </div>
                   )}
 
+                {/* Matrícula del worker — visible solo para el dueño del job */}
+                {isOwnJob && job.doer && typeof job.doer === 'object' && job.doer.profession && (() => {
+                  const REGULATED = ['gasista','electricista','plomero','maestro_mayor_obras','instalador_aire'];
+                  const isReg = REGULATED.includes(job.doer.profession);
+                  return (
+                    <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
+                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Datos profesionales</p>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-700 dark:text-slate-300">
+                        <span><span className="font-medium">Profesión:</span> {job.doer.profession.replace(/_/g,' ')}</span>
+                        {isReg && job.doer.licenseNumber && (
+                          <span><span className="font-medium">Matrícula:</span> {job.doer.licenseNumber}</span>
+                        )}
+                        {isReg && job.doer.licenseCategory && (
+                          <span><span className="font-medium">Categoría:</span> {job.doer.licenseCategory}</span>
+                        )}
+                        {isReg && job.doer.licenseCertNumber && (
+                          <span><span className="font-medium">Cert. N°:</span> {job.doer.licenseCertNumber}</span>
+                        )}
+                        {isReg && job.doer.licenseDocumentUrl && (
+                          <a href={job.doer.licenseDocumentUrl} target="_blank" rel="noreferrer"
+                            className="text-sky-600 dark:text-sky-400 hover:underline font-medium">
+                            Ver documento
+                          </a>
+                        )}
+                        {job.doer.licenseVerified && (
+                          <span className="text-green-600 dark:text-green-400 font-semibold">✓ Verificado</span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Job status indicator */}
                 <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                   <div
@@ -3362,8 +3447,10 @@ export default function JobDetail() {
             {isOwnJob &&
               !isDraft &&
               (job.status === "open" ||
-                (job.status === "in_progress" && !job.doerId)) && (
-                <div className="space-y-4">
+                (job.status === "in_progress" && !job.doerId)) &&
+              /* Solo mostrar postulados si aún hay vacantes disponibles */
+              (job.selectedWorkers?.length || 0) < (job.maxWorkers || 1) && (
+                <div className="space-y-4" ref={proposalsSectionRef}>
                   {/* New proposal real-time alert */}
                   {newProposalAlert && (
                     <div className="bg-green-900/30 border border-green-600 rounded-xl p-4 flex items-center gap-3 animate-pulse">
@@ -3423,11 +3510,13 @@ export default function JobDetail() {
                           </p>
                         </div>
 
-                        {proposals.map((proposal: any) => (
+                        {proposals.map((proposal: any) => {
+                          const isOffer = proposal.isCounterOffer || (proposal.proposedPrice !== undefined && proposal.proposedPrice !== job.price);
+                          return (
                           <div
                             key={proposal.id}
                             className={`rounded-xl border p-4 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors ${
-                              proposal.isCounterOffer
+                              isOffer
                                 ? "border-orange-300 dark:border-orange-600 bg-orange-50 dark:bg-orange-900/20"
                                 : "border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50"
                             }`}
@@ -3479,37 +3568,48 @@ export default function JobDetail() {
                                     {proposal.freelancer?.completedJobs || 0}{" "}
                                     {t("common.jobs", "jobs")}
                                   </span>
+                                  {/* Profesión y matrícula del postulante */}
+                                  {proposal.freelancer?.profession && (
+                                    <>
+                                      <span>•</span>
+                                      <span className="text-sky-600 dark:text-sky-400 font-medium">
+                                        {proposal.freelancer.profession.replace(/_/g, ' ')}
+                                      </span>
+                                      {proposal.freelancer.licenseNumber && (
+                                        <span className="text-xs bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 px-1.5 py-0.5 rounded font-mono">
+                                          Mat. {proposal.freelancer.licenseNumber}
+                                        </span>
+                                      )}
+                                      {proposal.freelancer.licenseVerified && (
+                                        <span className="text-xs text-green-600 dark:text-green-400 font-semibold">✓</span>
+                                      )}
+                                    </>
+                                  )}
                                 </div>
 
                                 {/* Monto propuesto */}
                                 <div className="mt-3 flex items-center gap-2 flex-wrap">
                                   <div
-                                    className={`px-4 py-2.5 rounded-xl text-base font-bold flex items-center gap-1.5 ${
-                                      proposal.isCounterOffer
+                                    className={`px-5 py-3 rounded-xl text-lg font-bold flex items-center gap-1.5 ${
+                                      isOffer
                                         ? "bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-2 border-amber-400 dark:border-amber-600"
                                         : "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-2 border-green-400 dark:border-green-600"
                                     }`}
                                   >
-                                    <DollarSign className="inline h-4 w-4" />
-                                    {(
-                                      proposal.proposedPrice || job.price
-                                    )?.toLocaleString("es-AR")}{" "}
+                                    <DollarSign className="inline h-5 w-5" />
+                                    {(proposal.proposedPrice || job.price)?.toLocaleString("es-AR")}{" "}
                                     ARS
                                   </div>
-                                  {proposal.isCounterOffer && (
+                                  {isOffer && (
                                     <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-500 text-white">
                                       {t("jobs.counterOffer", "Contraoferta")}
                                     </span>
                                   )}
-                                  {!proposal.isCounterOffer &&
-                                    proposal.proposedPrice === job.price && (
-                                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-500 text-white">
-                                        {t(
-                                          "jobs.acceptedOriginalPrice",
-                                          "Precio original",
-                                        )}
-                                      </span>
-                                    )}
+                                  {!isOffer && proposal.proposedPrice === job.price && (
+                                    <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-500 text-white">
+                                      {t("jobs.acceptedOriginalPrice", "Precio original")}
+                                    </span>
+                                  )}
                                 </div>
                               </div>
 
@@ -3531,21 +3631,19 @@ export default function JobDetail() {
                                   )}
                                 </button>
 
-                                {/* Select Button or Status Badge */}
+                                {/* Select / Aceptar Button */}
                                 {proposal.status === "pending" ? (
                                   <button
-                                    onClick={() =>
-                                      openSelectConfirmModal(proposal)
-                                    }
+                                    onClick={() => openSelectConfirmModal(proposal)}
                                     disabled={selectingWorker === proposal.id}
-                                    className="flex items-center gap-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+                                    className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-lg transition-colors disabled:opacity-50 ${isOffer ? "bg-amber-500 hover:bg-amber-600" : "bg-green-600 hover:bg-green-700"}`}
                                   >
                                     {selectingWorker === proposal.id ? (
                                       <Loader2 className="h-4 w-4 animate-spin" />
                                     ) : (
                                       <>
                                         <CheckCircle className="h-4 w-4" />
-                                        {proposal.isCounterOffer
+                                        {isOffer
                                           ? t("common.accept", "Aceptar")
                                           : t("common.select", "Seleccionar")}
                                       </>
@@ -3601,7 +3699,8 @@ export default function JobDetail() {
                               </Link>
                             )}
                           </div>
-                        ))}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -4526,6 +4625,43 @@ export default function JobDetail() {
             </div>
           </div>
         </div>
+
+        {/* Pause Approval Request Modal */}
+        {showPauseApprovalModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+            <div className="w-full max-w-md rounded-2xl border border-amber-600 bg-slate-900 p-6 shadow-2xl">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/20">
+                  <Pause className="h-6 w-6 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Pausar publicación</h3>
+                  <p className="text-sm text-slate-400">Hay un trabajador asignado</p>
+                </div>
+              </div>
+              <p className="text-slate-300 text-sm mb-5">
+                Tu publicación tiene un trabajador asignado. Para pausarla necesitás su aprobación.
+                ¿Querés enviarle una solicitud de pausa?
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleRequestPauseApproval}
+                  disabled={requestingPauseApproval}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-xl transition disabled:opacity-50"
+                >
+                  {requestingPauseApproval ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pause className="h-4 w-4" />}
+                  Enviar solicitud
+                </button>
+                <button
+                  onClick={() => setShowPauseApprovalModal(false)}
+                  className="flex-1 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-xl transition"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Cancel Confirmation Modal */}
         {showCancelModal && (

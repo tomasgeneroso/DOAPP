@@ -156,6 +156,30 @@ export class User extends Model {
   bio?: string;
 
   // ============================================
+  // PROFESIÓN Y MATRÍCULA
+  // ============================================
+
+  @Column(DataType.STRING(100))
+  profession?: string;
+
+  @Column(DataType.STRING(100))
+  licenseNumber?: string;
+
+  @Column(DataType.STRING(100))
+  licenseCategory?: string;
+
+  @Column(DataType.STRING(100))
+  licenseCertNumber?: string;
+
+  @Column(DataType.TEXT)
+  licenseDocumentUrl?: string;
+
+  @Default(false)
+  @AllowNull(false)
+  @Column(DataType.BOOLEAN)
+  licenseVerified!: boolean;
+
+  // ============================================
   // RATINGS SYSTEM (Multiple Categories)
   // ============================================
 
@@ -204,6 +228,38 @@ export class User extends Model {
   @Column(DataType.INTEGER)
   contractReviewsCount!: number;
 
+  // ── Per-dimension rating averages ────────────────────────────────────────
+
+  @Default(0.0)
+  @AllowNull(false)
+  @Column(DataType.DECIMAL(3, 2))
+  puntualidadRating!: number;
+
+  @Default(0.0)
+  @AllowNull(false)
+  @Column(DataType.DECIMAL(3, 2))
+  presencialidadRating!: number;
+
+  @Default(0.0)
+  @AllowNull(false)
+  @Column(DataType.DECIMAL(3, 2))
+  comoPersonaRating!: number;
+
+  @Default(0.0)
+  @AllowNull(false)
+  @Column(DataType.DECIMAL(3, 2))
+  precioJustoRating!: number;
+
+  @Default(0.0)
+  @AllowNull(false)
+  @Column(DataType.DECIMAL(3, 2))
+  calidadTrabajoRating!: number;
+
+  @Default(0.0)
+  @AllowNull(false)
+  @Column(DataType.DECIMAL(3, 2))
+  profesionalidadRating!: number;
+
   // ============================================
   // AUTHENTICATION
   // ============================================
@@ -235,6 +291,12 @@ export class User extends Model {
   @Index
   @Column(DataType.BOOLEAN)
   isVerified!: boolean;
+
+  @Column(DataType.STRING)
+  verificationToken?: string;
+
+  @Column(DataType.DATE)
+  verificationTokenExpiry?: Date;
 
   @Index
   @Column(DataType.STRING)

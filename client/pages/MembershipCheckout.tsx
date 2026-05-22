@@ -135,8 +135,8 @@ export default function MembershipCheckout() {
       priceARS: pricing?.pro?.priceARS || 0,
       period: 'por mes',
       benefits: [
-        { icon: TrendingUp, title: '1 contrato mensual SIN comisión (0%)', description: 'Publica 1 trabajo al mes completamente gratis' },
-        { icon: Crown, title: '2 contratos gratis iniciales únicos', description: 'Solo para los primeros 1000 usuarios totales de la app' },
+        { icon: TrendingUp, title: '1 publicación mensual libre de comisión (0%)', description: 'Publicá 1 trabajo al mes sin comisión' },
+        { icon: Crown, title: '2 publicaciones iniciales libres de comisión', description: 'Solo para los primeros 1000 usuarios totales de la app' },
         { icon: Check, title: 'Contratos adicionales: 3% de comisión', description: 'Plan PRO (3%) vs Plan Free (8%) - ahorra 5%' },
         { icon: Shield, title: 'Prioridad en resultados de búsqueda', description: 'Aparece primero cuando clientes busquen servicios' },
         { icon: Crown, title: 'Verificación de identidad', description: 'Verificamos tus IDs necesarios para que ganes veracidad' },
@@ -152,8 +152,8 @@ export default function MembershipCheckout() {
       period: 'cada 3 meses',
       savings: '$1.650',
       benefits: [
-        { icon: TrendingUp, title: '1 contrato mensual SIN comisión (0%)', description: 'Publica 1 trabajo al mes completamente gratis' },
-        { icon: Crown, title: '2 contratos gratis iniciales únicos', description: 'Solo para los primeros 1000 usuarios totales de la app' },
+        { icon: TrendingUp, title: '1 publicación mensual libre de comisión (0%)', description: 'Publicá 1 trabajo al mes sin comisión' },
+        { icon: Crown, title: '2 publicaciones iniciales libres de comisión', description: 'Solo para los primeros 1000 usuarios totales de la app' },
         { icon: Check, title: 'Contratos adicionales: 3% de comisión', description: 'Plan PRO (3%) vs Plan Free (8%) - ahorra 5%' },
         { icon: Shield, title: 'Prioridad en resultados de búsqueda', description: 'Aparece primero cuando clientes busquen servicios' },
         { icon: Crown, title: 'Verificación de identidad', description: 'Verificamos tus IDs necesarios para que ganes veracidad' },
@@ -169,8 +169,8 @@ export default function MembershipCheckout() {
       period: 'por mes',
       benefits: [
         { icon: Crown, title: 'Todos los beneficios de PRO', description: 'Incluye todos los beneficios del plan PRO: verificación, badge dorado, prioridad en búsquedas' },
-        { icon: TrendingUp, title: '2 contratos mensuales SIN comisión (0%)', description: 'Publica 2 trabajos al mes completamente gratis' },
-        { icon: Crown, title: '2 contratos gratis iniciales únicos', description: 'Solo para los primeros 1000 usuarios totales de la app' },
+        { icon: TrendingUp, title: '2 publicaciones mensuales libres de comisión (0%)', description: 'Publicá 2 trabajos al mes sin comisión' },
+        { icon: Crown, title: '2 publicaciones iniciales libres de comisión', description: 'Solo para los primeros 1000 usuarios totales de la app' },
         { icon: Check, title: 'Contratos adicionales: 1% de comisión', description: 'La comisión más baja de la plataforma - ahorra 7% vs Free (8%) y 2% vs PRO (3%)' },
         { icon: BarChart3, title: 'Dashboard exclusivo con métricas avanzadas', description: 'Panel personalizado con gráficos interactivos, KPIs y seguimiento de rendimiento en tiempo real' },
         { icon: BarChart3, title: 'Estadísticas de visitas a tu perfil', description: 'Detalle completo de quién visita tu perfil: nombre, frecuencia, fecha de última visita y procedencia' },

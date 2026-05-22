@@ -31,39 +31,52 @@ const AdPlaceholder: React.FC<AdPlaceholderProps> = ({ adType = 'model3' }) => {
         }
       }}
     >
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
-        {/* Icon */}
-        <svg
-          className={`${adType === 'model1' ? 'w-8 h-8' : 'w-14 h-14'} text-orange-500 dark:text-orange-400`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"
-          />
-        </svg>
-
-        {/* Text */}
-        <div>
-          <h3 className={`${adType === 'model1' ? 'text-sm' : 'text-base'} font-bold text-gray-900 dark:text-white`}>
+      {adType === 'model1' ? (
+        /* Wide banner — horizontal centered layout */
+        <div className="absolute inset-0 flex items-center justify-center gap-6 px-8">
+          <svg
+            className="w-8 h-8 text-orange-500 dark:text-orange-400 shrink-0"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"
+            />
+          </svg>
+          <h3 className="text-sm font-bold text-gray-900 dark:text-white text-center">
             Espacio Publicitario Disponible
           </h3>
-          {adType !== 'model1' && (
+          <button className="px-4 py-2 text-xs bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl transition-all active:scale-95 shadow-sm hover:shadow shrink-0">
+            Contactanos
+          </button>
+        </div>
+      ) : (
+        /* Square / sidebar — vertical centered layout */
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
+          <svg
+            className="w-14 h-14 text-orange-500 dark:text-orange-400"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+              d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"
+            />
+          </svg>
+          <div>
+            <h3 className="text-base font-bold text-gray-900 dark:text-white">
+              Espacio Publicitario Disponible
+            </h3>
             <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
               Publicitá tu negocio aquí
             </p>
-          )}
+          </div>
+          <button className="px-5 py-2.5 text-sm bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl transition-all active:scale-95 shadow-sm hover:shadow">
+            Contactanos
+          </button>
         </div>
-
-        {/* Button */}
-        <button className={`${adType === 'model1' ? 'px-4 py-2 text-xs' : 'px-5 py-2.5 text-sm'} bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl transition-all active:scale-95 shadow-sm hover:shadow`}>
-          Contactanos
-        </button>
-      </div>
+      )}
     </div>
   );
 };

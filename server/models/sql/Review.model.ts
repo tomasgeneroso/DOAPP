@@ -134,44 +134,32 @@ export class Review extends Model {
   contractRating?: number;
 
   // ============================================
-  // SPECIFIC RATINGS
+  // RATING DIMENSIONS
   // ============================================
 
-  @Column({
-    type: DataType.INTEGER,
-    validate: {
-      min: 1,
-      max: 5,
-    },
-  })
+  /** Puntualidad — llegó a la hora acordada */
+  @Column({ type: DataType.INTEGER, validate: { min: 1, max: 5 } })
+  timeliness?: number;
+
+  /** Presencialidad — se presentó, no dejó plantado */
+  @Column({ type: DataType.INTEGER, validate: { min: 1, max: 5 } })
+  attendance?: number;
+
+  /** Como persona — trato, actitud, respeto */
+  @Column({ type: DataType.INTEGER, validate: { min: 1, max: 5 } })
   communication?: number;
 
-  @Column({
-    type: DataType.INTEGER,
-    validate: {
-      min: 1,
-      max: 5,
-    },
-  })
-  professionalism?: number;
+  /** Precio justo — cobró lo acordado, sin sorpresas */
+  @Column({ type: DataType.INTEGER, validate: { min: 1, max: 5 } })
+  fairPrice?: number;
 
-  @Column({
-    type: DataType.INTEGER,
-    validate: {
-      min: 1,
-      max: 5,
-    },
-  })
+  /** Calidad de trabajo — resultado final del trabajo */
+  @Column({ type: DataType.INTEGER, validate: { min: 1, max: 5 } })
   quality?: number;
 
-  @Column({
-    type: DataType.INTEGER,
-    validate: {
-      min: 1,
-      max: 5,
-    },
-  })
-  timeliness?: number;
+  /** Profesionalidad — herramientas ordenadas, presentación limpia */
+  @Column({ type: DataType.INTEGER, validate: { min: 1, max: 5 } })
+  professionalism?: number;
 
   // ============================================
   // MODERATION
@@ -297,14 +285,16 @@ export class Review extends Model {
   }
 
   /**
-   * Calculate average of specific ratings
+   * Calculate average of all 6 rating dimensions
    */
   getSpecificAverage(): number | null {
     const ratings = [
-      this.communication,
-      this.professionalism,
-      this.quality,
       this.timeliness,
+      this.attendance,
+      this.communication,
+      this.fairPrice,
+      this.quality,
+      this.professionalism,
     ].filter((r): r is number => r !== null && r !== undefined);
 
     if (ratings.length === 0) return null;

@@ -197,7 +197,7 @@ export default function ProUsageDashboard() {
             </h3>
             {usage.earnedBonusContract ? (
               <p className="text-sm text-gray-700 dark:text-gray-300">
-                🎉 ¡Felicitaciones! Completaste 3 contratos este mes y ganaste 1 contrato gratis adicional.
+                🎉 ¡Felicitaciones! Completaste 3 contratos este mes y ganaste 1 publicación libre de comisión adicional.
               </p>
             ) : hasReachedBonus ? (
               <p className="text-sm text-yellow-800 dark:text-yellow-200">
@@ -205,7 +205,7 @@ export default function ProUsageDashboard() {
               </p>
             ) : (
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                Completa 3 contratos en este mes para ganar 1 contrato gratis adicional.
+                Completá 3 contratos en este mes para ganar 1 publicación libre de comisión adicional.
                 Progreso: {usage.contractsUsed}/3
               </p>
             )}
@@ -247,7 +247,7 @@ export default function ProUsageDashboard() {
                   ? 'text-purple-600 dark:text-purple-400'
                   : 'text-blue-600 dark:text-blue-400'
               }`} />
-              <span>Bonus de 1 contrato gratis al completar 3 contratos en el mes</span>
+              <span>Bonus de 1 publicación libre de comisión al completar 3 contratos en el mes</span>
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${

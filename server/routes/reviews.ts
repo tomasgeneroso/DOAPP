@@ -21,10 +21,12 @@ router.post(
     body("contractId").notEmpty().withMessage("Contract ID es requerido"),
     body("rating").isInt({ min: 1, max: 5 }).withMessage("Rating debe ser entre 1 y 5"),
     body("comment").isString().isLength({ min: 10, max: 1000 }),
-    body("communication").optional().isInt({ min: 1, max: 5 }),
-    body("professionalism").optional().isInt({ min: 1, max: 5 }),
-    body("quality").optional().isInt({ min: 1, max: 5 }),
     body("timeliness").optional().isInt({ min: 1, max: 5 }),
+    body("attendance").optional().isInt({ min: 1, max: 5 }),
+    body("communication").optional().isInt({ min: 1, max: 5 }),
+    body("fairPrice").optional().isInt({ min: 1, max: 5 }),
+    body("quality").optional().isInt({ min: 1, max: 5 }),
+    body("professionalism").optional().isInt({ min: 1, max: 5 }),
   ],
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
@@ -37,7 +39,7 @@ router.post(
         return;
       }
 
-      const { contractId, rating, comment, communication, professionalism, quality, timeliness } = req.body;
+      const { contractId, rating, comment, timeliness, attendance, communication, fairPrice, quality, professionalism } = req.body;
       const reviewerId = req.user.id;
 
       // Get contract
@@ -100,23 +102,31 @@ router.post(
         reviewedId,
         rating,
         comment,
-        communication,
-        professionalism,
-        quality,
         timeliness,
+        attendance,
+        communication,
+        fairPrice,
+        quality,
+        professionalism,
       });
 
       // Update reviewed user's rating
       await updateUserRating(reviewedId);
 
       // Notify reviewed user
-      await Notification.create({
-        userId: reviewedId,
-        type: "review_received",
-        title: "Nueva reseña recibida",
-        message: `Has recibido una nueva reseña con ${rating} estrellas`,
-        metadata: { reviewId: review.id, contractId },
-      });
+      try {
+        await Notification.create({
+          recipientId: reviewedId,
+          type: "success",
+          category: "user",
+          title: "Nueva reseña recibida",
+          message: `Recibiste una reseña de ${rating} estrellas`,
+          data: { reviewId: review.id, contractId },
+          read: false,
+        });
+      } catch (notifErr) {
+        console.warn('⚠️ No se pudo crear notificación de review:', (notifErr as any).message);
+      }
 
       res.status(201).json({
         success: true,
@@ -187,10 +197,12 @@ router.get("/user/:userId", async (req, res): Promise<void> => {
       },
       attributes: [
         [sequelize.fn("AVG", sequelize.col("rating")), "avgRating"],
-        [sequelize.fn("AVG", sequelize.col("communication")), "avgCommunication"],
-        [sequelize.fn("AVG", sequelize.col("professionalism")), "avgProfessionalism"],
-        [sequelize.fn("AVG", sequelize.col("quality")), "avgQuality"],
-        [sequelize.fn("AVG", sequelize.col("timeliness")), "avgTimeliness"],
+        [sequelize.fn("AVG", sequelize.col("timeliness")), "avgPuntualidad"],
+        [sequelize.fn("AVG", sequelize.col("attendance")), "avgPresencialidad"],
+        [sequelize.fn("AVG", sequelize.col("communication")), "avgComoPersona"],
+        [sequelize.fn("AVG", sequelize.col("fair_price")), "avgPrecioJusto"],
+        [sequelize.fn("AVG", sequelize.col("quality")), "avgCalidadTrabajo"],
+        [sequelize.fn("AVG", sequelize.col("professionalism")), "avgProfesionalidad"],
         [sequelize.fn("COUNT", sequelize.col("id")), "count"],
       ],
       raw: true,
@@ -198,10 +210,12 @@ router.get("/user/:userId", async (req, res): Promise<void> => {
 
     const stats = statsResult[0] || {
       avgRating: 0,
-      avgCommunication: 0,
-      avgProfessionalism: 0,
-      avgQuality: 0,
-      avgTimeliness: 0,
+      avgPuntualidad: 0,
+      avgPresencialidad: 0,
+      avgComoPersona: 0,
+      avgPrecioJusto: 0,
+      avgCalidadTrabajo: 0,
+      avgProfesionalidad: 0,
       count: 0,
     };
 
@@ -334,29 +348,42 @@ router.post(
 );
 
 /**
- * Helper function to update user's overall rating
+ * Calculates the average of a field across reviews, ignoring null/undefined values.
+ */
+function avg(reviews: Review[], field: keyof Review): number {
+  const vals = reviews
+    .map(r => r[field] as number | undefined | null)
+    .filter((v): v is number => v !== null && v !== undefined);
+  if (vals.length === 0) return 0;
+  return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100;
+}
+
+/**
+ * Helper function to update user's overall and per-dimension ratings
  */
 async function updateUserRating(userId: any) {
   const reviews = await Review.findAll({
-    where: {
-      reviewedId: userId,
-      isVisible: true,
-    },
+    where: { reviewedId: userId, isVisible: true },
   });
 
   if (reviews.length === 0) return;
 
-  const avgRating =
-    reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length;
+  const avgRating = Math.round(
+    (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length) * 10
+  ) / 10;
 
   await User.update(
     {
-      rating: Math.round(avgRating * 10) / 10, // Round to 1 decimal
+      rating: avgRating,
       reviewsCount: reviews.length,
+      puntualidadRating:      avg(reviews, 'timeliness'),
+      presencialidadRating:   avg(reviews, 'attendance'),
+      comoPersonaRating:      avg(reviews, 'communication'),
+      precioJustoRating:      avg(reviews, 'fairPrice'),
+      calidadTrabajoRating:   avg(reviews, 'quality'),
+      profesionalidadRating:  avg(reviews, 'professionalism'),
     },
-    {
-      where: { id: userId },
-    }
+    { where: { id: userId } }
   );
 }
 

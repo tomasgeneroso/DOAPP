@@ -1,5 +1,5 @@
 import { User } from '../../types';
-import { Star, Clock, Heart, FileText, UserCheck, Briefcase } from 'lucide-react';
+import { Star, Clock, UserCheck, DollarSign, Wrench, Heart, MapPin } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 interface MultipleRatingsProps {
@@ -7,155 +7,167 @@ interface MultipleRatingsProps {
   showAll?: boolean;
 }
 
-// Helper to safely convert rating to number
-const toNumber = (value: any): number => {
-  if (typeof value === 'number') return value;
-  if (typeof value === 'string') return parseFloat(value) || 0;
+const toNum = (v: any): number => {
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string') return parseFloat(v) || 0;
   return 0;
 };
 
+const DIMENSIONS = [
+  {
+    key: 'puntualidadRating' as keyof User,
+    label: 'Puntualidad',
+    desc: '¿Llegó a la hora acordada?',
+    icon: Clock,
+    color: 'text-blue-500',
+    bg: 'bg-blue-50 dark:bg-blue-900/20',
+    border: 'border-blue-100 dark:border-blue-800',
+  },
+  {
+    key: 'presencialidadRating' as keyof User,
+    label: 'Presencialidad',
+    desc: '¿Se presentó? ¿No dejó plantado al cliente?',
+    icon: MapPin,
+    color: 'text-orange-500',
+    bg: 'bg-orange-50 dark:bg-orange-900/20',
+    border: 'border-orange-100 dark:border-orange-800',
+  },
+  {
+    key: 'comoPersonaRating' as keyof User,
+    label: 'Como persona',
+    desc: 'Trato, actitud y respeto hacia el cliente',
+    icon: Heart,
+    color: 'text-pink-500',
+    bg: 'bg-pink-50 dark:bg-pink-900/20',
+    border: 'border-pink-100 dark:border-pink-800',
+  },
+  {
+    key: 'precioJustoRating' as keyof User,
+    label: 'Precio justo',
+    desc: 'Cobró lo acordado, sin cargos sorpresa',
+    icon: DollarSign,
+    color: 'text-green-500',
+    bg: 'bg-green-50 dark:bg-green-900/20',
+    border: 'border-green-100 dark:border-green-800',
+  },
+  {
+    key: 'calidadTrabajoRating' as keyof User,
+    label: 'Calidad de trabajo',
+    desc: 'Resultado final: ¿quedó bien hecho?',
+    icon: Star,
+    color: 'text-yellow-500',
+    bg: 'bg-yellow-50 dark:bg-yellow-900/20',
+    border: 'border-yellow-100 dark:border-yellow-800',
+  },
+  {
+    key: 'profesionalidadRating' as keyof User,
+    label: 'Profesionalidad',
+    desc: 'Herramientas ordenadas, presencia limpia, trabajo prolijo',
+    icon: Wrench,
+    color: 'text-violet-500',
+    bg: 'bg-violet-50 dark:bg-violet-900/20',
+    border: 'border-violet-100 dark:border-violet-800',
+  },
+] as const;
+
+function Stars({ value, color }: { value: number; color: string }) {
+  const rounded = Math.round(value);
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map(s => (
+        <Star
+          key={s}
+          className={`w-3.5 h-3.5 ${s <= rounded ? `${color} fill-current` : 'text-gray-200 dark:text-gray-600'}`}
+        />
+      ))}
+    </div>
+  );
+}
+
 export default function MultipleRatings({ user, showAll = true }: MultipleRatingsProps) {
   const { t } = useTranslation();
+  const hasReviews = user.reviewsCount > 0;
 
-  const ratings = [
-    {
-      icon: Star,
-      label: t('profile.ratings.workQuality'),
-      description: t('profile.ratings.workQualityDesc', 'Evaluates the technical and professional quality of the work delivered'),
-      rating: user.workQualityRating,
-      count: user.workQualityReviewsCount,
-      color: 'text-yellow-500',
-      bgColor: 'bg-yellow-50 dark:bg-yellow-800',
-    },
-    {
-      icon: Clock,
-      label: t('profile.ratings.asWorker'),
-      description: t('profile.ratings.punctualityDesc', 'Evaluates punctuality and meeting deadlines'),
-      rating: user.workerRating,
-      count: user.workerReviewsCount,
-      color: 'text-blue-500',
-      bgColor: 'bg-blue-50 dark:bg-blue-800',
-    },
-    {
-      icon: Heart,
-      label: t('profile.ratings.contractCompliance'),
-      description: t('profile.ratings.asPersonDesc', 'Evaluates communication, attitude and treatment'),
-      rating: user.contractRating,
-      count: user.contractReviewsCount,
-      color: 'text-green-500',
-      bgColor: 'bg-green-50 dark:bg-green-800',
-    },
-  ];
+  const visible = showAll
+    ? DIMENSIONS
+    : DIMENSIONS.filter(d => toNum(user[d.key]) > 0);
 
-  // Filter out ratings with no reviews if not showing all
-  const visibleRatings = showAll
-    ? ratings
-    : ratings.filter(r => r.count && r.count > 0);
-
-  if (visibleRatings.length === 0) {
+  if (!hasReviews && !showAll) {
     return (
       <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4">
-        <p className="text-sm text-gray-600 dark:text-gray-400 text-center">
-          {t('profile.ratings.noRatings')}
+        <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
+          {t('profile.ratings.noRatings', 'Sin calificaciones aún')}
         </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
-      {visibleRatings.map((item) => {
-        const Icon = item.icon;
-        const hasRating = item.count && item.count > 0;
+    <div className="space-y-2">
+      {/* Total / overall */}
+      <div className="flex items-center justify-between bg-gradient-to-r from-sky-50 to-indigo-50 dark:from-sky-900/30 dark:to-indigo-900/30 border border-sky-200 dark:border-sky-800 rounded-xl px-4 py-3 mb-1">
+        <div className="flex items-center gap-2">
+          <div className="bg-sky-100 dark:bg-sky-800 rounded-lg p-1.5">
+            <UserCheck className="w-4 h-4 text-sky-600 dark:text-sky-300" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-gray-900 dark:text-white leading-tight">
+              Puntuación total
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {hasReviews ? `${user.reviewsCount} calificacion${user.reviewsCount !== 1 ? 'es' : ''}` : 'Sin calificaciones'}
+            </p>
+          </div>
+        </div>
+        {hasReviews ? (
+          <div className="flex items-center gap-2">
+            <Stars value={toNum(user.rating)} color="text-sky-500" />
+            <span className="text-lg font-bold text-sky-600 dark:text-sky-300">
+              {toNum(user.rating).toFixed(1)}
+            </span>
+          </div>
+        ) : (
+          <span className="text-xs text-gray-400">—</span>
+        )}
+      </div>
+
+      {/* Per-dimension rows */}
+      {visible.map(({ key, label, desc, icon: Icon, color, bg, border }) => {
+        const val = toNum(user[key]);
+        const rated = val > 0;
 
         return (
           <div
-            key={item.label}
-            className={`${item.bgColor} rounded-lg p-3 ${!hasRating && 'opacity-50'}`}
+            key={key}
+            className={`flex items-center justify-between ${bg} border ${border} rounded-lg px-3 py-2.5 group relative ${!rated && 'opacity-50'}`}
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 group relative">
-                <Icon className={`w-5 h-5 ${item.color}`} />
-                <span className="text-sm font-medium text-gray-900 dark:text-gray-100 cursor-help">
-                  {item.label}
-                </span>
-                {/* Tooltip */}
-                <div className="absolute left-0 top-full mt-2 w-64 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100] pointer-events-none border border-gray-700" style={{ backgroundColor: 'rgb(17, 24, 39)' }}>
-                  <div className="absolute -top-1 left-4 w-2 h-2 bg-gray-900 border-l border-t border-gray-700 transform rotate-45" style={{ backgroundColor: 'rgb(17, 24, 39)' }}></div>
-                  {item.description}
-                </div>
+            <div className="flex items-center gap-2 min-w-0">
+              <Icon className={`w-4 h-4 ${color} shrink-0`} />
+              <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate cursor-help">
+                {label}
+              </span>
+              {/* Tooltip */}
+              <div className="absolute left-0 top-full mt-1 z-50 w-56 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all pointer-events-none">
+                <div className="absolute -top-1 left-6 w-2 h-2 bg-gray-900 rotate-45" />
+                {desc}
               </div>
-              <div className="flex items-center gap-2">
-                {hasRating ? (
-                  <>
-                    <div className="flex items-center gap-1">
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <Star
-                          key={star}
-                          className={`w-4 h-4 ${
-                            star <= Math.round(toNumber(item.rating))
-                              ? `${item.color} fill-current`
-                              : 'text-gray-300 dark:text-gray-600'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                    <span className="text-sm font-bold text-gray-900 dark:text-white">
-                      {toNumber(item.rating).toFixed(1)}
-                    </span>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      ({item.count})
-                    </span>
-                  </>
-                ) : (
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {t('profile.ratings.noRatings')}
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {rated ? (
+                <>
+                  <Stars value={val} color={color} />
+                  <span className="text-sm font-bold text-gray-800 dark:text-gray-100 w-8 text-right">
+                    {val.toFixed(1)}
                   </span>
-                )}
-              </div>
+                </>
+              ) : (
+                <span className="text-xs text-gray-400">Sin datos</span>
+              )}
             </div>
           </div>
         );
       })}
-
-      {/* Overall Rating */}
-      {user.reviewsCount > 0 && (
-        <div className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-800 dark:to-pink-800 rounded-lg p-3 border border-purple-200 dark:border-purple-700">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 group relative">
-              <Briefcase className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-              <span className="text-sm font-medium text-gray-900 dark:text-gray-100 cursor-help">
-                Puntuación General
-              </span>
-              {/* Tooltip */}
-              <div className="absolute left-0 top-full mt-2 w-64 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-2xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100] pointer-events-none border border-gray-700" style={{ backgroundColor: 'rgb(17, 24, 39)' }}>
-                <div className="absolute -top-1 left-4 w-2 h-2 bg-gray-900 border-l border-t border-gray-700 transform rotate-45" style={{ backgroundColor: 'rgb(17, 24, 39)' }}></div>
-                Promedio de todas las calificaciones recibidas en la plataforma
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <Star
-                    key={star}
-                    className={`w-4 h-4 ${
-                      star <= Math.round(toNumber(user.rating))
-                        ? 'text-purple-600 dark:text-purple-400 fill-current'
-                        : 'text-gray-300 dark:text-gray-600'
-                    }`}
-                  />
-                ))}
-              </div>
-              <span className="text-sm font-bold text-gray-900 dark:text-white">
-                {toNumber(user.rating).toFixed(1)}
-              </span>
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                ({user.reviewsCount})
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

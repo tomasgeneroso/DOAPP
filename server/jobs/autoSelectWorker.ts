@@ -64,11 +64,14 @@ export function startAutoSelectWorkerJob() {
           const workersNeeded = maxWorkers - currentWorkers.length;
 
           // Buscar propuestas pendientes ordenadas por fecha de creación
+          // Defensive limit: never select more than workersNeeded
           const pendingProposals = await Proposal.findAll({
             where: {
               jobId: job.id,
               status: 'pending',
-              freelancerId: { [Op.notIn]: currentWorkers.length > 0 ? currentWorkers : [''] },
+              ...(currentWorkers.length > 0 && {
+                freelancerId: { [Op.notIn]: currentWorkers },
+              }),
             },
             include: [
               {
@@ -78,7 +81,7 @@ export function startAutoSelectWorkerJob() {
               },
             ],
             order: [['createdAt', 'ASC']],
-            limit: workersNeeded,
+            limit: Math.max(0, workersNeeded),
           });
 
           if (pendingProposals.length === 0) {
@@ -130,6 +133,19 @@ export function startAutoSelectWorkerJob() {
           }
 
           await job.save();
+
+          // Notificar al frontend para que actualice el worker count
+          try {
+            const io = getIO();
+            if (io) {
+              io.emit('jobs:refresh', {
+                jobId: job.id,
+                selectedWorkers: job.selectedWorkers,
+                status: job.status,
+                autoSelected: true,
+              });
+            }
+          } catch (_) { /* socket no crítico */ }
 
           const client = job.client as any;
 

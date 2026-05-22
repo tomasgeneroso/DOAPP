@@ -42,7 +42,7 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
     id: 'search',
     title: 'onboarding.search.title',
     description: 'onboarding.search.desc',
-    targetSelector: '[data-onboarding="search"]',
+    targetSelector: '[data-onboarding="search"] input',
     position: 'bottom',
     page: '/',
   },
@@ -50,16 +50,8 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
     id: 'jobs',
     title: 'onboarding.jobs.title',
     description: 'onboarding.jobs.desc',
-    targetSelector: '[data-onboarding="jobs-list"]',
-    position: 'top',
-    page: '/',
-  },
-  {
-    id: 'tasks',
-    title: 'onboarding.tasks.title',
-    description: 'onboarding.tasks.desc',
-    targetSelector: '[data-onboarding="jobs-list"]',
-    position: 'top',
+    targetSelector: '[data-onboarding="jobs-list-title"]',
+    position: 'bottom',
     page: '/',
   },
   {
@@ -94,12 +86,6 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
 
   // Check if user needs onboarding when they first log in
   useEffect(() => {
-    // TEMPORARILY DISABLED IN PRODUCTION - TODO: re-enable when onboarding is fixed
-    if (!import.meta.env.DEV) {
-      setHasCheckedOnboarding(true);
-      return;
-    }
-
     if (user && !hasCheckedOnboarding) {
       const userId = user.id || user._id;
       if (!userId) {

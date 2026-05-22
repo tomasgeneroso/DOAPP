@@ -237,7 +237,7 @@ export default function Header() {
                         ? "SUPER PRO"
                         : contractsBadge.membershipTier === "pro"
                           ? "PRO"
-                          : "FREE"}
+                          : "Versión Gratis"}
                     </span>
                   </div>
                 </Link>

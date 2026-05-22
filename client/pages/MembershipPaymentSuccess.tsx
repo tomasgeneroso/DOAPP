@@ -312,7 +312,7 @@ export default function MembershipPaymentSuccess() {
                   🎁 Bonus Mensual Disponible
                 </h4>
                 <p className="text-yellow-800 dark:text-yellow-300 text-sm">
-                  Completá 3 contratos este mes y ganás <strong>1 contrato gratis</strong> con comisión 0%.
+                  Completá 3 contratos este mes y ganás <strong>1 publicación libre de comisión</strong>.
                   ¡Aprovechá al máximo tu membresía!
                 </p>
               </div>
