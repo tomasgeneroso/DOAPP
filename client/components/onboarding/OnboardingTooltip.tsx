@@ -170,7 +170,7 @@ export default function OnboardingTooltip() {
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black z-[9998] transition-opacity duration-300"
-        style={{ opacity: 0.8 }}
+        style={{ opacity: 0.65 }}
         onClick={skipOnboarding}
       />
 
@@ -180,12 +180,12 @@ export default function OnboardingTooltip() {
           key={`highlight-${currentStep}`}
           className="fixed z-[9999] pointer-events-none transition-all duration-300"
           style={{
-            top: targetRect.top - 4,
-            left: targetRect.left - 4,
-            width: targetRect.width + 8,
-            height: targetRect.height + 8,
-            boxShadow: '0 0 0 4px rgb(14, 165, 233), 0 0 0 9999px rgba(0, 0, 0, 0.8)',
-            borderRadius: '8px',
+            top: targetRect.top - 6,
+            left: targetRect.left - 6,
+            width: targetRect.width + 12,
+            height: targetRect.height + 12,
+            boxShadow: '0 0 0 3px #0ea5e9, 0 0 0 6px rgba(14,165,233,0.3), 0 0 0 9999px rgba(0,0,0,0.65)',
+            borderRadius: '10px',
           }}
         />
       )}
@@ -193,10 +193,11 @@ export default function OnboardingTooltip() {
       {/* Tooltip */}
       <div
         ref={tooltipRef}
-        className="fixed z-[10000] w-[350px] bg-white dark:bg-slate-800 rounded-xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300"
+        className="fixed z-[10000] w-[350px] bg-white dark:bg-slate-900 rounded-2xl overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-300"
         style={{
           top: position.top,
           left: position.left,
+          boxShadow: '0 0 0 2px #0ea5e9, 0 25px 50px -12px rgba(0,0,0,0.6)',
         }}
       >
         {/* Progress bar */}

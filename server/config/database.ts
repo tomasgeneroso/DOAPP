@@ -52,6 +52,8 @@ export const sequelize = new Sequelize({
       require: true,
       rejectUnauthorized: false,
     } : false,
+    // Force UTF-8 client encoding to prevent garbled characters (ñ, tildes)
+    client_encoding: 'UTF8',
   },
 
   // Timezone
@@ -146,6 +148,7 @@ async function registerModels() {
   const { FamilyCode } = await import('../models/sql/FamilyCode.model.js');
   const { Invoice } = await import('../models/sql/Invoice.model.js');
   const { Quote } = await import('../models/sql/Quote.model.js');
+  const { BlacklistEntry } = await import('../models/sql/BlacklistEntry.model.js');
 
   // Add models to sequelize
   sequelize.addModels([
@@ -188,6 +191,7 @@ async function registerModels() {
     FamilyCode,
     Invoice,
     Quote,
+    BlacklistEntry,
   ]);
 }
 

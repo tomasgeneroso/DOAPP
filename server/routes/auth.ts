@@ -495,6 +495,9 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         licenseCertNumber: user?.licenseCertNumber,
         licenseDocumentUrl: user?.licenseDocumentUrl,
         licenseVerified: user?.licenseVerified,
+        licenseVerificationStatus: (user as any)?.licenseVerificationStatus,
+        licenseRejectedReason: (user as any)?.licenseRejectedReason,
+        personalPairingCode: (user as any)?.personalPairingCode,
       },
     });
   } catch (error: any) {

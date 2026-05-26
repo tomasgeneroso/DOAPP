@@ -5,6 +5,8 @@ import { Contract } from "../models/sql/Contract.model.js";
 import { Job } from "../models/sql/Job.model.js";
 import { Review } from "../models/sql/Review.model.js";
 import { JOB_CATEGORIES } from "../../shared/constants/categories.js";
+import { dataMinimizationMiddleware } from "../middleware/dataMinimization.js";
+import type { AuthRequest } from "../middleware/auth.js";
 
 const router = express.Router();
 
@@ -183,7 +185,7 @@ router.get("/u/:username", async (req: Request, res: Response): Promise<void> =>
 // @route   GET /api/users/:id/profile
 // @desc    Get public user profile by ID
 // @access  Public
-router.get("/:id/profile", async (req: Request, res: Response): Promise<void> => {
+router.get("/:id/profile", dataMinimizationMiddleware, async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.params.id;
 

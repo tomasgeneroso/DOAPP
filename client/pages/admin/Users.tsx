@@ -5,7 +5,7 @@ import { adminApi } from "@/lib/adminApi";
 import { useSocket } from "@/hooks/useSocket";
 import { useAuth } from "@/hooks/useAuth";
 import type { AdminUser } from "@/types/admin";
-import { Search, Ban, CheckCircle, Eye, Wifi, WifiOff, UserPlus, Crown, X, ShieldCheck, ShieldOff, Loader2, FileText, Briefcase, FileCheck } from "lucide-react";
+import { Search, Ban, CheckCircle, Eye, Wifi, WifiOff, UserPlus, Crown, X, ShieldCheck, ShieldOff, Loader2, FileText, Briefcase, FileCheck, Award, AlertCircle } from "lucide-react";
 
 export default function AdminUsers() {
   const navigate = useNavigate();
@@ -31,6 +31,13 @@ export default function AdminUsers() {
   const [verifyDetail, setVerifyDetail] = useState<any>(null);
   const [verifyDetailLoading, setVerifyDetailLoading] = useState(false);
   const [verifyLoading, setVerifyLoading] = useState(false);
+
+  // License modal
+  const [licenseModal, setLicenseModal] = useState<AdminUser | null>(null);
+  const [licenseDetail, setLicenseDetail] = useState<any>(null);
+  const [licenseDetailLoading, setLicenseDetailLoading] = useState(false);
+  const [licenseActionLoading, setLicenseActionLoading] = useState(false);
+  const [licenseRejectReason, setLicenseRejectReason] = useState("");
 
   // Inline chat inside verify modal
   const [verifyChatOpen, setVerifyChatOpen] = useState(false);
@@ -138,6 +145,65 @@ export default function AdminUsers() {
       if (data.success) setVerifyDetail(data.data);
     } catch {}
     setVerifyDetailLoading(false);
+  };
+
+  const openLicenseModal = async (user: AdminUser) => {
+    setLicenseModal(user);
+    setLicenseDetail(null);
+    setLicenseDetailLoading(true);
+    setLicenseRejectReason('');
+    try {
+      const res = await fetch(`/api/admin/users/${user.id || user._id}/profile-detail`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) setLicenseDetail(data.data.user);
+    } catch {}
+    setLicenseDetailLoading(false);
+  };
+
+  const handleLicenseApprove = async () => {
+    if (!licenseModal) return;
+    setLicenseActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users/${licenseModal.id || licenseModal._id}/approve-license`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLicenseDetail((prev: any) => prev ? { ...prev, licenseVerificationStatus: 'approved', licenseVerified: true } : prev);
+        setUsers(prev => prev.map(u =>
+          (u.id === (licenseModal.id || licenseModal._id) || u._id === (licenseModal.id || licenseModal._id))
+            ? { ...u, licenseVerificationStatus: 'approved' } as any
+            : u
+        ));
+      }
+    } catch {}
+    setLicenseActionLoading(false);
+  };
+
+  const handleLicenseReject = async () => {
+    if (!licenseModal || !licenseRejectReason.trim()) return;
+    setLicenseActionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users/${licenseModal.id || licenseModal._id}/reject-license`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: licenseRejectReason.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setLicenseDetail((prev: any) => prev ? { ...prev, licenseVerificationStatus: 'rejected', licenseRejectedReason: licenseRejectReason.trim() } : prev);
+        setLicenseRejectReason('');
+        setUsers(prev => prev.map(u =>
+          (u.id === (licenseModal.id || licenseModal._id) || u._id === (licenseModal.id || licenseModal._id))
+            ? { ...u, licenseVerificationStatus: 'rejected' } as any
+            : u
+        ));
+      }
+    } catch {}
+    setLicenseActionLoading(false);
   };
 
   const openVerifyChat = async () => {
@@ -470,6 +536,22 @@ export default function AdminUsers() {
                     >
                       <ShieldCheck className="h-5 w-5" />
                     </button>
+                    {/* License button — only if user has a license */}
+                    {(user as any).licenseDocumentUrl && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openLicenseModal(user); }}
+                        className={
+                          (user as any).licenseVerificationStatus === 'approved'
+                            ? "text-green-600 hover:text-green-800 dark:text-green-400"
+                            : (user as any).licenseVerificationStatus === 'rejected'
+                              ? "text-red-500 hover:text-red-700 dark:text-red-400"
+                              : "text-amber-500 hover:text-amber-700 dark:text-amber-400"
+                        }
+                        title="Revisar matrícula profesional"
+                      >
+                        <Award className="h-5 w-5" />
+                      </button>
+                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -853,6 +935,146 @@ export default function AdminUsers() {
                 >
                   {verifyLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
                   {!verifyDetail?.user.dni ? 'Sin DNI (no verificable)' : 'Verificar identidad'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* License Modal */}
+      {licenseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg">
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-amber-100 dark:bg-amber-900/30">
+                  <Award className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900 dark:text-white">Matrícula Profesional</h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{licenseModal.name} · {licenseModal.email}</p>
+                </div>
+              </div>
+              <button onClick={() => setLicenseModal(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {licenseDetailLoading ? (
+              <div className="flex justify-center items-center py-16">
+                <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+              </div>
+            ) : licenseDetail ? (
+              <div className="p-5 space-y-4 max-h-[65vh] overflow-y-auto">
+                {/* Status badge */}
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${
+                  licenseDetail.licenseVerificationStatus === 'approved'
+                    ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300'
+                    : licenseDetail.licenseVerificationStatus === 'rejected'
+                      ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300'
+                      : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
+                }`}>
+                  {licenseDetail.licenseVerificationStatus === 'approved'
+                    ? <ShieldCheck className="h-4 w-4" />
+                    : licenseDetail.licenseVerificationStatus === 'rejected'
+                      ? <AlertCircle className="h-4 w-4" />
+                      : <Award className="h-4 w-4" />}
+                  {licenseDetail.licenseVerificationStatus === 'approved' ? 'Aprobada'
+                    : licenseDetail.licenseVerificationStatus === 'rejected' ? 'Rechazada'
+                    : 'Pendiente de revisión'}
+                </div>
+
+                {/* License info */}
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Profesión</p>
+                    <p className="text-gray-900 dark:text-white">{licenseDetail.profession || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">N° Matrícula</p>
+                    <p className="text-gray-900 dark:text-white font-mono">{licenseDetail.licenseNumber || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Categoría</p>
+                    <p className="text-gray-900 dark:text-white">{licenseDetail.licenseCategory || '—'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">N° Certificado</p>
+                    <p className="text-gray-900 dark:text-white font-mono">{licenseDetail.licenseCertNumber || '—'}</p>
+                  </div>
+                </div>
+
+                {/* Document preview */}
+                {licenseDetail.licenseDocumentUrl && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Documento</p>
+                    {licenseDetail.licenseDocumentUrl.endsWith('.pdf') ? (
+                      <a href={licenseDetail.licenseDocumentUrl} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-2 px-4 py-3 border border-dashed border-gray-300 dark:border-gray-600 rounded-xl text-sm text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors">
+                        <FileText className="h-5 w-5" /> Ver PDF
+                      </a>
+                    ) : (
+                      <a href={licenseDetail.licenseDocumentUrl} target="_blank" rel="noopener noreferrer">
+                        <img src={licenseDetail.licenseDocumentUrl} alt="Documento matrícula"
+                          className="w-full max-h-52 object-contain rounded-xl border border-gray-200 dark:border-gray-600 hover:opacity-90 transition-opacity bg-gray-50 dark:bg-gray-700" />
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {/* Reject reason input */}
+                {licenseDetail.licenseVerificationStatus !== 'approved' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">
+                      Motivo de rechazo <span className="text-red-400 normal-case font-normal">(requerido para rechazar)</span>
+                    </label>
+                    <textarea
+                      value={licenseRejectReason}
+                      onChange={e => setLicenseRejectReason(e.target.value)}
+                      rows={2}
+                      placeholder="Ej: El documento está vencido, la foto es ilegible..."
+                      className="w-full px-3 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-red-500 resize-none"
+                    />
+                  </div>
+                )}
+
+                {/* Previous rejection reason */}
+                {licenseDetail.licenseVerificationStatus === 'rejected' && licenseDetail.licenseRejectedReason && (
+                  <div className="px-3 py-2 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-700">
+                    <p className="text-xs text-red-600 dark:text-red-400 font-medium">Motivo anterior: {licenseDetail.licenseRejectedReason}</p>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="p-8 text-center text-sm text-gray-400">No se pudo cargar el perfil</div>
+            )}
+
+            {/* Actions */}
+            <div className="flex gap-3 p-5 border-t border-gray-200 dark:border-gray-700">
+              <button onClick={() => setLicenseModal(null)}
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                Cerrar
+              </button>
+              {licenseDetail && licenseDetail.licenseVerificationStatus !== 'approved' && (
+                <button
+                  onClick={handleLicenseReject}
+                  disabled={licenseActionLoading || !licenseRejectReason.trim()}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors"
+                >
+                  {licenseActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <AlertCircle className="h-4 w-4" />}
+                  Rechazar
+                </button>
+              )}
+              {licenseDetail && licenseDetail.licenseVerificationStatus !== 'approved' && (
+                <button
+                  onClick={handleLicenseApprove}
+                  disabled={licenseActionLoading || !licenseDetail?.licenseDocumentUrl}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors"
+                >
+                  {licenseActionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                  Aprobar
                 </button>
               )}
             </div>

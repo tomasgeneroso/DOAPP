@@ -28,6 +28,17 @@ export default function BlogDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showShareMenu, setShowShareMenu] = useState(false);
+  const [readingProgress, setReadingProgress] = useState(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollTop = window.scrollY;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      setReadingProgress(docHeight > 0 ? Math.min(100, (scrollTop / docHeight) * 100) : 0);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   useEffect(() => {
     if (slug) {
@@ -136,6 +147,14 @@ export default function BlogDetailScreen() {
 
   return (
     <>
+      {/* Reading progress bar */}
+      <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-slate-200 dark:bg-slate-700">
+        <div
+          className="h-full bg-sky-500 transition-all duration-75"
+          style={{ width: `${readingProgress}%` }}
+        />
+      </div>
+
       <Helmet>
         {/* Basic SEO */}
         <title>{post.metaTitle || post.title} - Blog DoApp</title>

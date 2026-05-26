@@ -40,12 +40,12 @@ async function killProcessesByName(processNames: string[]): Promise<void> {
   for (const pid of allPids) {
     try {
       // First attempt: normal taskkill with tree
-      await execPromise(`taskkill /F /PID ${pid} /T 2>nul`);
+      await execPromise(`cmd /c "taskkill /F /PID ${pid} /T 2>nul" 2>&1 || exit 0`);
       console.log(`✅ Proceso ${pid} terminado`);
     } catch (error1) {
       try {
         // Second attempt: more aggressive with cmd wrapper
-        await execPromise(`cmd /c "taskkill /F /PID ${pid} /T 2>nul"`);
+        await execPromise(`cmd /c "taskkill /F /PID ${pid} /T 2>nul" 2>&1 || exit 0`);
         console.log(`✅ Proceso ${pid} terminado (2do intento)`);
       } catch (error2) {
         // Process might already be dead
@@ -129,15 +129,15 @@ async function killPort(port: number): Promise<void> {
 
       // Attempt 1: Normal force kill with tree
       try {
-        await execPromise(`taskkill /F /PID ${pid} /T 2>nul`);
+        await execPromise(`cmd /c "taskkill /F /PID ${pid} /T 2>nul" 2>&1 || exit 0`);
         killed = true;
         console.log(`✅ Proceso ${pid} terminado (intento 1)`);
       } catch {}
 
-      // Attempt 2: With cmd wrapper
+      // Attempt 2: With cmd wrapper (all redirection inside cmd /c to avoid bash creating a 'nul' file)
       if (!killed) {
         try {
-          await execPromise(`cmd /c "taskkill /F /PID ${pid} /T" 2>nul`);
+          await execPromise(`cmd /c "taskkill /F /PID ${pid} /T 2>nul"`);
           killed = true;
           console.log(`✅ Proceso ${pid} terminado (intento 2)`);
         } catch {}
@@ -146,7 +146,7 @@ async function killPort(port: number): Promise<void> {
       // Attempt 3: Using WMIC (Windows Management Instrumentation)
       if (!killed) {
         try {
-          await execPromise(`wmic process where ProcessId=${pid} delete 2>nul`);
+          await execPromise(`cmd /c "wmic process where ProcessId=${pid} delete 2>nul"`);
           killed = true;
           console.log(`✅ Proceso ${pid} terminado (intento 3 - WMIC)`);
         } catch {}

@@ -1519,9 +1519,18 @@ export default function ProfilePage() {
                               className="w-10 h-10 rounded-full object-cover"
                             />
                             <div>
-                              <p className="font-semibold text-slate-900 dark:text-white">
-                                {review.reviewer?.name || t('common.user', 'User')}
-                              </p>
+                              {review.reviewer?.id ? (
+                                <Link
+                                  to={`/user/${review.reviewer.id}`}
+                                  className="font-semibold text-sky-600 dark:text-sky-400 hover:underline"
+                                >
+                                  {review.reviewer?.name || t('common.user', 'User')}
+                                </Link>
+                              ) : (
+                                <p className="font-semibold text-slate-900 dark:text-white">
+                                  {review.reviewer?.name || t('common.user', 'User')}
+                                </p>
+                              )}
                               <p className="text-xs text-slate-500 dark:text-slate-400">
                                 {new Date(review.createdAt).toLocaleDateString('es-AR', {
                                   year: 'numeric',

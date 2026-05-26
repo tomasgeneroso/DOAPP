@@ -107,6 +107,25 @@ export const authorize = (...roles: string[]) => {
   };
 };
 
+/**
+ * Middleware that blocks requests from banned users.
+ * Apply after `protect` on any route that should be blocked for banned users.
+ */
+export const checkNotBanned = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): void => {
+  if (req.user?.isBanned) {
+    const message = req.user.banReason
+      ? `Tu cuenta ha sido suspendida: ${req.user.banReason}`
+      : 'Tu cuenta ha sido suspendida';
+    res.status(403).json({ success: false, message, banned: true });
+    return;
+  }
+  next();
+};
+
 // Middleware específico para verificar roles de administrador
 export const requireAdminRole = (...roles: string[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction): void => {

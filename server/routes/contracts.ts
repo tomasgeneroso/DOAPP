@@ -14,6 +14,18 @@ import cacheService from "../services/cacheService.js";
 
 const router = express.Router();
 
+/** Haversine distance formula — returns distance in meters between two lat/lng points */
+function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371000; // Earth radius in metres
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 // Comisión de la plataforma (10%) - DEPRECATED: usar currentCommissionRate del usuario
 const PLATFORM_COMMISSION = 0.1;
 
@@ -2207,10 +2219,13 @@ router.post("/:id/generate-pairing", protect, async (req: AuthRequest, res: Resp
       return;
     }
 
-    // Generar código de 4 caracteres (1 letra + 3 números, ej: A123)
-    const letter = 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random() * 24)];
-    const numbers = Array.from({ length: 3 }, () => Math.floor(Math.random() * 10)).join('');
-    const code = `${letter}${numbers}`;
+    // Use the initiating user's personal pairing code (fixed per user, not random per contract)
+    const initiator = await User.findByPk(req.user.id, { attributes: ['id', 'personalPairingCode'] });
+    if (!initiator?.personalPairingCode) {
+      res.status(500).json({ success: false, message: "Tu cuenta no tiene código de pareamiento. Contactá soporte." });
+      return;
+    }
+    const code = initiator.personalPairingCode;
 
     contract.pairingCode = code;
     contract.pairingGeneratedAt = new Date();
@@ -2237,7 +2252,7 @@ router.post("/:id/generate-pairing", protect, async (req: AuthRequest, res: Resp
 router.post("/:id/confirm-pairing", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { code } = req.body;
+    const { code, latitude, longitude } = req.body;
     const userId = req.user.id;
 
     if (!code) {
@@ -2251,7 +2266,6 @@ router.post("/:id/confirm-pairing", protect, async (req: AuthRequest, res: Respo
       return;
     }
 
-    // Verificar que el usuario sea parte del contrato
     const isClient = contract.clientId.toString() === userId.toString();
     const isDoer = contract.doerId.toString() === userId.toString();
 
@@ -2260,13 +2274,11 @@ router.post("/:id/confirm-pairing", protect, async (req: AuthRequest, res: Respo
       return;
     }
 
-    // Verificar que existe un código
     if (!contract.pairingCode) {
       res.status(400).json({ success: false, message: "No hay código de pareamiento generado" });
       return;
     }
 
-    // Verificar que no haya expirado
     if (contract.pairingExpiry && new Date() > contract.pairingExpiry) {
       res.status(400).json({
         success: false,
@@ -2275,34 +2287,68 @@ router.post("/:id/confirm-pairing", protect, async (req: AuthRequest, res: Respo
       return;
     }
 
-    // Verificar que el código sea correcto
     if (contract.pairingCode !== code.toUpperCase()) {
       res.status(400).json({ success: false, message: "Código incorrecto" });
       return;
     }
 
-    // Marcar como confirmado por esta parte
+    // Store location if provided
+    const lat = latitude !== undefined ? parseFloat(latitude) : undefined;
+    const lng = longitude !== undefined ? parseFloat(longitude) : undefined;
+    const hasLocation = lat !== undefined && lng !== undefined && !isNaN(lat) && !isNaN(lng);
+
     if (isClient && !contract.clientConfirmedPairing) {
       contract.clientConfirmedPairing = true;
       contract.clientPairingConfirmedAt = new Date();
+      if (hasLocation) {
+        contract.clientPairingLatitude = lat;
+        contract.clientPairingLongitude = lng;
+      }
     } else if (isDoer && !contract.doerConfirmedPairing) {
       contract.doerConfirmedPairing = true;
       contract.doerPairingConfirmedAt = new Date();
+      if (hasLocation) {
+        contract.doerPairingLatitude = lat;
+        contract.doerPairingLongitude = lng;
+      }
     } else {
       res.status(400).json({ success: false, message: "Ya confirmaste el pareamiento" });
       return;
     }
 
-    // Si ambos confirmaron, iniciar el contrato
+    // When both confirmed, compute distance and update verification status
     if (contract.clientConfirmedPairing && contract.doerConfirmedPairing) {
+      const cLat = contract.clientPairingLatitude;
+      const cLng = contract.clientPairingLongitude;
+      const dLat = contract.doerPairingLatitude;
+      const dLng = contract.doerPairingLongitude;
+
+      if (cLat && cLng && dLat && dLng) {
+        const distMeters = haversineDistance(
+          Number(cLat), Number(cLng),
+          Number(dLat), Number(dLng)
+        );
+        contract.pairingDistanceMeters = Math.round(distMeters);
+        contract.locationVerificationStatus = distMeters <= 1000 ? 'verified' : 'distant';
+      } else {
+        contract.locationVerificationStatus = 'skipped';
+      }
+
       contract.status = 'in_progress';
       contract.actualStartDate = new Date();
-
       await contract.save();
+
+      const locMsg = contract.locationVerificationStatus === 'verified'
+        ? ' Ubicaciones verificadas correctamente.'
+        : contract.locationVerificationStatus === 'distant'
+          ? ' Nota: las ubicaciones están a más de 1 km de distancia.'
+          : '';
 
       res.json({
         success: true,
-        message: "¡Pareamiento confirmado! El contrato ha comenzado.",
+        message: `¡Pareamiento confirmado! El contrato ha comenzado.${locMsg}`,
+        locationVerificationStatus: contract.locationVerificationStatus,
+        pairingDistanceMeters: contract.pairingDistanceMeters,
         contract,
       });
     } else {

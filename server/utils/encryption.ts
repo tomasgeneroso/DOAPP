@@ -4,7 +4,6 @@ import crypto from 'crypto';
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 const AUTH_TAG_LENGTH = 16;
-const SALT_LENGTH = 64;
 
 // Prefijo para identificar datos encriptados
 const ENCRYPTED_PREFIX = 'ENC:';
@@ -345,8 +344,18 @@ export function decryptFields<T extends Record<string, any>>(obj: T, fields: str
  * Campos sensibles por modelo
  */
 export const SENSITIVE_FIELDS = {
-  User: ['phone', 'dni'],
+  User: ['phone', 'legalInfo.idNumber'],
   PaymentProof: ['binanceTransactionId', 'binanceNickname'],
   WithdrawalRequest: ['cbu', 'bankAlias'],
   BankingInfo: ['cbu', 'accountNumber'],
 };
+
+/**
+ * Fields that must never be included in public API responses
+ */
+export const PUBLIC_STRIP_FIELDS = [
+  'password', 'twoFactorSecret', 'twoFactorBackupCodes',
+  'verificationToken', 'verificationTokenExpiry',
+  'bankingInfo', 'legalInfo',
+  'fcmTokens', 'bannedBy',
+];

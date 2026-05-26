@@ -357,6 +357,28 @@ export class Contract extends Model {
   @Column(DataType.DATE)
   doerPairingConfirmedAt?: Date;
 
+  // Geolocation captured when each party confirms the pairing code
+  @Column(DataType.DECIMAL(10, 7))
+  clientPairingLatitude?: number;
+
+  @Column(DataType.DECIMAL(10, 7))
+  clientPairingLongitude?: number;
+
+  @Column(DataType.DECIMAL(10, 7))
+  doerPairingLatitude?: number;
+
+  @Column(DataType.DECIMAL(10, 7))
+  doerPairingLongitude?: number;
+
+  // Distance in meters between client and doer at pairing confirmation
+  @Column(DataType.INTEGER)
+  pairingDistanceMeters?: number;
+
+  // 'verified' = both within threshold | 'distant' = far apart | 'pending' = not yet both confirmed
+  @Default('pending')
+  @Column(DataType.STRING(20))
+  locationVerificationStatus?: 'pending' | 'verified' | 'distant' | 'skipped';
+
   // ============================================
   // COMPLETION CONFIRMATION
   // ============================================

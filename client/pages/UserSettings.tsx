@@ -30,6 +30,7 @@ const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 function PasswordSection() {
   const { t } = useTranslation();
+  const { token } = useAuth();
   const [hasPassword, setHasPassword] = useState<boolean | null>(null);
   const [isOAuth, setIsOAuth] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
@@ -41,9 +42,9 @@ function PasswordSection() {
   useEffect(() => {
     const check = async () => {
       try {
-        const token = localStorage.getItem('token');
         const res = await fetch(`${API_URL}/auth/has-password`, {
-          headers: { Authorization: `Bearer ${token}` },
+          credentials: 'include',
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
         const data = await res.json();
         if (data.success) {
@@ -54,7 +55,7 @@ function PasswordSection() {
     };
     check();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [token]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,13 +66,12 @@ function PasswordSection() {
       return;
     }
     if (newPassword !== confirmPassword) {
-      setMsg({ type: 'error', text: t('settings.password.mismatch', 'Passwords do not match') });
+      setMsg({ type: 'error', text: t('settings.password.mismatch', 'Las contraseñas no coinciden') });
       return;
     }
 
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
       const endpoint = hasPassword ? '/auth/change-password' : '/auth/set-password';
       const body = hasPassword
         ? { currentPassword, newPassword }
@@ -79,7 +79,11 @@ function PasswordSection() {
 
       const res = await fetch(`${API_URL}${endpoint}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(body),
       });
       const data = await res.json();
@@ -198,6 +202,8 @@ function ProfessionTab({
   licenseCertNumber, setLicenseCertNumber,
   licenseDocumentUrl, setLicenseDocumentUrl,
   licenseVerified,
+  licenseVerificationStatus,
+  licenseRejectedReason,
   licenseFile, setLicenseFile,
   licenseUploading, setLicenseUploading,
   token,
@@ -208,6 +214,8 @@ function ProfessionTab({
   licenseCertNumber: string; setLicenseCertNumber: (v: string) => void;
   licenseDocumentUrl: string; setLicenseDocumentUrl: (v: string) => void;
   licenseVerified: boolean;
+  licenseVerificationStatus?: string;
+  licenseRejectedReason?: string;
   licenseFile: File | null; setLicenseFile: (f: File | null) => void;
   licenseUploading: boolean; setLicenseUploading: (v: boolean) => void;
   token: string;
@@ -270,10 +278,24 @@ function ProfessionTab({
       {isRegulated && (
         <div className="space-y-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-700 rounded-xl p-5">
           <div className="flex items-center gap-2 mb-1">
-            {licenseVerified ? (
+            {licenseVerificationStatus === 'approved' || licenseVerified ? (
               <span className="flex items-center gap-1.5 text-green-600 dark:text-green-400 text-sm font-semibold">
                 <ShieldCheck className="w-4 h-4" /> Matrícula verificada por DOAPP
               </span>
+            ) : licenseVerificationStatus === 'rejected' ? (
+              <div className="w-full">
+                <span className="flex items-center gap-1.5 text-red-600 dark:text-red-400 text-sm font-semibold">
+                  <AlertCircle className="w-4 h-4" /> Matrícula rechazada
+                </span>
+                {licenseRejectedReason && (
+                  <p className="mt-1 text-xs text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded p-2">
+                    Motivo: {licenseRejectedReason}
+                  </p>
+                )}
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Actualizá tus documentos y guardá los cambios para volver a solicitar revisión.
+                </p>
+              </div>
             ) : (
               <span className="text-xs text-slate-500 dark:text-slate-400">
                 Tu matrícula será verificada por el equipo de DOAPP.
@@ -399,7 +421,7 @@ function ProfessionTab({
 }
 
 export default function UserSettings() {
-  const { user, refreshUser } = useAuth();
+  const { user, token, refreshUser } = useAuth();
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { startOnboarding } = useOnboarding();
@@ -407,6 +429,10 @@ export default function UserSettings() {
   const [activeTab, setActiveTab] = useState<TabType>("basic");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Avatar upload
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
   // Handle tab from URL query parameter
   useEffect(() => {
@@ -453,6 +479,8 @@ export default function UserSettings() {
   const [licenseCertNumber, setLicenseCertNumber] = useState("");
   const [licenseDocumentUrl, setLicenseDocumentUrl] = useState("");
   const [licenseVerified, setLicenseVerified] = useState(false);
+  const [licenseVerificationStatus, setLicenseVerificationStatus] = useState<string>('pending');
+  const [licenseRejectedReason, setLicenseRejectedReason] = useState("");
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [licenseUploading, setLicenseUploading] = useState(false);
 
@@ -497,23 +525,54 @@ export default function UserSettings() {
       setLicenseCertNumber(user.licenseCertNumber || "");
       setLicenseDocumentUrl(user.licenseDocumentUrl || "");
       setLicenseVerified(user.licenseVerified || false);
+      setLicenseVerificationStatus((user as any).licenseVerificationStatus || 'pending');
+      setLicenseRejectedReason((user as any).licenseRejectedReason || "");
       if (user.notificationPreferences) {
         setNotifPrefs(user.notificationPreferences);
       }
     }
   }, [user]);
 
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarPreview(URL.createObjectURL(file));
+    setAvatarUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('avatar', file);
+      const res = await fetch(`${API_URL}/auth/upload-avatar`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        await refreshUser();
+        setMessage({ type: 'success', text: 'Foto de perfil actualizada' });
+      } else {
+        throw new Error(data.message || 'Error al subir imagen');
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Error al subir imagen' });
+      setAvatarPreview(null);
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
   const handleSave = async () => {
     setLoading(true);
     setMessage(null);
 
     try {
-      const token = localStorage.getItem("token");
       const response = await fetch("/api/auth/settings", {
         method: "PUT",
+        credentials: 'include',
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
           name,
@@ -632,6 +691,40 @@ export default function UserSettings() {
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                     {t('settings.tabs.basic')}
                   </h2>
+
+                  {/* Avatar upload */}
+                  <div className="flex items-center gap-5">
+                    <div className="relative">
+                      <img
+                        src={avatarPreview || user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=0ea5e9&color=fff`}
+                        alt="Avatar"
+                        className="w-20 h-20 rounded-full object-cover border-2 border-slate-200 dark:border-slate-600"
+                      />
+                      {avatarUploading && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full">
+                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
+                        Foto de perfil
+                      </label>
+                      <label className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-sky-600 dark:text-sky-400 border border-sky-300 dark:border-sky-700 rounded-lg hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors">
+                        <Upload className="h-4 w-4" />
+                        {avatarUploading ? 'Subiendo...' : 'Cambiar foto'}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={avatarUploading}
+                          onChange={handleAvatarChange}
+                        />
+                      </label>
+                      <p className="text-xs text-slate-400 mt-1">JPG, PNG o GIF · máx 5 MB</p>
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                       {t('settings.basic.email')}
@@ -699,9 +792,11 @@ export default function UserSettings() {
                   licenseCertNumber={licenseCertNumber} setLicenseCertNumber={setLicenseCertNumber}
                   licenseDocumentUrl={licenseDocumentUrl} setLicenseDocumentUrl={setLicenseDocumentUrl}
                   licenseVerified={licenseVerified}
+                  licenseVerificationStatus={licenseVerificationStatus}
+                  licenseRejectedReason={licenseRejectedReason}
                   licenseFile={licenseFile} setLicenseFile={setLicenseFile}
                   licenseUploading={licenseUploading} setLicenseUploading={setLicenseUploading}
-                  token={localStorage.getItem('token') || ''}
+                  token={token || ''}
                 />
               )}
 

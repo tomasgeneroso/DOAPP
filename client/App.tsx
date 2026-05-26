@@ -6,6 +6,7 @@ import { FacebookSDK } from "./components/FacebookSDK";
 import { GoogleAnalytics } from "./components/GoogleAnalytics";
 import { OnboardingProvider } from "./hooks/useOnboarding";
 import OnboardingTooltip from "./components/onboarding/OnboardingTooltip";
+import FirstContractGuide from "./components/FirstContractGuide";
 import { useEffect } from "react";
 import { setupFetchInterceptor } from "./utils/fetchWithAuth";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -121,6 +122,7 @@ export default function App() {
               <GoogleAnalytics />
               <OnboardingProvider>
                 <OnboardingTooltip />
+                <FirstContractGuide />
                 <Routes>
             <Route element={<Layout />}>
               <Route path="/" element={<Index />} />

@@ -622,4 +622,164 @@ router.get(
   }
 );
 
+// @route   POST /api/admin/users/:id/approve-license
+// @desc    Aprobar matrícula/licencia de un usuario
+// @access  Admin+
+router.post(
+  "/:id/approve-license",
+  requirePermission("users:write"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      if (!isValidUUID(req.params.id)) {
+        res.status(400).json({ success: false, message: "ID inválido" });
+        return;
+      }
+      const user = await User.findByPk(req.params.id);
+      if (!user) {
+        res.status(404).json({ success: false, message: "Usuario no encontrado" });
+        return;
+      }
+      if (!user.licenseNumber && !user.licenseDocumentUrl) {
+        res.status(400).json({ success: false, message: "El usuario no tiene matrícula para aprobar" });
+        return;
+      }
+
+      await user.update({
+        licenseVerified: true,
+        licenseVerificationStatus: 'approved',
+        licenseRejectedReason: undefined,
+        licenseVerifiedBy: req.user!.id,
+        licenseVerifiedAt: new Date(),
+      });
+
+      await logAudit({
+        req,
+        action: 'license_approved',
+        category: 'user',
+        severity: 'medium',
+        description: `Matrícula de ${user.email} aprobada`,
+        targetModel: 'User',
+        targetId: user.id,
+        targetIdentifier: user.email,
+      });
+
+      // In-app notification
+      try {
+        const { Notification } = await import('../../models/sql/Notification.model.js');
+        const { socketService } = await import('../../index.js');
+        const notif = await Notification.create({
+          recipientId: user.id,
+          title: 'Matrícula aprobada',
+          message: 'Tu matrícula profesional fue verificada y aprobada por el equipo de DOAPP.',
+          type: 'success',
+          category: 'account',
+          actionText: 'Ver mi perfil',
+          data: { tab: 'profession' },
+        });
+        socketService.notifyUser(user.id, 'notification:new', notif.toJSON());
+      } catch (notifErr) {
+        console.error('Error sending license approval notification:', notifErr);
+      }
+
+      res.json({ success: true, message: "Matrícula aprobada correctamente" });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+    }
+  }
+);
+
+// @route   POST /api/admin/users/:id/reject-license
+// @desc    Rechazar matrícula/licencia de un usuario (con motivo + email)
+// @access  Admin+
+router.post(
+  "/:id/reject-license",
+  requirePermission("users:write"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      if (!isValidUUID(req.params.id)) {
+        res.status(400).json({ success: false, message: "ID inválido" });
+        return;
+      }
+      const { reason } = req.body;
+      if (!reason || typeof reason !== 'string' || !reason.trim()) {
+        res.status(400).json({ success: false, message: "El motivo de rechazo es obligatorio" });
+        return;
+      }
+
+      const user = await User.findByPk(req.params.id);
+      if (!user) {
+        res.status(404).json({ success: false, message: "Usuario no encontrado" });
+        return;
+      }
+
+      await user.update({
+        licenseVerified: false,
+        licenseVerificationStatus: 'rejected',
+        licenseRejectedReason: reason.trim(),
+        licenseVerifiedBy: req.user!.id,
+        licenseVerifiedAt: new Date(),
+      });
+
+      await logAudit({
+        req,
+        action: 'license_rejected',
+        category: 'user',
+        severity: 'medium',
+        description: `Matrícula de ${user.email} rechazada. Motivo: ${reason.trim()}`,
+        targetModel: 'User',
+        targetId: user.id,
+        targetIdentifier: user.email,
+      });
+
+      // Send email notification
+      try {
+        const emailService = (await import('../../services/email.js')).default;
+        await emailService.sendEmail({
+          to: user.email,
+          subject: 'Tu matrícula profesional fue revisada',
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #ef4444;">Matrícula no aprobada</h2>
+              <p>Hola <strong>${user.name}</strong>,</p>
+              <p>Tu matrícula/documento profesional fue revisado por nuestro equipo y lamentablemente no pudo ser aprobado.</p>
+              <div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 12px; margin: 16px 0; border-radius: 4px;">
+                <strong>Motivo:</strong> ${reason.trim()}
+              </div>
+              <p>Por favor, actualizá los documentos en tu perfil y volvé a enviarlos para revisión.</p>
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/settings?tab=profession"
+                 style="display: inline-block; background: #0ea5e9; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; margin-top: 8px;">
+                Ir a configuración de profesión
+              </a>
+            </div>
+          `,
+        });
+      } catch (emailErr) {
+        console.error('Error sending license rejection email:', emailErr);
+      }
+
+      // In-app notification
+      try {
+        const { Notification } = await import('../../models/sql/Notification.model.js');
+        const { socketService } = await import('../../index.js');
+        const notif = await Notification.create({
+          recipientId: user.id,
+          title: 'Matrícula no aprobada',
+          message: `Tu matrícula profesional fue rechazada. Motivo: ${reason.trim()}`,
+          type: 'warning',
+          category: 'account',
+          actionText: 'Actualizar documentos',
+          data: { tab: 'profession' },
+        });
+        socketService.notifyUser(user.id, 'notification:new', notif.toJSON());
+      } catch (notifErr) {
+        console.error('Error sending license rejection notification:', notifErr);
+      }
+
+      res.json({ success: true, message: "Matrícula rechazada. El usuario fue notificado por email y notificación." });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+    }
+  }
+);
+
 export default router;

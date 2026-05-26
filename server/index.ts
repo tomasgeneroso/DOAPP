@@ -49,6 +49,7 @@ import adminTwoFactorRoutes from "./routes/admin/twoFactor.js";
 import adminDisputesRoutes from "./routes/admin/disputes.js";
 import adminRolesRoutes from "./routes/admin/roles.js";
 import adminJobsRoutes from "./routes/admin/jobs.js";
+import adminBlacklistRoutes from "./routes/admin/blacklist.js";
 
 // Payment routes
 import paymentsRoutes from "./routes/payments.js";
@@ -294,6 +295,7 @@ app.use("/api/admin/2fa", adminTwoFactorRoutes);
 app.use("/api/admin/disputes", adminDisputesRoutes);
 app.use("/api/admin/roles", adminRolesRoutes);
 app.use("/api/admin/jobs", adminJobsRoutes);
+app.use("/api/admin/blacklist", adminBlacklistRoutes);
 app.use("/api/admin/advertisements", adminAdvertisementsRoutes);
 app.use("/api/admin/contact", adminContactRoutes);
 app.use("/api/admin/blogs", adminBlogsRoutes);

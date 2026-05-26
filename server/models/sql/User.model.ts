@@ -15,7 +15,7 @@ import {
   Index,
 } from 'sequelize-typescript';
 import * as bcrypt from 'bcryptjs';
-import { encryptCBU, decryptCBU, maskCBU } from '../../utils/encryption.js';
+import { encryptCBU, decryptCBU, maskCBU, encrypt, decrypt, isEncrypted } from '../../utils/encryption.js';
 
 /**
  * User Model - PostgreSQL/Sequelize
@@ -155,6 +155,11 @@ export class User extends Model {
   @Column(DataType.TEXT)
   bio?: string;
 
+  // Personal pairing code — fixed per user, used in contract pairing
+  @Unique
+  @Column(DataType.STRING(8))
+  personalPairingCode?: string;
+
   // ============================================
   // PROFESIÓN Y MATRÍCULA
   // ============================================
@@ -178,6 +183,19 @@ export class User extends Model {
   @AllowNull(false)
   @Column(DataType.BOOLEAN)
   licenseVerified!: boolean;
+
+  @Default('pending')
+  @Column(DataType.STRING(20))
+  licenseVerificationStatus?: 'pending' | 'approved' | 'rejected';
+
+  @Column(DataType.TEXT)
+  licenseRejectedReason?: string;
+
+  @Column(DataType.UUID)
+  licenseVerifiedBy?: string;
+
+  @Column(DataType.DATE)
+  licenseVerifiedAt?: Date;
 
   // ============================================
   // RATINGS SYSTEM (Multiple Categories)
@@ -942,6 +960,28 @@ export class User extends Model {
   }
 
   /**
+   * Generate unique personal pairing code before creating user (6 uppercase alpha-numeric)
+   */
+  @BeforeCreate
+  static async generatePersonalPairingCode(instance: User) {
+    if (!instance.personalPairingCode) {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+      let isUnique = false;
+      let attempts = 0;
+      while (!isUnique && attempts < 15) {
+        let code = '';
+        for (let i = 0; i < 6; i++) code += chars.charAt(Math.floor(Math.random() * chars.length));
+        const existing = await User.findOne({ where: { personalPairingCode: code } });
+        if (!existing) {
+          instance.personalPairingCode = code;
+          isUnique = true;
+        }
+        attempts++;
+      }
+    }
+  }
+
+  /**
    * Static helper: Generate random 8-character alphanumeric code
    */
   static createReferralCode(): string {
@@ -1032,7 +1072,6 @@ export class User extends Model {
   static async encryptBankingInfoOnUpdate(instance: User) {
     if (instance.changed('bankingInfo') && instance.bankingInfo?.cbu) {
       try {
-        // Only encrypt if not already encrypted (check format)
         const cbu = instance.bankingInfo.cbu;
         if (/^\d{22}$/.test(cbu)) {
           instance.bankingInfo.cbu = encryptCBU(cbu);
@@ -1042,6 +1081,55 @@ export class User extends Model {
         console.error('❌ Error encrypting CBU on update:', error);
         throw new Error('Failed to encrypt banking information');
       }
+    }
+  }
+
+  /**
+   * Encrypt legalInfo.idNumber (DNI/CUIL/CUIT) before creating user
+   */
+  @BeforeCreate
+  static encryptLegalInfoOnCreate(instance: User) {
+    if (instance.legalInfo?.idNumber && !isEncrypted(instance.legalInfo.idNumber)) {
+      try {
+        instance.legalInfo = {
+          ...instance.legalInfo,
+          idNumber: encrypt(instance.legalInfo.idNumber),
+        };
+      } catch (error) {
+        console.error('❌ Error encrypting legalInfo on create:', error);
+        throw new Error('Failed to encrypt legal information');
+      }
+    }
+  }
+
+  /**
+   * Encrypt legalInfo.idNumber (DNI/CUIL/CUIT) before updating user
+   */
+  @BeforeUpdate
+  static encryptLegalInfoOnUpdate(instance: User) {
+    if (instance.changed('legalInfo') && instance.legalInfo?.idNumber && !isEncrypted(instance.legalInfo.idNumber)) {
+      try {
+        instance.legalInfo = {
+          ...instance.legalInfo,
+          idNumber: encrypt(instance.legalInfo.idNumber),
+        };
+      } catch (error) {
+        console.error('❌ Error encrypting legalInfo on update:', error);
+        throw new Error('Failed to encrypt legal information');
+      }
+    }
+  }
+
+  /**
+   * Get decrypted legal ID number (use only when strictly needed, e.g. identity verification)
+   */
+  getDecryptedIdNumber(): string | null {
+    if (!this.legalInfo?.idNumber) return null;
+    try {
+      if (!isEncrypted(this.legalInfo.idNumber)) return this.legalInfo.idNumber;
+      return decrypt(this.legalInfo.idNumber);
+    } catch {
+      return null;
     }
   }
 }
