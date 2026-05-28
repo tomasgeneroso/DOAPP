@@ -2365,6 +2365,80 @@ router.post("/:id/confirm-pairing", protect, async (req: AuthRequest, res: Respo
   }
 });
 
+/**
+ * Force-start a contract bypassing pairing code verification (grace mode).
+ * Both the client and the doer must call this endpoint independently to confirm presence.
+ * POST /api/contracts/:id/force-start-pairing
+ */
+router.post("/:id/force-start-pairing", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    const contract = await Contract.findByPk(id);
+    if (!contract) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    const isClient = contract.clientId.toString() === userId.toString();
+    const isDoer = contract.doerId.toString() === userId.toString();
+
+    if (!isClient && !isDoer) {
+      res.status(403).json({ success: false, message: "No tienes permiso" });
+      return;
+    }
+
+    if (contract.status === 'in_progress') {
+      res.json({ success: true, message: "El contrato ya está en progreso", contract });
+      return;
+    }
+
+    if (!['accepted', 'ready', 'pending'].includes(contract.status)) {
+      res.status(400).json({
+        success: false,
+        message: `El contrato no puede iniciarse en estado "${contract.status}"`,
+      });
+      return;
+    }
+
+    // Mark confirming party
+    if (isClient && !contract.clientConfirmedPairing) {
+      contract.clientConfirmedPairing = true;
+      contract.clientPairingConfirmedAt = new Date();
+    } else if (isDoer && !contract.doerConfirmedPairing) {
+      contract.doerConfirmedPairing = true;
+      contract.doerPairingConfirmedAt = new Date();
+    }
+
+    // When both confirmed, start the contract in grace mode
+    if (contract.clientConfirmedPairing && contract.doerConfirmedPairing) {
+      contract.locationVerificationStatus = 'grace_start';
+      contract.status = 'in_progress';
+      contract.actualStartDate = new Date();
+      await contract.save();
+
+      res.json({
+        success: true,
+        message: "¡Inicio confirmado! El contrato ha comenzado en modo de inicio flexible (sin verificación de código).",
+        graceMode: true,
+        contract,
+      });
+    } else {
+      await contract.save();
+      res.json({
+        success: true,
+        message: "Tu confirmación fue registrada. Esperando que la otra parte también confirme para iniciar.",
+        graceMode: false,
+        contract,
+      });
+    }
+  } catch (error: any) {
+    console.error('Error in force-start-pairing:', error);
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+  }
+});
+
 // Modify contract price (only if no proposals exist)
 router.put("/:id/modify-price", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {

@@ -48,6 +48,7 @@ export default function ContractDetail() {
   const [pairingCode, setPairingCode] = useState("");
   const [loadingPairing, setLoadingPairing] = useState(false);
   const [pairingMessage, setPairingMessage] = useState("");
+  const [pairingFailed, setPairingFailed] = useState(false);
   const [showExtensionForm, setShowExtensionForm] = useState(false);
   const [showTaskClaimModal, setShowTaskClaimModal] = useState(false);
   const [showEvidenceModal, setShowEvidenceModal] = useState(false);
@@ -189,7 +190,30 @@ export default function ContractDetail() {
         loadContract();
       }
     } catch (error: any) {
-      setPairingMessage(error.response?.data?.message || t('contracts.errorConfirmingCode', 'Error confirming code'));
+      const msg = error.response?.data?.message || t('contracts.errorConfirmingCode', 'Error confirming code');
+      setPairingMessage(msg);
+      if (msg.toLowerCase().includes('incorrecto') || msg.toLowerCase().includes('expirado')) {
+        setPairingFailed(true);
+      }
+    } finally {
+      setLoadingPairing(false);
+    }
+  };
+
+  const handleForceStartPairing = async () => {
+    if (!id) return;
+    if (!confirm('¿Confirmas el inicio del trabajo sin verificar el código? Esto registrará tu presencia y el contrato comenzará cuando la otra parte también confirme.')) return;
+    setLoadingPairing(true);
+    setPairingMessage('');
+    try {
+      const response = await api.post(`/contracts/${id}/force-start-pairing`);
+      if (response.data.success) {
+        setPairingMessage(response.data.message);
+        setPairingFailed(false);
+        loadContract();
+      }
+    } catch (error: any) {
+      setPairingMessage(error.response?.data?.message || 'Error al iniciar');
     } finally {
       setLoadingPairing(false);
     }
@@ -1188,7 +1212,7 @@ export default function ContractDetail() {
                         <input
                           type="text"
                           value={pairingCode}
-                          onChange={(e) => setPairingCode(e.target.value.toUpperCase())}
+                          onChange={(e) => { setPairingCode(e.target.value.toUpperCase()); setPairingFailed(false); }}
                           placeholder={t('contracts.enterCode', 'Enter the code')}
                           maxLength={4}
                           className="flex-1 px-4 py-3 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-gray-900 dark:text-white font-mono text-lg"
@@ -1201,6 +1225,20 @@ export default function ContractDetail() {
                           {loadingPairing ? t('contracts.confirming', 'Confirming...') : t('common.confirm', 'Confirm')}
                         </button>
                       </div>
+                      {pairingFailed && (
+                        <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg">
+                          <p className="text-sm text-amber-800 dark:text-amber-300 mb-2">
+                            ¿No podés ingresar el código? Podés iniciar el trabajo de todas formas si ambas partes están presentes.
+                          </p>
+                          <button
+                            onClick={handleForceStartPairing}
+                            disabled={loadingPairing}
+                            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-sm font-medium transition disabled:opacity-50"
+                          >
+                            Iniciar sin código
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
 

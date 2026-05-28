@@ -377,7 +377,7 @@ export class Contract extends Model {
   // 'verified' = both within threshold | 'distant' = far apart | 'pending' = not yet both confirmed
   @Default('pending')
   @Column(DataType.STRING(20))
-  locationVerificationStatus?: 'pending' | 'verified' | 'distant' | 'skipped';
+  locationVerificationStatus?: 'pending' | 'verified' | 'distant' | 'skipped' | 'grace_start';
 
   // ============================================
   // COMPLETION CONFIRMATION

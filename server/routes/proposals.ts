@@ -731,6 +731,21 @@ router.put("/:id/approve",
       return;
     }
 
+    if (proposal.status === "approved") {
+      // Idempotent: find existing contract and return success
+      const existingContract = await Contract.findOne({
+        where: { jobId: proposal.jobId, doerId: proposal.freelancerId },
+        order: [['createdAt', 'DESC']],
+      });
+      res.json({
+        success: true,
+        message: "Este trabajador ya fue aprobado",
+        contractId: existingContract?.id || null,
+        proposal,
+      });
+      return;
+    }
+
     if (proposal.status !== "pending") {
       res.status(400).json({
         success: false,

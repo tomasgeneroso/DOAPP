@@ -193,8 +193,14 @@ export default function TermsAndConditions() {
                 <p className="text-slate-600 dark:text-slate-300 mb-3">
                   7.4. Comisión mínima: para contratos inferiores a $8.000 ARS se aplicará una comisión fija de $1.000 ARS.
                 </p>
-                <p className="text-slate-600 dark:text-slate-300">
+                <p className="text-slate-600 dark:text-slate-300 mb-3">
                   7.5. La comisión de DOAPP no es reembolsable, incluso en casos de cancelación o disputa.
+                </p>
+                <p className="text-slate-600 dark:text-slate-300 mb-3">
+                  7.6. <strong>Liberación automática por ausencia del Cliente:</strong> Si un trabajo finaliza (fecha de vencimiento alcanzada) y el Cliente no confirma la recepción del servicio dentro de las 2 (dos) horas siguientes, el pago retenido en custodia será liberado automáticamente a los Trabajadores asignados. La comisión de la Plataforma correspondiente al plan del Cliente se retiene en todos los casos. El Cliente recibirá notificaciones previas y durante este proceso. Esta cláusula no aplica si existe una disputa activa sobre el contrato.
+                </p>
+                <p className="text-slate-600 dark:text-slate-300">
+                  7.7. Los Trabajadores serán notificados antes del inicio del trabajo, durante su ejecución y al momento de la liberación del pago. En caso de ausencia del Cliente conforme al punto 7.6, los Trabajadores recibirán aviso inmediato por email y notificación en la Plataforma.
                 </p>
               </section>
 

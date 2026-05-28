@@ -7,7 +7,7 @@ import { Notification } from '../models/sql/Notification.model.js';
 import { ChatMessage } from '../models/sql/ChatMessage.model.js';
 import emailService from '../services/email.js';
 import { getIO } from '../services/socket.js';
-import { Op } from 'sequelize';
+import { Op, fn, col } from 'sequelize';
 
 /**
  * Cron job para auto-seleccionar trabajador 24h antes del inicio del trabajo
@@ -42,9 +42,26 @@ export function startAutoSelectWorkerJob() {
       });
 
       // Filtrar solo los trabajos que necesitan más trabajadores
+      // Count approved proposals as ground truth (selectedWorkers array may lag)
+      const approvedCountsByJob = await Proposal.findAll({
+        where: {
+          jobId: { [Op.in]: jobsNeedingSelection.map(j => j.id) },
+          status: 'approved',
+        },
+        attributes: ['jobId', [fn('COUNT', col('id')), 'count']],
+        group: ['jobId'],
+        raw: true,
+      }) as any[];
+      const approvedMap: Record<string, number> = {};
+      for (const row of approvedCountsByJob) {
+        approvedMap[row.jobId] = parseInt(row.count, 10);
+      }
+
       const jobsToProcess = jobsNeedingSelection.filter(job => {
         const maxWorkers = job.maxWorkers || 1;
-        const currentWorkers = job.selectedWorkers?.length || 0;
+        const approvedCount = approvedMap[job.id] || 0;
+        const selectedCount = job.selectedWorkers?.length || 0;
+        const currentWorkers = Math.max(approvedCount, selectedCount);
         return currentWorkers < maxWorkers;
       });
 
@@ -60,8 +77,24 @@ export function startAutoSelectWorkerJob() {
       for (const job of jobsToProcess) {
         try {
           const maxWorkers = job.maxWorkers || 1;
-          const currentWorkers = job.selectedWorkers || [];
-          const workersNeeded = maxWorkers - currentWorkers.length;
+          // Use already-approved proposals as ground truth to avoid over-selecting
+          const approvedProposalWorkers = await Proposal.findAll({
+            where: { jobId: job.id, status: 'approved' },
+            attributes: ['freelancerId'],
+            raw: true,
+          });
+          const approvedWorkerIds = approvedProposalWorkers.map((p: any) => p.freelancerId);
+          const selectedFromDb = job.selectedWorkers || [];
+          // Merge both sources so we never select a worker already counted in either
+          const allKnownWorkers = [...new Set([...approvedWorkerIds, ...selectedFromDb])];
+          const workersNeeded = maxWorkers - allKnownWorkers.length;
+
+          if (workersNeeded <= 0) {
+            console.log(`⏭️  [CRON] Trabajo ${job.id} ya tiene suficientes trabajadores aprobados, saltando`);
+            continue;
+          }
+
+          const currentWorkers = allKnownWorkers;
 
           // Buscar propuestas pendientes ordenadas por fecha de creación
           // Defensive limit: never select more than workersNeeded
@@ -90,7 +123,7 @@ export function startAutoSelectWorkerJob() {
           }
 
           // Auto-seleccionar las propuestas necesarias
-          const selectedWorkerIds: string[] = [...currentWorkers];
+          const selectedWorkerIds: string[] = [...allKnownWorkers];
           const approvedProposalIds: string[] = [];
 
           for (const proposal of pendingProposals) {
@@ -103,6 +136,7 @@ export function startAutoSelectWorkerJob() {
 
           // Actualizar trabajo con los nuevos trabajadores
           job.selectedWorkers = selectedWorkerIds;
+          job.changed('selectedWorkers', true);
 
           // Si es el primer trabajador, también asignar a doerId para compatibilidad
           if (!job.doerId && selectedWorkerIds.length > 0) {
