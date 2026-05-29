@@ -205,14 +205,26 @@ module.exports = {
       // DISPUTES — fix NULLs then enforce NOT NULL
       // ================================================
 
-      // Add evidence column if it doesn't exist (may not exist on older DB instances)
+      // Add missing dispute columns if they don't exist (older DB instances may lack them)
       const disputeInfo = await queryInterface.describeTable('disputes');
-      if (!disputeInfo.evidence) {
-        await queryInterface.addColumn('disputes', 'evidence', {
-          type: Sequelize.JSONB,
-          allowNull: false,
-          defaultValue: [],
-        }, { transaction });
+      const disputeColsToAdd = [
+        { name: 'evidence',              type: Sequelize.JSONB,       default: [] },
+        { name: 'priority',              type: Sequelize.STRING(20),  default: 'medium' },
+        { name: 'platform_fee_refunded', type: Sequelize.BOOLEAN,     default: false },
+        { name: 'messages',              type: Sequelize.JSONB,       default: [] },
+        { name: 'email_sent_to_support', type: Sequelize.BOOLEAN,     default: false },
+        { name: 'email_sent_to_parties', type: Sequelize.BOOLEAN,     default: false },
+        { name: 'importance_level',      type: Sequelize.STRING(20),  default: 'medium' },
+        { name: 'logs',                  type: Sequelize.JSONB,       default: [] },
+      ];
+      for (const col of disputeColsToAdd) {
+        if (!disputeInfo[col.name]) {
+          await queryInterface.addColumn('disputes', col.name, {
+            type: col.type,
+            allowNull: true,
+            defaultValue: col.default,
+          }, { transaction });
+        }
       }
 
       await queryInterface.sequelize.query(`
