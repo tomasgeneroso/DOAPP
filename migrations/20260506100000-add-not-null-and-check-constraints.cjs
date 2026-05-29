@@ -204,6 +204,17 @@ module.exports = {
       // ================================================
       // DISPUTES — fix NULLs then enforce NOT NULL
       // ================================================
+
+      // Add evidence column if it doesn't exist (may not exist on older DB instances)
+      const disputeInfo = await queryInterface.describeTable('disputes');
+      if (!disputeInfo.evidence) {
+        await queryInterface.addColumn('disputes', 'evidence', {
+          type: Sequelize.JSONB,
+          allowNull: false,
+          defaultValue: [],
+        }, { transaction });
+      }
+
       await queryInterface.sequelize.query(`
         UPDATE disputes SET
           evidence              = COALESCE(evidence, '[]'::jsonb),
