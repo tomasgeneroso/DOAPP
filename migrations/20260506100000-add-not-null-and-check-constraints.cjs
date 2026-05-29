@@ -5,11 +5,40 @@ module.exports = {
   async up(queryInterface, Sequelize) {
     const transaction = await queryInterface.sequelize.transaction();
     try {
+      const q = (sql) => queryInterface.sequelize.query(sql, { transaction });
 
       // ================================================
-      // CONTRACTS — fix NULLs then enforce NOT NULL
+      // CONTRACTS — ensure columns exist, fix NULLs, enforce NOT NULL
       // ================================================
-      await queryInterface.sequelize.query(`
+      await q(`
+        ALTER TABLE contracts
+          ADD COLUMN IF NOT EXISTS commission                 DECIMAL(10,2)  DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS terms_accepted             BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS terms_accepted_by_client   BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS terms_accepted_by_doer     BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS deliveries                 JSONB          DEFAULT '[]',
+          ADD COLUMN IF NOT EXISTS payment_status             VARCHAR(30)    DEFAULT 'pending',
+          ADD COLUMN IF NOT EXISTS escrow_enabled             BOOLEAN        DEFAULT true,
+          ADD COLUMN IF NOT EXISTS escrow_amount              DECIMAL(15,2)  DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS escrow_status              VARCHAR(30)    DEFAULT 'pending',
+          ADD COLUMN IF NOT EXISTS client_confirmed_pairing   BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS doer_confirmed_pairing     BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS client_confirmed           BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS doer_confirmed             BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS confirmation_reminder_sent BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS confirmation_history       JSONB          DEFAULT '[]',
+          ADD COLUMN IF NOT EXISTS has_been_extended          BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS price_modification_history JSONB          DEFAULT '[]',
+          ADD COLUMN IF NOT EXISTS extension_history          JSONB          DEFAULT '[]',
+          ADD COLUMN IF NOT EXISTS extension_count            INTEGER        DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS has_pending_task_claim     BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS claimed_task_ids           JSONB          DEFAULT '[]',
+          ADD COLUMN IF NOT EXISTS task_claim_history         JSONB          DEFAULT '[]',
+          ADD COLUMN IF NOT EXISTS is_deleted                 BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS infractions               INTEGER        DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS is_hidden                  BOOLEAN        DEFAULT false
+      `);
+      await q(`
         UPDATE contracts SET
           commission                 = COALESCE(commission, 0),
           status                     = COALESCE(status, 'pending'),
@@ -37,8 +66,7 @@ module.exports = {
           is_deleted                 = COALESCE(is_deleted, false),
           infractions                = COALESCE(infractions, 0),
           is_hidden                  = COALESCE(is_hidden, false)
-      `, { transaction });
-
+      `);
       for (const col of [
         'commission', 'status', 'terms_accepted', 'terms_accepted_by_client',
         'terms_accepted_by_doer', 'deliveries', 'payment_status', 'escrow_enabled',
@@ -48,16 +76,54 @@ module.exports = {
         'has_pending_task_claim', 'claimed_task_ids', 'task_claim_history',
         'is_deleted', 'infractions', 'is_hidden',
       ]) {
-        await queryInterface.sequelize.query(
-          `ALTER TABLE contracts ALTER COLUMN ${col} SET NOT NULL`,
-          { transaction }
-        );
+        await q(`ALTER TABLE contracts ALTER COLUMN ${col} SET NOT NULL`);
       }
 
       // ================================================
-      // USERS — fix NULLs then enforce NOT NULL
+      // USERS — ensure columns exist, fix NULLs, enforce NOT NULL
       // ================================================
-      await queryInterface.sequelize.query(`
+      await q(`
+        ALTER TABLE users
+          ADD COLUMN IF NOT EXISTS dni_verified                  BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS reviews_count                 INTEGER        DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS completed_jobs                INTEGER        DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS work_quality_rating           DECIMAL(3,2)   DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS worker_rating                 DECIMAL(3,2)   DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS contract_rating               DECIMAL(3,2)   DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS work_quality_reviews_count    INTEGER        DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS worker_reviews_count          INTEGER        DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS contract_reviews_count        INTEGER        DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS two_factor_enabled            BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS is_banned                     BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS infractions                   INTEGER        DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS trust_score                   INTEGER        DEFAULT 100,
+          ADD COLUMN IF NOT EXISTS verification_level            VARCHAR(20)    DEFAULT 'none',
+          ADD COLUMN IF NOT EXISTS fcm_tokens                    TEXT[]         DEFAULT ARRAY[]::text[],
+          ADD COLUMN IF NOT EXISTS interests                     TEXT[]         DEFAULT ARRAY[]::text[],
+          ADD COLUMN IF NOT EXISTS onboarding_completed          BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS dont_ask_banking_info         BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS is_availability_public        BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS has_membership                BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS is_premium_verified           BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS current_commission_rate       DECIMAL(5,2)   DEFAULT 8.0,
+          ADD COLUMN IF NOT EXISTS free_contracts_remaining      INTEGER        DEFAULT 3,
+          ADD COLUMN IF NOT EXISTS pro_contracts_used_this_month INTEGER        DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS balance_ars                   DECIMAL(15,2)  DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS referral_bonus_awarded        BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS referral_tier                 INTEGER        DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS total_referrals               INTEGER        DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS completed_referrals           INTEGER        DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS is_early_user                 BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS invitation_codes_remaining    INTEGER        DEFAULT 3,
+          ADD COLUMN IF NOT EXISTS invitation_codes_used         INTEGER        DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS has_referral_discount         BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS referral_benefits_used        INTEGER        DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS has_family_plan               BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS profile_shares_count          INTEGER        DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS profile_shares_via_link       INTEGER        DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS profile_shares_via_message    INTEGER        DEFAULT 0
+      `);
+      await q(`
         UPDATE users SET
           dni_verified                  = COALESCE(dni_verified, false),
           rating                        = COALESCE(rating, 0),
@@ -102,8 +168,7 @@ module.exports = {
           profile_shares_count          = COALESCE(profile_shares_count, 0),
           profile_shares_via_link       = COALESCE(profile_shares_via_link, 0),
           profile_shares_via_message    = COALESCE(profile_shares_via_message, 0)
-      `, { transaction });
-
+      `);
       for (const col of [
         'dni_verified', 'rating', 'reviews_count', 'completed_jobs', 'work_quality_rating',
         'worker_rating', 'contract_rating', 'work_quality_reviews_count',
@@ -118,74 +183,106 @@ module.exports = {
         'has_referral_discount', 'referral_benefits_used', 'has_family_plan',
         'profile_shares_count', 'profile_shares_via_link', 'profile_shares_via_message',
       ]) {
-        await queryInterface.sequelize.query(
-          `ALTER TABLE users ALTER COLUMN ${col} SET NOT NULL`,
-          { transaction }
-        );
+        await q(`ALTER TABLE users ALTER COLUMN ${col} SET NOT NULL`);
       }
 
       // ================================================
-      // PAYMENTS — fix NULLs then enforce NOT NULL
+      // PAYMENTS — ensure columns exist, fix NULLs, enforce NOT NULL
       // ================================================
-      await queryInterface.sequelize.query(`
+      await q(`
+        ALTER TABLE payments
+          ADD COLUMN IF NOT EXISTS currency              VARCHAR(10)  DEFAULT 'ARS',
+          ADD COLUMN IF NOT EXISTS payment_method        VARCHAR(30)  DEFAULT 'mercadopago',
+          ADD COLUMN IF NOT EXISTS platform_fee          DECIMAL(15,2) DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS platform_fee_percentage DECIMAL(5,2) DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS is_escrow             BOOLEAN      DEFAULT true,
+          ADD COLUMN IF NOT EXISTS payer_confirmed       BOOLEAN      DEFAULT false,
+          ADD COLUMN IF NOT EXISTS recipient_confirmed   BOOLEAN      DEFAULT false,
+          ADD COLUMN IF NOT EXISTS pending_verification  BOOLEAN      DEFAULT false
+      `);
+      await q(`
         UPDATE payments SET
-          currency              = COALESCE(currency, 'ARS'),
-          status                = COALESCE(status, 'pending'),
-          payment_type          = COALESCE(payment_type, 'contract_payment'),
-          payment_method        = COALESCE(payment_method, 'mercadopago'),
-          platform_fee          = COALESCE(platform_fee, 0),
+          currency                = COALESCE(currency, 'ARS'),
+          status                  = COALESCE(status, 'pending'),
+          payment_type            = COALESCE(payment_type, 'contract_payment'),
+          payment_method          = COALESCE(payment_method, 'mercadopago'),
+          platform_fee            = COALESCE(platform_fee, 0),
           platform_fee_percentage = COALESCE(platform_fee_percentage, 0),
-          is_escrow             = COALESCE(is_escrow, true),
-          payer_confirmed       = COALESCE(payer_confirmed, false),
-          recipient_confirmed   = COALESCE(recipient_confirmed, false),
-          pending_verification  = COALESCE(pending_verification, false)
-      `, { transaction });
-
+          is_escrow               = COALESCE(is_escrow, true),
+          payer_confirmed         = COALESCE(payer_confirmed, false),
+          recipient_confirmed     = COALESCE(recipient_confirmed, false),
+          pending_verification    = COALESCE(pending_verification, false)
+      `);
       for (const col of [
         'payer_id', 'currency', 'status', 'payment_type', 'payment_method',
         'platform_fee', 'platform_fee_percentage', 'is_escrow',
         'payer_confirmed', 'recipient_confirmed', 'pending_verification',
       ]) {
-        await queryInterface.sequelize.query(
-          `ALTER TABLE payments ALTER COLUMN ${col} SET NOT NULL`,
-          { transaction }
-        );
+        await q(`ALTER TABLE payments ALTER COLUMN ${col} SET NOT NULL`);
       }
 
       // ================================================
-      // JOBS — fix NULLs then enforce NOT NULL
+      // JOBS — ensure columns exist, fix NULLs, enforce NOT NULL
       // ================================================
-      await queryInterface.sequelize.query(`
+      await q(`
+        ALTER TABLE jobs
+          ADD COLUMN IF NOT EXISTS tags                       TEXT[]         DEFAULT ARRAY[]::text[],
+          ADD COLUMN IF NOT EXISTS remote_ok                  BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS end_date_flexible          BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS single_delivery            BOOLEAN        DEFAULT true,
+          ADD COLUMN IF NOT EXISTS urgency                    VARCHAR(20)    DEFAULT 'medium',
+          ADD COLUMN IF NOT EXISTS experience_level           VARCHAR(20)    DEFAULT 'intermediate',
+          ADD COLUMN IF NOT EXISTS permanently_cancelled      BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS images                     TEXT[]         DEFAULT ARRAY[]::text[],
+          ADD COLUMN IF NOT EXISTS completion_requirements    TEXT[]         DEFAULT ARRAY[]::text[],
+          ADD COLUMN IF NOT EXISTS tools_required             TEXT[]         DEFAULT ARRAY[]::text[],
+          ADD COLUMN IF NOT EXISTS materials_provided         BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS views                      INTEGER        DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS max_workers                INTEGER        DEFAULT 1,
+          ADD COLUMN IF NOT EXISTS selected_workers           UUID[]         DEFAULT ARRAY[]::uuid[],
+          ADD COLUMN IF NOT EXISTS worker_allocations         JSONB          DEFAULT '[]',
+          ADD COLUMN IF NOT EXISTS vacancy_task_assignments   JSONB          DEFAULT '[]',
+          ADD COLUMN IF NOT EXISTS allocated_total            DECIMAL(15,2)  DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS reminder12h_sent           BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS reminder6h_sent            BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS reminder2h_sent            BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS price_history              JSONB          DEFAULT '[]',
+          ADD COLUMN IF NOT EXISTS publication_paid           BOOLEAN        DEFAULT false,
+          ADD COLUMN IF NOT EXISTS publication_amount         DECIMAL(15,2)  DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS pending_payment_amount     DECIMAL(15,2)  DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS price_decrease_acceptances JSONB          DEFAULT '[]',
+          ADD COLUMN IF NOT EXISTS price_decrease_rejections  JSONB          DEFAULT '[]'
+      `);
+      await q(`
         UPDATE jobs SET
-          tags                      = COALESCE(tags, ARRAY[]::text[]),
-          remote_ok                 = COALESCE(remote_ok, false),
-          end_date_flexible         = COALESCE(end_date_flexible, false),
-          single_delivery           = COALESCE(single_delivery, true),
-          status                    = COALESCE(status, 'draft'),
-          urgency                   = COALESCE(urgency, 'medium'),
-          experience_level          = COALESCE(experience_level, 'intermediate'),
-          permanently_cancelled     = COALESCE(permanently_cancelled, false),
-          images                    = COALESCE(images, ARRAY[]::text[]),
-          completion_requirements   = COALESCE(completion_requirements, ARRAY[]::text[]),
-          tools_required            = COALESCE(tools_required, ARRAY[]::text[]),
-          materials_provided        = COALESCE(materials_provided, false),
-          views                     = COALESCE(views, 0),
-          max_workers               = COALESCE(max_workers, 1),
-          selected_workers          = COALESCE(selected_workers, ARRAY[]::uuid[]),
-          worker_allocations        = COALESCE(worker_allocations, '[]'::jsonb),
-          vacancy_task_assignments  = COALESCE(vacancy_task_assignments, '[]'::jsonb),
-          allocated_total           = COALESCE(allocated_total, 0),
-          reminder12h_sent          = COALESCE(reminder12h_sent, false),
-          reminder6h_sent           = COALESCE(reminder6h_sent, false),
-          reminder2h_sent           = COALESCE(reminder2h_sent, false),
-          price_history             = COALESCE(price_history, '[]'::jsonb),
-          publication_paid          = COALESCE(publication_paid, false),
-          publication_amount        = COALESCE(publication_amount, 0),
-          pending_payment_amount    = COALESCE(pending_payment_amount, 0),
+          tags                       = COALESCE(tags, ARRAY[]::text[]),
+          remote_ok                  = COALESCE(remote_ok, false),
+          end_date_flexible          = COALESCE(end_date_flexible, false),
+          single_delivery            = COALESCE(single_delivery, true),
+          status                     = COALESCE(status, 'draft'),
+          urgency                    = COALESCE(urgency, 'medium'),
+          experience_level           = COALESCE(experience_level, 'intermediate'),
+          permanently_cancelled      = COALESCE(permanently_cancelled, false),
+          images                     = COALESCE(images, ARRAY[]::text[]),
+          completion_requirements    = COALESCE(completion_requirements, ARRAY[]::text[]),
+          tools_required             = COALESCE(tools_required, ARRAY[]::text[]),
+          materials_provided         = COALESCE(materials_provided, false),
+          views                      = COALESCE(views, 0),
+          max_workers                = COALESCE(max_workers, 1),
+          selected_workers           = COALESCE(selected_workers, ARRAY[]::uuid[]),
+          worker_allocations         = COALESCE(worker_allocations, '[]'::jsonb),
+          vacancy_task_assignments   = COALESCE(vacancy_task_assignments, '[]'::jsonb),
+          allocated_total            = COALESCE(allocated_total, 0),
+          reminder12h_sent           = COALESCE(reminder12h_sent, false),
+          reminder6h_sent            = COALESCE(reminder6h_sent, false),
+          reminder2h_sent            = COALESCE(reminder2h_sent, false),
+          price_history              = COALESCE(price_history, '[]'::jsonb),
+          publication_paid           = COALESCE(publication_paid, false),
+          publication_amount         = COALESCE(publication_amount, 0),
+          pending_payment_amount     = COALESCE(pending_payment_amount, 0),
           price_decrease_acceptances = COALESCE(price_decrease_acceptances, '[]'::jsonb),
           price_decrease_rejections  = COALESCE(price_decrease_rejections, '[]'::jsonb)
-      `, { transaction });
-
+      `);
       for (const col of [
         'tags', 'remote_ok', 'end_date_flexible', 'single_delivery', 'status',
         'urgency', 'experience_level', 'permanently_cancelled', 'images',
@@ -195,39 +292,24 @@ module.exports = {
         'price_history', 'publication_paid', 'publication_amount', 'pending_payment_amount',
         'price_decrease_acceptances', 'price_decrease_rejections',
       ]) {
-        await queryInterface.sequelize.query(
-          `ALTER TABLE jobs ALTER COLUMN ${col} SET NOT NULL`,
-          { transaction }
-        );
+        await q(`ALTER TABLE jobs ALTER COLUMN ${col} SET NOT NULL`);
       }
 
       // ================================================
-      // DISPUTES — fix NULLs then enforce NOT NULL
+      // DISPUTES — ensure columns exist, fix NULLs, enforce NOT NULL
       // ================================================
-
-      // Add missing dispute columns if they don't exist (older DB instances may lack them)
-      const disputeInfo = await queryInterface.describeTable('disputes');
-      const disputeColsToAdd = [
-        { name: 'evidence',              type: Sequelize.JSONB,       default: [] },
-        { name: 'priority',              type: Sequelize.STRING(20),  default: 'medium' },
-        { name: 'platform_fee_refunded', type: Sequelize.BOOLEAN,     default: false },
-        { name: 'messages',              type: Sequelize.JSONB,       default: [] },
-        { name: 'email_sent_to_support', type: Sequelize.BOOLEAN,     default: false },
-        { name: 'email_sent_to_parties', type: Sequelize.BOOLEAN,     default: false },
-        { name: 'importance_level',      type: Sequelize.STRING(20),  default: 'medium' },
-        { name: 'logs',                  type: Sequelize.JSONB,       default: [] },
-      ];
-      for (const col of disputeColsToAdd) {
-        if (!disputeInfo[col.name]) {
-          await queryInterface.addColumn('disputes', col.name, {
-            type: col.type,
-            allowNull: true,
-            defaultValue: col.default,
-          }, { transaction });
-        }
-      }
-
-      await queryInterface.sequelize.query(`
+      await q(`
+        ALTER TABLE disputes
+          ADD COLUMN IF NOT EXISTS evidence              JSONB        DEFAULT '[]',
+          ADD COLUMN IF NOT EXISTS priority              VARCHAR(20)  DEFAULT 'medium',
+          ADD COLUMN IF NOT EXISTS platform_fee_refunded BOOLEAN      DEFAULT false,
+          ADD COLUMN IF NOT EXISTS messages              JSONB        DEFAULT '[]',
+          ADD COLUMN IF NOT EXISTS email_sent_to_support BOOLEAN      DEFAULT false,
+          ADD COLUMN IF NOT EXISTS email_sent_to_parties BOOLEAN      DEFAULT false,
+          ADD COLUMN IF NOT EXISTS importance_level      VARCHAR(20)  DEFAULT 'medium',
+          ADD COLUMN IF NOT EXISTS logs                  JSONB        DEFAULT '[]'
+      `);
+      await q(`
         UPDATE disputes SET
           evidence              = COALESCE(evidence, '[]'::jsonb),
           status                = COALESCE(status, 'open'),
@@ -238,38 +320,36 @@ module.exports = {
           email_sent_to_parties = COALESCE(email_sent_to_parties, false),
           importance_level      = COALESCE(importance_level, 'medium'),
           logs                  = COALESCE(logs, '[]'::jsonb)
-      `, { transaction });
-
+      `);
       for (const col of [
         'evidence', 'status', 'priority', 'platform_fee_refunded', 'messages',
         'email_sent_to_support', 'email_sent_to_parties', 'importance_level', 'logs',
       ]) {
-        await queryInterface.sequelize.query(
-          `ALTER TABLE disputes ALTER COLUMN ${col} SET NOT NULL`,
-          { transaction }
-        );
+        await q(`ALTER TABLE disputes ALTER COLUMN ${col} SET NOT NULL`);
       }
 
       // ================================================
-      // TICKETS — fix NULLs then enforce NOT NULL
+      // TICKETS — ensure columns exist, fix NULLs, enforce NOT NULL
       // ================================================
-      await queryInterface.sequelize.query(`
+      await q(`
+        ALTER TABLE tickets
+          ADD COLUMN IF NOT EXISTS priority VARCHAR(20) DEFAULT 'medium',
+          ADD COLUMN IF NOT EXISTS messages JSONB       DEFAULT '[]',
+          ADD COLUMN IF NOT EXISTS tags     TEXT[]      DEFAULT ARRAY[]::text[]
+      `);
+      await q(`
         UPDATE tickets SET
           priority = COALESCE(priority, 'medium'),
           status   = COALESCE(status, 'open'),
           messages = COALESCE(messages, '[]'::jsonb),
           tags     = COALESCE(tags, ARRAY[]::text[])
-      `, { transaction });
-
+      `);
       for (const col of ['priority', 'status', 'messages', 'tags']) {
-        await queryInterface.sequelize.query(
-          `ALTER TABLE tickets ALTER COLUMN ${col} SET NOT NULL`,
-          { transaction }
-        );
+        await q(`ALTER TABLE tickets ALTER COLUMN ${col} SET NOT NULL`);
       }
 
       // ================================================
-      // CHECK CONSTRAINTS (NOT VALID = only validates new rows)
+      // CHECK CONSTRAINTS (IF NOT EXISTS — safe to re-run)
       // ================================================
       const checks = [
         ['users', 'chk_membership_consistency',
@@ -297,12 +377,10 @@ module.exports = {
         ['payments', 'chk_dispute_fields',
           `status != 'disputed' OR (dispute_id IS NOT NULL AND disputed_at IS NOT NULL AND disputed_by IS NOT NULL)`],
       ];
-
       for (const [table, name, condition] of checks) {
-        await queryInterface.sequelize.query(
-          `ALTER TABLE ${table} ADD CONSTRAINT ${name} CHECK (${condition}) NOT VALID`,
-          { transaction }
-        );
+        // Drop first in case it exists from a partial previous run, then re-add
+        await q(`ALTER TABLE ${table} DROP CONSTRAINT IF EXISTS ${name}`);
+        await q(`ALTER TABLE ${table} ADD CONSTRAINT ${name} CHECK (${condition}) NOT VALID`);
       }
 
       await transaction.commit();
@@ -315,7 +393,8 @@ module.exports = {
   async down(queryInterface, Sequelize) {
     const transaction = await queryInterface.sequelize.transaction();
     try {
-      // Drop CHECK constraints
+      const q = (sql) => queryInterface.sequelize.query(sql, { transaction });
+
       const checkConstraints = [
         ['users',     'chk_membership_consistency'],
         ['users',     'chk_2fa_consistency'],
@@ -331,13 +410,9 @@ module.exports = {
         ['payments',  'chk_dispute_fields'],
       ];
       for (const [table, name] of checkConstraints) {
-        await queryInterface.sequelize.query(
-          `ALTER TABLE ${table} DROP CONSTRAINT IF EXISTS ${name}`,
-          { transaction }
-        );
+        await q(`ALTER TABLE ${table} DROP CONSTRAINT IF EXISTS ${name}`);
       }
 
-      // Remove NOT NULL from all columns we constrained
       const colsToNullify = {
         contracts: [
           'commission', 'status', 'terms_accepted', 'terms_accepted_by_client',
@@ -382,13 +457,9 @@ module.exports = {
         ],
         tickets: ['priority', 'status', 'messages', 'tags'],
       };
-
       for (const [table, cols] of Object.entries(colsToNullify)) {
         for (const col of cols) {
-          await queryInterface.sequelize.query(
-            `ALTER TABLE ${table} ALTER COLUMN ${col} DROP NOT NULL`,
-            { transaction }
-          );
+          await q(`ALTER TABLE ${table} ALTER COLUMN ${col} DROP NOT NULL`);
         }
       }
 
