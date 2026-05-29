@@ -1,5 +1,9 @@
 const path = require('path');
 
+// Load .env before sequelize-cli reads DATABASE_URL from process.env
+// Prevents "Error parsing url: undefined" in fresh shells on the VPS
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
+
 module.exports = {
   'config': path.resolve('config', 'database.json'),
   'models-path': path.resolve('server', 'models', 'sql'),
