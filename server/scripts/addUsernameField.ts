@@ -71,7 +71,7 @@ async function migrate() {
         console.log(`📝 Found ${(usersWithoutUsername as any[]).length} users without username, generating...`);
 
         for (const user of usersWithoutUsername as any[]) {
-          let baseUsername = generateUsername(user.name);
+          const baseUsername = generateUsername(user.name);
           let username = baseUsername;
           let counter = 1;
 
@@ -114,7 +114,7 @@ async function migrate() {
       const usedUsernames = new Set<string>();
 
       for (const user of users as any[]) {
-        let baseUsername = generateUsername(user.name);
+        const baseUsername = generateUsername(user.name);
         let username = baseUsername;
         let counter = 1;
 

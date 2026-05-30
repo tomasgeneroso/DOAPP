@@ -132,7 +132,7 @@ async function killPort(port: number): Promise<void> {
         await execPromise(`cmd /c "taskkill /F /PID ${pid} /T 2>nul" 2>&1 || exit 0`);
         killed = true;
         console.log(`✅ Proceso ${pid} terminado (intento 1)`);
-      } catch {}
+      } catch { /* intentionally swallowed */ }
 
       // Attempt 2: With cmd wrapper (all redirection inside cmd /c to avoid bash creating a 'nul' file)
       if (!killed) {
@@ -140,7 +140,7 @@ async function killPort(port: number): Promise<void> {
           await execPromise(`cmd /c "taskkill /F /PID ${pid} /T 2>nul"`);
           killed = true;
           console.log(`✅ Proceso ${pid} terminado (intento 2)`);
-        } catch {}
+        } catch { /* intentionally swallowed */ }
       }
 
       // Attempt 3: Using WMIC (Windows Management Instrumentation)
@@ -149,7 +149,7 @@ async function killPort(port: number): Promise<void> {
           await execPromise(`cmd /c "wmic process where ProcessId=${pid} delete 2>nul"`);
           killed = true;
           console.log(`✅ Proceso ${pid} terminado (intento 3 - WMIC)`);
-        } catch {}
+        } catch { /* intentionally swallowed */ }
       }
 
       if (!killed) {

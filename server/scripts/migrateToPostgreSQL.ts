@@ -78,7 +78,8 @@ function getUUID(mongoId: mongoose.Types.ObjectId | string | undefined): string 
 
   if (!idMap.has(mongoIdStr)) {
     // Generate new UUID for this MongoDB ID
-    const uuid = require('crypto').randomUUID();
+    const { randomUUID } = await import('crypto');
+    const uuid = randomUUID();
     idMap.set(mongoIdStr, uuid);
   }
 

@@ -13,7 +13,7 @@ import { Op } from 'sequelize';
 const router = express.Router();
 
 // Middleware to check if user has Super PRO membership
-const requireSuperPro = async (req: AuthRequest, res: Response, next: Function) => {
+const requireSuperPro = async (req: AuthRequest, res: Response, next: (err?: unknown) => void) => {
   try {
     const membership = await Membership.findOne({
       where: {

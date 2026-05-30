@@ -40,8 +40,8 @@ async function testPayPalEscrowFlow() {
     // Step 1: Find or create test users
     console.log("👥 Step 1: Setting up test users...");
 
-    let client = await User.findOne({ email: "maria@example.com" });
-    let doer = await User.findOne({ email: "carlos@example.com" });
+    const client = await User.findOne({ email: "maria@example.com" });
+    const doer = await User.findOne({ email: "carlos@example.com" });
 
     if (!client || !doer) {
       console.log("❌ Test users not found. Please run: npm run seed:mockup");

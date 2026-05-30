@@ -26,7 +26,7 @@ const cacheSet = async (key: string, data: any, ttl: number): Promise<void> => {
 const normalizeLocation = (location: string): string => {
   return location
     .toLowerCase()
-    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '') // Remove punctuation
+    .replace(/[.,\\/#!$%^&*;:{}=\-_`~()]/g, '') // Remove punctuation
     .replace(/\s+/g, ' ') // Normalize spaces
     .trim();
 };
@@ -171,7 +171,7 @@ class SearchService {
     const order: any[] = [[sortBy, sortOrder === "asc" ? "ASC" : "DESC"]];
 
     // Execute query
-    let jobs = await Job.findAll({
+    const jobs = await Job.findAll({
       where,
       include: [
         {
