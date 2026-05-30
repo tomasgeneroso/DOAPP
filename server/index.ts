@@ -7,7 +7,7 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
-import pg from "pg";
+import { Pool } from "pg";
 import path from "path";
 import { fileURLToPath } from "url";
 import { config } from "./config/env.js";
@@ -222,7 +222,7 @@ app.use(preventDirectoryTraversal);
 
 // Express session (requerido para Passport OAuth)
 const PgStore = connectPgSimple(session);
-const sessionPool = new pg.Pool({
+const sessionPool = new Pool({
   host: config.dbHost,
   port: config.dbPort,
   database: config.dbName,
@@ -231,10 +231,7 @@ const sessionPool = new pg.Pool({
 });
 app.use(
   session({
-    store: new PgStore({
-      pool: sessionPool,
-      createTableIfMissing: true,
-    }),
+    store: new PgStore({ pool: sessionPool }),
     secret: config.jwtSecret,
     resave: false,
     saveUninitialized: false,

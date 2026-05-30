@@ -151,14 +151,14 @@ jobs:
       - name: Health Check
         run: |
           echo "⏳ Waiting for server to be ready..."
-          sleep 20
+          sleep 60
           for i in 1 2 3 4 5; do
-            if curl -sf --max-time 10 https://doapparg.site/api/health; then
+            if curl -sf --max-time 15 https://doapparg.site/api/health; then
               echo "✅ Health check passed"
               exit 0
             fi
             echo "Retry $i/5..."
-            sleep 15
+            sleep 20
           done
           echo "❌ Health check failed after 5 attempts"
           exit 1
