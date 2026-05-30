@@ -133,20 +133,35 @@ jobs:
             echo "🔄 Restarting application..."
             pm2 restart doapp || pm2 start ecosystem.config.cjs
 
-            echo "⏳ Waiting for server to be ready (max 3 min)..."
+            echo "⏳ Waiting for server to start (max 3 min)..."
+            started=false
             for i in $(seq 1 18); do
               sleep 10
               if curl -sf http://localhost:3001/api/health > /dev/null 2>&1; then
-                echo "✅ Server ready after ~${i}0s"
+                echo "✅ Server responding after ~${i}0s"
+                started=true
                 break
               fi
               echo "  Not ready yet ($i/18)..."
-              if [ "$i" = "18" ]; then
-                echo "❌ Server did not start within 3 minutes"
-                pm2 logs doapp --lines 50 --nostream || true
+            done
+            if [ "$started" = "false" ]; then
+              echo "❌ Server did not start within 3 minutes"
+              pm2 logs doapp --lines 50 --nostream || true
+              exit 1
+            fi
+
+            echo "⏳ Confirming stability for 60s..."
+            for j in 1 2 3 4 5 6; do
+              sleep 10
+              if ! curl -sf http://localhost:3001/api/health > /dev/null 2>&1; then
+                echo "❌ Server crashed during stability check (attempt $j)"
+                pm2 status
+                pm2 logs doapp --lines 30 --nostream || true
                 exit 1
               fi
+              echo "  Stable ($j/6)"
             done
+            echo "✅ Server is stable"
 
             echo "📋 PM2 status:"
             pm2 status
@@ -154,19 +169,20 @@ jobs:
             echo "✅ Deploy completed! New commit:"
             git rev-parse --short HEAD
 
-      - name: Health Check
+      - name: Health Check (Cloudflare routing - informational)
+        continue-on-error: true
         run: |
-          echo "⏳ Waiting for Cloudflare tunnel (initial 90s)..."
-          sleep 90
-          for i in $(seq 1 15); do
+          echo "ℹ️  Server confirmed running locally. Checking Cloudflare routing..."
+          echo "⚠️  Cloudflare Tunnel takes ~10-20min to re-establish after restart."
+          sleep 30
+          for i in $(seq 1 6); do
             http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 https://doapparg.site/api/health 2>/dev/null || echo "ERR")
             body=$(curl -s --max-time 15 https://doapparg.site/api/health 2>/dev/null || echo "no response")
-            echo "Attempt $i/15: HTTP $http_code | $body"
+            echo "Attempt $i/6: HTTP $http_code | $body"
             if [ "$http_code" = "200" ]; then
-              echo "✅ Health check passed!"
+              echo "✅ External health check passed on attempt $i"
               exit 0
             fi
             sleep 30
           done
-          echo "❌ Health check failed after 15 attempts (~8.5 min)"
-          exit 1
+          echo "⚠️  External health check timed out (Cloudflare routing delay) - app IS running locally"
