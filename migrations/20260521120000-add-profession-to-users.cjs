@@ -3,42 +3,31 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.addColumn('users', 'profession', {
-      type: Sequelize.STRING(100),
-      allowNull: true,
-    });
-    await queryInterface.addColumn('users', 'license_number', {
-      type: Sequelize.STRING(100),
-      allowNull: true,
-    });
-    await queryInterface.addColumn('users', 'license_category', {
-      type: Sequelize.STRING(100),
-      allowNull: true,
-    });
-    await queryInterface.addColumn('users', 'license_cert_number', {
-      type: Sequelize.STRING(100),
-      allowNull: true,
-    });
-    await queryInterface.addColumn('users', 'license_document_url', {
-      type: Sequelize.TEXT,
-      allowNull: true,
-    });
-    await queryInterface.addColumn('users', 'license_verified', {
-      type: Sequelize.BOOLEAN,
-      defaultValue: false,
-      allowNull: false,
-    });
+    await queryInterface.sequelize.query(`
+      ALTER TABLE users
+        ADD COLUMN IF NOT EXISTS profession            VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS license_number        VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS license_category      VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS license_cert_number   VARCHAR(100),
+        ADD COLUMN IF NOT EXISTS license_document_url  TEXT,
+        ADD COLUMN IF NOT EXISTS license_verified      BOOLEAN NOT NULL DEFAULT false
+    `);
 
-    await queryInterface.addIndex('users', ['profession'], { name: 'idx_users_profession' });
+    await queryInterface.sequelize.query(`
+      CREATE INDEX IF NOT EXISTS idx_users_profession ON users (profession)
+    `);
   },
 
   async down(queryInterface) {
-    await queryInterface.removeIndex('users', 'idx_users_profession');
-    await queryInterface.removeColumn('users', 'license_verified');
-    await queryInterface.removeColumn('users', 'license_document_url');
-    await queryInterface.removeColumn('users', 'license_cert_number');
-    await queryInterface.removeColumn('users', 'license_category');
-    await queryInterface.removeColumn('users', 'license_number');
-    await queryInterface.removeColumn('users', 'profession');
+    await queryInterface.sequelize.query(`DROP INDEX IF EXISTS idx_users_profession`);
+    await queryInterface.sequelize.query(`
+      ALTER TABLE users
+        DROP COLUMN IF EXISTS license_verified,
+        DROP COLUMN IF EXISTS license_document_url,
+        DROP COLUMN IF EXISTS license_cert_number,
+        DROP COLUMN IF EXISTS license_category,
+        DROP COLUMN IF EXISTS license_number,
+        DROP COLUMN IF EXISTS profession
+    `);
   },
 };

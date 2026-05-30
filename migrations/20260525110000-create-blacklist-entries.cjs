@@ -3,78 +3,29 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable('blacklist_entries', {
-      id: {
-        type: Sequelize.UUID,
-        defaultValue: Sequelize.UUIDV4,
-        primaryKey: true,
-        allowNull: false,
-      },
-      user_id: {
-        type: Sequelize.UUID,
-        allowNull: false,
-        references: { model: 'users', key: 'id' },
-        onDelete: 'CASCADE',
-      },
-      added_by: {
-        type: Sequelize.UUID,
-        allowNull: false,
-        references: { model: 'users', key: 'id' },
-      },
-      type: {
-        type: Sequelize.STRING(50),
-        allowNull: false,
-      },
-      severity: {
-        type: Sequelize.STRING(20),
-        allowNull: false,
-        defaultValue: 'medium',
-      },
-      reason: {
-        type: Sequelize.TEXT,
-        allowNull: false,
-      },
-      is_active: {
-        type: Sequelize.BOOLEAN,
-        allowNull: false,
-        defaultValue: true,
-      },
-      auto_added: {
-        type: Sequelize.BOOLEAN,
-        allowNull: false,
-        defaultValue: false,
-      },
-      expires_at: {
-        type: Sequelize.DATE,
-        allowNull: true,
-      },
-      resolved_at: {
-        type: Sequelize.DATE,
-        allowNull: true,
-      },
-      resolved_by: {
-        type: Sequelize.UUID,
-        allowNull: true,
-        references: { model: 'users', key: 'id' },
-      },
-      resolution_notes: {
-        type: Sequelize.TEXT,
-        allowNull: true,
-      },
-      created_at: {
-        type: Sequelize.DATE,
-        allowNull: false,
-        defaultValue: Sequelize.NOW,
-      },
-      updated_at: {
-        type: Sequelize.DATE,
-        allowNull: false,
-        defaultValue: Sequelize.NOW,
-      },
-    });
+    await queryInterface.sequelize.query(`
+      CREATE TABLE IF NOT EXISTS blacklist_entries (
+        id             UUID          NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+        user_id        UUID          NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        added_by       UUID          NOT NULL REFERENCES users(id),
+        type           VARCHAR(50)   NOT NULL,
+        severity       VARCHAR(20)   NOT NULL DEFAULT 'medium',
+        reason         TEXT          NOT NULL,
+        is_active      BOOLEAN       NOT NULL DEFAULT true,
+        auto_added     BOOLEAN       NOT NULL DEFAULT false,
+        expires_at     TIMESTAMPTZ,
+        resolved_at    TIMESTAMPTZ,
+        resolved_by    UUID          REFERENCES users(id),
+        resolution_notes TEXT,
+        created_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
+        updated_at     TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+      )
+    `);
 
-    await queryInterface.addIndex('blacklist_entries', ['user_id']);
-    await queryInterface.addIndex('blacklist_entries', ['is_active']);
+    await queryInterface.sequelize.query(`
+      CREATE INDEX IF NOT EXISTS blacklist_entries_user_id    ON blacklist_entries (user_id);
+      CREATE INDEX IF NOT EXISTS blacklist_entries_is_active  ON blacklist_entries (is_active);
+    `);
   },
 
   async down(queryInterface) {
