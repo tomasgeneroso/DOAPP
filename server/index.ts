@@ -190,6 +190,15 @@ app.use(
   })
 );
 
+// Health check - must be BEFORE WAF so CI/monitoring can always reach it
+app.get("/api/health", (_req, res) => {
+  res.json({
+    success: true,
+    message: "Servidor funcionando correctamente",
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // WAF - Web Application Firewall (aplicar temprano para bloquear ataques)
 app.use(wafMiddleware);
 
@@ -310,15 +319,6 @@ app.use("/api/admin/pending-payments", adminPendingPaymentsRoutes);
 
 // Analytics Routes
 app.use("/api/analytics/disputes", analyticsDisputesRoutes);
-
-// Health check
-app.get("/api/health", (req, res) => {
-  res.json({
-    success: true,
-    message: "Servidor funcionando correctamente",
-    timestamp: new Date().toISOString(),
-  });
-});
 
 // Endpoint para obtener términos y condiciones
 app.get("/api/legal/terms-app", (req, res) => {
