@@ -5,8 +5,8 @@
 module.exports = {
   apps: [{
     name: 'doapp',
-    script: './node_modules/.bin/tsx',
-    args: 'server/index.ts',
+    script: 'npx',
+    args: 'tsx server/index.ts',
     cwd: '/var/www/doapp',
     instances: 1,
     exec_mode: 'fork',

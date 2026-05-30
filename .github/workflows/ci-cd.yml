@@ -130,8 +130,10 @@ jobs:
             NODE_ENV=production npx sequelize-cli db:migrate
             echo "✅ Migrations completed"
 
-            echo "🔄 Restarting application with latest ecosystem config..."
-            pm2 startOrReload ecosystem.config.cjs --update-env || pm2 restart doapp || pm2 start ecosystem.config.cjs
+            echo "🔄 Restarting application..."
+            pm2 stop doapp 2>/dev/null || true
+            pm2 delete doapp 2>/dev/null || true
+            pm2 start ecosystem.config.cjs
 
             echo "⏳ Waiting for server to start (max 3 min)..."
             started=false
