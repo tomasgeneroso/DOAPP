@@ -118,7 +118,7 @@ jobs:
             git rev-parse --short HEAD
 
             echo "📥 Pulling latest code..."
-            git pull origin master
+            git fetch origin && git reset --hard origin/master
 
             echo "📦 Installing dependencies..."
             npm install --legacy-peer-deps
@@ -127,7 +127,7 @@ jobs:
             npm run build:client
 
             echo "🗄️  Running database migrations..."
-            npx sequelize-cli db:migrate
+            NODE_ENV=production npx sequelize-cli db:migrate
             echo "✅ Migrations completed"
 
             echo "🔄 Restarting application..."
