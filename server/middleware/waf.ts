@@ -605,6 +605,8 @@ function checkHeaderInjection(req: Request): boolean {
 // MIDDLEWARE PRINCIPAL
 // ============================================
 
+const WAF_EXEMPT_PATHS = ['/api/health'];
+
 export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
   if (!WAF_CONFIG.enabled) {
     return next();
@@ -612,6 +614,11 @@ export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
 
   // Skip WAF entirely in development - only enforce in production
   if (process.env.NODE_ENV !== 'production') {
+    return next();
+  }
+
+  // Exempt health check and other monitoring paths
+  if (WAF_EXEMPT_PATHS.includes(req.path)) {
     return next();
   }
 
