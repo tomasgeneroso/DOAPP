@@ -39,6 +39,7 @@ interface OAuthTokenResponse {
   user_id: number;
   refresh_token: string;
   public_key: string;
+  message?: string;
 }
 
 interface MercadoPagoUserInfo {
@@ -156,7 +157,7 @@ class MercadoPagoOAuthService {
         }).toString(),
       });
 
-      const tokenData: OAuthTokenResponse = await response.json().catch(() => ({} as any));
+      const tokenData: OAuthTokenResponse = await (response.json() as Promise<any>).catch(() => ({}));
       if (!response.ok) {
         console.error('❌ OAuth token exchange failed:', tokenData);
         throw new Error(tokenData.message || 'Failed to exchange code for token');
@@ -193,7 +194,7 @@ class MercadoPagoOAuthService {
         }).toString(),
       });
 
-      const tokenData: OAuthTokenResponse = await response.json().catch(() => ({} as any));
+      const tokenData: OAuthTokenResponse = await (response.json() as Promise<any>).catch(() => ({}));
       if (!response.ok) {
         console.error('❌ OAuth token refresh failed:', tokenData);
         throw new Error(tokenData.message || 'Failed to refresh token');

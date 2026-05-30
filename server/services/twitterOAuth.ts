@@ -110,7 +110,7 @@ export async function exchangeCodeForTokens(code: string, state: string): Promis
     body: params.toString(),
   });
 
-  const data = await response.json().catch(() => ({} as any));
+  const data = await (response.json() as Promise<any>).catch(() => ({}));
   if (!response.ok) {
     console.error('🐦 Twitter token error:', data);
     throw new Error(`Twitter token error: ${data.error_description || data.error || 'Unknown error'}`);
@@ -141,7 +141,7 @@ export async function getUserProfile(accessToken: string): Promise<{
     },
   });
 
-  const data = await response.json().catch(() => ({} as any));
+  const data = await (response.json() as Promise<any>).catch(() => ({}));
   if (!response.ok) {
     console.error('🐦 Twitter API error:', data);
     throw new Error(`Twitter API error: ${data.detail || data.title || 'Unknown error'}`);
@@ -182,7 +182,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<{
     body: params.toString(),
   });
 
-  const data = await response.json().catch(() => ({} as any));
+  const data = await (response.json() as Promise<any>).catch(() => ({}));
   if (!response.ok) {
     throw new Error(`Twitter refresh error: ${data.error_description || data.error || 'Unknown error'}`);
   }

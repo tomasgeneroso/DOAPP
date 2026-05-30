@@ -4,7 +4,7 @@ import { User } from "../models/sql/User.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
 import { Job } from "../models/sql/Job.model.js";
 import { Review } from "../models/sql/Review.model.js";
-import { JOB_CATEGORIES } from "../../shared/constants/categories.js";
+import { JOB_CATEGORIES } from "../constants/categories.js";
 import { dataMinimizationMiddleware } from "../middleware/dataMinimization.js";
 import type { AuthRequest } from "../middleware/auth.js";
 

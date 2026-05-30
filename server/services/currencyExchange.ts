@@ -228,7 +228,7 @@ class CurrencyExchangeService {
       throw new Error(`API returned status ${response.status}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as any;
 
     // Manejar diferentes formatos de respuesta
     if (url.includes('fawazahmed0')) {
