@@ -410,14 +410,8 @@ router.post(
       const { Job } = await import("../../models/sql/Job.model.js");
       const job = await Job.findByPk(contract.jobId);
 
-      await emailService.sendDisputeResolvedEmail(
-        dispute.id.toString(),
-        contract.clientId,
-        contract.doerId,
-        job?.title || "Contrato",
-        resolution,
-        resolutionType
-      );
+      await emailService.sendDisputeResolvedEmail(contract.clientId, dispute.id.toString(), resolution, 0);
+      await emailService.sendDisputeResolvedEmail(contract.doerId, dispute.id.toString(), resolution, 0);
 
       // Emit socket event to notify contract update
       const { getIO } = await import("../../services/socket.js");
@@ -796,10 +790,9 @@ router.post(
       const job = await Job.findByPk(contract.jobId);
 
       await emailService.sendDisputeCreatedEmail(
-        dispute.id.toString(),
         userId,
         againstUserId,
-        contractId,
+        dispute.id.toString(),
         job?.title || "Contrato",
         title
       );

@@ -244,7 +244,7 @@ app.use("/uploads", (req, res, next) => {
 }, express.static(path.join(__dirname, "../uploads")));
 
 // Feature Flags
-import { features } from '../shared/featureFlags.js';
+import { features } from './featureFlags.js';
 
 // API Routes (core - always enabled)
 app.use("/api/auth", authLimiter, authRoutes);

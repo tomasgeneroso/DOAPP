@@ -451,7 +451,7 @@ router.post(
       const coverImage = req.file ? `/uploads/blogs/${req.file.filename}` : undefined;
 
       // Generate unique slug
-      let baseSlug = title
+      const baseSlug = title
         .toLowerCase()
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
@@ -805,7 +805,7 @@ router.get("/:slug/related", async (req: Request, res: Response): Promise<void> 
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
 
     // Try blog_posts table first
-    let currentPost = await BlogPost.findOne({
+    const currentPost = await BlogPost.findOne({
       where: isUUID ? { id: slug, status: "published" } : { slug, status: "published" },
     });
 

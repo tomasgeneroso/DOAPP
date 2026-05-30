@@ -361,7 +361,7 @@ router.put(
 
       const updateData: any = { status };
       if (resolution) updateData.resolution = resolution;
-      if (status === 'resolved' && !ticket.resolvedAt) updateData.resolvedAt = new Date();
+      if (status === 'resolved' && !(ticket as any).resolvedAt) updateData.resolvedAt = new Date();
       if (status === 'closed') updateData.closedAt = new Date();
       await ticket.update(updateData);
       await ticket.reload({

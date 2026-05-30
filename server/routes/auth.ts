@@ -957,7 +957,7 @@ router.post("/facebook/token", async (req: Request, res: Response): Promise<void
       `https://graph.facebook.com/me?fields=id,name,email,picture&access_token=${accessToken}`
     );
 
-    const fbUser = await response.json();
+    const fbUser = await response.json() as any;
 
     if (fbUser.error || fbUser.id !== userID) {
       res.status(401).json({

@@ -132,8 +132,8 @@ const XSS_PATTERNS = [
 
 // Path traversal patterns
 const PATH_TRAVERSAL_PATTERNS = [
-  /\.\.[\/\\]/,
-  /%2e%2e[\/\\%]/i,
+  /\.\.[/\\]/,
+  /%2e%2e[/\\%]/i,
   /%252e%252e/i,
   /\.\.%2f/i,
   /\.\.%5c/i,

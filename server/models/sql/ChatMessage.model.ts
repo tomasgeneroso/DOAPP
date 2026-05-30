@@ -121,7 +121,7 @@ export class ChatMessage extends Model {
   deleted!: boolean;
 
   @Column(DataType.DATE)
-  deletedAt?: Date;
+  declare deletedAt?: Date;
 
   // ============================================
   // METHODS

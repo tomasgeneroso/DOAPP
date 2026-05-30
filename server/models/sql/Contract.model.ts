@@ -619,7 +619,7 @@ export class Contract extends Model {
   isDeleted!: boolean;
 
   @Column(DataType.DATE)
-  deletedAt?: Date;
+  declare deletedAt?: Date;
 
   @ForeignKey(() => User)
   @Column(DataType.UUID)

@@ -45,7 +45,7 @@ router.post(
       };
 
       // Get user if authenticated
-      let userId = undefined;
+      const userId = undefined;
       const authHeader = req.headers.authorization;
       if (authHeader && authHeader.startsWith('Bearer')) {
         // User is authenticated, extract from token if needed

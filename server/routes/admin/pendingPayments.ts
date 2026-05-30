@@ -133,12 +133,13 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
         startDate.setHours(0, 0, 0, 0);
         endDate.setHours(23, 59, 59, 999);
         break;
-      case 'weekly':
+      case 'weekly': {
         const dayOfWeek = startDate.getDay();
         startDate.setDate(startDate.getDate() - dayOfWeek);
         startDate.setHours(0, 0, 0, 0);
         endDate.setHours(23, 59, 59, 999);
         break;
+      }
       case 'monthly':
         startDate.setDate(1);
         startDate.setHours(0, 0, 0, 0);
@@ -420,8 +421,8 @@ router.get("/export/csv", protect, requireRole('admin', 'super_admin', 'owner'),
     const { period = 'monthly' } = req.query;
 
     // Calculate date range
-    let startDate = new Date();
-    let endDate = new Date();
+    const startDate = new Date();
+    const endDate = new Date();
 
     switch (period) {
       case 'daily':
@@ -531,11 +532,12 @@ router.get("/completed/list", protect, requireRole('admin', 'super_admin', 'owne
       case 'daily':
         startDate.setHours(0, 0, 0, 0);
         break;
-      case 'weekly':
+      case 'weekly': {
         const dayOfWeek = startDate.getDay();
         startDate.setDate(startDate.getDate() - dayOfWeek);
         startDate.setHours(0, 0, 0, 0);
         break;
+      }
       case 'monthly':
         startDate.setDate(1);
         startDate.setHours(0, 0, 0, 0);

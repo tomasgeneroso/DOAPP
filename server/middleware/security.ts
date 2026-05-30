@@ -1,5 +1,6 @@
 import rateLimit from "express-rate-limit";
 import { Request, Response, NextFunction } from "express";
+import crypto from "crypto";
 
 /**
  * Rate limiter for authentication endpoints
@@ -186,7 +187,7 @@ export const csrfProtection = (req: Request, res: Response, next: NextFunction) 
 export const generateCsrfToken = (req: Request, res: Response, next: NextFunction) => {
   const session = req.session as any;
   if (!session?.csrfToken) {
-    session.csrfToken = require("crypto").randomBytes(32).toString("hex");
+    session.csrfToken = crypto.randomBytes(32).toString("hex");
   }
   next();
 };
