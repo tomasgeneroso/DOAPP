@@ -130,8 +130,8 @@ jobs:
             NODE_ENV=production npx sequelize-cli db:migrate
             echo "✅ Migrations completed"
 
-            echo "🔄 Restarting application..."
-            pm2 restart doapp || pm2 start ecosystem.config.cjs
+            echo "🔄 Restarting application with latest ecosystem config..."
+            pm2 startOrReload ecosystem.config.cjs --update-env || pm2 restart doapp || pm2 start ecosystem.config.cjs
 
             echo "⏳ Waiting for server to start (max 3 min)..."
             started=false
@@ -162,6 +162,15 @@ jobs:
               echo "  Stable ($j/6)"
             done
             echo "✅ Server is stable"
+
+            echo "📋 PM2 status:"
+            pm2 status
+
+            echo "📋 PM2 error log (last 30 lines):"
+            tail -30 /var/log/pm2/doapp-error.log 2>/dev/null || pm2 logs doapp --lines 30 --nostream --err || true
+
+            echo "✅ Deploy completed! Commit:"
+            git rev-parse --short HEAD
 
             echo "📋 PM2 status:"
             pm2 status
