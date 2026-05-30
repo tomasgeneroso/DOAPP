@@ -1,4 +1,4 @@
-import {
+﻿import {
   Table,
   Column,
   Model,
@@ -62,7 +62,7 @@ export class BlogPost extends Model {
     defaultValue: DataType.UUIDV4,
     primaryKey: true,
   })
-  id!: string;
+  declare id: string;
 
   @Column({
     type: DataType.STRING(200),
@@ -247,10 +247,10 @@ export class BlogPost extends Model {
   updater?: User;
 
   @CreatedAt
-  createdAt!: Date;
+  declare createdAt: Date;
 
   @UpdatedAt
-  updatedAt!: Date;
+  declare updatedAt: Date;
 
   /**
    * Generate slug from title

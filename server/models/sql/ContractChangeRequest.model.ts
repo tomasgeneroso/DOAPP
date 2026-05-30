@@ -1,4 +1,4 @@
-import 'reflect-metadata';
+﻿import 'reflect-metadata';
 import {
   Table,
   Column,
@@ -65,7 +65,7 @@ export class ContractChangeRequest extends Model {
     defaultValue: DataType.UUIDV4,
     primaryKey: true,
   })
-  id!: string;
+  declare id: string;
 
   // ============================================
   // RELATIONSHIPS

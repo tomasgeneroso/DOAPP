@@ -1,4 +1,4 @@
-import 'reflect-metadata';
+﻿import 'reflect-metadata';
 import {
   Table,
   Column,
@@ -42,7 +42,7 @@ export class JobTask extends Model {
     defaultValue: DataType.UUIDV4,
     primaryKey: true,
   })
-  id!: string;
+  declare id: string;
 
   // ============================================
   // RELATIONSHIPS
@@ -176,10 +176,10 @@ export class JobTask extends Model {
   // ============================================
 
   @Column(DataType.DATE)
-  createdAt!: Date;
+  declare createdAt: Date;
 
   @Column(DataType.DATE)
-  updatedAt!: Date;
+  declare updatedAt: Date;
 
   // ============================================
   // VIRTUAL METHODS

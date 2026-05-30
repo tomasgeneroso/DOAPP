@@ -1,4 +1,4 @@
-import 'reflect-metadata';
+﻿import 'reflect-metadata';
 import {
   Table,
   Column,
@@ -39,7 +39,7 @@ export class FamilyCode extends Model {
     defaultValue: DataType.UUIDV4,
     primaryKey: true,
   })
-  id!: string;
+  declare id: string;
 
   // Nombre del beneficiario
   @AllowNull(false)

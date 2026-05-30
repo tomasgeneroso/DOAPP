@@ -1,4 +1,4 @@
-import {
+﻿import {
   Table,
   Column,
   Model,
@@ -44,7 +44,7 @@ export class ContactMessage extends Model {
     defaultValue: DataType.UUIDV4,
     primaryKey: true,
   })
-  id!: string;
+  declare id: string;
 
   @Column({
     type: DataType.STRING(100),
@@ -145,10 +145,10 @@ export class ContactMessage extends Model {
   userAgent?: string;
 
   @CreatedAt
-  createdAt!: Date;
+  declare createdAt: Date;
 
   @UpdatedAt
-  updatedAt!: Date;
+  declare updatedAt: Date;
 
   /**
    * Assign to a user

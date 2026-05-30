@@ -1,4 +1,4 @@
-import {
+﻿import {
   Table,
   Column,
   Model,
@@ -48,7 +48,7 @@ export class DataAccessLog extends Model {
     defaultValue: DataType.UUIDV4,
     primaryKey: true,
   })
-  id!: string;
+  declare id: string;
 
   @ForeignKey(() => User)
   @Column({

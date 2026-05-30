@@ -1,4 +1,4 @@
-import {
+﻿import {
   Table,
   Column,
   Model,
@@ -55,7 +55,7 @@ export class Post extends Model {
     defaultValue: DataType.UUIDV4,
     primaryKey: true,
   })
-  id!: string;
+  declare id: string;
 
   @ForeignKey(() => User)
   @Column({
@@ -162,10 +162,10 @@ export class Post extends Model {
   comments?: PostComment[];
 
   @CreatedAt
-  createdAt!: Date;
+  declare createdAt: Date;
 
   @UpdatedAt
-  updatedAt!: Date;
+  declare updatedAt: Date;
 
   /**
    * Toggle like on post

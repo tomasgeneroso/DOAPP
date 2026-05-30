@@ -1,4 +1,4 @@
-import 'reflect-metadata';
+﻿import 'reflect-metadata';
 import {
   Table,
   Column,
@@ -48,7 +48,7 @@ export class Conversation extends Model {
     defaultValue: DataType.UUIDV4,
     primaryKey: true,
   })
-  id!: string;
+  declare id: string;
 
   // ============================================
   // PARTICIPANTS (JSONB Array of UUIDs)

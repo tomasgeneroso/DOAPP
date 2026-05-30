@@ -1,4 +1,4 @@
-import 'reflect-metadata';
+﻿import 'reflect-metadata';
 import {
   Table,
   Column,
@@ -59,7 +59,7 @@ export class Job extends Model {
     defaultValue: DataType.UUIDV4,
     primaryKey: true,
   })
-  id!: string;
+  declare id: string;
 
   // ============================================
   // BASIC INFORMATION

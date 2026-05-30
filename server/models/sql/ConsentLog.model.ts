@@ -1,4 +1,4 @@
-import {
+﻿import {
   Table,
   Column,
   Model,
@@ -44,7 +44,7 @@ export class ConsentLog extends Model {
     defaultValue: DataType.UUIDV4,
     primaryKey: true,
   })
-  id!: string;
+  declare id: string;
 
   @ForeignKey(() => User)
   @Column({
@@ -89,7 +89,7 @@ export class ConsentLog extends Model {
     type: DataType.STRING(50),
     allowNull: false,
   })
-  version!: string;
+  declare version: string;
 
   @Column({
     type: DataType.STRING(45),

@@ -1,4 +1,4 @@
-import 'reflect-metadata';
+﻿import 'reflect-metadata';
 import {
   Table,
   Column,
@@ -45,7 +45,7 @@ export interface InvoiceMetadata {
 export class Invoice extends Model {
   @Default(DataType.UUIDV4)
   @Column({ type: DataType.UUID, primaryKey: true })
-  id!: string;
+  declare id: string;
 
   @Index({ unique: true })
   @AllowNull(false)

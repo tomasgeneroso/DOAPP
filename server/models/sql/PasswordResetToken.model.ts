@@ -1,4 +1,4 @@
-import 'reflect-metadata';
+﻿import 'reflect-metadata';
 import {
   Table,
   Column,
@@ -42,7 +42,7 @@ export class PasswordResetToken extends Model {
     defaultValue: DataType.UUIDV4,
     primaryKey: true,
   })
-  id!: string;
+  declare id: string;
 
   // ============================================
   // RELATIONSHIPS
@@ -96,7 +96,7 @@ export class PasswordResetToken extends Model {
   @Default(() => new Date())
   @Index
   @Column(DataType.DATE)
-  createdAt!: Date;
+  declare createdAt: Date;
 
   // ============================================
   // METHODS

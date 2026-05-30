@@ -1,4 +1,4 @@
-import 'reflect-metadata';
+﻿import 'reflect-metadata';
 import {
   Table,
   Column,
@@ -46,7 +46,7 @@ export interface QuotePartyInfo {
 })
 export class Quote extends Model {
   @Column({ type: DataType.UUID, defaultValue: DataType.UUIDV4, primaryKey: true })
-  id!: string;
+  declare id: string;
 
   @Column({ type: DataType.STRING(20), unique: true })
   quoteNumber!: string;

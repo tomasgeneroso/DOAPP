@@ -1,4 +1,4 @@
-import {
+﻿import {
   Table,
   Column,
   Model,
@@ -48,7 +48,7 @@ export class AuditLog extends Model {
     defaultValue: DataType.UUIDV4,
     primaryKey: true,
   })
-  id!: string;
+  declare id: string;
 
   @ForeignKey(() => User)
   @Column({
@@ -165,7 +165,7 @@ export class AuditLog extends Model {
     allowNull: false,
     defaultValue: DataType.NOW,
   })
-  createdAt!: Date;
+  declare createdAt: Date;
 
   /**
    * Log administrative action with full context

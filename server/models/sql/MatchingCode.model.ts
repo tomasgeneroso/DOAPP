@@ -1,4 +1,4 @@
-import {
+﻿import {
   Table,
   Column,
   Model,
@@ -43,7 +43,7 @@ export class MatchingCode extends Model {
     defaultValue: DataType.UUIDV4,
     primaryKey: true,
   })
-  id!: string;
+  declare id: string;
 
   @ForeignKey(() => Contract)
   @Column({
@@ -131,10 +131,10 @@ export class MatchingCode extends Model {
   meetingLocation?: string;
 
   @CreatedAt
-  createdAt!: Date;
+  declare createdAt: Date;
 
   @UpdatedAt
-  updatedAt!: Date;
+  declare updatedAt: Date;
 
   /**
    * Check if code is currently valid

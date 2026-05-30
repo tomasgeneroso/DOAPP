@@ -21,7 +21,7 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
     const limitNum = parseInt(limit as string);
 
     // Array to hold all blog posts
-    let allPosts: any[] = [];
+    const allPosts: any[] = [];
 
     // 1. Get official blog posts from blog_posts table
     // Skip if filtering by 'user' type or 'comunidad' category (virtual category for user articles)

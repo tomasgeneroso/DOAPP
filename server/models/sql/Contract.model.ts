@@ -1,4 +1,4 @@
-import 'reflect-metadata';
+﻿import 'reflect-metadata';
 import crypto from 'crypto';
 import {
   Table,
@@ -127,7 +127,7 @@ export class Contract extends Model {
     defaultValue: DataType.UUIDV4,
     primaryKey: true,
   })
-  id!: string;
+  declare id: string;
 
   // ============================================
   // RELATIONSHIPS

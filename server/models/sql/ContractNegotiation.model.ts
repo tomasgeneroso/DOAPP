@@ -1,4 +1,4 @@
-import {
+﻿import {
   Table,
   Column,
   Model,
@@ -69,7 +69,7 @@ export class ContractNegotiation extends Model {
     defaultValue: DataType.UUIDV4,
     primaryKey: true,
   })
-  id!: string;
+  declare id: string;
 
   @ForeignKey(() => Contract)
   @Column({
@@ -146,10 +146,10 @@ export class ContractNegotiation extends Model {
   canceller?: User;
 
   @CreatedAt
-  createdAt!: Date;
+  declare createdAt: Date;
 
   @UpdatedAt
-  updatedAt!: Date;
+  declare updatedAt: Date;
 
   /**
    * Add a new message to the negotiation
