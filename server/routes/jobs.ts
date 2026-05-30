@@ -20,7 +20,7 @@ import { cacheService, generateCacheKey } from "../services/cacheService.js";
 import tasksRoutes from "./tasks.js";
 import { checkAndProcessUserExpiredJobs } from "../jobs/autoCancelExpiredJobs.js";
 import { calculateCommission } from "../services/commissionService.js";
-import { canJobsOverlap, getCategoryById } from "../../shared/constants/categories.js";
+import { canJobsOverlap, getCategoryById } from "../constants/categories.js";
 import crypto from 'crypto';
 
 const router = express.Router();

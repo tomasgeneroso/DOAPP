@@ -103,7 +103,7 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
   try {
     const { status, type } = req.query;
 
-    let whereClause: any = {};
+    const whereClause: any = {};
 
     // type: 'sent' (propuestas enviadas) o 'received' (propuestas recibidas)
     if (type === "sent") {

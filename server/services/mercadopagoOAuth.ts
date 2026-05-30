@@ -1,4 +1,4 @@
-// @ts-nocheck
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * MercadoPago OAuth & Split Payments Service
  *

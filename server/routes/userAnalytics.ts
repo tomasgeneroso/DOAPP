@@ -144,7 +144,8 @@ async function calculateAnalytics(userId: string) {
     }
 
     // Repeat clients
-    const clientId = (typeof contract.client === "object" ? (contract.client as any)?.id : contract.client).toString();
+    const rawClientId = typeof contract.client === "object" ? (contract.client as any)?.id : contract.client;
+    const clientId = (rawClientId ?? '').toString();
     clientMap.set(clientId, (clientMap.get(clientId) || 0) + 1);
 
     // Success rate (no disputes)
@@ -285,7 +286,7 @@ router.post("/profile-view", protect, async (req: AuthRequest, res: Response) =>
       return res.json({ message: "No se rastrean visitas propias" });
     }
 
-    let analytics = await getOrCreateAnalytics(profileUserId);
+    const analytics = await getOrCreateAnalytics(profileUserId);
 
     // Check if this visitor already viewed recently (within 1 hour)
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);

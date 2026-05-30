@@ -197,10 +197,9 @@ router.post(
       const Job = (await import('../models/sql/Job.model.js')).Job;
       const job = await Job.findByPk(contract.jobId);
       await emailService.sendDisputeCreatedEmail(
-        dispute.id.toString(),
         userId.toString(),
         againstUserId.toString(),
-        contractId,
+        dispute.id.toString(),
         job?.title || 'Contrato',
         reason
       );

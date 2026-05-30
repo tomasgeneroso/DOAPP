@@ -167,7 +167,7 @@ router.post(
 
       // Process uploaded files
       const attachments = files && files.length > 0 ? files.map((file) => {
-        let fileType: "image" | "pdf" = file.mimetype === "application/pdf" ? "pdf" : "image";
+        const fileType: "image" | "pdf" = file.mimetype === "application/pdf" ? "pdf" : "image";
 
         return {
           fileName: file.originalname,
@@ -403,7 +403,7 @@ router.post(
 
       // Process uploaded files
       const attachments = files && files.length > 0 ? files.map((file) => {
-        let fileType: "image" | "pdf" = file.mimetype === "application/pdf" ? "pdf" : "image";
+        const fileType: "image" | "pdf" = file.mimetype === "application/pdf" ? "pdf" : "image";
 
         return {
           fileName: file.originalname,

@@ -379,8 +379,8 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
     }
 
     // Determine payer and recipient
-    let payerId = userId;
-    let recipientId = contract.clientId === userId
+    const payerId = userId;
+    const recipientId = contract.clientId === userId
       ? contract.doerId
       : contract.clientId;
 
@@ -1057,7 +1057,7 @@ router.get("/my/list", protect, async (req: AuthRequest, res: Response): Promise
     const userId = req.user.id;
     const { type = "all", page = 1, limit = 20 } = req.query;
 
-    let whereClause: any = {};
+    const whereClause: any = {};
     if (type === "sent") {
       // Include both: sent to others AND platform payments (job publications, etc)
       whereClause.payerId = userId;
