@@ -349,6 +349,53 @@ module.exports = {
       }
 
       // ================================================
+      // ENSURE COLUMNS REFERENCED IN CHECK CONSTRAINTS EXIST
+      // ================================================
+      await q(`
+        ALTER TABLE users
+          ADD COLUMN IF NOT EXISTS membership_tier       VARCHAR(30),
+          ADD COLUMN IF NOT EXISTS membership_expires_at TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS two_factor_secret     VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS ban_reason            TEXT,
+          ADD COLUMN IF NOT EXISTS banned_at             TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS banned_by             UUID
+      `);
+      await q(`
+        ALTER TABLE contracts
+          ADD COLUMN IF NOT EXISTS dispute_id               UUID,
+          ADD COLUMN IF NOT EXISTS disputed_at              TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS extension_requested_by   UUID,
+          ADD COLUMN IF NOT EXISTS extension_requested_at   TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS original_end_date        TIMESTAMPTZ
+      `);
+      await q(`
+        ALTER TABLE tickets
+          ADD COLUMN IF NOT EXISTS resolution TEXT,
+          ADD COLUMN IF NOT EXISTS closed_at  TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS closed_by  UUID
+      `);
+      await q(`
+        ALTER TABLE jobs
+          ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ
+      `);
+      await q(`
+        ALTER TABLE disputes
+          ADD COLUMN IF NOT EXISTS resolution      TEXT,
+          ADD COLUMN IF NOT EXISTS resolved_at     TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS resolved_by     UUID,
+          ADD COLUMN IF NOT EXISTS resolution_type VARCHAR(30)
+      `);
+      await q(`
+        ALTER TABLE payments
+          ADD COLUMN IF NOT EXISTS refund_reason TEXT,
+          ADD COLUMN IF NOT EXISTS refunded_at   TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS refunded_by   UUID,
+          ADD COLUMN IF NOT EXISTS dispute_id    UUID,
+          ADD COLUMN IF NOT EXISTS disputed_at   TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS disputed_by   UUID
+      `);
+
+      // ================================================
       // CHECK CONSTRAINTS (IF NOT EXISTS — safe to re-run)
       // ================================================
       const checks = [
