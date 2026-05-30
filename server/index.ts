@@ -6,8 +6,6 @@ import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import session from "express-session";
-import connectPgSimple from "connect-pg-simple";
-import { Pool } from "pg";
 import path from "path";
 import { fileURLToPath } from "url";
 import { config } from "./config/env.js";
@@ -220,18 +218,16 @@ app.use(securityHeaders);
 app.use(xssProtection);
 app.use(preventDirectoryTraversal);
 
+// Silence MemoryStore production warning — app uses JWT; sessions are only for Passport OAuth
+const origWarn = console.warn.bind(console);
+console.warn = (...args: unknown[]) => {
+  if (typeof args[0] === "string" && args[0].includes("MemoryStore")) return;
+  origWarn(...args);
+};
+
 // Express session (requerido para Passport OAuth)
-const PgStore = connectPgSimple(session);
-const sessionPool = new Pool({
-  host: config.dbHost,
-  port: config.dbPort,
-  database: config.dbName,
-  user: config.dbUser,
-  password: config.dbPassword,
-});
 app.use(
   session({
-    store: new PgStore({ pool: sessionPool }),
     secret: config.jwtSecret,
     resave: false,
     saveUninitialized: false,

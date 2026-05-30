@@ -133,17 +133,23 @@ jobs:
             echo "🔄 Restarting application..."
             pm2 restart doapp || pm2 start ecosystem.config.cjs
 
-            echo "⏳ Waiting for app to start..."
-            sleep 15
+            echo "⏳ Waiting for server to be ready (max 3 min)..."
+            for i in $(seq 1 18); do
+              sleep 10
+              if curl -sf http://localhost:3001/api/health > /dev/null 2>&1; then
+                echo "✅ Server ready after ~${i}0s"
+                break
+              fi
+              echo "  Not ready yet ($i/18)..."
+              if [ "$i" = "18" ]; then
+                echo "❌ Server did not start within 3 minutes"
+                pm2 logs doapp --lines 50 --nostream || true
+                exit 1
+              fi
+            done
 
             echo "📋 PM2 status:"
             pm2 status
-
-            echo "📋 Server logs (last 30 lines):"
-            pm2 logs doapp --lines 30 --nostream || true
-
-            echo "🏥 Local health check:"
-            curl -sf http://localhost:3001/api/health && echo "✅ Local OK" || echo "❌ Local health check failed"
 
             echo "✅ Deploy completed! New commit:"
             git rev-parse --short HEAD
