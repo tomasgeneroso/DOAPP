@@ -43,28 +43,10 @@ import { getCategoryById } from "../../shared/constants/categories";
 import LocationCircleMap from "../components/map/LocationCircleMap";
 import JobTasks from "../components/jobs/JobTasks";
 import { analytics } from "../utils/analytics";
-
-// Helper para parsear números en formato argentino (punto = miles, coma = decimal)
-// Ej: "40.000" -> 40000, "40.000,50" -> 40000.50
-const parseArgentineNumber = (value: string): number => {
-  if (!value) return 0;
-  // Remover espacios
-  let cleaned = value.trim();
-  // Si tiene coma, es decimal argentino: reemplazar puntos por nada y coma por punto
-  if (cleaned.includes(",")) {
-    cleaned = cleaned.replace(/\./g, "").replace(",", ".");
-  } else {
-    // Si solo tiene puntos, asumimos que son separadores de miles
-    cleaned = cleaned.replace(/\./g, "");
-  }
-  return parseFloat(cleaned) || 0;
-};
-
-// Helper para formatear número para mostrar en input (sin separadores)
-const formatBudgetInput = (value: string): string => {
-  // Solo permitir números, puntos y comas
-  return value.replace(/[^0-9.,]/g, "");
-};
+import { parseArgentineNumber, formatBudgetInput } from "../utils/numberFormat";
+import ConfirmationSuccessModal from "../components/jobDetail/ConfirmationSuccessModal";
+import ErrorModal from "../components/jobDetail/ErrorModal";
+import ContractRedirectModal from "../components/jobDetail/ContractRedirectModal";
 
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
@@ -5230,119 +5212,31 @@ export default function JobDetail() {
           </div>
         )}
 
-        {/* Contract Redirect Modal */}
-        {showContractRedirectModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-purple-600 bg-slate-900 p-6 shadow-2xl">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-500/20">
-                  <ExternalLink className="h-6 w-6 text-purple-500" />
-                </div>
-                <h3 className="text-xl font-bold text-white">
-                  {t("jobs.redirectToContract", "Redirect to Contract")}
-                </h3>
-              </div>
-
-              <div className="mb-6 space-y-4">
-                <p className="text-slate-300">{contractRedirectMessage}</p>
-
-                <div className="rounded-xl border border-purple-600 bg-purple-900/30 p-4">
-                  <p className="text-sm text-purple-300">
-                    <strong>{t("common.note", "Note")}:</strong>{" "}
-                    {t(
-                      "jobs.changeBudgetFromContract",
-                      "To change the budget of a job in progress, you must do it from the active contract.",
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowContractRedirectModal(false);
-                    setContractRedirectUrl("");
-                    setContractRedirectMessage("");
-                  }}
-                  className="flex-1 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600"
-                >
-                  {t("common.cancel", "Cancel")}
-                </button>
-                <button
-                  onClick={() => {
-                    if (contractRedirectUrl) {
-                      window.location.href = contractRedirectUrl;
-                    }
-                  }}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:from-purple-600 hover:to-purple-700"
-                >
-                  {t("jobs.goToContract", "Go to Contract")}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <ContractRedirectModal
+          open={showContractRedirectModal}
+          message={contractRedirectMessage}
+          redirectUrl={contractRedirectUrl}
+          onClose={() => {
+            setShowContractRedirectModal(false);
+            setContractRedirectUrl("");
+            setContractRedirectMessage("");
+          }}
+        />
 
         {/* Confirmation Success Modal */}
-        {showConfirmationSuccessModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-green-600 bg-slate-900 p-6 shadow-2xl">
-              <div className="mb-4 flex flex-col items-center text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 mb-4">
-                  <CheckCircle className="h-10 w-10 text-green-500" />
-                </div>
-                <h3 className="text-2xl font-bold text-white mb-2">
-                  {t(
-                    "jobs.thanksForConfirming",
-                    "Thank you for confirming the job!",
-                  )}
-                </h3>
-                <p className="text-slate-300">
-                  {t(
-                    "jobs.weHandlePayment",
-                    "Thank you for trusting DoApp, we make sure the payment reaches its destination.",
-                  )}
-                </p>
-              </div>
+        <ConfirmationSuccessModal
+          open={showConfirmationSuccessModal}
+          onClose={() => setShowConfirmationSuccessModal(false)}
+        />
 
-              <div className="flex justify-center">
-                <button
-                  onClick={() => setShowConfirmationSuccessModal(false)}
-                  className="rounded-xl bg-gradient-to-r from-green-500 to-green-600 px-8 py-3 font-semibold text-white shadow-lg transition-all hover:from-green-600 hover:to-green-700"
-                >
-                  {t("common.understood", "Understood")}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Error Modal */}
-        {showErrorModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-red-600 bg-slate-900 p-6 shadow-2xl">
-              <div className="mb-4 flex flex-col items-center text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500/20 mb-4">
-                  <XCircle className="h-10 w-10 text-red-500" />
-                </div>
-                <h3 className="text-2xl font-bold text-white mb-2">Error</h3>
-                <p className="text-slate-300">{errorMessage}</p>
-              </div>
-
-              <div className="flex justify-center">
-                <button
-                  onClick={() => {
-                    setShowErrorModal(false);
-                    setErrorMessage("");
-                  }}
-                  className="rounded-xl bg-gradient-to-r from-red-500 to-red-600 px-8 py-3 font-semibold text-white shadow-lg transition-all hover:from-red-600 hover:to-red-700"
-                >
-                  {t("common.understood", "Understood")}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <ErrorModal
+          open={showErrorModal}
+          message={errorMessage}
+          onClose={() => {
+            setShowErrorModal(false);
+            setErrorMessage("");
+          }}
+        />
       </div>
     </>
   );
