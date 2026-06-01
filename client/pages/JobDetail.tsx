@@ -47,6 +47,9 @@ import { parseArgentineNumber, formatBudgetInput } from "../utils/numberFormat";
 import ConfirmationSuccessModal from "../components/jobDetail/ConfirmationSuccessModal";
 import ErrorModal from "../components/jobDetail/ErrorModal";
 import ContractRedirectModal from "../components/jobDetail/ContractRedirectModal";
+import PauseApprovalModal from "../components/jobDetail/PauseApprovalModal";
+import CancelJobModal from "../components/jobDetail/CancelJobModal";
+import DeleteJobModal from "../components/jobDetail/DeleteJobModal";
 
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
@@ -4609,215 +4612,33 @@ export default function JobDetail() {
         </div>
 
         {/* Pause Approval Request Modal */}
-        {showPauseApprovalModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-amber-600 bg-slate-900 p-6 shadow-2xl">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/20">
-                  <Pause className="h-6 w-6 text-amber-400" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-white">Pausar publicación</h3>
-                  <p className="text-sm text-slate-400">Hay un trabajador asignado</p>
-                </div>
-              </div>
-              <p className="text-slate-300 text-sm mb-5">
-                Tu publicación tiene un trabajador asignado. Para pausarla necesitás su aprobación.
-                ¿Querés enviarle una solicitud de pausa?
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={handleRequestPauseApproval}
-                  disabled={requestingPauseApproval}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-xl transition disabled:opacity-50"
-                >
-                  {requestingPauseApproval ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pause className="h-4 w-4" />}
-                  Enviar solicitud
-                </button>
-                <button
-                  onClick={() => setShowPauseApprovalModal(false)}
-                  className="flex-1 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-xl transition"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <PauseApprovalModal
+          open={showPauseApprovalModal}
+          loading={requestingPauseApproval}
+          onConfirm={handleRequestPauseApproval}
+          onClose={() => setShowPauseApprovalModal(false)}
+        />
 
-        {/* Cancel Confirmation Modal */}
-        {showCancelModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-red-600 bg-slate-900 p-6 shadow-2xl">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/20">
-                  <XCircle className="h-6 w-6 text-red-500" />
-                </div>
-                <h3 className="text-xl font-bold text-white">
-                  {t("jobs.cancelListing", "Cancel Listing")}
-                </h3>
-              </div>
+        <CancelJobModal
+          open={showCancelModal}
+          timeRemaining={getTimeUntilCancelDeadline()}
+          reason={cancellationReason}
+          onReasonChange={setCancellationReason}
+          publicationAmount={job.publicationAmount}
+          loading={actionLoading}
+          onConfirm={handleCancelJob}
+          onClose={() => {
+            setShowCancelModal(false);
+            setCancellationReason("");
+          }}
+        />
 
-              <div className="mb-6 space-y-4">
-                <p className="text-slate-300">
-                  {t(
-                    "jobs.confirmCancelListing",
-                    "Are you sure you want to cancel this listing?",
-                  )}
-                </p>
-
-                {/* Time remaining info */}
-                {getTimeUntilCancelDeadline() && (
-                  <div className="rounded-xl border border-amber-600/50 bg-amber-900/20 p-3">
-                    <p className="text-sm text-amber-300">
-                      <Clock className="inline h-4 w-4 mr-1" />
-                      {t(
-                        "jobs.remember24hCancel",
-                        "Remember: You can only cancel up to 24 hours before the job starts.",
-                      )}
-                      <br />
-                      <span className="text-xs text-amber-400 mt-1 block">
-                        {t("jobs.actions.timeRemaining", "Time remaining:")}{" "}
-                        <strong>{getTimeUntilCancelDeadline()}</strong>
-                      </span>
-                    </p>
-                  </div>
-                )}
-
-                {/* Reason textarea */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    {t(
-                      "jobs.cancellationReasonOptional",
-                      "Cancellation reason (optional)",
-                    )}
-                  </label>
-                  <textarea
-                    value={cancellationReason}
-                    onChange={(e) => setCancellationReason(e.target.value)}
-                    placeholder={t(
-                      "jobs.cancellationReasonPlaceholder",
-                      "E.g.: I no longer need the service, found another solution...",
-                    )}
-                    rows={3}
-                    maxLength={500}
-                    className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-white placeholder:text-slate-500 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500 resize-none"
-                  />
-                  <p className="mt-1 text-xs text-slate-500 text-right">
-                    {cancellationReason.length}/500
-                  </p>
-                </div>
-
-                {job.publicationAmount && (
-                  <div className="rounded-xl border border-red-600 bg-red-900/30 p-4">
-                    <p className="text-sm font-bold text-red-300 mb-2">
-                      {t("common.importantWarning", "Important warning")}:
-                    </p>
-                    <p className="text-sm text-red-200">
-                      {t(
-                        "jobs.cancelWarningCommission",
-                        "By cancelling the listing",
-                      )}{" "}
-                      <span className="font-bold">
-                        {t(
-                          "jobs.willLoseCommission",
-                          "you will lose the commission paid",
-                        )}
-                      </span>{" "}
-                      (${job.publicationAmount?.toLocaleString("es-AR")} ARS).{" "}
-                      {t(
-                        "common.cannotBeUndone",
-                        "This action cannot be undone.",
-                      )}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowCancelModal(false);
-                    setCancellationReason("");
-                  }}
-                  disabled={actionLoading}
-                  className="flex-1 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600 disabled:opacity-50"
-                >
-                  {t("jobs.keepPublished", "No, keep published")}
-                </button>
-                <button
-                  onClick={handleCancelJob}
-                  disabled={actionLoading}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-red-500 to-red-600 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:from-red-600 hover:to-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {actionLoading ? (
-                    <Loader2 className="mx-auto h-5 w-5 animate-spin" />
-                  ) : (
-                    t("common.yesCancel", "Yes, cancel")
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Delete Confirmation Modal */}
-        {showDeleteModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-red-600 bg-slate-900 p-6 shadow-2xl">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/20">
-                  <Trash2 className="h-6 w-6 text-red-500" />
-                </div>
-                <h3 className="text-xl font-bold text-white">
-                  {t("jobs.deleteJob", "Delete Job")}
-                </h3>
-              </div>
-
-              <div className="mb-6 space-y-4">
-                <p className="text-slate-300">
-                  {t(
-                    "jobs.confirmDeletePermanently",
-                    "Are you sure you want to permanently delete this job?",
-                  )}
-                </p>
-
-                <div className="rounded-xl border border-red-600 bg-red-900/30 p-4">
-                  <p className="text-sm font-bold text-red-300 mb-2">
-                    {t("common.warning", "Warning")}:
-                  </p>
-                  <p className="text-sm text-red-200">
-                    {t(
-                      "jobs.deleteWarningPermanent",
-                      "This action will permanently delete the job and cannot be undone.",
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowDeleteModal(false)}
-                  disabled={deleting}
-                  className="flex-1 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600 disabled:opacity-50"
-                >
-                  {t("common.cancel", "Cancel")}
-                </button>
-                <button
-                  onClick={handleDeleteJob}
-                  disabled={deleting}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-red-500 to-red-600 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:from-red-600 hover:to-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {deleting ? (
-                    <Loader2 className="mx-auto h-5 w-5 animate-spin" />
-                  ) : (
-                    t("common.yesDelete", "Yes, delete")
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <DeleteJobModal
+          open={showDeleteModal}
+          loading={deleting}
+          onConfirm={handleDeleteJob}
+          onClose={() => setShowDeleteModal(false)}
+        />
 
         {/* Budget Change Modal */}
         {showBudgetModal && (
