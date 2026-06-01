@@ -53,6 +53,8 @@ import DeleteJobModal from "../components/jobDetail/DeleteJobModal";
 import ChangeBudgetModal from "../components/jobDetail/ChangeBudgetModal";
 import SelectWorkerConfirmModal from "../components/jobDetail/SelectWorkerConfirmModal";
 import BudgetPaymentConfirmModal from "../components/jobDetail/BudgetPaymentConfirmModal";
+import JobActionsMenu from "../components/jobDetail/JobActionsMenu";
+import ClientDropdownMenu from "../components/jobDetail/ClientDropdownMenu";
 
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
@@ -2231,30 +2233,11 @@ export default function JobDetail() {
                 </button>
 
                 {/* Dropdown Menu */}
-                {showClientMenu && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-10 overflow-hidden">
-                    <Link
-                      to={`/profile/${clientInfo?.id || clientInfo?._id}`}
-                      className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-                      onClick={() => setShowClientMenu(false)}
-                    >
-                      <User className="h-4 w-4 text-slate-500" />
-                      <span className="text-sm text-slate-700 dark:text-slate-200">
-                        {t("profile.viewProfile", "View profile")}
-                      </span>
-                    </Link>
-                    <Link
-                      to={`/profile/${clientInfo?.id || clientInfo?._id}?tab=jobs`}
-                      className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-t border-slate-100 dark:border-slate-700"
-                      onClick={() => setShowClientMenu(false)}
-                    >
-                      <Briefcase className="h-4 w-4 text-slate-500" />
-                      <span className="text-sm text-slate-700 dark:text-slate-200">
-                        {t("profile.viewPublishedJobs", "View published jobs")}
-                      </span>
-                    </Link>
-                  </div>
-                )}
+                <ClientDropdownMenu
+                  open={showClientMenu}
+                  clientId={clientInfo?.id || clientInfo?._id}
+                  onClose={() => setShowClientMenu(false)}
+                />
               </div>
               <div className="my-4 h-px bg-slate-200 dark:bg-slate-700"></div>
 
@@ -3706,61 +3689,21 @@ export default function JobDetail() {
                       />
                     </button>
 
-                    {showActionsMenu && (
-                      <>
-                        <div
-                          className="fixed inset-0 z-[5]"
-                          onClick={() => setShowActionsMenu(false)}
-                        />
-                        <div className="mt-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg overflow-hidden z-10 relative">
-                          <button
-                            onClick={() => {
-                              setShowBudgetModal(true);
-                              setShowActionsMenu(false);
-                            }}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-                          >
-                            <DollarSign className="h-4 w-4 text-sky-500" />
-                            {t("jobs.actions.changeBudget")}
-                          </button>
-                          <button
-                            onClick={() => {
-                              handlePauseJob();
-                              setShowActionsMenu(false);
-                            }}
-                            disabled={actionLoading || !canPauseJob()}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            <Pause className="h-4 w-4 text-amber-500" />
-                            {t("jobs.actions.pause")}
-                          </button>
-                          <button
-                            onClick={() => {
-                              setShowCancelModal(true);
-                              setShowActionsMenu(false);
-                            }}
-                            disabled={actionLoading || !canCancelJob()}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            <XCircle className="h-4 w-4 text-red-500" />
-                            {t("jobs.actions.cancel")}
-                          </button>
-                          <div className="border-t border-slate-200 dark:border-slate-700" />
-                          <button
-                            onClick={() => {
-                              navigate(
-                                `/tickets/new?type=job&jobId=${job.id || job._id}&jobTitle=${encodeURIComponent(job.title)}`,
-                              );
-                              setShowActionsMenu(false);
-                            }}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-                          >
-                            <Headphones className="h-4 w-4 text-green-500" />
-                            {t("jobs.actions.contactSupport")}
-                          </button>
-                        </div>
-                      </>
-                    )}
+                    <JobActionsMenu
+                      open={showActionsMenu}
+                      loading={actionLoading}
+                      canPause={canPauseJob()}
+                      canCancel={canCancelJob()}
+                      onChangeBudget={() => setShowBudgetModal(true)}
+                      onPause={handlePauseJob}
+                      onCancel={() => setShowCancelModal(true)}
+                      onContactSupport={() =>
+                        navigate(
+                          `/tickets/new?type=job&jobId=${job.id || job._id}&jobTitle=${encodeURIComponent(job.title)}`,
+                        )
+                      }
+                      onClose={() => setShowActionsMenu(false)}
+                    />
 
                     {/* Cancellation deadline warning */}
                     {!canCancelJob() ? (
