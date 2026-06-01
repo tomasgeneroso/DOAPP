@@ -21,7 +21,7 @@ import tasksRoutes from "./tasks.js";
 import { checkAndProcessUserExpiredJobs } from "../jobs/autoCancelExpiredJobs.js";
 import { calculateCommission } from "../services/commissionService.js";
 import { canJobsOverlap, getCategoryById } from "../constants/categories.js";
-import crypto from 'crypto';
+import { escapeIcsText, formatIcsDate, generateCalendarToken } from "../utils/calendarIcs.js";
 
 const router = express.Router();
 
@@ -621,18 +621,6 @@ router.get("/debug-by-code/:code", protect, async (req: AuthRequest, res: Respon
 });
 
 // --- iCal Calendar Feed (must be before /:id route) ---
-
-function escapeIcsText(text: string): string {
-  return text.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
-}
-
-function formatIcsDate(date: Date): string {
-  return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-}
-
-function generateCalendarToken(userId: string): string {
-  return crypto.createHash('sha256').update(`${userId}-${process.env.JWT_SECRET || 'doapp-secret'}-calendar`).digest('hex').substring(0, 32);
-}
 
 // Get subscription URL for authenticated user
 router.get("/calendar/subscription-url", protect, async (req: AuthRequest, res: Response): Promise<void> => {
