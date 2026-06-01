@@ -9,6 +9,7 @@
  * - Relationships with User and Job
  */
 
+import { describe, it, test, expect, beforeEach, afterAll } from '@jest/globals';
 import 'reflect-metadata';
 import { Proposal } from '../../../server/models/sql/Proposal.model.js';
 import { User } from '../../../server/models/sql/User.model.js';

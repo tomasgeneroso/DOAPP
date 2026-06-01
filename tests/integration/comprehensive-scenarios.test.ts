@@ -12,6 +12,7 @@
  * - Payment allocations
  */
 
+import { describe, it, test, expect, beforeAll, afterAll } from '@jest/globals';
 import request from 'supertest';
 import { sequelize } from '../../server/config/database';
 import { User } from '../../server/models/sql/User.model';

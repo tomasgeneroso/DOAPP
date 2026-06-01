@@ -1,20 +1,25 @@
-import emailService from '../../server/services/email.js';
-import { User } from '../../server/models/sql/User.model.js';
-import * as sendgridMail from '@sendgrid/mail';
+import { jest, describe, it, expect, beforeEach } from '@jest/globals';
 
-// Mock the email providers
-jest.mock('@sendgrid/mail', () => ({
-  setApiKey: jest.fn(),
-  send: jest.fn().mockResolvedValue([{ statusCode: 202 }]),
+// ESM-correct module mocking (jest.mock isn't hoisted in ESM — use unstable_mockModule
+// and dynamic imports). Providers are imported as defaults by email.ts.
+const sendgridSend = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue([{ statusCode: 202 }]);
+const sendgridSetApiKey = jest.fn();
+jest.unstable_mockModule('@sendgrid/mail', () => ({
+  default: { setApiKey: sendgridSetApiKey, send: sendgridSend },
+  setApiKey: sendgridSetApiKey,
+  send: sendgridSend,
 }));
 
-const sendgridMock = sendgridMail as jest.Mocked<typeof sendgridMail>;
-
-jest.mock('nodemailer', () => ({
-  createTransport: jest.fn().mockReturnValue({
-    sendMail: jest.fn().mockResolvedValue({ messageId: 'test-message-id' }),
-  }),
+const nodemailerSendMail = jest.fn<(...args: any[]) => Promise<any>>().mockResolvedValue({ messageId: 'test-message-id' });
+jest.unstable_mockModule('nodemailer', () => ({
+  default: { createTransport: jest.fn().mockReturnValue({ sendMail: nodemailerSendMail }) },
+  createTransport: jest.fn().mockReturnValue({ sendMail: nodemailerSendMail }),
 }));
+
+const { default: emailService } = await import('../../server/services/email.js');
+const { User } = await import('../../server/models/sql/User.model.js');
+
+const sendgridMock = { send: sendgridSend, setApiKey: sendgridSetApiKey };
 
 describe('Email Service', () => {
   let clientUser: any;
@@ -242,7 +247,7 @@ describe('Email Service', () => {
 
   describe('Error Handling', () => {
     it('should handle email sending failures gracefully', async () => {
-      (sendgridMock.send as jest.Mock).mockRejectedValueOnce(new Error('Email service error'));
+      (sendgridMock.send as any).mockRejectedValueOnce(new Error('Email service error'));
 
       await expect(
         emailService.sendContractCreatedEmail(

@@ -2,6 +2,7 @@
  * User Model Tests - PostgreSQL/Sequelize
  */
 
+import { describe, it, test, expect, beforeEach, afterEach, afterAll } from '@jest/globals';
 import { User } from '../../../server/models/sql/User.model.js';
 
 describe('User Model', () => {
