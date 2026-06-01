@@ -51,6 +51,8 @@ import PauseApprovalModal from "../components/jobDetail/PauseApprovalModal";
 import CancelJobModal from "../components/jobDetail/CancelJobModal";
 import DeleteJobModal from "../components/jobDetail/DeleteJobModal";
 import ChangeBudgetModal from "../components/jobDetail/ChangeBudgetModal";
+import SelectWorkerConfirmModal from "../components/jobDetail/SelectWorkerConfirmModal";
+import BudgetPaymentConfirmModal from "../components/jobDetail/BudgetPaymentConfirmModal";
 
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
@@ -4660,279 +4662,31 @@ export default function JobDetail() {
         />
 
         {/* Select Worker Confirmation Modal */}
-        {showSelectConfirmModal && selectedProposal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-green-600 bg-slate-900 p-6 shadow-2xl">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500/20">
-                  <CheckCircle className="h-6 w-6 text-green-500" />
-                </div>
-                <h3 className="text-xl font-bold text-white">
-                  {t("jobs.confirmSelection", "Confirm Selection")}
-                </h3>
-              </div>
+        <SelectWorkerConfirmModal
+          open={showSelectConfirmModal}
+          proposal={selectedProposal}
+          job={job}
+          loading={selectingWorker !== null}
+          onConfirm={() => handleSelectWorker(selectedProposal)}
+          onClose={() => {
+            setShowSelectConfirmModal(false);
+            setSelectedProposal(null);
+          }}
+        />
 
-              <div className="mb-6 space-y-4">
-                {/* Selected Worker Preview */}
-                <div className="flex items-center gap-3 p-4 rounded-xl bg-slate-800 border border-slate-700">
-                  <div className="h-14 w-14 overflow-hidden rounded-full bg-sky-100 ring-2 ring-green-500">
-                    <img
-                      src={
-                        selectedProposal.freelancer?.avatar ||
-                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${selectedProposal.freelancer?.name || "user"}`
-                      }
-                      alt={selectedProposal.freelancer?.name}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-white text-lg">
-                      {selectedProposal.freelancer?.name || "Usuario"}
-                    </p>
-                    <div className="flex items-center gap-3 text-sm text-slate-400">
-                      <span className="flex items-center gap-1">
-                        <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-                        {Number(
-                          selectedProposal.freelancer?.rating || 0,
-                        ).toFixed(1)}
-                      </span>
-                      <span>•</span>
-                      <span>
-                        {selectedProposal.freelancer?.completedJobs || 0}{" "}
-                        {t("common.jobs", "jobs")}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <p className="text-slate-300">
-                  {t(
-                    "jobs.confirmSelectWorker",
-                    "Are you sure you want to select",
-                  )}{" "}
-                  <span className="font-semibold text-white">
-                    {selectedProposal.freelancer?.name}
-                  </span>{" "}
-                  {t("jobs.forThisJob", "for this job?")}
-                </p>
-
-                {/* Monto acordado */}
-                <div
-                  className={`rounded-xl border p-4 ${
-                    selectedProposal.isCounterOffer
-                      ? "border-amber-600 bg-amber-900/30"
-                      : "border-sky-600 bg-sky-900/30"
-                  }`}
-                >
-                  <p
-                    className={`text-sm ${selectedProposal.isCounterOffer ? "text-amber-300" : "text-sky-300"}`}
-                  >
-                    <strong>{t("jobs.agreedAmount", "Agreed amount")}:</strong>{" "}
-                    <span className="font-bold text-lg">
-                      $
-                      {(
-                        selectedProposal.proposedPrice || job.price
-                      )?.toLocaleString("es-AR")}{" "}
-                      ARS
-                    </span>
-                    {selectedProposal.isCounterOffer && (
-                      <span className="block text-xs mt-1 text-amber-400">
-                        (
-                        {t(
-                          "jobs.counterOfferDifferent",
-                          "Counter-offer - different from original price of",
-                        )}{" "}
-                        ${job.price?.toLocaleString("es-AR")} ARS)
-                      </span>
-                    )}
-                  </p>
-                </div>
-
-                <div className="rounded-xl border border-green-600 bg-green-900/30 p-4">
-                  <p className="text-sm text-green-300">
-                    <strong>{t("jobs.onConfirm", "On confirm")}:</strong>
-                  </p>
-                  <ul className="text-sm text-green-200 mt-2 space-y-1">
-                    <li>
-                      •{" "}
-                      {t(
-                        "jobs.contractWillBeCreated",
-                        "A contract will be created with the worker",
-                      )}
-                    </li>
-                    <li>
-                      •{" "}
-                      {t(
-                        "jobs.workerWillBeNotified",
-                        "The worker will receive a notification",
-                      )}
-                    </li>
-                    {(job.maxWorkers || 1) > 1 ? (
-                      (job.selectedWorkers?.length || 0) + 1 >=
-                      (job.maxWorkers || 1) ? (
-                        <li>
-                          •{" "}
-                          {t(
-                            "jobs.otherApplicationsRejectedFull",
-                            "Other applications will be rejected (all {{count}} positions filled)",
-                            { count: job.maxWorkers },
-                          )}
-                        </li>
-                      ) : (
-                        <li>
-                          •{" "}
-                          {t(
-                            "jobs.otherApplicationsPending",
-                            "Other applications will remain pending ({{count}} position(s) remaining)",
-                            {
-                              count:
-                                (job.maxWorkers || 1) -
-                                (job.selectedWorkers?.length || 0) -
-                                1,
-                            },
-                          )}
-                        </li>
-                      )
-                    ) : (
-                      <li>
-                        •{" "}
-                        {t(
-                          "jobs.otherApplicationsRejected",
-                          "Other applications will be rejected",
-                        )}
-                      </li>
-                    )}
-                  </ul>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowSelectConfirmModal(false);
-                    setSelectedProposal(null);
-                  }}
-                  disabled={selectingWorker !== null}
-                  className="flex-1 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600 disabled:opacity-50"
-                >
-                  {t("common.cancel", "Cancel")}
-                </button>
-                <button
-                  onClick={() => handleSelectWorker(selectedProposal)}
-                  disabled={selectingWorker !== null}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-green-500 to-green-600 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:from-green-600 hover:to-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {selectingWorker !== null ? (
-                    <Loader2 className="mx-auto h-5 w-5 animate-spin" />
-                  ) : (
-                    t("jobs.confirmSelection", "Confirm Selection")
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Payment Confirmation Modal - Budget Increase */}
-        {showPaymentConfirmModal && paymentBreakdown && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-sky-600 bg-slate-900 p-6 shadow-2xl">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-500/20">
-                  <DollarSign className="h-6 w-6 text-sky-500" />
-                </div>
-                <h3 className="text-xl font-bold text-white">
-                  {t("jobs.paymentRequired", "Payment Required")}
-                </h3>
-              </div>
-
-              <div className="mb-6 space-y-4">
-                <p className="text-slate-300">{paymentBreakdown.message}</p>
-
-                {/* Payment Breakdown */}
-                <div className="rounded-xl border border-slate-700 bg-slate-800 p-4 space-y-3">
-                  <div className="flex justify-between text-sm text-slate-400">
-                    <span>{t("jobs.previousBudget", "Previous budget")}</span>
-                    <span>
-                      ${paymentBreakdown.oldPrice.toLocaleString("es-AR")} ARS
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm text-slate-400">
-                    <span>{t("jobs.newBudget", "New budget")}</span>
-                    <span>
-                      ${paymentBreakdown.newPrice.toLocaleString("es-AR")} ARS
-                    </span>
-                  </div>
-                  <div className="border-t border-slate-700 pt-3 flex justify-between text-slate-200">
-                    <span>{t("jobs.difference", "Difference")}</span>
-                    <span className="text-orange-400 font-medium">
-                      +$
-                      {Number(
-                        paymentBreakdown.priceDifference || 0,
-                      ).toLocaleString("es-AR")}{" "}
-                      ARS
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm text-slate-400">
-                    <span>
-                      {t("common.commission", "Commission")} (
-                      {paymentBreakdown.commissionRate}%)
-                    </span>
-                    <span>
-                      +$
-                      {Number(paymentBreakdown.commission || 0).toLocaleString(
-                        "es-AR",
-                      )}{" "}
-                      ARS
-                    </span>
-                  </div>
-                  <div className="border-t border-slate-600 pt-3 flex justify-between text-white font-bold text-lg">
-                    <span>{t("jobs.totalToPay", "Total to pay")}</span>
-                    <span className="text-sky-400">
-                      $
-                      {Number(paymentBreakdown.total || 0).toLocaleString(
-                        "es-AR",
-                      )}{" "}
-                      ARS
-                    </span>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-yellow-600 bg-yellow-900/30 p-4">
-                  <p className="text-sm text-yellow-300">
-                    <strong>{t("common.note", "Note")}:</strong>{" "}
-                    {t(
-                      "jobs.jobPausedUntilPayment",
-                      "The job will remain paused until you complete the payment.",
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowPaymentConfirmModal(false);
-                    setPaymentBreakdown(null);
-                  }}
-                  className="flex-1 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600"
-                >
-                  {t("common.cancel", "Cancel")}
-                </button>
-                <button
-                  onClick={() => {
-                    if (job && paymentBreakdown) {
-                      window.location.href = `/jobs/${job.id || (job as any)._id}/payment?amount=${paymentBreakdown.amountRequired}&reason=budget_increase&oldPrice=${paymentBreakdown.oldPrice}&newPrice=${paymentBreakdown.newPrice}`;
-                    }
-                  }}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:from-sky-600 hover:to-sky-700"
-                >
-                  {t("jobs.goToPayment", "Go to Payment")}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <BudgetPaymentConfirmModal
+          open={showPaymentConfirmModal}
+          breakdown={paymentBreakdown}
+          onGoToPayment={() => {
+            if (job && paymentBreakdown) {
+              window.location.href = `/jobs/${job.id || (job as any)._id}/payment?amount=${paymentBreakdown.amountRequired}&reason=budget_increase&oldPrice=${paymentBreakdown.oldPrice}&newPrice=${paymentBreakdown.newPrice}`;
+            }
+          }}
+          onClose={() => {
+            setShowPaymentConfirmModal(false);
+            setPaymentBreakdown(null);
+          }}
+        />
 
         <ContractRedirectModal
           open={showContractRedirectModal}
