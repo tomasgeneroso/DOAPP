@@ -79,6 +79,7 @@
     "leaflet": "^1.9.4",
     "lucide-react": "^0.539.0",
     "mailgun.js": "^12.1.0",
+    "memorystore": "^1.6.8",
     "mercadopago": "^2.10.0",
     "mongoose": "^8.19.2",
     "multer": "^2.0.2",
@@ -107,9 +108,9 @@
     "sharp": "^0.34.4",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
-    "tsx": "^4.20.6",
     "speakeasy": "^2.0.0",
     "tailwind-merge": "^3.3.1",
+    "tsx": "^4.20.6",
     "twitter-api-sdk": "^1.2.1"
   },
   "overrides": {

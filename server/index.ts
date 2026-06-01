@@ -6,6 +6,7 @@ import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import session from "express-session";
+import createMemoryStore from "memorystore";
 import path from "path";
 import { fileURLToPath } from "url";
 import { config } from "./config/env.js";
@@ -218,16 +219,17 @@ app.use(securityHeaders);
 app.use(xssProtection);
 app.use(preventDirectoryTraversal);
 
-// Silence MemoryStore production warning — app uses JWT; sessions are only for Passport OAuth
-const origWarn = console.warn.bind(console);
-console.warn = (...args: unknown[]) => {
-  if (typeof args[0] === "string" && args[0].includes("MemoryStore")) return;
-  origWarn(...args);
-};
-
-// Express session (requerido para Passport OAuth)
+// Express session (requerido para Passport OAuth).
+// Use `memorystore` instead of the default express-session MemoryStore: it prunes
+// expired entries (no memory leak — fixes the production warning at the root) while
+// staying in-process and dependency-free (no DB table / startup latency). Sessions
+// here are only used for the Passport OAuth handshake; the app itself uses JWT.
+const SessionStore = createMemoryStore(session);
 app.use(
   session({
+    store: new SessionStore({
+      checkPeriod: 24 * 60 * 60 * 1000, // prune expired entries every 24h
+    }),
     secret: config.jwtSecret,
     resave: false,
     saveUninitialized: false,
