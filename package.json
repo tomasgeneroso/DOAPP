@@ -20,9 +20,10 @@
     "preview": "vite preview",
     "start": "tsx server/index.ts",
     "typecheck": "tsc --noEmit",
-    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
-    "test:watch": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --watch",
-    "test:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --coverage",
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --selectProjects esm",
+    "test:models": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --selectProjects models --runInBand",
+    "test:watch": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --selectProjects esm --watch",
+    "test:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --selectProjects esm --coverage",
     "test:sql": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.sql.js",
     "test:sql:watch": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.sql.js --watch",
     "test:sql:coverage": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --config jest.config.sql.js --coverage",
@@ -43,7 +44,7 @@
     "security:audit": "npm audit && npm audit fix",
     "lint": "eslint client",
     "lint:hooks": "eslint client",
-    "test:all": "npm run lint:hooks && npm run typecheck && npm test"
+    "test:all": "npm run lint:hooks && npm run typecheck && npm test && npm run test:models"
   },
   "dependencies": {
     "@dagrejs/dagre": "^3.0.0",

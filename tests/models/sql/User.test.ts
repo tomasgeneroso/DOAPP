@@ -275,7 +275,7 @@ describe('User Model', () => {
 
       expect(user.hasMembership).toBe(true);
       expect(user.membershipTier).toBe('super_pro');
-      expect(parseFloat(user.currentCommissionRate as any)).toBe(2.0);
+      expect(parseFloat(user.currentCommissionRate as any)).toBe(1.0); // SUPER PRO = 1% (CLAUDE.md)
     });
 
     it('should deactivate membership', async () => {

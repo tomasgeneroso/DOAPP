@@ -41,13 +41,17 @@ export interface InvoiceMetadata {
   tableName: 'invoices',
   timestamps: true,
   underscored: true,
+  indexes: [
+    // underscored:true → declare the unique index here with the DB column name
+    // (the @Index decorator emits the camelCase attribute name and breaks sync)
+    { fields: ['invoice_number'], unique: true, name: 'invoices_invoice_number' },
+  ],
 })
 export class Invoice extends Model {
   @Default(DataType.UUIDV4)
   @Column({ type: DataType.UUID, primaryKey: true })
   declare id: string;
 
-  @Index({ unique: true })
   @AllowNull(false)
   @Column(DataType.STRING(30))
   invoiceNumber!: string;

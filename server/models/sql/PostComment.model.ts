@@ -23,15 +23,16 @@ import { Post } from './Post.model.js';
   underscored: true,
   indexes: [
     {
-      fields: ['post', 'createdAt'],
+      // underscored:true → index fields must use the DB column names
+      fields: ['post', 'created_at'],
       name: 'idx_comment_post_date',
     },
     {
-      fields: ['author', 'createdAt'],
+      fields: ['author', 'created_at'],
       name: 'idx_comment_author_date',
     },
     {
-      fields: ['parentComment'],
+      fields: ['parent_comment'],
       name: 'idx_comment_parent',
     },
   ],

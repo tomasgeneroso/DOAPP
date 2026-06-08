@@ -35,11 +35,12 @@ export interface IGalleryItem {
   underscored: true,
   indexes: [
     {
-      fields: ['author', 'createdAt'],
+      // underscored:true → index fields must use the DB column names
+      fields: ['author', 'created_at'],
       name: 'idx_post_author_date',
     },
     {
-      fields: ['type', 'isPublished', 'createdAt'],
+      fields: ['type', 'is_published', 'created_at'],
       name: 'idx_post_type_published_date',
     },
     {
