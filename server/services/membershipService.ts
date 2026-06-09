@@ -1,5 +1,3 @@
-/* eslint-disable */
-// @ts-nocheck
 import { Membership } from "../models/sql/Membership.model.js";
 import { User } from "../models/sql/User.model.js";
 import currencyExchange from './currencyExchange.js';
@@ -34,7 +32,7 @@ class MembershipService {
       const endDate = new Date();
       endDate.setMonth(endDate.getMonth() + 1);
 
-      const membership = new Membership({
+      const membership = await Membership.create({
         userId,
         status: 'pending',
         startDate,
@@ -47,14 +45,10 @@ class MembershipService {
         nextPaymentDate: endDate,
       });
 
-      await membership.save();
-
       const paymentPreference = await mercadopago.createSubscription(userId, priceARS);
 
       user.hasMembership = true;
-      user.membershipId = membership.id;
-      user.membershipStartDate = startDate;
-      user.membershipEndDate = endDate;
+      user.membershipExpiresAt = endDate;
       await user.save();
 
       return {
@@ -72,7 +66,7 @@ class MembershipService {
    */
   async activateMembership(userId: string, paymentId: string) {
     try {
-      const membership = await Membership.findOne({ userId });
+      const membership = await Membership.findOne({ where: { userId } });
       if (!membership) {
         throw new Error('Membership not found');
       }
@@ -84,13 +78,10 @@ class MembershipService {
       // Actualizar usuario con membresía PRO
       const user = await User.findByPk(userId);
       if (user) {
+        // Monthly free-contract counters live on the Membership row, not User.
         user.membershipTier = 'pro';
         user.hasMembership = true;
         user.isPremiumVerified = false; // Activar después de KYC
-        user.monthlyContractsUsed = 0;
-        user.monthlyFreeContractsLimit = 3;
-        user.earnedBonusContract = false;
-        user.lastMonthlyReset = new Date();
         user.currentCommissionRate = 2; // 2% para PRO
         await user.save();
         console.log('✅ Usuario actualizado a PRO:', user.email);
@@ -107,19 +98,19 @@ class MembershipService {
    * Usar un contrato con la membresía
    * Retorna si es gratis y qué porcentaje de comisión aplicar
    */
-  async useContract(userId: string, contractId: string): Promise<{
+  async useContract(userId: string, contractId: string, contractAmount: number = 0): Promise<{
     isFree: boolean;
     commissionPercentage: number;
   }> {
     try {
-      const membership = await Membership.findOne({ userId, status: 'active' });
+      const membership = await Membership.findOne({ where: { userId, status: 'active' } });
 
       if (!membership || !membership.isActive()) {
         return { isFree: false, commissionPercentage: 5 };
       }
 
-      const result = membership.useContract(contractId as any);
-      await membership.save();
+      // useContract persists the change itself (no extra save needed).
+      const result = await membership.useContract(contractId, contractAmount);
 
       const user = await User.findByPk(userId);
       if (user) {
@@ -139,7 +130,7 @@ class MembershipService {
    */
   async cancelMembership(userId: string, reason?: string) {
     try {
-      const membership = await Membership.findOne({ userId });
+      const membership = await Membership.findOne({ where: { userId } });
       if (!membership) {
         throw new Error('Membership not found');
       }
@@ -175,7 +166,7 @@ class MembershipService {
    */
   async renewMembership(userId: string) {
     try {
-      const membership = await Membership.findOne({ userId });
+      const membership = await Membership.findOne({ where: { userId } });
       if (!membership) {
         throw new Error('Membership not found');
       }
@@ -196,7 +187,7 @@ class MembershipService {
 
       const user = await User.findByPk(userId);
       if (user) {
-        user.membershipEndDate = newEndDate;
+        user.membershipExpiresAt = newEndDate;
         await user.save();
       }
 
@@ -212,13 +203,13 @@ class MembershipService {
    */
   async getMembershipInfo(userId: string) {
     try {
-      const membership = await Membership.findOne({ userId }).lean();
+      const membership = await Membership.findOne({ where: { userId } });
       if (!membership) {
         return null;
       }
 
       return {
-        ...membership,
+        ...membership.toJSON(),
         isActive: membership.status === 'active' && new Date(membership.endDate) > new Date(),
         daysRemaining: Math.ceil((new Date(membership.endDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
       };
@@ -233,9 +224,11 @@ class MembershipService {
    */
   async checkExpiredMemberships() {
     try {
-      const expiredMemberships = await Membership.find({
-        status: 'active',
-        endDate: { [Op.lt]: new Date() },
+      const expiredMemberships = await Membership.findAll({
+        where: {
+          status: 'active',
+          endDate: { [Op.lt]: new Date() },
+        },
       });
 
       for (const membership of expiredMemberships) {
@@ -245,10 +238,10 @@ class MembershipService {
           membership.status = 'expired';
           await membership.save();
 
-          await User.findByIdAndUpdate(membership.userId, {
-            hasMembership: false,
-            currentCommissionRate: 5,
-          });
+          await User.update(
+            { hasMembership: false, currentCommissionRate: 5 },
+            { where: { id: membership.userId } }
+          );
         }
       }
 
