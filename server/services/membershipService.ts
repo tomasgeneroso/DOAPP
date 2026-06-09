@@ -52,7 +52,7 @@ class MembershipService {
       const paymentPreference = await mercadopago.createSubscription(userId, priceARS);
 
       user.hasMembership = true;
-      user.membershipId = membership._id as mongoose.Types.ObjectId;
+      user.membershipId = membership.id;
       user.membershipStartDate = startDate;
       user.membershipEndDate = endDate;
       await user.save();
