@@ -272,7 +272,7 @@ export default function Header() {
             <Link
               to="/messages"
               onClick={() => analytics.navClick('/messages', 'header')}
-              className="relative flex items-center justify-center w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              className="relative flex items-center justify-center w-11 h-11 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
               aria-label={t('nav.messages')}
               data-onboarding="messages"
             >

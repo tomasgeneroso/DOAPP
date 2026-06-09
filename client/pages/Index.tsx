@@ -329,16 +329,16 @@ export default function Index() {
             <p className="mx-auto mt-3 max-w-lg text-sm text-slate-500">
               {t('home.subtitleSecond')}
             </p>
-            <div className="mt-10 flex flex-col sm:flex-row items-center gap-4">
+            <div className="mt-10 flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full max-w-sm sm:max-w-none sm:w-auto px-4 sm:px-0">
               <Link
                 to="/login"
-                className="w-64 sm:w-auto rounded-xl bg-orange-500 px-10 py-4 text-base font-bold text-white shadow-xl shadow-orange-500/30 hover:bg-orange-400 hover:scale-105 hover:shadow-orange-500/50 active:scale-95 transition-all duration-200"
+                className="w-full sm:w-auto text-center rounded-xl bg-orange-500 px-6 sm:px-10 py-4 text-base font-bold text-white shadow-xl shadow-orange-500/30 hover:bg-orange-400 hover:scale-105 hover:shadow-orange-500/50 active:scale-95 transition-all duration-200"
               >
                 {t('home.publishJob')}
               </Link>
               <Link
                 to="/register"
-                className="w-64 sm:w-auto rounded-xl border-2 border-slate-600 px-10 py-4 text-base font-semibold text-slate-300 hover:border-sky-500 hover:text-white transition-all duration-200"
+                className="w-full sm:w-auto text-center rounded-xl border-2 border-slate-600 px-6 sm:px-10 py-4 text-base font-semibold text-slate-300 hover:border-sky-500 hover:text-white transition-all duration-200"
               >
                 Ver trabajos disponibles
               </Link>

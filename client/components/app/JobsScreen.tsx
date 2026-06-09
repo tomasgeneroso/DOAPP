@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { MapPin, Calendar, Star, Tag } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useSocket } from "@/hooks/useSocket";
 import { useAdvertisements } from "@/hooks/useAdvertisements";
@@ -251,20 +252,20 @@ export const JobsScreen: React.FC = () => {
                             {job.title}
                           </h3>
                         </div>
-                        <span className="px-3 py-1 rounded-full bg-orange-500 text-white font-bold text-sm whitespace-nowrap">
-                          ${job.budget?.toLocaleString()}
+                        <span className="px-3 py-1 rounded-full bg-orange-500 text-white font-bold text-base whitespace-nowrap">
+                          ${job.budget?.toLocaleString("es-AR")}
                         </span>
                       </div>
                       <p className="text-sm text-gray-700 dark:text-gray-300 mb-4 line-clamp-2">
                         {job.description}
                       </p>
-                      <div className="flex justify-between text-xs">
+                      <div className="flex flex-wrap justify-between gap-2 text-sm">
                         <div>
                           <span className="text-gray-600 dark:text-gray-400">
                             Inicio:{" "}
                           </span>
                           <span className="text-gray-900 dark:text-white font-semibold">
-                            {new Date(job.startDate).toLocaleDateString("es-ES")}
+                            {new Date(job.startDate).toLocaleDateString("es-AR")}
                           </span>
                         </div>
                         <div>
@@ -272,7 +273,7 @@ export const JobsScreen: React.FC = () => {
                             Fin:{" "}
                           </span>
                           <span className="text-gray-900 dark:text-white font-semibold">
-                            {job.endDate ? new Date(job.endDate).toLocaleDateString("es-ES") : 'Por definir'}
+                            {job.endDate ? new Date(job.endDate).toLocaleDateString("es-AR") : 'Por definir'}
                           </span>
                         </div>
                       </div>
@@ -320,7 +321,7 @@ export const JobsScreen: React.FC = () => {
               en este momento.
             </p>
             <button
-              onClick={() => navigate("/create-contract")}
+              onClick={() => navigate("/contracts/create")}
               className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl transition-all active:scale-95"
             >
               Publicar el primero
@@ -345,40 +346,59 @@ export const JobsScreen: React.FC = () => {
               }
 
               const job = item.data;
+              const client = (job as any).client;
               return (
                 <button
                   key={`job-${job.id || job._id}`}
                   onClick={() => navigate(`/jobs/${job.id || job._id}`)}
-                  className="w-full p-5 rounded-2xl text-left bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-sm transition-all active:scale-[0.98]"
+                  className="w-full p-5 rounded-2xl text-left bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-md hover:border-sky-300 dark:hover:border-sky-700 transition-all active:scale-[0.98]"
                 >
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="text-lg font-bold text-gray-900 dark:text-white pr-4">
-                      {job.title}
-                    </h3>
-                    <span className="px-3 py-1 rounded-full bg-orange-100 dark:bg-orange-900 text-orange-600 dark:text-orange-300 font-bold text-sm whitespace-nowrap">
-                      ${job.budget?.toLocaleString()}
+                  {/* Category + price row */}
+                  <div className="flex justify-between items-center gap-2 mb-2">
+                    {job.category ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300 text-xs font-medium">
+                        <Tag className="h-3 w-3" />
+                        {job.category}
+                      </span>
+                    ) : (
+                      <span />
+                    )}
+                    <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                      ${job.budget?.toLocaleString("es-AR")}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 line-clamp-2">
+
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                    {job.title}
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 line-clamp-2">
                     {job.description}
                   </p>
-                  <div className="flex justify-between text-xs">
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-400">
-                        Inicio:{" "}
+
+                  {/* Meta row: location, dates, client trust */}
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+                    {(job as any).location && (
+                      <span className="inline-flex items-center gap-1 text-gray-600 dark:text-gray-400">
+                        <MapPin className="h-4 w-4 text-gray-400" />
+                        {(job as any).location}
                       </span>
-                      <span className="text-gray-900 dark:text-white font-semibold">
-                        {new Date(job.startDate).toLocaleDateString("es-ES")}
+                    )}
+                    <span className="inline-flex items-center gap-1 text-gray-600 dark:text-gray-400">
+                      <Calendar className="h-4 w-4 text-gray-400" />
+                      {new Date(job.startDate).toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
+                      {job.endDate && (
+                        <> – {new Date(job.endDate).toLocaleDateString("es-AR", { day: "numeric", month: "short" })}</>
+                      )}
+                    </span>
+                    {client?.rating > 0 && (
+                      <span className="inline-flex items-center gap-1 text-gray-700 dark:text-gray-300 font-medium">
+                        <Star className="h-4 w-4 text-amber-400 fill-amber-400" />
+                        {Number(client.rating).toFixed(1)}
+                        {client.reviewsCount > 0 && (
+                          <span className="text-gray-400 font-normal">({client.reviewsCount})</span>
+                        )}
                       </span>
-                    </div>
-                    <div>
-                      <span className="text-gray-500 dark:text-gray-400">
-                        Fin:{" "}
-                      </span>
-                      <span className="text-gray-900 dark:text-white font-semibold">
-                        {new Date(job.endDate).toLocaleDateString("es-ES")}
-                      </span>
-                    </div>
+                    )}
                   </div>
                 </button>
               );
