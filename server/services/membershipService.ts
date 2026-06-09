@@ -82,7 +82,7 @@ class MembershipService {
         user.membershipTier = 'pro';
         user.hasMembership = true;
         user.isPremiumVerified = false; // Activar después de KYC
-        user.currentCommissionRate = 2; // 2% para PRO
+        user.currentCommissionRate = 3; // 3% para PRO
         await user.save();
         console.log('✅ Usuario actualizado a PRO:', user.email);
       }
@@ -106,7 +106,7 @@ class MembershipService {
       const membership = await Membership.findOne({ where: { userId, status: 'active' } });
 
       if (!membership || !membership.isActive()) {
-        return { isFree: false, commissionPercentage: 5 };
+        return { isFree: false, commissionPercentage: 8 }; // FREE = 8%
       }
 
       // useContract persists the change itself (no extra save needed).
@@ -150,7 +150,7 @@ class MembershipService {
       const user = await User.findByPk(userId);
       if (user) {
         user.hasMembership = false;
-        user.currentCommissionRate = 5;
+        user.currentCommissionRate = 8; // vuelve a FREE = 8%
         await user.save();
       }
 
@@ -239,7 +239,7 @@ class MembershipService {
           await membership.save();
 
           await User.update(
-            { hasMembership: false, currentCommissionRate: 5 },
+            { hasMembership: false, currentCommissionRate: 8 }, // vuelve a FREE = 8%
             { where: { id: membership.userId } }
           );
         }

@@ -276,9 +276,9 @@ export async function getUserCommissionRate(userId: string): Promise<{
  */
 export function getCommissionTiers() {
   return [
-    { plan: 'free', rate: FREE_COMMISSION_RATE, price: 0, description: 'FREE - 8% fijo' },
-    { plan: 'pro', rate: PRO_COMMISSION_RATE, price: 4999, description: 'PRO - 3% fijo ($4,999/mes)' },
-    { plan: 'super_pro', rate: SUPER_PRO_COMMISSION_RATE, price: 8999, description: 'SUPER PRO - 1% fijo ($8,999/mes)' },
+    { plan: 'free', rate: FREE_COMMISSION_RATE, priceUSD: 0, description: 'FREE - 8% fijo' },
+    { plan: 'pro', rate: PRO_COMMISSION_RATE, priceUSD: 6, description: 'PRO - 3% fijo (6 USD/mes al dólar blue)' },
+    { plan: 'super_pro', rate: SUPER_PRO_COMMISSION_RATE, priceUSD: 8, description: 'SUPER PRO - 1% fijo (8 USD/mes al dólar blue)' },
   ];
 }
 
