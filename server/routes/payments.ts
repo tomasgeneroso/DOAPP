@@ -760,8 +760,7 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
       if (user) {
         user.hasMembership = true;
         user.membershipTier = plan === "SUPER_PRO" ? "super_pro" : "pro";
-        (user as any).monthlyFreeContractsLimit = 3;
-        (user as any).monthlyContractsUsed = 0;
+        user.proContractsUsedThisMonth = 0; // reset monthly counter on activation
         await user.save();
         console.log("✅ Usuario actualizado con membresía", plan);
       }
