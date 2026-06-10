@@ -30,7 +30,8 @@ import { User } from './User.model.js';
       name: 'idx_blog_slug',
     },
     {
-      fields: ['status', 'publishedAt'],
+      // underscored:true → index fields must use the DB column names
+      fields: ['status', 'published_at'],
       name: 'idx_blog_status_published',
     },
     {
@@ -43,15 +44,15 @@ import { User } from './User.model.js';
       using: 'gin',
     },
     {
-      fields: ['createdAt'],
+      fields: ['created_at'],
       name: 'idx_blog_created',
     },
     {
-      fields: ['postType'],
+      fields: ['post_type'],
       name: 'idx_blog_post_type',
     },
     {
-      fields: ['createdBy'],
+      fields: ['created_by'],
       name: 'idx_blog_created_by',
     },
   ],

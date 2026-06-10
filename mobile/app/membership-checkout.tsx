@@ -56,9 +56,10 @@ export default function MembershipCheckoutScreen() {
 
   const getPrice = () => {
     if (!pricing) return 0;
-    if (plan === 'super_pro') return pricing.superPro?.priceARS || 8999;
-    if (plan === 'quarterly') return (pricing.pro?.priceARS || 4999) * 3 * 0.89;
-    return pricing.pro?.priceARS || 4999;
+    // Prices come from the API in ARS (6/8 USD at the day's dólar blue).
+    if (plan === 'super_pro') return pricing.superPro?.priceARS || 0;
+    if (plan === 'quarterly') return (pricing.pro?.priceARS || 0) * 3 * 0.89;
+    return pricing.pro?.priceARS || 0;
   };
 
   const handlePay = async () => {

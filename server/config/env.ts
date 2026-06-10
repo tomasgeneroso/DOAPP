@@ -39,6 +39,18 @@ export const config = {
   twitterClientId: process.env.TWITTER_CLIENT_ID || "",
   twitterClientSecret: process.env.TWITTER_CLIENT_SECRET || "",
 
+  // Payment providers toggle (Argentina MVP: MercadoPago + AstroPay; PayPal disabled)
+  paypalEnabled: process.env.PAYPAL_ENABLED === "true", // disabled by default
+  astropayEnabled: process.env.ASTROPAY_ENABLED !== "false", // enabled by default for AR
+  astropayMode: process.env.ASTROPAY_MODE || "sandbox",
+  astropayApiKey: process.env.ASTROPAY_API_KEY || "",
+  astropaySecretKey: process.env.ASTROPAY_SECRET_KEY || "",
+  astropayBaseUrl:
+    process.env.ASTROPAY_MODE === "production"
+      ? (process.env.ASTROPAY_BASE_URL || "https://api.astropay.com")
+      : (process.env.ASTROPAY_SANDBOX_BASE_URL || "https://sandbox.astropay.com"),
+  astropayPlatformFeePercentage: parseFloat(process.env.ASTROPAY_PLATFORM_FEE_PERCENTAGE || "0"),
+
   // PayPal - Usa credenciales de sandbox en desarrollo, producción en producción
   paypalMode: process.env.PAYPAL_MODE || "sandbox",
   paypalClientId: process.env.PAYPAL_MODE === "sandbox"
@@ -85,5 +97,11 @@ console.log("NODE_ENV:", config.nodeEnv);
 console.log("JWT_SECRET exists:", !!config.jwtSecret && config.jwtSecret !== "tu-secreto-super-seguro-cambialo");
 
 if (!config.jwtSecret || config.jwtSecret === "tu-secreto-super-seguro-cambialo") {
+  if (config.isProduction) {
+    // P0 security: never boot production with the public default secret —
+    // anyone could forge valid JWTs. Abort instead of warning.
+    console.error("❌ FATAL: JWT_SECRET no está configurado en producción. Abortando.");
+    process.exit(1);
+  }
   console.warn("⚠️  ADVERTENCIA: Usando JWT_SECRET por defecto. Cámbialo en producción.");
 }

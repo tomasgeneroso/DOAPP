@@ -37,12 +37,14 @@ describe('Contract Model', () => {
     client = await User.create({
       name: 'Client User',
       email: 'client@example.com',
+      username: 'clientuser',
       password: 'password123',
     });
 
     doer = await User.create({
       name: 'Doer User',
       email: 'doer@example.com',
+      username: 'doeruser',
       password: 'password123',
     });
 

@@ -1,7 +1,18 @@
 import { Router, Response } from "express";
 import { protect, AuthRequest } from "../middleware/auth.js";
 import membershipService from "../services/membershipService.js";
+import currencyExchange from "../services/currencyExchange.js";
 import { body, validationResult } from "express-validator";
+
+// Membresías cotizadas en USD, cobradas en ARS al dólar blue del día (dolarhoy.com).
+const PRO_PRICE_USD = 6;
+const SUPER_PRO_PRICE_USD = 8;
+async function getProPriceARS(): Promise<number> {
+  return Math.round(await currencyExchange.convertUSDtoARS(PRO_PRICE_USD));
+}
+async function getSuperProPriceARS(): Promise<number> {
+  return Math.round(await currencyExchange.convertUSDtoARS(SUPER_PRO_PRICE_USD));
+}
 
 const router = Router();
 
@@ -139,8 +150,8 @@ router.post(
  */
 router.get("/pricing", async (req, res) => {
   try {
-    const proPriceARS = 4999;
-    const superProPriceARS = 8999;
+    const proPriceARS = await getProPriceARS();
+    const superProPriceARS = await getSuperProPriceARS();
 
     res.json({
       success: true,
@@ -160,6 +171,7 @@ router.get("/pricing", async (req, res) => {
           name: 'PRO Mensual',
           price: proPriceARS,
           priceARS: proPriceARS,
+          priceUSD: PRO_PRICE_USD,
           currency: 'ARS',
           commissionRate: 3,
           benefits: [
@@ -178,6 +190,7 @@ router.get("/pricing", async (req, res) => {
           name: 'SUPER PRO',
           price: superProPriceARS,
           priceARS: superProPriceARS,
+          priceUSD: SUPER_PRO_PRICE_USD,
           currency: 'ARS',
           commissionRate: 1,
           benefits: [
@@ -235,7 +248,7 @@ router.post("/upgrade-to-pro", protect, async (req: AuthRequest, res: Response):
     // ========================================
     // Crear preferencia de pago con MercadoPago
     // ========================================
-    const finalPrice = 4999; // $4,999 ARS/mes
+    const finalPrice = await getProPriceARS(); // 6 USD al dólar blue, cobrado en ARS
 
     const mercadopagoService = (await import('../services/mercadopago.js')).default;
 
@@ -361,10 +374,10 @@ router.post("/create-payment", protect, async (req: AuthRequest, res: Response):
     }
 
     // ========================================
-    // Precios fijos en ARS
+    // PRO: 6 USD / SUPER PRO: 8 USD, al dólar blue del día (cobrado en ARS).
     // ========================================
-    const proPriceARS = 4999;    // $4,999 ARS/mes
-    const superProPriceARS = 8999; // $8,999 ARS/mes
+    const proPriceARS = await getProPriceARS();
+    const superProPriceARS = await getSuperProPriceARS();
 
     let finalPrice = proPriceARS;
     let description = 'Membresía DOAPP PRO - Mensual';

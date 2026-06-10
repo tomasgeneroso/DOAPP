@@ -10,21 +10,49 @@ const getUserId = (req: Request): string | null => {
   return req.headers['x-user-id'] as string || null;
 };
 
-// Pricing in EUR
+// Pricing in USD, charged in ARS at the day's dólar blue (dolarhoy.com).
 const MEMBERSHIP_PRICING = {
-  pro: { price: 4999, contractsPerMonth: 3, commissionRate: 3 },
-  super_pro: { price: 8999, contractsPerMonth: 3, commissionRate: 1 },
+  pro: { priceUSD: 6, contractsPerMonth: 3, commissionRate: 3 },
+  super_pro: { priceUSD: 8, contractsPerMonth: 3, commissionRate: 1 },
 };
+
+// Lightweight cached dólar-blue fetch (same source as the monolith).
+let blueCache: { rate: number; expiresAt: number } | null = null;
+const BLUE_FALLBACK = 1430;
+async function getDolarBlueRate(): Promise<number> {
+  if (blueCache && Date.now() < blueCache.expiresAt) return blueCache.rate;
+  try {
+    const res = await fetch('https://dolarhoy.com/');
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    const html = await res.text();
+    const m = html.match(/DOLAR BLUE[\s\S]*?Venta[\s\S]*?\$(\d+)/i);
+    const rate = m && m[1] ? parseInt(m[1], 10) : BLUE_FALLBACK;
+    blueCache = { rate, expiresAt: Date.now() + 3600 * 1000 };
+    return rate;
+  } catch {
+    return BLUE_FALLBACK;
+  }
+}
+async function getPriceARS(tier: keyof typeof MEMBERSHIP_PRICING): Promise<number> {
+  const rate = await getDolarBlueRate();
+  return Math.round(MEMBERSHIP_PRICING[tier].priceUSD * rate);
+}
 
 // ===========================================
 // GET PRICING
 // ===========================================
 router.get('/pricing', async (req: Request, res: Response): Promise<void> => {
+  const [proARS, superProARS] = await Promise.all([
+    getPriceARS('pro'),
+    getPriceARS('super_pro'),
+  ]);
   res.json({
     success: true,
     pricing: {
       pro: {
         ...MEMBERSHIP_PRICING.pro,
+        priceARS: proARS,
+        currency: 'ARS',
         features: [
           '3 contratos/mes con 3% de comisión',
           'Badge de usuario PRO',
@@ -35,6 +63,8 @@ router.get('/pricing', async (req: Request, res: Response): Promise<void> => {
       },
       super_pro: {
         ...MEMBERSHIP_PRICING.super_pro,
+        priceARS: superProARS,
+        currency: 'ARS',
         features: [
           '3 contratos/mes con 1% de comisión',
           'Badge de usuario SUPER PRO',
@@ -169,14 +199,16 @@ router.post('/upgrade-to-pro', async (req: Request, res: Response): Promise<void
       return;
     }
 
-    const pricing = MEMBERSHIP_PRICING[tier as keyof typeof MEMBERSHIP_PRICING];
+    const tierKey = tier as keyof typeof MEMBERSHIP_PRICING;
+    const pricing = MEMBERSHIP_PRICING[tierKey];
+    const priceARS = await getPriceARS(tierKey);
 
     // Create payment
     const payment = await Payment.create({
       userId,
       type: 'membership',
-      amount: pricing.price,
-      currency: 'EUR',
+      amount: priceARS,
+      currency: 'ARS',
       status: 'pending',
       description: `Membresía ${tier.toUpperCase()}`,
     });
@@ -188,8 +220,8 @@ router.post('/upgrade-to-pro', async (req: Request, res: Response): Promise<void
       status: 'pending',
       startDate: new Date(),
       expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days
-      price: pricing.price,
-      currency: 'EUR',
+      price: priceARS,
+      currency: 'ARS',
       contractsPerMonth: pricing.contractsPerMonth,
     });
 

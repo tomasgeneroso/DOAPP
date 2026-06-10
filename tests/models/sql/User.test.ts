@@ -2,6 +2,7 @@
  * User Model Tests - PostgreSQL/Sequelize
  */
 
+import { describe, it, test, expect, beforeEach, afterEach, afterAll } from '@jest/globals';
 import { User } from '../../../server/models/sql/User.model.js';
 
 describe('User Model', () => {
@@ -18,6 +19,7 @@ describe('User Model', () => {
       const user = await User.create({
         name: 'John Doe',
         email: 'john@example.com',
+        username: 'johndoe',
         password: 'hashedPassword123',
       });
 
@@ -32,6 +34,7 @@ describe('User Model', () => {
       const user = await User.create({
         name: 'Jane Doe',
         email: 'jane@example.com',
+        username: 'janedoe',
         password: plainPassword,
       });
 
@@ -43,6 +46,7 @@ describe('User Model', () => {
       const user = await User.create({
         name: 'Test User',
         email: 'TEST@EXAMPLE.COM',
+        username: 'testnorm',
         password: 'password123',
       });
 
@@ -54,6 +58,7 @@ describe('User Model', () => {
         User.create({
           name: 'Invalid User',
           email: 'not-an-email',
+          username: 'invaliduser',
           password: 'password123',
         })
       ).rejects.toThrow();
@@ -63,6 +68,7 @@ describe('User Model', () => {
       await User.create({
         name: 'User 1',
         email: 'duplicate@example.com',
+        username: 'dupuser1',
         password: 'password123',
       });
 
@@ -70,6 +76,7 @@ describe('User Model', () => {
         User.create({
           name: 'User 2',
           email: 'duplicate@example.com',
+          username: 'dupuser2',
           password: 'password123',
         })
       ).rejects.toThrow();
@@ -79,6 +86,7 @@ describe('User Model', () => {
       const user = await User.create({
         name: '  John Doe  ',
         email: 'john2@example.com',
+        username: 'johntrim',
         password: 'password123',
       });
 
@@ -93,6 +101,7 @@ describe('User Model', () => {
       user = await User.create({
         name: 'Test User',
         email: 'test@example.com',
+        username: 'testmethods',
         password: 'Password123!',
       });
     });
@@ -207,6 +216,7 @@ describe('User Model', () => {
       user = await User.create({
         name: 'Balance User',
         email: 'balance@example.com',
+        username: 'balanceuser',
         password: 'password123',
         balanceArs: 1000,
       });
@@ -239,6 +249,7 @@ describe('User Model', () => {
       user = await User.create({
         name: 'Pro User',
         email: 'pro@example.com',
+        username: 'prouser',
         password: 'password123',
       });
     });
@@ -264,7 +275,7 @@ describe('User Model', () => {
 
       expect(user.hasMembership).toBe(true);
       expect(user.membershipTier).toBe('super_pro');
-      expect(parseFloat(user.currentCommissionRate as any)).toBe(2.0);
+      expect(parseFloat(user.currentCommissionRate as any)).toBe(1.0); // SUPER PRO = 1% (CLAUDE.md)
     });
 
     it('should deactivate membership', async () => {
@@ -298,6 +309,7 @@ describe('User Model', () => {
       user = await User.create({
         name: 'Trust User',
         email: 'trust@example.com',
+        username: 'trustuser',
         password: 'password123',
         trustScore: 50,
       });

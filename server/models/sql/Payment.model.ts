@@ -55,7 +55,7 @@ export type PaymentType =
   | 'budget_increase'
   | 'quote_payment';
 
-export type PaymentMethod = 'paypal' | 'mercadopago';
+export type PaymentMethod = 'paypal' | 'mercadopago' | 'astropay' | 'bank_transfer' | 'binance';
 
 @Table({
   tableName: 'payments',
@@ -207,6 +207,17 @@ export class Payment extends Model {
 
   @Column(DataType.STRING(100))
   mercadopagoStatusDetail?: string;
+
+  // ============================================
+  // ASTROPAY FIELDS (Argentina alternative)
+  // ============================================
+
+  @Index({ unique: true })
+  @Column(DataType.STRING(255))
+  astropayDepositId?: string;
+
+  @Column(DataType.STRING(50))
+  astropayStatus?: string;
 
   // ============================================
   // PAYMENT METHOD DETAILS

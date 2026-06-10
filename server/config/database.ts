@@ -149,6 +149,7 @@ async function registerModels() {
   const { Invoice } = await import('../models/sql/Invoice.model.js');
   const { Quote } = await import('../models/sql/Quote.model.js');
   const { BlacklistEntry } = await import('../models/sql/BlacklistEntry.model.js');
+  const ModuleConfig = (await import('../models/sql/ModuleConfig.model.js')).default;
 
   // Add models to sequelize
   sequelize.addModels([
@@ -192,7 +193,40 @@ async function registerModels() {
     Invoice,
     Quote,
     BlacklistEntry,
+    ModuleConfig,
   ]);
+
+  normalizeIndexFields();
+}
+
+/**
+ * Map index field names from model attribute names to their real DB column names.
+ *
+ * sequelize-typescript's `@Index` decorator records the camelCase *attribute*
+ * name, but with `underscored: true` the actual column is snake_case. On a fresh
+ * `sync()` this emits e.g. CREATE INDEX ... ("userId") which fails because the
+ * column is `user_id`. Production never hits this (schema grows via migrations),
+ * but a clean sync — and the model test suite — does. Rewriting the field names
+ * to the attributes' resolved `field` keeps every index valid; entries that are
+ * already snake_case (not attribute names) are left untouched.
+ */
+function normalizeIndexFields() {
+  for (const model of Object.values(sequelize.models)) {
+    const attrs: Record<string, any> = (model as any).rawAttributes || {};
+    const mapField = (f: any) => {
+      if (typeof f === 'string') return attrs[f]?.field ?? f;
+      if (f && typeof f === 'object' && typeof f.name === 'string') {
+        return { ...f, name: attrs[f.name]?.field ?? f.name };
+      }
+      return f;
+    };
+    for (const bucket of [(model as any).options?.indexes, (model as any)._indexes]) {
+      if (!Array.isArray(bucket)) continue;
+      for (const idx of bucket) {
+        if (Array.isArray(idx?.fields)) idx.fields = idx.fields.map(mapField);
+      }
+    }
+  }
 }
 
 /**

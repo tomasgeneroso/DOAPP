@@ -51,6 +51,7 @@ import adminDisputesRoutes from "./routes/admin/disputes.js";
 import adminRolesRoutes from "./routes/admin/roles.js";
 import adminJobsRoutes from "./routes/admin/jobs.js";
 import adminBlacklistRoutes from "./routes/admin/blacklist.js";
+import adminModulesRoutes from "./routes/admin/modules.js";
 
 // Payment routes
 import paymentsRoutes from "./routes/payments.js";
@@ -66,6 +67,9 @@ import reviewsRoutes from "./routes/reviews.js";
 
 // Ticket routes
 import ticketsRoutes from "./routes/tickets.js";
+
+// Config routes
+import configRoutes from "./routes/config.js";
 
 // Chat routes
 import chatRoutes from "./routes/chat.js";
@@ -300,6 +304,9 @@ app.get("/api/features", (_req, res) => {
   res.json({ success: true, features });
 });
 
+// Config routes (public: modules, feature flags, etc.)
+app.use("/api/config", configRoutes);
+
 // MercadoPago OAuth routes - DISABLED (requires marketplace account)
 // app.use("/api/mercadopago", (await import('./routes/mercadopagoOAuth.js')).default);
 
@@ -323,6 +330,7 @@ app.use("/api/admin/search", (await import('./routes/admin/search.js')).default)
 app.use("/api/admin/company-balance", companyBalanceRoutes);
 app.use("/api/admin/marketing", marketingRoutes);
 app.use("/api/admin/family-codes", familyCodesRoutes);
+app.use("/api/admin/modules", adminModulesRoutes);
 app.use("/api/admin/performance", adminPerformanceRoutes);
 app.use("/api/admin/pending-payments", adminPendingPaymentsRoutes);
 

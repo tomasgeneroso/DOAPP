@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next';
 import { User } from '../types';
 import { getCategoryById } from '../../shared/constants/categories';
 import { getImageUrl } from '../utils/imageUrl';
+import ShareProfileModal from '../components/profile/ShareProfileModal';
+import ImageEditorModal from '../components/profile/ImageEditorModal';
 import MultipleRatings from '../components/user/MultipleRatings';
 import PostCard from '../components/user/PostCard';
 import CreatePost from '../components/user/CreatePost';
@@ -75,6 +77,8 @@ export default function ProfilePage() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [showAvatarUpload, setShowAvatarUpload] = useState(false);
   const [showCoverUpload, setShowCoverUpload] = useState(false);
+  // Image editor (rotate / crop / zoom) for avatar & cover before uploading
+  const [imageEditor, setImageEditor] = useState<{ src: string; kind: 'avatar' | 'cover' } | null>(null);
   const [referralStats, setReferralStats] = useState<any>(null);
   const [copiedCode, setCopiedCode] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
@@ -437,12 +441,17 @@ export default function ProfilePage() {
     }
   };
 
-  const handleUploadAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Open the editor (rotate/crop/zoom) with the picked file instead of uploading directly.
+  const handlePickImage = (e: React.ChangeEvent<HTMLInputElement>, kind: 'avatar' | 'cover') => {
     const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file
     if (!file) return;
+    setImageEditor({ src: URL.createObjectURL(file), kind });
+  };
 
+  const handleUploadAvatar = async (blob: Blob) => {
     const formData = new FormData();
-    formData.append('avatar', file);
+    formData.append('avatar', blob, 'avatar.jpg');
 
     try {
       const response = await fetch('/api/auth/upload-avatar', {
@@ -462,12 +471,9 @@ export default function ProfilePage() {
     }
   };
 
-  const handleUploadCover = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const handleUploadCover = async (blob: Blob) => {
     const formData = new FormData();
-    formData.append('cover', file);
+    formData.append('cover', blob, 'cover.jpg');
 
     try {
       const response = await fetch('/api/auth/upload-cover', {
@@ -485,6 +491,18 @@ export default function ProfilePage() {
     } catch (err: any) {
       console.error('Error uploading cover:', err);
     }
+  };
+
+  const closeEditor = () => {
+    if (imageEditor) URL.revokeObjectURL(imageEditor.src);
+    setImageEditor(null);
+  };
+
+  const handleEditorConfirm = async (blob: Blob) => {
+    if (!imageEditor) return;
+    if (imageEditor.kind === 'avatar') await handleUploadAvatar(blob);
+    else await handleUploadCover(blob);
+    closeEditor();
   };
 
   if (loading) {
@@ -531,7 +549,7 @@ export default function ProfilePage() {
                     type="file"
                     id="cover-upload"
                     accept="image/*"
-                    onChange={handleUploadCover}
+                    onChange={(e) => handlePickImage(e, 'cover')}
                     className="hidden"
                   />
                   <label
@@ -590,7 +608,7 @@ export default function ProfilePage() {
                         type="file"
                         id="avatar-upload"
                         accept="image/*"
-                        onChange={handleUploadAvatar}
+                        onChange={(e) => handlePickImage(e, 'avatar')}
                         className="hidden"
                       />
                       <label
@@ -1351,104 +1369,33 @@ export default function ProfilePage() {
         )}
 
         {/* Share Profile Modal */}
-        {showShareModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl max-w-md w-full max-h-[80vh] overflow-hidden">
-              {/* Header */}
-              <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                  {t('common.share')}
-                </h3>
-                <button
-                  onClick={() => {
-                    setShowShareModal(false);
-                    setShareSearchQuery('');
-                    setShareSearchResults([]);
-                  }}
-                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors"
-                >
-                  <X className="w-5 h-5 text-slate-500" />
-                </button>
-              </div>
+        <ShareProfileModal
+          open={showShareModal}
+          searchQuery={shareSearchQuery}
+          onSearchQueryChange={setShareSearchQuery}
+          results={shareSearchResults}
+          loading={shareSearchLoading}
+          sending={shareSending}
+          onSelectUser={shareProfileToUser}
+          profileUser={user}
+          profileUrl={getProfileUrl()}
+          onClose={() => {
+            setShowShareModal(false);
+            setShareSearchQuery('');
+            setShareSearchResults([]);
+          }}
+        />
 
-              {/* Search Input */}
-              <div className="p-4">
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={shareSearchQuery}
-                    onChange={(e) => setShareSearchQuery(e.target.value)}
-                    placeholder={t('profile.searchUserPlaceholder', 'Search user by name or @username...')}
-                    className="w-full px-4 py-3 pl-10 border border-slate-200 dark:border-slate-600 rounded-xl bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                  <MessageCircle className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                </div>
-              </div>
-
-              {/* Results */}
-              <div className="max-h-[300px] overflow-y-auto">
-                {shareSearchLoading ? (
-                  <div className="flex justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500"></div>
-                  </div>
-                ) : shareSearchResults.length === 0 ? (
-                  <div className="text-center py-8 text-slate-500 dark:text-slate-400">
-                    {shareSearchQuery.length < 2
-                      ? t('profile.writeAtLeast2', 'Write at least 2 characters to search')
-                      : t('profile.noUsersFound', 'No users found')}
-                  </div>
-                ) : (
-                  <div className="divide-y divide-slate-100 dark:divide-slate-700">
-                    {shareSearchResults.map((targetUser) => (
-                      <button
-                        key={targetUser.id || targetUser._id}
-                        onClick={() => shareProfileToUser(targetUser)}
-                        disabled={shareSending}
-                        className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-left disabled:opacity-50"
-                      >
-                        <img
-                          src={getImageUrl(targetUser.avatar)}
-                          alt={targetUser.name}
-                          className="w-10 h-10 rounded-full object-cover"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-slate-900 dark:text-white truncate">
-                            {targetUser.name}
-                          </p>
-                          {targetUser.username && (
-                            <p className="text-sm text-slate-500 dark:text-slate-400">
-                              @{targetUser.username}
-                            </p>
-                          )}
-                        </div>
-                        <Send className="w-5 h-5 text-sky-500" />
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Profile Preview */}
-              {user && (
-                <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50">
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">{t('profile.willBeShared', 'Will be shared:')}</p>
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={getImageUrl(user.avatar)}
-                      alt={user.name}
-                      className="w-12 h-12 rounded-full object-cover"
-                    />
-                    <div>
-                      <p className="font-semibold text-slate-900 dark:text-white">{user.name}</p>
-                      <p className="text-sm text-slate-500 dark:text-slate-400">
-                        {getProfileUrl()}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+        {/* Image editor (rotate / crop / zoom) for avatar & cover */}
+        {imageEditor && (
+          <ImageEditorModal
+            imageSrc={imageEditor.src}
+            aspect={imageEditor.kind === 'avatar' ? 1 : 3}
+            cropShape={imageEditor.kind === 'avatar' ? 'round' : 'rect'}
+            title={imageEditor.kind === 'avatar' ? 'Editar foto de perfil' : 'Editar portada'}
+            onCancel={closeEditor}
+            onConfirm={handleEditorConfirm}
+          />
         )}
 
         {/* Click outside to close share menu */}

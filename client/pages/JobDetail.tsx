@@ -43,28 +43,19 @@ import { getCategoryById } from "../../shared/constants/categories";
 import LocationCircleMap from "../components/map/LocationCircleMap";
 import JobTasks from "../components/jobs/JobTasks";
 import { analytics } from "../utils/analytics";
-
-// Helper para parsear números en formato argentino (punto = miles, coma = decimal)
-// Ej: "40.000" -> 40000, "40.000,50" -> 40000.50
-const parseArgentineNumber = (value: string): number => {
-  if (!value) return 0;
-  // Remover espacios
-  let cleaned = value.trim();
-  // Si tiene coma, es decimal argentino: reemplazar puntos por nada y coma por punto
-  if (cleaned.includes(",")) {
-    cleaned = cleaned.replace(/\./g, "").replace(",", ".");
-  } else {
-    // Si solo tiene puntos, asumimos que son separadores de miles
-    cleaned = cleaned.replace(/\./g, "");
-  }
-  return parseFloat(cleaned) || 0;
-};
-
-// Helper para formatear número para mostrar en input (sin separadores)
-const formatBudgetInput = (value: string): string => {
-  // Solo permitir números, puntos y comas
-  return value.replace(/[^0-9.,]/g, "");
-};
+import { parseArgentineNumber, formatBudgetInput } from "../utils/numberFormat";
+import ConfirmationSuccessModal from "../components/jobDetail/ConfirmationSuccessModal";
+import ErrorModal from "../components/jobDetail/ErrorModal";
+import ContractRedirectModal from "../components/jobDetail/ContractRedirectModal";
+import PauseApprovalModal from "../components/jobDetail/PauseApprovalModal";
+import CancelJobModal from "../components/jobDetail/CancelJobModal";
+import DeleteJobModal from "../components/jobDetail/DeleteJobModal";
+import ChangeBudgetModal from "../components/jobDetail/ChangeBudgetModal";
+import SelectWorkerConfirmModal from "../components/jobDetail/SelectWorkerConfirmModal";
+import BudgetPaymentConfirmModal from "../components/jobDetail/BudgetPaymentConfirmModal";
+import JobActionsMenu from "../components/jobDetail/JobActionsMenu";
+import ClientDropdownMenu from "../components/jobDetail/ClientDropdownMenu";
+import AdminJobDetailsPanel from "../components/jobDetail/AdminJobDetailsPanel";
 
 export default function JobDetail() {
   const { id } = useParams<{ id: string }>();
@@ -2243,30 +2234,11 @@ export default function JobDetail() {
                 </button>
 
                 {/* Dropdown Menu */}
-                {showClientMenu && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg z-10 overflow-hidden">
-                    <Link
-                      to={`/profile/${clientInfo?.id || clientInfo?._id}`}
-                      className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-                      onClick={() => setShowClientMenu(false)}
-                    >
-                      <User className="h-4 w-4 text-slate-500" />
-                      <span className="text-sm text-slate-700 dark:text-slate-200">
-                        {t("profile.viewProfile", "View profile")}
-                      </span>
-                    </Link>
-                    <Link
-                      to={`/profile/${clientInfo?.id || clientInfo?._id}?tab=jobs`}
-                      className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors border-t border-slate-100 dark:border-slate-700"
-                      onClick={() => setShowClientMenu(false)}
-                    >
-                      <Briefcase className="h-4 w-4 text-slate-500" />
-                      <span className="text-sm text-slate-700 dark:text-slate-200">
-                        {t("profile.viewPublishedJobs", "View published jobs")}
-                      </span>
-                    </Link>
-                  </div>
-                )}
+                <ClientDropdownMenu
+                  open={showClientMenu}
+                  clientId={clientInfo?.id || clientInfo?._id}
+                  onClose={() => setShowClientMenu(false)}
+                />
               </div>
               <div className="my-4 h-px bg-slate-200 dark:bg-slate-700"></div>
 
@@ -2312,156 +2284,7 @@ export default function JobDetail() {
             </div>
 
             {/* Admin Details Panel */}
-            {user?.adminRole && (
-              <div className="rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4 shadow-sm">
-                <details>
-                  <summary className="cursor-pointer text-sm font-bold text-amber-900 dark:text-amber-200 flex items-center gap-2">
-                    <svg
-                      className="h-4 w-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                      />
-                    </svg>
-                    Admin Details
-                  </summary>
-                  <div className="mt-3 space-y-3 text-xs">
-                    {/* Job Metadata */}
-                    <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-amber-200 dark:border-amber-800">
-                      <p className="font-semibold text-amber-800 dark:text-amber-300 mb-2">
-                        Job Info
-                      </p>
-                      <div className="grid grid-cols-2 gap-1 text-slate-600 dark:text-slate-400">
-                        <span>ID:</span>
-                        <span className="font-mono text-[10px]">
-                          {job.id || job._id}
-                        </span>
-                        <span>Status:</span>
-                        <span className="font-semibold">{job.status}</span>
-                        <span>Created:</span>
-                        <span>
-                          {new Date(job.createdAt).toLocaleString("es-AR")}
-                        </span>
-                        <span>Max Workers:</span>
-                        <span>{job.maxWorkers || 1}</span>
-                        {(job as any).publicationPaid && (
-                          <>
-                            <span>Pub. Paid:</span>
-                            <span className="text-green-600">Yes</span>
-                          </>
-                        )}
-                        {(job as any).views !== undefined && (
-                          <>
-                            <span>Views:</span>
-                            <span>{(job as any).views}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Client Details */}
-                    <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-amber-200 dark:border-amber-800">
-                      <p className="font-semibold text-amber-800 dark:text-amber-300 mb-2">
-                        Client: {clientInfo?.name}
-                      </p>
-                      <div className="grid grid-cols-2 gap-1 text-slate-600 dark:text-slate-400">
-                        <span>ID:</span>
-                        <span className="font-mono text-[10px]">
-                          {clientInfo?.id || clientInfo?._id}
-                        </span>
-                        <span>Email:</span>
-                        <span>{(clientInfo as any)?.email || "-"}</span>
-                        <span>Rating:</span>
-                        <span>{(clientInfo?.rating || 0).toFixed(1)}</span>
-                        <span>Membership:</span>
-                        <span className="font-semibold">
-                          {(clientInfo as any)?.membershipType ||
-                            (clientInfo as any)?.membershipTier ||
-                            "free"}
-                        </span>
-                        <span>Verified:</span>
-                        <span>
-                          {(clientInfo as any)?.isVerified ? "Yes" : "No"}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Worker Details */}
-                    {job.doer && typeof job.doer === "object" && (
-                      <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-amber-200 dark:border-amber-800">
-                        <p className="font-semibold text-amber-800 dark:text-amber-300 mb-2">
-                          Worker: {(job.doer as any).name}
-                        </p>
-                        <div className="grid grid-cols-2 gap-1 text-slate-600 dark:text-slate-400">
-                          <span>ID:</span>
-                          <span className="font-mono text-[10px]">
-                            {(job.doer as any).id || (job.doer as any)._id}
-                          </span>
-                          <span>Email:</span>
-                          <span>{(job.doer as any).email || "-"}</span>
-                          <span>Rating:</span>
-                          <span>
-                            {((job.doer as any).rating || 0).toFixed(1)}
-                          </span>
-                          <span>Membership:</span>
-                          <span className="font-semibold">
-                            {(job.doer as any).membershipType ||
-                              (job.doer as any).membershipTier ||
-                              "free"}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Payment Info */}
-                    <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-amber-200 dark:border-amber-800">
-                      <p className="font-semibold text-amber-800 dark:text-amber-300 mb-2">
-                        Payment Info
-                      </p>
-                      <div className="grid grid-cols-2 gap-1 text-slate-600 dark:text-slate-400">
-                        <span>Price:</span>
-                        <span className="font-semibold">
-                          ${Number(job.price).toLocaleString("es-AR")}
-                        </span>
-                        <span>Commission:</span>
-                        <span>{(job as any).commissionRate || "-"}%</span>
-                        <span>Pub. Amount:</span>
-                        <span>
-                          $
-                          {Number(job.publicationAmount || 0).toLocaleString(
-                            "es-AR",
-                          )}
-                        </span>
-                        <span>Escrow:</span>
-                        <span>{(job as any).escrowStatus || "-"}</span>
-                      </div>
-                    </div>
-
-                    {/* Quick Actions */}
-                    <div className="flex gap-2">
-                      <Link
-                        to={`/admin/jobs`}
-                        className="flex-1 text-center py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-medium transition-colors"
-                      >
-                        Admin Jobs
-                      </Link>
-                      <Link
-                        to={`/admin/users`}
-                        className="flex-1 text-center py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-medium transition-colors"
-                      >
-                        Admin Users
-                      </Link>
-                    </div>
-                  </div>
-                </details>
-              </div>
-            )}
+            {user?.adminRole && <AdminJobDetailsPanel job={job} clientInfo={clientInfo} />}
 
             {/* Worker(s) Info - Public view of who is doing/did the work */}
             {((job.doer && typeof job.doer === "object") ||
@@ -3718,61 +3541,21 @@ export default function JobDetail() {
                       />
                     </button>
 
-                    {showActionsMenu && (
-                      <>
-                        <div
-                          className="fixed inset-0 z-[5]"
-                          onClick={() => setShowActionsMenu(false)}
-                        />
-                        <div className="mt-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-lg overflow-hidden z-10 relative">
-                          <button
-                            onClick={() => {
-                              setShowBudgetModal(true);
-                              setShowActionsMenu(false);
-                            }}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-                          >
-                            <DollarSign className="h-4 w-4 text-sky-500" />
-                            {t("jobs.actions.changeBudget")}
-                          </button>
-                          <button
-                            onClick={() => {
-                              handlePauseJob();
-                              setShowActionsMenu(false);
-                            }}
-                            disabled={actionLoading || !canPauseJob()}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            <Pause className="h-4 w-4 text-amber-500" />
-                            {t("jobs.actions.pause")}
-                          </button>
-                          <button
-                            onClick={() => {
-                              setShowCancelModal(true);
-                              setShowActionsMenu(false);
-                            }}
-                            disabled={actionLoading || !canCancelJob()}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            <XCircle className="h-4 w-4 text-red-500" />
-                            {t("jobs.actions.cancel")}
-                          </button>
-                          <div className="border-t border-slate-200 dark:border-slate-700" />
-                          <button
-                            onClick={() => {
-                              navigate(
-                                `/tickets/new?type=job&jobId=${job.id || job._id}&jobTitle=${encodeURIComponent(job.title)}`,
-                              );
-                              setShowActionsMenu(false);
-                            }}
-                            className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
-                          >
-                            <Headphones className="h-4 w-4 text-green-500" />
-                            {t("jobs.actions.contactSupport")}
-                          </button>
-                        </div>
-                      </>
-                    )}
+                    <JobActionsMenu
+                      open={showActionsMenu}
+                      loading={actionLoading}
+                      canPause={canPauseJob()}
+                      canCancel={canCancelJob()}
+                      onChangeBudget={() => setShowBudgetModal(true)}
+                      onPause={handlePauseJob}
+                      onCancel={() => setShowCancelModal(true)}
+                      onContactSupport={() =>
+                        navigate(
+                          `/tickets/new?type=job&jobId=${job.id || job._id}&jobTitle=${encodeURIComponent(job.title)}`,
+                        )
+                      }
+                      onClose={() => setShowActionsMenu(false)}
+                    />
 
                     {/* Cancellation deadline warning */}
                     {!canCancelJob() ? (
@@ -4627,722 +4410,104 @@ export default function JobDetail() {
         </div>
 
         {/* Pause Approval Request Modal */}
-        {showPauseApprovalModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-amber-600 bg-slate-900 p-6 shadow-2xl">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/20">
-                  <Pause className="h-6 w-6 text-amber-400" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-white">Pausar publicación</h3>
-                  <p className="text-sm text-slate-400">Hay un trabajador asignado</p>
-                </div>
-              </div>
-              <p className="text-slate-300 text-sm mb-5">
-                Tu publicación tiene un trabajador asignado. Para pausarla necesitás su aprobación.
-                ¿Querés enviarle una solicitud de pausa?
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={handleRequestPauseApproval}
-                  disabled={requestingPauseApproval}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-xl transition disabled:opacity-50"
-                >
-                  {requestingPauseApproval ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pause className="h-4 w-4" />}
-                  Enviar solicitud
-                </button>
-                <button
-                  onClick={() => setShowPauseApprovalModal(false)}
-                  className="flex-1 px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white font-medium rounded-xl transition"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <PauseApprovalModal
+          open={showPauseApprovalModal}
+          loading={requestingPauseApproval}
+          onConfirm={handleRequestPauseApproval}
+          onClose={() => setShowPauseApprovalModal(false)}
+        />
 
-        {/* Cancel Confirmation Modal */}
-        {showCancelModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-red-600 bg-slate-900 p-6 shadow-2xl">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/20">
-                  <XCircle className="h-6 w-6 text-red-500" />
-                </div>
-                <h3 className="text-xl font-bold text-white">
-                  {t("jobs.cancelListing", "Cancel Listing")}
-                </h3>
-              </div>
+        <CancelJobModal
+          open={showCancelModal}
+          timeRemaining={getTimeUntilCancelDeadline()}
+          reason={cancellationReason}
+          onReasonChange={setCancellationReason}
+          publicationAmount={job.publicationAmount}
+          loading={actionLoading}
+          onConfirm={handleCancelJob}
+          onClose={() => {
+            setShowCancelModal(false);
+            setCancellationReason("");
+          }}
+        />
 
-              <div className="mb-6 space-y-4">
-                <p className="text-slate-300">
-                  {t(
-                    "jobs.confirmCancelListing",
-                    "Are you sure you want to cancel this listing?",
-                  )}
-                </p>
+        <DeleteJobModal
+          open={showDeleteModal}
+          loading={deleting}
+          onConfirm={handleDeleteJob}
+          onClose={() => setShowDeleteModal(false)}
+        />
 
-                {/* Time remaining info */}
-                {getTimeUntilCancelDeadline() && (
-                  <div className="rounded-xl border border-amber-600/50 bg-amber-900/20 p-3">
-                    <p className="text-sm text-amber-300">
-                      <Clock className="inline h-4 w-4 mr-1" />
-                      {t(
-                        "jobs.remember24hCancel",
-                        "Remember: You can only cancel up to 24 hours before the job starts.",
-                      )}
-                      <br />
-                      <span className="text-xs text-amber-400 mt-1 block">
-                        {t("jobs.actions.timeRemaining", "Time remaining:")}{" "}
-                        <strong>{getTimeUntilCancelDeadline()}</strong>
-                      </span>
-                    </p>
-                  </div>
-                )}
-
-                {/* Reason textarea */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    {t(
-                      "jobs.cancellationReasonOptional",
-                      "Cancellation reason (optional)",
-                    )}
-                  </label>
-                  <textarea
-                    value={cancellationReason}
-                    onChange={(e) => setCancellationReason(e.target.value)}
-                    placeholder={t(
-                      "jobs.cancellationReasonPlaceholder",
-                      "E.g.: I no longer need the service, found another solution...",
-                    )}
-                    rows={3}
-                    maxLength={500}
-                    className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-white placeholder:text-slate-500 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500 resize-none"
-                  />
-                  <p className="mt-1 text-xs text-slate-500 text-right">
-                    {cancellationReason.length}/500
-                  </p>
-                </div>
-
-                {job.publicationAmount && (
-                  <div className="rounded-xl border border-red-600 bg-red-900/30 p-4">
-                    <p className="text-sm font-bold text-red-300 mb-2">
-                      {t("common.importantWarning", "Important warning")}:
-                    </p>
-                    <p className="text-sm text-red-200">
-                      {t(
-                        "jobs.cancelWarningCommission",
-                        "By cancelling the listing",
-                      )}{" "}
-                      <span className="font-bold">
-                        {t(
-                          "jobs.willLoseCommission",
-                          "you will lose the commission paid",
-                        )}
-                      </span>{" "}
-                      (${job.publicationAmount?.toLocaleString("es-AR")} ARS).{" "}
-                      {t(
-                        "common.cannotBeUndone",
-                        "This action cannot be undone.",
-                      )}
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowCancelModal(false);
-                    setCancellationReason("");
-                  }}
-                  disabled={actionLoading}
-                  className="flex-1 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600 disabled:opacity-50"
-                >
-                  {t("jobs.keepPublished", "No, keep published")}
-                </button>
-                <button
-                  onClick={handleCancelJob}
-                  disabled={actionLoading}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-red-500 to-red-600 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:from-red-600 hover:to-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {actionLoading ? (
-                    <Loader2 className="mx-auto h-5 w-5 animate-spin" />
-                  ) : (
-                    t("common.yesCancel", "Yes, cancel")
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Delete Confirmation Modal */}
-        {showDeleteModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-red-600 bg-slate-900 p-6 shadow-2xl">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/20">
-                  <Trash2 className="h-6 w-6 text-red-500" />
-                </div>
-                <h3 className="text-xl font-bold text-white">
-                  {t("jobs.deleteJob", "Delete Job")}
-                </h3>
-              </div>
-
-              <div className="mb-6 space-y-4">
-                <p className="text-slate-300">
-                  {t(
-                    "jobs.confirmDeletePermanently",
-                    "Are you sure you want to permanently delete this job?",
-                  )}
-                </p>
-
-                <div className="rounded-xl border border-red-600 bg-red-900/30 p-4">
-                  <p className="text-sm font-bold text-red-300 mb-2">
-                    {t("common.warning", "Warning")}:
-                  </p>
-                  <p className="text-sm text-red-200">
-                    {t(
-                      "jobs.deleteWarningPermanent",
-                      "This action will permanently delete the job and cannot be undone.",
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowDeleteModal(false)}
-                  disabled={deleting}
-                  className="flex-1 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600 disabled:opacity-50"
-                >
-                  {t("common.cancel", "Cancel")}
-                </button>
-                <button
-                  onClick={handleDeleteJob}
-                  disabled={deleting}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-red-500 to-red-600 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:from-red-600 hover:to-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {deleting ? (
-                    <Loader2 className="mx-auto h-5 w-5 animate-spin" />
-                  ) : (
-                    t("common.yesDelete", "Yes, delete")
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Budget Change Modal */}
-        {showBudgetModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-sky-600 bg-slate-900 p-6 shadow-2xl">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-500/20">
-                  <DollarSign className="h-6 w-6 text-sky-500" />
-                </div>
-                <h3 className="text-xl font-bold text-white">
-                  {t("jobs.changeBudget", "Change Budget")}
-                </h3>
-              </div>
-
-              <div className="mb-6 space-y-4">
-                <div className="rounded-xl border border-blue-600/50 bg-blue-900/20 p-3">
-                  <p className="text-sm text-blue-300">
-                    {t("jobs.currentBudget", "Current budget")}:{" "}
-                    <span className="font-bold">
-                      ${Number(job.price || 0).toLocaleString("es-AR")} ARS
-                    </span>
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    {t("jobs.newBudgetARS", "New budget (ARS)")} *
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
-                    value={newBudget}
-                    onChange={(e) =>
-                      setNewBudget(formatBudgetInput(e.target.value))
-                    }
-                    placeholder="Ej: 25000 o 25.000"
-                    className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-white placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                  />
-                  {newBudget && (
-                    <p className="mt-1 text-xs text-slate-400">
-                      {t("common.value", "Value")}: $
-                      {parseArgentineNumber(newBudget).toLocaleString("es-AR")}{" "}
-                      ARS
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-slate-300 mb-2">
-                    {t("jobs.changeReason", "Reason for change")} * (
-                    {t("jobs.min10chars", "minimum 10 characters")})
-                  </label>
-                  <textarea
-                    value={budgetReason}
-                    onChange={(e) => setBudgetReason(e.target.value)}
-                    placeholder={t(
-                      "jobs.changeReasonPlaceholder",
-                      "E.g.: Additional tasks were added, scope of work changed...",
-                    )}
-                    rows={4}
-                    maxLength={500}
-                    className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-white placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500 resize-none"
-                  />
-                  <p className="mt-1 text-xs text-slate-500 text-right">
-                    {budgetReason.length}/500 ({t("jobs.min10", "min 10")})
-                  </p>
-                </div>
-
-                {error && (
-                  <div className="rounded-xl border border-red-600 bg-red-900/30 p-4">
-                    <p className="text-sm font-medium text-red-300">{error}</p>
-                  </div>
-                )}
-
-                <div className="rounded-xl border border-amber-600/50 bg-amber-900/20 p-3">
-                  <p className="text-sm text-amber-300">
-                    <strong>{t("common.note", "Note")}:</strong>{" "}
-                    {t(
-                      "jobs.budgetChangeNote",
-                      "You can only change the budget of jobs that are not in progress or completed.",
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowBudgetModal(false);
-                    setNewBudget("");
-                    setBudgetReason("");
-                    setError(null);
-                  }}
-                  disabled={changingBudget}
-                  className="flex-1 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600 disabled:opacity-50"
-                >
-                  {t("common.cancel", "Cancel")}
-                </button>
-                <button
-                  onClick={handleChangeBudget}
-                  disabled={
-                    changingBudget ||
-                    !newBudget ||
-                    !budgetReason ||
-                    budgetReason.length < 10
-                  }
-                  className="flex-1 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:from-sky-600 hover:to-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {changingBudget ? (
-                    <Loader2 className="mx-auto h-5 w-5 animate-spin" />
-                  ) : (
-                    t("common.confirmChange", "Confirm change")
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <ChangeBudgetModal
+          open={showBudgetModal}
+          currentPrice={Number(job.price || 0)}
+          newBudget={newBudget}
+          onNewBudgetChange={setNewBudget}
+          reason={budgetReason}
+          onReasonChange={setBudgetReason}
+          error={error}
+          loading={changingBudget}
+          onConfirm={handleChangeBudget}
+          onClose={() => {
+            setShowBudgetModal(false);
+            setNewBudget("");
+            setBudgetReason("");
+            setError(null);
+          }}
+        />
 
         {/* Select Worker Confirmation Modal */}
-        {showSelectConfirmModal && selectedProposal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-green-600 bg-slate-900 p-6 shadow-2xl">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-green-500/20">
-                  <CheckCircle className="h-6 w-6 text-green-500" />
-                </div>
-                <h3 className="text-xl font-bold text-white">
-                  {t("jobs.confirmSelection", "Confirm Selection")}
-                </h3>
-              </div>
+        <SelectWorkerConfirmModal
+          open={showSelectConfirmModal}
+          proposal={selectedProposal}
+          job={job}
+          loading={selectingWorker !== null}
+          onConfirm={() => handleSelectWorker(selectedProposal)}
+          onClose={() => {
+            setShowSelectConfirmModal(false);
+            setSelectedProposal(null);
+          }}
+        />
 
-              <div className="mb-6 space-y-4">
-                {/* Selected Worker Preview */}
-                <div className="flex items-center gap-3 p-4 rounded-xl bg-slate-800 border border-slate-700">
-                  <div className="h-14 w-14 overflow-hidden rounded-full bg-sky-100 ring-2 ring-green-500">
-                    <img
-                      src={
-                        selectedProposal.freelancer?.avatar ||
-                        `https://api.dicebear.com/7.x/avataaars/svg?seed=${selectedProposal.freelancer?.name || "user"}`
-                      }
-                      alt={selectedProposal.freelancer?.name}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-white text-lg">
-                      {selectedProposal.freelancer?.name || "Usuario"}
-                    </p>
-                    <div className="flex items-center gap-3 text-sm text-slate-400">
-                      <span className="flex items-center gap-1">
-                        <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-                        {Number(
-                          selectedProposal.freelancer?.rating || 0,
-                        ).toFixed(1)}
-                      </span>
-                      <span>•</span>
-                      <span>
-                        {selectedProposal.freelancer?.completedJobs || 0}{" "}
-                        {t("common.jobs", "jobs")}
-                      </span>
-                    </div>
-                  </div>
-                </div>
+        <BudgetPaymentConfirmModal
+          open={showPaymentConfirmModal}
+          breakdown={paymentBreakdown}
+          onGoToPayment={() => {
+            if (job && paymentBreakdown) {
+              window.location.href = `/jobs/${job.id || (job as any)._id}/payment?amount=${paymentBreakdown.amountRequired}&reason=budget_increase&oldPrice=${paymentBreakdown.oldPrice}&newPrice=${paymentBreakdown.newPrice}`;
+            }
+          }}
+          onClose={() => {
+            setShowPaymentConfirmModal(false);
+            setPaymentBreakdown(null);
+          }}
+        />
 
-                <p className="text-slate-300">
-                  {t(
-                    "jobs.confirmSelectWorker",
-                    "Are you sure you want to select",
-                  )}{" "}
-                  <span className="font-semibold text-white">
-                    {selectedProposal.freelancer?.name}
-                  </span>{" "}
-                  {t("jobs.forThisJob", "for this job?")}
-                </p>
-
-                {/* Monto acordado */}
-                <div
-                  className={`rounded-xl border p-4 ${
-                    selectedProposal.isCounterOffer
-                      ? "border-amber-600 bg-amber-900/30"
-                      : "border-sky-600 bg-sky-900/30"
-                  }`}
-                >
-                  <p
-                    className={`text-sm ${selectedProposal.isCounterOffer ? "text-amber-300" : "text-sky-300"}`}
-                  >
-                    <strong>{t("jobs.agreedAmount", "Agreed amount")}:</strong>{" "}
-                    <span className="font-bold text-lg">
-                      $
-                      {(
-                        selectedProposal.proposedPrice || job.price
-                      )?.toLocaleString("es-AR")}{" "}
-                      ARS
-                    </span>
-                    {selectedProposal.isCounterOffer && (
-                      <span className="block text-xs mt-1 text-amber-400">
-                        (
-                        {t(
-                          "jobs.counterOfferDifferent",
-                          "Counter-offer - different from original price of",
-                        )}{" "}
-                        ${job.price?.toLocaleString("es-AR")} ARS)
-                      </span>
-                    )}
-                  </p>
-                </div>
-
-                <div className="rounded-xl border border-green-600 bg-green-900/30 p-4">
-                  <p className="text-sm text-green-300">
-                    <strong>{t("jobs.onConfirm", "On confirm")}:</strong>
-                  </p>
-                  <ul className="text-sm text-green-200 mt-2 space-y-1">
-                    <li>
-                      •{" "}
-                      {t(
-                        "jobs.contractWillBeCreated",
-                        "A contract will be created with the worker",
-                      )}
-                    </li>
-                    <li>
-                      •{" "}
-                      {t(
-                        "jobs.workerWillBeNotified",
-                        "The worker will receive a notification",
-                      )}
-                    </li>
-                    {(job.maxWorkers || 1) > 1 ? (
-                      (job.selectedWorkers?.length || 0) + 1 >=
-                      (job.maxWorkers || 1) ? (
-                        <li>
-                          •{" "}
-                          {t(
-                            "jobs.otherApplicationsRejectedFull",
-                            "Other applications will be rejected (all {{count}} positions filled)",
-                            { count: job.maxWorkers },
-                          )}
-                        </li>
-                      ) : (
-                        <li>
-                          •{" "}
-                          {t(
-                            "jobs.otherApplicationsPending",
-                            "Other applications will remain pending ({{count}} position(s) remaining)",
-                            {
-                              count:
-                                (job.maxWorkers || 1) -
-                                (job.selectedWorkers?.length || 0) -
-                                1,
-                            },
-                          )}
-                        </li>
-                      )
-                    ) : (
-                      <li>
-                        •{" "}
-                        {t(
-                          "jobs.otherApplicationsRejected",
-                          "Other applications will be rejected",
-                        )}
-                      </li>
-                    )}
-                  </ul>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowSelectConfirmModal(false);
-                    setSelectedProposal(null);
-                  }}
-                  disabled={selectingWorker !== null}
-                  className="flex-1 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600 disabled:opacity-50"
-                >
-                  {t("common.cancel", "Cancel")}
-                </button>
-                <button
-                  onClick={() => handleSelectWorker(selectedProposal)}
-                  disabled={selectingWorker !== null}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-green-500 to-green-600 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:from-green-600 hover:to-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {selectingWorker !== null ? (
-                    <Loader2 className="mx-auto h-5 w-5 animate-spin" />
-                  ) : (
-                    t("jobs.confirmSelection", "Confirm Selection")
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Payment Confirmation Modal - Budget Increase */}
-        {showPaymentConfirmModal && paymentBreakdown && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-sky-600 bg-slate-900 p-6 shadow-2xl">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-sky-500/20">
-                  <DollarSign className="h-6 w-6 text-sky-500" />
-                </div>
-                <h3 className="text-xl font-bold text-white">
-                  {t("jobs.paymentRequired", "Payment Required")}
-                </h3>
-              </div>
-
-              <div className="mb-6 space-y-4">
-                <p className="text-slate-300">{paymentBreakdown.message}</p>
-
-                {/* Payment Breakdown */}
-                <div className="rounded-xl border border-slate-700 bg-slate-800 p-4 space-y-3">
-                  <div className="flex justify-between text-sm text-slate-400">
-                    <span>{t("jobs.previousBudget", "Previous budget")}</span>
-                    <span>
-                      ${paymentBreakdown.oldPrice.toLocaleString("es-AR")} ARS
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm text-slate-400">
-                    <span>{t("jobs.newBudget", "New budget")}</span>
-                    <span>
-                      ${paymentBreakdown.newPrice.toLocaleString("es-AR")} ARS
-                    </span>
-                  </div>
-                  <div className="border-t border-slate-700 pt-3 flex justify-between text-slate-200">
-                    <span>{t("jobs.difference", "Difference")}</span>
-                    <span className="text-orange-400 font-medium">
-                      +$
-                      {Number(
-                        paymentBreakdown.priceDifference || 0,
-                      ).toLocaleString("es-AR")}{" "}
-                      ARS
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-sm text-slate-400">
-                    <span>
-                      {t("common.commission", "Commission")} (
-                      {paymentBreakdown.commissionRate}%)
-                    </span>
-                    <span>
-                      +$
-                      {Number(paymentBreakdown.commission || 0).toLocaleString(
-                        "es-AR",
-                      )}{" "}
-                      ARS
-                    </span>
-                  </div>
-                  <div className="border-t border-slate-600 pt-3 flex justify-between text-white font-bold text-lg">
-                    <span>{t("jobs.totalToPay", "Total to pay")}</span>
-                    <span className="text-sky-400">
-                      $
-                      {Number(paymentBreakdown.total || 0).toLocaleString(
-                        "es-AR",
-                      )}{" "}
-                      ARS
-                    </span>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-yellow-600 bg-yellow-900/30 p-4">
-                  <p className="text-sm text-yellow-300">
-                    <strong>{t("common.note", "Note")}:</strong>{" "}
-                    {t(
-                      "jobs.jobPausedUntilPayment",
-                      "The job will remain paused until you complete the payment.",
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowPaymentConfirmModal(false);
-                    setPaymentBreakdown(null);
-                  }}
-                  className="flex-1 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600"
-                >
-                  {t("common.cancel", "Cancel")}
-                </button>
-                <button
-                  onClick={() => {
-                    if (job && paymentBreakdown) {
-                      window.location.href = `/jobs/${job.id || (job as any)._id}/payment?amount=${paymentBreakdown.amountRequired}&reason=budget_increase&oldPrice=${paymentBreakdown.oldPrice}&newPrice=${paymentBreakdown.newPrice}`;
-                    }
-                  }}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:from-sky-600 hover:to-sky-700"
-                >
-                  {t("jobs.goToPayment", "Go to Payment")}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Contract Redirect Modal */}
-        {showContractRedirectModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-purple-600 bg-slate-900 p-6 shadow-2xl">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-purple-500/20">
-                  <ExternalLink className="h-6 w-6 text-purple-500" />
-                </div>
-                <h3 className="text-xl font-bold text-white">
-                  {t("jobs.redirectToContract", "Redirect to Contract")}
-                </h3>
-              </div>
-
-              <div className="mb-6 space-y-4">
-                <p className="text-slate-300">{contractRedirectMessage}</p>
-
-                <div className="rounded-xl border border-purple-600 bg-purple-900/30 p-4">
-                  <p className="text-sm text-purple-300">
-                    <strong>{t("common.note", "Note")}:</strong>{" "}
-                    {t(
-                      "jobs.changeBudgetFromContract",
-                      "To change the budget of a job in progress, you must do it from the active contract.",
-                    )}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowContractRedirectModal(false);
-                    setContractRedirectUrl("");
-                    setContractRedirectMessage("");
-                  }}
-                  className="flex-1 rounded-xl border border-slate-600 bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600"
-                >
-                  {t("common.cancel", "Cancel")}
-                </button>
-                <button
-                  onClick={() => {
-                    if (contractRedirectUrl) {
-                      window.location.href = contractRedirectUrl;
-                    }
-                  }}
-                  className="flex-1 rounded-xl bg-gradient-to-r from-purple-500 to-purple-600 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:from-purple-600 hover:to-purple-700"
-                >
-                  {t("jobs.goToContract", "Go to Contract")}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <ContractRedirectModal
+          open={showContractRedirectModal}
+          message={contractRedirectMessage}
+          redirectUrl={contractRedirectUrl}
+          onClose={() => {
+            setShowContractRedirectModal(false);
+            setContractRedirectUrl("");
+            setContractRedirectMessage("");
+          }}
+        />
 
         {/* Confirmation Success Modal */}
-        {showConfirmationSuccessModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-green-600 bg-slate-900 p-6 shadow-2xl">
-              <div className="mb-4 flex flex-col items-center text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500/20 mb-4">
-                  <CheckCircle className="h-10 w-10 text-green-500" />
-                </div>
-                <h3 className="text-2xl font-bold text-white mb-2">
-                  {t(
-                    "jobs.thanksForConfirming",
-                    "Thank you for confirming the job!",
-                  )}
-                </h3>
-                <p className="text-slate-300">
-                  {t(
-                    "jobs.weHandlePayment",
-                    "Thank you for trusting DoApp, we make sure the payment reaches its destination.",
-                  )}
-                </p>
-              </div>
+        <ConfirmationSuccessModal
+          open={showConfirmationSuccessModal}
+          onClose={() => setShowConfirmationSuccessModal(false)}
+        />
 
-              <div className="flex justify-center">
-                <button
-                  onClick={() => setShowConfirmationSuccessModal(false)}
-                  className="rounded-xl bg-gradient-to-r from-green-500 to-green-600 px-8 py-3 font-semibold text-white shadow-lg transition-all hover:from-green-600 hover:to-green-700"
-                >
-                  {t("common.understood", "Understood")}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Error Modal */}
-        {showErrorModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-red-600 bg-slate-900 p-6 shadow-2xl">
-              <div className="mb-4 flex flex-col items-center text-center">
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500/20 mb-4">
-                  <XCircle className="h-10 w-10 text-red-500" />
-                </div>
-                <h3 className="text-2xl font-bold text-white mb-2">Error</h3>
-                <p className="text-slate-300">{errorMessage}</p>
-              </div>
-
-              <div className="flex justify-center">
-                <button
-                  onClick={() => {
-                    setShowErrorModal(false);
-                    setErrorMessage("");
-                  }}
-                  className="rounded-xl bg-gradient-to-r from-red-500 to-red-600 px-8 py-3 font-semibold text-white shadow-lg transition-all hover:from-red-600 hover:to-red-700"
-                >
-                  {t("common.understood", "Understood")}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        <ErrorModal
+          open={showErrorModal}
+          message={errorMessage}
+          onClose={() => {
+            setShowErrorModal(false);
+            setErrorMessage("");
+          }}
+        />
       </div>
     </>
   );

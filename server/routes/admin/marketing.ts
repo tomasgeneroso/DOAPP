@@ -459,8 +459,10 @@ router.get(
       const proCount = await Membership.count({ where: { status: "active", plan: "PRO" } });
       const superProCount = await Membership.count({ where: { status: "active", plan: "SUPER_PRO" } });
 
-      // Estimated monthly membership revenue (4999 * PRO + 8999 * SUPER_PRO in ARS)
-      const estimatedMonthlyMembershipRevenue = proCount * 4999 + superProCount * 8999;
+      // Estimated monthly membership revenue: sum of the ARS price each active
+      // membership actually pays (locked at its purchase-day dólar blue rate).
+      const estimatedMonthlyMembershipRevenue =
+        (await Membership.sum('priceARS', { where: { status: 'active' } })) || 0;
 
       // Advertisement revenue - Note: This assumes pricing.totalPaid is stored as JSON
       const adRevenueData = await Promoter.findAll({

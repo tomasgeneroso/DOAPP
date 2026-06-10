@@ -7,104 +7,110 @@ import { GoogleAnalytics } from "./components/GoogleAnalytics";
 import { OnboardingProvider } from "./hooks/useOnboarding";
 import OnboardingTooltip from "./components/onboarding/OnboardingTooltip";
 import FirstContractGuide from "./components/FirstContractGuide";
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { setupFetchInterceptor } from "./utils/fetchWithAuth";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { features } from "../shared/featureFlags";
-import Index from "./pages/Index";
-import LoginScreen from "./pages/LoginScreen";
-import VerifyEmailPage from "./pages/VerifyEmailPage";
-import AuthCallback from "./pages/AuthCallback";
-import CreateContractScreen from "./pages/CreateContractScreen";
-import JobDetail from "./pages/JobDetail";
-import JobApplicationSummary from "./pages/JobApplicationSummary";
-import ContractDetail from "./pages/ContractDetail";
-import ContractSummary from "./pages/ContractSummary";
-import ContractChangeRequestDetail from "./pages/ContractChangeRequestDetail";
-import ContractsScreen from "./pages/ContractsScreen";
-import MyJobsScreen from "./pages/MyJobsScreen";
-import PaymentsScreen from "./pages/PaymentsScreen";
-import JobPayment from "./pages/JobPayment";
-import Dashboard from "./pages/Dashboard";
-import EarningsDetail from "./pages/dashboard/EarningsDetail";
-import ExpensesDetail from "./pages/dashboard/ExpensesDetail";
-import ActiveContractsDetail from "./pages/dashboard/ActiveContractsDetail";
-import ProposalsDetail from "./pages/dashboard/ProposalsDetail";
-import ProposalsScreen from "./pages/ProposalsScreen";
-import ProposalDetail from "./pages/ProposalDetail";
-import MessagesScreen from "./pages/MessagesScreen";
-import OnboardingScreen from "./pages/OnboardingScreen";
-import UserSettings from "./pages/UserSettings";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
-import ContactPage from "./pages/ContactPage";
-import ReferralsScreen from "./pages/ReferralsScreen";
-import BlogsScreen from "./pages/BlogsScreen";
-import BlogDetailScreen from "./pages/BlogDetailScreen";
-import CreateBlogScreen from "./pages/CreateBlogScreen";
-import PostDetail from "./pages/PostDetail";
-import ChatScreen from "./pages/ChatScreen";
-import CreateTicket from "./pages/CreateTicket";
-import TicketDetail from "./pages/TicketDetail";
-import CreateDispute from "./pages/CreateDispute";
-import DisputeDetail from "./pages/DisputeDetail";
-import HelpPage from "./pages/HelpPage";
-import PortfolioManager from "./pages/PortfolioManager";
-import CreatePortfolioPost from "./pages/CreatePortfolioPost";
-import PortfolioItemDetail from "./pages/PortfolioItemDetail";
-import ProUsageDashboard from "./pages/ProUsageDashboard";
-import BalancePage from "./pages/BalancePage";
-import WithdrawalRequestPage from "./pages/WithdrawalRequestPage";
-import MembershipCheckout from "./pages/MembershipCheckout";
-import TermsAndConditions from "./pages/legal/TermsAndConditions";
-import PrivacyPolicy from "./pages/legal/PrivacyPolicy";
-import CookiesPolicy from "./pages/legal/CookiesPolicy";
-import DisputeResolution from "./pages/legal/DisputeResolution";
-import PaymentSuccess from "./pages/PaymentSuccess";
-import PaymentCancel from "./pages/PaymentCancel";
-import MembershipPaymentSuccess from "./pages/MembershipPaymentSuccess";
-import ProfilePage from "./pages/ProfilePage";
-import BannedUserScreen from "./pages/BannedUserScreen";
 import ProtectedRoute from "./components/app/ProtectedRoute";
 import Layout from "./components/app/Layout";
 
-// Admin pages
-import AdminLayout from "./pages/admin/AdminLayout";
-import AdminDashboard from "./pages/admin/Dashboard";
-import AdminUsers from "./pages/admin/Users";
-import AdminRoles from "./pages/admin/RoleManagement";
-import AdminRolePermissions from "./pages/admin/RolePermissions";
-import AdminAnalytics from "./pages/admin/Analytics";
-import AdminAnalyticsUsers from "./pages/admin/AnalyticsUsers";
-import AdminAnalyticsContracts from "./pages/admin/AnalyticsContracts";
-import AdminAnalyticsTickets from "./pages/admin/AnalyticsTickets";
-import AdminAnalyticsUserActivity from "./pages/admin/AnalyticsUserActivity";
-import AdminAnalyticsUserActivityDetail from "./pages/admin/AnalyticsUserActivityDetail";
-import AdminSettings from "./pages/admin/Settings";
-import AdminContracts from "./pages/admin/Contracts";
-import AdminCreateContract from "./pages/admin/CreateContract";
-import AdminTickets from "./pages/admin/Tickets";
-import AdminTicketDetail from "./pages/admin/TicketDetail";
-import AdminCreateTicket from "./pages/admin/CreateTicket";
-import AdminDisputeManager from "./pages/admin/AdminDisputeManager";
-import AdminCreateDispute from "./pages/admin/CreateDispute";
-import AdminDisputeDetail from "./pages/admin/AdminDisputeDetail";
-import AdminWithdrawalManager from "./pages/admin/AdminWithdrawalManager";
-import FinancialTransactions from "./pages/admin/FinancialTransactions";
-import PendingPayments from "./pages/admin/PendingPayments";
-import AdminJobManager from "./pages/admin/JobManager";
-import AdminFamilyCodes from "./pages/admin/FamilyCodes";
-import AdminPerformanceMonitor from "./pages/admin/PerformanceMonitor";
-import AdminSearch from "./pages/admin/AdminSearch";
-import DatabaseDiagram from "./pages/admin/DatabaseDiagram";
-import SecurityPanel from "./pages/admin/SecurityPanel";
-import EditJobScreen from "./pages/EditJobScreen";
-import NotificationsScreen from "./pages/NotificationsScreen";
-import CompleteRegistration from "./pages/CompleteRegistration";
-import SiteMap from "./pages/SiteMap";
-import QuoteForm from "./pages/QuoteForm";
-import QuoteDetail from "./pages/QuoteDetail";
-import AnalyticsReference from "./pages/AnalyticsReference";
+// Landing kept eager to avoid a loading flash on first paint
+import Index from "./pages/Index";
+
+// All other pages are code-split (React.lazy) — each becomes its own chunk,
+// so the initial bundle no longer ships all ~90 screens at once.
+const LoginScreen = lazy(() => import("./pages/LoginScreen"));
+const VerifyEmailPage = lazy(() => import("./pages/VerifyEmailPage"));
+const AuthCallback = lazy(() => import("./pages/AuthCallback"));
+const CreateContractScreen = lazy(() => import("./pages/CreateContractScreen"));
+const JobDetail = lazy(() => import("./pages/JobDetail"));
+const JobApplicationSummary = lazy(() => import("./pages/JobApplicationSummary"));
+const ContractDetail = lazy(() => import("./pages/ContractDetail"));
+const ContractSummary = lazy(() => import("./pages/ContractSummary"));
+const ContractChangeRequestDetail = lazy(() => import("./pages/ContractChangeRequestDetail"));
+const ContractsScreen = lazy(() => import("./pages/ContractsScreen"));
+const MyJobsScreen = lazy(() => import("./pages/MyJobsScreen"));
+const PaymentsScreen = lazy(() => import("./pages/PaymentsScreen"));
+const JobPayment = lazy(() => import("./pages/JobPayment"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const EarningsDetail = lazy(() => import("./pages/dashboard/EarningsDetail"));
+const ExpensesDetail = lazy(() => import("./pages/dashboard/ExpensesDetail"));
+const ActiveContractsDetail = lazy(() => import("./pages/dashboard/ActiveContractsDetail"));
+const ProposalsDetail = lazy(() => import("./pages/dashboard/ProposalsDetail"));
+const ProposalsScreen = lazy(() => import("./pages/ProposalsScreen"));
+const ProposalDetail = lazy(() => import("./pages/ProposalDetail"));
+const MessagesScreen = lazy(() => import("./pages/MessagesScreen"));
+const OnboardingScreen = lazy(() => import("./pages/OnboardingScreen"));
+const UserSettings = lazy(() => import("./pages/UserSettings"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const ContactPage = lazy(() => import("./pages/ContactPage"));
+const ReferralsScreen = lazy(() => import("./pages/ReferralsScreen"));
+const BlogsScreen = lazy(() => import("./pages/BlogsScreen"));
+const BlogDetailScreen = lazy(() => import("./pages/BlogDetailScreen"));
+const CreateBlogScreen = lazy(() => import("./pages/CreateBlogScreen"));
+const PostDetail = lazy(() => import("./pages/PostDetail"));
+const ChatScreen = lazy(() => import("./pages/ChatScreen"));
+const CreateTicket = lazy(() => import("./pages/CreateTicket"));
+const TicketDetail = lazy(() => import("./pages/TicketDetail"));
+const CreateDispute = lazy(() => import("./pages/CreateDispute"));
+const DisputeDetail = lazy(() => import("./pages/DisputeDetail"));
+const HelpPage = lazy(() => import("./pages/HelpPage"));
+const PortfolioManager = lazy(() => import("./pages/PortfolioManager"));
+const CreatePortfolioPost = lazy(() => import("./pages/CreatePortfolioPost"));
+const PortfolioItemDetail = lazy(() => import("./pages/PortfolioItemDetail"));
+const ProUsageDashboard = lazy(() => import("./pages/ProUsageDashboard"));
+const BalancePage = lazy(() => import("./pages/BalancePage"));
+const WithdrawalRequestPage = lazy(() => import("./pages/WithdrawalRequestPage"));
+const MembershipCheckout = lazy(() => import("./pages/MembershipCheckout"));
+const TermsAndConditions = lazy(() => import("./pages/legal/TermsAndConditions"));
+const PrivacyPolicy = lazy(() => import("./pages/legal/PrivacyPolicy"));
+const CookiesPolicy = lazy(() => import("./pages/legal/CookiesPolicy"));
+const DisputeResolution = lazy(() => import("./pages/legal/DisputeResolution"));
+const PaymentSuccess = lazy(() => import("./pages/PaymentSuccess"));
+const PaymentCancel = lazy(() => import("./pages/PaymentCancel"));
+const MembershipPaymentSuccess = lazy(() => import("./pages/MembershipPaymentSuccess"));
+const ProfilePage = lazy(() => import("./pages/ProfilePage"));
+const BannedUserScreen = lazy(() => import("./pages/BannedUserScreen"));
+
+// Admin pages (lazy — only loaded for admin users)
+const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
+const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
+const AdminUsers = lazy(() => import("./pages/admin/Users"));
+const AdminRoles = lazy(() => import("./pages/admin/RoleManagement"));
+const AdminRolePermissions = lazy(() => import("./pages/admin/RolePermissions"));
+const AdminAnalytics = lazy(() => import("./pages/admin/Analytics"));
+const AdminAnalyticsUsers = lazy(() => import("./pages/admin/AnalyticsUsers"));
+const AdminAnalyticsContracts = lazy(() => import("./pages/admin/AnalyticsContracts"));
+const AdminAnalyticsTickets = lazy(() => import("./pages/admin/AnalyticsTickets"));
+const AdminAnalyticsUserActivity = lazy(() => import("./pages/admin/AnalyticsUserActivity"));
+const AdminAnalyticsUserActivityDetail = lazy(() => import("./pages/admin/AnalyticsUserActivityDetail"));
+const AdminSettings = lazy(() => import("./pages/admin/Settings"));
+const AdminContracts = lazy(() => import("./pages/admin/Contracts"));
+const AdminCreateContract = lazy(() => import("./pages/admin/CreateContract"));
+const AdminTickets = lazy(() => import("./pages/admin/Tickets"));
+const AdminTicketDetail = lazy(() => import("./pages/admin/TicketDetail"));
+const AdminCreateTicket = lazy(() => import("./pages/admin/CreateTicket"));
+const AdminDisputeManager = lazy(() => import("./pages/admin/AdminDisputeManager"));
+const AdminCreateDispute = lazy(() => import("./pages/admin/CreateDispute"));
+const AdminDisputeDetail = lazy(() => import("./pages/admin/AdminDisputeDetail"));
+const AdminWithdrawalManager = lazy(() => import("./pages/admin/AdminWithdrawalManager"));
+const FinancialTransactions = lazy(() => import("./pages/admin/FinancialTransactions"));
+const PendingPayments = lazy(() => import("./pages/admin/PendingPayments"));
+const AdminJobManager = lazy(() => import("./pages/admin/JobManager"));
+const AdminFamilyCodes = lazy(() => import("./pages/admin/FamilyCodes"));
+const AdminPerformanceMonitor = lazy(() => import("./pages/admin/PerformanceMonitor"));
+const AdminSearch = lazy(() => import("./pages/admin/AdminSearch"));
+const DatabaseDiagram = lazy(() => import("./pages/admin/DatabaseDiagram"));
+const SecurityPanel = lazy(() => import("./pages/admin/SecurityPanel"));
+const ModulesManager = lazy(() => import("./pages/admin/ModulesManager"));
+const EditJobScreen = lazy(() => import("./pages/EditJobScreen"));
+const NotificationsScreen = lazy(() => import("./pages/NotificationsScreen"));
+const CompleteRegistration = lazy(() => import("./pages/CompleteRegistration"));
+const SiteMap = lazy(() => import("./pages/SiteMap"));
+const QuoteForm = lazy(() => import("./pages/QuoteForm"));
+const QuoteDetail = lazy(() => import("./pages/QuoteDetail"));
+const AnalyticsReference = lazy(() => import("./pages/AnalyticsReference"));
 
 export default function App() {
   // Setup fetch interceptor for automatic token handling
@@ -123,6 +129,11 @@ export default function App() {
               <OnboardingProvider>
                 <OnboardingTooltip />
                 <FirstContractGuide />
+                <Suspense fallback={
+                  <div className="min-h-screen flex items-center justify-center">
+                    <div className="h-10 w-10 animate-spin rounded-full border-4 border-sky-500 border-t-transparent" />
+                  </div>
+                }>
                 <Routes>
             <Route element={<Layout />}>
               <Route path="/" element={<Index />} />
@@ -525,8 +536,10 @@ export default function App() {
               <Route path="search" element={<AdminSearch />} />
               <Route path="database" element={<DatabaseDiagram />} />
               <Route path="security" element={<SecurityPanel />} />
+              <Route path="modules" element={<ModulesManager />} />
             </Route>
                 </Routes>
+                </Suspense>
               </OnboardingProvider>
             </BrowserRouter>
           </ToastProvider>

@@ -9,6 +9,7 @@
  * - Status transitions
  */
 
+import { describe, it, test, expect, beforeEach, afterAll } from '@jest/globals';
 import 'reflect-metadata';
 import { Payment } from '../../../server/models/sql/Payment.model.js';
 import { User } from '../../../server/models/sql/User.model.js';

@@ -349,12 +349,12 @@ export default function AdminDashboard() {
                       data={[
                         {
                           name: 'PRO',
-                          ingresos: (companyBalance.revenue?.memberships?.proCount || 0) * 4999,
+                          ingresos: companyBalance.revenue?.memberships?.proRevenueARS || 0,
                           cantidad: companyBalance.revenue?.memberships?.proCount || 0
                         },
                         {
                           name: 'SUPER PRO',
-                          ingresos: (companyBalance.revenue?.memberships?.superProCount || 0) * 8999,
+                          ingresos: companyBalance.revenue?.memberships?.superProRevenueARS || 0,
                           cantidad: companyBalance.revenue?.memberships?.superProCount || 0
                         },
                       ]}
@@ -376,15 +376,15 @@ export default function AdminDashboard() {
                   </ResponsiveContainer>
                   <div className="mt-4 grid grid-cols-2 gap-4 text-center">
                     <div className="bg-purple-100 dark:bg-purple-900/30 rounded-lg p-3">
-                      <p className="text-xs text-gray-600 dark:text-gray-400">PRO ($4.999/mes)</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">PRO (6 USD/mes)</p>
                       <p className="text-lg font-bold text-purple-700 dark:text-purple-400">
-                        ${((companyBalance.revenue?.memberships?.proCount || 0) * 4999).toLocaleString('es-AR')}
+                        ${(companyBalance.revenue?.memberships?.proRevenueARS || 0).toLocaleString('es-AR')}
                       </p>
                     </div>
                     <div className="bg-amber-100 dark:bg-amber-900/30 rounded-lg p-3">
-                      <p className="text-xs text-gray-600 dark:text-gray-400">SUPER PRO ($8.999/mes)</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">SUPER PRO (8 USD/mes)</p>
                       <p className="text-lg font-bold text-amber-700 dark:text-amber-400">
-                        ${((companyBalance.revenue?.memberships?.superProCount || 0) * 8999).toLocaleString('es-AR')}
+                        ${(companyBalance.revenue?.memberships?.superProRevenueARS || 0).toLocaleString('es-AR')}
                       </p>
                     </div>
                   </div>
@@ -398,8 +398,8 @@ export default function AdminDashboard() {
                     <p className="text-sm text-gray-600 dark:text-gray-400">Ingreso Mensual Estimado Total (ARS)</p>
                     <p className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-amber-600 bg-clip-text text-transparent">
                       ${(
-                        ((companyBalance.revenue?.memberships?.proCount || 0) * 4999) +
-                        ((companyBalance.revenue?.memberships?.superProCount || 0) * 8999)
+                        (companyBalance.revenue?.memberships?.proRevenueARS || 0) +
+                        (companyBalance.revenue?.memberships?.superProRevenueARS || 0)
                       ).toLocaleString('es-AR')}
                     </p>
                   </div>

@@ -26,11 +26,13 @@
     background-color: rgb(15, 23, 42); /* slate-900 */
   }
 
-  /* UI compacta en desktop (75%) — min-height compensa el zoom */
+  /* UI compacta en desktop (75%) — sin el truco de `zoom` (que causa blur y
+     rompe position:fixed). En su lugar reducimos el font-size raíz al 75%
+     (12px = 16px × 0.75): como Tailwind usa unidades rem para spacing y
+     tipografía, todo escala proporcionalmente igual que zoom:0.75, pero nítido. */
   @media (min-width: 769px) {
-    body {
-      zoom: 0.75;
-      min-height: 134vh; /* 100vh / 0.75 ≈ 133.33vh, cubre el viewport completo */
+    html {
+      font-size: 12px;
     }
   }
 
@@ -46,17 +48,21 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* Prevenir zoom inputs en iOS */
-  input[type="text"],
-  input[type="email"],
-  input[type="password"],
-  input[type="number"],
-  input[type="tel"],
-  input[type="url"],
-  input[type="search"],
-  textarea,
-  select {
-    font-size: 16px !important;
+  /* Prevenir auto-zoom de inputs en iOS (solo mobile: <16px dispara el zoom).
+     En desktop NO aplica, así los inputs usan los tamaños rem de Tailwind y
+     quedan compactos como el resto de la UI. */
+  @media (max-width: 768px) {
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="number"],
+    input[type="tel"],
+    input[type="url"],
+    input[type="search"],
+    textarea,
+    select {
+      font-size: 16px !important;
+    }
   }
 }
 

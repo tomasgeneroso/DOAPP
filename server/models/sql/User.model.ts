@@ -927,7 +927,7 @@ export class User extends Model {
   @BeforeCreate
   static async hashPassword(instance: User) {
     if (instance.password) {
-      const salt = await bcrypt.genSalt(10);
+      const salt = await bcrypt.genSalt(12);
       instance.password = await bcrypt.hash(instance.password, salt);
     }
   }
@@ -1021,7 +1021,7 @@ export class User extends Model {
   @BeforeUpdate
   static async hashPasswordOnUpdate(instance: User) {
     if (instance.changed('password') && instance.password) {
-      const salt = await bcrypt.genSalt(10);
+      const salt = await bcrypt.genSalt(12);
       instance.password = await bcrypt.hash(instance.password, salt);
     }
   }

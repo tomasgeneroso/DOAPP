@@ -47,6 +47,18 @@ export default defineConfig({
   },
   build: {
     outDir: "dist/spa",
+    chunkSizeWarningLimit: 800,
+    rollupOptions: {
+      output: {
+        // Split heavy third-party libs into their own long-cached vendor chunks
+        manualChunks: {
+          "vendor-react": ["react", "react-dom", "react-router-dom"],
+          "vendor-charts": ["recharts"],
+          "vendor-maps": ["leaflet", "react-leaflet"],
+          "vendor-editor": ["react-quill"],
+        },
+      },
+    },
   },
   plugins: [
     react(),
