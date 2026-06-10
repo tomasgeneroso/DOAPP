@@ -6,6 +6,7 @@ import { User } from '../types';
 import { getCategoryById } from '../../shared/constants/categories';
 import { getImageUrl } from '../utils/imageUrl';
 import ShareProfileModal from '../components/profile/ShareProfileModal';
+import ImageEditorModal from '../components/profile/ImageEditorModal';
 import MultipleRatings from '../components/user/MultipleRatings';
 import PostCard from '../components/user/PostCard';
 import CreatePost from '../components/user/CreatePost';
@@ -76,6 +77,8 @@ export default function ProfilePage() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [showAvatarUpload, setShowAvatarUpload] = useState(false);
   const [showCoverUpload, setShowCoverUpload] = useState(false);
+  // Image editor (rotate / crop / zoom) for avatar & cover before uploading
+  const [imageEditor, setImageEditor] = useState<{ src: string; kind: 'avatar' | 'cover' } | null>(null);
   const [referralStats, setReferralStats] = useState<any>(null);
   const [copiedCode, setCopiedCode] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
@@ -438,12 +441,17 @@ export default function ProfilePage() {
     }
   };
 
-  const handleUploadAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Open the editor (rotate/crop/zoom) with the picked file instead of uploading directly.
+  const handlePickImage = (e: React.ChangeEvent<HTMLInputElement>, kind: 'avatar' | 'cover') => {
     const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file
     if (!file) return;
+    setImageEditor({ src: URL.createObjectURL(file), kind });
+  };
 
+  const handleUploadAvatar = async (blob: Blob) => {
     const formData = new FormData();
-    formData.append('avatar', file);
+    formData.append('avatar', blob, 'avatar.jpg');
 
     try {
       const response = await fetch('/api/auth/upload-avatar', {
@@ -463,12 +471,9 @@ export default function ProfilePage() {
     }
   };
 
-  const handleUploadCover = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const handleUploadCover = async (blob: Blob) => {
     const formData = new FormData();
-    formData.append('cover', file);
+    formData.append('cover', blob, 'cover.jpg');
 
     try {
       const response = await fetch('/api/auth/upload-cover', {
@@ -486,6 +491,18 @@ export default function ProfilePage() {
     } catch (err: any) {
       console.error('Error uploading cover:', err);
     }
+  };
+
+  const closeEditor = () => {
+    if (imageEditor) URL.revokeObjectURL(imageEditor.src);
+    setImageEditor(null);
+  };
+
+  const handleEditorConfirm = async (blob: Blob) => {
+    if (!imageEditor) return;
+    if (imageEditor.kind === 'avatar') await handleUploadAvatar(blob);
+    else await handleUploadCover(blob);
+    closeEditor();
   };
 
   if (loading) {
@@ -532,7 +549,7 @@ export default function ProfilePage() {
                     type="file"
                     id="cover-upload"
                     accept="image/*"
-                    onChange={handleUploadCover}
+                    onChange={(e) => handlePickImage(e, 'cover')}
                     className="hidden"
                   />
                   <label
@@ -591,7 +608,7 @@ export default function ProfilePage() {
                         type="file"
                         id="avatar-upload"
                         accept="image/*"
-                        onChange={handleUploadAvatar}
+                        onChange={(e) => handlePickImage(e, 'avatar')}
                         className="hidden"
                       />
                       <label
@@ -1368,6 +1385,18 @@ export default function ProfilePage() {
             setShareSearchResults([]);
           }}
         />
+
+        {/* Image editor (rotate / crop / zoom) for avatar & cover */}
+        {imageEditor && (
+          <ImageEditorModal
+            imageSrc={imageEditor.src}
+            aspect={imageEditor.kind === 'avatar' ? 1 : 3}
+            cropShape={imageEditor.kind === 'avatar' ? 'round' : 'rect'}
+            title={imageEditor.kind === 'avatar' ? 'Editar foto de perfil' : 'Editar portada'}
+            onCancel={closeEditor}
+            onConfirm={handleEditorConfirm}
+          />
+        )}
 
         {/* Click outside to close share menu */}
         {showShareMenu && (
