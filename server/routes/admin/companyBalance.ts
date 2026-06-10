@@ -116,6 +116,13 @@ router.get(
         where: { status: "active", plan: "SUPER_PRO" },
       });
 
+      // Real recurring revenue per plan: sum of the ARS price each active
+      // membership pays (locked at its purchase-day dólar blue rate).
+      const proRevenueARS =
+        (await Membership.sum("priceARS", { where: { status: "active", plan: "PRO" } })) || 0;
+      const superProRevenueARS =
+        (await Membership.sum("priceARS", { where: { status: "active", plan: "SUPER_PRO" } })) || 0;
+
       // Active promoters
       const activePromoters = await Promoter.count({
         where: { status: "active", isEnabled: true },
@@ -141,6 +148,8 @@ router.get(
             activeCount: activeMemberships,
             proCount: proMemberships,
             superProCount: superProMemberships,
+            proRevenueARS,
+            superProRevenueARS,
           },
           advertisements: {
             totalARS: totalAdRevenueARS,
