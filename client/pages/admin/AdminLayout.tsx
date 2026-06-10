@@ -23,6 +23,7 @@ import {
   WifiOff,
   AlertTriangle,
   CreditCard,
+  Sliders,
   ArrowDownLeft,
   TrendingUp,
   ChevronDown,
@@ -126,6 +127,7 @@ export default function AdminLayout() {
         { path: "/admin/role-permissions", icon: Lock, label: t('admin.sidebar.permissions', 'Permissions'), roles: ["owner", "super_admin"] },
         { path: "/admin/security", icon: AlertTriangle, label: 'Seguridad', roles: ["owner", "super_admin"] },
         { path: "/admin/settings", icon: Settings, label: t('admin.sidebar.settings', 'Settings'), roles: ["owner", "super_admin"] },
+        { path: "/admin/modules", icon: Sliders, label: 'Modules', roles: ["owner", "super_admin"] },
       ]
     },
   ];

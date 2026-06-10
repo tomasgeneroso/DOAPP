@@ -149,6 +149,7 @@ async function registerModels() {
   const { Invoice } = await import('../models/sql/Invoice.model.js');
   const { Quote } = await import('../models/sql/Quote.model.js');
   const { BlacklistEntry } = await import('../models/sql/BlacklistEntry.model.js');
+  const ModuleConfig = (await import('../models/sql/ModuleConfig.model.js')).default;
 
   // Add models to sequelize
   sequelize.addModels([
@@ -192,6 +193,7 @@ async function registerModels() {
     Invoice,
     Quote,
     BlacklistEntry,
+    ModuleConfig,
   ]);
 
   normalizeIndexFields();

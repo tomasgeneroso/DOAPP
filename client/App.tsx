@@ -103,6 +103,7 @@ const AdminPerformanceMonitor = lazy(() => import("./pages/admin/PerformanceMoni
 const AdminSearch = lazy(() => import("./pages/admin/AdminSearch"));
 const DatabaseDiagram = lazy(() => import("./pages/admin/DatabaseDiagram"));
 const SecurityPanel = lazy(() => import("./pages/admin/SecurityPanel"));
+const ModulesManager = lazy(() => import("./pages/admin/ModulesManager"));
 const EditJobScreen = lazy(() => import("./pages/EditJobScreen"));
 const NotificationsScreen = lazy(() => import("./pages/NotificationsScreen"));
 const CompleteRegistration = lazy(() => import("./pages/CompleteRegistration"));
@@ -535,6 +536,7 @@ export default function App() {
               <Route path="search" element={<AdminSearch />} />
               <Route path="database" element={<DatabaseDiagram />} />
               <Route path="security" element={<SecurityPanel />} />
+              <Route path="modules" element={<ModulesManager />} />
             </Route>
                 </Routes>
                 </Suspense>
