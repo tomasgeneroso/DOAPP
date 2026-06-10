@@ -3446,13 +3446,23 @@ router.post(
         return;
       }
 
+      // Calcular tiempo hasta inicio del trabajo
+      const jobStartTime = new Date(startDate).getTime();
+      const nowTime = new Date().getTime();
+      const msUntilStart = jobStartTime - nowTime;
+      const hoursUntilStart = msUntilStart / (1000 * 60 * 60);
+
+      // Determinar si auto-seleccionar basado en tiempo
+      // Auto-selecciona si: 1 propuesta AND (faltan <= 1 hora OR trabajo no seleccionado aún)
+      const shouldAutoSelect = proposals.length === 1;
+      const shouldCloseProposals = proposals.length === 1 && hoursUntilStart <= 1;
+
       let selectedDoerId: string;
 
-      // Si hay una sola propuesta, auto-seleccionar
-      if (proposals.length === 1) {
+      if (shouldAutoSelect) {
         selectedDoerId = proposals[0].doerId.toString();
       } else {
-        // Si hay varias, se debe seleccionar manualmente (pasar doerId en body)
+        // Si hay varias propuestas, se debe seleccionar manualmente
         const { doerId } = req.body;
         if (!doerId) {
           res.status(400).json({
@@ -3541,11 +3551,13 @@ router.post(
         await (selectedProposal as any).save();
       }
 
-      // Rechazar otras propuestas
-      for (const proposal of proposals) {
-        if (proposal.doerId.toString() !== selectedDoerId.toString()) {
-          proposal.status = 'rejected';
-          await (proposal as any).save();
+      // Solo rechazar otras propuestas si faltan <= 1 hora (cierra postulaciones)
+      if (shouldCloseProposals) {
+        for (const proposal of proposals) {
+          if (proposal.doerId.toString() !== selectedDoerId.toString()) {
+            proposal.status = 'rejected';
+            await (proposal as any).save();
+          }
         }
       }
 
@@ -3581,7 +3593,8 @@ router.post(
           expressCheckout: true,
           paymentMethod,
           needsAdminApproval,
-          autoSelectedWorker: proposals.length === 1
+          autoSelectedWorker: shouldAutoSelect,
+          proposalsClosed: shouldCloseProposals
         }
       );
 
@@ -3599,8 +3612,13 @@ router.post(
           message: needsAdminApproval
             ? `Pago procesado. El admin debe aprobar el pago antes de que el trabajo comience.`
             : `Pago aprobado automáticamente. El trabajo puede comenzar inmediatamente.`,
-          autoSelectedWorker: proposals.length === 1,
-          workerName: doer.name
+          autoSelectedWorker: shouldAutoSelect,
+          proposalsClosed: shouldCloseProposals,
+          workerName: doer.name,
+          timeUntilStart: Math.round(hoursUntilStart * 60), // minutos hasta inicio
+          note: shouldCloseProposals
+            ? `Las postulaciones han sido cerradas. ${doer.name} fue seleccionado automáticamente.`
+            : `Se ha seleccionado a ${doer.name}. Otras postulaciones aún pueden llegar hasta 1 hora antes del trabajo.`
         }
       });
 
