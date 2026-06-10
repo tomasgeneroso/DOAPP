@@ -3406,7 +3406,7 @@ router.post(
         return;
       }
 
-      const { jobId, paymentMethod, price, startDate, endDate, termsAccepted, notes, useFreeContract } = req.body;
+      const { jobId, paymentMethod, price, startDate, endDate, termsAccepted, notes, useFreeContract, doerId, autoSelectAt } = req.body;
       const clientId = req.user.id;
 
       // Validar monto mínimo
@@ -3452,62 +3452,33 @@ router.post(
       const msUntilStart = jobStartTime - nowTime;
       const hoursUntilStart = msUntilStart / (1000 * 60 * 60);
 
-      // Lógica de auto-selección
-      // - Si 1 propuesta y faltan >= 12 horas: auto-selecciona
-      // - Si 1 propuesta y faltan < 12 horas: requiere selección manual (cliente puede pausar y arreglar agenda)
-      // - Si múltiples: requiere selección manual
-      // - Una vez seleccionado: SIEMPRE cierra propuestas
-      const shouldAutoSelect = proposals.length === 1 && hoursUntilStart >= 12;
-      const canWaitForSelection = proposals.length === 1 && hoursUntilStart < 12;
+      // Selección de worker
+      // - Cliente DEBE seleccionar manualmente o usar auto-select programado
+      // - Si tiene doerId en body: selecciona ese worker ahora
+      // - Si tiene autoSelectAt: programa auto-selección para esa hora
 
-      let selectedDoerId: string;
+      if (!doerId && !autoSelectAt) {
+        // No seleccionó ni programó auto-selección
+        res.status(400).json({
+          success: false,
+          message: "Debes seleccionar un worker o programar auto-selección",
+          proposals: proposals.map((p: any) => ({
+            id: p.id,
+            doerId: p.doerId,
+            proposedPrice: p.proposedPrice,
+            message: p.message,
+            createdAt: p.createdAt
+          }))
+        });
+        return;
+      }
 
-      if (shouldAutoSelect) {
-        // Auto-selecciona si >= 12 horas
-        selectedDoerId = proposals[0].doerId.toString();
-      } else if (canWaitForSelection) {
-        // Si 1 propuesta pero < 12 horas, pedir confirmación manual
-        const { doerId } = req.body;
-        if (!doerId) {
-          res.status(400).json({
-            success: false,
-            message: `Tienes 1 sola propuesta pero el trabajo comienza en ${Math.round(hoursUntilStart)} horas. Confirma la selección o pausa la publicación para arreglar tu agenda.`,
-            requiresManualConfirmation: true,
-            hoursUntilStart: Math.round(hoursUntilStart * 100) / 100,
-            singleProposal: {
-              id: proposals[0].id,
-              doerId: proposals[0].doerId,
-              proposedPrice: proposals[0].proposedPrice,
-              message: proposals[0].message
-            }
-          });
-          return;
-        }
-        selectedDoerId = doerId;
-      } else if (proposals.length === 1) {
-        // Fallback (shouldn't happen, but safe)
-        selectedDoerId = proposals[0].doerId.toString();
-      } else {
-        // Múltiples propuestas: se debe seleccionar manualmente
-        const { doerId } = req.body;
-        if (!doerId) {
-          res.status(400).json({
-            success: false,
-            message: "Hay múltiples propuestas. Debes seleccionar una",
-            proposals: proposals.map((p: any) => ({
-              id: p.id,
-              doerId: p.doerId,
-              proposedPrice: p.proposedPrice,
-              message: p.message,
-              createdAt: p.createdAt
-            }))
-          });
-          return;
-        }
-        selectedDoerId = doerId;
+      let selectedDoerId: string | null = null;
+      let scheduleAutoSelectAt: Date | null = null;
 
-        // Verificar que la propuesta seleccionada existe
-        const selectedProposal = proposals.find((p: any) => p.doerId.toString() === selectedDoerId.toString());
+      // Si selecciona ahora
+      if (doerId) {
+        const selectedProposal = proposals.find((p: any) => p.doerId.toString() === doerId.toString());
         if (!selectedProposal) {
           res.status(400).json({
             success: false,
@@ -3515,16 +3486,47 @@ router.post(
           });
           return;
         }
+        selectedDoerId = doerId;
       }
 
-      // Una vez seleccionado: SIEMPRE cerrar propuestas (no aceptar más)
-      const shouldCloseProposals = true;
+      // Si programa auto-selección
+      if (autoSelectAt) {
+        const autoSelectTime = new Date(autoSelectAt);
+        if (autoSelectTime < new Date()) {
+          res.status(400).json({
+            success: false,
+            message: "La hora de auto-selección debe ser en el futuro"
+          });
+          return;
+        }
+        if (autoSelectTime >= jobStartTime) {
+          res.status(400).json({
+            success: false,
+            message: "La auto-selección debe ocurrir antes del inicio del trabajo"
+          });
+          return;
+        }
+        if (proposals.length > 1 && !doerId) {
+          res.status(400).json({
+            success: false,
+            message: "Con múltiples propuestas, debes seleccionar una ahora o elegir auto-selección con un worker específico"
+          });
+          return;
+        }
+        scheduleAutoSelectAt = autoSelectTime;
+      }
 
-      // Verificar que el doer existe
-      const doer = await User.findByPk(selectedDoerId);
-      if (!doer) {
-        res.status(404).json({ success: false, message: "Doer no encontrado" });
-        return;
+      // Una vez seleccionado: SIEMPRE cerrar propuestas
+      const shouldCloseProposals = !!selectedDoerId;
+
+      // Si se seleccionó ahora, verificar que el doer existe
+      let doer = null;
+      if (selectedDoerId) {
+        doer = await User.findByPk(selectedDoerId);
+        if (!doer) {
+          res.status(404).json({ success: false, message: "Doer no encontrado" });
+          return;
+        }
       }
 
       // Procesar free contract si aplica
@@ -3553,7 +3555,7 @@ router.post(
       const contract = await Contract.create({
         jobId,
         clientId,
-        doerId: selectedDoerId,
+        doerId: selectedDoerId as any,
         type: "trabajo",
         price,
         commission,
@@ -3566,12 +3568,14 @@ router.post(
         termsAcceptedByClient: termsAccepted,
         notes,
         status: initialStatus,
-        paymentMethod
+        paymentMethod,
+        autoSelectAt: scheduleAutoSelectAt as any
       });
 
       // Actualizar trabajo
-      job.status = "in_progress";
+      job.status = selectedDoerId ? "in_progress" : "open"; // Si se selecciona ahora, marcar in_progress; si es auto-select, quedá open
       job.doerId = selectedDoerId as any;
+      job.autoSelectAt = scheduleAutoSelectAt as any; // Guardar hora de auto-selección
       await job.save();
 
       // Marcar propuesta como aprobada (la seleccionada)
@@ -3648,13 +3652,17 @@ router.post(
           message: needsAdminApproval
             ? `Pago procesado. El admin debe aprobar el pago antes de que el trabajo comience.`
             : `Pago aprobado automáticamente. El trabajo puede comenzar inmediatamente.`,
-          autoSelectedWorker: shouldAutoSelect,
+          selectionType: selectedDoerId ? 'manual' : 'scheduled',
+          workerSelected: !!selectedDoerId,
+          autoSelectScheduled: !!scheduleAutoSelectAt,
+          workerName: doer?.name || 'Por seleccionar (auto-select programado)',
+          autoSelectAt: scheduleAutoSelectAt?.toISOString() || null,
           proposalsClosed: shouldCloseProposals,
-          workerName: doer.name,
-          timeUntilStart: Math.round(hoursUntilStart * 60), // minutos hasta inicio
-          note: shouldCloseProposals
-            ? `Las postulaciones han sido cerradas. ${doer.name} fue seleccionado automáticamente.`
-            : `Se ha seleccionado a ${doer.name}. Otras postulaciones aún pueden llegar hasta 1 hora antes del trabajo.`
+          note: scheduleAutoSelectAt
+            ? `Auto-selección programada para ${scheduleAutoSelectAt.toLocaleString('es-AR')}. Las postulaciones permanecen abiertas hasta esa hora.`
+            : selectedDoerId
+            ? `${doer?.name} ha sido seleccionado. Las postulaciones han sido cerradas.`
+            : 'Sin selección'
         }
       });
 

@@ -33,6 +33,7 @@ import { startSuspendFlexibleEndDateJob } from "./jobs/suspendFlexibleEndDateJob
 import { startResetReferralDiscountsJob } from "./jobs/resetReferralDiscounts.js";
 import { startAutoConfirmContractsJob } from "./jobs/autoConfirmContracts.js";
 import { startConfirmationReminderJob } from "./jobs/sendConfirmationReminders.js";
+import { startScheduledAutoSelectionsJob } from "./jobs/processScheduledAutoSelections.js";
 
 // Rutas
 import authRoutes from "./routes/auth.js";
@@ -409,6 +410,9 @@ startAutoConfirmContractsJob();
 
 // Initialize confirmation reminders (when job ends, remind both parties to confirm)
 startConfirmationReminderJob();
+
+// Initialize scheduled auto-selections (every 5 minutes, select workers at programmed time)
+startScheduledAutoSelectionsJob();
 
 // Manejo de errores del servidor
 httpServer.on('error', (error: NodeJS.ErrnoException) => {
