@@ -26,15 +26,10 @@
     background-color: rgb(15, 23, 42); /* slate-900 */
   }
 
-  /* UI compacta en desktop (75%) — sin el truco de `zoom` (que causa blur y
-     rompe position:fixed). En su lugar reducimos el font-size raíz al 75%
-     (12px = 16px × 0.75): como Tailwind usa unidades rem para spacing y
-     tipografía, todo escala proporcionalmente igual que zoom:0.75, pero nítido. */
-  @media (min-width: 769px) {
-    html {
-      font-size: 12px;
-    }
-  }
+  /* Desktop UI: 100% scale (16px base) — accesibilidad WCAG 2.1 AA.
+     Responsive design: content adapts to viewport, no artificial zoom hacks.
+     Scroll is expected on smaller desktops; lazy-loading + collapsible sections
+     handle space constraints naturally. */
 
   body {
     @apply bg-[#F0F4F8] dark:bg-slate-900 text-slate-800 dark:text-white;
@@ -138,17 +133,17 @@ img[class*="object-cover"] {
 
   /* ── Buttons ─────────────────────────────────── */
   .btn-responsive {
-    @apply px-4 py-2.5 sm:px-5 sm:py-3 text-sm sm:text-base
-           rounded-xl font-semibold
+    @apply px-3 py-2 sm:px-4 sm:py-2.5 text-sm sm:text-base
+           rounded-lg font-semibold
            transition-all duration-200 ease-out active:scale-95;
   }
 
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2
-           px-5 py-2.5 rounded-xl
+           px-4 py-2 rounded-lg
            bg-gradient-to-r from-sky-600 to-blue-600
            hover:from-sky-500 hover:to-blue-500
-           text-white font-semibold
+           text-white font-semibold text-sm
            shadow-md shadow-sky-600/30
            hover:shadow-lg hover:shadow-sky-500/40
            transition-all duration-200 ease-out active:scale-95
@@ -158,10 +153,10 @@ img[class*="object-cover"] {
 
   .btn-secondary {
     @apply inline-flex items-center justify-center gap-2
-           px-5 py-2.5 rounded-xl
+           px-4 py-2 rounded-lg
            bg-gradient-to-r from-orange-500 to-orange-600
            hover:from-orange-400 hover:to-orange-500
-           text-white font-semibold
+           text-white font-semibold text-sm
            shadow-md shadow-orange-500/25
            hover:shadow-lg hover:shadow-orange-500/35
            transition-all duration-200 ease-out active:scale-95
@@ -171,31 +166,31 @@ img[class*="object-cover"] {
 
   .btn-ghost {
     @apply inline-flex items-center justify-center gap-2
-           px-5 py-2.5 rounded-xl
+           px-4 py-2 rounded-lg
            bg-transparent hover:bg-slate-100 dark:hover:bg-slate-700/80
-           text-slate-700 dark:text-slate-200 font-semibold
+           text-slate-700 dark:text-slate-200 font-semibold text-sm
            transition-all duration-200 ease-out active:scale-95
            focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2;
   }
 
   .btn-outline {
     @apply inline-flex items-center justify-center gap-2
-           px-5 py-2.5 rounded-xl
+           px-4 py-2 rounded-lg
            border border-slate-300 dark:border-slate-600
            hover:border-sky-500 dark:hover:border-sky-500
            bg-transparent
            text-slate-700 dark:text-slate-200 hover:text-sky-700 dark:hover:text-sky-400
-           font-semibold
+           font-semibold text-sm
            transition-all duration-200 ease-out active:scale-95
            focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2;
   }
 
   .btn-danger {
     @apply inline-flex items-center justify-center gap-2
-           px-5 py-2.5 rounded-xl
+           px-4 py-2 rounded-lg
            bg-gradient-to-r from-red-600 to-red-700
            hover:from-red-500 hover:to-red-600
-           text-white font-semibold
+           text-white font-semibold text-sm
            shadow-md shadow-red-600/20
            hover:shadow-lg hover:shadow-red-500/30
            transition-all duration-200 ease-out active:scale-95
@@ -205,10 +200,10 @@ img[class*="object-cover"] {
 
   /* ── Form inputs ─────────────────────────────── */
   .input-responsive {
-    @apply w-full h-11 sm:h-12 rounded-xl
+    @apply w-full h-9 sm:h-10 rounded-lg
            border border-slate-300 dark:border-slate-600
            bg-white dark:bg-slate-800/80
-           px-4 py-2.5 text-base text-slate-900 dark:text-white
+           px-3 py-2 text-sm text-slate-900 dark:text-white
            placeholder:text-slate-400 dark:placeholder:text-slate-500
            focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:focus:ring-sky-800
            transition-all duration-200;

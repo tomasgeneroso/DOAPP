@@ -104,6 +104,9 @@ const AdminSearch = lazy(() => import("./pages/admin/AdminSearch"));
 const DatabaseDiagram = lazy(() => import("./pages/admin/DatabaseDiagram"));
 const SecurityPanel = lazy(() => import("./pages/admin/SecurityPanel"));
 const ModulesManager = lazy(() => import("./pages/admin/ModulesManager"));
+const ModerationHub = lazy(() => import("./pages/admin/ModerationHub"));
+const FinancialHub = lazy(() => import("./pages/admin/FinancialHub"));
+const GrowthHub = lazy(() => import("./pages/admin/GrowthHub"));
 const EditJobScreen = lazy(() => import("./pages/EditJobScreen"));
 const NotificationsScreen = lazy(() => import("./pages/NotificationsScreen"));
 const CompleteRegistration = lazy(() => import("./pages/CompleteRegistration"));
@@ -537,6 +540,9 @@ export default function App() {
               <Route path="database" element={<DatabaseDiagram />} />
               <Route path="security" element={<SecurityPanel />} />
               <Route path="modules" element={<ModulesManager />} />
+              <Route path="hubs/moderation" element={<ModerationHub />} />
+              <Route path="hubs/financial" element={<FinancialHub />} />
+              <Route path="hubs/growth" element={<GrowthHub />} />
             </Route>
                 </Routes>
                 </Suspense>

@@ -78,6 +78,16 @@ export default function AdminLayout() {
   // Grouped navigation structure
   const navGroups: NavGroup[] = [
     {
+      label: "hubs",
+      icon: LayoutDashboard,
+      roles: ["owner", "super_admin", "admin", "support", "marketing"],
+      items: [
+        { path: "/admin/hubs/moderation", icon: AlertTriangle, label: '🚨 Moderation', roles: ["owner", "super_admin", "admin", "support"] },
+        { path: "/admin/hubs/financial", icon: DollarSign, label: '💰 Financial', roles: ["owner", "super_admin"] },
+        { path: "/admin/hubs/growth", icon: TrendingUp, label: '📈 Growth', roles: ["owner", "super_admin", "marketing"] },
+      ]
+    },
+    {
       label: "general",
       icon: LayoutDashboard,
       roles: ["owner", "super_admin", "admin", "support", "marketing", "dpo"],

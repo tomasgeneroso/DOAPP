@@ -216,9 +216,9 @@ export default function PaymentMethodSelector({
   ];
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-3">
       {/* ── Method picker ──────────────────────── */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2">
         {methods.map((m) => {
           const active = selectedMethod === m.id;
           return (
@@ -227,7 +227,7 @@ export default function PaymentMethodSelector({
               type="button"
               onClick={() => onMethodChange(m.id)}
               className={`
-                relative flex flex-col items-center gap-1.5 rounded-2xl border-2 px-2 py-4 transition-all duration-200
+                relative flex flex-col items-center gap-1 rounded-lg border-2 px-1.5 py-3 transition-all duration-200
                 ${active
                   ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20 shadow-md shadow-sky-500/20'
                   : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 hover:-translate-y-0.5'}
@@ -235,15 +235,15 @@ export default function PaymentMethodSelector({
             >
               {/* Selected dot */}
               {active && (
-                <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-sky-500" />
+                <span className="absolute top-1 right-1 h-1.5 w-1.5 rounded-full bg-sky-500" />
               )}
-              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-700">
+              <div className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100 dark:bg-slate-700">
                 {m.logo}
               </div>
-              <span className={`text-xs font-semibold text-center leading-tight ${active ? 'text-sky-700 dark:text-sky-300' : 'text-slate-700 dark:text-slate-300'}`}>
+              <span className={`text-[11px] font-semibold text-center leading-tight ${active ? 'text-sky-700 dark:text-sky-300' : 'text-slate-700 dark:text-slate-300'}`}>
                 {m.label}
               </span>
-              <span className={`text-[10px] ${active ? 'text-sky-500 dark:text-sky-400' : 'text-slate-400 dark:text-slate-500'}`}>
+              <span className={`text-[9px] ${active ? 'text-sky-500 dark:text-sky-400' : 'text-slate-400 dark:text-slate-500'}`}>
                 {m.sub}
               </span>
             </button>
@@ -288,7 +288,7 @@ export default function PaymentMethodSelector({
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
+              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
                 Número de tarjeta
               </label>
               <div className="relative">
@@ -299,15 +299,15 @@ export default function PaymentMethodSelector({
                   onChange={(e) => setCardNumber(fmtCardNum(e.target.value))}
                   placeholder="0000 0000 0000 0000"
                   maxLength={19}
-                  className="block w-full h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 pl-4 pr-10 text-sm font-mono text-slate-900 dark:text-white placeholder:text-slate-400 placeholder:font-sans focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:focus:ring-sky-800 transition-all"
+                  className="block w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 pl-3 pr-8 text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 placeholder:font-sans focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:focus:ring-sky-800 transition-all"
                 />
-                <CreditCard className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <CreditCard className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
                   Vencimiento
                 </label>
                 <input
@@ -317,11 +317,11 @@ export default function PaymentMethodSelector({
                   onChange={(e) => setExpiry(fmtExpiry(e.target.value))}
                   placeholder="MM/AA"
                   maxLength={5}
-                  className="block w-full h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-4 text-sm font-mono text-slate-900 dark:text-white placeholder:text-slate-400 placeholder:font-sans focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:focus:ring-sky-800 transition-all"
+                  className="block w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 placeholder:font-sans focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:focus:ring-sky-800 transition-all"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
                   CVV
                 </label>
                 <input
@@ -331,19 +331,19 @@ export default function PaymentMethodSelector({
                   onChange={(e) => setCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
                   placeholder="• • •"
                   maxLength={4}
-                  className="block w-full h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-4 text-sm font-mono text-slate-900 dark:text-white placeholder:text-slate-400 placeholder:font-sans focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:focus:ring-sky-800 transition-all"
+                  className="block w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 placeholder:font-sans focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:focus:ring-sky-800 transition-all"
                 />
               </div>
             </div>
           </div>
 
           {/* MP info banner */}
-          <div className="flex items-start gap-3 rounded-xl bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 p-3">
-            <div className="mt-0.5 flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-[#00B1EA]">
-              <span className="text-[11px] font-black text-white leading-none">MP</span>
+          <div className="flex items-start gap-2 rounded-lg bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 p-2">
+            <div className="mt-0 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-[#00B1EA]">
+              <span className="text-[9px] font-black text-white leading-none">MP</span>
             </div>
-            <p className="text-xs text-sky-800 dark:text-sky-300 leading-relaxed">
-              <span className="font-semibold">Serás redirigido a MercadoPago</span> para completar el pago de forma segura. Aceptamos tarjetas de crédito/débito, transferencia bancaria y efectivo (Rapipago, Pago Fácil).
+            <p className="text-[11px] text-sky-800 dark:text-sky-300 leading-snug">
+              <span className="font-semibold">Serás redirigido a MercadoPago</span> para completar el pago de forma segura. Aceptamos tarjetas de crédito/débito, transferencia bancaria y efectivo.
             </p>
           </div>
         </div>
@@ -360,22 +360,22 @@ export default function PaymentMethodSelector({
           ) : (
             <>
               {/* Conversion card */}
-              <div className="rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm font-medium text-amber-800 dark:text-amber-200">Monto en ARS</span>
-                  <span className="text-lg font-bold text-amber-900 dark:text-amber-100">
+              <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-medium text-amber-800 dark:text-amber-200">Monto en ARS</span>
+                  <span className="text-base font-bold text-amber-900 dark:text-amber-100">
                     ${amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
-                <div className="h-px bg-amber-200 dark:bg-amber-700 mb-3" />
+                <div className="h-px bg-amber-200 dark:bg-amber-700 mb-2" />
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-amber-800 dark:text-amber-200">Equivalente USDT</span>
-                  <span className="text-xl font-bold text-green-600 dark:text-green-400">
+                  <span className="text-xs font-medium text-amber-800 dark:text-amber-200">Equivalente USDT</span>
+                  <span className="text-lg font-bold text-green-600 dark:text-green-400">
                     {usdtAmount?.toFixed(2) || '0.00'} USDT
                   </span>
                 </div>
                 {usdtRate && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+                  <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1.5">
                     Tasa: 1 USDT = ${usdtRate.toLocaleString('es-AR')} ARS
                   </p>
                 )}
