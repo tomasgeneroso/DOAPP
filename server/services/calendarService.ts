@@ -4,8 +4,8 @@ import { Job } from '../models/sql/Job.model.js';
 import { google } from 'googleapis';
 
 /**
- * Servicio para sincronizar contratos con calendarios de usuarios
- * Integración con Google Calendar, Outlook, iCalendar
+ * Servicio para sincronizar contratos con Google Calendar
+ * Solo integración con Google Calendar (no Outlook u otros)
  */
 
 interface CalendarEvent {
@@ -142,7 +142,7 @@ export async function syncUserContractsToCalendar(userId: string) {
 
 /**
  * Agregar evento a Google Calendar del usuario
- * Requiere que el usuario haya conectado su Google Calendar
+ * Requiere que el usuario haya conectado su Google Calendar (OAuth2)
  */
 export async function addEventToGoogleCalendar(userId: string, event: CalendarEvent) {
   try {
@@ -152,35 +152,24 @@ export async function addEventToGoogleCalendar(userId: string, event: CalendarEv
     // Obtener tokens de Google Calendar
     const calendarTokens = (user as any).calendarTokens;
     if (!calendarTokens?.google?.access_token) {
-      console.log(`[GOOGLE CALENDAR] Usuario ${userId} no tiene Google Calendar conectado`);
+      console.log(`📅 [GOOGLE CALENDAR] Usuario ${userId} no tiene Google Calendar conectado`);
       return null;
     }
 
-    // Aquí se integraría con Google Calendar API
-    // Esto es un placeholder para mostrar la estructura
-    console.log('📅 [GOOGLE CALENDAR] Agregando evento:', {
+    // TODO: Implementar integración real con Google Calendar API
+    // Pasos:
+    // 1. Usar tokens guardados (access_token, refresh_token)
+    // 2. Refrescar token si está vencido (expiry_date)
+    // 3. Llamar a google.calendar('v3').events.insert()
+    // 4. Guardar event.id en contract.googleCalendarEventId
+
+    console.log('📅 [GOOGLE CALENDAR] Evento listo para sincronizar:', {
       userId,
       eventTitle: event.title,
       startTime: event.startTime,
       endTime: event.endTime,
       attendees: event.attendees
     });
-
-    // En producción:
-    // const calendar = google.calendar('v3');
-    // const response = await calendar.events.insert({
-    //   calendarId: 'primary',
-    //   auth: oauth2Client,
-    //   requestBody: {
-    //     summary: event.title,
-    //     description: event.description,
-    //     start: { dateTime: event.startTime },
-    //     end: { dateTime: event.endTime },
-    //     location: event.location,
-    //     attendees: event.attendees?.map(email => ({ email }))
-    //   }
-    // });
-    // return response.data.id;
 
     return null;
   } catch (error) {
