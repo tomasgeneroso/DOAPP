@@ -164,17 +164,12 @@ export default function Header() {
           className="flex items-center gap-2 sm:gap-3 group flex-shrink-0"
           data-onboarding="logo"
         >
-          {/* Logo Icon */}
-          <div className="relative flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-xl sm:rounded-2xl bg-gradient-to-br from-sky-500 via-sky-600 to-blue-700 shadow-md shadow-sky-600/40 transition-all duration-300 group-hover:shadow-lg group-hover:shadow-sky-500/50 group-hover:scale-105 group-hover:from-sky-400 group-hover:to-blue-600">
-            <span className="text-lg sm:text-2xl font-black text-white tracking-tight">
-              DO
-            </span>
-          </div>
-
-          {/* Logo Text */}
-          <span className="text-xl sm:text-2xl font-black bg-gradient-to-r from-sky-600 to-blue-600 bg-clip-text text-transparent dark:from-sky-400 dark:to-blue-400 tracking-tight">
-            APP
-          </span>
+          {/* Logo SVG */}
+          <img
+            src="/logo.svg"
+            alt="DOAPP"
+            className="h-10 w-10 sm:h-12 sm:w-12 transition-transform duration-300 group-hover:scale-105"
+          />
         </Link>
 
         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
