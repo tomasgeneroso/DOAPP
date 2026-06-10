@@ -1,10 +1,11 @@
 import { User } from '../models/sql/User.model.js';
 import { Contract } from '../models/sql/Contract.model.js';
 import { Job } from '../models/sql/Job.model.js';
+import { google } from 'googleapis';
 
 /**
  * Servicio para sincronizar contratos con calendarios de usuarios
- * Agrega eventos a Google Calendar, Outlook, etc. vía iCalendar/web hooks
+ * Integración con Google Calendar, Outlook, iCalendar
  */
 
 interface CalendarEvent {
@@ -14,6 +15,12 @@ interface CalendarEvent {
   endTime: Date;
   location?: string;
   attendees?: string[];
+}
+
+interface GoogleCalendarToken {
+  access_token: string;
+  refresh_token?: string;
+  expiry_date?: number;
 }
 
 export async function addContractToCalendars(contractId: string) {
@@ -133,8 +140,116 @@ export async function syncUserContractsToCalendar(userId: string) {
   }
 }
 
+/**
+ * Agregar evento a Google Calendar del usuario
+ * Requiere que el usuario haya conectado su Google Calendar
+ */
+export async function addEventToGoogleCalendar(userId: string, event: CalendarEvent) {
+  try {
+    const user = await User.findByPk(userId);
+    if (!user) return null;
+
+    // Obtener tokens de Google Calendar
+    const calendarTokens = (user as any).calendarTokens;
+    if (!calendarTokens?.google?.access_token) {
+      console.log(`[GOOGLE CALENDAR] Usuario ${userId} no tiene Google Calendar conectado`);
+      return null;
+    }
+
+    // Aquí se integraría con Google Calendar API
+    // Esto es un placeholder para mostrar la estructura
+    console.log('📅 [GOOGLE CALENDAR] Agregando evento:', {
+      userId,
+      eventTitle: event.title,
+      startTime: event.startTime,
+      endTime: event.endTime,
+      attendees: event.attendees
+    });
+
+    // En producción:
+    // const calendar = google.calendar('v3');
+    // const response = await calendar.events.insert({
+    //   calendarId: 'primary',
+    //   auth: oauth2Client,
+    //   requestBody: {
+    //     summary: event.title,
+    //     description: event.description,
+    //     start: { dateTime: event.startTime },
+    //     end: { dateTime: event.endTime },
+    //     location: event.location,
+    //     attendees: event.attendees?.map(email => ({ email }))
+    //   }
+    // });
+    // return response.data.id;
+
+    return null;
+  } catch (error) {
+    console.error('Error adding event to Google Calendar:', error);
+    return null;
+  }
+}
+
+/**
+ * Obtener URL de autorización para Google Calendar OAuth2
+ */
+export function getGoogleCalendarAuthUrl() {
+  // Esto requeriría configuración de Google OAuth2
+  // client ID, client secret, redirect URI
+  return {
+    url: process.env.GOOGLE_CALENDAR_AUTH_URL || '',
+    scope: 'https://www.googleapis.com/auth/calendar',
+    prompt: 'consent'
+  };
+}
+
+/**
+ * Guardar tokens de Google Calendar para usuario
+ */
+export async function saveGoogleCalendarTokens(userId: string, tokens: GoogleCalendarToken) {
+  try {
+    const user = await User.findByPk(userId);
+    if (!user) return false;
+
+    const calendarTokens = (user as any).calendarTokens || {};
+    calendarTokens.google = tokens;
+    (user as any).calendarTokens = calendarTokens;
+    await user.save();
+
+    console.log(`✅ [GOOGLE CALENDAR] Tokens guardados para usuario ${userId}`);
+    return true;
+  } catch (error) {
+    console.error('Error saving Google Calendar tokens:', error);
+    return false;
+  }
+}
+
+/**
+ * Desconectar Google Calendar del usuario
+ */
+export async function disconnectGoogleCalendar(userId: string) {
+  try {
+    const user = await User.findByPk(userId);
+    if (!user) return false;
+
+    const calendarTokens = (user as any).calendarTokens || {};
+    delete calendarTokens.google;
+    (user as any).calendarTokens = calendarTokens;
+    await user.save();
+
+    console.log(`🔌 [GOOGLE CALENDAR] Desconectado para usuario ${userId}`);
+    return true;
+  } catch (error) {
+    console.error('Error disconnecting Google Calendar:', error);
+    return false;
+  }
+}
+
 export default {
   addContractToCalendars,
   notifyAutoSelectionIncoming,
-  syncUserContractsToCalendar
+  syncUserContractsToCalendar,
+  addEventToGoogleCalendar,
+  getGoogleCalendarAuthUrl,
+  saveGoogleCalendarTokens,
+  disconnectGoogleCalendar
 };

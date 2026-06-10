@@ -129,6 +129,8 @@ import balanceRoutes from "./routes/balance.js";
 // Post routes
 import postsRoutes from "./routes/posts.js";
 
+// Calendar routes
+import calendarRoutes from "./routes/calendar.js";
 
 // Company Balance routes (owner only)
 import companyBalanceRoutes from "./routes/admin/companyBalance.js";
@@ -313,6 +315,9 @@ app.use("/api/config", configRoutes);
 
 // Profile routes (unified showcase)
 app.use("/api/profile", profileRoutes);
+
+// Calendar routes (Google Calendar integration)
+app.use("/api/calendar", calendarRoutes);
 
 // MercadoPago OAuth routes - DISABLED (requires marketplace account)
 // app.use("/api/mercadopago", (await import('./routes/mercadopagoOAuth.js')).default);
