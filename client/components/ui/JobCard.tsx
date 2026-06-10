@@ -76,18 +76,18 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, index = 0 }) => {
           )}
         />
 
-        <div className="p-5">
+        <div className="p-3.5">
           {/* Header row: category + price */}
-          <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex items-start justify-between gap-2 mb-2">
             {categoryKey && (
-              <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold tracking-wide", categoryClass)}>
+              <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold tracking-wide", categoryClass)}>
                 {categoryKey}
               </span>
             )}
             <div className="ml-auto shrink-0">
-              <span className="inline-flex items-baseline gap-0.5 px-3 py-1 rounded-full bg-gradient-to-r from-sky-50 to-blue-50 dark:from-sky-900/40 dark:to-blue-900/40 border border-sky-200/60 dark:border-sky-800/40">
-                <span className="text-xs font-medium text-sky-600 dark:text-sky-400">$</span>
-                <span className="text-base font-bold text-sky-700 dark:text-sky-300">
+              <span className="inline-flex items-baseline gap-0.5 px-2 py-0.5 rounded-full bg-gradient-to-r from-sky-50 to-blue-50 dark:from-sky-900/40 dark:to-blue-900/40 border border-sky-200/60 dark:border-sky-800/40">
+                <span className="text-[10px] font-medium text-sky-600 dark:text-sky-400">$</span>
+                <span className="text-sm font-bold text-sky-700 dark:text-sky-300">
                   {price.toLocaleString("es-AR")}
                 </span>
               </span>
@@ -95,17 +95,17 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, index = 0 }) => {
           </div>
 
           {/* Title */}
-          <h3 className="text-base font-bold text-slate-900 dark:text-white mb-1.5 line-clamp-1 leading-snug">
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-1 line-clamp-1 leading-snug">
             {job.title}
           </h3>
 
           {/* Description */}
-          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 line-clamp-2 leading-relaxed">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mb-3 line-clamp-2 leading-relaxed">
             {job.description}
           </p>
 
           {/* Footer: dates + cta */}
-          <div className="flex items-center justify-between pt-3.5 border-t border-slate-100 dark:border-slate-700/60">
+          <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-700/60">
             <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">
               <span className="flex items-center gap-1">
                 <Calendar className="h-3 w-3 shrink-0 text-sky-500" aria-hidden="true" />

@@ -418,7 +418,7 @@ export default function LoginScreen() {
         <ThemeToggle />
       </div>
       <div className="flex min-h-screen flex-col justify-center px-4 py-6 sm:px-6 sm:py-12 lg:px-8">
-        <div className="mx-auto w-full max-w-[95%] sm:max-w-md rounded-2xl bg-white dark:bg-slate-800 p-5 shadow-lg sm:p-8 md:p-12 animate-scaleIn">
+        <div className="mx-auto w-full max-w-[95%] sm:max-w-md rounded-xl bg-white dark:bg-slate-800 p-4 shadow-lg sm:p-5 animate-scaleIn">
           <Link
             to="/"
             className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white mb-6"
@@ -498,7 +498,7 @@ export default function LoginScreen() {
                         onChange={handleInputChange}
                         value={formData.firstName}
                         placeholder="Juan"
-                        className="block w-full h-12 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                        className="block w-full h-9 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-1.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                       />
                     </div>
                   </div>
@@ -519,7 +519,7 @@ export default function LoginScreen() {
                         onChange={handleInputChange}
                         value={formData.lastName}
                         placeholder="Pérez"
-                        className="block w-full h-12 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+                        className="block w-full h-9 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-1.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                       />
                     </div>
                   </div>
