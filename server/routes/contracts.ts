@@ -3452,17 +3452,21 @@ router.post(
       const msUntilStart = jobStartTime - nowTime;
       const hoursUntilStart = msUntilStart / (1000 * 60 * 60);
 
-      // Determinar si auto-seleccionar basado en tiempo
-      // Auto-selecciona si: 1 propuesta AND (faltan <= 1 hora OR trabajo no seleccionado aún)
-      const shouldAutoSelect = proposals.length === 1;
-      const shouldCloseProposals = proposals.length === 1 && hoursUntilStart <= 1;
+      // Lógica de auto-selección
+      // - Si 1 propuesta y faltan < 1 hora: auto-selecciona
+      // - Si selección manual: se requiere doerId en body
+      // - Una vez seleccionado: SIEMPRE cierra propuestas (no acepta más)
+      const shouldAutoSelect = proposals.length === 1 && hoursUntilStart < 1;
 
       let selectedDoerId: string;
 
       if (shouldAutoSelect) {
         selectedDoerId = proposals[0].doerId.toString();
+      } else if (proposals.length === 1) {
+        // Una sola propuesta pero > 1 hora: usar de todas formas
+        selectedDoerId = proposals[0].doerId.toString();
       } else {
-        // Si hay varias propuestas, se debe seleccionar manualmente
+        // Múltiples propuestas: se debe seleccionar manualmente
         const { doerId } = req.body;
         if (!doerId) {
           res.status(400).json({
@@ -3472,7 +3476,8 @@ router.post(
               id: p.id,
               doerId: p.doerId,
               proposedPrice: p.proposedPrice,
-              message: p.message
+              message: p.message,
+              createdAt: p.createdAt
             }))
           });
           return;
@@ -3489,6 +3494,9 @@ router.post(
           return;
         }
       }
+
+      // Una vez seleccionado: SIEMPRE cerrar propuestas (no aceptar más)
+      const shouldCloseProposals = true;
 
       // Verificar que el doer existe
       const doer = await User.findByPk(selectedDoerId);
@@ -3628,6 +3636,216 @@ router.post(
 
     } catch (error: any) {
       console.error("Express checkout error:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor"
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/contracts/:jobId/worker-selection-status
+ * Obtener información sobre si se puede cancelar la selección
+ */
+router.get(
+  "/:jobId/worker-selection-status",
+  protect,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { jobId } = req.params;
+      const userId = req.user.id;
+
+      // Obtener el trabajo
+      const job = await Job.findByPk(jobId);
+      if (!job) {
+        res.status(404).json({ success: false, message: "Trabajo no encontrado" });
+        return;
+      }
+
+      // Verificar que el usuario sea el cliente
+      if (job.clientId.toString() !== userId.toString()) {
+        res.status(403).json({ success: false, message: "No tienes acceso a esta información" });
+        return;
+      }
+
+      // Si no hay worker seleccionado
+      if (!job.doerId) {
+        res.json({
+          success: true,
+          hasWorkerSelected: false,
+          canCancelSelection: false,
+          message: "No hay worker seleccionado"
+        });
+        return;
+      }
+
+      // Calcular tiempo hasta inicio
+      const jobStartTime = new Date(job.startDate).getTime();
+      const nowTime = new Date().getTime();
+      const msUntilStart = jobStartTime - nowTime;
+      const hoursUntilStart = msUntilStart / (1000 * 60 * 60);
+
+      // Obtener info del usuario
+      const user = await User.findByPk(userId);
+      if (!user) {
+        res.status(404).json({ success: false, message: "Usuario no encontrado" });
+        return;
+      }
+
+      // Determinar límite según plan
+      const isSuperPro = user.membershipType === 'super_pro';
+      const cancellationHourLimit = isSuperPro ? 24 : 48;
+      const canCancel = hoursUntilStart >= cancellationHourLimit;
+
+      res.json({
+        success: true,
+        hasWorkerSelected: true,
+        canCancelSelection: canCancel,
+        hoursUntilStart: Math.round(hoursUntilStart * 100) / 100,
+        cancellationHourLimit,
+        membershipType: user.membershipType,
+        workerId: job.doerId,
+        message: canCancel
+          ? `Puedes cancelar la selección hasta ${cancellationHourLimit} horas antes (faltan ${Math.round(hoursUntilStart * 100) / 100} horas)`
+          : `No puedes cancelar: faltan solo ${Math.round(hoursUntilStart * 100) / 100} horas. Límite: ${cancellationHourLimit} horas`,
+        jobStartDate: job.startDate
+      });
+    } catch (error: any) {
+      console.error("Worker selection status error:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor"
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/contracts/:jobId/cancel-worker-selection
+ * Cancelar la selección de un worker
+ *
+ * Reglas:
+ * - Usuario normal: puede cancelar hasta 48 horas antes
+ * - Super PRO: puede cancelar hasta 24 horas antes
+ * - Debe ser el cliente del trabajo
+ */
+router.post(
+  "/:jobId/cancel-worker-selection",
+  protect,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { jobId } = req.params;
+      const userId = req.user.id;
+
+      // Obtener el trabajo
+      const job = await Job.findByPk(jobId);
+      if (!job) {
+        res.status(404).json({ success: false, message: "Trabajo no encontrado" });
+        return;
+      }
+
+      // Verificar que el usuario sea el cliente
+      if (job.clientId.toString() !== userId.toString()) {
+        res.status(403).json({ success: false, message: "No tienes permiso para cancelar la selección" });
+        return;
+      }
+
+      // Obtener el contrato actual
+      const contract = await Contract.findOne({
+        where: { jobId, doerId: job.doerId }
+      });
+
+      if (!contract) {
+        res.status(404).json({ success: false, message: "Contrato no encontrado" });
+        return;
+      }
+
+      // Calcular tiempo hasta inicio del trabajo
+      const jobStartTime = new Date(job.startDate).getTime();
+      const nowTime = new Date().getTime();
+      const msUntilStart = jobStartTime - nowTime;
+      const hoursUntilStart = msUntilStart / (1000 * 60 * 60);
+
+      // Obtener info del usuario (para verificar si es Super PRO)
+      const user = await User.findByPk(userId);
+      if (!user) {
+        res.status(404).json({ success: false, message: "Usuario no encontrado" });
+        return;
+      }
+
+      // Determinar límite de horas para cancelación
+      const isSuperPro = user.membershipType === 'super_pro';
+      const cancellationHourLimit = isSuperPro ? 24 : 48;
+
+      // Verificar si puede cancelar
+      if (hoursUntilStart < cancellationHourLimit) {
+        const hoursRemaining = Math.round(hoursUntilStart * 100) / 100;
+        res.status(400).json({
+          success: false,
+          message: `No puedes cancelar la selección. Faltan ${hoursRemaining} horas para el inicio. Límite: ${cancellationHourLimit} horas`,
+          hoursUntilStart: hoursRemaining,
+          cancellationHourLimit,
+          membershipType: user.membershipType
+        });
+        return;
+      }
+
+      // Cancelar la selección
+      // Cambiar estado del contrato a 'cancelled'
+      contract.status = 'cancelled';
+      await contract.save();
+
+      // Actualizar trabajo: remover doerId y volver a 'open'
+      job.doerId = null as any;
+      job.status = 'open';
+      await job.save();
+
+      // Re-abrir propuestas (cambiar 'rejected' a 'pending')
+      const { Proposal } = await import('../models/sql/Proposal.model.js');
+      await Proposal.update(
+        { status: 'pending' },
+        { where: { jobId, status: 'rejected' } }
+      );
+
+      // Obtener propuestas actuales
+      const proposals = await Proposal.findAll({
+        where: { jobId, status: 'pending' },
+        order: [['createdAt', 'DESC']]
+      });
+
+      // Notificar al worker
+      socketService.notifyUser(
+        job.doerId.toString(),
+        'worker_selection_cancelled',
+        {
+          jobId,
+          jobTitle: (job as any).title,
+          cancelledAt: new Date(),
+          reason: 'El cliente canceló la selección'
+        }
+      );
+
+      // Notificar al cliente
+      socketService.notifyDashboardRefresh(userId.toString());
+
+      res.json({
+        success: true,
+        message: 'Selección del worker cancelada',
+        job: {
+          id: job.id,
+          status: job.status,
+          doerId: job.doerId,
+          availableProposals: proposals.length
+        }
+      });
+
+      // Invalidar cache
+      cacheService.delPattern(`jobs:${jobId}`);
+      cacheService.delPattern(`contracts:*`);
+
+    } catch (error: any) {
+      console.error("Cancel worker selection error:", error);
       res.status(500).json({
         success: false,
         message: error.message || "Error del servidor"
