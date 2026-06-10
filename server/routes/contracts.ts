@@ -3453,17 +3453,39 @@ router.post(
       const hoursUntilStart = msUntilStart / (1000 * 60 * 60);
 
       // Lógica de auto-selección
-      // - Si 1 propuesta y faltan < 1 hora: auto-selecciona
-      // - Si selección manual: se requiere doerId en body
-      // - Una vez seleccionado: SIEMPRE cierra propuestas (no acepta más)
-      const shouldAutoSelect = proposals.length === 1 && hoursUntilStart < 1;
+      // - Si 1 propuesta y faltan >= 12 horas: auto-selecciona
+      // - Si 1 propuesta y faltan < 12 horas: requiere selección manual (cliente puede pausar y arreglar agenda)
+      // - Si múltiples: requiere selección manual
+      // - Una vez seleccionado: SIEMPRE cierra propuestas
+      const shouldAutoSelect = proposals.length === 1 && hoursUntilStart >= 12;
+      const canWaitForSelection = proposals.length === 1 && hoursUntilStart < 12;
 
       let selectedDoerId: string;
 
       if (shouldAutoSelect) {
+        // Auto-selecciona si >= 12 horas
         selectedDoerId = proposals[0].doerId.toString();
+      } else if (canWaitForSelection) {
+        // Si 1 propuesta pero < 12 horas, pedir confirmación manual
+        const { doerId } = req.body;
+        if (!doerId) {
+          res.status(400).json({
+            success: false,
+            message: `Tienes 1 sola propuesta pero el trabajo comienza en ${Math.round(hoursUntilStart)} horas. Confirma la selección o pausa la publicación para arreglar tu agenda.`,
+            requiresManualConfirmation: true,
+            hoursUntilStart: Math.round(hoursUntilStart * 100) / 100,
+            singleProposal: {
+              id: proposals[0].id,
+              doerId: proposals[0].doerId,
+              proposedPrice: proposals[0].proposedPrice,
+              message: proposals[0].message
+            }
+          });
+          return;
+        }
+        selectedDoerId = doerId;
       } else if (proposals.length === 1) {
-        // Una sola propuesta pero > 1 hora: usar de todas formas
+        // Fallback (shouldn't happen, but safe)
         selectedDoerId = proposals[0].doerId.toString();
       } else {
         // Múltiples propuestas: se debe seleccionar manualmente
@@ -3576,6 +3598,12 @@ router.post(
           { model: User, as: 'client', attributes: ['name', 'email', 'phone', 'avatar'] },
           { model: User, as: 'doer', attributes: ['name', 'email', 'phone', 'avatar'] }
         ]
+      });
+
+      // Agregar contrato al calendario del cliente y trabajador
+      const calendarService = (await import('../services/calendarService.js')).default;
+      calendarService.addContractToCalendars(contract.id.toString()).catch((err: any) => {
+        console.error('Calendar sync failed (non-blocking):', err.message);
       });
 
       // Enviar notificaciones
