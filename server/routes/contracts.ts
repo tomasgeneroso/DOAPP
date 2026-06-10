@@ -3380,4 +3380,242 @@ router.get("/:id/task-claim", protect, async (req: AuthRequest, res: Response): 
   }
 });
 
+/**
+ * POST /api/contracts/express-checkout
+ * Express Checkout: Crea contrato con aprobación automática si pago es MercadoPago
+ * Si hay una sola propuesta, auto-selecciona al worker
+ * Si hay varias, requiere seleccionar
+ * Si pago es no-MP (AstroPay, Binance, Transfer), requiere aprobación del admin
+ */
+router.post(
+  "/express-checkout",
+  protect,
+  [
+    body("jobId").notEmpty().withMessage("El ID del trabajo es requerido"),
+    body("paymentMethod").isIn(['mercadopago', 'astropay', 'binance', 'bank_transfer']).withMessage("Método de pago inválido"),
+    body("price").isNumeric().withMessage("El precio debe ser un número"),
+    body("startDate").isISO8601().withMessage("Fecha de inicio inválida"),
+    body("endDate").isISO8601().withMessage("Fecha de fin inválida"),
+    body("termsAccepted").isBoolean().withMessage("Debes aceptar los términos"),
+  ],
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        res.status(400).json({ success: false, errors: errors.array() });
+        return;
+      }
+
+      const { jobId, paymentMethod, price, startDate, endDate, termsAccepted, notes, useFreeContract } = req.body;
+      const clientId = req.user.id;
+
+      // Validar monto mínimo
+      if (price < MINIMUM_CONTRACT_AMOUNT) {
+        res.status(400).json({
+          success: false,
+          message: `El monto mínimo del contrato es de $${MINIMUM_CONTRACT_AMOUNT.toLocaleString()} ARS`,
+        });
+        return;
+      }
+
+      // Verificar que el trabajo existe
+      const job = await Job.findByPk(jobId);
+      if (!job) {
+        res.status(404).json({ success: false, message: "Trabajo no encontrado" });
+        return;
+      }
+
+      // Verificar que el usuario sea el dueño
+      if (job.clientId.toString() !== clientId.toString()) {
+        res.status(403).json({ success: false, message: "No tienes permiso para este trabajo" });
+        return;
+      }
+
+      // Obtener todas las propuestas para este trabajo
+      const { Proposal } = await import('../models/sql/Proposal.model.js');
+      const proposals = await Proposal.findAll({
+        where: { jobId, status: 'pending' },
+        order: [['createdAt', 'DESC']]
+      });
+
+      if (proposals.length === 0) {
+        res.status(400).json({
+          success: false,
+          message: "No hay propuestas disponibles para este trabajo",
+        });
+        return;
+      }
+
+      let selectedDoerId: string;
+
+      // Si hay una sola propuesta, auto-seleccionar
+      if (proposals.length === 1) {
+        selectedDoerId = proposals[0].doerId.toString();
+      } else {
+        // Si hay varias, se debe seleccionar manualmente (pasar doerId en body)
+        const { doerId } = req.body;
+        if (!doerId) {
+          res.status(400).json({
+            success: false,
+            message: "Hay múltiples propuestas. Debes seleccionar una",
+            proposals: proposals.map((p: any) => ({
+              id: p.id,
+              doerId: p.doerId,
+              proposedPrice: p.proposedPrice,
+              message: p.message
+            }))
+          });
+          return;
+        }
+        selectedDoerId = doerId;
+
+        // Verificar que la propuesta seleccionada existe
+        const selectedProposal = proposals.find((p: any) => p.doerId.toString() === selectedDoerId.toString());
+        if (!selectedProposal) {
+          res.status(400).json({
+            success: false,
+            message: "La propuesta seleccionada no es válida"
+          });
+          return;
+        }
+      }
+
+      // Verificar que el doer existe
+      const doer = await User.findByPk(selectedDoerId);
+      if (!doer) {
+        res.status(404).json({ success: false, message: "Doer no encontrado" });
+        return;
+      }
+
+      // Procesar free contract si aplica
+      const client = await User.findByPk(clientId);
+      let isFreeContract = false;
+
+      if (useFreeContract && client && client.freeContractsRemaining > 0) {
+        isFreeContract = true;
+        client.freeContractsRemaining -= 1;
+        await client.save();
+      }
+
+      // Calcular comisión
+      const commissionResult = await calculateCommission(clientId, price, { isFreeContract });
+      const commissionRate = commissionResult.rate;
+      const commission = commissionResult.commission;
+      const totalPrice = price + commission;
+
+      // Determinar si necesita aprobación del admin
+      // MercadoPago + pago aprobado = NO necesita aprobación
+      // Otros métodos = SÍ necesita aprobación
+      const needsAdminApproval = paymentMethod !== 'mercadopago';
+      const initialStatus = needsAdminApproval ? 'pending' : 'ready';
+
+      // Crear contrato
+      const contract = await Contract.create({
+        jobId,
+        clientId,
+        doerId: selectedDoerId,
+        type: "trabajo",
+        price,
+        commission,
+        commissionPercentage: commissionRate,
+        totalPrice,
+        startDate,
+        endDate,
+        termsAccepted,
+        termsAcceptedAt: termsAccepted ? new Date() : undefined,
+        termsAcceptedByClient: termsAccepted,
+        notes,
+        status: initialStatus,
+        paymentMethod
+      });
+
+      // Actualizar trabajo
+      job.status = "in_progress";
+      job.doerId = selectedDoerId as any;
+      await job.save();
+
+      // Marcar propuesta como aprobada (la seleccionada)
+      const selectedProposal = proposals.find((p: any) => p.doerId.toString() === selectedDoerId.toString());
+      if (selectedProposal) {
+        selectedProposal.status = 'approved';
+        await (selectedProposal as any).save();
+      }
+
+      // Rechazar otras propuestas
+      for (const proposal of proposals) {
+        if (proposal.doerId.toString() !== selectedDoerId.toString()) {
+          proposal.status = 'rejected';
+          await (proposal as any).save();
+        }
+      }
+
+      // Obtener contrato populado
+      const populatedContract = await Contract.findByPk(contract.id, {
+        include: [
+          { model: Job, as: 'job' },
+          { model: User, as: 'client', attributes: ['name', 'email', 'phone', 'avatar'] },
+          { model: User, as: 'doer', attributes: ['name', 'email', 'phone', 'avatar'] }
+        ]
+      });
+
+      // Enviar notificaciones
+      const emailService = (await import('../services/email.js')).default;
+      const jobPopulated = populatedContract!.job as any;
+
+      await emailService.sendContractCreatedEmail(
+        clientId.toString(),
+        selectedDoerId,
+        contract.id.toString(),
+        jobPopulated.title || 'Contrato',
+        price,
+        'ARS'
+      );
+
+      socketService.notifyContractUpdate(
+        contract.id.toString(),
+        clientId.toString(),
+        selectedDoerId,
+        {
+          action: 'created',
+          contract: populatedContract,
+          expressCheckout: true,
+          paymentMethod,
+          needsAdminApproval,
+          autoSelectedWorker: proposals.length === 1
+        }
+      );
+
+      socketService.notifyDashboardRefresh(clientId.toString());
+      socketService.notifyDashboardRefresh(selectedDoerId);
+
+      // Respuesta al cliente con información clara
+      res.status(201).json({
+        success: true,
+        contract: populatedContract,
+        paymentInfo: {
+          method: paymentMethod,
+          needsAdminApproval,
+          status: initialStatus,
+          message: needsAdminApproval
+            ? `Pago procesado. El admin debe aprobar el pago antes de que el trabajo comience.`
+            : `Pago aprobado automáticamente. El trabajo puede comenzar inmediatamente.`,
+          autoSelectedWorker: proposals.length === 1,
+          workerName: doer.name
+        }
+      });
+
+      // Invalidar cache
+      cacheService.delPattern(`jobs:${jobId}`);
+      cacheService.delPattern(`contracts:*`);
+
+    } catch (error: any) {
+      console.error("Express checkout error:", error);
+      res.status(500).json({
+        success: false,
+        message: error.message || "Error del servidor"
+      });
+    }
+  }
+);
+
 export default router;
