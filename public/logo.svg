@@ -2,12 +2,9 @@
   <!-- Background circle -->
   <circle cx="128" cy="128" r="128" fill="#00A8E8"/>
 
-  <!-- First D (left, angular) -->
-  <path d="M 60 60 L 110 60 Q 135 60 135 95 L 135 161 Q 135 196 110 196 L 60 196 L 60 60 Z M 85 85 L 85 171 L 110 171 Q 125 171 125 161 L 125 95 Q 125 85 110 85 L 85 85 Z" fill="white" stroke="none" fill-rule="evenodd"/>
+  <!-- Letter D (left) -->
+  <path d="M 60 60 L 100 60 Q 130 60 130 90 L 130 166 Q 130 196 100 196 L 60 196 Z" fill="white" stroke="none"/>
 
-  <!-- Second D (right, rounded) -->
-  <g>
-    <ellipse cx="165" cy="128" rx="65" ry="68" fill="white"/>
-    <ellipse cx="165" cy="128" rx="45" ry="50" fill="#00A8E8"/>
-  </g>
+  <!-- Letter O (right) -->
+  <circle cx="170" cy="128" r="60" fill="white"/>
 </svg>
