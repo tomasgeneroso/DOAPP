@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, MessageSquare, AlertCircle, Loader2 } from 'lucide-react';
 import Button from '../../components/ui/Button.js';
@@ -12,6 +13,7 @@ interface ModerationData {
 
 export default function ModerationHub() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [data, setData] = useState<ModerationData | null>(null);
   const [loading, setLoading] = useState(true);
 

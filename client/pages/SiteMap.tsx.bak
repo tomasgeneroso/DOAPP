@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
 import { MapPin, Loader2, Briefcase, Calendar, DollarSign, Filter, X } from 'lucide-react';
@@ -133,7 +132,6 @@ interface JobWithCoords extends Job {
 }
 
 export default function SiteMap() {
-  const { t } = useTranslation();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const [jobs, setJobs] = useState<JobWithCoords[]>([]);

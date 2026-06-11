@@ -1,9 +1,11 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from 'react-i18next';
 import { Helmet } from "react-helmet-async";
 import { ArrowLeft, Home, Scale, AlertCircle } from "lucide-react";
 
 export default function DisputeResolution() {
   return (
+  const { t } = useTranslation();
     <>
       <Helmet>
         <title>Resolución de Disputas - DOAPP</title>

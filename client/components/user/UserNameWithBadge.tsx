@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { User } from '../../types';
 import ProBadge from './ProBadge';
 import FamilyBadge from './FamilyBadge';
@@ -12,6 +13,7 @@ interface UserNameWithBadgeProps {
 
 export default function UserNameWithBadge({ user, badgeSize = 'md', className = '' }: UserNameWithBadgeProps) {
   const { hasProBadge } = useProStatus(user as User);
+  const { t } = useTranslation();
   const hasFamilyPlan = 'hasFamilyPlan' in user && user.hasFamilyPlan;
 
   return (

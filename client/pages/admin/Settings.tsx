@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { useTranslation } from 'react-i18next';
 import { Settings as SettingsIcon, Save, Database, Mail, Shield, Bell } from "lucide-react";
 
 export default function AdminSettings() {
   const [loading, setLoading] = useState(false);
+  const { t } = useTranslation();
   const [message, setMessage] = useState("");
 
   const [settings, setSettings] = useState({

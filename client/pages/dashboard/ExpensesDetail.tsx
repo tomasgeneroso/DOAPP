@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from 'react-i18next';
 import { Link } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { Helmet } from "react-helmet-async";
@@ -36,6 +37,7 @@ interface ExpenseRecord {
 
 export default function ExpensesDetail() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [total, setTotal] = useState(0);

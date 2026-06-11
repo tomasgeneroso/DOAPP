@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useTranslation } from 'react-i18next';
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { adminApi } from "@/lib/adminApi";
@@ -9,6 +10,7 @@ import { Search, Ban, CheckCircle, Eye, Wifi, WifiOff, UserPlus, Crown, X, Shiel
 
 export default function AdminUsers() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const { user: currentUser, token } = useAuth();
   const { isConnected, registerAdminUserCreatedHandler, registerAdminUserUpdatedHandler } = useSocket();

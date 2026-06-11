@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from 'react-i18next';
 import { useAuth } from "../../hooks/useAuth";
 import usePerformance, { clientPerformanceMonitor } from "../../hooks/usePerformance";
 import {
@@ -71,6 +72,7 @@ interface TimelineData {
 
 export default function PerformanceMonitor() {
   const { token } = useAuth();
+  const { t } = useTranslation();
   const { getWebVitals, getApiStats, generateReport } = usePerformance();
 
   const [serverData, setServerData] = useState<ServerPerformance | null>(null);

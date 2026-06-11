@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from './useAuth';
 
 type FavoriteType = 'job' | 'post' | 'blog' | 'user';
@@ -35,6 +36,7 @@ export function useFavorites(): UseFavoritesReturn {
     // Load from localStorage first
     const cached = localStorage.getItem(`favorites_${user.id}`);
     if (cached) {
+  const { t } = useTranslation();
       try {
         setFavorites(JSON.parse(cached));
       } catch (e) {

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Star, Clock, MapPin, Heart, DollarSign, Wrench, X, Loader2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -11,6 +12,7 @@ interface ReviewFormProps {
 
 const DIMENSIONS = [
   {
+  const { t } = useTranslation();
     key: 'timeliness' as const,
     label: 'Puntualidad',
     desc: '¿Llegó a la hora acordada?',

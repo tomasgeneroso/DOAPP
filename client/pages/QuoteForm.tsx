@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../hooks/useAuth';
@@ -15,6 +16,7 @@ interface QuoteTemplate {
 
 const QUOTE_TEMPLATES: QuoteTemplate[] = [
   {
+  const { t } = useTranslation();
     label: 'Plomería', emoji: '🔧',
     title: 'Servicio de plomería',
     items: [

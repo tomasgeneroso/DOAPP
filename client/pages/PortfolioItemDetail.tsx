@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { getImageUrl } from '../utils/imageUrl';
@@ -34,6 +35,7 @@ interface PortfolioItem {
 
 export default function PortfolioItemDetail() {
   const { id } = useParams<{ id: string }>();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { token } = useAuth();
   const [item, setItem] = useState<PortfolioItem | null>(null);

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from 'react-i18next';
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -21,6 +22,7 @@ interface GuideStep {
 
 const STEPS: GuideStep[] = [
   {
+  const { t } = useTranslation();
     id: "profile",
     label: "Completa tu perfil",
     description: "Agrega foto, bio y datos de contacto para generar confianza.",

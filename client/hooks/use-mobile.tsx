@@ -1,7 +1,9 @@
 import * as React from "react";
+import { useTranslation } from 'react-i18next';
 
 const MOBILE_BREAKPOINT = 768;
 
+  const { t } = useTranslation();
 export function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(
     undefined,

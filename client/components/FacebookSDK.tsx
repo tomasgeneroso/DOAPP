@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useTranslation } from 'react-i18next';
 
 // Global flag to track if FB SDK is fully initialized
 declare global {
@@ -12,6 +13,7 @@ export const FB_SDK_READY_EVENT = "fbSDKReady";
 
 function initializeFB() {
   if (window.fbSDKInitialized) return;
+  const { t } = useTranslation();
 
   try {
     window.FB.init({

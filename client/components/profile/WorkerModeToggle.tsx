@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Briefcase, User, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
+  const { t } = useTranslation();
 export default function WorkerModeToggle() {
   const { user, token, refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);

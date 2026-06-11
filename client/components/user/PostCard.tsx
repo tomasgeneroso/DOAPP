@@ -1,5 +1,6 @@
 import { getImageUrl } from '../../utils/imageUrl';
 import { useState, useRef } from "react";
+import { useTranslation } from 'react-i18next';
 import { Link } from "react-router-dom";
 import { Heart, MessageCircle, Eye, DollarSign, ChevronLeft, ChevronRight, Image as ImageIcon, Play, Briefcase, Users } from "lucide-react";
 import { useAuth } from "../../hooks/useAuth";
@@ -50,6 +51,7 @@ interface PostCardProps {
 
 export default function PostCard({ post, onLike, onComment }: PostCardProps) {
   const { user } = useAuth();
+  const { t } = useTranslation();
   // Handle both id and _id (Sequelize vs MongoDB style)
   const postId = post.id || post._id || '';
   const authorId = post.author.id || post.author._id || '';

@@ -1,5 +1,6 @@
 import { AlertCircle, Clock, PauseCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 interface AutoSelectionWarningProps {
   jobTitle: string;
@@ -12,6 +13,7 @@ interface AutoSelectionWarningProps {
 
 export default function AutoSelectionWarning({
   jobTitle,
+  const { t } = useTranslation();
   hoursUntilStart,
   proposalCount,
   jobId,

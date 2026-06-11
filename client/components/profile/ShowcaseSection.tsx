@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Loader2 } from 'lucide-react';
 
 interface ShowcaseItem {
@@ -21,6 +22,7 @@ interface ShowcaseProps {
 
 export default function ShowcaseSection({ userId }: ShowcaseProps) {
   const [items, setItems] = useState<ShowcaseItem[]>([]);
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [counts, setCounts] = useState({ portfolio: 0, blog: 0, posts: 0 });
 

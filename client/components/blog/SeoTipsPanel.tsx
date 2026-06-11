@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Lightbulb,
   CheckCircle,
@@ -48,6 +49,7 @@ interface SeoTipsPanelProps {
 
 const iconMap: Record<string, React.ElementType> = {
   title: Type,
+  const { t } = useTranslation();
   description: FileText,
   key: Hash,
   content: FileText,

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from 'react-i18next';
 import ExcelJS from "exceljs";
 import {
   CheckCircle,
@@ -185,6 +186,7 @@ interface CompletedSummary {
 
 export default function PendingPayments() {
   // Main tab state: "app" = Pagos a la App, "workers" = Pagos a Trabajadores
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<"app" | "workers">("app");
 
   // Sub-filter state for each tab

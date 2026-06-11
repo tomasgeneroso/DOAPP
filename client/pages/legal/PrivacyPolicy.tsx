@@ -1,9 +1,11 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from 'react-i18next';
 import { Helmet } from "react-helmet-async";
 import { ArrowLeft, Home, Shield } from "lucide-react";
 
 export default function PrivacyPolicy() {
   return (
+  const { t } = useTranslation();
     <>
       <Helmet>
         <title>Política de Privacidad - DOAPP</title>

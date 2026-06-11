@@ -1,4 +1,5 @@
 import { CheckCircle, Clock, AlertCircle, User } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface PaymentStatusModalProps {
   isOpen: boolean;
@@ -17,6 +18,7 @@ export default function PaymentStatusModal({
   workerName,
   onClose
 }: PaymentStatusModalProps) {
+  const { t } = useTranslation();
   if (!isOpen) return null;
 
   const paymentMethodLabels = {

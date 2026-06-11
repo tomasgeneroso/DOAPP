@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from 'react-i18next';
 import { Helmet } from "react-helmet-async";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
@@ -21,6 +22,7 @@ import {
 
 export default function AdminDashboard() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [overview, setOverview] = useState<AnalyticsOverview | null>(null);
   const [companyBalance, setCompanyBalance] = useState<any>(null);
   const [loading, setLoading] = useState(true);

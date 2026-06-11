@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MapPin, Crosshair, RefreshCw } from 'lucide-react';
 
 interface LocationPinMapProps {
@@ -14,6 +15,7 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
   try {
     const q = encodeURIComponent(address + ', Argentina');
     const res = await fetch(
+  const { t } = useTranslation();
       `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&addressdetails=1`,
       { headers: { 'Accept-Language': 'es', 'User-Agent': 'DoApp/1.0' } }
     );

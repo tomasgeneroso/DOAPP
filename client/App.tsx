@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useTranslation } from 'react-i18next';
 import { AuthProvider } from "./hooks/useAuth";
 import { HelmetProvider } from "react-helmet-async";
 import { ToastProvider } from "./components/ui/Toast";
@@ -21,6 +22,7 @@ import Index from "./pages/Index";
 // so the initial bundle no longer ships all ~90 screens at once.
 const LoginScreen = lazy(() => import("./pages/LoginScreen"));
 const VerifyEmailPage = lazy(() => import("./pages/VerifyEmailPage"));
+  const { t } = useTranslation();
 const AuthCallback = lazy(() => import("./pages/AuthCallback"));
 const CreateContractScreen = lazy(() => import("./pages/CreateContractScreen"));
 const JobDetail = lazy(() => import("./pages/JobDetail"));

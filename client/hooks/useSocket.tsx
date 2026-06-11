@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useTranslation } from 'react-i18next';
 import { io, Socket } from "socket.io-client";
 import { useAuth } from "./useAuth";
 
@@ -7,6 +8,7 @@ import { useAuth } from "./useAuth";
 // En producción, usar la URL base del sitio (sin /api)
 const getSocketUrl = () => {
   if (import.meta.env.DEV) {
+  const { t } = useTranslation();
     return ""; // Empty string = same host (uses Vite proxy)
   }
   const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";

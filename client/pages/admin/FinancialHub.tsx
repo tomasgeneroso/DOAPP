@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { DollarSign, CreditCard, Send, TrendingUp, Loader2 } from 'lucide-react';
 import Button from '../../components/ui/Button.js';
@@ -12,6 +13,7 @@ interface FinancialData {
 
 export default function FinancialHub() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [data, setData] = useState<FinancialData | null>(null);
   const [loading, setLoading] = useState(true);
 

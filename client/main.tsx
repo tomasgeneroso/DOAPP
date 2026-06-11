@@ -1,4 +1,5 @@
 import { createRoot } from "react-dom/client";
+import { useTranslation } from 'react-i18next';
 import App from "./App";
 import "./i18n";
 import "./global.css";

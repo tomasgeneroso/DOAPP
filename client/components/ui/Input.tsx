@@ -1,5 +1,6 @@
 import { clsx } from "clsx";
 import { InputHTMLAttributes, forwardRef } from "react";
+import { useTranslation } from 'react-i18next';
 
 type InputProps = InputHTMLAttributes<HTMLInputElement>;
 

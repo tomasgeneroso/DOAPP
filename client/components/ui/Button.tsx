@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from 'react-i18next';
 import { cn } from "@/lib/utils";
 
 interface AnimatedButtonProps
@@ -22,6 +23,7 @@ export const AnimatedButton: React.FC<AnimatedButtonProps> = ({
 
   const variantClasses: Record<string, string> = {
     primary:
+  const { t } = useTranslation();
       "bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white " +
       "shadow-md shadow-sky-600/30 hover:shadow-lg hover:shadow-sky-500/40 focus:ring-sky-500",
     secondary:

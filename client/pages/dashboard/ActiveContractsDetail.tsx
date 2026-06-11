@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from 'react-i18next';
 import { Link } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { Helmet } from "react-helmet-async";
@@ -41,6 +42,7 @@ interface ActiveContract {
 
 export default function ActiveContractsDetail() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [contracts, setContracts] = useState<ActiveContract[]>([]);
   const [loading, setLoading] = useState(true);
 

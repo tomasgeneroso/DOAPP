@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from "react-router-dom";
 import { MapPin, Calendar, Star, Tag } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -13,6 +14,7 @@ import type { Job } from "@/types";
 // Polling interval for auto-refresh (30 seconds)
 const POLLING_INTERVAL = 30000;
 
+  const { t } = useTranslation();
 export const JobsScreen: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();

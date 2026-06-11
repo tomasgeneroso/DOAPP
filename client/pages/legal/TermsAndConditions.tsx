@@ -1,9 +1,11 @@
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from 'react-i18next';
 import { Helmet } from "react-helmet-async";
 import { ArrowLeft, Home, FileText } from "lucide-react";
 
 export default function TermsAndConditions() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   return (
     <>
       <Helmet>

@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface AdvertisementProps {
   ad: {
@@ -15,6 +16,7 @@ interface AdvertisementProps {
 
 const Advertisement: React.FC<AdvertisementProps> = ({ ad, onImpression, onClick }) => {
   // Record impression when component mounts
+  const { t } = useTranslation();
   useEffect(() => {
     if (onImpression) {
       onImpression(ad._id);

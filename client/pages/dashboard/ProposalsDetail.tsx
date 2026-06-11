@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { Helmet } from "react-helmet-async";
@@ -43,6 +44,7 @@ interface Proposal {
 
 export default function ProposalsDetail() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const filterStatus = searchParams.get("status") || "all";
   const [proposals, setProposals] = useState<Proposal[]>([]);

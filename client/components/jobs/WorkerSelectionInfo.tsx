@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Clock, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 import { fetchWithAuth } from '@/utils/fetchWithAuth';
 
@@ -9,6 +10,7 @@ interface WorkerSelectionInfoProps {
 
 export default function WorkerSelectionInfo({ jobId, onSelectionCancelled }: WorkerSelectionInfoProps) {
   const [status, setStatus] = useState<any>(null);
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
   const [error, setError] = useState<string | null>(null);

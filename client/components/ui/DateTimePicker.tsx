@@ -1,5 +1,6 @@
 import { Calendar, Clock } from "lucide-react";
 import { forwardRef, useState, useEffect } from "react";
+import { useTranslation } from 'react-i18next';
 
 interface DateTimePickerProps {
   value?: string;
@@ -31,6 +32,7 @@ export const DateTimePicker = forwardRef<HTMLInputElement, DateTimePickerProps>(
     // Set default to current date/time if not provided
     const getDefaultValue = () => {
       if (value) return value;
+  const { t } = useTranslation();
       const now = new Date();
       if (type === "date") {
         return now.toISOString().split('T')[0];

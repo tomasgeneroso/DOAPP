@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate } from "react-router-dom";
 import { adminApi } from "@/lib/adminApi";
 import type { Ticket } from "@/types/admin";
@@ -20,6 +21,7 @@ import {
 
 const STATUS_LABELS: Record<string, string> = {
   open: "Abierto",
+  const { t } = useTranslation();
   assigned: "Asignado",
   in_progress: "En progreso",
   waiting_user: "Esperando usuario",

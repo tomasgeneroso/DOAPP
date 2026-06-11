@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { TrendingUp, BarChart3, Zap, FileText, Loader2 } from 'lucide-react';
 import Button from '../../components/ui/Button.js';
@@ -13,6 +14,7 @@ interface GrowthData {
 
 export default function GrowthHub() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [data, setData] = useState<GrowthData | null>(null);
   const [loading, setLoading] = useState(true);
 

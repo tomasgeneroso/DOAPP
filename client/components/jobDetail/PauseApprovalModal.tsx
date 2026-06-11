@@ -1,4 +1,5 @@
 import { Pause, Loader2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface PauseApprovalModalProps {
   open: boolean;
@@ -9,6 +10,7 @@ interface PauseApprovalModalProps {
 
 /** Asks the client to request the assigned worker's approval to pause. Extracted from JobDetail. */
 export default function PauseApprovalModal({ open, loading, onConfirm, onClose }: PauseApprovalModalProps) {
+  const { t } = useTranslation();
   if (!open) return null;
 
   return (

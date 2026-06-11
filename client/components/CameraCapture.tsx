@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { X, Camera, SwitchCamera, AlertCircle } from 'lucide-react';
 
@@ -10,6 +11,7 @@ interface CameraCaptureProps {
 
 export default function CameraCapture({ onCapture, onClose, label = 'Foto' }: CameraCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const { t } = useTranslation();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);

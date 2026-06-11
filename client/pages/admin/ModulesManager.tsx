@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Loader2, Check, X, AlertCircle } from 'lucide-react';
 import Button from '../../components/ui/Button.js';
 
@@ -13,6 +14,7 @@ interface ModuleInfo {
 
 export default function ModulesManager() {
   const [modules, setModules] = useState<ModuleInfo[]>([]);
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);

@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from 'react-i18next';
 import type { Job } from "@/types";
 
 interface AdminJobDetailsPanelProps {
@@ -9,6 +10,7 @@ interface AdminJobDetailsPanelProps {
 /** Admin-only collapsible panel with job/client/worker/payment metadata. Extracted from JobDetail. */
 export default function AdminJobDetailsPanel({ job, clientInfo }: AdminJobDetailsPanelProps) {
   return (
+  const { t } = useTranslation();
     <div className="rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4 shadow-sm">
       <details>
         <summary className="cursor-pointer text-sm font-bold text-amber-900 dark:text-amber-200 flex items-center gap-2">

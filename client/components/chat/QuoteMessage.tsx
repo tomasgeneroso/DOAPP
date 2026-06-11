@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { FileText, Check, X, ExternalLink, ArrowRight } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
 const STATUS_LABELS: Record<string, string> = {
   sent: 'Pendiente',
+  const { t } = useTranslation();
   accepted: 'Aceptada',
   rejected: 'Rechazada',
   expired: 'Vencida',

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MapPin, Loader2 } from 'lucide-react';
 import { useMapboxGeocoding, hasMapboxToken } from '@/hooks/useMapboxGeocoding';
 import { searchLocations } from '../../data/argentineLocations';
@@ -14,6 +15,7 @@ interface LocationAutocompleteProps {
 
 export default function LocationAutocomplete({
   value,
+  const { t } = useTranslation();
   onChange,
   placeholder = 'Ej: Palermo, CABA',
   required = false,

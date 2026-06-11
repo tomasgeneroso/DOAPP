@@ -1,5 +1,6 @@
 import { clsx } from "clsx";
 import { TextareaHTMLAttributes, forwardRef } from "react";
+import { useTranslation } from 'react-i18next';
 
 type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement>;
 

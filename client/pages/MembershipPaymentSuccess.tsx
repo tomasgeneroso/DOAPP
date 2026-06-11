@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle, Crown, TrendingUp, Shield, BarChart3, ArrowRight, Sparkles } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
@@ -10,6 +11,7 @@ interface PaymentConfirmation {
 
 export default function MembershipPaymentSuccess() {
   const [searchParams] = useSearchParams();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { refreshUser } = useAuth();
 

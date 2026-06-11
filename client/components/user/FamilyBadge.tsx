@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Heart } from 'lucide-react';
 
 interface FamilyBadgeProps {
@@ -9,6 +10,7 @@ interface FamilyBadgeProps {
 
 export default function FamilyBadge({ size = 'md', showTooltip = true, className = '' }: FamilyBadgeProps) {
   const sizes = {
+  const { t } = useTranslation();
     sm: 'w-4 h-4',
     md: 'w-5 h-5',
     lg: 'w-6 h-6',

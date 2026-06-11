@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { useTranslation } from 'react-i18next';
 import { MapPin } from "lucide-react";
 import { getNeighborhoodSuggestions, type NeighborhoodEntry } from "@/data/argNeighborhoods";
 
@@ -14,6 +15,7 @@ interface Props {
 
 export default function NeighborhoodAutocomplete({
   locationValue,
+  const { t } = useTranslation();
   neighborhood,
   postalCode,
   onNeighborhoodChange,

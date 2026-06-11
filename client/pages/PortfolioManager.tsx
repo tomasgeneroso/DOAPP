@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
 import { PortfolioItem } from '../types';
 import Button from '../components/ui/Button';
@@ -7,6 +8,7 @@ import Textarea from '../components/ui/Textarea';
 
 export default function PortfolioManager() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);

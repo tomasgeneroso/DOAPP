@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from 'react-i18next';
 import { adminApi } from "@/lib/adminApi";
 import { Link } from "react-router-dom";
 import {
@@ -54,6 +55,7 @@ interface UserActivityData {
 
 const COLORS = {
   disputes: "text-red-500 bg-red-100 dark:bg-red-900/20",
+  const { t } = useTranslation();
   tickets: "text-orange-500 bg-orange-100 dark:bg-orange-900/20",
   contracts: "text-blue-500 bg-blue-100 dark:bg-blue-900/20",
   payments: "text-green-500 bg-green-100 dark:bg-green-900/20",

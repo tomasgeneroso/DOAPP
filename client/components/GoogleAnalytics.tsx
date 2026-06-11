@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
 import { trackPageView } from '../utils/analytics';
 
 const GA_MEASUREMENT_ID = import.meta.env.VITE_GOOGLE_ANALYTICS_ID;
 
+  const { t } = useTranslation();
 /**
  * Google Analytics component that initializes GA and tracks page views
  * Must be placed inside BrowserRouter

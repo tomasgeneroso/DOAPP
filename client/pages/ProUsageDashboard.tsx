@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
 import { MembershipUsage } from '../types';
 import { Crown, TrendingUp, Calendar, Gift, CheckCircle, Sparkles } from 'lucide-react';
@@ -7,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 
 export default function ProUsageDashboard() {
   const { user } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [usage, setUsage] = useState<MembershipUsage | null>(null);
   const [loading, setLoading] = useState(true);

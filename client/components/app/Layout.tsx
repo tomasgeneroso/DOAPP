@@ -1,4 +1,5 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
+import { useTranslation } from 'react-i18next';
 import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import Header from "./Header";
@@ -9,6 +10,7 @@ import { useScrollDepth } from "@/hooks/useScrollDepth";
 
 export default function Layout() {
   const { user, isAuthenticated } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   useScrollDepth();

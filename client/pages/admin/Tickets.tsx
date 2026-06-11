@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useTranslation } from 'react-i18next';
 import { Link } from "react-router-dom";
 import { adminApi } from "@/lib/adminApi";
 import { useSocket } from "@/hooks/useSocket";
@@ -10,6 +11,7 @@ type SortDirection = 'asc' | 'desc' | null;
 
 export default function AdminTickets() {
   const { isConnected, registerAdminTicketCreatedHandler, registerAdminTicketUpdatedHandler } = useSocket();
+  const { t } = useTranslation();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");

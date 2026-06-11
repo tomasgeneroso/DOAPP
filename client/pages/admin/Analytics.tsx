@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from 'react-i18next';
 import { Link } from "react-router-dom";
 import {
   TrendingUp,
@@ -34,6 +35,7 @@ interface Stats {
 
 export default function Analytics() {
   const [stats, setStats] = useState<Stats | null>(null);
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState("30d");
 

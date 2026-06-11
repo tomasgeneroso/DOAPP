@@ -1,4 +1,5 @@
 import { Clock, AlertCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface ScheduledAutoSelectInfoProps {
   autoSelectAt?: string;
@@ -11,6 +12,7 @@ export default function ScheduledAutoSelectInfo({
   jobTitle,
   clientName
 }: ScheduledAutoSelectInfoProps) {
+  const { t } = useTranslation();
   if (!autoSelectAt) {
     return null;
   }

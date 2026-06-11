@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useTranslation } from 'react-i18next';
 import { useAuth } from "../../hooks/useAuth";
 import {
   Shield, Ban, Unlock, RefreshCw, AlertTriangle, Activity,
@@ -31,6 +32,7 @@ interface SecurityOverview {
 
 export default function SecurityPanel() {
   const { token } = useAuth();
+  const { t } = useTranslation();
   const [data, setData] = useState<SecurityOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

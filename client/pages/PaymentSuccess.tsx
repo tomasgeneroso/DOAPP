@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle, Clock, Users, FileText, ArrowRight, Crown, BarChart3, Shield, Sparkles } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
@@ -16,6 +17,7 @@ interface PaymentConfirmation {
 
 export default function PaymentSuccess() {
   const [searchParams] = useSearchParams();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { refreshUser } = useAuth();
   const paymentType = searchParams.get("type") || "contract"; // 'membership' or 'contract'
