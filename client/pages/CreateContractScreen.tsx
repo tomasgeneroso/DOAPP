@@ -92,7 +92,7 @@ export default function CreateContractScreen() {
   // Date overlap validation state
   const [startDate, setStartDate] = useState<Date | null>(null);
   const [endDate, setEndDate] = useState<Date | null>(null);
-  const [overlapWarning, setOverlapWarning] = useState<{ message: string; jobTitle: string } | null>(null);
+  const [overlapWarning, setOverlapWarning] = useState<{ message: string; jobTitle: string; conflictStartDate?: Date; conflictEndDate?: Date } | null>(null);
   const [userJobs, setUserJobs] = useState<any[]>([]);
 
   // Check if user has banking info configured
@@ -158,7 +158,9 @@ export default function CreateContractScreen() {
               newCat: newCategoryInfo?.label || selectedCategory,
               existingCat: existingCategoryInfo?.label || existingJob.category,
             }),
-            jobTitle: existingJob.title
+            jobTitle: existingJob.title,
+            conflictStartDate: new Date(existingJob.startDate),
+            conflictEndDate: existingJob.endDate ? new Date(existingJob.endDate) : undefined
           });
           return;
         }
@@ -651,13 +653,49 @@ export default function CreateContractScreen() {
               <div className="p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700">
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
-                  <div>
+                  <div className="flex-1">
                     <p className="font-semibold text-red-800 dark:text-red-200">
                       {t('jobs.scheduleConflict', 'Schedule conflict with "{{jobTitle}}"', { jobTitle: overlapWarning.jobTitle })}
                     </p>
                     <p className="text-sm text-red-700 dark:text-red-300 mt-1">
                       {overlapWarning.message}
                     </p>
+                    {overlapWarning.conflictStartDate && (
+                      <div className="mt-3 p-3 bg-red-100 dark:bg-red-900/40 rounded border border-red-200 dark:border-red-700">
+                        <p className="text-xs font-medium text-red-800 dark:text-red-200 mb-1">
+                          {t('jobs.conflictingTaskSchedule', 'Conflicting task schedule:')}
+                        </p>
+                        <p className="text-sm text-red-700 dark:text-red-300">
+                          <strong>{t('common.start', 'Start')}:</strong> {overlapWarning.conflictStartDate.toLocaleString('es-AR')}
+                        </p>
+                        {overlapWarning.conflictEndDate && (
+                          <p className="text-sm text-red-700 dark:text-red-300">
+                            <strong>{t('common.end', 'End')}:</strong> {overlapWarning.conflictEndDate.toLocaleString('es-AR')}
+                          </p>
+                        )}
+                      </div>
+                    )}
+                    <div className="flex gap-3 mt-4">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setStartDate(null);
+                          setEndDate(null);
+                          setOverlapWarning(null);
+                          document.querySelector('input[name="startDate"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }}
+                        className="flex-1 px-3 py-2 text-sm font-medium text-red-700 dark:text-red-200 bg-red-100 dark:bg-red-900/40 hover:bg-red-200 dark:hover:bg-red-900/60 rounded-lg transition-colors"
+                      >
+                        {t('jobs.changeDateTime', 'Cambiar fecha y hora')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setOverlapWarning(null)}
+                        className="flex-1 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg transition-colors"
+                      >
+                        {t('common.cancel', 'Cancelar')}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

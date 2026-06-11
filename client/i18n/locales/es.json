@@ -416,6 +416,8 @@
     "applicant": "postulante",
     "applicants": "postulantes",
     "overlapMessage": "Los trabajos {{newCat}} no pueden solaparse con trabajos {{existingCat}}. El solapamiento solo se permite entre trabajos presenciales y remotos (tecnología)",
+    "conflictingTaskSchedule": "Horario de tarea conflictivo:",
+    "changeDateTime": "Cambiar fecha y hora",
     "filter": {
       "published": "Publicados",
       "completed": "Completados",
