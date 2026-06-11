@@ -1,11 +1,13 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 interface AdPlaceholderProps {
   adType?: 'model1' | 'model2' | 'model3';
 }
 
 const AdPlaceholder: React.FC<AdPlaceholderProps> = ({ adType = 'model3' }) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   const handleClick = () => {
@@ -45,10 +47,10 @@ const AdPlaceholder: React.FC<AdPlaceholderProps> = ({ adType = 'model3' }) => {
             />
           </svg>
           <h3 className="text-sm font-bold text-gray-900 dark:text-white text-center">
-            Espacio Publicitario Disponible
+            {t('advertisement.available')}
           </h3>
           <button className="px-4 py-2 text-xs bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl transition-all active:scale-95 shadow-sm hover:shadow shrink-0">
-            Contactanos
+            {t('footer.contact')}
           </button>
         </div>
       ) : (
@@ -66,14 +68,14 @@ const AdPlaceholder: React.FC<AdPlaceholderProps> = ({ adType = 'model3' }) => {
           </svg>
           <div>
             <h3 className="text-base font-bold text-gray-900 dark:text-white">
-              Espacio Publicitario Disponible
+              {t('advertisement.available')}
             </h3>
             <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-              Publicitá tu negocio aquí
+              {t('advertisement.advertise')}
             </p>
           </div>
           <button className="px-5 py-2.5 text-sm bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl transition-all active:scale-95 shadow-sm hover:shadow">
-            Contactanos
+            {t('footer.contact')}
           </button>
         </div>
       )}

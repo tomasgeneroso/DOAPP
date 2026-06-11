@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
 export default function VerifyEmailPage() {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
 
@@ -17,14 +19,14 @@ export default function VerifyEmailPage() {
       .then(data => {
         if (data.success) {
           setStatus('success');
-          setMessage(data.message || 'Email verificado correctamente.');
+          setMessage(data.message || t('auth.emailVerified'));
         } else {
           setStatus('error');
-          setMessage(data.message || 'Token inválido o expirado.');
+          setMessage(data.message || t('auth.invalidOrExpiredToken'));
         }
       })
-      .catch(() => { setStatus('error'); setMessage('Error de conexión. Intentá de nuevo.'); });
-  }, [token]);
+      .catch(() => { setStatus('error'); setMessage(t('auth.connectionError')); });
+  }, [token, t]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 px-4">
@@ -32,7 +34,7 @@ export default function VerifyEmailPage() {
         {status === 'loading' && (
           <>
             <Loader2 className="h-12 w-12 animate-spin text-sky-500 mx-auto mb-4" />
-            <p className="text-slate-600 dark:text-slate-400">Verificando tu email...</p>
+            <p className="text-slate-600 dark:text-slate-400">{t('auth.verifying')}</p>
           </>
         )}
 
@@ -41,13 +43,13 @@ export default function VerifyEmailPage() {
             <div className="flex justify-center mb-4">
               <CheckCircle className="h-14 w-14 text-green-500" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">¡Email verificado!</h2>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">{t('auth.emailVerified')}</h2>
             <p className="text-slate-600 dark:text-slate-400 mb-6">{message}</p>
             <Link
               to="/login"
               className="block w-full py-3 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-xl transition"
             >
-              Iniciar sesión
+              {t('auth.loginButton')}
             </Link>
           </>
         )}
@@ -58,19 +60,19 @@ export default function VerifyEmailPage() {
               <XCircle className="h-14 w-14 text-red-500" />
             </div>
             <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-              {status === 'noToken' ? 'Enlace inválido' : 'No pudimos verificar tu email'}
+              {status === 'noToken' ? t('auth.invalidLink') : t('auth.couldNotVerify')}
             </h2>
             <p className="text-slate-600 dark:text-slate-400 mb-6">
-              {status === 'noToken' ? 'El enlace de verificación no es válido.' : message}
+              {status === 'noToken' ? t('auth.invalidLinkDesc') : message}
             </p>
             <Link
               to="/login"
               className="block w-full py-3 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-xl transition mb-3"
             >
-              Volver al inicio de sesión
+              {t('auth.loginButton')}
             </Link>
             <p className="text-sm text-slate-500 dark:text-slate-400">
-              Desde el login podés solicitar un nuevo enlace de verificación.
+              {t('auth.requestNewLink')}
             </p>
           </>
         )}

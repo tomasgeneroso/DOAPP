@@ -218,6 +218,13 @@
     "emailSent": "¡Email enviado!",
     "emailSentDesc": "Si existe una cuenta asociada a {{email}}, recibirás un correo con instrucciones para restablecer tu contraseña.",
     "checkSpam": "Revisa también tu carpeta de spam o correo no deseado.",
+    "emailVerified": "¡Email verificado!",
+    "invalidOrExpiredToken": "Token inválido o expirado.",
+    "verifying": "Verificando tu email...",
+    "invalidLink": "Enlace inválido",
+    "invalidLinkDesc": "El enlace de verificación no es válido.",
+    "couldNotVerify": "No pudimos verificar tu email",
+    "requestNewLink": "Desde el login podés solicitar un nuevo enlace de verificación.",
     "termsAccept": "Acepto los",
     "termsAndConditions": "Términos y Condiciones",
     "loginButton": "Iniciar Sesión",
@@ -849,6 +856,10 @@
       "rejected": "Rechazado",
       "cancelled": "Cancelado"
     }
+  },
+  "advertisement": {
+    "available": "Espacio Publicitario Disponible",
+    "advertise": "Publicitá tu negocio aquí"
   },
   "categories": {
     "plomeria": "Plomería",

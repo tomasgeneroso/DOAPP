@@ -1,8 +1,10 @@
 import { AlertCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 export default function TokenExpiredNotice() {
+  const { t } = useTranslation();
   const [show, setShow] = useState(false);
   const location = useLocation();
 
@@ -26,8 +28,8 @@ export default function TokenExpiredNotice() {
       <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
         <AlertCircle className="h-5 w-5 flex-shrink-0" />
         <div>
-          <p className="text-sm font-medium">Tu sesión ha expirado</p>
-          <p className="text-xs">Por favor, inicia sesión nuevamente para continuar.</p>
+          <p className="text-sm font-medium">{t('auth.sessionExpired')}</p>
+          <p className="text-xs">{t('auth.sessionExpiredDesc')}</p>
         </div>
       </div>
     </div>
