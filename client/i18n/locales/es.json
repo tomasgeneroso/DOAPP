@@ -427,7 +427,30 @@
       "pending": "Pendientes",
       "approved": "Aprobados",
       "rejected": "Rechazados"
-    }
+    },
+    "professionalData": "Datos profesionales",
+    "profession": "Profesión",
+    "license": "Matrícula",
+    "category": "Categoría",
+    "certNumber": "Cert. N°",
+    "viewDocument": "Ver documento",
+    "verified": "Verificado",
+    "jobFinishedOn": "El trabajo finalizó el",
+    "confirmNowRequested": "Ahora solo resta confirmar que el trabajo fue finalizado correctamente para proceder con los pagos.",
+    "confirmationStatusTitle": "Estado de confirmaciones",
+    "workers": "trabajadores",
+    "viewDetails": "Ver →",
+    "yourConfirmation": "Tu confirmación",
+    "clientConfirmation": "Confirmación del cliente",
+    "confirming": "Confirmando...",
+    "confirmMyWork": "Confirmar mi trabajo",
+    "waitingConfirmations": "Esperando confirmaciones",
+    "allConfirmedPaymentsWillBeReleased": "Todos confirmaron - Los pagos serán liberados a los trabajadores",
+    "jobInProgress": "Trabajo en marcha",
+    "jobWillEndOn": "El trabajo terminará el",
+    "jobWillStartOn": "El trabajo iniciará el",
+    "viewInCalendar": "Ver en Calendario",
+    "viewContract": "Ver contrato →"
   },
   "contracts": {
     "title": "Contratos",
@@ -461,7 +484,11 @@
       "clientConfirmed": "Cliente confirmó",
       "workerConfirmed": "Trabajador confirmó",
       "waitingConfirmation": "Esperando confirmación"
-    }
+    },
+    "deliveryType": "Tipo de entrega",
+    "singleDelivery": "Entrega única",
+    "byTasks": "Por tareas",
+    "tasksToComplete": "Tareas a completar"
   },
   "chat": {
     "title": "Mensajes",

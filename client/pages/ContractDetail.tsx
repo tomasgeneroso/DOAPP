@@ -619,21 +619,21 @@ export default function ContractDetail() {
                 )}
                 {/* Tipo de contrato */}
                 <div className="flex justify-between border-t dark:border-gray-700 pt-2">
-                  <span className="text-gray-600 dark:text-gray-400">Tipo de entrega:</span>
+                  <span className="text-gray-600 dark:text-gray-400">{t('contracts.deliveryType', 'Tipo de entrega')}:</span>
                   {contract.job?.singleDelivery !== false ? (
                     <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300">
-                      Entrega única
+                      {t('contracts.singleDelivery', 'Entrega única')}
                     </span>
                   ) : (
                     <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
-                      Por tareas
+                      {t('contracts.byTasks', 'Por tareas')}
                     </span>
                   )}
                 </div>
                 {/* Tareas requeridas si es por tareas */}
                 {contract.job?.singleDelivery === false && contract.job?.completionRequirements?.length > 0 && (
                   <div className="border-t dark:border-gray-700 pt-2">
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Tareas a completar:</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{t('contracts.tasksToComplete', 'Tareas a completar')}:</p>
                     <ul className="space-y-1">
                       {contract.job.completionRequirements.map((req: string, i: number) => (
                         <li key={i} className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
@@ -740,7 +740,7 @@ export default function ContractDetail() {
                             ? <CheckCircle className="h-4 w-4 text-green-500" />
                             : <AlertCircle className="h-4 w-4 text-amber-500" />}
                           <span className="text-xs text-gray-600 dark:text-gray-400">
-                            {contract.client?.name || 'Cliente'}: {contract.clientConfirmedPairing ? 'Confirmado' : 'Pendiente'}
+                            {contract.client?.name || t('contracts.client', 'Cliente')}: {contract.clientConfirmedPairing ? t('contracts.confirmed', 'Confirmado') : t('contracts.pending', 'Pendiente')}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -748,7 +748,7 @@ export default function ContractDetail() {
                             ? <CheckCircle className="h-4 w-4 text-green-500" />
                             : <AlertCircle className="h-4 w-4 text-amber-500" />}
                           <span className="text-xs text-gray-600 dark:text-gray-400">
-                            {contract.doer?.name || 'Trabajador'}: {contract.doerConfirmedPairing ? 'Confirmado' : 'Pendiente'}
+                            {contract.doer?.name || t('contracts.worker', 'Trabajador')}: {contract.doerConfirmedPairing ? t('contracts.confirmed', 'Confirmado') : t('contracts.pending', 'Pendiente')}
                           </span>
                         </div>
                       </div>

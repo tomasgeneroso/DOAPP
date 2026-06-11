@@ -2373,26 +2373,26 @@ export default function JobDetail() {
                   const isReg = REGULATED.includes(job.doer.profession);
                   return (
                     <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
-                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">Datos profesionales</p>
+                      <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">{t('jobs.professionalData', 'Datos profesionales')}</p>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-700 dark:text-slate-300">
-                        <span><span className="font-medium">Profesión:</span> {job.doer.profession.replace(/_/g,' ')}</span>
+                        <span><span className="font-medium">{t('jobs.profession', 'Profesión')}:</span> {job.doer.profession.replace(/_/g,' ')}</span>
                         {isReg && job.doer.licenseNumber && (
-                          <span><span className="font-medium">Matrícula:</span> {job.doer.licenseNumber}</span>
+                          <span><span className="font-medium">{t('jobs.license', 'Matrícula')}:</span> {job.doer.licenseNumber}</span>
                         )}
                         {isReg && job.doer.licenseCategory && (
-                          <span><span className="font-medium">Categoría:</span> {job.doer.licenseCategory}</span>
+                          <span><span className="font-medium">{t('jobs.category', 'Categoría')}:</span> {job.doer.licenseCategory}</span>
                         )}
                         {isReg && job.doer.licenseCertNumber && (
-                          <span><span className="font-medium">Cert. N°:</span> {job.doer.licenseCertNumber}</span>
+                          <span><span className="font-medium">{t('jobs.certNumber', 'Cert. N°')}:</span> {job.doer.licenseCertNumber}</span>
                         )}
                         {isReg && job.doer.licenseDocumentUrl && (
                           <a href={job.doer.licenseDocumentUrl} target="_blank" rel="noreferrer"
                             className="text-sky-600 dark:text-sky-400 hover:underline font-medium">
-                            Ver documento
+                            {t('jobs.viewDocument', 'Ver documento')}
                           </a>
                         )}
                         {job.doer.licenseVerified && (
-                          <span className="text-green-600 dark:text-green-400 font-semibold">✓ Verificado</span>
+                          <span className="text-green-600 dark:text-green-400 font-semibold">✓ {t('jobs.verified', 'Verificado')}</span>
                         )}
                       </div>
                     </div>
@@ -2582,7 +2582,7 @@ export default function JobDetail() {
                               )}
                             </p>
                             <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                              El trabajo finalizó el{" "}
+                              {t("jobs.jobFinishedOn", "El trabajo finalizó el")}{" "}
                               {new Date(job.endDate).toLocaleDateString(
                                 "es-AR",
                                 {
@@ -2595,8 +2595,10 @@ export default function JobDetail() {
                           </div>
                         </div>
                         <p className="text-sm text-emerald-700 dark:text-emerald-300 mb-4">
-                          Ahora solo resta confirmar que el trabajo fue
-                          finalizado correctamente para proceder con los pagos.
+                          {t(
+                            "jobs.confirmNowRequested",
+                            "Ahora solo resta confirmar que el trabajo fue finalizado correctamente para proceder con los pagos.",
+                          )}
                         </p>
 
                         {/* Confirmation status - Team jobs show all workers */}
@@ -2604,13 +2606,13 @@ export default function JobDetail() {
                         allContractsData.totalContracts > 1 ? (
                           <div className="bg-white dark:bg-slate-800/50 rounded-xl p-4 mb-4">
                             <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">
-                              Estado de confirmaciones (
+                              {t("jobs.confirmationStatusTitle", "Estado de confirmaciones")} (
                               {
                                 allContractsData.contracts.filter(
                                   (c) => c.doerConfirmed,
                                 ).length
                               }
-                              /{allContractsData.totalContracts} trabajadores):
+                              /{allContractsData.totalContracts} {t("jobs.workers", "trabajadores")}):
                             </p>
                             <div className="space-y-2">
                               {allContractsData.contracts.map((c) => (
@@ -2632,7 +2634,7 @@ export default function JobDetail() {
                                     to={`/contracts/${c.id}`}
                                     className="text-xs text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 font-medium"
                                   >
-                                    Ver →
+                                    {t("jobs.viewDetails", "Ver →")}
                                   </Link>
                                 </div>
                               ))}
@@ -2653,7 +2655,7 @@ export default function JobDetail() {
                                   to={`/contracts/${contractData.id}`}
                                   className="text-xs text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 font-medium"
                                 >
-                                  Ver contrato →
+                                  {t("jobs.viewContract", "Ver contrato →")}
                                 </Link>
                               </div>
                               <div className="flex items-center gap-4 text-sm">
@@ -2665,7 +2667,7 @@ export default function JobDetail() {
                                   ) : (
                                     <Clock className="h-4 w-4" />
                                   )}
-                                  Tu confirmación
+                                  {t("jobs.yourConfirmation", "Tu confirmación")}
                                 </span>
                                 <span
                                   className={`flex items-center gap-1 ${contractData.clientConfirmed ? "text-green-600" : "text-slate-400"}`}
@@ -2675,7 +2677,7 @@ export default function JobDetail() {
                                   ) : (
                                     <Clock className="h-4 w-4" />
                                   )}
-                                  Confirmación del cliente
+                                  {t("jobs.clientConfirmation", "Confirmación del cliente")}
                                 </span>
                               </div>
                             </div>
@@ -2692,12 +2694,12 @@ export default function JobDetail() {
                               {confirmingWork ? (
                                 <>
                                   <Loader2 className="h-4 w-4 animate-spin" />
-                                  Confirmando...
+                                  {t("jobs.confirming", "Confirmando...")}
                                 </>
                               ) : (
                                 <>
                                   <CheckCircle className="h-4 w-4" />
-                                  Confirmar mi trabajo
+                                  {t("jobs.confirmMyWork", "Confirmar mi trabajo")}
                                 </>
                               )}
                             </button>
@@ -2710,7 +2712,7 @@ export default function JobDetail() {
                               <div className="px-4 py-2 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 rounded-xl text-sm">
                                 {allContractsData &&
                                 allContractsData.totalContracts > 1
-                                  ? `Esperando confirmaciones (${allContractsData.contracts.filter((c) => c.doerConfirmed && c.clientConfirmed).length}/${allContractsData.totalContracts} completos)...`
+                                  ? `${t("jobs.waitingConfirmations", "Esperando confirmaciones")} (${allContractsData.contracts.filter((c) => c.doerConfirmed && c.clientConfirmed).length}/${allContractsData.totalContracts} ${t("common.completed", "completos")})...`
                                   : t(
                                       "jobs.waitingClientConfirmation",
                                       "Waiting for client confirmation...",
@@ -2721,8 +2723,10 @@ export default function JobDetail() {
                             (contractData?.doerConfirmed &&
                               contractData?.clientConfirmed)) && (
                             <div className="px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-xl text-sm font-medium">
-                              ✅ Todos confirmaron - Los pagos serán liberados a
-                              los trabajadores
+                              ✅ {t(
+                                "jobs.allConfirmedPaymentsWillBeReleased",
+                                "Todos confirmaron - Los pagos serán liberados a los trabajadores",
+                              )}
                             </div>
                           )}
                         </div>
@@ -2733,13 +2737,13 @@ export default function JobDetail() {
                         <div className="flex items-center gap-2 mb-2">
                           <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
                           <p className="text-sm font-semibold text-green-700 dark:text-green-300">
-                            🔧 Trabajo en marcha
+                            🔧 {t("jobs.jobInProgress", "Trabajo en marcha")}
                           </p>
                         </div>
                         {job.endDate && (
                           <>
                             <p className="text-sm text-green-600 dark:text-green-400 mt-2">
-                              El trabajo terminará el{" "}
+                              {t("jobs.jobWillEndOn", "El trabajo terminará el")}{" "}
                               {new Date(job.endDate).toLocaleDateString(
                                 "es-AR",
                                 {
@@ -2770,7 +2774,7 @@ export default function JobDetail() {
                             className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-100 dark:bg-green-800/50 text-green-700 dark:text-green-300 text-sm font-medium rounded-lg hover:bg-green-200 dark:hover:bg-green-700/50 transition-colors"
                           >
                             <Calendar className="h-4 w-4" />
-                            Ver en Calendario
+                            {t("jobs.viewInCalendar", "Ver en Calendario")}
                           </Link>
                         </div>
                       </div>
@@ -2787,7 +2791,7 @@ export default function JobDetail() {
                           </p>
                         </div>
                         <p className="text-sm text-blue-600 dark:text-blue-400 mt-2">
-                          El trabajo iniciará el{" "}
+                          {t("jobs.jobWillStartOn", "El trabajo iniciará el")}{" "}
                           {new Date(job.startDate).toLocaleDateString("es-AR", {
                             day: "numeric",
                             month: "long",
@@ -2802,7 +2806,7 @@ export default function JobDetail() {
                             className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-100 dark:bg-blue-800/50 text-blue-700 dark:text-blue-300 text-sm font-medium rounded-lg hover:bg-blue-200 dark:hover:bg-blue-700/50 transition-colors"
                           >
                             <Calendar className="h-4 w-4" />
-                            Ver en Calendario
+                            {t("jobs.viewInCalendar", "Ver en Calendario")}
                           </Link>
                         </div>
                       </div>
@@ -2935,7 +2939,7 @@ export default function JobDetail() {
                                     to={`/contracts/${contractData.id}`}
                                     className="text-xs text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 font-medium"
                                   >
-                                    Ver contrato →
+                                    {t("jobs.viewContract", "Ver contrato →")}
                                   </Link>
                                 </div>
                                 <div className="flex items-center gap-4 text-sm">
@@ -3749,7 +3753,7 @@ export default function JobDetail() {
                         ) : (
                           <Clock className="h-4 w-4" />
                         )}
-                        Tu confirmación
+                        {t("jobs.yourConfirmation", "Tu confirmación")}
                       </span>
                       <span
                         className={`flex items-center gap-1 ${contractData.doerConfirmed ? "text-green-600" : "text-slate-400"}`}
@@ -3773,7 +3777,7 @@ export default function JobDetail() {
                       {confirmingWork ? (
                         <>
                           <Loader2 className="h-4 w-4 animate-spin" />
-                          Confirmando...
+                          {t("jobs.confirming", "Confirmando...")}
                         </>
                       ) : (
                         <>
