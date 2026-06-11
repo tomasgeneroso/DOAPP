@@ -94,7 +94,10 @@
     "add": "Add",
     "tip": "Tip",
     "backToHome": "Back to home",
-    "imageUploadHint": "PNG, JPG, GIF up to 10MB"
+    "imageUploadHint": "PNG, JPG, GIF up to 10MB",
+    "understood": "Understood",
+    "copied": "Copied!",
+    "user": "User"
   },
   "nav": {
     "home": "Home",
@@ -182,8 +185,8 @@
     "titleHighlight": "Secure Payments",
     "subtitle": "Post jobs and hire professionals with payment guarantee.",
     "subtitleSecond": "We ensure every agreement is fulfilled by both parties.",
-    "welcomeBack": "Welcome back, {{name}}!",
-    "welcomeSubtitle": "Ready to start a new project or look for opportunities? You're in the right place.",
+    "welcomeBack": "Welcome, {{name}}!",
+    "welcomeSubtitle": "Find jobs or publish your own.",
     "registerFree": "Sign up for free",
     "publishJob": "Post a Job",
     "exploreJobs": "Explore Jobs",
@@ -232,9 +235,7 @@
     "registerToPublish": "Sign up to publish",
     "categoriesSection": "Explore by category",
     "exploreByCat": "Find available jobs in the category you need",
-    "yourJob": "YOUR JOB",
-    "welcomeBack": "Welcome, {{name}}!",
-    "welcomeSubtitle": "Find jobs or publish your own."
+    "yourJob": "YOUR JOB"
   },
   "jobs": {
     "title": "Jobs",
@@ -346,29 +347,6 @@
     "applicant": "applicant",
     "applicants": "applicants",
     "overlapMessage": "{{newCat}} jobs cannot overlap with {{existingCat}} jobs. Overlap is only allowed between in-person and remote (technology) jobs.",
-    "professionalData": "Professional Information",
-    "profession": "Profession:",
-    "license": "License:",
-    "category": "Category:",
-    "certNumber": "Cert. N°:",
-    "viewDocument": "View document",
-    "verified": "Verified",
-    "jobFinishedOn": "The job finished on",
-    "confirmNowRequested": "Now just need to confirm...",
-    "confirmationStatusTitle": "Confirmation status",
-    "workers": "workers",
-    "viewDetails": "View →",
-    "yourConfirmation": "Your confirmation",
-    "clientConfirmation": "Client confirmation",
-    "confirming": "Confirming...",
-    "confirmMyWork": "Confirm my work",
-    "waitingConfirmations": "Waiting for confirmations",
-    "allConfirmedPaymentsWillBeReleased": "Everyone confirmed - Payments will be released to workers",
-    "jobInProgress": "Work in progress",
-    "jobWillEndOn": "The job will end on",
-    "jobWillStartOn": "The job will start on",
-    "viewInCalendar": "View in Calendar",
-    "viewContract": "View contract →",
     "filter": {
       "published": "Published",
       "completed": "Completed",
@@ -413,10 +391,31 @@
       "workerConfirmed": "Worker confirmed",
       "waitingConfirmation": "Waiting for confirmation"
     },
-    "deliveryType": "Delivery type:",
-    "singleDelivery": "Single delivery",
-    "byTasks": "By tasks",
-    "tasksToComplete": "Tasks to complete:"
+    "empty": {
+      "allTitle": "Your first contract awaits!",
+      "allDesc": "Explore available jobs and apply, or publish your own job to receive proposals.",
+      "activeTitle": "No active contracts",
+      "activeDesc": "When you have ongoing contracts, they will appear here.",
+      "completedTitle": "No completed contracts",
+      "completedDesc": "Contracts you complete will be shown here as part of your history."
+    },
+    "asClient": "As Client",
+    "asFreelancer": "As Freelancer",
+    "created": "Created",
+    "report": "Report",
+    "reportProblem": "Report a problem",
+    "loadMore": "Load more",
+    "totalPrice": "Total price",
+    "deliveryTypes": {
+      "byTasks": "By tasks",
+      "singleDelivery": "Single delivery"
+    },
+    "filter": {
+      "active": "Active",
+      "completed": "Completed"
+    },
+    "exploreJobs": "Explore jobs",
+    "publishJob": "Publish job"
   },
   "chat": {
     "title": "Messages",
@@ -834,5 +833,10 @@
     "mascotas": "Pet Care",
     "automotriz": "Automotive",
     "otros": "Other"
+  },
+  "proposals": {
+    "yourOffer": "Your offer",
+    "sent": "Sent",
+    "yourMessage": "Your message"
   }
 }

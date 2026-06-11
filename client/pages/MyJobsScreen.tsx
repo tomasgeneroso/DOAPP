@@ -1015,11 +1015,11 @@ export default function MyJobsScreen() {
                           {/* Tipo de entrega */}
                           {job.singleDelivery === false ? (
                             <span className="px-3 py-1 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
-                              Por tareas
+                              {t('contracts.deliveryTypes.byTasks')}
                             </span>
                           ) : (
                             <span className="px-3 py-1 rounded-full text-xs font-medium bg-sky-100 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300">
-                              Entrega única
+                              {t('contracts.deliveryTypes.singleDelivery')}
                             </span>
                           )}
                           {job.category && (
