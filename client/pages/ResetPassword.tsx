@@ -1,9 +1,11 @@
 import { useState, FormEvent, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Helmet } from "react-helmet-async";
 import { Lock, ArrowLeft, CheckCircle2, AlertCircle, Home, Eye, EyeOff } from "lucide-react";
 
 export default function ResetPassword() {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const token = searchParams.get("token");

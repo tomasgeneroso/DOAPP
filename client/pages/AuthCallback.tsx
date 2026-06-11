@@ -1,7 +1,9 @@
 import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 export default function AuthCallback() {
+  const { t } = useTranslation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -61,7 +63,7 @@ export default function AuthCallback() {
     <div className="fixed inset-0 bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
       <div className="text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sky-600 mx-auto mb-4"></div>
-        <p className="text-slate-600 dark:text-slate-400">Iniciando sesión...</p>
+        <p className="text-slate-600 dark:text-slate-400">{t('auth.processing')}</p>
       </div>
     </div>
   );

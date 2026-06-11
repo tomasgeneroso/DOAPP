@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Helmet } from "react-helmet-async";
 import CreatePost from "../components/user/CreatePost";
 import { useAuth } from "../hooks/useAuth";
@@ -7,6 +8,7 @@ import { ArrowLeft } from "lucide-react";
 
 export default function CreateBlogScreen() {
   const { user, isLoading } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -30,8 +32,8 @@ export default function CreateBlogScreen() {
   return (
     <>
       <Helmet>
-        <title>Crear Artículo - Blog | DOAPP</title>
-        <meta name="description" content="Crea un nuevo artículo para el blog de la comunidad" />
+        <title>{t('profile.writeArticle')} - {t('profile.articles')} | DOAPP</title>
+        <meta name="description" content={t('profile.writeArticle')} />
       </Helmet>
 
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
@@ -43,13 +45,13 @@ export default function CreateBlogScreen() {
               className="flex items-center gap-2 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors mb-4"
             >
               <ArrowLeft className="w-5 h-5" />
-              Volver al Blog
+              {t('common.back')}
             </button>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-              Crear Nuevo Artículo
+              {t('profile.writeArticle')}
             </h1>
             <p className="text-slate-600 dark:text-slate-400 mt-2">
-              Comparte tu conocimiento con la comunidad. Tu artículo aparecerá en el blog.
+              {t('profile.writeArticle')}
             </p>
           </div>
 

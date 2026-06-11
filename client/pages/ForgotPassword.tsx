@@ -1,9 +1,11 @@
 import { useState, FormEvent } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Helmet } from "react-helmet-async";
 import { Mail, ArrowLeft, CheckCircle2, Home } from "lucide-react";
 
 export default function ForgotPassword() {
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -40,10 +42,10 @@ export default function ForgotPassword() {
   return (
     <>
       <Helmet>
-        <title>Recuperar Contraseña - DoApp</title>
+        <title>{t('auth.forgotPassword')} - DOAPP</title>
         <meta
           name="description"
-          content="Recupera tu contraseña de DoApp"
+          content={t('auth.forgotPassword')}
         />
       </Helmet>
       <div className="flex min-h-full flex-col justify-center bg-slate-50 dark:bg-slate-900 px-6 py-12 lg:px-8">
@@ -54,14 +56,14 @@ export default function ForgotPassword() {
               className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             >
               <ArrowLeft className="h-4 w-4" />
-              Volver al inicio de sesión
+              {t('auth.loginButton')}
             </Link>
             <Link
               to="/"
               className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             >
               <Home className="h-4 w-4" />
-              Inicio
+              {t('common.home')}
             </Link>
           </div>
 
@@ -73,10 +75,10 @@ export default function ForgotPassword() {
                 </div>
 
                 <h2 className="mb-2 text-center text-2xl font-bold text-slate-900 dark:text-white">
-                  ¿Olvidaste tu contraseña?
+                  {t('auth.forgotPassword')}
                 </h2>
                 <p className="mb-8 text-center text-sm text-slate-600 dark:text-slate-400">
-                  No te preocupes. Ingresa tu email y te enviaremos un enlace para recuperarla.
+                  {t('auth.forgotPasswordDesc')}
                 </p>
 
                 <form className="space-y-6" onSubmit={handleSubmit}>
@@ -111,7 +113,7 @@ export default function ForgotPassword() {
                     disabled={isLoading}
                     className="w-full rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-sky-500/30 hover:from-sky-600 hover:to-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                   >
-                    {isLoading ? "Enviando..." : "Enviar enlace de recuperación"}
+                    {isLoading ? t('auth.sending') : t('auth.sendRecoveryLink')}
                   </button>
                 </form>
               </>
@@ -122,13 +124,13 @@ export default function ForgotPassword() {
                 </div>
 
                 <h2 className="mb-2 text-2xl font-bold text-slate-900 dark:text-white">
-                  ¡Email enviado!
+                  {t('auth.emailSent')}
                 </h2>
                 <p className="mb-6 text-sm text-slate-600 dark:text-slate-400">
-                  Si existe una cuenta asociada a <strong>{email}</strong>, recibirás un correo con instrucciones para restablecer tu contraseña.
+                  {t('auth.emailSentDesc', { email })}
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">
-                  Revisa también tu carpeta de spam o correo no deseado.
+                  {t('auth.checkSpam')}
                 </p>
 
                 <Link
@@ -136,7 +138,7 @@ export default function ForgotPassword() {
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-100 dark:bg-slate-700 px-6 py-3 text-sm font-semibold text-slate-900 dark:text-white hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
                 >
                   <ArrowLeft className="h-4 w-4" />
-                  Volver al inicio de sesión
+                  {t('auth.loginButton')}
                 </Link>
               </div>
             )}
