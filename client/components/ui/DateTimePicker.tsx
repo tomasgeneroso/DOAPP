@@ -18,7 +18,7 @@ export const DateTimePicker = forwardRef<HTMLInputElement, DateTimePickerProps>(
     {
       value,
       onChange,
-      type = "date",
+      type = "datetime-local",
       required = false,
       min,
       max,
@@ -28,7 +28,22 @@ export const DateTimePicker = forwardRef<HTMLInputElement, DateTimePickerProps>(
     },
     ref
   ) => {
-    const [internalValue, setInternalValue] = useState(value || "");
+    // Set default to current date/time if not provided
+    const getDefaultValue = () => {
+      if (value) return value;
+      const now = new Date();
+      if (type === "date") {
+        return now.toISOString().split('T')[0];
+      } else if (type === "time") {
+        return now.toTimeString().slice(0, 5);
+      } else {
+        // datetime-local: YYYY-MM-DDTHH:mm
+        const iso = now.toISOString();
+        return iso.slice(0, 16); // Remove seconds and Z
+      }
+    };
+
+    const [internalValue, setInternalValue] = useState(getDefaultValue());
     const [isFocused, setIsFocused] = useState(false);
 
     useEffect(() => {
