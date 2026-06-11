@@ -314,6 +314,8 @@
     "sortBy": "Ordenar por",
     "location": "Ubicación",
     "category": "Categoría",
+    "budgetLabel": "Presupuesto (ARS)",
+    "quotable": "A cotizar (el postulante propone el precio)",
     "clearFilters": "Limpiar filtros",
     "newest": "Más reciente",
     "priceHigh": "Mayor precio",

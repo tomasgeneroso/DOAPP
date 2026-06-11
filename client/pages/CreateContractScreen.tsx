@@ -83,6 +83,7 @@ export default function CreateContractScreen() {
   const [addressDetails, setAddressDetails] = useState("");
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
+  const [isQuotable, setIsQuotable] = useState(false); // "A cotizar" option
 
   // Banking prompt modal state
   const [showBankingModal, setShowBankingModal] = useState(false);
@@ -483,20 +484,42 @@ export default function CreateContractScreen() {
             <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
               <div className="sm:col-span-3">
                 <FormField label={t('jobs.budgetLabel', 'Budget (ARS)')} icon={DollarSign}>
-                  <input
-                    name="budget"
-                    type="number"
-                    required
-                    min="0"
-                    step="1"
-                    placeholder="15000"
-                    onKeyPress={(e) => {
-                      if (!/[0-9]/.test(e.key)) {
-                        e.preventDefault();
-                      }
-                    }}
-                    className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
-                  />
+                  <div className="space-y-3">
+                    {!isQuotable && (
+                      <input
+                        name="budget"
+                        type="number"
+                        required={!isQuotable}
+                        min="0"
+                        step="1"
+                        placeholder="15000"
+                        onKeyPress={(e) => {
+                          if (!/[0-9]/.test(e.key)) {
+                            e.preventDefault();
+                          }
+                        }}
+                        className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
+                      />
+                    )}
+                    {isQuotable && (
+                      <input
+                        type="hidden"
+                        name="budget"
+                        value=""
+                      />
+                    )}
+                    <label className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isQuotable}
+                        onChange={(e) => setIsQuotable(e.target.checked)}
+                        className="rounded border-gray-300 text-sky-600 shadow-sm focus:ring-sky-500 dark:bg-slate-700 dark:border-slate-600"
+                      />
+                      <span className="text-gray-700 dark:text-gray-300">
+                        {t('jobs.quotable', 'A cotizar (el postulante propone el precio)')}
+                      </span>
+                    </label>
+                  </div>
                 </FormField>
               </div>
               <div className="sm:col-span-3">
