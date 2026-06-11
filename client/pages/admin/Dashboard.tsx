@@ -73,30 +73,30 @@ export default function AdminDashboard() {
 
   const stats = [
     {
-      label: "Total Usuarios",
+      label: t('admin.dashboard.totalUsers', 'Total Usuarios'),
       value: overview?.users.total || 0,
-      subtext: `${overview?.users.active || 0} activos`,
+      subtext: `${overview?.users.active || 0} ${t('admin.dashboard.active', 'activos')}`,
       icon: Users,
       color: "bg-blue-500",
     },
     {
-      label: "Contratos",
+      label: t('admin.dashboard.contracts', 'Contratos'),
       value: overview?.contracts.total || 0,
-      subtext: `${overview?.contracts.completionRate.toFixed(1)}% completados`,
+      subtext: `${overview?.contracts.completionRate.toFixed(1)}% ${t('admin.dashboard.completed', 'completados')}`,
       icon: FileText,
       color: "bg-green-500",
     },
     {
-      label: "Tickets",
+      label: t('admin.dashboard.tickets', 'Tickets'),
       value: overview?.tickets.total || 0,
-      subtext: `${overview?.tickets.open || 0} abiertos`,
+      subtext: `${overview?.tickets.open || 0} ${t('admin.dashboard.open', 'abiertos')}`,
       icon: TicketIcon,
       color: "bg-yellow-500",
     },
     {
-      label: "Trust Score Promedio",
+      label: t('admin.dashboard.avgTrustScore', 'Trust Score Promedio'),
       value: overview?.users.avgTrustScore.toFixed(1) || 0,
-      subtext: "De 100",
+      subtext: t('admin.dashboard.outOf100', 'De 100'),
       icon: TrendingUp,
       color: "bg-purple-500",
     },
@@ -109,9 +109,9 @@ export default function AdminDashboard() {
         <meta name="robots" content="noindex, nofollow" />
       </Helmet>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+        <h1 className="text-3xl font-bold text-gray-900">{t('admin.dashboard.title', 'Dashboard')}</h1>
         <p className="text-gray-600 mt-2">
-          Bienvenido, <span className="font-semibold">{user?.name}</span>
+          {t('admin.dashboard.welcome', 'Bienvenido')}, <span className="font-semibold">{user?.name}</span>
         </p>
       </div>
 
@@ -134,7 +134,7 @@ export default function AdminDashboard() {
       {/* Company Balance Section - Solo para Owner */}
       {user?.adminRole === "owner" && companyBalance && (
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Saldo de la Empresa</h2>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">{t('admin.dashboard.companyBalance', 'Saldo de la Empresa')}</h2>
 
           {/* Balance Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
@@ -147,7 +147,7 @@ export default function AdminDashboard() {
               <h3 className="text-3xl font-bold mb-2">
                 ${companyBalance.netBalance?.ARS?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
               </h3>
-              <p className="text-sm opacity-90">Saldo Neto (Pesos)</p>
+              <p className="text-sm opacity-90">{t('admin.dashboard.netBalancePesos', 'Saldo Neto (Pesos)')}</p>
             </div>
 
             {/* Saldo Neto USD */}
@@ -159,7 +159,7 @@ export default function AdminDashboard() {
               <h3 className="text-3xl font-bold mb-2">
                 ${companyBalance.netBalance?.USD?.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
               </h3>
-              <p className="text-sm opacity-90">Saldo Neto (Dólares)</p>
+              <p className="text-sm opacity-90">{t('admin.dashboard.netBalanceDollars', 'Saldo Neto (Dólares)')}</p>
             </div>
 
             {/* Membresías Activas */}
@@ -171,7 +171,7 @@ export default function AdminDashboard() {
                 {companyBalance.revenue?.memberships?.activeCount || 0}
               </h3>
               <p className="text-sm opacity-90">
-                Membresías Activas
+                {t('admin.dashboard.activeMemberships', 'Membresías Activas')}
               </p>
               <p className="text-xs opacity-75 mt-2">
                 {companyBalance.revenue?.memberships?.proCount || 0} PRO + {companyBalance.revenue?.memberships?.superProCount || 0} SUPER PRO
@@ -185,45 +185,45 @@ export default function AdminDashboard() {
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <DollarSign className="h-5 w-5 text-green-600" />
-                Comisiones de Contratos
+                {t('admin.dashboard.contractCommissions', 'Comisiones de Contratos')}
               </h3>
 
               {/* Stats cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total ARS</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{t('admin.dashboard.totalArs', 'Total ARS')}</p>
                   <p className="text-2xl font-bold text-green-700 dark:text-green-400">
                     ${Number(companyBalance.revenue?.commissions?.totalARS || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
                 <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Este Mes (ARS)</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{t('admin.dashboard.thisMonthArs', 'Este Mes (ARS)')}</p>
                   <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">
                     ${Number(companyBalance.revenue?.commissions?.monthlyARS || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
                 <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-4">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Crecimiento</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{t('admin.dashboard.growth', 'Crecimiento')}</p>
                   <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
                     {Number(companyBalance.revenue?.commissions?.totalARS || 0) > 0
                       ? `${((Number(companyBalance.revenue?.commissions?.monthlyARS || 0) / Number(companyBalance.revenue?.commissions?.totalARS || 1)) * 100).toFixed(1)}%`
                       : '0%'
                     }
                   </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-500">del mes actual</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500">{t('admin.dashboard.ofCurrentMonth', 'del mes actual')}</p>
                 </div>
               </div>
 
               {/* Gráfico de tasas de comisión */}
               <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
                 <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
-                  Estructura de Comisiones por Tipo de Usuario
+                  {t('admin.dashboard.commissionStructure', 'Estructura de Comisiones por Tipo de Usuario')}
                 </h4>
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart
                     data={[
                       { tipo: 'FREE', comision: 0, label: '0%' },
-                      { tipo: 'Estándar', comision: 8, label: '8%' },
+                      { tipo: t('admin.dashboard.standard', 'Estándar'), comision: 8, label: '8%' },
                       { tipo: 'PRO', comision: 3, label: '3%' },
                       { tipo: 'SUPER PRO', comision: 1, label: '1%' },
                     ]}
@@ -233,7 +233,7 @@ export default function AdminDashboard() {
                     <XAxis dataKey="tipo" tick={{ fill: '#9ca3af', fontSize: 12 }} />
                     <YAxis tick={{ fill: '#9ca3af', fontSize: 12 }} domain={[0, 10]} unit="%" />
                     <Tooltip
-                      formatter={(value: number) => [`${value}%`, 'Comisión']}
+                      formatter={(value: number) => [`${value}%`, t('admin.dashboard.commission', 'Comisión')]}
                       contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
                       labelStyle={{ color: '#f3f4f6' }}
                     />
@@ -246,13 +246,13 @@ export default function AdminDashboard() {
                   </BarChart>
                 </ResponsiveContainer>
                 <div className="flex flex-wrap items-center justify-center gap-4 mt-3 text-xs text-gray-500 dark:text-gray-400">
-                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-green-500" />FREE — 0% (contratos gratuitos)</span>
-                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-red-500" />Estándar — 8%</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-green-500" />FREE — 0% ({t('admin.dashboard.freeContracts', 'contratos gratuitos')})</span>
+                  <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-red-500" />{t('admin.dashboard.standard', 'Estándar')} — 8%</span>
                   <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-violet-500" />PRO — 3%</span>
                   <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 rounded-sm bg-amber-500" />SUPER PRO — 1%</span>
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
-                  Mínimo $1.000 ARS · Plan Familia y publicaciones libres de comisión: 0%
+                  {t('admin.dashboard.minAmountFamilyPlan', 'Mínimo $1.000 ARS · Plan Familia y publicaciones libres de comisión: 0%')}
                 </p>
               </div>
             </div>
@@ -261,31 +261,31 @@ export default function AdminDashboard() {
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <CreditCard className="h-5 w-5 text-purple-600" />
-                Ingresos por Membresías
+                {t('admin.dashboard.membershipRevenue', 'Ingresos por Membresías')}
               </h3>
 
               {/* Stats cards */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total ARS</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{t('admin.dashboard.totalArs', 'Total ARS')}</p>
                   <p className="text-2xl font-bold text-purple-700 dark:text-purple-400">
                     ${Number(companyBalance.revenue?.memberships?.totalARS || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
                 <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total USD</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{t('admin.dashboard.totalUsd', 'Total USD')}</p>
                   <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">
                     ${Number(companyBalance.revenue?.memberships?.totalUSD || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
                 <div className="bg-sky-50 dark:bg-sky-900/20 rounded-lg p-4">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Este Mes (ARS)</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{t('admin.dashboard.thisMonthArs', 'Este Mes (ARS)')}</p>
                   <p className="text-2xl font-bold text-sky-700 dark:text-sky-400">
                     ${Number(companyBalance.revenue?.memberships?.monthlyARS || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
                 <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-lg p-4">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Este Mes (USD)</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{t('admin.dashboard.thisMonthUsd', 'Este Mes (USD)')}</p>
                   <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-400">
                     ${Number(companyBalance.revenue?.memberships?.monthlyUSD || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
@@ -298,7 +298,7 @@ export default function AdminDashboard() {
                 <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
                   <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
                     <Crown className="h-4 w-4 text-yellow-500" />
-                    Distribución de Membresías Activas
+                    {t('admin.dashboard.activeMembershipsDistribution', 'Distribución de Membresías Activas')}
                   </h4>
                   <ResponsiveContainer width="100%" height={200}>
                     <BarChart
@@ -313,7 +313,7 @@ export default function AdminDashboard() {
                       <XAxis dataKey="name" tick={{ fill: '#9ca3af', fontSize: 12 }} />
                       <YAxis tick={{ fill: '#9ca3af', fontSize: 12 }} allowDecimals={false} />
                       <Tooltip
-                        formatter={(value: number) => [value, 'Usuarios']}
+                        formatter={(value: number) => [value, t('admin.dashboard.users', 'Usuarios')]}
                         contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
                         labelStyle={{ color: '#f3f4f6' }}
                       />
@@ -327,7 +327,7 @@ export default function AdminDashboard() {
                   <div className="flex justify-center gap-6 mt-2">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full bg-green-500" />
-                      <span className="text-xs text-gray-600 dark:text-gray-400">FREE</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">{t('admin.dashboard.free', 'FREE')}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full bg-purple-500" />
@@ -344,7 +344,7 @@ export default function AdminDashboard() {
                 <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
                   <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4 flex items-center gap-2">
                     <Star className="h-4 w-4 text-green-500" />
-                    Ingresos Mensuales Estimados por Tipo
+                    {t('admin.dashboard.estimatedMonthlyRevenueByType', 'Ingresos Mensuales Estimados por Tipo')}
                   </h4>
                   <ResponsiveContainer width="100%" height={200}>
                     <BarChart
@@ -367,8 +367,8 @@ export default function AdminDashboard() {
                       <YAxis type="category" dataKey="name" tick={{ fill: '#9ca3af', fontSize: 12 }} width={80} />
                       <Tooltip
                         formatter={(value: number, name: string) => {
-                          if (name === 'ingresos') return [`$${value.toLocaleString('es-AR')}`, 'Ingresos/mes'];
-                          return [value, 'Cantidad'];
+                          if (name === 'ingresos') return [`$${value.toLocaleString('es-AR')}`, t('admin.dashboard.revenuePerMonth', 'Ingresos/mes')];
+                          return [value, t('admin.dashboard.amount', 'Cantidad')];
                         }}
                         contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
                         labelStyle={{ color: '#f3f4f6' }}
@@ -378,13 +378,13 @@ export default function AdminDashboard() {
                   </ResponsiveContainer>
                   <div className="mt-4 grid grid-cols-2 gap-4 text-center">
                     <div className="bg-purple-100 dark:bg-purple-900/30 rounded-lg p-3">
-                      <p className="text-xs text-gray-600 dark:text-gray-400">PRO (6 USD/mes)</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">{t('admin.dashboard.proPerMonth', 'PRO (6 USD/mes)')}</p>
                       <p className="text-lg font-bold text-purple-700 dark:text-purple-400">
                         ${(companyBalance.revenue?.memberships?.proRevenueARS || 0).toLocaleString('es-AR')}
                       </p>
                     </div>
                     <div className="bg-amber-100 dark:bg-amber-900/30 rounded-lg p-3">
-                      <p className="text-xs text-gray-600 dark:text-gray-400">SUPER PRO (8 USD/mes)</p>
+                      <p className="text-xs text-gray-600 dark:text-gray-400">{t('admin.dashboard.superProPerMonth', 'SUPER PRO (8 USD/mes)')}</p>
                       <p className="text-lg font-bold text-amber-700 dark:text-amber-400">
                         ${(companyBalance.revenue?.memberships?.superProRevenueARS || 0).toLocaleString('es-AR')}
                       </p>
@@ -397,7 +397,7 @@ export default function AdminDashboard() {
               <div className="mt-4 bg-gradient-to-r from-purple-500/10 to-amber-500/10 dark:from-purple-900/30 dark:to-amber-900/30 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Ingreso Mensual Estimado Total (ARS)</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.dashboard.estimatedTotalMonthlyRevenueArs', 'Ingreso Mensual Estimado Total (ARS)')}</p>
                     <p className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-amber-600 bg-clip-text text-transparent">
                       ${(
                         (companyBalance.revenue?.memberships?.proRevenueARS || 0) +
@@ -406,7 +406,7 @@ export default function AdminDashboard() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm text-gray-600 dark:text-gray-400">Total Membresías Activas</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.dashboard.totalActiveMemberships', 'Total Membresías Activas')}</p>
                     <p className="text-3xl font-bold text-gray-900 dark:text-white">
                       {companyBalance.revenue?.memberships?.activeCount || 0}
                     </p>
@@ -419,25 +419,25 @@ export default function AdminDashboard() {
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
                 <BarChart3 className="h-5 w-5 text-orange-600" />
-                Ingresos por Publicidad
+                {t('admin.dashboard.advertisementRevenue', 'Ingresos por Publicidad')}
               </h3>
 
               {/* Stats cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total ARS</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{t('admin.dashboard.totalArs', 'Total ARS')}</p>
                   <p className="text-2xl font-bold text-orange-700 dark:text-orange-400">
                     ${Number(companyBalance.revenue?.advertisements?.totalARS || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
                 <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Total USD</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{t('admin.dashboard.totalUsd', 'Total USD')}</p>
                   <p className="text-2xl font-bold text-blue-700 dark:text-blue-400">
                     ${Number(companyBalance.revenue?.advertisements?.totalUSD || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
                 <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4">
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Promotores Activos</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">{t('admin.dashboard.activePromoters', 'Promotores Activos')}</p>
                   <p className="text-2xl font-bold text-amber-700 dark:text-amber-400">
                     {companyBalance.revenue?.advertisements?.activePromotersCount || 0}
                   </p>
@@ -447,7 +447,7 @@ export default function AdminDashboard() {
               {/* Gráfico de modelos de publicidad */}
               <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
                 <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">
-                  Modelos de Publicidad Disponibles
+                  {t('admin.dashboard.availableAdvertisingModels', 'Modelos de Publicidad Disponibles')}
                 </h4>
                 <ResponsiveContainer width="100%" height={200}>
                   <BarChart
@@ -461,7 +461,7 @@ export default function AdminDashboard() {
                     <XAxis dataKey="modelo" tick={{ fill: '#9ca3af', fontSize: 11 }} />
                     <YAxis tick={{ fill: '#9ca3af', fontSize: 12 }} unit="$/día" />
                     <Tooltip
-                      formatter={(value: number) => [`$${value}/día`, 'Precio Base']}
+                      formatter={(value: number) => [`$${value}/día`, t('admin.dashboard.basePrice', 'Precio Base')]}
                       contentStyle={{ backgroundColor: '#1f2937', border: 'none', borderRadius: '8px' }}
                       labelStyle={{ color: '#f3f4f6' }}
                     />
@@ -474,20 +474,20 @@ export default function AdminDashboard() {
                 </ResponsiveContainer>
                 <div className="mt-4 grid grid-cols-3 gap-2 text-center">
                   <div className="bg-orange-100 dark:bg-orange-900/30 rounded p-2">
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Banner 3x1</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">{t('admin.dashboard.banner3x1', 'Banner 3x1')}</p>
                     <p className="text-sm font-bold text-orange-600">$50/día</p>
                   </div>
                   <div className="bg-blue-100 dark:bg-blue-900/30 rounded p-2">
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Sidebar 1x2</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">{t('admin.dashboard.sidebar1x2', 'Sidebar 1x2')}</p>
                     <p className="text-sm font-bold text-blue-600">$35/día</p>
                   </div>
                   <div className="bg-green-100 dark:bg-green-900/30 rounded p-2">
-                    <p className="text-xs text-gray-600 dark:text-gray-400">Card 1x1</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400">{t('admin.dashboard.card1x1', 'Card 1x1')}</p>
                     <p className="text-sm font-bold text-green-600">$20/día</p>
                   </div>
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-3">
-                  Fórmula: base × días × (1 + prioridad × 0.1)
+                  {t('admin.dashboard.formulaCalculation', 'Fórmula: base × días × (1 + prioridad × 0.1)')}
                 </p>
               </div>
             </div>
@@ -498,7 +498,7 @@ export default function AdminDashboard() {
       {/* Analytics Section */}
       {(user?.adminRole === "owner" || user?.adminRole === "super_admin" || user?.adminRole === "admin" || user?.adminRole === "marketing") && (
         <div className="mb-8">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Analíticas Detalladas</h2>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">{t('admin.dashboard.detailedAnalytics', 'Analíticas Detalladas')}</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Analytics General */}
             <Link
@@ -508,8 +508,8 @@ export default function AdminDashboard() {
               <div className="flex items-center justify-between mb-3">
                 <BarChart3 className="h-8 w-8" />
               </div>
-              <h3 className="text-lg font-bold mb-1">Analytics General</h3>
-              <p className="text-sm text-blue-100">Vista general de todas las métricas</p>
+              <h3 className="text-lg font-bold mb-1">{t('admin.dashboard.generalAnalytics', 'Analytics General')}</h3>
+              <p className="text-sm text-blue-100">{t('admin.dashboard.overviewAllMetrics', 'Vista general de todas las métricas')}</p>
             </Link>
 
             {/* Analytics de Usuarios */}
@@ -520,8 +520,8 @@ export default function AdminDashboard() {
               <div className="flex items-center justify-between mb-3">
                 <Users className="h-8 w-8" />
               </div>
-              <h3 className="text-lg font-bold mb-1">Usuarios</h3>
-              <p className="text-sm text-purple-100">Análisis de usuarios y actividad</p>
+              <h3 className="text-lg font-bold mb-1">{t('admin.dashboard.users', 'Usuarios')}</h3>
+              <p className="text-sm text-purple-100">{t('admin.dashboard.userAnalysisActivity', 'Análisis de usuarios y actividad')}</p>
             </Link>
 
             {/* Analytics de Contratos */}
@@ -532,8 +532,8 @@ export default function AdminDashboard() {
               <div className="flex items-center justify-between mb-3">
                 <FileText className="h-8 w-8" />
               </div>
-              <h3 className="text-lg font-bold mb-1">Contratos</h3>
-              <p className="text-sm text-green-100">Métricas de contratos y pagos</p>
+              <h3 className="text-lg font-bold mb-1">{t('admin.dashboard.contracts', 'Contratos')}</h3>
+              <p className="text-sm text-green-100">{t('admin.dashboard.contractPaymentMetrics', 'Métricas de contratos y pagos')}</p>
             </Link>
 
             {/* Analytics de Tickets */}
@@ -544,8 +544,8 @@ export default function AdminDashboard() {
               <div className="flex items-center justify-between mb-3">
                 <TicketIcon className="h-8 w-8" />
               </div>
-              <h3 className="text-lg font-bold mb-1">Tickets</h3>
-              <p className="text-sm text-orange-100">Análisis de soporte y tickets</p>
+              <h3 className="text-lg font-bold mb-1">{t('admin.dashboard.tickets', 'Tickets')}</h3>
+              <p className="text-sm text-orange-100">{t('admin.dashboard.ticketSupportAnalysis', 'Análisis de soporte y tickets')}</p>
             </Link>
           </div>
         </div>
@@ -553,7 +553,7 @@ export default function AdminDashboard() {
 
       {/* Quick Actions */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-8">
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Acciones Rápidas</h2>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">{t('admin.dashboard.quickActions', 'Acciones Rápidas')}</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {(user?.adminRole === "owner" || user?.adminRole === "super_admin" || user?.adminRole === "admin") && (
             <>
@@ -561,22 +561,22 @@ export default function AdminDashboard() {
                 to="/admin/users"
                 className="p-4 border-2 border-gray-200 dark:border-gray-700 rounded-lg hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition"
               >
-                <h3 className="font-semibold text-gray-900 dark:text-white">Gestionar Usuarios</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Ver y administrar usuarios</p>
+                <h3 className="font-semibold text-gray-900 dark:text-white">{t('admin.dashboard.manageUsers', 'Gestionar Usuarios')}</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{t('admin.dashboard.viewManageUsers', 'Ver y administrar usuarios')}</p>
               </Link>
               <Link
                 to="/admin/contracts"
                 className="p-4 border-2 border-gray-200 dark:border-gray-700 rounded-lg hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition"
               >
-                <h3 className="font-semibold text-gray-900 dark:text-white">Gestionar Contratos</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Ver y administrar contratos</p>
+                <h3 className="font-semibold text-gray-900 dark:text-white">{t('admin.dashboard.manageContracts', 'Gestionar Contratos')}</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{t('admin.dashboard.viewManageContracts', 'Ver y administrar contratos')}</p>
               </Link>
               <Link
                 to="/admin/disputes"
                 className="p-4 border-2 border-gray-200 dark:border-gray-700 rounded-lg hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition"
               >
-                <h3 className="font-semibold text-gray-900 dark:text-white">Gestionar Disputas</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Resolver disputas de contratos</p>
+                <h3 className="font-semibold text-gray-900 dark:text-white">{t('admin.dashboard.manageDisputes', 'Gestionar Disputas')}</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{t('admin.dashboard.resolveContractDisputes', 'Resolver disputas de contratos')}</p>
               </Link>
             </>
           )}
@@ -585,8 +585,8 @@ export default function AdminDashboard() {
               to="/admin/tickets"
               className="p-4 border-2 border-gray-200 dark:border-gray-700 rounded-lg hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition"
             >
-              <h3 className="font-semibold text-gray-900 dark:text-white">Tickets de Soporte</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Resolver consultas y problemas</p>
+              <h3 className="font-semibold text-gray-900 dark:text-white">{t('admin.dashboard.supportTickets', 'Tickets de Soporte')}</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{t('admin.dashboard.resolveQuestionsProblems', 'Resolver consultas y problemas')}</p>
             </Link>
           )}
           {(user?.adminRole === "owner" || user?.adminRole === "super_admin" || user?.adminRole === "admin") && (
@@ -595,22 +595,22 @@ export default function AdminDashboard() {
                 to="/admin/withdrawals"
                 className="p-4 border-2 border-gray-200 dark:border-gray-700 rounded-lg hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition"
               >
-                <h3 className="font-semibold text-gray-900 dark:text-white">Gestionar Retiros</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Aprobar y procesar retiros</p>
+                <h3 className="font-semibold text-gray-900 dark:text-white">{t('admin.dashboard.manageWithdrawals', 'Gestionar Retiros')}</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{t('admin.dashboard.approveProcessWithdrawals', 'Aprobar y procesar retiros')}</p>
               </Link>
               <Link
                 to="/admin/pending-payments"
                 className="p-4 border-2 border-gray-200 dark:border-gray-700 rounded-lg hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition"
               >
-                <h3 className="font-semibold text-gray-900 dark:text-white">Pagos Pendientes</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Verificar y aprobar comprobantes de pago</p>
+                <h3 className="font-semibold text-gray-900 dark:text-white">{t('admin.dashboard.pendingPayments', 'Pagos Pendientes')}</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{t('admin.dashboard.verifyApprovPaymentProofs', 'Verificar y aprobar comprobantes de pago')}</p>
               </Link>
               <Link
                 to="/admin/financial-transactions"
                 className="p-4 border-2 border-gray-200 dark:border-gray-700 rounded-lg hover:border-sky-500 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition"
               >
-                <h3 className="font-semibold text-gray-900 dark:text-white">Movimientos Financieros</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Ver transacciones y comisiones</p>
+                <h3 className="font-semibold text-gray-900 dark:text-white">{t('admin.dashboard.financialTransactions', 'Movimientos Financieros')}</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{t('admin.dashboard.viewTransactionsCommissions', 'Ver transacciones y comisiones')}</p>
               </Link>
             </>
           )}
@@ -621,7 +621,7 @@ export default function AdminDashboard() {
       {(user?.adminRole === "owner" || user?.adminRole === "super_admin" || user?.adminRole === "admin" || user?.adminRole === "support") && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
-            Crear en Nombre de Usuario
+            {t('admin.dashboard.createOnBehalfOfUser', 'Crear en Nombre de Usuario')}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Link
@@ -632,9 +632,9 @@ export default function AdminDashboard() {
                 <Plus className="h-6 w-6" />
               </div>
               <div className="flex-1">
-                <h3 className="font-bold text-lg">Crear Ticket</h3>
+                <h3 className="font-bold text-lg">{t('admin.dashboard.createTicket', 'Crear Ticket')}</h3>
                 <p className="text-sm text-blue-100">
-                  Crear ticket de soporte en nombre de un usuario
+                  {t('admin.dashboard.createSupportTicketOnBehalfUser', 'Crear ticket de soporte en nombre de un usuario')}
                 </p>
               </div>
               <TicketIcon className="h-8 w-8 opacity-50" />
@@ -648,9 +648,9 @@ export default function AdminDashboard() {
                 <Plus className="h-6 w-6" />
               </div>
               <div className="flex-1">
-                <h3 className="font-bold text-lg">Crear Disputa</h3>
+                <h3 className="font-bold text-lg">{t('admin.dashboard.createDispute', 'Crear Disputa')}</h3>
                 <p className="text-sm text-orange-100">
-                  Crear disputa en nombre de un usuario
+                  {t('admin.dashboard.createDisputeOnBehalfUser', 'Crear disputa en nombre de un usuario')}
                 </p>
               </div>
               <AlertTriangle className="h-8 w-8 opacity-50" />
