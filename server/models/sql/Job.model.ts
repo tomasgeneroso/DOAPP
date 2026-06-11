@@ -191,6 +191,11 @@ export class Job extends Model {
   @Column(DataType.BOOLEAN)
   endDateFlexible!: boolean;
 
+  // Optional: time when worker should be auto-selected (if client chooses scheduling)
+  @AllowNull(true)
+  @Column(DataType.DATE)
+  autoSelectAt?: Date;
+
   // If true, the job has a single delivery (no per-task deadlines)
   // If false, each task can have its own due date as a guide
   @Default(true)

@@ -20,14 +20,7 @@ async function processScheduledAutoSelections() {
         autoSelectAt: { [Op.lte]: now },
         doerId: null, // Aún no seleccionado
         status: 'open' // Aún aceptando propuestas
-      },
-      include: [
-        {
-          model: Proposal,
-          as: 'proposals',
-          where: { status: 'pending' }
-        }
-      ]
+      }
     });
 
     if (jobsToAutoSelect.length === 0) {
@@ -38,7 +31,13 @@ async function processScheduledAutoSelections() {
 
     for (const job of jobsToAutoSelect) {
       try {
-        const proposals = (job as any).proposals || [];
+        // Buscar proposals pendientes para este trabajo
+        const proposals = await Proposal.findAll({
+          where: {
+            jobId: job.id,
+            status: 'pending'
+          }
+        });
 
         if (proposals.length === 0) {
           console.warn(`⚠️ [AUTO-SELECT] Job ${job.id} sin propuestas - cancelando auto-select`);
