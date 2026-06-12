@@ -22,7 +22,6 @@ interface GuideStep {
 
 const STEPS: GuideStep[] = [
   {
-  const { t } = useTranslation();
     id: "profile",
     label: "Completa tu perfil",
     description: "Agrega foto, bio y datos de contacto para generar confianza.",
@@ -58,6 +57,7 @@ const STORAGE_KEY = "fcg_dismissed";
 const BROWSE_VISITED_KEY = "fcg_browse_visited";
 
 export default function FirstContractGuide() {
+  const { t } = useTranslation();
   const { user, isAuthenticated } = useAuth();
   const location = useLocation();
   const [expanded, setExpanded] = useState(false);
