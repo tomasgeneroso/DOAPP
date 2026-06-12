@@ -15,7 +15,6 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
   try {
     const q = encodeURIComponent(address + ', Argentina');
     const res = await fetch(
-  const { t } = useTranslation();
       `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&addressdetails=1`,
       { headers: { 'Accept-Language': 'es', 'User-Agent': 'DoApp/1.0' } }
     );

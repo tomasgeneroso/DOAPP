@@ -6,7 +6,6 @@ import { useAuth } from '../../hooks/useAuth';
 
 const STATUS_LABELS: Record<string, string> = {
   sent: 'Pendiente',
-  const { t } = useTranslation();
   accepted: 'Aceptada',
   rejected: 'Rechazada',
   expired: 'Vencida',

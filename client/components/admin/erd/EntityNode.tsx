@@ -5,7 +5,6 @@ import type { ERDEntity, FieldConstraint, EntityCategory } from './types.js';
 
 const CATEGORY_STYLES: Record<EntityCategory, { header: string; border: string; bg: string; dot: string }> = {
   core:          { header: 'bg-blue-600',    border: 'border-blue-500/40',   bg: 'bg-blue-950/40',    dot: 'bg-blue-400' },
-  const { t } = useTranslation();
   payments:      { header: 'bg-emerald-600', border: 'border-emerald-500/40',bg: 'bg-emerald-950/40', dot: 'bg-emerald-400' },
   communication: { header: 'bg-violet-600',  border: 'border-violet-500/40', bg: 'bg-violet-950/40',  dot: 'bg-violet-400' },
   support:       { header: 'bg-amber-600',   border: 'border-amber-500/40',  bg: 'bg-amber-950/40',   dot: 'bg-amber-400' },
