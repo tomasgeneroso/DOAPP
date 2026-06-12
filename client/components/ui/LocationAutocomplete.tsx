@@ -1,8 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MapPin, Loader2 } from 'lucide-react';
-import { useMapboxGeocoding, hasMapboxToken } from '@/hooks/useMapboxGeocoding';
-import { searchLocations } from '../../data/argentineLocations';
 
 interface LocationAutocompleteProps {
   value: string;
@@ -11,6 +9,11 @@ interface LocationAutocompleteProps {
   required?: boolean;
   name?: string;
   disabled?: boolean;
+}
+
+interface GooglePrediction {
+  description: string;
+  place_id: string;
 }
 
 export default function LocationAutocomplete({
@@ -23,37 +26,49 @@ export default function LocationAutocomplete({
 }: LocationAutocompleteProps) {
   const { t } = useTranslation();
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [staticSuggestions, setStaticSuggestions] = useState<string[]>([]);
-  const [geocodeLoading, setGeocodeLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState<GooglePrediction[]>([]);
+  const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const useMapbox = hasMapboxToken();
-  const { features, loading, search, clear } = useMapboxGeocoding();
+  const autocompleteServiceRef = useRef<google.maps.places.AutocompleteService | null>(null);
+  const placesServiceRef = useRef<google.maps.places.PlacesService | null>(null);
 
-  const suggestions = useMapbox
-    ? features.map((f) => f.place_name)
-    : staticSuggestions;
+  // Initialize Google Places Services
+  useEffect(() => {
+    if (window.google && !autocompleteServiceRef.current) {
+      autocompleteServiceRef.current = new google.maps.places.AutocompleteService();
+      // Create a dummy map element for PlacesService
+      const dummyDiv = document.createElement('div');
+      placesServiceRef.current = new google.maps.places.PlacesService(dummyDiv);
+    }
+  }, []);
 
-  const searchGeocode = useCallback(async (query: string) => {
-    setGeocodeLoading(true);
+  const searchLocations = useCallback(async (query: string) => {
+    if (!query || query.length < 2 || !autocompleteServiceRef.current) {
+      setSuggestions([]);
+      return;
+    }
+
+    setLoading(true);
     try {
-      const res = await fetch(`/api/search/geocode?q=${encodeURIComponent(query)}`);
-      const data = await res.json();
-      if (data.success && data.results?.length > 0) {
-        setStaticSuggestions(data.results);
+      const predictions = await autocompleteServiceRef.current.getPlacePredictions({
+        input: query,
+        componentRestrictions: { country: 'ar' }, // Restrict to Argentina
+        types: ['geocode', 'establishment'],
+      });
+
+      if (predictions.predictions) {
+        setSuggestions(predictions.predictions);
         setShowSuggestions(true);
       } else {
-        const fallback = searchLocations(query, 8);
-        setStaticSuggestions(fallback);
-        setShowSuggestions(fallback.length > 0);
+        setSuggestions([]);
       }
-    } catch {
-      const fallback = searchLocations(query, 8);
-      setStaticSuggestions(fallback);
-      setShowSuggestions(fallback.length > 0);
+    } catch (error) {
+      console.error('Google Places error:', error);
+      setSuggestions([]);
     } finally {
-      setGeocodeLoading(false);
+      setLoading(false);
     }
   }, []);
 
@@ -71,32 +86,37 @@ export default function LocationAutocomplete({
     onChange(inputValue);
     setSelectedIndex(-1);
 
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
     if (inputValue.length >= 2) {
-      if (useMapbox) {
-        search(inputValue);
-        setShowSuggestions(true);
-      } else {
-        if (debounceRef.current) clearTimeout(debounceRef.current);
-        debounceRef.current = setTimeout(() => searchGeocode(inputValue), 350);
-      }
+      debounceRef.current = setTimeout(() => searchLocations(inputValue), 300);
     } else {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      clear();
-      setStaticSuggestions([]);
+      setSuggestions([]);
       setShowSuggestions(false);
     }
   };
 
-  const handleSelect = (placeName: string) => {
-    const feature = features.find((f) => f.place_name === placeName);
-    const coords = feature
-      ? { lng: feature.center[0], lat: feature.center[1] }
-      : undefined;
-    onChange(placeName, coords);
+  const handleSelect = (prediction: GooglePrediction) => {
+    onChange(prediction.description);
     setShowSuggestions(false);
-    clear();
-    setStaticSuggestions([]);
+    setSuggestions([]);
     setSelectedIndex(-1);
+
+    // Get detailed place info including coordinates
+    if (placesServiceRef.current) {
+      placesServiceRef.current.getDetails(
+        { placeId: prediction.place_id, fields: ['geometry', 'formatted_address'] },
+        (place, status) => {
+          if (status === google.maps.places.PlacesServiceStatus.OK && place?.geometry?.location) {
+            const coords = {
+              lat: place.geometry.location.lat(),
+              lng: place.geometry.location.lng(),
+            };
+            onChange(prediction.description, coords);
+          }
+        }
+      );
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -112,7 +132,9 @@ export default function LocationAutocomplete({
         break;
       case 'Enter':
         e.preventDefault();
-        if (selectedIndex >= 0) handleSelect(suggestions[selectedIndex]);
+        if (selectedIndex >= 0) {
+          handleSelect(suggestions[selectedIndex]);
+        }
         break;
       case 'Escape':
         setShowSuggestions(false);
@@ -122,50 +144,67 @@ export default function LocationAutocomplete({
 
   return (
     <div ref={wrapperRef} className="relative">
-      <div className="relative">
-        <input
-          type="text"
-          name={name}
-          value={value || ''}
-          onChange={(e) => handleInputChange(e.target.value)}
-          onKeyDown={handleKeyDown}
-          onFocus={() => {
-            if (suggestions.length > 0) setShowSuggestions(true);
-          }}
-          placeholder={placeholder}
-          required={required}
-          disabled={disabled}
-          autoComplete="off"
-          className="block w-full rounded-md border-0 py-1.5 px-3 pr-9 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed"
-        />
-        {(loading || geocodeLoading) && (
-          <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-slate-400" />
-        )}
+      <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none z-10">
+        <MapPin className="h-5 w-5 text-gray-400 dark:text-gray-500" />
       </div>
 
+      <input
+        type="text"
+        name={name}
+        value={value}
+        onChange={(e) => handleInputChange(e.target.value)}
+        onFocus={() => value && suggestions.length > 0 && setShowSuggestions(true)}
+        onKeyDown={handleKeyDown}
+        disabled={disabled}
+        required={required}
+        placeholder={placeholder}
+        className={`
+          w-full h-14 pl-11 pr-4 py-2
+          bg-white dark:bg-gray-800
+          border-2 rounded-xl
+          text-gray-900 dark:text-white
+          transition-all duration-200
+          cursor-pointer
+          border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500
+          focus:outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 dark:ring-sky-400/20
+          placeholder:text-gray-400 dark:placeholder:text-gray-500
+          ${disabled ? 'opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-900' : ''}
+        `}
+      />
+
+      {loading && (
+        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+          <Loader2 className="h-5 w-5 animate-spin text-sky-500" />
+        </div>
+      )}
+
       {showSuggestions && suggestions.length > 0 && (
-        <div className="absolute z-10 mt-1 w-full bg-white dark:bg-slate-800 shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
-          {suggestions.map((s, index) => (
-            <div
-              key={s}
-              onClick={() => handleSelect(s)}
-              className={`cursor-pointer select-none relative py-2 pl-3 pr-9 ${
-                index === selectedIndex
-                  ? 'bg-sky-600 text-white'
-                  : 'text-gray-900 dark:text-gray-100 hover:bg-sky-50 dark:hover:bg-slate-700'
-              }`}
+        <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg z-50 max-h-64 overflow-y-auto">
+          {suggestions.map((prediction, index) => (
+            <button
+              key={prediction.place_id}
+              onClick={() => handleSelect(prediction)}
+              className={`
+                w-full px-4 py-3 text-left border-b border-gray-200 dark:border-gray-700 last:border-b-0
+                transition-colors
+                ${index === selectedIndex
+                  ? 'bg-sky-100 dark:bg-sky-900/30'
+                  : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                }
+              `}
             >
-              <div className="flex items-center gap-2">
-                <MapPin
-                  className={`h-4 w-4 shrink-0 ${
-                    index === selectedIndex ? 'text-white' : 'text-gray-400 dark:text-gray-500'
-                  }`}
-                />
-                <span className={`block truncate ${index === selectedIndex ? 'font-medium' : 'font-normal'}`}>
-                  {s}
-                </span>
+              <div className="flex items-start gap-2">
+                <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900 dark:text-white truncate">
+                    {prediction.description.split(',')[0]}
+                  </p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 truncate">
+                    {prediction.description.split(',').slice(1).join(',')}
+                  </p>
+                </div>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       )}
