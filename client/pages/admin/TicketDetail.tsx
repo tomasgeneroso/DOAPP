@@ -21,7 +21,6 @@ import {
 
 const STATUS_LABELS: Record<string, string> = {
   open: "Abierto",
-  const { t } = useTranslation();
   assigned: "Asignado",
   in_progress: "En progreso",
   waiting_user: "Esperando usuario",

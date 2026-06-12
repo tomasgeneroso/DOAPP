@@ -21,7 +21,6 @@ interface WebVitals {
 // Thresholds based on Google's Core Web Vitals
 const WEB_VITALS_THRESHOLDS = {
   LCP: { good: 2500, needsImprovement: 4000 },
-  const { t } = useTranslation();
   FID: { good: 100, needsImprovement: 300 },
   CLS: { good: 0.1, needsImprovement: 0.25 },
   FCP: { good: 1800, needsImprovement: 3000 },

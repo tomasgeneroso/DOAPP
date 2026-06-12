@@ -4,8 +4,8 @@ import { Helmet } from "react-helmet-async";
 import { ArrowLeft, Home, Shield } from "lucide-react";
 
 export default function PrivacyPolicy() {
-  return (
   const { t } = useTranslation();
+  return (
     <>
       <Helmet>
         <title>Política de Privacidad - DOAPP</title>

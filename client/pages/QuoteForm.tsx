@@ -16,7 +16,6 @@ interface QuoteTemplate {
 
 const QUOTE_TEMPLATES: QuoteTemplate[] = [
   {
-  const { t } = useTranslation();
     label: 'Plomería', emoji: '🔧',
     title: 'Servicio de plomería',
     items: [

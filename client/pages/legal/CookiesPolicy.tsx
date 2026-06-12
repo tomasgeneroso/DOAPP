@@ -4,8 +4,8 @@ import { Helmet } from "react-helmet-async";
 import { ArrowLeft, Home, Cookie } from "lucide-react";
 
 export default function CookiesPolicy() {
-  return (
   const { t } = useTranslation();
+  return (
     <>
       <Helmet>
         <title>Política de Cookies - DOAPP</title>

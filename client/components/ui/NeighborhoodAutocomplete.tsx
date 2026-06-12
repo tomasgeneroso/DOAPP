@@ -15,7 +15,6 @@ interface Props {
 
 export default function NeighborhoodAutocomplete({
   locationValue,
-  const { t } = useTranslation();
   neighborhood,
   postalCode,
   onNeighborhoodChange,
@@ -23,6 +22,7 @@ export default function NeighborhoodAutocomplete({
   disabled,
   inputClassName,
 }: Props) {
+  const { t } = useTranslation();
   const [suggestions, setSuggestions] = useState<NeighborhoodEntry[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);

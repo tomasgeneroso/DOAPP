@@ -15,13 +15,13 @@ interface LocationAutocompleteProps {
 
 export default function LocationAutocomplete({
   value,
-  const { t } = useTranslation();
   onChange,
   placeholder = 'Ej: Palermo, CABA',
   required = false,
   name = 'location',
   disabled = false,
 }: LocationAutocompleteProps) {
+  const { t } = useTranslation();
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [staticSuggestions, setStaticSuggestions] = useState<string[]>([]);
   const [geocodeLoading, setGeocodeLoading] = useState(false);

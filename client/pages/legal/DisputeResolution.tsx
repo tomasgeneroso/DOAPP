@@ -4,8 +4,8 @@ import { Helmet } from "react-helmet-async";
 import { ArrowLeft, Home, Scale, AlertCircle } from "lucide-react";
 
 export default function DisputeResolution() {
-  return (
   const { t } = useTranslation();
+  return (
     <>
       <Helmet>
         <title>Resolución de Disputas - DOAPP</title>
