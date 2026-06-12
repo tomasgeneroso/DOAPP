@@ -27,12 +27,10 @@ export class ModuleConfig extends Model {
   config?: Record<string, any>; // Config específica del módulo (opcional)
 
   @CreatedAt
-  @Column({ type: DataTypes.DATE })
-  createdAt!: Date;
+  declare createdAt: Date;
 
   @UpdatedAt
-  @Column({ type: DataTypes.DATE })
-  updatedAt!: Date;
+  declare updatedAt: Date;
 }
 
 export default ModuleConfig;

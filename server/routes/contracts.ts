@@ -3499,7 +3499,7 @@ router.post(
           });
           return;
         }
-        if (autoSelectTime >= jobStartTime) {
+        if (autoSelectTime.getTime() >= jobStartTime) {
           res.status(400).json({
             success: false,
             message: "La auto-selección debe ocurrir antes del inicio del trabajo"
@@ -3588,7 +3588,7 @@ router.post(
       // Solo rechazar otras propuestas si faltan <= 1 hora (cierra postulaciones)
       if (shouldCloseProposals) {
         for (const proposal of proposals) {
-          if (proposal.doerId.toString() !== selectedDoerId.toString()) {
+          if (proposal.freelancerId.toString() !== selectedDoerId.toString()) {
             proposal.status = 'rejected';
             await (proposal as any).save();
           }
@@ -3633,7 +3633,7 @@ router.post(
           expressCheckout: true,
           paymentMethod,
           needsAdminApproval,
-          autoSelectedWorker: shouldAutoSelect,
+          autoSelectedWorker: !!scheduleAutoSelectAt,
           proposalsClosed: shouldCloseProposals
         }
       );
@@ -3811,7 +3811,7 @@ router.post(
       }
 
       // Determinar límite de horas para cancelación
-      const isSuperPro = user.membershipType === 'super_pro';
+      const isSuperPro = user.membershipTier === 'super_pro';
       const cancellationHourLimit = isSuperPro ? 24 : 48;
 
       // Verificar si puede cancelar

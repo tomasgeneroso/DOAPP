@@ -8,7 +8,7 @@ const router = Router();
  * Obtener lista de módulos activos (público, sin autenticación requerida)
  * El frontend lo consulta para saber qué features renderizar
  */
-router.get('/modules', async (_req: Request, res: Response): Promise<void> => {
+router.get('/modules', async (_req: Request, res: Response) => {
   try {
     // Caché en memoria simple: 5 minutos
     const cacheKey = 'config:modules';
@@ -17,7 +17,7 @@ router.get('/modules', async (_req: Request, res: Response): Promise<void> => {
     // Verificar si está en caché
     if ((global as any).moduleConfigCache && (global as any).moduleConfigCacheTime) {
       if (now - (global as any).moduleConfigCacheTime < 5 * 60 * 1000) {
-        return res.json({
+        res.json({
           success: true,
           modules: (global as any).moduleConfigCache,
           cached: true,
