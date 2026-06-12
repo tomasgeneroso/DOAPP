@@ -35,7 +35,7 @@ const STEPS: GuideStep[] = [
     description: "Buscá publicaciones que se ajusten a tus habilidades.",
     link: "/",
     linkLabel: "Ver trabajos",
-    check: (_user, loc) => loc !== "/" || false, // marks done after first visit to /
+    check: (_user, loc) => loc === "/",
   },
   {
     id: "apply",
@@ -43,7 +43,7 @@ const STEPS: GuideStep[] = [
     description: "Postúlate a un trabajo o creá tu primera publicación.",
     link: "/",
     linkLabel: "Empezar",
-    check: (user) => (user?.completedJobs ?? 0) > 0 || false,
+    check: (user) => (user?.completedJobs ?? 0) > 0,
   },
   {
     id: "contract",
