@@ -166,7 +166,7 @@ export default function Header() {
         >
           {/* Logo SVG */}
           <img
-            src="/logo.svg"
+            src="/logo.svg?v=3"
             alt="DOAPP"
             className="h-10 w-10 sm:h-12 sm:w-12 transition-transform duration-300 group-hover:scale-105"
           />

@@ -1,10 +1,16 @@
-﻿<svg viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
   <!-- Background circle -->
-  <circle cx="128" cy="128" r="128" fill="#00A8E8"/>
+  <circle cx="150" cy="150" r="145" fill="#00A8E8"/>
 
-  <!-- Letter D (left) -->
-  <path d="M 60 60 L 100 60 Q 130 60 130 90 L 130 166 Q 130 196 100 196 L 60 196 Z" fill="white" stroke="none"/>
+  <!-- Letter D (left side) -->
+  <g>
+    <!-- D curve -->
+    <path d="M 75 70 L 115 70 Q 135 70 135 120 L 135 180 Q 135 230 115 230 L 75 230 Z" fill="white" stroke="none"/>
+    <!-- D interior (negative space) -->
+    <path d="M 95 90 L 95 210 Q 95 220 115 220 Q 125 220 125 180 L 125 120 Q 125 90 115 90 Z" fill="#00A8E8" stroke="none"/>
+  </g>
 
-  <!-- Letter O (right) -->
-  <circle cx="170" cy="128" r="60" fill="white"/>
+  <!-- Letter O (right side) -->
+  <circle cx="215" cy="150" r="60" fill="white"/>
+  <circle cx="215" cy="150" r="45" fill="#00A8E8"/>
 </svg>
