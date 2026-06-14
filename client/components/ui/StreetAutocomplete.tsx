@@ -1,5 +1,4 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
 import { Home, Loader2 } from 'lucide-react';
 
 interface StreetAutocompleteProps {
@@ -18,7 +17,6 @@ interface StreetSuggestion {
 // Cache for street searches
 const streetCache: { [key: string]: StreetSuggestion[] } = {};
 
-  const { t } = useTranslation();
 // Debounce function
 function debounce<T extends (...args: any[]) => any>(
   func: T,

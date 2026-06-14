@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useTranslation } from 'react-i18next';
 import { useAuth } from './useAuth';
 
 interface SearchHistoryItem {
@@ -11,7 +10,6 @@ interface SearchHistoryItem {
 
 const MAX_HISTORY_ITEMS = 20;
 
-  const { t } = useTranslation();
 interface UseSearchHistoryReturn {
   history: SearchHistoryItem[];
   addSearch: (query: string, filters?: Record<string, any>) => void;

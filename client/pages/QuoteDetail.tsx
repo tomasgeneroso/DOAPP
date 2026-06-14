@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../hooks/useAuth';
@@ -8,7 +7,6 @@ import type { Quote } from '../types/index';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
-  const { t } = useTranslation();
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Borrador',
   sent: 'Enviada',

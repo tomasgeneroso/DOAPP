@@ -1,5 +1,4 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
 import { Helmet } from 'react-helmet-async';
 import {
   ReactFlow,
@@ -26,7 +25,6 @@ import type { EntityCategory } from '../../components/admin/erd/types.js';
 
 function getLayoutedElements(nodes: Node[], edges: Edge[], direction: 'LR' | 'TB' = 'LR') {
   const g = new Dagre.graphlib.Graph();
-  const { t } = useTranslation();
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({ rankdir: direction, ranksep: 80, nodesep: 50, marginx: 40, marginy: 40 });
 

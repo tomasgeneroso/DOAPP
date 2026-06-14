@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { MapPin, Loader2 } from 'lucide-react';
 
 interface LocationCircleMapProps {
@@ -9,7 +8,6 @@ interface LocationCircleMapProps {
 // Cache para coordenadas geocodificadas
 const geocodeCache: { [key: string]: [number, number] } = {};
 
-  const { t } = useTranslation();
 export default function LocationCircleMap({ location }: LocationCircleMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);

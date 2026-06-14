@@ -1,5 +1,4 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from './useAuth';
 
@@ -29,7 +28,6 @@ interface OnboardingContextType {
 
 const OnboardingContext = createContext<OnboardingContextType | null>(null);
 
-  const { t } = useTranslation();
 // Define onboarding steps
 const ONBOARDING_STEPS: OnboardingStep[] = [
   {
