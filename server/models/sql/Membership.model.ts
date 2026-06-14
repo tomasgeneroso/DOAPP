@@ -125,11 +125,11 @@ export class Membership extends Model {
   // ============================================
 
   @AllowNull(false)
-  @Column(DataType.DECIMAL(10, 2))
+  @Column({ type: DataType.DECIMAL(10, 2), field: 'price_usd' })
   priceUSD!: number; // Legacy field - now using ARS pricing ($4,999 or $8,999)
 
   @AllowNull(false)
-  @Column(DataType.DECIMAL(12, 2))
+  @Column({ type: DataType.DECIMAL(12, 2), field: 'price_ars' })
   priceARS!: number; // Precio en ARS al momento de compra
 
   @AllowNull(false)
