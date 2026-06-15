@@ -23,7 +23,7 @@ export default function Footer() {
           {/* Sobre DOAPP */}
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <img src="/logo.svg?v=3" alt="DOAPP" className="h-10 w-10" />
+              <img src="/logo.svg?v=4" alt="DOAPP" className="h-10 w-10" />
             </div>
             <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
               {t('footer.description')}
