@@ -2,8 +2,8 @@
   <!-- Background circle -->
   <circle cx="150" cy="150" r="145" fill="#00A8E8"/>
 
-  <!-- Letter D (solid white) -->
-  <path d="M 75 70 L 115 70 Q 135 70 135 120 L 135 180 Q 135 230 115 230 L 75 230 Z" fill="white"/>
+  <!-- Letter D (solid white, wider, touching the O) -->
+  <path d="M 68 70 L 120 70 Q 160 70 160 150 Q 160 230 120 230 L 68 230 Z" fill="white"/>
 
   <!-- Letter O (solid white) -->
   <circle cx="215" cy="150" r="60" fill="white"/>
