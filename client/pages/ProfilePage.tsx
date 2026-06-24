@@ -1277,9 +1277,10 @@ export default function ProfilePage() {
                   ) : (
                     <div className="space-y-4">
                       {posts.map((post) => (
-                        <div
+                        <Link
                           key={post.id || post._id}
-                          className="p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-sky-300 dark:hover:border-sky-600 transition-colors"
+                          to={`/posts/${post.id || post._id}`}
+                          className="block p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-sky-300 dark:hover:border-sky-600 transition-colors"
                         >
                           <div className="flex gap-4">
                             {/* Post Image */}
@@ -1288,7 +1289,8 @@ export default function ProfilePage() {
                                 <img
                                   src={getImageUrl(post.gallery[0].url)}
                                   alt={post.title || 'Post'}
-                                  className="w-24 h-24 object-cover rounded-lg"
+                                  className="w-24 h-24 object-cover rounded-lg bg-slate-100 dark:bg-slate-700"
+                                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
                                 />
                               </div>
                             )}
@@ -1303,35 +1305,26 @@ export default function ProfilePage() {
                               <p className="text-slate-600 dark:text-slate-400 text-sm line-clamp-3" dangerouslySetInnerHTML={{ __html: post.description?.replace(/<[^>]+>/g, ' ').substring(0, 200) || '' }} />
 
                               {/* Footer */}
-                              <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
-                                <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400">
-                                  <span className="flex items-center gap-1">
-                                    <Heart className="w-4 h-4" />
-                                    {post.likesCount || 0}
-                                  </span>
-                                  <span className="flex items-center gap-1">
-                                    <MessageCircle className="w-4 h-4" />
-                                    {post.commentsCount || 0}
-                                  </span>
-                                  <span>
-                                    {new Date(post.createdAt).toLocaleDateString('es-AR', {
-                                      year: 'numeric',
-                                      month: 'short',
-                                      day: 'numeric',
-                                    })}
-                                  </span>
-                                </div>
-                                <Link
-                                  to={`/posts/${post.id || post._id}`}
-                                  className="text-sm text-sky-600 dark:text-sky-400 hover:underline flex items-center gap-1"
-                                >
-                                  {t('profile.seeMore', 'See more')}
-                                  <ExternalLink className="w-3 h-3" />
-                                </Link>
+                              <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400 mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
+                                <span className="flex items-center gap-1">
+                                  <Heart className="w-4 h-4" />
+                                  {post.likesCount || 0}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <MessageCircle className="w-4 h-4" />
+                                  {post.commentsCount || 0}
+                                </span>
+                                <span>
+                                  {new Date(post.createdAt).toLocaleDateString('es-AR', {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric',
+                                  })}
+                                </span>
                               </div>
                             </div>
                           </div>
-                        </div>
+                        </Link>
                       ))}
                     </div>
                   )}
