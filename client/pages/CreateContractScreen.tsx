@@ -593,7 +593,7 @@ export default function CreateContractScreen() {
               </div>
             }>
               <LocationPinMap
-                address={[addressStreet, addressNumber, location].filter(Boolean).join(', ')}
+                address={[[addressStreet, addressNumber].filter(Boolean).join(' '), location].filter(Boolean).join(', ')}
                 initialLat={latitude ?? undefined}
                 initialLng={longitude ?? undefined}
                 onCoordinatesChange={(lat, lng) => { setLatitude(lat); setLongitude(lng); }}

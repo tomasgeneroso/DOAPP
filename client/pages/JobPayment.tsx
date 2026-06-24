@@ -890,11 +890,11 @@ export default function JobPayment() {
                 <span className="text-sm font-semibold text-amber-800 dark:text-amber-200">Antes de publicar</span>
               </div>
               <ul className="space-y-1.5 text-xs text-amber-700 dark:text-amber-300">
-                <li className="flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span> Las comisiones <strong>no se devuelven</strong> salvo que canceles antes de seleccionar un trabajador y más de 42hs antes del inicio.</li>
-                <li className="flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span> Verificá el <strong>código del trabajador</strong> cuando llegue al lugar de trabajo para mayor seguridad.</li>
-                <li className="flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span> Publicá los <strong>requisitos de finalización</strong> con detalle para evitar disputas.</li>
-                <li className="flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span> Si el trabajo no se completa correctamente, podés abrir una <strong>disputa</strong> y el dinero queda retenido en escrow hasta resolverse.</li>
-                <li className="flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span> Revisá el perfil y las reseñas del trabajador antes de seleccionarlo.</li>
+                <li className="flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span>Las comisiones <strong>no se devuelven</strong> salvo que canceles antes de seleccionar un trabajador y más de 42hs antes del inicio.</span></li>
+                <li className="flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span>Verificá el <strong>código del trabajador</strong> cuando llegue al lugar de trabajo para mayor seguridad.</span></li>
+                <li className="flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span>Publicá los <strong>requisitos de finalización</strong> con detalle para evitar disputas.</span></li>
+                <li className="flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span>Si el trabajo no se completa correctamente, podés abrir una <strong>disputa</strong> y el dinero queda retenido en escrow hasta resolverse.</span></li>
+                <li className="flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span>Revisá el perfil y las reseñas del trabajador antes de seleccionarlo.</span></li>
               </ul>
             </div>
           </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { CreditCard, Building2, Copy, Check } from 'lucide-react';
+import { Building2, Copy, Check } from 'lucide-react';
 
 export type PaymentMethod = 'mercadopago' | 'astropay' | 'binance' | 'bank_transfer';
 
@@ -56,50 +56,6 @@ function AstroPayLogo() {
   );
 }
 
-/* ── Credit card flip display ─────────────────── */
-
-function CardDisplay({ cardHolder, cardNumber, expiry }: { cardHolder: string; cardNumber: string; expiry: string }) {
-  const fmt = (n: string) => {
-    const digits = n.replace(/\D/g, '').slice(0, 16);
-    return digits.replace(/(.{4})/g, '$1 ').trim() || '0000 0000 0000 0000';
-  };
-  const fmtExpiry = (e: string) => e || 'MM/YY';
-
-  return (
-    <div className="relative h-40 w-full rounded-2xl overflow-hidden select-none"
-      style={{ background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 60%, #1d4ed8 100%)' }}>
-      {/* Glare */}
-      <div className="absolute inset-0 opacity-20"
-        style={{ background: 'radial-gradient(ellipse at 30% 30%, rgba(255,255,255,0.6), transparent 60%)' }} />
-      {/* Chip */}
-      <div className="absolute top-5 left-5 h-8 w-11 rounded-md bg-amber-300/80"
-        style={{ boxShadow: 'inset 1px 1px 0 rgba(255,255,255,0.4)' }} />
-      {/* Logo */}
-      <div className="absolute top-5 right-5 flex items-center gap-1">
-        <div className="h-6 w-6 rounded-full bg-red-500 opacity-90" />
-        <div className="-ml-3 h-6 w-6 rounded-full bg-orange-400 opacity-80" />
-      </div>
-      {/* Number */}
-      <div className="absolute bottom-14 left-5 font-mono text-base tracking-widest text-white/90 font-semibold">
-        {fmt(cardNumber)}
-      </div>
-      {/* Bottom row */}
-      <div className="absolute bottom-5 left-5 right-5 flex items-end justify-between">
-        <div>
-          <p className="text-white/50 text-[9px] uppercase tracking-widest mb-0.5">Card Holder</p>
-          <p className="text-white font-semibold text-sm tracking-wide truncate max-w-[160px]">
-            {cardHolder || 'NOMBRE APELLIDO'}
-          </p>
-        </div>
-        <div className="text-right">
-          <p className="text-white/50 text-[9px] uppercase tracking-widest mb-0.5">Expires</p>
-          <p className="text-white font-semibold text-sm">{fmtExpiry(expiry)}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ── Copy button ─────────────────────────────── */
 
 function CopyBtn({ value }: { value: string }) {
@@ -126,12 +82,6 @@ export default function PaymentMethodSelector({
   onBankTransferDataChange,
 }: PaymentMethodSelectorProps) {
   const { t } = useTranslation();
-
-  // Card form state (MercadoPago visual)
-  const [cardHolder, setCardHolder] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
-  const [expiry, setExpiry] = useState('');
-  const [cvv, setCvv] = useState('');
 
   // Binance state
   const [usdtAmount, setUsdtAmount] = useState<number | null>(null);
@@ -175,14 +125,6 @@ export default function PaymentMethodSelector({
       .finally(() => { if (!cancelled) setLoadingConversion(false); });
     return () => { cancelled = true; };
   }, [selectedMethod, amount, currency]);
-
-  const fmtCardNum = (v: string) =>
-    v.replace(/\D/g, '').slice(0, 16).replace(/(.{4})/g, '$1 ').trim();
-
-  const fmtExpiry = (v: string) => {
-    const digits = v.replace(/\D/g, '').slice(0, 4);
-    return digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits;
-  };
 
   const methods: { id: PaymentMethod; label: string; sub: string; logo: React.ReactNode }[] = [
     {
@@ -256,7 +198,7 @@ export default function PaymentMethodSelector({
         <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
         <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">
           {selectedMethod === 'mercadopago'
-            ? 'o pagar con tarjeta de crédito'
+            ? 'Pago seguro con MercadoPago'
             : selectedMethod === 'astropay'
             ? 'Tarjeta, débito o métodos locales'
             : selectedMethod === 'binance'
@@ -266,84 +208,15 @@ export default function PaymentMethodSelector({
         <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
       </div>
 
-      {/* ── MercadoPago: card preview form ─────── */}
+      {/* ── MercadoPago: redirect notice (no card form — el pago se completa en MercadoPago) ─────── */}
       {selectedMethod === 'mercadopago' && (
         <div className="space-y-4 animate-fadeIn">
-          {/* Virtual card */}
-          <CardDisplay cardHolder={cardHolder} cardNumber={cardNumber} expiry={expiry} />
-
-          {/* Form fields */}
-          <div className="space-y-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-                Nombre del titular
-              </label>
-              <input
-                type="text"
-                value={cardHolder}
-                onChange={(e) => setCardHolder(e.target.value.toUpperCase())}
-                placeholder="Nombre completo"
-                className="block w-full h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-4 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:focus:ring-sky-800 transition-all"
-              />
+          <div className="flex items-start gap-3 rounded-xl bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 p-4">
+            <div className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#00B1EA]">
+              <span className="text-[10px] font-black text-white leading-none">MP</span>
             </div>
-
-            <div>
-              <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                Número de tarjeta
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={cardNumber}
-                  onChange={(e) => setCardNumber(fmtCardNum(e.target.value))}
-                  placeholder="0000 0000 0000 0000"
-                  maxLength={19}
-                  className="block w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 pl-3 pr-8 text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 placeholder:font-sans focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:focus:ring-sky-800 transition-all"
-                />
-                <CreditCard className="absolute right-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                  Vencimiento
-                </label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={expiry}
-                  onChange={(e) => setExpiry(fmtExpiry(e.target.value))}
-                  placeholder="MM/AA"
-                  maxLength={5}
-                  className="block w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 placeholder:font-sans focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:focus:ring-sky-800 transition-all"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                  CVV
-                </label>
-                <input
-                  type="password"
-                  inputMode="numeric"
-                  value={cvv}
-                  onChange={(e) => setCvv(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                  placeholder="• • •"
-                  maxLength={4}
-                  className="block w-full h-9 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 placeholder:font-sans focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:focus:ring-sky-800 transition-all"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* MP info banner */}
-          <div className="flex items-start gap-2 rounded-lg bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 p-2">
-            <div className="mt-0 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-[#00B1EA]">
-              <span className="text-[9px] font-black text-white leading-none">MP</span>
-            </div>
-            <p className="text-[11px] text-sky-800 dark:text-sky-300 leading-snug">
-              <span className="font-semibold">Serás redirigido a MercadoPago</span> para completar el pago de forma segura. Aceptamos tarjetas de crédito/débito, transferencia bancaria y efectivo.
+            <p className="text-sm text-sky-800 dark:text-sky-300 leading-snug">
+              <span className="font-semibold">Serás redirigido a MercadoPago</span> para completar el pago de forma segura. Aceptás tarjetas de crédito/débito, transferencia bancaria y efectivo — no ingresás los datos de la tarjeta acá.
             </p>
           </div>
         </div>
