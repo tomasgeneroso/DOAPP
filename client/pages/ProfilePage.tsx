@@ -628,6 +628,28 @@ export default function ProfilePage() {
                       <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
                         {user.name}
                       </h1>
+                      {/* Active mode badges (public — visible to all viewers) */}
+                      {(() => {
+                        const role = (user as any).role;
+                        const showWorker = role === 'doer' || role === 'both';
+                        const showClient = role === 'client' || role === 'both' || role === 'user' || !role;
+                        return (
+                          <div className="flex flex-wrap items-center gap-2 mb-3">
+                            {showWorker && (
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 dark:bg-emerald-900/30 px-3 py-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                                <Briefcase className="w-3.5 h-3.5" />
+                                {t('profile.workerMode', 'Modo trabajador')}
+                              </span>
+                            )}
+                            {showClient && (
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-100 dark:bg-sky-900/30 px-3 py-1 text-xs font-semibold text-sky-700 dark:text-sky-300">
+                                <Users className="w-3.5 h-3.5" />
+                                {t('profile.clientMode', 'Modo cliente')}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                       {user.bio && (
                         <p className="text-slate-600 dark:text-slate-400 max-w-2xl">
                           {user.bio}
@@ -945,8 +967,8 @@ export default function ProfilePage() {
                 </div>
               )}
 
-              {/* Mis Contrataciones - solo en perfil propio */}
-              {isOwnProfile() && (
+              {/* Trabajos realizados - solo en perfil propio y en modo trabajador */}
+              {isOwnProfile() && ((user as any).role === 'doer' || (user as any).role === 'both') && (
                 <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
                   <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                     <CheckCircle className="h-5 w-5 text-green-500" />

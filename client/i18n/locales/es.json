@@ -1354,6 +1354,8 @@
     "firstReviewsComing": "Las primeras reseñas están en camino",
     "viewProfile": "Ver perfil",
     "viewPublishedJobs": "Ver trabajos publicados",
+    "workerMode": "Modo trabajador",
+    "clientMode": "Modo cliente",
     "selectReason": "Por favor seleccioná un motivo",
     "describeProblem": "Por favor describí el problema",
     "reportSubject": "Reporte de perfil",
