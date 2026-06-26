@@ -985,6 +985,25 @@ export default function ProfilePage() {
                   </Link>
                 </div>
               )}
+
+              {/* Trabajos publicados - solo en perfil propio y en modo cliente */}
+              {isOwnProfile() && ((user as any).role === 'client' || (user as any).role === 'both' || (user as any).role === 'user' || !(user as any).role) && (
+                <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-sky-500" />
+                    {t('profile.jobsIPosted', 'Trabajos publicados')}
+                  </h2>
+                  <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
+                    {t('profile.jobsIPostedDesc', 'Trabajos que publicaste como cliente')}
+                  </p>
+                  <Link
+                    to="/my-jobs"
+                    className="inline-flex items-center gap-1 text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 text-sm font-medium"
+                  >
+                    {t('profile.viewMyPublications', 'Mis Publicaciones')} →
+                  </Link>
+                </div>
+              )}
             </div>
 
             {/* Right Column - Content with Tabs */}
@@ -1075,13 +1094,26 @@ export default function ProfilePage() {
                       </p>
                       {isOwnProfile() && !selectedCategory && (
                         <div className="flex flex-wrap gap-3 mt-4 justify-center">
-                          <Link
-                            to="/#trabajos-disponibles"
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-medium transition-all shadow-sm"
-                          >
-                            <Briefcase className="w-4 h-4" />
-                            {t('profile.exploreJobs', 'Explore available jobs')}
-                          </Link>
+                          {/* Worker action: explore jobs to apply */}
+                          {((user as any).role === 'doer' || (user as any).role === 'both') && (
+                            <Link
+                              to="/#trabajos-disponibles"
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-medium transition-all shadow-sm"
+                            >
+                              <Briefcase className="w-4 h-4" />
+                              {t('profile.exploreJobs', 'Explore available jobs')}
+                            </Link>
+                          )}
+                          {/* Client action: publish / view own publications */}
+                          {((user as any).role === 'client' || (user as any).role === 'both' || (user as any).role === 'user' || !(user as any).role) && (
+                            <Link
+                              to="/contracts/create"
+                              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-medium transition-all shadow-sm"
+                            >
+                              <Plus className="w-4 h-4" />
+                              {t('profile.publishJob', 'Publicar trabajo')}
+                            </Link>
+                          )}
                           <Link
                             to="/my-jobs"
                             className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg font-medium transition-all shadow-sm"
