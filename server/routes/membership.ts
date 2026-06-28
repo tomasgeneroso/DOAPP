@@ -610,4 +610,183 @@ router.get("/usage", protect, async (req: AuthRequest, res: Response): Promise<v
   }
 });
 
+/**
+ * GET /api/membership/analytics
+ * Panel financiero/fiscal exclusivo de miembros SUPER PRO (adaptado a Argentina).
+ * Agrega la facturación del usuario como trabajador (contratos completados como `doer`).
+ * Query: ?year=YYYY (default año actual), ?limit=<tope anual monotributo> (opcional).
+ */
+router.get("/analytics", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    // Gating: solo SUPER PRO
+    if (req.user.membershipTier !== 'super_pro') {
+      res.status(403).json({
+        success: false,
+        code: 'SUPER_PRO_REQUIRED',
+        message: 'El panel financiero es exclusivo de miembros SUPER PRO',
+      });
+      return;
+    }
+
+    const userId = req.user.id || req.user._id?.toString();
+    const { Contract } = await import('../models/sql/Contract.model.js');
+    const { User } = await import('../models/sql/User.model.js');
+    const { Job } = await import('../models/sql/Job.model.js');
+
+    const now = new Date();
+    const year = parseInt(String(req.query.year || now.getFullYear()), 10) || now.getFullYear();
+    const num = (v: any): number => (typeof v === 'string' ? parseFloat(v) : Number(v)) || 0;
+
+    // Contratos completados donde el usuario fue el trabajador
+    const contracts: any[] = await Contract.findAll({
+      where: { doerId: userId, status: 'completed' },
+      include: [
+        { model: User, as: 'client', attributes: ['id', 'name'] },
+        { model: Job, as: 'job', attributes: ['id', 'title'] },
+      ],
+      order: [['updatedAt', 'DESC']],
+    });
+
+    // Facturación del trabajador por contrato = allocatedAmount (multi-worker) ?? price
+    const facturado = (c: any): number => num(c.allocatedAmount) || num(c.price);
+    // Contract no tiene completedAt como columna → usamos updatedAt (cuando pasó a 'completed')
+    const fechaDe = (c: any): Date => new Date(c.updatedAt || c.createdAt);
+
+    let facturacionTotal = 0, comisionesTotal = 0;
+    let facturacionAnual = 0, facturacionAnualPrevia = 0, totalAnual = 0;
+    const byMonth: Record<string, { total: number; count: number }> = {};
+    const byQuarter: Record<number, { total: number; count: number }> = {
+      1: { total: 0, count: 0 }, 2: { total: 0, count: 0 }, 3: { total: 0, count: 0 }, 4: { total: 0, count: 0 },
+    };
+    const byClient: Record<string, { name: string; total: number; count: number }> = {};
+    const facturas: any[] = [];
+
+    for (const c of contracts) {
+      const monto = facturado(c);
+      const com = num(c.commission);
+      const d = fechaDe(c);
+      const y = d.getFullYear();
+      facturacionTotal += monto;
+      comisionesTotal += com;
+
+      const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!byMonth[mk]) byMonth[mk] = { total: 0, count: 0 };
+      byMonth[mk].total += monto; byMonth[mk].count += 1;
+
+      if (y === year) {
+        facturacionAnual += monto; totalAnual += 1;
+        const q = Math.floor(d.getMonth() / 3) + 1;
+        byQuarter[q].total += monto; byQuarter[q].count += 1;
+        const cid = c.clientId || 'unknown';
+        if (!byClient[cid]) byClient[cid] = { name: c.client?.name || 'Cliente', total: 0, count: 0 };
+        byClient[cid].total += monto; byClient[cid].count += 1;
+      }
+      if (y === year - 1) facturacionAnualPrevia += monto;
+
+      if (facturas.length < 200) {
+        facturas.push({
+          id: c.id,
+          fecha: d.toISOString(),
+          cliente: c.client?.name || 'Cliente',
+          trabajo: c.job?.title || '',
+          monto,
+          comision: com,
+          currency: c.currency || 'ARS',
+        });
+      }
+    }
+
+    // Evolución últimos 12 meses (rellena huecos en 0)
+    const evolucionMensual = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const mk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      evolucionMensual.push({
+        month: mk,
+        label: d.toLocaleDateString('es-AR', { month: 'short', year: '2-digit' }),
+        total: byMonth[mk]?.total || 0,
+        count: byMonth[mk]?.count || 0,
+      });
+    }
+
+    const desgloseTrimestral = [1, 2, 3, 4].map((q) => ({
+      quarter: `Q${q}`, total: byQuarter[q].total, count: byQuarter[q].count,
+    }));
+
+    const topClientes = Object.entries(byClient)
+      .map(([id, v]) => ({ clientId: id, name: v.name, total: v.total, count: v.count }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 5);
+
+    const ticketPromedio = totalAnual > 0 ? facturacionAnual / totalAnual : 0;
+
+    // Clientes y recompra (del año)
+    const clientesUnicos = Object.keys(byClient).length;
+    const clientesRecurrentes = Object.values(byClient).filter((v) => v.count >= 2).length;
+    const tasaRecompra = clientesUnicos > 0 ? clientesRecurrentes / clientesUnicos : 0;
+    const ticketPromedioCliente = clientesUnicos > 0 ? facturacionAnual / clientesUnicos : 0;
+
+    // Pipeline: contratos activos como trabajador (ingresos futuros estimados)
+    const activos: any[] = await Contract.findAll({
+      where: { doerId: userId, status: ['accepted', 'in_progress', 'awaiting_confirmation'] as any },
+      attributes: ['id', 'price', 'allocatedAmount'],
+    });
+    const pipelineActivo = activos.reduce((s, c) => s + facturado(c), 0);
+
+    // Proyección de cierre de año (solo año actual): promedio mensual YTD * 12
+    const monthsElapsed = year === now.getFullYear() ? now.getMonth() + 1 : 12;
+    const proyeccionAnual = year === now.getFullYear()
+      ? (facturacionAnual / Math.max(1, monthsElapsed)) * 12
+      : facturacionAnual;
+
+    // Alertas (adaptadas a Argentina)
+    const alertas: { type: string; severity: 'info' | 'warning' | 'danger'; message: string }[] = [];
+    const curMk = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    if (year === now.getFullYear() && !(byMonth[curMk]?.total)) {
+      alertas.push({ type: 'no_billing_month', severity: 'info', message: 'Todavía no facturaste este mes.' });
+    }
+    if (facturacionAnual > 0 && topClientes[0] && topClientes[0].total / facturacionAnual > 0.5) {
+      const pct = Math.round((topClientes[0].total / facturacionAnual) * 100);
+      alertas.push({ type: 'client_dependency', severity: 'warning', message: `${topClientes[0].name} representa el ${pct}% de tu facturación anual. Conviene diversificar tus clientes.` });
+    }
+    // Tope anual de monotributo (configurable por el usuario)
+    const annualLimit = num((req.user as any).monotributoAnnualLimit) || (req.query.limit ? num(req.query.limit) : 0);
+    if (annualLimit > 0) {
+      const pct = Math.round((facturacionAnual / annualLimit) * 100);
+      if (pct >= 100) alertas.push({ type: 'monotributo_over', severity: 'danger', message: `Superaste el tope anual de tu categoría de monotributo (${pct}%). Considerá recategorizarte o consultá con tu contador.` });
+      else if (pct >= 80) alertas.push({ type: 'monotributo_near', severity: 'warning', message: `Llevás el ${pct}% del tope anual de monotributo. Vigilá la recategorización.` });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        year,
+        currency: 'ARS',
+        facturacionTotal,
+        facturacionAnual,
+        facturacionAnualPrevia,
+        comisionesTotal,
+        totalTrabajos: contracts.length,
+        totalTrabajosAnual: totalAnual,
+        ticketPromedio,
+        ticketPromedioCliente,
+        clientesUnicos,
+        clientesRecurrentes,
+        tasaRecompra,
+        pipelineActivo,
+        proyeccionAnual,
+        annualLimit: annualLimit || null,
+        evolucionMensual,
+        desgloseTrimestral,
+        topClientes,
+        alertas,
+        facturas,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error fetching membership analytics:', error);
+    res.status(500).json({ success: false, message: error.message || 'Error al obtener analíticas' });
+  }
+});
+
 export default router;
