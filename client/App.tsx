@@ -60,6 +60,7 @@ const PortfolioManager = lazy(() => import("./pages/PortfolioManager"));
 const CreatePortfolioPost = lazy(() => import("./pages/CreatePortfolioPost"));
 const PortfolioItemDetail = lazy(() => import("./pages/PortfolioItemDetail"));
 const ProUsageDashboard = lazy(() => import("./pages/ProUsageDashboard"));
+const FinancePanel = lazy(() => import("./pages/FinancePanel"));
 const BalancePage = lazy(() => import("./pages/BalancePage"));
 const WithdrawalRequestPage = lazy(() => import("./pages/WithdrawalRequestPage"));
 const MembershipCheckout = lazy(() => import("./pages/MembershipCheckout"));
@@ -265,6 +266,14 @@ export default function App() {
                 element={
                   <ProtectedRoute>
                     <ProUsageDashboard />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/pro/finanzas"
+                element={
+                  <ProtectedRoute>
+                    <FinancePanel />
                   </ProtectedRoute>
                 }
               />

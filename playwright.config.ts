@@ -1,5 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
+// Allow pointing the suite at an already-running server (e.g. a prod preview on
+// https://localhost:4173) via E2E_BASE_URL. When set, the built-in webServer is
+// skipped so we don't try to spawn the dev stack.
+const baseURL = process.env.E2E_BASE_URL || 'http://localhost:5173';
+
 export default defineConfig({
   testDir: './tests/e2e',
   fullyParallel: true,
@@ -9,7 +14,8 @@ export default defineConfig({
   reporter: [['html', { open: 'never' }], ['list']],
 
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL,
+    ignoreHTTPSErrors: true,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'off',
@@ -28,10 +34,12 @@ export default defineConfig({
     },
   ],
 
-  webServer: {
-    command: 'npm run dev:all',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  webServer: process.env.E2E_BASE_URL
+    ? undefined
+    : {
+        command: 'npm run dev:all',
+        url: 'http://localhost:5173',
+        reuseExistingServer: !process.env.CI,
+        timeout: 120_000,
+      },
 });
