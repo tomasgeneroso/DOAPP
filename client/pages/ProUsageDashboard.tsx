@@ -113,6 +113,24 @@ export default function ProUsageDashboard() {
         </div>
       </div>
 
+      {/* Centro Profesional CTA (SUPER PRO) */}
+      {user?.membershipTier === 'super_pro' && (
+        <button
+          onClick={() => navigate('/pro/finanzas')}
+          className="w-full text-left bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 rounded-lg p-5 mb-6 text-white hover:opacity-95 transition-opacity flex items-center justify-between"
+        >
+          <div>
+            <p className="font-bold flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-yellow-300" /> Centro Profesional
+            </p>
+            <p className="text-sm text-white/80 mt-1">
+              Tu facturación, impuestos, reputación y matrícula — explicado en simple.
+            </p>
+          </div>
+          <span className="text-2xl">→</span>
+        </button>
+      )}
+
       {/* Estadísticas principales */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
