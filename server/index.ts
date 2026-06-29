@@ -33,6 +33,7 @@ import { startSuspendFlexibleEndDateJob } from "./jobs/suspendFlexibleEndDateJob
 import { startResetReferralDiscountsJob } from "./jobs/resetReferralDiscounts.js";
 import { startAutoConfirmContractsJob } from "./jobs/autoConfirmContracts.js";
 import { startConfirmationReminderJob } from "./jobs/sendConfirmationReminders.js";
+import { startLicenseExpiryReminderJob } from "./jobs/licenseExpiryReminders.js";
 import { startScheduledAutoSelectionsJob } from "./jobs/processScheduledAutoSelections.js";
 
 // Rutas
@@ -413,6 +414,9 @@ startConfirmationReminderJob();
 
 // Initialize scheduled auto-selections (every 5 minutes, select workers at programmed time)
 startScheduledAutoSelectionsJob();
+
+// Initialize license-expiry reminders (daily 09:00, remind SUPER PRO users to renew their matrícula)
+startLicenseExpiryReminderJob();
 
 // Manejo de errores del servidor
 httpServer.on('error', (error: NodeJS.ErrnoException) => {
