@@ -461,6 +461,20 @@ export class User extends Model {
   @Column(DataType.DATE)
   membershipExpiresAt?: Date;
 
+  // ============================================
+  // FISCAL (Argentina) — Centro Profesional SUPER PRO
+  // ============================================
+
+  @Column(DataType.STRING(30))
+  fiscalCondition?: 'monotributo' | 'responsable_inscripto' | 'particular';
+
+  @Column(DataType.STRING(5))
+  monotributoCategory?: string;
+
+  // Tope anual de facturación (lo ingresa el usuario según su categoría AFIP)
+  @Column(DataType.DECIMAL(14, 2))
+  monotributoAnnualLimit?: number;
+
   @Default(false)
   @AllowNull(false)
   @Column(DataType.BOOLEAN)

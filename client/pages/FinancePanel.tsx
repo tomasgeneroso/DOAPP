@@ -7,7 +7,7 @@ import {
 } from "recharts";
 import {
   Sparkles, TrendingUp, Wallet, Users, Receipt, Info, AlertTriangle, ArrowUpRight,
-  ArrowDownRight, Crown, Loader2,
+  ArrowDownRight, Crown, Loader2, Landmark, Save, CalendarClock, BarChart3,
 } from "lucide-react";
 
 interface Analytics {
@@ -27,6 +27,8 @@ interface Analytics {
   pipelineActivo: number;
   proyeccionAnual: number;
   annualLimit: number | null;
+  fiscalCondition: string | null;
+  monotributoCategory: string | null;
   evolucionMensual: { month: string; label: string; total: number; count: number }[];
   desgloseTrimestral: { quarter: string; total: number; count: number }[];
   topClientes: { clientId: string; name: string; total: number; count: number }[];
@@ -86,12 +88,141 @@ function KpiCard({ icon, label, value, help, trend }: {
   );
 }
 
+function ObligacionInfo({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-slate-200 dark:border-slate-700 p-4">
+      <h4 className="font-semibold text-slate-900 dark:text-white text-sm mb-1">{title}</h4>
+      <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{children}</p>
+    </div>
+  );
+}
+
+/** "Impuestos y Obligaciones" tab — fiscal config + plain-language obligations guide */
+function TaxTab({ data, onSaved }: { data: Analytics; onSaved: (d: Partial<Analytics>) => void }) {
+  const { t } = useTranslation();
+  const [condition, setCondition] = useState(data.fiscalCondition || "");
+  const [category, setCategory] = useState(data.monotributoCategory || "");
+  const [limit, setLimit] = useState(data.annualLimit ? String(data.annualLimit) : "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const save = async () => {
+    setSaving(true); setSaved(false);
+    try {
+      const res = await fetch("/api/membership/fiscal", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
+        body: JSON.stringify({
+          fiscalCondition: condition || null,
+          monotributoCategory: category || null,
+          monotributoAnnualLimit: limit ? Number(limit) : null,
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setSaved(true);
+        onSaved({ fiscalCondition: json.data.fiscalCondition, monotributoCategory: json.data.monotributoCategory, annualLimit: json.data.monotributoAnnualLimit });
+        setTimeout(() => setSaved(false), 2500);
+      }
+    } finally { setSaving(false); }
+  };
+
+  const limitPct = data.annualLimit ? Math.round((data.facturacionAnual / data.annualLimit) * 100) : null;
+  const inputCls = "block w-full h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-white focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:focus:ring-sky-800";
+
+  return (
+    <div className="space-y-6">
+      {/* Fiscal config */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
+        <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-1">
+          <Landmark className="h-5 w-5 text-indigo-500" />
+          {t("finance.yourFiscalSituation", "Tu situación fiscal")}
+        </h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
+          {t("finance.fiscalIntro", "Contanos cómo facturás para mostrarte tu tope y avisarte antes de que te pases. Lo podés cambiar cuando quieras.")}
+        </p>
+        <div className="grid sm:grid-cols-3 gap-4">
+          <label className="text-sm">
+            <span className="block text-slate-600 dark:text-slate-400 mb-1.5">{t("finance.fiscalCondition", "Condición fiscal")}</span>
+            <select value={condition} onChange={(e) => setCondition(e.target.value)} className={inputCls}>
+              <option value="">{t("finance.unspecified", "Sin especificar")}</option>
+              <option value="monotributo">Monotributo</option>
+              <option value="responsable_inscripto">{t("finance.responsableInscripto", "Responsable Inscripto")}</option>
+              <option value="particular">{t("finance.particular", "Particular")}</option>
+            </select>
+          </label>
+          {condition === "monotributo" && (
+            <>
+              <label className="text-sm">
+                <span className="block text-slate-600 dark:text-slate-400 mb-1.5">{t("finance.category", "Categoría")}</span>
+                <input value={category} onChange={(e) => setCategory(e.target.value.toUpperCase().slice(0, 2))} placeholder="A, B, C..." className={inputCls} />
+              </label>
+              <label className="text-sm">
+                <span className="block text-slate-600 dark:text-slate-400 mb-1.5">{t("finance.annualCap", "Tope anual (ARS)")}</span>
+                <input type="number" inputMode="numeric" value={limit} onChange={(e) => setLimit(e.target.value)} placeholder="Ej: 6450000" className={inputCls} />
+              </label>
+            </>
+          )}
+        </div>
+        <div className="flex items-center gap-3 mt-4">
+          <button onClick={save} disabled={saving} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold disabled:opacity-50">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {saved ? t("finance.saved", "Guardado ✓") : t("common.save", "Guardar")}
+          </button>
+        </div>
+        <p className="text-xs text-slate-400 dark:text-slate-500 mt-3 flex items-start gap-2">
+          <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+          {t("finance.capHelp", "Tu tope anual lo encontrás en AFIP, en tu categoría de monotributo. Si no lo sabés, preguntale a tu contador.")}
+        </p>
+      </div>
+
+      {/* Cap progress */}
+      {limitPct !== null && (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-semibold text-slate-900 dark:text-white">{t("finance.monotributoLimit", "Tope anual de monotributo")}</h3>
+            <span className="text-sm font-bold text-slate-700 dark:text-slate-300">{limitPct}%</span>
+          </div>
+          <div className="h-3 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+            <div className={`h-full rounded-full transition-all ${limitPct >= 100 ? "bg-red-500" : limitPct >= 80 ? "bg-amber-500" : "bg-emerald-500"}`} style={{ width: `${Math.min(100, limitPct)}%` }} />
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">{ars(data.facturacionAnual)} {t("finance.of", "de")} {ars(data.annualLimit!)}</p>
+        </div>
+      )}
+
+      {/* Obligations guide (educational) */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
+        <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-1">
+          <CalendarClock className="h-5 w-5 text-indigo-500" />
+          {t("finance.obligationsTitle", "Tus obligaciones, en simple")}
+        </h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{t("finance.obligationsIntro", "Una guía rápida para que no te tome por sorpresa.")}</p>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <ObligacionInfo title={t("finance.obWhatIsTitle", "¿Qué es el monotributo?")}>
+            {t("finance.obWhatIs", "Es un régimen simplificado para pagar tus impuestos como trabajador independiente. Pagás una cuota fija por mes según tu categoría, y con eso cubrís impuestos y aportes.")}
+          </ObligacionInfo>
+          <ObligacionInfo title={t("finance.obRecatTitle", "Recategorización (cada 6 meses)")}>
+            {t("finance.obRecat", "En enero y julio, AFIP mira lo que facturaste en los últimos 12 meses. Si facturaste más, te toca una categoría más alta (cuota más cara). Por eso te mostramos cuánto llevás del tope.")}
+          </ObligacionInfo>
+          <ObligacionInfo title={t("finance.obIibbTitle", "Ingresos Brutos (IIBB)")}>
+            {t("finance.obIibb", "Es un impuesto provincial. Según tu provincia, quizás tengas que inscribirte y declararlo aparte del monotributo.")}
+          </ObligacionInfo>
+          <ObligacionInfo title={t("finance.obDueTitle", "Vencimientos")}>
+            {t("finance.obDue", "La cuota de monotributo vence todos los meses (en general alrededor del día 20). Pagarla a tiempo te evita recargos y mantener tu categoría al día.")}
+          </ObligacionInfo>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function FinancePanel() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const [data, setData] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
+  const [tab, setTab] = useState<"finanzas" | "impuestos">("finanzas");
 
   const isSuperPro = user?.membershipTier === "super_pro";
 
@@ -161,6 +292,23 @@ export default function FinancePanel() {
         </p>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-1.5">
+        {([["finanzas", t("finance.tabFinances", "Finanzas"), BarChart3], ["impuestos", t("finance.tabTaxes", "Impuestos y Obligaciones"), Landmark]] as const).map(([id, label, Icon]) => (
+          <button
+            key={id}
+            onClick={() => setTab(id as "finanzas" | "impuestos")}
+            className={`flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-sm font-semibold transition-colors ${
+              tab === id ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+            }`}
+          >
+            <Icon className="h-4 w-4" /> {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "finanzas" && (
+        <>
       {/* Alerts */}
       {data.alertas.length > 0 && (
         <div className="space-y-2 mb-6">
@@ -336,6 +484,13 @@ export default function FinancePanel() {
           </div>
         </div>
       </div>
+
+        </>
+      )}
+
+      {tab === "impuestos" && (
+        <TaxTab data={data} onSaved={(d) => setData((p) => (p ? { ...p, ...d } : p))} />
+      )}
 
       {/* Disclaimer */}
       <p className="text-xs text-slate-400 dark:text-slate-500 mt-6 flex items-start gap-2">

@@ -776,6 +776,8 @@ router.get("/analytics", protect, async (req: AuthRequest, res: Response): Promi
         pipelineActivo,
         proyeccionAnual,
         annualLimit: annualLimit || null,
+        fiscalCondition: (req.user as any).fiscalCondition || null,
+        monotributoCategory: (req.user as any).monotributoCategory || null,
         evolucionMensual,
         desgloseTrimestral,
         topClientes,
@@ -786,6 +788,52 @@ router.get("/analytics", protect, async (req: AuthRequest, res: Response): Promi
   } catch (error: any) {
     console.error('Error fetching membership analytics:', error);
     res.status(500).json({ success: false, message: error.message || 'Error al obtener analíticas' });
+  }
+});
+
+/**
+ * PUT /api/membership/fiscal
+ * Guarda la condición fiscal del usuario (para el panel "Impuestos y Obligaciones").
+ * Body: { fiscalCondition?, monotributoCategory?, monotributoAnnualLimit? }
+ */
+router.put("/fiscal", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { fiscalCondition, monotributoCategory, monotributoAnnualLimit } = req.body || {};
+    const validConditions = ['monotributo', 'responsable_inscripto', 'particular'];
+    if (fiscalCondition && !validConditions.includes(fiscalCondition)) {
+      res.status(400).json({ success: false, message: 'Condición fiscal inválida' });
+      return;
+    }
+
+    const { User } = await import('../models/sql/User.model.js');
+    const userId = req.user.id || req.user._id?.toString();
+    const user: any = await User.findByPk(userId);
+    if (!user) {
+      res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+      return;
+    }
+
+    if (fiscalCondition !== undefined) user.fiscalCondition = fiscalCondition || null;
+    if (monotributoCategory !== undefined) {
+      user.monotributoCategory = monotributoCategory ? String(monotributoCategory).toUpperCase().slice(0, 2) : null;
+    }
+    if (monotributoAnnualLimit !== undefined) {
+      const lim = Number(monotributoAnnualLimit);
+      user.monotributoAnnualLimit = (!isFinite(lim) || lim <= 0) ? null : lim;
+    }
+    await user.save();
+
+    res.json({
+      success: true,
+      data: {
+        fiscalCondition: user.fiscalCondition || null,
+        monotributoCategory: user.monotributoCategory || null,
+        monotributoAnnualLimit: user.monotributoAnnualLimit ? Number(user.monotributoAnnualLimit) : null,
+      },
+    });
+  } catch (error: any) {
+    console.error('Error saving fiscal config:', error);
+    res.status(500).json({ success: false, message: error.message || 'Error al guardar la configuración fiscal' });
   }
 });
 
