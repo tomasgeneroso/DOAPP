@@ -52,8 +52,10 @@ export class PostComment extends Model {
   })
   post!: string;
 
+  // `any` to avoid an eager Post reference in decorator metadata (circular-import
+  // TDZ under Jest). Association defined by the lazy `() => Post` above.
   @BelongsTo(() => Post)
-  postObject?: Post;
+  postObject?: any;
 
   @ForeignKey(() => User)
   @Column({

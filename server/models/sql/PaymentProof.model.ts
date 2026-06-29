@@ -57,8 +57,12 @@ export class PaymentProof extends Model {
   })
   paymentId!: string;
 
+  // Type loosened to `any` to avoid an eager `Payment` reference in the emitted
+  // decorator metadata, which caused a circular-import TDZ under Jest's module
+  // loader (Payment <-> PaymentProof). The association is defined by the lazy
+  // `() => Payment` above, so runtime behavior is unchanged.
   @BelongsTo(() => Payment, { onDelete: 'CASCADE' })
-  payment?: Payment;
+  payment?: any;
 
   @ForeignKey(() => User)
   @Index
