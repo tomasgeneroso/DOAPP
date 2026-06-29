@@ -197,6 +197,10 @@ export class User extends Model {
   @Column(DataType.DATE)
   licenseVerifiedAt?: Date;
 
+  // Vencimiento de la matrícula (para recordatorios de renovación)
+  @Column(DataType.DATE)
+  licenseExpiresAt?: Date;
+
   // ============================================
   // RATINGS SYSTEM (Multiple Categories)
   // ============================================

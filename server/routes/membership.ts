@@ -739,6 +739,37 @@ router.get("/analytics", protect, async (req: AuthRequest, res: Response): Promi
       ? (facturacionAnual / Math.max(1, monthsElapsed)) * 12
       : facturacionAnual;
 
+    // Reputación (ratings del usuario + tasa de finalización / disputas)
+    const disputedAsDoer = await Contract.count({ where: { doerId: userId, status: 'disputed' } });
+    const cancelledAsDoer = await Contract.count({ where: { doerId: userId, status: 'cancelled' } });
+    const completedCount = contracts.length;
+    const finalizables = completedCount + cancelledAsDoer + disputedAsDoer;
+    const tasaFinalizacion = finalizables > 0 ? completedCount / finalizables : 0;
+    const u: any = req.user;
+    const r1 = (v: any) => Math.round(((typeof v === 'string' ? parseFloat(v) : Number(v)) || 0) * 10) / 10;
+    const insignias: string[] = [];
+    if (completedCount >= 100) insignias.push('100+ trabajos');
+    else if (completedCount >= 50) insignias.push('50+ trabajos');
+    else if (completedCount >= 10) insignias.push('10+ trabajos');
+    if (r1(u.rating) >= 4.8 && (Number(u.reviewsCount) || 0) >= 5) insignias.push('Calificación 5★');
+    if (disputedAsDoer === 0 && completedCount >= 5) insignias.push('Sin disputas');
+    if (tasaFinalizacion >= 0.95 && finalizables >= 5) insignias.push('Cumplidor');
+    const reputacion = {
+      overall: r1(u.rating),
+      reviewsCount: Number(u.reviewsCount) || 0,
+      completados: completedCount,
+      tasaFinalizacion,
+      disputas: disputedAsDoer,
+      ratings: {
+        calidad: r1(u.calidadTrabajoRating || u.workQualityRating),
+        puntualidad: r1(u.puntualidadRating),
+        profesionalidad: r1(u.profesionalidadRating),
+        precioJusto: r1(u.precioJustoRating),
+        comoPersona: r1(u.comoPersonaRating),
+      },
+      insignias,
+    };
+
     // Alertas (adaptadas a Argentina)
     const alertas: { type: string; severity: 'info' | 'warning' | 'danger'; message: string }[] = [];
     const curMk = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -755,6 +786,12 @@ router.get("/analytics", protect, async (req: AuthRequest, res: Response): Promi
       const pct = Math.round((facturacionAnual / annualLimit) * 100);
       if (pct >= 100) alertas.push({ type: 'monotributo_over', severity: 'danger', message: `Superaste el tope anual de tu categoría de monotributo (${pct}%). Considerá recategorizarte o consultá con tu contador.` });
       else if (pct >= 80) alertas.push({ type: 'monotributo_near', severity: 'warning', message: `Llevás el ${pct}% del tope anual de monotributo. Vigilá la recategorización.` });
+    }
+    // Vencimiento de matrícula
+    if (u.licenseExpiresAt) {
+      const days = Math.ceil((new Date(u.licenseExpiresAt).getTime() - now.getTime()) / 86400000);
+      if (days < 0) alertas.push({ type: 'license_expired', severity: 'danger', message: `Tu matrícula venció hace ${Math.abs(days)} día(s). Renovala para seguir habilitado.` });
+      else if (days <= 60) alertas.push({ type: 'license_expiring', severity: 'warning', message: `Tu matrícula vence en ${days} día(s). Acordate de renovarla a tiempo.` });
     }
 
     res.json({
@@ -781,6 +818,15 @@ router.get("/analytics", protect, async (req: AuthRequest, res: Response): Promi
         evolucionMensual,
         desgloseTrimestral,
         topClientes,
+        reputacion,
+        profesional: {
+          profession: u.profession || null,
+          licenseNumber: u.licenseNumber || null,
+          licenseCategory: u.licenseCategory || null,
+          licenseVerified: !!u.licenseVerified,
+          licenseVerificationStatus: u.licenseVerificationStatus || null,
+          licenseExpiresAt: u.licenseExpiresAt || null,
+        },
         alertas,
         facturas,
       },
@@ -798,7 +844,10 @@ router.get("/analytics", protect, async (req: AuthRequest, res: Response): Promi
  */
 router.put("/fiscal", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { fiscalCondition, monotributoCategory, monotributoAnnualLimit } = req.body || {};
+    const {
+      fiscalCondition, monotributoCategory, monotributoAnnualLimit,
+      profession, licenseNumber, licenseCategory, licenseExpiresAt,
+    } = req.body || {};
     const validConditions = ['monotributo', 'responsable_inscripto', 'particular'];
     if (fiscalCondition && !validConditions.includes(fiscalCondition)) {
       res.status(400).json({ success: false, message: 'Condición fiscal inválida' });
@@ -821,6 +870,13 @@ router.put("/fiscal", protect, async (req: AuthRequest, res: Response): Promise<
       const lim = Number(monotributoAnnualLimit);
       user.monotributoAnnualLimit = (!isFinite(lim) || lim <= 0) ? null : lim;
     }
+    if (profession !== undefined) user.profession = profession || null;
+    if (licenseNumber !== undefined) user.licenseNumber = licenseNumber || null;
+    if (licenseCategory !== undefined) user.licenseCategory = licenseCategory || null;
+    if (licenseExpiresAt !== undefined) {
+      const d = licenseExpiresAt ? new Date(licenseExpiresAt) : null;
+      user.licenseExpiresAt = d && !isNaN(d.getTime()) ? d : null;
+    }
     await user.save();
 
     res.json({
@@ -829,6 +885,10 @@ router.put("/fiscal", protect, async (req: AuthRequest, res: Response): Promise<
         fiscalCondition: user.fiscalCondition || null,
         monotributoCategory: user.monotributoCategory || null,
         monotributoAnnualLimit: user.monotributoAnnualLimit ? Number(user.monotributoAnnualLimit) : null,
+        profession: user.profession || null,
+        licenseNumber: user.licenseNumber || null,
+        licenseCategory: user.licenseCategory || null,
+        licenseExpiresAt: user.licenseExpiresAt || null,
       },
     });
   } catch (error: any) {

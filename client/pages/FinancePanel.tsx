@@ -8,6 +8,7 @@ import {
 import {
   Sparkles, TrendingUp, Wallet, Users, Receipt, Info, AlertTriangle, ArrowUpRight,
   ArrowDownRight, Crown, Loader2, Landmark, Save, CalendarClock, BarChart3,
+  Star, Award, ShieldCheck, BadgeCheck,
 } from "lucide-react";
 
 interface Analytics {
@@ -34,6 +35,15 @@ interface Analytics {
   topClientes: { clientId: string; name: string; total: number; count: number }[];
   alertas: { type: string; severity: "info" | "warning" | "danger"; message: string }[];
   facturas: { id: string; fecha: string; cliente: string; trabajo: string; monto: number; comision: number; currency: string }[];
+  reputacion: {
+    overall: number; reviewsCount: number; completados: number; tasaFinalizacion: number; disputas: number;
+    ratings: { calidad: number; puntualidad: number; profesionalidad: number; precioJusto: number; comoPersona: number };
+    insignias: string[];
+  };
+  profesional: {
+    profession: string | null; licenseNumber: string | null; licenseCategory: string | null;
+    licenseVerified: boolean; licenseVerificationStatus: string | null; licenseExpiresAt: string | null;
+  };
 }
 
 const ars = (n: number) =>
@@ -216,13 +226,189 @@ function TaxTab({ data, onSaved }: { data: Analytics; onSaved: (d: Partial<Analy
   );
 }
 
+function StarRow({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex items-center justify-between gap-3 text-sm">
+      <span className="text-slate-600 dark:text-slate-400">{label}</span>
+      <div className="flex items-center gap-1">
+        {[1, 2, 3, 4, 5].map((s) => (
+          <Star key={s} className={`h-3.5 w-3.5 ${s <= Math.round(value) ? "text-amber-400 fill-amber-400" : "text-slate-300 dark:text-slate-600"}`} />
+        ))}
+        <span className="ml-1 font-semibold text-slate-700 dark:text-slate-300 w-7 text-right">{value > 0 ? value.toFixed(1) : "—"}</span>
+      </div>
+    </div>
+  );
+}
+
+/** "Reputación" tab — ratings, completion/dispute rates and badges */
+function ReputationTab({ data }: { data: Analytics }) {
+  const { t } = useTranslation();
+  const rep = data.reputacion;
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm text-center">
+          <div className="flex items-center justify-center gap-1 mb-1">
+            <Star className="h-6 w-6 text-amber-400 fill-amber-400" />
+            <span className="text-2xl font-bold text-slate-900 dark:text-white">{rep.overall > 0 ? rep.overall.toFixed(1) : "—"}</span>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{rep.reviewsCount} {t("finance.reviews", "reseñas")}</p>
+        </div>
+        <KpiCard
+          icon={<BadgeCheck className="h-4 w-4" />}
+          label={t("finance.completionRate", "Tasa de finalización")}
+          value={`${Math.round(rep.tasaFinalizacion * 100)}%`}
+          help={t("finance.completionHelp", "De los trabajos que arrancaste, cuántos terminaste bien. Cuanto más alta, más confianza generás.")}
+        />
+        <KpiCard
+          icon={<ShieldCheck className="h-4 w-4" />}
+          label={t("finance.disputes", "Disputas")}
+          value={String(rep.disputas)}
+          help={t("finance.disputesHelp", "Cantidad de trabajos que terminaron en disputa. Mantenerlo en cero es la mejor carta de presentación.")}
+        />
+      </div>
+
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
+        <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
+          {t("finance.howRated", "Cómo te califican tus clientes")}
+          <InfoTip text={t("finance.howRatedHelp", "El promedio de las puntuaciones que te dejaron tus clientes en cada aspecto. Te ayuda a ver en qué sos fuerte y qué podés mejorar.")} />
+        </h3>
+        <div className="space-y-3">
+          <StarRow label={t("finance.rCalidad", "Calidad del trabajo")} value={rep.ratings.calidad} />
+          <StarRow label={t("finance.rPuntualidad", "Puntualidad")} value={rep.ratings.puntualidad} />
+          <StarRow label={t("finance.rProfesionalidad", "Profesionalidad")} value={rep.ratings.profesionalidad} />
+          <StarRow label={t("finance.rPrecio", "Precio justo")} value={rep.ratings.precioJusto} />
+          <StarRow label={t("finance.rPersona", "Trato")} value={rep.ratings.comoPersona} />
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
+        <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-3">
+          <Award className="h-5 w-5 text-amber-500" />
+          {t("finance.badges", "Tus insignias")}
+        </h3>
+        {rep.insignias.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {rep.insignias.map((b) => (
+              <span key={b} className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-3 py-1 text-sm font-semibold">
+                <Award className="h-3.5 w-3.5" /> {b}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500 dark:text-slate-400">{t("finance.noBadges", "Completá más trabajos para ganar insignias que generen confianza en tus clientes.")}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** "Profesionalización" tab — license/matrícula + renewal reminder */
+function ProfessionalTab({ data, onSaved }: { data: Analytics; onSaved: (d: Partial<Analytics["profesional"]>) => void }) {
+  const { t } = useTranslation();
+  const prof = data.profesional;
+  const [profession, setProfession] = useState(prof.profession || "");
+  const [licenseNumber, setLicenseNumber] = useState(prof.licenseNumber || "");
+  const [licenseExpiresAt, setLicenseExpiresAt] = useState(prof.licenseExpiresAt ? prof.licenseExpiresAt.slice(0, 10) : "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const save = async () => {
+    setSaving(true); setSaved(false);
+    try {
+      const res = await fetch("/api/membership/fiscal", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
+        body: JSON.stringify({ profession: profession || null, licenseNumber: licenseNumber || null, licenseExpiresAt: licenseExpiresAt || null }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setSaved(true);
+        onSaved({ profession: json.data.profession, licenseNumber: json.data.licenseNumber, licenseExpiresAt: json.data.licenseExpiresAt });
+        setTimeout(() => setSaved(false), 2500);
+      }
+    } finally { setSaving(false); }
+  };
+
+  const expDays = prof.licenseExpiresAt ? Math.ceil((new Date(prof.licenseExpiresAt).getTime() - Date.now()) / 86400000) : null;
+  const inputCls = "block w-full h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-white focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:focus:ring-sky-800";
+
+  return (
+    <div className="space-y-6">
+      {/* Verification status */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm flex items-center gap-3">
+        {prof.licenseVerified
+          ? <BadgeCheck className="h-8 w-8 text-emerald-500" />
+          : <ShieldCheck className="h-8 w-8 text-slate-400" />}
+        <div>
+          <p className="font-semibold text-slate-900 dark:text-white">
+            {prof.licenseVerified
+              ? t("finance.licenseVerified", "Matrícula verificada")
+              : prof.licenseVerificationStatus === "pending"
+                ? t("finance.licensePending", "Matrícula en revisión")
+                : t("finance.licenseNotVerified", "Matrícula sin verificar")}
+          </p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            {t("finance.licenseTrust", "Una matrícula verificada te muestra como profesional habilitado y genera más confianza.")}
+          </p>
+        </div>
+      </div>
+
+      {/* License form */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
+        <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
+          <BadgeCheck className="h-5 w-5 text-indigo-500" />
+          {t("finance.yourLicense", "Tu matrícula profesional")}
+        </h3>
+        <div className="grid sm:grid-cols-3 gap-4">
+          <label className="text-sm">
+            <span className="block text-slate-600 dark:text-slate-400 mb-1.5">{t("finance.profession", "Profesión")}</span>
+            <input value={profession} onChange={(e) => setProfession(e.target.value)} placeholder="Ej: Electricista" className={inputCls} />
+          </label>
+          <label className="text-sm">
+            <span className="block text-slate-600 dark:text-slate-400 mb-1.5">{t("finance.licenseNumber", "N° de matrícula")}</span>
+            <input value={licenseNumber} onChange={(e) => setLicenseNumber(e.target.value)} className={inputCls} />
+          </label>
+          <label className="text-sm">
+            <span className="block text-slate-600 dark:text-slate-400 mb-1.5">{t("finance.licenseExpiry", "Vence el")}</span>
+            <input type="date" value={licenseExpiresAt} onChange={(e) => setLicenseExpiresAt(e.target.value)} className={inputCls} />
+          </label>
+        </div>
+        {expDays !== null && (
+          <div className={`mt-4 inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium ${
+            expDays < 0 ? "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300"
+            : expDays <= 60 ? "bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300"
+            : "bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300"}`}>
+            <CalendarClock className="h-4 w-4" />
+            {expDays < 0
+              ? t("finance.licenseExpired", "Tu matrícula venció. Renovala para seguir habilitado.")
+              : expDays <= 60
+                ? t("finance.licenseExpiringSoon", "Vence en {{days}} días. Acordate de renovarla.", { days: expDays })
+                : t("finance.licenseOk", "Vigente · vence en {{days}} días.", { days: expDays })}
+          </div>
+        )}
+        <div className="mt-4">
+          <button onClick={save} disabled={saving} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold disabled:opacity-50">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {saved ? t("finance.saved", "Guardado ✓") : t("common.save", "Guardar")}
+          </button>
+        </div>
+      </div>
+
+      <ObligacionInfo title={t("finance.whyProfTitle", "¿Por qué cargar tu matrícula?")}>
+        {t("finance.whyProf", "Cargar y verificar tu matrícula te muestra como profesional habilitado, te diferencia de la competencia y te ayuda a conseguir mejores trabajos. Además, te avisamos antes de que venza para que no te quedes inhabilitado.")}
+      </ObligacionInfo>
+    </div>
+  );
+}
+
 export default function FinancePanel() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const [data, setData] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
-  const [tab, setTab] = useState<"finanzas" | "impuestos">("finanzas");
+  const [tab, setTab] = useState<"finanzas" | "impuestos" | "reputacion" | "profesional">("finanzas");
 
   const isSuperPro = user?.membershipTier === "super_pro";
 
@@ -293,12 +479,17 @@ export default function FinancePanel() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-1.5">
-        {([["finanzas", t("finance.tabFinances", "Finanzas"), BarChart3], ["impuestos", t("finance.tabTaxes", "Impuestos y Obligaciones"), Landmark]] as const).map(([id, label, Icon]) => (
+      <div className="flex flex-wrap gap-2 mb-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-1.5">
+        {([
+          ["finanzas", t("finance.tabFinances", "Finanzas"), BarChart3],
+          ["impuestos", t("finance.tabTaxes", "Impuestos y Obligaciones"), Landmark],
+          ["reputacion", t("finance.tabReputation", "Reputación"), Star],
+          ["profesional", t("finance.tabProfessional", "Profesionalización"), BadgeCheck],
+        ] as const).map(([id, label, Icon]) => (
           <button
             key={id}
-            onClick={() => setTab(id as "finanzas" | "impuestos")}
-            className={`flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-sm font-semibold transition-colors ${
+            onClick={() => setTab(id as typeof tab)}
+            className={`flex-1 min-w-[140px] inline-flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-sm font-semibold transition-colors ${
               tab === id ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300" : "text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700"
             }`}
           >
@@ -490,6 +681,12 @@ export default function FinancePanel() {
 
       {tab === "impuestos" && (
         <TaxTab data={data} onSaved={(d) => setData((p) => (p ? { ...p, ...d } : p))} />
+      )}
+
+      {tab === "reputacion" && <ReputationTab data={data} />}
+
+      {tab === "profesional" && (
+        <ProfessionalTab data={data} onSaved={(d) => setData((p) => (p ? { ...p, profesional: { ...p.profesional, ...d } } : p))} />
       )}
 
       {/* Disclaimer */}
