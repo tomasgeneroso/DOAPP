@@ -44,6 +44,11 @@ interface Analytics {
     profession: string | null; licenseNumber: string | null; licenseCategory: string | null;
     licenseVerified: boolean; licenseVerificationStatus: string | null; licenseExpiresAt: string | null;
   };
+  crecimiento: {
+    propuestasEnviadas: number; propuestasAprobadas: number; propuestasPendientes: number; propuestasRechazadas: number;
+    contratosCompletados: number; winRate: number; conversion: number;
+    recomendaciones: { type: string; message: string }[];
+  };
 }
 
 const ars = (n: number) =>
@@ -402,13 +407,82 @@ function ProfessionalTab({ data, onSaved }: { data: Analytics; onSaved: (d: Part
   );
 }
 
+/** "Crecimiento" tab — proposal funnel, win rate and actionable tips */
+function GrowthTab({ data }: { data: Analytics }) {
+  const { t } = useTranslation();
+  const g = data.crecimiento;
+  const funnel = [
+    { label: t("finance.proposalsSent", "Propuestas enviadas"), value: g.propuestasEnviadas, color: "bg-sky-500" },
+    { label: t("finance.proposalsApproved", "Aprobadas"), value: g.propuestasAprobadas, color: "bg-indigo-500" },
+    { label: t("finance.contractsDone", "Trabajos completados"), value: g.contratosCompletados, color: "bg-emerald-500" },
+  ];
+  const max = Math.max(1, ...funnel.map((f) => f.value));
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <KpiCard
+          icon={<TrendingUp className="h-4 w-4" />}
+          label={t("finance.winRate", "Tasa de éxito")}
+          value={`${Math.round(g.winRate * 100)}%`}
+          help={t("finance.winRateHelp", "De cada propuesta que enviás, cuántas te aceptan. Si es baja, revisá tu precio y personalizá más tus propuestas.")}
+        />
+        <KpiCard
+          icon={<TrendingUp className="h-4 w-4" />}
+          label={t("finance.conversion", "Conversión a trabajo")}
+          value={`${Math.round(g.conversion * 100)}%`}
+          help={t("finance.conversionHelp", "De las propuestas aceptadas, cuántas terminaron en un trabajo completado.")}
+        />
+      </div>
+
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
+        <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
+          {t("finance.funnel", "Tu embudo")}
+          <InfoTip text={t("finance.funnelHelp", "El recorrido de tus oportunidades: cuántas propuestas enviaste, cuántas te aceptaron y cuántas terminaron en trabajo. Te ayuda a ver dónde se te escapan oportunidades.")} />
+        </h3>
+        <div className="space-y-3">
+          {funnel.map((f) => (
+            <div key={f.label}>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-slate-600 dark:text-slate-400">{f.label}</span>
+                <span className="font-semibold text-slate-900 dark:text-white">{f.value}</span>
+              </div>
+              <div className="h-3 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+                <div className={`h-full ${f.color} rounded-full transition-all`} style={{ width: `${(f.value / max) * 100}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
+        <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-3">
+          <TrendingUp className="h-5 w-5 text-purple-500" />
+          {t("finance.tips", "Recomendaciones para crecer")}
+        </h3>
+        {g.recomendaciones.length > 0 ? (
+          <ul className="space-y-2.5">
+            {g.recomendaciones.map((r, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-300">
+                <span className="text-purple-500 mt-0.5">→</span>
+                <span>{r.message}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-slate-500 dark:text-slate-400">{t("finance.noTips", "Enviá tu primera propuesta para empezar a recibir recomendaciones personalizadas.")}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function FinancePanel() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const [data, setData] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
-  const [tab, setTab] = useState<"finanzas" | "impuestos" | "reputacion" | "profesional">("finanzas");
+  const [tab, setTab] = useState<"finanzas" | "impuestos" | "reputacion" | "profesional" | "crecimiento">("finanzas");
 
   const isSuperPro = user?.membershipTier === "super_pro";
 
@@ -504,6 +578,7 @@ export default function FinancePanel() {
           ["finanzas", t("finance.tabFinances", "Finanzas"), BarChart3],
           ["impuestos", t("finance.tabTaxes", "Impuestos y Obligaciones"), Landmark],
           ["reputacion", t("finance.tabReputation", "Reputación"), Star],
+          ["crecimiento", t("finance.tabGrowth", "Crecimiento"), TrendingUp],
           ["profesional", t("finance.tabProfessional", "Profesionalización"), BadgeCheck],
         ] as const).map(([id, label, Icon]) => (
           <button
@@ -714,6 +789,8 @@ export default function FinancePanel() {
       )}
 
       {tab === "reputacion" && <ReputationTab data={data} />}
+
+      {tab === "crecimiento" && <GrowthTab data={data} />}
 
       {tab === "profesional" && (
         <ProfessionalTab data={data} onSaved={(d) => setData((p) => (p ? { ...p, profesional: { ...p.profesional, ...d } } : p))} />

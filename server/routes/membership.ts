@@ -770,6 +770,33 @@ router.get("/analytics", protect, async (req: AuthRequest, res: Response): Promi
       insignias,
     };
 
+    // Crecimiento (embudo de propuestas + win rate + recomendaciones)
+    const { Proposal } = await import('../models/sql/Proposal.model.js');
+    const propEnviadas = await Proposal.count({ where: { freelancerId: userId } });
+    const propAprobadas = await Proposal.count({ where: { freelancerId: userId, status: 'approved' } });
+    const propPendientes = await Proposal.count({ where: { freelancerId: userId, status: 'pending' } });
+    const propRechazadas = await Proposal.count({ where: { freelancerId: userId, status: 'rejected' } });
+    const winRate = propEnviadas > 0 ? propAprobadas / propEnviadas : 0;
+    const conversion = propAprobadas > 0 ? completedCount / propAprobadas : 0;
+
+    const recomendaciones: { type: string; message: string }[] = [];
+    if (propEnviadas >= 5 && winRate < 0.3) recomendaciones.push({ type: 'low_winrate', message: 'Tu tasa de propuestas aceptadas es baja. Probá personalizar más tus propuestas y revisá que tu precio sea competitivo.' });
+    if (propPendientes >= 5) recomendaciones.push({ type: 'many_pending', message: 'Tenés varias propuestas esperando respuesta. Contestá rápido los mensajes para mejorar tus chances.' });
+    if (reputacion.reviewsCount < 3) recomendaciones.push({ type: 'few_reviews', message: 'Tenés pocas reseñas. Completá más trabajos y pedí feedback para generar confianza.' });
+    if (!u.avatar || !u.bio) recomendaciones.push({ type: 'profile_incomplete', message: 'Completá tu perfil (foto y descripción) para generar más confianza y recibir más contrataciones.' });
+    if (recomendaciones.length === 0 && propEnviadas > 0) recomendaciones.push({ type: 'good', message: '¡Vas muy bien! Seguí completando trabajos y manteniendo tu reputación alta.' });
+
+    const crecimiento = {
+      propuestasEnviadas: propEnviadas,
+      propuestasAprobadas: propAprobadas,
+      propuestasPendientes: propPendientes,
+      propuestasRechazadas: propRechazadas,
+      contratosCompletados: completedCount,
+      winRate,
+      conversion,
+      recomendaciones,
+    };
+
     // Alertas (adaptadas a Argentina)
     const alertas: { type: string; severity: 'info' | 'warning' | 'danger'; message: string }[] = [];
     const curMk = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
@@ -819,6 +846,7 @@ router.get("/analytics", protect, async (req: AuthRequest, res: Response): Promi
         desgloseTrimestral,
         topClientes,
         reputacion,
+        crecimiento,
         profesional: {
           profession: u.profession || null,
           licenseNumber: u.licenseNumber || null,
