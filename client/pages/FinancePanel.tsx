@@ -8,7 +8,7 @@ import {
 import {
   Sparkles, TrendingUp, Wallet, Users, Receipt, Info, AlertTriangle, ArrowUpRight,
   ArrowDownRight, Crown, Loader2, Landmark, Save, CalendarClock, BarChart3,
-  Star, Award, ShieldCheck, BadgeCheck,
+  Star, Award, ShieldCheck, BadgeCheck, Download,
 } from "lucide-react";
 
 interface Analytics {
@@ -430,6 +430,26 @@ export default function FinancePanel() {
     })();
   }, [isSuperPro]);
 
+  const exportCsv = async () => {
+    if (!data) return;
+    try {
+      const res = await fetch(`/api/membership/analytics/export.csv?year=${data.year}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `doapp-facturacion-${data.year}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      /* noop */
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center min-h-[60vh]">
@@ -642,10 +662,20 @@ export default function FinancePanel() {
 
         {/* Invoices table */}
         <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm">
-          <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2 mb-3">
-            <Receipt className="h-4 w-4 text-slate-400" />
-            {t("finance.invoices", "Detalle de trabajos facturados")}
-          </h3>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+              <Receipt className="h-4 w-4 text-slate-400" />
+              {t("finance.invoices", "Detalle de trabajos facturados")}
+            </h3>
+            <button
+              onClick={exportCsv}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+              title={t("finance.exportHelp", "Descargá un CSV con todas tus facturas del año para tu contador.")}
+            >
+              <Download className="h-3.5 w-3.5" />
+              {t("finance.exportCsv", "Exportar para el contador")}
+            </button>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>

@@ -897,4 +897,61 @@ router.put("/fiscal", protect, async (req: AuthRequest, res: Response): Promise<
   }
 });
 
+/**
+ * GET /api/membership/analytics/export.csv?year=YYYY
+ * Exporta la facturación del año como CSV (para el contador). Solo SUPER PRO.
+ */
+router.get("/analytics/export.csv", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (req.user.membershipTier !== 'super_pro') {
+      res.status(403).json({ success: false, message: 'Exclusivo de miembros SUPER PRO' });
+      return;
+    }
+    const userId = req.user.id || req.user._id?.toString();
+    const { Contract } = await import('../models/sql/Contract.model.js');
+    const { User } = await import('../models/sql/User.model.js');
+    const { Job } = await import('../models/sql/Job.model.js');
+
+    const now = new Date();
+    const year = parseInt(String(req.query.year || now.getFullYear()), 10) || now.getFullYear();
+    const num = (v: any): number => (typeof v === 'string' ? parseFloat(v) : Number(v)) || 0;
+
+    const contracts: any[] = await Contract.findAll({
+      where: { doerId: userId, status: 'completed' },
+      include: [
+        { model: User, as: 'client', attributes: ['id', 'name'] },
+        { model: Job, as: 'job', attributes: ['id', 'title'] },
+      ],
+      order: [['updatedAt', 'DESC']],
+    });
+
+    const facturado = (c: any): number => num(c.allocatedAmount) || num(c.price);
+    const fechaDe = (c: any): Date => new Date(c.updatedAt || c.createdAt);
+    const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+
+    const header = ['Fecha', 'Cliente', 'Trabajo', 'Monto (ARS)', 'Comisión (ARS)'].map(esc).join(',');
+    const lines = contracts
+      .filter((c) => fechaDe(c).getFullYear() === year)
+      .map((c) => {
+        const d = fechaDe(c);
+        return [
+          esc(d.toLocaleDateString('es-AR')),
+          esc(c.client?.name || 'Cliente'),
+          esc(c.job?.title || ''),
+          facturado(c).toFixed(2),
+          num(c.commission).toFixed(2),
+        ].join(',');
+      });
+
+    // UTF-8 BOM so Excel reads the accents correctly
+    const csv = '﻿' + [header, ...lines].join('\r\n') + '\r\n';
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="doapp-facturacion-${year}.csv"`);
+    res.send(csv);
+  } catch (error: any) {
+    console.error('Error exporting CSV:', error);
+    res.status(500).json({ success: false, message: error.message || 'Error al exportar' });
+  }
+});
+
 export default router;

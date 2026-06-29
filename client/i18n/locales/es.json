@@ -3021,6 +3021,8 @@
     "licenseExpiringSoon": "Vence en {{days}} días. Acordate de renovarla.",
     "licenseOk": "Vigente · vence en {{days}} días.",
     "whyProfTitle": "¿Por qué cargar tu matrícula?",
-    "whyProf": "Cargar y verificar tu matrícula te muestra como profesional habilitado, te diferencia de la competencia y te ayuda a conseguir mejores trabajos. Además, te avisamos antes de que venza para que no te quedes inhabilitado."
+    "whyProf": "Cargar y verificar tu matrícula te muestra como profesional habilitado, te diferencia de la competencia y te ayuda a conseguir mejores trabajos. Además, te avisamos antes de que venza para que no te quedes inhabilitado.",
+    "exportCsv": "Exportar para el contador",
+    "exportHelp": "Descargá un CSV con todas tus facturas del año para tu contador."
   }
 }
