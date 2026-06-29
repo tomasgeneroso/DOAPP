@@ -34,6 +34,7 @@ import { startResetReferralDiscountsJob } from "./jobs/resetReferralDiscounts.js
 import { startAutoConfirmContractsJob } from "./jobs/autoConfirmContracts.js";
 import { startConfirmationReminderJob } from "./jobs/sendConfirmationReminders.js";
 import { startLicenseExpiryReminderJob } from "./jobs/licenseExpiryReminders.js";
+import { startMonotributoRecategorizationReminderJob } from "./jobs/monotributoRecategorizationReminders.js";
 import { startScheduledAutoSelectionsJob } from "./jobs/processScheduledAutoSelections.js";
 
 // Rutas
@@ -417,6 +418,8 @@ startScheduledAutoSelectionsJob();
 
 // Initialize license-expiry reminders (daily 09:00, remind SUPER PRO users to renew their matrícula)
 startLicenseExpiryReminderJob();
+// Initialize monotributo recategorization reminders (Jan 10 / Jul 10, SUPER PRO monotributistas)
+startMonotributoRecategorizationReminderJob();
 
 // Manejo de errores del servidor
 httpServer.on('error', (error: NodeJS.ErrnoException) => {
