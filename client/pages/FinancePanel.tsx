@@ -8,7 +8,7 @@ import {
 import {
   Sparkles, TrendingUp, Wallet, Users, Receipt, Info, AlertTriangle, ArrowUpRight,
   ArrowDownRight, Crown, Loader2, Landmark, Save, CalendarClock, BarChart3,
-  Star, Award, ShieldCheck, BadgeCheck, Download,
+  Star, Award, ShieldCheck, BadgeCheck, Download, Target,
 } from "lucide-react";
 
 interface Analytics {
@@ -27,6 +27,8 @@ interface Analytics {
   tasaRecompra: number;
   pipelineActivo: number;
   proyeccionAnual: number;
+  facturacionMesActual: number;
+  monthlyGoal: number | null;
   annualLimit: number | null;
   fiscalCondition: string | null;
   monotributoCategory: string | null;
@@ -98,6 +100,69 @@ function KpiCard({ icon, label, value, help, trend }: {
           {trend.dir === "up" ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
           {trend.text}
         </p>
+      )}
+    </div>
+  );
+}
+
+/** Editable monthly billing goal with progress vs the current month's billing */
+function GoalCard({ data, onSaved }: { data: Analytics; onSaved: (g: number | null) => void }) {
+  const { t } = useTranslation();
+  const [editing, setEditing] = useState(!data.monthlyGoal);
+  const [goal, setGoal] = useState(data.monthlyGoal ? String(data.monthlyGoal) : "");
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/membership/fiscal", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
+        body: JSON.stringify({ monthlyBillingGoal: goal ? Number(goal) : null }),
+      });
+      const json = await res.json();
+      if (json.success) { onSaved(json.data.monthlyBillingGoal); setEditing(false); }
+    } finally { setSaving(false); }
+  };
+
+  const pct = data.monthlyGoal ? Math.round((data.facturacionMesActual / data.monthlyGoal) * 100) : 0;
+
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-5 mb-6 shadow-sm">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+          <Target className="h-5 w-5 text-sky-500" />
+          {t("finance.monthlyGoal", "Meta del mes")}
+          <InfoTip text={t("finance.monthlyGoalHelp", "Ponete una meta de cuánto querés facturar este mes y seguí tu avance. Te ayuda a mantener el ritmo y motivarte.")} />
+        </h3>
+        {data.monthlyGoal && !editing && (
+          <button onClick={() => setEditing(true)} className="text-xs font-semibold text-sky-600 dark:text-sky-400 hover:underline">
+            {t("common.edit", "Editar")}
+          </button>
+        )}
+      </div>
+      {editing ? (
+        <div className="flex items-center gap-2">
+          <input
+            type="number" inputMode="numeric" value={goal} onChange={(e) => setGoal(e.target.value)}
+            placeholder={t("finance.goalPlaceholder", "Ej: 500000")}
+            className="flex-1 h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-3 text-sm text-slate-900 dark:text-white focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:focus:ring-sky-800"
+          />
+          <button onClick={save} disabled={saving} className="inline-flex items-center gap-2 px-4 h-11 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-sm font-semibold disabled:opacity-50">
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+            {t("common.save", "Guardar")}
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="flex justify-between items-end text-sm mb-1.5">
+            <span className="text-lg font-bold text-slate-900 dark:text-white">{ars(data.facturacionMesActual)}</span>
+            <span className="text-slate-500 dark:text-slate-400">{pct}% {t("finance.ofGoal", "de la meta")} ({ars(data.monthlyGoal!)})</span>
+          </div>
+          <div className="h-3 rounded-full bg-slate-100 dark:bg-slate-700 overflow-hidden">
+            <div className={`h-full rounded-full transition-all ${pct >= 100 ? "bg-emerald-500" : "bg-sky-500"}`} style={{ width: `${Math.min(100, pct)}%` }} />
+          </div>
+        </>
       )}
     </div>
   );
@@ -638,6 +703,9 @@ export default function FinancePanel() {
           help={t("finance.pipelineHelp", "Plata de trabajos que ya tenés en marcha pero todavía no cobraste.")}
         />
       </div>
+
+      {/* Meta del mes */}
+      <GoalCard data={data} onSaved={(g) => setData((p) => (p ? { ...p, monthlyGoal: g } : p))} />
 
       {/* Monotributo limit progress */}
       {limitPct !== null && (

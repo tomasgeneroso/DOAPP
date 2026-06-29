@@ -479,6 +479,10 @@ export class User extends Model {
   @Column(DataType.DECIMAL(14, 2))
   monotributoAnnualLimit?: number;
 
+  // Meta de facturación mensual (opcional, para seguimiento en el panel)
+  @Column(DataType.DECIMAL(14, 2))
+  monthlyBillingGoal?: number;
+
   @Default(false)
   @AllowNull(false)
   @Column(DataType.BOOLEAN)

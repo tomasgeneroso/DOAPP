@@ -839,6 +839,8 @@ router.get("/analytics", protect, async (req: AuthRequest, res: Response): Promi
         tasaRecompra,
         pipelineActivo,
         proyeccionAnual,
+        facturacionMesActual: byMonth[`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`]?.total || 0,
+        monthlyGoal: num((req.user as any).monthlyBillingGoal) || null,
         annualLimit: annualLimit || null,
         fiscalCondition: (req.user as any).fiscalCondition || null,
         monotributoCategory: (req.user as any).monotributoCategory || null,
@@ -875,6 +877,7 @@ router.put("/fiscal", protect, async (req: AuthRequest, res: Response): Promise<
     const {
       fiscalCondition, monotributoCategory, monotributoAnnualLimit,
       profession, licenseNumber, licenseCategory, licenseExpiresAt,
+      monthlyBillingGoal,
     } = req.body || {};
     const validConditions = ['monotributo', 'responsable_inscripto', 'particular'];
     if (fiscalCondition && !validConditions.includes(fiscalCondition)) {
@@ -905,6 +908,10 @@ router.put("/fiscal", protect, async (req: AuthRequest, res: Response): Promise<
       const d = licenseExpiresAt ? new Date(licenseExpiresAt) : null;
       user.licenseExpiresAt = d && !isNaN(d.getTime()) ? d : null;
     }
+    if (monthlyBillingGoal !== undefined) {
+      const goal = Number(monthlyBillingGoal);
+      user.monthlyBillingGoal = (!isFinite(goal) || goal <= 0) ? null : goal;
+    }
     await user.save();
 
     res.json({
@@ -917,6 +924,7 @@ router.put("/fiscal", protect, async (req: AuthRequest, res: Response): Promise<
         licenseNumber: user.licenseNumber || null,
         licenseCategory: user.licenseCategory || null,
         licenseExpiresAt: user.licenseExpiresAt || null,
+        monthlyBillingGoal: user.monthlyBillingGoal ? Number(user.monthlyBillingGoal) : null,
       },
     });
   } catch (error: any) {

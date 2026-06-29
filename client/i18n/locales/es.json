@@ -3035,6 +3035,10 @@
     "funnel": "Tu embudo",
     "funnelHelp": "El recorrido de tus oportunidades: cuántas propuestas enviaste, cuántas te aceptaron y cuántas terminaron en trabajo. Te ayuda a ver dónde se te escapan oportunidades.",
     "tips": "Recomendaciones para crecer",
-    "noTips": "Enviá tu primera propuesta para empezar a recibir recomendaciones personalizadas."
+    "noTips": "Enviá tu primera propuesta para empezar a recibir recomendaciones personalizadas.",
+    "monthlyGoal": "Meta del mes",
+    "monthlyGoalHelp": "Ponete una meta de cuánto querés facturar este mes y seguí tu avance. Te ayuda a mantener el ritmo y motivarte.",
+    "ofGoal": "de la meta",
+    "goalPlaceholder": "Ej: 500000"
   }
 }
