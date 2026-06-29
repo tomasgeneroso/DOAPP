@@ -3039,6 +3039,7 @@
     "monthlyGoal": "Meta del mes",
     "monthlyGoalHelp": "Ponete una meta de cuánto querés facturar este mes y seguí tu avance. Te ayuda a mantener el ritmo y motivarte.",
     "ofGoal": "de la meta",
-    "goalPlaceholder": "Ej: 500000"
+    "goalPlaceholder": "Ej: 500000",
+    "exportFor": "Para el contador:"
   }
 }

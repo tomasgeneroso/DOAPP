@@ -990,4 +990,89 @@ router.get("/analytics/export.csv", protect, async (req: AuthRequest, res: Respo
   }
 });
 
+/**
+ * GET /api/membership/analytics/export.pdf?year=YYYY
+ * Resumen anual de facturación en PDF (para el contador). Solo SUPER PRO.
+ */
+router.get("/analytics/export.pdf", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (req.user.membershipTier !== 'super_pro') {
+      res.status(403).json({ success: false, message: 'Exclusivo de miembros SUPER PRO' });
+      return;
+    }
+    const userId = req.user.id || req.user._id?.toString();
+    const { Contract } = await import('../models/sql/Contract.model.js');
+    const { User } = await import('../models/sql/User.model.js');
+    const { Job } = await import('../models/sql/Job.model.js');
+    const { default: PDFDocument } = await import('pdfkit');
+
+    const now = new Date();
+    const year = parseInt(String(req.query.year || now.getFullYear()), 10) || now.getFullYear();
+    const num = (v: any): number => (typeof v === 'string' ? parseFloat(v) : Number(v)) || 0;
+    const ars = (n: number) => '$ ' + (n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2 });
+
+    const contracts: any[] = await Contract.findAll({
+      where: { doerId: userId, status: 'completed' },
+      include: [
+        { model: User, as: 'client', attributes: ['id', 'name'] },
+        { model: Job, as: 'job', attributes: ['id', 'title'] },
+      ],
+      order: [['updatedAt', 'DESC']],
+    });
+    const facturado = (c: any): number => num(c.allocatedAmount) || num(c.price);
+    const fechaDe = (c: any): Date => new Date(c.updatedAt || c.createdAt);
+    const rows = contracts.filter((c) => fechaDe(c).getFullYear() === year);
+    const totalFacturado = rows.reduce((s, c) => s + facturado(c), 0);
+    const totalComision = rows.reduce((s, c) => s + num(c.commission), 0);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="doapp-resumen-${year}.pdf"`);
+    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    doc.pipe(res);
+
+    doc.fontSize(20).fillColor('#7c3aed').text('DOAPP', { continued: true }).fillColor('#0f172a').fontSize(14).text('  ·  Resumen de facturación');
+    doc.moveDown(0.3).fontSize(11).fillColor('#475569').text(`${(req.user as any).name || ''} — Año ${year}`);
+    doc.moveDown(0.2).fontSize(9).fillColor('#94a3b8').text(`Generado el ${now.toLocaleDateString('es-AR')} · Documento orientativo, no es comprobante fiscal.`);
+    doc.moveDown(1);
+
+    doc.fontSize(11).fillColor('#0f172a');
+    doc.text(`Facturación total ${year}:`, { continued: true }).font('Helvetica-Bold').text(`  ${ars(totalFacturado)}`).font('Helvetica');
+    doc.text(`Trabajos completados:`, { continued: true }).font('Helvetica-Bold').text(`  ${rows.length}`).font('Helvetica');
+    doc.text(`Ticket promedio:`, { continued: true }).font('Helvetica-Bold').text(`  ${ars(rows.length ? totalFacturado / rows.length : 0)}`).font('Helvetica');
+    doc.text(`Comisiones de plataforma:`, { continued: true }).font('Helvetica-Bold').text(`  ${ars(totalComision)}`).font('Helvetica');
+    doc.moveDown(1);
+
+    doc.fontSize(12).fillColor('#7c3aed').text('Detalle de trabajos facturados');
+    doc.moveDown(0.4);
+    // table header
+    const col = { fecha: 50, cliente: 120, trabajo: 280, monto: 470 };
+    doc.fontSize(9).fillColor('#64748b');
+    doc.text('Fecha', col.fecha, doc.y, { width: 65 });
+    doc.text('Cliente', col.cliente, doc.y - 11, { width: 150 });
+    doc.text('Trabajo', col.trabajo, doc.y - 11, { width: 180 });
+    doc.text('Monto', col.monto, doc.y - 11, { width: 80, align: 'right' });
+    doc.moveTo(50, doc.y + 2).lineTo(545, doc.y + 2).strokeColor('#e2e8f0').stroke();
+    doc.moveDown(0.5);
+
+    doc.fillColor('#0f172a').fontSize(9);
+    for (const c of rows) {
+      if (doc.y > 770) { doc.addPage(); }
+      const y = doc.y;
+      doc.text(fechaDe(c).toLocaleDateString('es-AR'), col.fecha, y, { width: 65 });
+      doc.text((c.client?.name || 'Cliente').slice(0, 28), col.cliente, y, { width: 150 });
+      doc.text((c.job?.title || '').slice(0, 32), col.trabajo, y, { width: 180 });
+      doc.text(ars(facturado(c)), col.monto, y, { width: 80, align: 'right' });
+      doc.moveDown(0.4);
+    }
+    if (rows.length === 0) {
+      doc.fillColor('#94a3b8').text('No hay trabajos facturados en este período.', 50);
+    }
+
+    doc.end();
+  } catch (error: any) {
+    console.error('Error exporting PDF:', error);
+    if (!res.headersSent) res.status(500).json({ success: false, message: error.message || 'Error al exportar PDF' });
+  }
+});
+
 export default router;
