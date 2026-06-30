@@ -21,6 +21,7 @@
     "start": "tsx server/index.ts",
     "typecheck": "tsc --noEmit",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --selectProjects esm",
+    "check:columns": "tsx server/scripts/checkMissingColumns.ts",
     "test:e2e": "playwright test",
     "test:e2e:preview": "cross-env E2E_BASE_URL=https://localhost:4173 playwright test --project=chromium",
     "test:models": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --selectProjects models --runInBand",

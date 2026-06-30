@@ -56,6 +56,22 @@ describe('GET /api/membership/analytics', () => {
       startDate: new Date(Date.now() - 2 * 86400000), endDate: new Date(Date.now() - 86400000),
     } as any);
 
+    // Client whose name is a spreadsheet formula → tests CSV-injection neutralization
+    const evilClient: any = await User.create({
+      email: `evil_${stamp}@test.com`, username: `evil${stamp}`,
+      name: '=HYPERLINK("http://evil","pago")', password: 'password123', role: 'client',
+    } as any);
+    const evilJob: any = await Job.create({
+      title: 'Otro', description: 'd', summary: 's', price: 5000,
+      clientId: evilClient.id, category: 'Hogar', status: 'completed',
+      location: 'CABA', startDate: new Date(),
+    } as any);
+    await Contract.create({
+      jobId: evilJob.id, clientId: evilClient.id, doerId: superUser.id, type: 'trabajo',
+      price: 5000, commission: 50, status: 'completed', paymentStatus: 'completed',
+      startDate: new Date(Date.now() - 2 * 86400000), endDate: new Date(Date.now() - 86400000),
+    } as any);
+
     superToken = jwt.sign({ id: superUser.id, email: superUser.email }, secret);
     freeToken = jwt.sign({ id: freeUser.id, email: freeUser.email }, secret);
   }, 30000); // DB init + seeding can exceed the default 5s hook timeout on a cold connection
@@ -84,5 +100,16 @@ describe('GET /api/membership/analytics', () => {
     expect(Array.isArray(d.evolucionMensual)).toBe(true);
     // the seeded completed contract (10000) should be reflected
     expect(d.facturacionAnual).toBeGreaterThanOrEqual(10000);
+  });
+
+  it('CSV export neutralizes spreadsheet formula injection in client names', async () => {
+    const res = await request(app)
+      .get('/api/membership/analytics/export.csv')
+      .set('Authorization', `Bearer ${superToken}`);
+    expect(res.status).toBe(200);
+    // The malicious "=HYPERLINK(...)" client name must be defused with a leading '
+    expect(res.text).toContain(`"'=HYPERLINK`);
+    // ...and must never appear as a bare formula at the start of a cell
+    expect(res.text).not.toContain('"=HYPERLINK');
   });
 });

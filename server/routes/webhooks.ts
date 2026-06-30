@@ -9,8 +9,44 @@ import membershipService from '../services/membershipService.js';
 import emailService from '../services/email.js';
 import logger from '../services/logger.js';
 import { Op } from 'sequelize';
+import crypto from 'crypto';
 
 const router = express.Router();
+
+/**
+ * Verifica la firma `x-signature` de MercadoPago (HMAC-SHA256).
+ * Si MERCADOPAGO_WEBHOOK_SECRET no está configurado, se omite (no rompe el flujo
+ * actual; configurar el secret en el panel de MP activa la verificación).
+ * Manifest (doc MP): `id:<data.id>;request-id:<x-request-id>;ts:<ts>;`
+ */
+function verifyMpSignature(req: express.Request): boolean {
+  const secret = process.env.MERCADOPAGO_WEBHOOK_SECRET;
+  if (!secret) return true; // no configurado → no verificar
+
+  const sigHeader = req.headers['x-signature'] as string | undefined;
+  const requestId = req.headers['x-request-id'] as string | undefined;
+  if (!sigHeader) return false;
+
+  const parts: Record<string, string> = {};
+  for (const kv of sigHeader.split(',')) {
+    const [k, v] = kv.split('=');
+    if (k && v) parts[k.trim()] = v.trim();
+  }
+  const ts = parts['ts'];
+  const v1 = parts['v1'];
+  if (!ts || !v1) return false;
+
+  let dataId = (req.query['data.id'] ?? (req.body?.data?.id)) as string | undefined;
+  if (dataId) dataId = String(dataId).toLowerCase();
+
+  const manifest = `id:${dataId ?? ''};request-id:${requestId ?? ''};ts:${ts};`;
+  const computed = crypto.createHmac('sha256', secret).update(manifest).digest('hex');
+  try {
+    return crypto.timingSafeEqual(Buffer.from(computed, 'hex'), Buffer.from(v1, 'hex'));
+  } catch {
+    return false;
+  }
+}
 
 /**
  * POST /api/webhooks/mercadopago
@@ -28,6 +64,13 @@ router.post('/mercadopago', async (req, res) => {
       data: { type, action, dataId: data?.id },
       ip
     });
+
+    // Verificar firma (si MERCADOPAGO_WEBHOOK_SECRET está configurado)
+    if (!verifyMpSignature(req)) {
+      logger.webhook('mercadopago', 'invalid_signature', 'Webhook signature verification failed', { ip });
+      res.status(401).send('invalid signature');
+      return;
+    }
 
     // Responder inmediatamente a MercadoPago (evitar timeout)
     res.status(200).send('OK');
