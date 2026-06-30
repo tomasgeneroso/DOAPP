@@ -3,6 +3,7 @@ import { Post } from "../models/sql/Post.model.js";
 import { PostComment } from "../models/sql/PostComment.model.js";
 import { protect } from "../middleware/auth.js";
 import { uploadPostGallery } from "../middleware/upload.js";
+import { sanitizeHTML, sanitizePlainText } from "../utils/sanitizer.js";
 import type { AuthRequest } from "../middleware/auth.js";
 
 const router = express.Router();
@@ -172,8 +173,8 @@ router.post(
 
       const post = await Post.create({
         author: req.user.id,
-        title,
-        description,
+        title: sanitizePlainText(title || ''),
+        description: sanitizeHTML(description || ''),
         gallery,
         price: price ? parseFloat(price) : undefined,
         currency: currency || "ARS",
@@ -233,9 +234,9 @@ router.put(
 
       const { title, description, price, currency, type, tags, linkedContract, isPublished } = req.body;
 
-      // Update fields
-      if (title) post.title = title;
-      if (description) post.description = description;
+      // Update fields (sanitized: title -> plain text, description -> safe HTML)
+      if (title) post.title = sanitizePlainText(title);
+      if (description) post.description = sanitizeHTML(description);
       if (price !== undefined) post.price = parseFloat(price);
       if (currency) post.currency = currency;
       if (type) post.type = type;

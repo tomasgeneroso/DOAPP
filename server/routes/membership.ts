@@ -971,7 +971,14 @@ router.get("/analytics/export.csv", protect, async (req: AuthRequest, res: Respo
 
     const facturado = (c: any): number => num(c.allocatedAmount) || num(c.price);
     const fechaDe = (c: any): Date => new Date(c.updatedAt || c.createdAt);
-    const esc = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    // Quote + neutralize CSV formula injection: Excel/Sheets execute cells that
+    // start with = + - @ (or tab/CR), so a client/job name like "=cmd|..." could
+    // run on the accountant's machine. Prefix those with a single quote.
+    const esc = (v: any) => {
+      let s = String(v ?? '');
+      if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+      return `"${s.replace(/"/g, '""')}"`;
+    };
 
     const header = ['Fecha', 'Cliente', 'Trabajo', 'Monto (ARS)', 'Comisión (ARS)'].map(esc).join(',');
     const lines = contracts

@@ -7,6 +7,7 @@ import type { AuthRequest } from "../types/index.js";
 import { Op, fn, col, literal } from 'sequelize';
 import { body, validationResult } from "express-validator";
 import { uploadBlogCover } from "../middleware/upload.js";
+import { sanitizeHTML } from "../utils/sanitizer.js";
 
 const router = express.Router();
 
@@ -472,7 +473,7 @@ router.post(
         title,
         subtitle,
         slug,
-        content,
+        content: sanitizeHTML(content || ''),
         excerpt,
         author: user.name,
         coverImage,
@@ -550,7 +551,7 @@ router.put(
       // Update fields
       if (title !== undefined) post.title = title;
       if (subtitle !== undefined) post.subtitle = subtitle;
-      if (content !== undefined) post.content = content;
+      if (content !== undefined) post.content = sanitizeHTML(content);
       if (excerpt !== undefined) post.excerpt = excerpt;
       if (category !== undefined) post.category = category;
       if (tags !== undefined) post.tags = typeof tags === 'string' ? JSON.parse(tags) : tags;
