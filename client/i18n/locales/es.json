@@ -3040,6 +3040,8 @@
     "monthlyGoalHelp": "Ponete una meta de cuánto querés facturar este mes y seguí tu avance. Te ayuda a mantener el ritmo y motivarte.",
     "ofGoal": "de la meta",
     "goalPlaceholder": "Ej: 500000",
-    "exportFor": "Para el contador:"
+    "exportFor": "Para el contador:",
+    "profileViews": "Visitas al perfil",
+    "profileViewsHelp": "Cuántas veces vieron tu perfil otras personas (y cuántas distintas). Es el comienzo del embudo: más visitas = más chances de que te contraten."
   }
 }

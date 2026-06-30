@@ -58,7 +58,7 @@ describe('GET /api/membership/analytics', () => {
 
     superToken = jwt.sign({ id: superUser.id, email: superUser.email }, secret);
     freeToken = jwt.sign({ id: freeUser.id, email: freeUser.email }, secret);
-  });
+  }, 30000); // DB init + seeding can exceed the default 5s hook timeout on a cold connection
 
   it('returns 401 without a token', async () => {
     const res = await request(app).get('/api/membership/analytics');

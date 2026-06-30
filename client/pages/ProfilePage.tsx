@@ -114,6 +114,18 @@ export default function ProfilePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?._id, user?.id, viewMode]);
 
+  // Track profile view (logged-in viewer, not own profile) — feeds the Crecimiento funnel
+  useEffect(() => {
+    const viewedId = user?.id || user?._id;
+    if (!viewedId || !currentUser || !token || isOwnProfile()) return;
+    fetch('/api/user-analytics/profile-view', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ profileUserId: viewedId, referrer: document.referrer || undefined }),
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?._id, user?.id, currentUser]);
+
   const fetchPosts = async () => {
     const userIdForPosts = user?._id || user?.id;
     if (!userIdForPosts) return;

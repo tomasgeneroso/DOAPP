@@ -47,6 +47,7 @@ interface Analytics {
     licenseVerified: boolean; licenseVerificationStatus: string | null; licenseExpiresAt: string | null;
   };
   crecimiento: {
+    profileViews: number; profileViewsUnique: number;
     propuestasEnviadas: number; propuestasAprobadas: number; propuestasPendientes: number; propuestasRechazadas: number;
     contratosCompletados: number; winRate: number; conversion: number;
     recomendaciones: { type: string; message: string }[];
@@ -477,6 +478,7 @@ function GrowthTab({ data }: { data: Analytics }) {
   const { t } = useTranslation();
   const g = data.crecimiento;
   const funnel = [
+    { label: t("finance.profileViews", "Visitas al perfil"), value: g.profileViews, color: "bg-purple-500" },
     { label: t("finance.proposalsSent", "Propuestas enviadas"), value: g.propuestasEnviadas, color: "bg-sky-500" },
     { label: t("finance.proposalsApproved", "Aprobadas"), value: g.propuestasAprobadas, color: "bg-indigo-500" },
     { label: t("finance.contractsDone", "Trabajos completados"), value: g.contratosCompletados, color: "bg-emerald-500" },
@@ -484,7 +486,13 @@ function GrowthTab({ data }: { data: Analytics }) {
   const max = Math.max(1, ...funnel.map((f) => f.value));
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <KpiCard
+          icon={<Users className="h-4 w-4" />}
+          label={t("finance.profileViews", "Visitas al perfil")}
+          value={`${g.profileViews}`}
+          help={t("finance.profileViewsHelp", "Cuántas veces vieron tu perfil otras personas (y cuántas distintas). Es el comienzo del embudo: más visitas = más chances de que te contraten.")}
+        />
         <KpiCard
           icon={<TrendingUp className="h-4 w-4" />}
           label={t("finance.winRate", "Tasa de éxito")}

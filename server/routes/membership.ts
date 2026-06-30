@@ -786,7 +786,15 @@ router.get("/analytics", protect, async (req: AuthRequest, res: Response): Promi
     if (!u.avatar || !u.bio) recomendaciones.push({ type: 'profile_incomplete', message: 'Completá tu perfil (foto y descripción) para generar más confianza y recibir más contrataciones.' });
     if (recomendaciones.length === 0 && propEnviadas > 0) recomendaciones.push({ type: 'good', message: '¡Vas muy bien! Seguí completando trabajos y manteniendo tu reputación alta.' });
 
+    // Visitas al perfil (tope del embudo) — desde UserAnalytics
+    const { UserAnalytics } = await import('../models/sql/UserAnalytics.model.js');
+    const ua: any = await UserAnalytics.findOne({ where: { userId } });
+    const profileViews = ua ? (Number(ua.profileViewsTotal) || Number(ua.profileViews?.total) || 0) : 0;
+    const profileViewsUnique = ua ? (Number(ua.profileViewsUnique) || Number(ua.profileViews?.unique) || 0) : 0;
+
     const crecimiento = {
+      profileViews,
+      profileViewsUnique,
       propuestasEnviadas: propEnviadas,
       propuestasAprobadas: propAprobadas,
       propuestasPendientes: propPendientes,
