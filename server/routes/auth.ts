@@ -2110,6 +2110,7 @@ router.post("/dni-photos", protect, (req: AuthRequest, res: Response): void => {
       return;
     }
 
+    verifyMagicBytes(req as any, res, async () => {
     try {
       const files = (req as any).files as Record<string, Express.Multer.File[]> | undefined;
 
@@ -2143,6 +2144,7 @@ router.post("/dni-photos", protect, (req: AuthRequest, res: Response): void => {
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message });
     }
+    });
   });
 });
 
@@ -2155,6 +2157,7 @@ router.post("/license-document", protect, (req: AuthRequest, res: Response): voi
       res.status(400).json({ success: false, message: err.message });
       return;
     }
+    verifyMagicBytes(req as any, res, async () => {
     try {
       const file = (req as any).file as Express.Multer.File | undefined;
       if (!file) {
@@ -2176,6 +2179,7 @@ router.post("/license-document", protect, (req: AuthRequest, res: Response): voi
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message });
     }
+    });
   });
 });
 
