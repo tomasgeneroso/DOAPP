@@ -21,7 +21,7 @@ import { PasswordResetToken } from "../models/sql/PasswordResetToken.model.js";
 import emailService from "../services/email.js";
 import anomalyDetection from "../services/anomalyDetection.js";
 import { createAuditLog, getClientIp, getUserAgent } from "../utils/auditLogger.js";
-import { uploadAvatar, uploadCover, uploadDniPhotos, uploadLicenseDocument, getFileUrl } from "../middleware/upload.js";
+import { uploadAvatar, uploadCover, uploadDniPhotos, uploadLicenseDocument, getFileUrl, verifyMagicBytes } from "../middleware/upload.js";
 import twitterOAuth from "../services/twitterOAuth.js";
 
 const router = express.Router();
@@ -1735,6 +1735,7 @@ router.post(
   "/upload-avatar",
   protect,
   uploadAvatar,
+  verifyMagicBytes,
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       if (!req.file) {
@@ -1774,6 +1775,7 @@ router.post(
   "/upload-cover",
   protect,
   uploadCover,
+  verifyMagicBytes,
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       if (!req.file) {

@@ -2,7 +2,7 @@ import express, { Request, Response } from "express";
 import { Post } from "../models/sql/Post.model.js";
 import { PostComment } from "../models/sql/PostComment.model.js";
 import { protect } from "../middleware/auth.js";
-import { uploadPostGallery } from "../middleware/upload.js";
+import { uploadPostGallery, verifyMagicBytes } from "../middleware/upload.js";
 import { sanitizeHTML, sanitizePlainText } from "../utils/sanitizer.js";
 import type { AuthRequest } from "../middleware/auth.js";
 
@@ -138,6 +138,7 @@ router.post(
   "/",
   protect,
   uploadPostGallery,
+  verifyMagicBytes,
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const { title, description, price, currency, type, tags, linkedContract, captions } = req.body;
@@ -211,6 +212,7 @@ router.put(
   "/:id",
   protect,
   uploadPostGallery,
+  verifyMagicBytes,
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const post = await Post.findByPk(req.params.id);

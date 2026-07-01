@@ -6,7 +6,7 @@ import { protect } from "../middleware/auth.js";
 import type { AuthRequest } from "../types/index.js";
 import { Op, fn, col, literal } from 'sequelize';
 import { body, validationResult } from "express-validator";
-import { uploadBlogCover } from "../middleware/upload.js";
+import { uploadBlogCover, verifyMagicBytes } from "../middleware/upload.js";
 import { sanitizeHTML } from "../utils/sanitizer.js";
 
 const router = express.Router();
@@ -407,6 +407,7 @@ router.post(
   "/",
   protect,
   uploadBlogCover.single('coverImage'),
+  verifyMagicBytes,
   [
     body("title").trim().notEmpty().withMessage("El título es requerido")
       .isLength({ max: 200 }).withMessage("El título no puede exceder 200 caracteres"),
@@ -514,6 +515,7 @@ router.put(
   "/:id",
   protect,
   uploadBlogCover.single('coverImage'),
+  verifyMagicBytes,
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const post = await BlogPost.findByPk(req.params.id);

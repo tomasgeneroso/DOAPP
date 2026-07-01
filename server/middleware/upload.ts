@@ -2,6 +2,7 @@ import multer from "multer";
 import path from "path";
 import crypto from "crypto";
 import fs from "fs";
+import type { Request, Response, NextFunction } from "express";
 
 /**
  * File upload middleware with security validations
@@ -55,6 +56,56 @@ const LICENSE_DIR = path.join(UPLOAD_DIR, "licenses");
     fs.mkdirSync(dir, { recursive: true });
   }
 });
+
+/**
+ * Content-signature (magic bytes) validation.
+ * MIME type in the fileFilter comes from the client and is spoofable; this reads
+ * the first bytes of the SAVED file and confirms it's actually one of the
+ * allowed image/video/document formats. Anything else (HTML, scripts, polyglots)
+ * is deleted and rejected. Use it AFTER a multer middleware.
+ */
+function magicOk(b: Buffer): boolean {
+  const starts = (sig: number[]) => sig.every((v, i) => b[i] === v);
+  const at = (off: number, s: string) => b.slice(off, off + s.length).toString("latin1") === s;
+  return (
+    starts([0xff, 0xd8, 0xff]) ||                                   // JPEG
+    starts([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]) ||     // PNG
+    starts([0x47, 0x49, 0x46, 0x38]) ||                             // GIF
+    (at(0, "RIFF") && (at(8, "WEBP") || at(8, "AVI "))) ||          // WebP / AVI
+    starts([0x25, 0x50, 0x44, 0x46]) ||                             // PDF
+    at(4, "ftyp") ||                                                // MP4 / MOV / M4V
+    starts([0x1a, 0x45, 0xdf, 0xa3]) ||                             // WebM / MKV
+    starts([0x00, 0x00, 0x01, 0xba]) || starts([0x00, 0x00, 0x01, 0xb3]) || // MPEG
+    starts([0xd0, 0xcf, 0x11, 0xe0]) ||                             // legacy MS Office (doc/xls)
+    starts([0x50, 0x4b, 0x03, 0x04])                                // zip (docx/xlsx)
+  );
+}
+
+export function verifyMagicBytes(req: Request, res: Response, next: NextFunction): void {
+  try {
+    const files: any[] = [];
+    if ((req as any).file) files.push((req as any).file);
+    const rf = (req as any).files;
+    if (Array.isArray(rf)) files.push(...rf);
+    else if (rf && typeof rf === "object") for (const k of Object.keys(rf)) files.push(...rf[k]);
+
+    for (const f of files) {
+      if (!f?.path) continue;
+      const fd = fs.openSync(f.path, "r");
+      const buf = Buffer.alloc(16);
+      fs.readSync(fd, buf, 0, 16, 0);
+      fs.closeSync(fd);
+      if (!magicOk(buf)) {
+        for (const g of files) { try { fs.unlinkSync(g.path); } catch { /* noop */ } }
+        res.status(400).json({ success: false, message: "Archivo inválido: el contenido no coincide con un tipo permitido." });
+        return;
+      }
+    }
+    next();
+  } catch {
+    next(); // never block a legit upload on a read hiccup
+  }
+}
 
 /**
  * Sanitize filename to prevent directory traversal
