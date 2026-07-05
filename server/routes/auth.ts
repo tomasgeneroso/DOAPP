@@ -54,6 +54,29 @@ const generateToken = (id: string): string => {
   return jwt.sign({ id }, config.jwtSecret as Secret, options);
 };
 
+// @route   GET /api/auth/check-availability
+// @desc    Chequeo en vivo de disponibilidad de email/username para el registro
+// @access  Public (rate-limited por el apiLimiter global)
+router.get("/check-availability", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const email = typeof req.query.email === 'string' ? req.query.email.trim().toLowerCase() : undefined;
+    const username = typeof req.query.username === 'string' ? req.query.username.trim().toLowerCase() : undefined;
+
+    const result: { emailAvailable?: boolean; usernameAvailable?: boolean } = {};
+    if (email) {
+      const exists = await User.findOne({ where: { email }, attributes: ['id'] });
+      result.emailAvailable = !exists;
+    }
+    if (username) {
+      const exists = await User.findOne({ where: { username }, attributes: ['id'] });
+      result.usernameAvailable = !exists;
+    }
+    res.json({ success: true, ...result });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // @route   POST /api/auth/register
 // @desc    Registrar nuevo usuario
 // @access  Public

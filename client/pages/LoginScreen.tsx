@@ -114,6 +114,8 @@ export default function LoginScreen() {
   });
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const [usernameDebounce, setUsernameDebounce] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const [emailStatus, setEmailStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [emailDebounce, setEmailDebounce] = useState<ReturnType<typeof setTimeout> | null>(null);
   // DNI photos
   const [dniMode, setDniMode] = useState<'images' | 'pdf'>('images');
   const [dniPhotoFront, setDniPhotoFront] = useState<File | null>(null);
@@ -195,6 +197,30 @@ export default function LoginScreen() {
         }
       }, 500);
       setUsernameDebounce(timeout);
+    }
+
+    // Check email availability with debounce (only in register mode)
+    if (name === 'email' && mode === 'register') {
+      const emailValue = value.trim().toLowerCase();
+      if (emailDebounce) {
+        clearTimeout(emailDebounce);
+      }
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(emailValue)) {
+        setEmailStatus('idle');
+        return;
+      }
+      setEmailStatus('checking');
+      const timeout = setTimeout(async () => {
+        try {
+          const response = await fetch(`/api/auth/check-availability?email=${encodeURIComponent(emailValue)}`);
+          const data = await response.json();
+          setEmailStatus(data.emailAvailable ? 'available' : 'taken');
+        } catch {
+          setEmailStatus('idle');
+        }
+      }, 500);
+      setEmailDebounce(timeout);
     }
   };
 
@@ -581,7 +607,7 @@ export default function LoginScreen() {
               >
                 {t('auth.email')} <span className="text-red-500">*</span>
               </label>
-              <div className="mt-2">
+              <div className="mt-2 relative">
                 <input
                   id="email"
                   name="email"
@@ -594,9 +620,35 @@ export default function LoginScreen() {
                   className={`block w-full h-12 rounded-lg border ${
                     errorField === 'email'
                       ? 'border-red-500 dark:border-red-500 focus:ring-red-500'
+                      : isRegister && emailStatus === 'available'
+                      ? 'border-green-500 dark:border-green-500 focus:ring-sky-500'
+                      : isRegister && emailStatus === 'taken'
+                      ? 'border-red-500 dark:border-red-500 focus:ring-red-500'
                       : 'border-slate-300 dark:border-slate-600 focus:ring-sky-500'
-                  } bg-white dark:bg-slate-700 px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:border-transparent`}
+                  } bg-white dark:bg-slate-700 px-3 ${isRegister ? 'pr-10' : ''} py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:border-transparent`}
                 />
+                {isRegister && (
+                  <div className="absolute right-3 top-6 -translate-y-1/2">
+                    {emailStatus === 'checking' && (
+                      <div className="w-5 h-5 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
+                    )}
+                    {emailStatus === 'available' && (
+                      <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                    {emailStatus === 'taken' && (
+                      <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                )}
+                {isRegister && emailStatus === 'taken' && (
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                    Este correo ya está registrado. ¿Querés <button type="button" onClick={() => setMode('login')} className="underline font-medium">iniciar sesión</button>?
+                  </p>
+                )}
                 {errorField === 'email' && (
                   <p className="mt-1 text-sm text-red-600 dark:text-red-400">
                     {error}

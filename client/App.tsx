@@ -539,6 +539,9 @@ export default function App() {
               <Route path="withdrawals" element={<AdminWithdrawalManager />} />
               <Route path="pending-payments" element={<PendingPayments />} />
               <Route path="financial-transactions" element={<FinancialTransactions />} />
+              {/* Legacy URL: /admin/payments was reorganized into the Financial hub */}
+              <Route path="payments" element={<Navigate to="/admin/hubs/financial" replace />} />
+              <Route path="payments/*" element={<Navigate to="/admin/hubs/financial" replace />} />
               <Route path="tickets" element={<AdminTickets />} />
               <Route path="tickets/create" element={<AdminCreateTicket />} />
               <Route path="tickets/:id" element={<AdminTicketDetail />} />
