@@ -96,13 +96,13 @@ export default function FinancialHub() {
         </div>
 
         <div className="grid grid-cols-2 gap-6">
-          <Button onClick={() => navigate('/admin/payments')} variant="primary" className="py-4">
+          <Button onClick={() => navigate('/admin/pending-payments')} variant="primary" className="py-4">
             Manage Payments
           </Button>
           <Button onClick={() => navigate('/admin/withdrawals')} variant="secondary" className="py-4">
             Manage Withdrawals
           </Button>
-          <Button onClick={() => navigate('/admin/company-balance')} variant="primary" className="py-4">
+          <Button onClick={() => navigate('/admin/financial-transactions')} variant="primary" className="py-4">
             Company Balance
           </Button>
           <Button onClick={() => navigate('/admin/financial-transactions')} variant="secondary" className="py-4">

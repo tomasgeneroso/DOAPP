@@ -89,7 +89,7 @@ export default function GrowthHub() {
             <p className="text-slate-600 dark:text-slate-400 mb-4">
               Campaigns, ads, and referral programs
             </p>
-            <Button onClick={() => navigate('/admin/marketing')} variant="primary" className="w-full">
+            <Button onClick={() => navigate('/admin/analytics')} variant="primary" className="w-full">
               Manage Marketing
             </Button>
           </div>
@@ -101,7 +101,7 @@ export default function GrowthHub() {
             <p className="text-slate-600 dark:text-slate-400 mb-4">
               Blog posts, articles, and community content
             </p>
-            <Button onClick={() => navigate('/admin/blogs')} variant="primary" className="w-full">
+            <Button onClick={() => navigate('/blog')} variant="primary" className="w-full">
               Manage Content
             </Button>
           </div>

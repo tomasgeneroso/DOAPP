@@ -539,9 +539,13 @@ export default function App() {
               <Route path="withdrawals" element={<AdminWithdrawalManager />} />
               <Route path="pending-payments" element={<PendingPayments />} />
               <Route path="financial-transactions" element={<FinancialTransactions />} />
-              {/* Legacy URL: /admin/payments was reorganized into the Financial hub */}
-              <Route path="payments" element={<Navigate to="/admin/hubs/financial" replace />} />
-              <Route path="payments/*" element={<Navigate to="/admin/hubs/financial" replace />} />
+              {/* Legacy/hub links without a dedicated page → redirect to where that
+                  info actually lives (nothing was deleted, only relocated). */}
+              <Route path="payments" element={<Navigate to="/admin/pending-payments" replace />} />
+              <Route path="payments/*" element={<Navigate to="/admin/pending-payments" replace />} />
+              <Route path="company-balance" element={<Navigate to="/admin/financial-transactions" replace />} />
+              <Route path="marketing" element={<Navigate to="/admin/analytics" replace />} />
+              <Route path="blogs" element={<Navigate to="/blog" replace />} />
               <Route path="tickets" element={<AdminTickets />} />
               <Route path="tickets/create" element={<AdminCreateTicket />} />
               <Route path="tickets/:id" element={<AdminTicketDetail />} />
