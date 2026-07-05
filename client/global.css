@@ -26,6 +26,13 @@
     background-color: rgb(15, 23, 42); /* slate-900 */
   }
 
+  /* Accesibilidad: desactivar el smooth scroll para quienes prefieren menos movimiento */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
   /* Desktop UI: 100% scale (16px base) — accesibilidad WCAG 2.1 AA.
      Responsive design: content adapts to viewport, no artificial zoom hacks.
      Scroll is expected on smaller desktops; lazy-loading + collapsible sections
