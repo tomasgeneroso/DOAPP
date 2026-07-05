@@ -61,7 +61,18 @@ export default function RoleManagement() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
-  const [passwordStatus, setPasswordStatus] = useState<{ ownerPasswordSet: boolean; adminPasswordSet: boolean } | null>(null);
+  const [passwordStatus, setPasswordStatus] = useState<{ ownerPasswordSet: boolean; adminPasswordSet: boolean; emergencyPasswordSet: boolean } | null>(null);
+  // Verification for CHANGING an already-set role password
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [emergencyPassword, setEmergencyPassword] = useState("");
+  const [resetToken, setResetToken] = useState("");
+  const [requestingCode, setRequestingCode] = useState(false);
+  // Emergency password configuration (gated by owner account password)
+  const [showEmergencySettings, setShowEmergencySettings] = useState(false);
+  const [emergencyNewPassword, setEmergencyNewPassword] = useState("");
+  const [emergencyConfirm, setEmergencyConfirm] = useState("");
+  const [ownerAccountPassword, setOwnerAccountPassword] = useState("");
+  const [savingEmergency, setSavingEmergency] = useState(false);
 
   useEffect(() => {
     fetchRolesAndPermissions();
@@ -192,12 +203,23 @@ export default function RoleManagement() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ role: securityRole, newPassword, confirmPassword }),
+        body: JSON.stringify({
+          role: securityRole,
+          newPassword,
+          confirmPassword,
+          // Sent only when changing an already-configured password:
+          currentPassword: currentPassword || undefined,
+          emergencyPassword: emergencyPassword || undefined,
+          resetToken: resetToken || undefined,
+        }),
       });
       const data = await res.json();
       if (data.success) {
         setNewPassword("");
         setConfirmPassword("");
+        setCurrentPassword("");
+        setEmergencyPassword("");
+        setResetToken("");
         setShowSecuritySettings(false);
         fetchPasswordStatus();
         alert(`Contraseña para rol '${securityRole}' guardada correctamente`);
@@ -208,6 +230,67 @@ export default function RoleManagement() {
       alert("Error al guardar contraseña");
     } finally {
       setSavingPassword(false);
+    }
+  };
+
+  const handleRequestResetCode = async () => {
+    setRequestingCode(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/admin/roles/security/reset-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ role: securityRole }),
+      });
+      const data = await res.json();
+      alert(data.message || (data.success ? "Código enviado" : "Error al enviar el código"));
+    } catch {
+      alert("Error al enviar el código");
+    } finally {
+      setRequestingCode(false);
+    }
+  };
+
+  const handleSaveEmergencyPassword = async () => {
+    if (emergencyNewPassword.length < 10) {
+      alert("La contraseña de emergencia debe tener al menos 10 caracteres");
+      return;
+    }
+    if (emergencyNewPassword !== emergencyConfirm) {
+      alert("Las contraseñas no coinciden");
+      return;
+    }
+    if (!ownerAccountPassword) {
+      alert("Ingresá la contraseña de tu cuenta de owner para autorizar el cambio");
+      return;
+    }
+    setSavingEmergency(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch("/api/admin/roles/security/emergency-password", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          newPassword: emergencyNewPassword,
+          confirmPassword: emergencyConfirm,
+          ownerAccountPassword,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setEmergencyNewPassword("");
+        setEmergencyConfirm("");
+        setOwnerAccountPassword("");
+        setShowEmergencySettings(false);
+        fetchPasswordStatus();
+        alert("Contraseña de emergencia guardada correctamente");
+      } else {
+        alert(data.message || "Error al guardar la contraseña de emergencia");
+      }
+    } catch {
+      alert("Error al guardar la contraseña de emergencia");
+    } finally {
+      setSavingEmergency(false);
     }
   };
 
@@ -604,6 +687,12 @@ export default function RoleManagement() {
                   Admin: {passwordStatus.adminPasswordSet ? "configurada" : "no configurada"}
                 </span>
               </div>
+              <div className="flex items-center gap-2 text-sm">
+                <span className={`h-2 w-2 rounded-full ${passwordStatus.emergencyPasswordSet ? "bg-green-500" : "bg-red-400"}`} />
+                <span className="text-slate-600 dark:text-slate-400">
+                  Emergencia: {passwordStatus.emergencyPasswordSet ? "configurada" : "no configurada"}
+                </span>
+              </div>
             </div>
           )}
 
@@ -662,6 +751,60 @@ export default function RoleManagement() {
                   className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-sm bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 />
               </div>
+              {(securityRole === "owner" ? passwordStatus?.ownerPasswordSet : passwordStatus?.adminPasswordSet) && (
+                <div className="rounded-xl border border-amber-200 dark:border-amber-800/50 bg-amber-50/60 dark:bg-amber-900/10 p-3 space-y-3">
+                  <p className="text-xs text-amber-800 dark:text-amber-300">
+                    Esta contraseña ya está configurada. Para cambiarla necesitás <b>una</b> de estas opciones:
+                  </p>
+                  <div>
+                    <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
+                      1) Contraseña actual del rol
+                    </label>
+                    <input
+                      type="password"
+                      value={currentPassword}
+                      onChange={e => setCurrentPassword(e.target.value)}
+                      placeholder="Contraseña actual"
+                      className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-sm bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
+                      2) Contraseña de emergencia {!passwordStatus?.emergencyPasswordSet && "(no configurada aún)"}
+                    </label>
+                    <input
+                      type="password"
+                      value={emergencyPassword}
+                      onChange={e => setEmergencyPassword(e.target.value)}
+                      placeholder="Contraseña de emergencia"
+                      disabled={!passwordStatus?.emergencyPasswordSet}
+                      className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-sm bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:opacity-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
+                      3) Código enviado al correo del owner
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={resetToken}
+                        onChange={e => setResetToken(e.target.value.toUpperCase())}
+                        placeholder="Código de 8 caracteres"
+                        className="flex-1 px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-sm bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 tracking-widest"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleRequestResetCode}
+                        disabled={requestingCode}
+                        className="px-3 py-2 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 disabled:opacity-50 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold transition whitespace-nowrap"
+                      >
+                        {requestingCode ? "Enviando..." : "Enviar código"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               <button
                 onClick={handleSaveSecurityPassword}
                 disabled={savingPassword || !newPassword || !confirmPassword}
@@ -671,6 +814,69 @@ export default function RoleManagement() {
               </button>
             </div>
           )}
+
+          {/* Emergency password configuration (gated by owner account password) */}
+          <div className="mt-4 border-t border-slate-200 dark:border-slate-700 pt-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-semibold text-slate-900 dark:text-white text-sm">Contraseña de emergencia</h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Sirve para cambiar las contraseñas de rol si perdés la actual. Cambiarla requiere la contraseña de tu cuenta de owner.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowEmergencySettings(v => !v)}
+                className="text-xs px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600 font-medium whitespace-nowrap"
+              >
+                {showEmergencySettings ? "Cerrar" : passwordStatus?.emergencyPasswordSet ? "Cambiar" : "Configurar"}
+              </button>
+            </div>
+            {showEmergencySettings && (
+              <div className="mt-3 space-y-3">
+                <div>
+                  <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
+                    Nueva contraseña de emergencia (mín. 10 caracteres)
+                  </label>
+                  <input
+                    type="password"
+                    value={emergencyNewPassword}
+                    onChange={e => setEmergencyNewPassword(e.target.value)}
+                    placeholder="Contraseña de emergencia"
+                    className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-sm bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">Confirmar</label>
+                  <input
+                    type="password"
+                    value={emergencyConfirm}
+                    onChange={e => setEmergencyConfirm(e.target.value)}
+                    placeholder="Repetir contraseña de emergencia"
+                    className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-sm bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-500 dark:text-slate-400 mb-1">
+                    Contraseña de tu cuenta de owner (para autorizar)
+                  </label>
+                  <input
+                    type="password"
+                    value={ownerAccountPassword}
+                    onChange={e => setOwnerAccountPassword(e.target.value)}
+                    placeholder="Tu contraseña de login"
+                    className="w-full px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-sm bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  />
+                </div>
+                <button
+                  onClick={handleSaveEmergencyPassword}
+                  disabled={savingEmergency || !emergencyNewPassword || !emergencyConfirm || !ownerAccountPassword}
+                  className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-xl text-sm font-semibold transition"
+                >
+                  {savingEmergency ? "Guardando..." : "Guardar contraseña de emergencia"}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

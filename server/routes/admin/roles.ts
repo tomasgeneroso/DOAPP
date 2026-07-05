@@ -6,7 +6,18 @@ import { requirePermission } from "../../middleware/permissions.js";
 import type { AuthRequest } from "../../types/index.js";
 import { ROLE_PERMISSIONS, PERMISSIONS } from "../../config/permissions.js";
 import { logAudit } from "../../utils/auditLog.js";
-import { verifyRolePassword, setRolePassword, hasRolePassword } from "../../utils/rolePasswordStore.js";
+import {
+  verifyRolePassword,
+  setRolePassword,
+  hasRolePassword,
+  hasEmergencyPassword,
+  verifyEmergencyPassword,
+  setEmergencyPassword,
+  createResetToken,
+  verifyResetToken,
+  consumeResetToken,
+} from "../../utils/rolePasswordStore.js";
+import emailService from "../../services/email.js";
 import { Op } from 'sequelize';
 
 const router = Router();
@@ -583,6 +594,7 @@ router.get("/security/status", async (req: AuthRequest, res: Response) => {
       data: {
         ownerPasswordSet: hasRolePassword("owner"),
         adminPasswordSet: hasRolePassword("admin"),
+        emergencyPasswordSet: hasEmergencyPassword(),
       },
     });
   } catch (error: any) {
@@ -592,7 +604,13 @@ router.get("/security/status", async (req: AuthRequest, res: Response) => {
 
 /**
  * PUT /api/admin/roles/security/passwords
- * Set/update role assignment passwords (owner only)
+ * Set/update role assignment passwords (owner only).
+ *
+ * First-time configuration (no password set yet) is allowed directly. To CHANGE an
+ * already-configured password the caller must prove one of:
+ *   - currentPassword: the current role password, OR
+ *   - emergencyPassword: the configured emergency password, OR
+ *   - resetToken: a one-time code emailed to the owner (see /reset-request).
  */
 router.put(
   "/security/passwords",
@@ -616,8 +634,32 @@ router.put(
         return res.status(403).json({ success: false, message: "Solo el owner puede configurar contraseñas de roles" });
       }
 
-      const { role, newPassword } = req.body;
+      const { role, newPassword, currentPassword, emergencyPassword, resetToken } = req.body;
+
+      // Changing an EXISTING password requires proof; first-time setup does not.
+      const alreadySet = hasRolePassword(role);
+      let verifiedVia: string | null = null;
+      if (alreadySet) {
+        if (currentPassword && (await verifyRolePassword(role, currentPassword))) {
+          verifiedVia = "current_password";
+        } else if (emergencyPassword && hasEmergencyPassword() && (await verifyEmergencyPassword(emergencyPassword))) {
+          verifiedVia = "emergency_password";
+        } else if (resetToken && verifyResetToken(role, resetToken)) {
+          verifiedVia = "email_reset_token";
+        }
+
+        if (!verifiedVia) {
+          return res.status(401).json({
+            success: false,
+            requiresVerification: true,
+            message:
+              "Para cambiar una contraseña ya configurada necesitás la contraseña actual, la contraseña de emergencia, o un código enviado al correo del owner.",
+          });
+        }
+      }
+
       await setRolePassword(role, newPassword);
+      if (verifiedVia === "email_reset_token") consumeResetToken();
 
       await logAudit({
         req,
@@ -625,7 +667,7 @@ router.put(
         category: "role",
         severity: "critical",
         description: `Contraseña de asignación para rol '${role}' actualizada`,
-        metadata: { role },
+        metadata: { role, firstTime: !alreadySet, verifiedVia: verifiedVia || "first_time_setup" },
       });
 
       res.json({
@@ -635,6 +677,119 @@ router.put(
     } catch (error: any) {
       console.error("Error setting role password:", error);
       res.status(500).json({ success: false, message: "Error al actualizar contraseña" });
+    }
+  }
+);
+
+/**
+ * PUT /api/admin/roles/security/emergency-password
+ * Set/change the emergency password (owner only). Requires the owner's ACCOUNT
+ * login password (not a role password) to authorize — so the emergency password
+ * can only be rotated by someone who controls the owner account.
+ */
+router.put(
+  "/security/emergency-password",
+  [
+    body("newPassword").isLength({ min: 10 }).withMessage("Emergency password must be at least 10 characters"),
+    body("confirmPassword").custom((value, { req }) => {
+      if (value !== req.body.newPassword) throw new Error("Passwords do not match");
+      return true;
+    }),
+    body("ownerAccountPassword").notEmpty().withMessage("Owner account password is required"),
+  ],
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ success: false, errors: errors.array() });
+      }
+
+      const adminUser = await User.findByPk(req.user.id);
+      if (!adminUser || adminUser.adminRole !== "owner") {
+        return res.status(403).json({ success: false, message: "Solo el owner puede configurar la contraseña de emergencia" });
+      }
+
+      const { newPassword, ownerAccountPassword } = req.body;
+
+      if (!adminUser.password || !(await adminUser.comparePassword(ownerAccountPassword))) {
+        return res.status(401).json({ success: false, message: "Contraseña de la cuenta del owner incorrecta" });
+      }
+
+      const wasSet = hasEmergencyPassword();
+      await setEmergencyPassword(newPassword);
+
+      // The owner account password was verified above → reflect it in the audit trail.
+      req.passwordVerified = true;
+      await logAudit({
+        req,
+        action: wasSet ? "emergency_password_changed" : "emergency_password_set",
+        category: "role",
+        severity: "critical",
+        description: `Contraseña de emergencia ${wasSet ? "cambiada" : "configurada"}`,
+      });
+
+      res.json({ success: true, message: "Contraseña de emergencia guardada correctamente" });
+    } catch (error: any) {
+      console.error("Error setting emergency password:", error);
+      res.status(500).json({ success: false, message: "Error al guardar la contraseña de emergencia" });
+    }
+  }
+);
+
+/**
+ * POST /api/admin/roles/security/reset-request
+ * Emails a one-time code to the owner's account email so they can change a role
+ * password without knowing the old one (owner only).
+ */
+router.post(
+  "/security/reset-request",
+  [body("role").isIn(["owner", "admin"]).withMessage("Role must be owner or admin")],
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ success: false, errors: errors.array() });
+      }
+
+      const adminUser = await User.findByPk(req.user.id);
+      if (!adminUser || adminUser.adminRole !== "owner") {
+        return res.status(403).json({ success: false, message: "Solo el owner puede solicitar un reset" });
+      }
+      if (!adminUser.email) {
+        return res.status(400).json({ success: false, message: "El owner no tiene un email configurado" });
+      }
+
+      const { role } = req.body;
+      const token = createResetToken(role, 30);
+
+      await emailService.sendEmail({
+        to: adminUser.email,
+        subject: "Código para cambiar contraseña de rol · DOAPP",
+        html: `
+          <p>Hola ${adminUser.name || "owner"},</p>
+          <p>Solicitaste cambiar la contraseña de asignación del rol <b>${role}</b> sin la contraseña actual.</p>
+          <p>Tu código de verificación es:</p>
+          <p style="font-size:24px;font-weight:bold;letter-spacing:4px;">${token}</p>
+          <p>Vence en 30 minutos. Si no fuiste vos, ignorá este correo y considerá revisar la seguridad de la cuenta.</p>
+        `,
+      });
+
+      await logAudit({
+        req,
+        action: "role_password_reset_requested",
+        category: "role",
+        severity: "critical",
+        description: `Código de reset de contraseña de rol '${role}' enviado al email del owner`,
+        metadata: { role },
+      });
+
+      res.json({
+        success: true,
+        message: "Enviamos un código al correo del owner. Vence en 30 minutos.",
+      });
+    } catch (error: any) {
+      console.error("Error requesting role password reset:", error);
+      res.status(500).json({ success: false, message: "Error al enviar el código de reset" });
     }
   }
 );
