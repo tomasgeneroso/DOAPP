@@ -12,7 +12,8 @@ export default function MembershipCheckout() {
   const navigate = useNavigate();
   const toast = useToast();
   const [searchParams] = useSearchParams();
-  const plan = searchParams.get('plan') || 'monthly'; // monthly, quarterly, or super_pro
+  // Selectable on the page (initialised from the URL): monthly, quarterly, super_pro
+  const [plan, setPlan] = useState<string>(searchParams.get('plan') || 'monthly');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,9 +29,14 @@ export default function MembershipCheckout() {
     console.log('👤 Usuario en useEffect:', user?.name, user?.email);
     console.log('📦 Plan seleccionado:', plan);
     loadPricing();
-    checkUpgradeEligibility();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Re-check upgrade eligibility whenever the selected plan changes
+  useEffect(() => {
+    checkUpgradeEligibility();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan]);
 
   const checkUpgradeEligibility = async () => {
     // Verificar si el usuario puede hacer upgrade (PRO → SUPER PRO)
@@ -224,6 +230,53 @@ export default function MembershipCheckout() {
           <p className="text-gray-600 dark:text-gray-400 text-lg">
             {t('membership.unlockFeatures', 'Desbloquea todas las funcionalidades profesionales de DOAPP')}
           </p>
+        </div>
+
+        {/* Plan selector cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          {(['monthly', 'quarterly', 'super_pro'] as const).map((key) => {
+            const p = planDetails[key];
+            const isSelected = plan === key;
+            const isSuper = key === 'super_pro';
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setPlan(key)}
+                aria-pressed={isSelected}
+                className={`relative text-left rounded-2xl border-2 p-5 transition-all focus:outline-none ${
+                  isSelected
+                    ? isSuper
+                      ? 'border-purple-500 ring-2 ring-purple-500/30 bg-purple-50 dark:bg-purple-900/20'
+                      : 'border-sky-500 ring-2 ring-sky-500/30 bg-sky-50 dark:bg-sky-900/20'
+                    : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-gray-300 dark:hover:border-gray-600'
+                }`}
+              >
+                {isSuper && (
+                  <span className="absolute -top-3 left-4 px-2 py-0.5 text-xs font-bold rounded-full bg-gradient-to-r from-purple-600 to-pink-600 text-white">
+                    {t('membership.recommended', 'Recomendado')}
+                  </span>
+                )}
+                {key === 'quarterly' && 'savings' in p && p.savings && (
+                  <span className="absolute -top-3 left-4 px-2 py-0.5 text-xs font-bold rounded-full bg-green-500 text-white">
+                    {t('membership.save', 'Ahorra')} {p.savings}
+                  </span>
+                )}
+                <div className="flex items-center gap-2 mb-2">
+                  <Crown className={`w-5 h-5 ${isSuper ? 'text-purple-500' : 'text-sky-500'}`} />
+                  <span className="font-bold text-gray-900 dark:text-white">{p.name}</span>
+                </div>
+                <p className="text-2xl font-extrabold text-gray-900 dark:text-white">
+                  ${Math.round(p.priceARS).toLocaleString('es-AR')}
+                  <span className="text-sm font-medium text-gray-500 dark:text-gray-400"> ARS / {p.period}</span>
+                </p>
+                <p className={`mt-2 flex items-center gap-1 text-sm font-semibold ${isSuper ? 'text-purple-600 dark:text-purple-400' : 'text-sky-600 dark:text-sky-400'}`}>
+                  {isSelected && <Check className="w-4 h-4" />}
+                  {isSuper ? '1%' : '3%'} {t('membership.commission', 'de comisión')} · {isSelected ? t('membership.selected', 'Seleccionado') : t('membership.choosePlan', 'Elegir')}
+                </p>
+              </button>
+            );
+          })}
         </div>
 
         {error && (
