@@ -159,16 +159,15 @@ export default function LocationAutocomplete({
         required={required}
         placeholder={placeholder}
         className={`
-          w-full h-14 pl-11 pr-4 py-2
-          bg-white dark:bg-gray-800
-          border-2 rounded-xl
+          w-full h-11 pl-11 pr-4 py-2
+          bg-white dark:bg-slate-700
+          border border-gray-300 dark:border-slate-600 rounded-lg
           text-gray-900 dark:text-white
-          transition-all duration-200
-          cursor-pointer
-          border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500
-          focus:outline-none focus:border-sky-500 focus:ring-4 focus:ring-sky-500/10 dark:ring-sky-400/20
+          transition-colors duration-200
+          hover:border-gray-400 dark:hover:border-slate-500
+          focus:outline-none focus:border-sky-500 focus:ring-2 focus:ring-sky-500/40
           placeholder:text-gray-400 dark:placeholder:text-gray-500
-          ${disabled ? 'opacity-50 cursor-not-allowed bg-gray-100 dark:bg-gray-900' : ''}
+          ${disabled ? 'opacity-50 cursor-not-allowed bg-gray-100 dark:bg-slate-900' : ''}
         `}
       />
 

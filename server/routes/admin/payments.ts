@@ -808,14 +808,18 @@ router.post("/:paymentId/reject", protect, requireRole('admin', 'super_admin', '
 
     // Notify user (for non-contract payments)
     if (payment.paymentType !== 'contract_payment' && payment.paymentType !== 'escrow_deposit') {
+      // Link the notification to the job so "Ver detalles" opens the publication
+      // (where the owner can re-upload the proof) instead of the Balance page.
+      const relatedJob = await Job.findOne({ where: { publicationPaymentId: paymentId }, attributes: ['id'] });
       await Notification.create({
         recipientId: payment.payerId,
         title: 'Pago rechazado',
         message: `Tu pago fue rechazado. Motivo: ${reason}. Por favor, sube un nuevo comprobante o realiza el pago nuevamente.`,
         type: 'warning',
         category: 'payment',
-        relatedId: paymentId,
-        relatedModel: 'Payment',
+        relatedId: relatedJob ? relatedJob.id : paymentId,
+        relatedModel: relatedJob ? 'Job' : 'Payment',
+        data: relatedJob ? { jobId: relatedJob.id } : { paymentId },
       });
     }
 
@@ -1135,26 +1139,28 @@ router.post("/:paymentId/cancel-reject", protect, requireRole('admin', 'super_ad
     }
 
     // Handle job publication payment - revert job status
+    const relatedJob = await Job.findOne({
+      where: { publicationPaymentId: paymentId },
+      attributes: ['id', 'status'],
+    });
     if (payment.paymentType === 'job_publication') {
-      const job = await Job.findOne({
-        where: { publicationPaymentId: paymentId }
-      });
-
-      if (job && job.status === 'pending_payment') {
+      if (relatedJob && relatedJob.status === 'pending_payment') {
         // Job stays in pending_payment - user can upload a new proof
-        console.log(`[ADMIN CANCEL-REJECT] Job ${job.id} remains in pending_payment for new proof upload`);
+        console.log(`[ADMIN CANCEL-REJECT] Job ${relatedJob.id} remains in pending_payment for new proof upload`);
       }
     }
 
-    // Notify user that their payment can be retried
+    // Notify user that their payment can be retried — link to the job so
+    // "Ver detalles" opens the publication (re-upload) instead of Balance.
     await Notification.create({
       recipientId: payment.payerId,
       title: 'Rechazo de pago cancelado',
       message: 'El rechazo de tu pago fue cancelado por un administrador. Puedes subir un nuevo comprobante o el pago será revisado nuevamente.',
       type: 'info',
       category: 'payment',
-      relatedId: paymentId,
-      relatedModel: 'Payment',
+      relatedId: relatedJob ? relatedJob.id : paymentId,
+      relatedModel: relatedJob ? 'Job' : 'Payment',
+      data: relatedJob ? { jobId: relatedJob.id } : { paymentId },
     });
 
     res.json({
