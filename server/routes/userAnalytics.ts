@@ -2,6 +2,7 @@ import express, { Response } from "express";
 import { protect } from "../middleware/auth.js";
 import { AuthRequest } from "../types/index.js";
 import { UserAnalytics } from "../models/sql/UserAnalytics.model.js";
+import { User } from "../models/sql/User.model.js";
 import { Membership } from "../models/sql/Membership.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
 import { Conversation } from "../models/sql/Conversation.model.js";
@@ -52,13 +53,16 @@ async function getOrCreateAnalytics(userId: string) {
 async function calculateAnalytics(userId: string) {
   const analytics = await getOrCreateAnalytics(userId);
 
-  // Profile views - already tracked in real-time
+  // Profile views - already tracked in real-time (flat columns on the SQL model)
+  const pvHistory: any[] = Array.isArray((analytics as any).profileViewsHistory)
+    ? (analytics as any).profileViewsHistory
+    : [];
   const uniqueVisitors = new Set(
-    (analytics as any).profileViews.history
+    pvHistory
       .filter((visit: any) => visit.visitorId)
       .map((visit: any) => visit.visitorId.toString())
   );
-  (analytics as any).profileViews.unique = uniqueVisitors.size;
+  (analytics as any).profileViewsUnique = uniqueVisitors.size;
 
   // Conversations
   const conversations = await Conversation.findAll({
@@ -288,35 +292,35 @@ router.post("/profile-view", protect, async (req: AuthRequest, res: Response) =>
 
     const analytics = await getOrCreateAnalytics(profileUserId);
 
-    // Check if this visitor already viewed recently (within 1 hour)
+    // Profile views live in flat columns: profileViewsTotal / profileViewsUnique /
+    // profileViewsHistory (JSONB). (Legacy Mongo code read analytics.profileViews.*,
+    // which is undefined on the SQL model → the 500s / 100% error rate.)
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-    const recentView = (analytics as any).profileViews.history.find(
+    const history: any[] = Array.isArray((analytics as any).profileViewsHistory)
+      ? (analytics as any).profileViewsHistory
+      : [];
+
+    const recentView = history.find(
       (view: any) =>
         view.visitorId?.toString() === req.user.id.toString() &&
-        view.timestamp > oneHourAgo
+        new Date(view.timestamp) > oneHourAgo
     );
 
     if (!recentView) {
-      (analytics as any).profileViews.total++;
-      (analytics as any).profileViews.history.push({
-        visitorId: req.user.id,
-        timestamp: new Date(),
-        referrer: referrer || undefined,
-      });
+      let newHistory = [
+        ...history,
+        { visitorId: req.user.id, timestamp: new Date(), referrer: referrer || undefined },
+      ];
+      if (newHistory.length > 1000) newHistory = newHistory.slice(-1000);
 
-      // Keep only last 1000 views
-      if ((analytics as any).profileViews.history.length > 1000) {
-        (analytics as any).profileViews.history = (analytics as any).profileViews.history.slice(-1000);
-      }
-
-      // Update unique count
       const uniqueVisitors = new Set(
-        (analytics as any).profileViews.history
-          .filter((visit: any) => visit.visitorId)
-          .map((visit: any) => visit.visitorId.toString())
+        newHistory.filter((v: any) => v.visitorId).map((v: any) => v.visitorId.toString())
       );
-      (analytics as any).profileViews.unique = uniqueVisitors.size;
 
+      // Reassign (new array reference) so Sequelize flags the JSONB column dirty
+      (analytics as any).profileViewsHistory = newHistory;
+      (analytics as any).profileViewsTotal = (Number((analytics as any).profileViewsTotal) || 0) + 1;
+      (analytics as any).profileViewsUnique = uniqueVisitors.size;
       await analytics.save();
     }
 
@@ -345,46 +349,52 @@ router.get("/profile-visitors", protect, requireSuperPro, async (req: AuthReques
 
     const analytics = await UserAnalytics.findOne({
       where: { userId: req.user.id },
-      include: [
-        {
-          association: 'profileViews.history.visitorId',
-          attributes: ['name', 'avatar', 'role']
-        }
-      ]
     });
 
     if (!analytics) {
-      return res.json({ visitors: [], total: 0 });
+      return res.json({ visitors: [], total: 0, totalViews: 0 });
     }
 
-    const analyticsData = analytics.toJSON();
+    // visitorId is stored as a plain UUID inside the profileViewsHistory JSONB —
+    // aggregate visits per visitor, then hydrate the User records in one query.
+    const history: any[] = Array.isArray((analytics as any).profileViewsHistory)
+      ? (analytics as any).profileViewsHistory
+      : [];
 
-    // Get unique visitors with last visit time
-    const visitorMap = new Map();
-
-    analyticsData.profileViews.history
+    const agg = new Map<string, { lastVisit: Date; visits: number }>();
+    history
       .filter((view: any) => view.visitorId)
       .forEach((view: any) => {
-        const visitorId = view.visitorId.id.toString();
-        const existing = visitorMap.get(visitorId);
-
-        if (!existing || view.timestamp > existing.lastVisit) {
-          visitorMap.set(visitorId, {
-            visitor: view.visitorId,
-            lastVisit: view.timestamp,
-            visits: (existing?.visits || 0) + 1,
-          });
+        const visitorId = view.visitorId.toString();
+        const existing = agg.get(visitorId);
+        const ts = new Date(view.timestamp);
+        if (!existing) {
+          agg.set(visitorId, { lastVisit: ts, visits: 1 });
+        } else {
+          existing.visits += 1;
+          if (ts > existing.lastVisit) existing.lastVisit = ts;
         }
       });
 
-    const visitors = Array.from(visitorMap.values())
+    const visitorIds = Array.from(agg.keys());
+    const users = visitorIds.length
+      ? await User.findAll({ where: { id: { [Op.in]: visitorIds } }, attributes: ['id', 'name', 'avatar', 'role'] })
+      : [];
+    const userById = new Map(users.map((u: any) => [u.id.toString(), u]));
+
+    const visitors = visitorIds
+      .map((id) => ({
+        visitor: userById.get(id) || { id },
+        lastVisit: agg.get(id)!.lastVisit,
+        visits: agg.get(id)!.visits,
+      }))
       .sort((a, b) => new Date(b.lastVisit).getTime() - new Date(a.lastVisit).getTime())
       .slice(0, Number(limit));
 
     res.json({
       visitors,
-      total: visitorMap.size,
-      totalViews: analyticsData.profileViews.total,
+      total: agg.size,
+      totalViews: Number((analytics as any).profileViewsTotal) || 0,
     });
   } catch (error) {
     console.error("Error fetching profile visitors:", error);
