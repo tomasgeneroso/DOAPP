@@ -300,26 +300,41 @@ export default function FamilyCodes() {
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+          <button
+            onClick={() => setStatusFilter('all')}
+            className={`text-left bg-white dark:bg-slate-800 rounded-xl p-4 border cursor-pointer transform hover:scale-105 hover:shadow-lg transition-all duration-200 ${statusFilter === 'all' ? 'border-slate-500 ring-2 ring-slate-400' : 'border-slate-200 dark:border-slate-700'}`}
+          >
             <p className="text-2xl font-bold text-slate-900 dark:text-white">{stats.total}</p>
             <p className="text-sm text-slate-600 dark:text-slate-400">Total</p>
-          </div>
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-green-200 dark:border-green-800">
+          </button>
+          <button
+            onClick={() => setStatusFilter('active')}
+            className={`text-left bg-white dark:bg-slate-800 rounded-xl p-4 border cursor-pointer transform hover:scale-105 hover:shadow-lg transition-all duration-200 ${statusFilter === 'active' ? 'border-green-500 ring-2 ring-green-400' : 'border-green-200 dark:border-green-800'}`}
+          >
             <p className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.active}</p>
             <p className="text-sm text-slate-600 dark:text-slate-400">{t('admin.familyCodes.available', 'Available')}</p>
-          </div>
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
+          </button>
+          <button
+            onClick={() => setStatusFilter('used')}
+            className={`text-left bg-white dark:bg-slate-800 rounded-xl p-4 border cursor-pointer transform hover:scale-105 hover:shadow-lg transition-all duration-200 ${statusFilter === 'used' ? 'border-blue-500 ring-2 ring-blue-400' : 'border-blue-200 dark:border-blue-800'}`}
+          >
             <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.used}</p>
             <p className="text-sm text-slate-600 dark:text-slate-400">{t('admin.familyCodes.inUse', 'In use')}</p>
-          </div>
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-orange-200 dark:border-orange-800">
+          </button>
+          <button
+            onClick={() => setStatusFilter('expired')}
+            className={`text-left bg-white dark:bg-slate-800 rounded-xl p-4 border cursor-pointer transform hover:scale-105 hover:shadow-lg transition-all duration-200 ${statusFilter === 'expired' ? 'border-orange-500 ring-2 ring-orange-400' : 'border-orange-200 dark:border-orange-800'}`}
+          >
             <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{stats.expired}</p>
             <p className="text-sm text-slate-600 dark:text-slate-400">{t('admin.familyCodes.expired', 'Expired')}</p>
-          </div>
-          <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
+          </button>
+          <button
+            onClick={() => setStatusFilter('inactive')}
+            className={`text-left bg-white dark:bg-slate-800 rounded-xl p-4 border cursor-pointer transform hover:scale-105 hover:shadow-lg transition-all duration-200 ${statusFilter === 'inactive' ? 'border-slate-500 ring-2 ring-slate-400' : 'border-slate-200 dark:border-slate-700'}`}
+          >
             <p className="text-2xl font-bold text-slate-600 dark:text-slate-400">{stats.inactive}</p>
             <p className="text-sm text-slate-600 dark:text-slate-400">{t('admin.familyCodes.inactive', 'Inactive')}</p>
-          </div>
+          </button>
         </div>
       )}
 

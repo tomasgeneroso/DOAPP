@@ -346,7 +346,10 @@ export default function AdminWithdrawalManager() {
       {/* Stats Grid */}
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <button
+            onClick={() => setFilterStatus('pending')}
+            className={`text-left w-full bg-white dark:bg-gray-800 rounded-lg shadow p-6 cursor-pointer transform hover:scale-105 hover:shadow-lg transition-all duration-200 ${filterStatus === 'pending' ? 'ring-2 ring-yellow-500' : ''}`}
+          >
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center">
                 <Clock className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
@@ -356,9 +359,12 @@ export default function AdminWithdrawalManager() {
               {stats.pending}
             </p>
             <p className="text-sm text-gray-600 dark:text-gray-400">{t('common.status.pending', 'Pending')}</p>
-          </div>
+          </button>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <button
+            onClick={() => setFilterStatus('approved')}
+            className={`text-left w-full bg-white dark:bg-gray-800 rounded-lg shadow p-6 cursor-pointer transform hover:scale-105 hover:shadow-lg transition-all duration-200 ${filterStatus === 'approved' ? 'ring-2 ring-blue-500' : ''}`}
+          >
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
                 <TrendingUp className="w-6 h-6 text-blue-600 dark:text-blue-400" />
@@ -368,9 +374,12 @@ export default function AdminWithdrawalManager() {
               {stats.approved}
             </p>
             <p className="text-sm text-gray-600 dark:text-gray-400">{t('common.status.approved', 'Approved')}</p>
-          </div>
+          </button>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <button
+            onClick={() => setFilterStatus('completed')}
+            className={`text-left w-full bg-white dark:bg-gray-800 rounded-lg shadow p-6 cursor-pointer transform hover:scale-105 hover:shadow-lg transition-all duration-200 ${filterStatus === 'completed' ? 'ring-2 ring-green-500' : ''}`}
+          >
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
                 <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
@@ -380,9 +389,12 @@ export default function AdminWithdrawalManager() {
               {stats.completed}
             </p>
             <p className="text-sm text-gray-600 dark:text-gray-400">{t('common.status.completed', 'Completed')}</p>
-          </div>
+          </button>
 
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+          <button
+            onClick={() => setFilterStatus('all')}
+            className={`text-left w-full bg-white dark:bg-gray-800 rounded-lg shadow p-6 cursor-pointer transform hover:scale-105 hover:shadow-lg transition-all duration-200 ${filterStatus === 'all' ? 'ring-2 ring-purple-500' : ''}`}
+          >
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center">
                 <DollarSign className="w-6 h-6 text-purple-600 dark:text-purple-400" />
@@ -392,7 +404,7 @@ export default function AdminWithdrawalManager() {
               ${stats.totalAmount?.toLocaleString('es-AR') || 0}
             </p>
             <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.withdrawals.totalAmount', 'Total Amount')}</p>
-          </div>
+          </button>
         </div>
       )}
 

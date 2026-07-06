@@ -237,15 +237,15 @@ export default function AdminTickets() {
       {/* Stats cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
-          { label: "Abiertos", value: tickets.filter(t => t.status === "open").length, icon: Inbox, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/20", onClick: () => setStatusFilter("open") },
-          { label: "En progreso", value: tickets.filter(t => t.status === "in_progress" || t.status === "assigned").length, icon: Clock, color: "text-yellow-600 dark:text-yellow-400", bg: "bg-yellow-50 dark:bg-yellow-900/20", onClick: () => setStatusFilter("in_progress") },
-          { label: "Resueltos", value: tickets.filter(t => t.status === "resolved").length, icon: CheckCircle, color: "text-green-600 dark:text-green-400", bg: "bg-green-50 dark:bg-green-900/20", onClick: () => setStatusFilter("resolved") },
-          { label: "Cerrados", value: tickets.filter(t => t.status === "closed").length, icon: XCircle, color: "text-slate-500 dark:text-slate-400", bg: "bg-slate-50 dark:bg-slate-700/30", onClick: () => setStatusFilter("closed") },
+          { label: "Abiertos", status: "open", value: tickets.filter(t => t.status === "open").length, icon: Inbox, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/20", onClick: () => setStatusFilter("open") },
+          { label: "En progreso", status: "in_progress", value: tickets.filter(t => t.status === "in_progress" || t.status === "assigned").length, icon: Clock, color: "text-yellow-600 dark:text-yellow-400", bg: "bg-yellow-50 dark:bg-yellow-900/20", onClick: () => setStatusFilter("in_progress") },
+          { label: "Resueltos", status: "resolved", value: tickets.filter(t => t.status === "resolved").length, icon: CheckCircle, color: "text-green-600 dark:text-green-400", bg: "bg-green-50 dark:bg-green-900/20", onClick: () => setStatusFilter("resolved") },
+          { label: "Cerrados", status: "closed", value: tickets.filter(t => t.status === "closed").length, icon: XCircle, color: "text-slate-500 dark:text-slate-400", bg: "bg-slate-50 dark:bg-slate-700/30", onClick: () => setStatusFilter("closed") },
         ].map(card => (
           <button
             key={card.label}
             onClick={card.onClick}
-            className={`${card.bg} rounded-xl p-4 text-left border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-colors`}
+            className={`${card.bg} rounded-xl p-4 text-left border cursor-pointer transform hover:scale-105 hover:shadow-lg transition-all duration-200 ${statusFilter === card.status ? "border-slate-400 dark:border-slate-500 ring-2 ring-slate-400/60" : "border-transparent hover:border-slate-200 dark:hover:border-slate-700"}`}
           >
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{card.label}</span>
