@@ -100,10 +100,15 @@ export default function Analytics() {
         <>
           {/* Users Stats */}
           <div>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-              <Users className="h-5 w-5 text-sky-600" />
-              Usuarios
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <Users className="h-5 w-5 text-sky-600" />
+                Usuarios
+              </h2>
+              <Link to="/admin/analytics/users" className="text-sm font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300">
+                Ver detalle →
+              </Link>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
                 <div className="flex items-center justify-between">
@@ -157,10 +162,15 @@ export default function Analytics() {
 
           {/* Contracts Stats */}
           <div>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-              <FileText className="h-5 w-5 text-sky-600" />
-              Contratos
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <FileText className="h-5 w-5 text-sky-600" />
+                Contratos
+              </h2>
+              <Link to="/admin/analytics/contracts" className="text-sm font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300">
+                Ver detalle →
+              </Link>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
                 <div className="flex items-center justify-between">
@@ -202,10 +212,15 @@ export default function Analytics() {
 
           {/* Tickets Stats */}
           <div>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-              <AlertCircle className="h-5 w-5 text-sky-600" />
-              Soporte
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                <AlertCircle className="h-5 w-5 text-sky-600" />
+                Soporte
+              </h2>
+              <Link to="/admin/analytics/tickets" className="text-sm font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300">
+                Ver detalle →
+              </Link>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-6">
                 <div className="flex items-center justify-between">
