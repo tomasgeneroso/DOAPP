@@ -416,7 +416,10 @@ const AdminDisputeManager: React.FC = () => {
         {/* Stats */}
         {stats && (
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div
+              onClick={() => { setFilterStatus(''); setPage(1); }}
+              className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 cursor-pointer transform hover:scale-105 hover:shadow-lg transition-all duration-200 ${filterStatus === '' ? 'ring-2 ring-sky-500' : ''}`}
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">{t('common.total', 'Total')}</p>
@@ -430,7 +433,10 @@ const AdminDisputeManager: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div
+              onClick={() => { setFilterStatus('open'); setPage(1); }}
+              className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 cursor-pointer transform hover:scale-105 hover:shadow-lg transition-all duration-200 ${filterStatus === 'open' ? 'ring-2 ring-yellow-500' : ''}`}
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">{t('common.status.open', 'Open')}</p>
@@ -444,7 +450,10 @@ const AdminDisputeManager: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div
+              onClick={() => { setFilterStatus('in_review'); setPage(1); }}
+              className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 cursor-pointer transform hover:scale-105 hover:shadow-lg transition-all duration-200 ${filterStatus === 'in_review' ? 'ring-2 ring-blue-500' : ''}`}
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">{t('common.status.inReview', 'In Review')}</p>
@@ -459,7 +468,10 @@ const AdminDisputeManager: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div
+              onClick={() => { setFilterStatus('resolved'); setPage(1); }}
+              className={`bg-white dark:bg-gray-800 rounded-lg shadow p-6 cursor-pointer transform hover:scale-105 hover:shadow-lg transition-all duration-200 ${filterStatus === 'resolved' ? 'ring-2 ring-green-500' : ''}`}
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-400">{t('common.status.resolved', 'Resolved')}</p>
