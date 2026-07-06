@@ -92,8 +92,10 @@ router.get("/pending", protect, requireRole('admin', 'super_admin', 'owner'), as
 
     const where: any = {};
 
-    // Filter by status
-    if (status) {
+    // Filter by status ("all" → no status filter, show every payment)
+    if (status === 'all') {
+      // no status constraint
+    } else if (status) {
       where.status = status;
     } else {
       // Default: show pending_verification payments

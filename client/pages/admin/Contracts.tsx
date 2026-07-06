@@ -381,12 +381,15 @@ export default function AdminContracts() {
   const getStatusBadge = (status: string) => {
     const badges: Record<string, string> = {
       pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
+      ready: "bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300",
       accepted: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
       in_progress: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
       awaiting_confirmation: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
       completed: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
       cancelled: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300",
+      rejected: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
       disputed: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+      in_review: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
     };
     return badges[status] || badges.pending;
   };
@@ -394,12 +397,15 @@ export default function AdminContracts() {
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
       pending: t('admin.contracts.statuses.pending', 'Pending'),
+      ready: t('admin.contracts.statuses.ready', 'Ready'),
       accepted: t('admin.contracts.statuses.accepted', 'Accepted'),
       in_progress: t('admin.contracts.statuses.inProgress', 'In Progress'),
       awaiting_confirmation: t('admin.contracts.statuses.awaitingConfirmation', 'Awaiting Confirmation'),
       completed: t('admin.contracts.statuses.completed', 'Completed'),
       cancelled: t('admin.contracts.statuses.cancelled', 'Cancelled'),
+      rejected: t('admin.contracts.statuses.rejected', 'Rejected'),
       disputed: t('admin.contracts.statuses.disputed', 'Disputed'),
+      in_review: t('admin.contracts.statuses.inReview', 'In Review'),
     };
     return labels[status] || status;
   };
@@ -518,12 +524,15 @@ export default function AdminContracts() {
             >
               <option value="all">{t('admin.contracts.allStatuses', 'All statuses')}</option>
               <option value="pending">{t('admin.contracts.statuses.pending', 'Pending')}</option>
+              <option value="ready">{t('admin.contracts.statuses.ready', 'Ready')}</option>
               <option value="accepted">{t('admin.contracts.statuses.accepted', 'Accepted')}</option>
               <option value="in_progress">{t('admin.contracts.statuses.inProgress', 'In Progress')}</option>
               <option value="awaiting_confirmation">{t('admin.contracts.statuses.awaitingConfirmation', 'Awaiting Confirmation')}</option>
               <option value="completed">{t('admin.contracts.statuses.completed', 'Completed')}</option>
               <option value="cancelled">{t('admin.contracts.statuses.cancelled', 'Cancelled')}</option>
+              <option value="rejected">{t('admin.contracts.statuses.rejected', 'Rejected')}</option>
               <option value="disputed">{t('admin.contracts.statuses.disputed', 'Disputed')}</option>
+              <option value="in_review">{t('admin.contracts.statuses.inReview', 'In Review')}</option>
             </select>
           </div>
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useTranslation } from 'react-i18next';
 import ExcelJS from "exceljs";
 import {
@@ -190,7 +190,7 @@ export default function PendingPayments() {
   const [activeTab, setActiveTab] = useState<"app" | "workers">("app");
 
   // Sub-filter state for each tab
-  const [appSubFilter, setAppSubFilter] = useState<"pending" | "verified" | "escrow" | "confirmed" | "disputed" | "rejected">("pending");
+  const [appSubFilter, setAppSubFilter] = useState<"all" | "pending" | "verified" | "escrow" | "confirmed" | "disputed" | "rejected">("pending");
   const [workersSubFilter, setWorkersSubFilter] = useState<"pending" | "paid" | "disputed">("pending");
 
   const [payments, setPayments] = useState<ContractPaymentRow[]>([]);
@@ -244,6 +244,7 @@ export default function PendingPayments() {
   const [dateTo, setDateTo] = useState("");
   const [minAmount, setMinAmount] = useState("");
   const [maxAmount, setMaxAmount] = useState("");
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Sorting
   const [sortBy, setSortBy] = useState("createdAt");
@@ -303,7 +304,9 @@ export default function PendingPayments() {
 
       // Build query params based on sub-filter
       const params = new URLSearchParams();
-      if (appSubFilter === "pending") {
+      if (appSubFilter === "all") {
+        params.append("status", "all");
+      } else if (appSubFilter === "pending") {
         params.append("status", "pending_verification");
       } else if (appSubFilter === "verified") {
         params.append("status", "verified");
@@ -588,19 +591,48 @@ export default function PendingPayments() {
     }
   };
 
-  useEffect(() => {
+  const reloadActive = () => {
     if (activeTab === "app") {
       loadVerificationPayments();
+    } else if (workersSubFilter === "paid") {
+      loadCompletedPayments();
     } else {
-      // workers tab
-      if (workersSubFilter === "paid") {
-        loadCompletedPayments();
-      } else {
-        loadPayments();
-      }
+      loadPayments();
     }
+  };
+
+  // Immediate reload on tab / sub-filter / sort / period changes.
+  useEffect(() => {
+    reloadActive();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period, completedPeriod, sortBy, sortOrder, activeTab, appSubFilter, workersSubFilter, dateFrom, dateTo, minAmount, maxAmount]);
+  }, [period, completedPeriod, sortBy, sortOrder, activeTab, appSubFilter, workersSubFilter]);
+
+  // Debounced reload for the amount/date filters — typing a min/max amount no
+  // longer refetches (and collapses the panel) on every keystroke.
+  const didMountFilters = useRef(false);
+  useEffect(() => {
+    if (!didMountFilters.current) {
+      didMountFilters.current = true;
+      return;
+    }
+    const t = setTimeout(reloadActive, 500);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFrom, dateTo, minAmount, maxAmount]);
+
+  // Advanced filters are shared UI, but shouldn't leak from one tab into the
+  // other — reset them when switching between "app" and "workers".
+  const didMountTab = useRef(false);
+  useEffect(() => {
+    if (!didMountTab.current) {
+      didMountTab.current = true;
+      return;
+    }
+    setDateFrom("");
+    setDateTo("");
+    setMinAmount("");
+    setMaxAmount("");
+  }, [activeTab]);
 
   const handleViewPayment = async (contractId: string) => {
     try {
@@ -1008,6 +1040,19 @@ export default function PendingPayments() {
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm text-gray-500 dark:text-gray-400 mr-2">Estado:</span>
           <button
+            onClick={() => setAppSubFilter("all")}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              appSubFilter === "all"
+                ? "bg-slate-200 text-slate-800 dark:bg-slate-600 dark:text-slate-100"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600"
+            }`}
+          >
+            <span className="flex items-center gap-1">
+              <FileText className="h-3.5 w-3.5" />
+              Todos
+            </span>
+          </button>
+          <button
             onClick={() => setAppSubFilter("pending")}
             className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
               appSubFilter === "pending"
@@ -1133,8 +1178,13 @@ export default function PendingPayments() {
         </div>
       )}
 
-      {/* Advanced Filters - Collapsible */}
-      <details className="bg-white dark:bg-gray-800 rounded-lg shadow">
+      {/* Advanced Filters - Collapsible (controlled so a re-fetch/re-render
+          triggered while typing an amount doesn't collapse it) */}
+      <details
+        open={filtersOpen}
+        onToggle={(e) => setFiltersOpen((e.target as HTMLDetailsElement).open)}
+        className="bg-white dark:bg-gray-800 rounded-lg shadow"
+      >
         <summary className="px-4 py-3 cursor-pointer text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg flex items-center gap-2">
           <FileText className="h-4 w-4" />
           Filtros Avanzados
