@@ -1149,6 +1149,14 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
     // Prepare update data
     const updateData: any = { ...req.body };
 
+    // Coerce coordinates from FormData strings to numbers (null when cleared)
+    if (updateData.latitude !== undefined) {
+      updateData.latitude = updateData.latitude ? parseFloat(updateData.latitude) : null;
+    }
+    if (updateData.longitude !== undefined) {
+      updateData.longitude = updateData.longitude ? parseFloat(updateData.longitude) : null;
+    }
+
     // Process uploaded images (new images)
     const uploadedFiles = req.files as Express.Multer.File[];
     const newImageUrls = uploadedFiles?.map(file => `/uploads/job-images/${file.filename}`) || [];

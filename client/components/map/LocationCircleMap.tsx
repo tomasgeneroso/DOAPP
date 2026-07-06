@@ -3,22 +3,45 @@ import { MapPin, Loader2 } from 'lucide-react';
 
 interface LocationCircleMapProps {
   location: string;
+  /** Precise coordinates (from the address autocomplete). When present, the circle
+   *  is centered exactly here instead of coarsely geocoding the location string. */
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 // Cache para coordenadas geocodificadas
 const geocodeCache: { [key: string]: [number, number] } = {};
 
-export default function LocationCircleMap({ location }: LocationCircleMapProps) {
+/** General area for the caption WITHOUT revealing the exact street/number:
+ *  "san luis 867, corrientes, argentina" → "corrientes, argentina". */
+function generalArea(location: string): string {
+  const parts = location.split(',').map((s) => s.trim()).filter(Boolean);
+  // Drop the first segment when it looks like a street address (contains a number)
+  if (parts.length > 1 && /\d/.test(parts[0])) return parts.slice(1).join(', ');
+  return parts.join(', ');
+}
+
+export default function LocationCircleMap({ location, latitude, longitude }: LocationCircleMapProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
   const [loading, setLoading] = useState(true);
-  const [geocodedAddress, setGeocodedAddress] = useState<string>('');
 
   // Geocodificar la ubicación usando Nominatim (OpenStreetMap)
   useEffect(() => {
     const geocodeLocation = async () => {
       setLoading(true);
+
+      // Precise coordinates from the address autocomplete take absolute priority —
+      // this centers the circle exactly on the saved location (no coarse geocoding).
+      if (
+        typeof latitude === 'number' && typeof longitude === 'number' &&
+        !Number.isNaN(latitude) && !Number.isNaN(longitude)
+      ) {
+        setCoordinates([latitude, longitude]);
+        setLoading(false);
+        return;
+      }
 
       const cacheKey = location.toLowerCase().trim();
 
@@ -62,7 +85,6 @@ export default function LocationCircleMap({ location }: LocationCircleMapProps) 
             const lon = parseFloat(data[0].lon);
             const coords: [number, number] = [lat, lon];
             setCoordinates(coords);
-            setGeocodedAddress(data[0].display_name);
             geocodeCache[cacheKey] = coords;
             setLoading(false);
             return;
@@ -79,7 +101,7 @@ export default function LocationCircleMap({ location }: LocationCircleMapProps) 
     };
 
     geocodeLocation();
-  }, [location]);
+  }, [location, latitude, longitude]);
 
   useEffect(() => {
     if (!mapRef.current || !coordinates) return;
@@ -135,16 +157,8 @@ export default function LocationCircleMap({ location }: LocationCircleMapProps) 
         radius: 1000
       }).addTo(map);
 
-      // Añadir ícono central — iconAnchor centra el punto exactamente en [lat,lng]
-      const customIcon = L.divIcon({
-        className: '',
-        html: '<div style="background-color:#0ea5e9;width:16px;height:16px;border-radius:50%;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);margin:0;padding:0;"></div>',
-        iconSize: [16, 16],
-        iconAnchor: [8, 8],
-        popupAnchor: [0, -8],
-      });
-
-      L.marker([lat, lng], { icon: customIcon }).addTo(map);
+      // Privacidad: solo se muestra el círculo de 1km, sin marcador central que
+      // revele el punto exacto de la dirección.
     };
 
     loadMap();
@@ -184,13 +198,9 @@ export default function LocationCircleMap({ location }: LocationCircleMapProps) 
         )}
       </div>
       <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-        El círculo muestra un área aproximada de 1km de radio alrededor de {location}
+        El círculo muestra un área aproximada de 1km de radio en {generalArea(location)}. La
+        dirección exacta solo se comparte con el trabajador asignado.
       </p>
-      {geocodedAddress && (
-        <p className="mt-1 text-xs text-sky-600 dark:text-sky-400">
-          Ubicación detectada: {geocodedAddress.split(',').slice(0, 3).join(', ')}
-        </p>
-      )}
     </div>
   );
 }

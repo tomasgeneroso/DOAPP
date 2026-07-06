@@ -22,6 +22,7 @@ import {
 import { JOB_CATEGORIES, JOB_TAGS, canJobsOverlap, getCategoryById } from "../../shared/constants/categories";
 import { CustomDateInput } from "@/components/ui/CustomDatePicker";
 import LocationAutocomplete from "@/components/ui/LocationAutocomplete";
+import { getImageUrl } from "@/utils/imageUrl";
 import FileUploadWithPreview from "@/components/ui/FileUploadWithPreview";
 import NeighborhoodAutocomplete from "@/components/ui/NeighborhoodAutocomplete";
 
@@ -76,6 +77,8 @@ export default function EditJobScreen() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [customTag, setCustomTag] = useState("");
   const [location, setLocation] = useState("");
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
   const [neighborhood, setNeighborhood] = useState("");
   const [postalCode, setPostalCode] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -163,6 +166,8 @@ export default function EditJobScreen() {
           setSelectedCategory(job.category || "");
           setSelectedTags(job.tags || []);
           setLocation(job.location || "");
+          setLatitude(typeof job.latitude === 'number' ? job.latitude : null);
+          setLongitude(typeof job.longitude === 'number' ? job.longitude : null);
           setNeighborhood(job.neighborhood || "");
           setPostalCode(job.postalCode || "");
           setStartDate(job.startDate ? new Date(job.startDate).toISOString().slice(0, 16) : "");
@@ -300,6 +305,10 @@ export default function EditJobScreen() {
     submitData.append("category", selectedCategory);
     submitData.append("tags", JSON.stringify(selectedTags));
     submitData.append("location", location);
+    if (latitude !== null && longitude !== null) {
+      submitData.append("latitude", String(latitude));
+      submitData.append("longitude", String(longitude));
+    }
     if (neighborhood) submitData.append("neighborhood", neighborhood);
     if (postalCode) submitData.append("postalCode", postalCode);
     submitData.append("startDate", startDate);
@@ -595,7 +604,17 @@ export default function EditJobScreen() {
                 <FormField label={t('jobs.cityLabel', 'City')} icon={MapPin} required>
                   <LocationAutocomplete
                     value={location}
-                    onChange={setLocation}
+                    onChange={(val, coords) => {
+                      setLocation(val);
+                      if (coords) {
+                        setLatitude(coords.lat);
+                        setLongitude(coords.lng);
+                      } else {
+                        // Free-typed edit no longer matches the picked place → drop stale coords
+                        setLatitude(null);
+                        setLongitude(null);
+                      }
+                    }}
                     placeholder={t('jobs.locationPlaceholder')}
                     required
                     disabled={fieldsDisabled}
@@ -703,7 +722,7 @@ export default function EditJobScreen() {
                   {existingImages.map((img, index) => (
                     <div key={index} className="relative group">
                       <img
-                        src={img}
+                        src={getImageUrl(img)}
                         alt={`Imagen ${index + 1}`}
                         className="h-24 w-24 object-cover rounded-lg border border-slate-600"
                       />
