@@ -386,7 +386,7 @@ export default function AdminUsers() {
       </div>
 
       {/* Users Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-900">
             <tr>
@@ -405,6 +405,11 @@ export default function AdminUsers() {
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Estado
               </th>
+              {verifiedFilter === 'unverified' && (
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                  Verificación
+                </th>
+              )}
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Fecha Registro
               </th>
@@ -503,6 +508,44 @@ export default function AdminUsers() {
                     </span>
                   )}
                 </td>
+                {verifiedFilter === 'unverified' && (
+                  <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-2">
+                      {(['dniPhotoFront', 'dniPhotoBack'] as const).map((f, i) => {
+                        const url = (user as any)[f] as string | undefined;
+                        const label = i === 0 ? 'Frente' : 'Dorso';
+                        return url ? (
+                          <button key={f} onClick={() => openVerifyModal(user)} title={`DNI ${label}`} className="block">
+                            {url.endsWith('.pdf') ? (
+                              <span className="flex h-10 w-14 items-center justify-center rounded border border-gray-200 dark:border-gray-600 text-sky-500">
+                                <FileText className="h-4 w-4" />
+                              </span>
+                            ) : (
+                              <img src={url} alt={label} className="h-10 w-14 rounded object-cover border border-gray-200 dark:border-gray-600 hover:opacity-80" />
+                            )}
+                          </button>
+                        ) : (
+                          <span key={f} className="flex h-10 w-14 items-center justify-center rounded border border-dashed border-gray-300 dark:border-gray-600 text-[10px] text-gray-400">
+                            {label}
+                          </span>
+                        );
+                      })}
+                      <div className="text-xs">
+                        {(user as any).dniNumber ? (
+                          <div className="text-gray-700 dark:text-gray-300">DNI {(user as any).dniNumber}</div>
+                        ) : (
+                          <div className="text-amber-500">Sin DNI</div>
+                        )}
+                        <button
+                          onClick={() => openVerifyModal(user)}
+                          className="mt-0.5 inline-flex items-center gap-1 font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
+                        >
+                          <ShieldCheck className="h-3.5 w-3.5" /> Verificar
+                        </button>
+                      </div>
+                    </div>
+                  </td>
+                )}
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                   {user.createdAt ? (
                     <>
@@ -605,6 +648,22 @@ export default function AdminUsers() {
                 </td>
               </tr>
             ))}
+            {users.length === 0 && (
+              <tr>
+                <td
+                  colSpan={verifiedFilter === 'unverified' ? 9 : 8}
+                  className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400"
+                >
+                  {verifiedFilter === 'verified'
+                    ? 'No hay usuarios verificados todavía.'
+                    : verifiedFilter === 'unverified'
+                    ? 'No hay usuarios pendientes de verificación.'
+                    : search
+                    ? 'No se encontraron usuarios para esa búsqueda.'
+                    : 'No hay usuarios para mostrar.'}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

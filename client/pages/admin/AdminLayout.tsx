@@ -54,7 +54,7 @@ export default function AdminLayout() {
   const location = useLocation();
   const { isDark, toggleTheme } = useTheme();
   const { isConnected, reconnect } = useSocket();
-  const [expandedGroups, setExpandedGroups] = useState<string[]>(['general', 'operations', 'finance', 'support']);
+  const [expandedGroups, setExpandedGroups] = useState<string[]>(['hubs', 'general', 'operations', 'finance', 'support']);
 
   // Redirect if not admin
   if (!user?.adminRole) {
@@ -143,6 +143,7 @@ export default function AdminLayout() {
   ];
 
   const groupLabels: Record<string, string> = {
+    hubs: t('admin.sections.hubs', 'Hubs'),
     general: t('admin.sections.general', 'General'),
     operations: t('admin.sections.operations', 'Operations'),
     finance: t('admin.sections.finance', 'Finance'),

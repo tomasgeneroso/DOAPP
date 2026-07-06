@@ -403,6 +403,7 @@ export default function AdminJobManager() {
       pending_payment: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
       pending_approval: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
       paused: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
+      suspended: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",
       open: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
       approved: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
       rejected: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
@@ -420,6 +421,7 @@ export default function AdminJobManager() {
       pending_payment: "Pendiente Pago",
       pending_approval: "Pendiente Aprobación",
       paused: "Pausado",
+      suspended: "Pausado",
       open: "Abierto",
       approved: "Aprobado",
       rejected: "Rechazado",
@@ -563,7 +565,7 @@ export default function AdminJobManager() {
               <option value="all">Todos los estados</option>
               <option value="pending_approval">Pendiente Aprobación</option>
               <option value="pending_payment">Pendiente Pago</option>
-              <option value="paused">Pausado</option>
+              <option value="suspended">Pausado</option>
               <option value="open">Abierto (Aprobado)</option>
               <option value="cancelled">Cancelado (Rechazado)</option>
               <option value="in_progress">En Progreso</option>
@@ -741,13 +743,23 @@ export default function AdminJobManager() {
                         <span className="text-blue-600 dark:text-blue-400 text-xs">
                           <strong>Aumento:</strong> {job.priceChangeReason}
                         </span>
-                      ) : (job.status === 'cancelled' || job.status === 'rejected') && (job.cancellationReason || job.rejectedReason) ? (
-                        <span className="text-red-600 dark:text-red-400 text-xs">
-                          {job.cancellationReason || job.rejectedReason}
-                          {job.permanentlyCancelled && (
-                            <span className="ml-1 text-red-800 dark:text-red-200 font-bold">⛔ DEFINITIVA</span>
+                      ) : (job.status === 'cancelled' || job.status === 'rejected' || job.status === 'suspended' || job.status === 'paused') && (job.cancellationReason || job.rejectedReason) ? (
+                        <div className="text-xs">
+                          <span className={job.status === 'suspended' || job.status === 'paused' ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}>
+                            <span className="font-semibold">
+                              {job.status === 'cancelled' ? 'Cancelada' : job.status === 'rejected' ? 'Rechazada' : 'Pausada'}:
+                            </span>{' '}
+                            {job.cancellationReason || job.rejectedReason}
+                            {job.permanentlyCancelled && (
+                              <span className="ml-1 text-red-800 dark:text-red-200 font-bold">⛔ DEFINITIVA</span>
+                            )}
+                          </span>
+                          {job.reviewer && (
+                            <span className="block text-gray-400 mt-0.5">
+                              por {job.reviewer.name}{job.reviewedAt ? ` · ${safeDate(job.reviewedAt, { day: '2-digit', month: '2-digit', year: '2-digit' })}` : ''}
+                            </span>
                           )}
-                        </span>
+                        </div>
                       ) : null}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -830,7 +842,7 @@ export default function AdminJobManager() {
                         )}
 
                         {/* Reanudar para publicaciones pausadas */}
-                        {job.status === 'paused' && !job.pendingNewPrice && (
+                        {(job.status === 'paused' || job.status === 'suspended') && !job.pendingNewPrice && (
                           <button
                             onClick={() => handleResume(job.id)}
                             className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 transform hover:scale-110 transition-all duration-150"
