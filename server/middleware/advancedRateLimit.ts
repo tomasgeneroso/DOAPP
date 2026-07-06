@@ -84,6 +84,14 @@ function createRateLimitMiddleware(
       await limiter.consume(key);
       next();
     } catch (rejRes: any) {
+      // rate-limiter-flexible rejects with a RateLimiterRes when the limit is hit,
+      // but with a real Error when the store itself fails (pg/driver issue, table
+      // missing, connection error, etc.). Never let an infrastructure error break
+      // the request — fail open and let it through.
+      if (rejRes instanceof Error) {
+        console.warn("⚠️  RateLimiter store error, allowing request:", rejRes.message);
+        return next();
+      }
       const retryAfter = Math.ceil(rejRes.msBeforeNext / 1000) || 1;
       res.set("Retry-After", String(retryAfter));
       res.set("X-RateLimit-Limit", String(limiter.points));
