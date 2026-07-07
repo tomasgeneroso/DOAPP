@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useTranslation } from 'react-i18next';
 import ExcelJS from "exceljs";
+import { getImageUrl } from "@/utils/imageUrl";
 import {
   CheckCircle,
   XCircle,
@@ -1441,7 +1442,7 @@ export default function PendingPayments() {
                           <td className="px-4 py-4">
                             {payment.proofs && payment.proofs.length > 0 ? (
                               <a
-                                href={payment.proofs[0].fileUrl}
+                                href={getImageUrl(payment.proofs[0].fileUrl)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1 text-sm text-sky-600 hover:text-sky-700 dark:text-sky-400"
@@ -1815,7 +1816,7 @@ export default function PendingPayments() {
                     <td className="px-4 py-4">
                       {payment.workerPaymentProofUrl ? (
                         <a
-                          href={payment.workerPaymentProofUrl}
+                          href={getImageUrl(payment.workerPaymentProofUrl)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700 dark:text-green-400"
@@ -1826,7 +1827,7 @@ export default function PendingPayments() {
                         </a>
                       ) : payment.proofs && payment.proofs.length > 0 ? (
                         <a
-                          href={payment.proofs[0].fileUrl}
+                          href={getImageUrl(payment.proofs[0].fileUrl)}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 text-sm text-sky-600 hover:text-sky-700 dark:text-sky-400"
@@ -2094,7 +2095,7 @@ export default function PendingPayments() {
                           <td className="px-4 py-4">
                             {payment.paymentProofUrl ? (
                               <a
-                                href={payment.paymentProofUrl}
+                                href={getImageUrl(payment.paymentProofUrl)}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1 text-sm text-sky-600 hover:text-sky-700 dark:text-sky-400"
@@ -2525,7 +2526,7 @@ export default function PendingPayments() {
                               </div>
                             </div>
                             <a
-                              href={proof.fileUrl}
+                              href={getImageUrl(proof.fileUrl)}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="flex items-center gap-1 px-3 py-1.5 bg-blue-100 dark:bg-blue-800 text-blue-700 dark:text-blue-300 rounded-lg text-sm hover:bg-blue-200 dark:hover:bg-blue-700 transition"

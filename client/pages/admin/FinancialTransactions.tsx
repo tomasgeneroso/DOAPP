@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
+import { getImageUrl } from "@/utils/imageUrl";
 import ExcelJS from "exceljs";
 import {
   DollarSign,
@@ -1595,7 +1596,7 @@ export default function FinancialTransactions() {
                     {selectedTransaction.proofs.map((proof, index) => (
                       <a
                         key={proof.id}
-                        href={proof.fileUrl}
+                        href={getImageUrl(proof.fileUrl)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center gap-2 p-3 bg-sky-50 dark:bg-sky-900/20 rounded-lg hover:bg-sky-100 dark:hover:bg-sky-900/30 transition"
