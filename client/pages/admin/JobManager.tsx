@@ -3,6 +3,7 @@ import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { Briefcase, CheckCircle, XCircle, Clock, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Image as ImageIcon, FileText, Download, Bell, Pause, Play, Ban, Plus, UserCheck, UserX } from "lucide-react";
 import { Link } from "react-router-dom";
+import { getImageUrl } from "@/utils/imageUrl";
 
 // Safe date formatter — never throws on null/undefined/invalid dates
 const safeDate = (value: any, opts?: Intl.DateTimeFormatOptions): string => {
@@ -87,8 +88,13 @@ export default function AdminJobManager() {
   const [rejectModal, setRejectModal] = useState<{ jobId: string; jobTitle: string } | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [newJobAlert, setNewJobAlert] = useState<string | null>(null);
-  const [actionModal, setActionModal] = useState<{ jobId: string; jobTitle: string; action: 'pause' | 'cancel' } | null>(null);
+  const [actionModal, setActionModal] = useState<{ jobId: string; jobTitle: string; action: 'pause' | 'cancel'; clientId?: string; clientName?: string } | null>(null);
   const [actionReason, setActionReason] = useState("");
+  // Optional chat with the client from the pause/cancel modal
+  const [actionChatConvId, setActionChatConvId] = useState<string | null>(null);
+  const [actionChatInput, setActionChatInput] = useState("");
+  const [actionChatSending, setActionChatSending] = useState(false);
+  const [actionChatMsg, setActionChatMsg] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
   const [reviewerLoading, setReviewerLoading] = useState<string | null>(null);
   const currentUserId = (() => { try { return JSON.parse(localStorage.getItem('user') || '{}').id; } catch { return null; } })();
@@ -290,9 +296,46 @@ export default function AdminJobManager() {
     }
   };
 
-  const handlePause = (jobId: string, jobTitle: string) => {
+  const initActionChat = async (client?: { id?: string; name?: string }) => {
+    setActionChatConvId(null);
+    setActionChatInput("");
+    setActionChatMsg(null);
+    if (!client?.id) return;
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch('/api/chat/conversations/find-or-create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ participantId: client.id }),
+      });
+      const data = await res.json();
+      const conv = data.conversation || data.data;
+      if (data.success && conv) setActionChatConvId(conv.id || conv._id);
+    } catch { /* chat is best-effort */ }
+  };
+
+  const sendActionMessage = async () => {
+    if (!actionChatConvId || !actionChatInput.trim() || actionChatSending) return;
+    setActionChatSending(true);
+    setActionChatMsg(null);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/chat/conversations/${actionChatConvId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ content: actionChatInput.trim(), type: 'text' }),
+      });
+      const data = await res.json();
+      if (data.success) { setActionChatInput(""); setActionChatMsg("Mensaje enviado ✓"); }
+      else setActionChatMsg((typeof data.message === 'string' && data.message) || "No se pudo enviar el mensaje");
+    } catch { setActionChatMsg("Error de red al enviar el mensaje"); }
+    setActionChatSending(false);
+  };
+
+  const handlePause = (jobId: string, jobTitle: string, client?: { id?: string; name?: string }) => {
     setActionReason("");
-    setActionModal({ jobId, jobTitle, action: 'pause' });
+    setActionModal({ jobId, jobTitle, action: 'pause', clientId: client?.id, clientName: client?.name });
+    initActionChat(client);
   };
 
   const handleResume = async (jobId: string) => {
@@ -301,10 +344,11 @@ export default function AdminJobManager() {
     }
   };
 
-  const handleCancel = (jobId: string, jobTitle: string) => {
+  const handleCancel = (jobId: string, jobTitle: string, client?: { id?: string; name?: string }) => {
     setActionReason("");
     setPermanentCancel(false);
-    setActionModal({ jobId, jobTitle, action: 'cancel' });
+    setActionModal({ jobId, jobTitle, action: 'cancel', clientId: client?.id, clientName: client?.name });
+    initActionChat(client);
   };
 
   const confirmAction = async () => {
@@ -680,7 +724,7 @@ export default function AdminJobManager() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         {job.client?.avatar && (
-                          <img src={job.client.avatar} alt="" className="h-8 w-8 rounded-full mr-2" />
+                          <img src={getImageUrl(job.client.avatar)} alt="" className="h-8 w-8 rounded-full mr-2" />
                         )}
                         <div>
                           <a
@@ -832,7 +876,7 @@ export default function AdminJobManager() {
                         {/* Pausar: cualquier publicación activa/pendiente (no terminal ni ya pausada) */}
                         {!['cancelled', 'completed', 'paused', 'suspended', 'rejected', 'draft'].includes(job.status) && (
                           <button
-                            onClick={() => handlePause(job.id, job.title)}
+                            onClick={() => handlePause(job.id, job.title, job.client)}
                             className="text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 transform hover:scale-110 transition-all duration-150"
                             title={t('common.pause', 'Pause')}
                             disabled={actionLoading}
@@ -856,7 +900,7 @@ export default function AdminJobManager() {
                         {/* Cancelar para publicaciones no canceladas */}
                         {job.status !== 'cancelled' && job.status !== 'completed' && (
                           <button
-                            onClick={() => handleCancel(job.id, job.title)}
+                            onClick={() => handleCancel(job.id, job.title, job.client)}
                             className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 transform hover:scale-110 transition-all duration-150"
                             title={t('common.cancel', 'Cancel')}
                             disabled={actionLoading}
@@ -1042,6 +1086,34 @@ export default function AdminJobManager() {
                 {actionReason.length}/200 caracteres
               </p>
             </div>
+
+            {actionModal.clientId && (
+              <div className="mb-4 border-t border-gray-200 dark:border-gray-700 pt-3">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Mensaje al cliente {actionModal.clientName ? `(${actionModal.clientName})` : ''} <span className="text-gray-400 font-normal">— opcional</span>
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={actionChatInput}
+                    onChange={(e) => setActionChatInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); sendActionMessage(); } }}
+                    placeholder="Ej: Necesitamos que corrijas la información..."
+                    className="flex-1 text-sm px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-sky-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={sendActionMessage}
+                    disabled={actionChatSending || !actionChatConvId || !actionChatInput.trim()}
+                    className="px-3 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium"
+                  >
+                    {actionChatSending ? '...' : 'Enviar'}
+                  </button>
+                </div>
+                {!actionChatConvId && <p className="text-xs text-amber-500 mt-1">Iniciando conversación…</p>}
+                {actionChatMsg && <p className="text-xs mt-1 text-gray-500 dark:text-gray-400">{actionChatMsg}</p>}
+              </div>
+            )}
 
             <div className="flex justify-end gap-3">
               <button
