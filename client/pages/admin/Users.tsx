@@ -235,8 +235,10 @@ export default function AdminUsers() {
         body: JSON.stringify({ participantId: userId }),
       });
       const data = await res.json();
-      if (data.success && data.data) {
-        const convId = data.data.id || data.data._id;
+      // Backend returns the conversation under `conversation` (fallback to `data`)
+      const conv = data.conversation || data.data;
+      if (data.success && conv) {
+        const convId = conv.id || conv._id;
         setVerifyChatConvId(convId);
         // Load messages
         const msgRes = await fetch(`/api/chat/conversations/${convId}/messages`, {
@@ -271,12 +273,14 @@ export default function AdminUsers() {
         body: JSON.stringify({ content: text.trim(), type: 'text' }),
       });
       const data = await res.json();
-      if (data.success && data.data) {
-        setVerifyChatMessages(prev => [...prev, data.data]);
+      // Backend returns the created message under `message` (fallback to `data`)
+      const newMsg = data.data || data.message;
+      if (data.success && newMsg && typeof newMsg === 'object') {
+        setVerifyChatMessages(prev => [...prev, newMsg]);
         setVerifyChatInput('');
         setTimeout(() => verifyChatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
       } else {
-        setVerifyChatError(data.message || `No se pudo enviar el mensaje (error ${res.status})`);
+        setVerifyChatError((typeof data.message === 'string' && data.message) || `No se pudo enviar el mensaje (error ${res.status})`);
       }
     } catch (e: any) {
       setVerifyChatError(e?.message || 'Error de red al enviar el mensaje');
@@ -772,9 +776,9 @@ export default function AdminUsers() {
       {/* Verification Modal */}
       {verifyModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl my-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl my-4 max-h-[calc(100vh-2rem)] flex flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-gray-700 shrink-0">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-emerald-100 dark:bg-emerald-900/30">
                   <ShieldCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
@@ -794,7 +798,7 @@ export default function AdminUsers() {
                 <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
               </div>
             ) : verifyDetail ? (
-              <div className="p-5 space-y-5 max-h-[70vh] overflow-y-auto">
+              <div className="p-5 space-y-5 flex-1 min-h-0 overflow-y-auto">
                 {/* Current status */}
                 <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${
                   verifyDetail.user.dniVerified
@@ -1007,7 +1011,7 @@ export default function AdminUsers() {
             </div>
 
             {/* Actions */}
-            <div className="flex gap-3 p-5 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex gap-3 p-5 border-t border-gray-200 dark:border-gray-700 shrink-0">
               <button onClick={() => { setVerifyModal(null); setVerifyDetail(null); }} className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
                 Cerrar
               </button>
@@ -1038,7 +1042,7 @@ export default function AdminUsers() {
       {/* License Modal */}
       {licenseModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg max-h-[calc(100vh-2rem)] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between p-5 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-center gap-3">
@@ -1060,7 +1064,7 @@ export default function AdminUsers() {
                 <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
               </div>
             ) : licenseDetail ? (
-              <div className="p-5 space-y-4 max-h-[65vh] overflow-y-auto">
+              <div className="p-5 space-y-4 flex-1 min-h-0 overflow-y-auto">
                 {/* Status badge */}
                 <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium ${
                   licenseDetail.licenseVerificationStatus === 'approved'
