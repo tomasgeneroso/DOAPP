@@ -829,8 +829,8 @@ export default function AdminJobManager() {
                           </>
                         )}
 
-                        {/* Pausar para publicaciones activas */}
-                        {(job.status === 'open' || job.status === 'in_progress') && (
+                        {/* Pausar: cualquier publicación activa/pendiente (no terminal ni ya pausada) */}
+                        {!['cancelled', 'completed', 'paused', 'suspended', 'rejected', 'draft'].includes(job.status) && (
                           <button
                             onClick={() => handlePause(job.id, job.title)}
                             className="text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300 transform hover:scale-110 transition-all duration-150"
