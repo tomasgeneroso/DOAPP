@@ -32,6 +32,7 @@ export default function AdminUsers() {
   const [verifyModal, setVerifyModal] = useState<AdminUser | null>(null);
   const [verifyDetail, setVerifyDetail] = useState<any>(null);
   const [verifyDetailLoading, setVerifyDetailLoading] = useState(false);
+  const [verifyDetailError, setVerifyDetailError] = useState<string | null>(null);
   const [verifyLoading, setVerifyLoading] = useState(false);
 
   // License modal
@@ -134,6 +135,7 @@ export default function AdminUsers() {
   const openVerifyModal = async (user: AdminUser) => {
     setVerifyModal(user);
     setVerifyDetail(null);
+    setVerifyDetailError(null);
     setVerifyDetailLoading(true);
     setVerifyChatOpen(false);
     setVerifyChatConvId(null);
@@ -145,13 +147,17 @@ export default function AdminUsers() {
       });
       const data = await res.json();
       if (data.success) setVerifyDetail(data.data);
-    } catch {}
+      else setVerifyDetailError(data.message || `Error ${res.status}: no se pudo cargar el perfil`);
+    } catch (e: any) {
+      setVerifyDetailError(e?.message || 'Error de red al cargar el perfil');
+    }
     setVerifyDetailLoading(false);
   };
 
   const openLicenseModal = async (user: AdminUser) => {
     setLicenseModal(user);
     setLicenseDetail(null);
+    setVerifyDetailError(null);
     setLicenseDetailLoading(true);
     setLicenseRejectReason('');
     try {
@@ -160,7 +166,10 @@ export default function AdminUsers() {
       });
       const data = await res.json();
       if (data.success) setLicenseDetail(data.data.user);
-    } catch {}
+      else setVerifyDetailError(data.message || `Error ${res.status}: no se pudo cargar el perfil`);
+    } catch (e: any) {
+      setVerifyDetailError(e?.message || 'Error de red al cargar el perfil');
+    }
     setLicenseDetailLoading(false);
   };
 
@@ -883,7 +892,10 @@ export default function AdminUsers() {
                 )}
               </div>
             ) : (
-              <div className="p-8 text-center text-sm text-gray-400">No se pudo cargar el perfil</div>
+              <div className="p-8 text-center text-sm text-gray-400">
+                No se pudo cargar el perfil
+                {verifyDetailError && <div className="mt-2 text-xs text-red-400 break-words">{verifyDetailError}</div>}
+              </div>
             )}
 
             {/* Inline chat with user */}
@@ -1109,7 +1121,10 @@ export default function AdminUsers() {
                 )}
               </div>
             ) : (
-              <div className="p-8 text-center text-sm text-gray-400">No se pudo cargar el perfil</div>
+              <div className="p-8 text-center text-sm text-gray-400">
+                No se pudo cargar el perfil
+                {verifyDetailError && <div className="mt-2 text-xs text-red-400 break-words">{verifyDetailError}</div>}
+              </div>
             )}
 
             {/* Actions */}
