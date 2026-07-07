@@ -343,13 +343,27 @@ export default function AdminWithdrawalManager() {
         </div>
       )}
 
-      {/* Compact totals strip (cards removed in favour of the detailed table below) */}
+      {/* Totals cards (clickable filters, same style as the other admin panels) */}
       {stats && (
-        <div className="flex flex-wrap gap-x-6 gap-y-1 mb-6 text-sm text-gray-600 dark:text-gray-400">
-          <span>{t('common.status.pending', 'Pending')}: <strong className="text-gray-900 dark:text-white">{stats.pending}</strong></span>
-          <span>{t('common.status.approved', 'Approved')}: <strong className="text-gray-900 dark:text-white">{stats.approved}</strong></span>
-          <span>{t('common.status.completed', 'Completed')}: <strong className="text-gray-900 dark:text-white">{stats.completed}</strong></span>
-          <span>{t('admin.withdrawals.totalAmount', 'Total Amount')}: <strong className="text-gray-900 dark:text-white">${stats.totalAmount?.toLocaleString('es-AR') || 0}</strong></span>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          {([
+            { key: 'pending', label: t('common.status.pending', 'Pending'), value: stats.pending, icon: Clock, color: 'text-yellow-600 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900/30', ring: 'ring-yellow-500' },
+            { key: 'approved', label: t('common.status.approved', 'Approved'), value: stats.approved, icon: TrendingUp, color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-100 dark:bg-blue-900/30', ring: 'ring-blue-500' },
+            { key: 'completed', label: t('common.status.completed', 'Completed'), value: stats.completed, icon: CheckCircle, color: 'text-green-600 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900/30', ring: 'ring-green-500' },
+            { key: 'all', label: t('admin.withdrawals.totalAmount', 'Total Amount'), value: `$${stats.totalAmount?.toLocaleString('es-AR') || 0}`, icon: DollarSign, color: 'text-purple-600 dark:text-purple-400', bg: 'bg-purple-100 dark:bg-purple-900/30', ring: 'ring-purple-500' },
+          ] as const).map((c) => (
+            <button
+              key={c.key}
+              onClick={() => setFilterStatus(c.key)}
+              className={`text-left bg-white dark:bg-gray-800 rounded-lg shadow p-4 cursor-pointer transform hover:scale-105 hover:shadow-lg transition-all duration-200 ${filterStatus === c.key ? `ring-2 ${c.ring}` : ''}`}
+            >
+              <div className={`w-10 h-10 ${c.bg} rounded-full flex items-center justify-center mb-2`}>
+                <c.icon className={`w-5 h-5 ${c.color}`} />
+              </div>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{c.value}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{c.label}</p>
+            </button>
+          ))}
         </div>
       )}
 

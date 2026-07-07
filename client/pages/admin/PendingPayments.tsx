@@ -246,6 +246,13 @@ export default function PendingPayments() {
   const [minAmount, setMinAmount] = useState("");
   const [maxAmount, setMaxAmount] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // Proof viewer modal (in-page image/PDF + message the payer)
+  const [proofViewer, setProofViewer] = useState<{ url: string; title: string; userId?: string; userName?: string } | null>(null);
+  const [proofImgError, setProofImgError] = useState(false);
+  const [proofChatConvId, setProofChatConvId] = useState<string | null>(null);
+  const [proofChatInput, setProofChatInput] = useState('');
+  const [proofChatSending, setProofChatSending] = useState(false);
+  const [proofChatMsg, setProofChatMsg] = useState<string | null>(null);
 
   // Sorting
   const [sortBy, setSortBy] = useState("createdAt");
@@ -343,6 +350,52 @@ export default function PendingPayments() {
     } finally {
       setVerificationLoading(false);
     }
+  };
+
+  // Open the proof in an in-page modal (and prepare a chat with the payer)
+  const openProofViewer = async (url: string, title: string, userId?: string, userName?: string) => {
+    setProofViewer({ url: getImageUrl(url), title, userId, userName });
+    setProofImgError(false);
+    setProofChatConvId(null);
+    setProofChatInput('');
+    setProofChatMsg(null);
+    if (userId) {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch('/api/chat/conversations/find-or-create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ participantId: userId }),
+        });
+        const data = await res.json();
+        const conv = data.conversation || data.data;
+        if (data.success && conv) setProofChatConvId(conv.id || conv._id);
+      } catch { /* chat is best-effort */ }
+    }
+  };
+
+  const sendProofMessage = async () => {
+    if (!proofChatConvId || !proofChatInput.trim() || proofChatSending) return;
+    setProofChatSending(true);
+    setProofChatMsg(null);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/chat/conversations/${proofChatConvId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ content: proofChatInput.trim(), type: 'text' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setProofChatInput('');
+        setProofChatMsg('Mensaje enviado ✓');
+      } else {
+        setProofChatMsg((typeof data.message === 'string' && data.message) || 'No se pudo enviar el mensaje');
+      }
+    } catch {
+      setProofChatMsg('Error de red al enviar el mensaje');
+    }
+    setProofChatSending(false);
   };
 
   // Abrir modal de aprobación (Step 1: requiere comprobante + datos)
@@ -1441,15 +1494,18 @@ export default function PendingPayments() {
                           </td>
                           <td className="px-4 py-4">
                             {payment.proofs && payment.proofs.length > 0 ? (
-                              <a
-                                href={getImageUrl(payment.proofs[0].fileUrl)}
-                                target="_blank"
-                                rel="noopener noreferrer"
+                              <button
+                                onClick={() => openProofViewer(
+                                  payment.proofs![0].fileUrl,
+                                  `Comprobante · ${payment.proofs![0].clientName || ''}`,
+                                  payment.proofs![0].clientId,
+                                  payment.proofs![0].clientName,
+                                )}
                                 className="inline-flex items-center gap-1 text-sm text-sky-600 hover:text-sky-700 dark:text-sky-400"
                               >
                                 <Receipt className="h-4 w-4" />
                                 Ver
-                              </a>
+                              </button>
                             ) : payment.isMercadoPago ? (
                               <span className="text-xs text-blue-500 dark:text-blue-400">
                                 MercadoPago
@@ -2892,6 +2948,68 @@ export default function PendingPayments() {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Proof viewer modal (in-page) */}
+      {proofViewer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setProofViewer(null)}>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[calc(100vh-2rem)] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
+              <h3 className="font-semibold text-gray-900 dark:text-white truncate">{proofViewer.title}</h3>
+              <button onClick={() => setProofViewer(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 shrink-0 ml-2">
+                <XCircle className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="p-4 flex-1 min-h-0 overflow-y-auto">
+              {proofViewer.url.toLowerCase().includes('.pdf') ? (
+                <a href={proofViewer.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 py-12 text-sky-600 dark:text-sky-400 hover:underline">
+                  <FileText className="h-8 w-8" /> Abrir PDF del comprobante
+                </a>
+              ) : proofImgError ? (
+                <div className="text-center py-10 text-sm text-gray-500 dark:text-gray-400">
+                  No se pudo cargar la imagen.
+                  <a href={proofViewer.url} target="_blank" rel="noopener noreferrer" className="block mt-2 text-sky-600 dark:text-sky-400 hover:underline">Abrir en pestaña nueva</a>
+                </div>
+              ) : (
+                <img
+                  src={proofViewer.url}
+                  alt="Comprobante"
+                  onError={() => setProofImgError(true)}
+                  className="w-full rounded-lg object-contain max-h-[60vh] bg-gray-100 dark:bg-gray-900"
+                />
+              )}
+              <a href={proofViewer.url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-xs text-sky-600 dark:text-sky-400 hover:underline">
+                Abrir en pestaña nueva ↗
+              </a>
+            </div>
+            {proofViewer.userId && (
+              <div className="p-4 border-t border-gray-200 dark:border-gray-700 shrink-0">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  Enviar mensaje a {proofViewer.userName || 'el cliente'} (ej: pedir otra foto del comprobante)
+                </p>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={proofChatInput}
+                    onChange={(e) => setProofChatInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); sendProofMessage(); } }}
+                    placeholder="Escribí un mensaje..."
+                    className="flex-1 text-sm px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-1 focus:ring-sky-500"
+                  />
+                  <button
+                    onClick={sendProofMessage}
+                    disabled={proofChatSending || !proofChatConvId || !proofChatInput.trim()}
+                    className="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded-lg text-sm font-medium"
+                  >
+                    {proofChatSending ? '...' : 'Enviar'}
+                  </button>
+                </div>
+                {!proofChatConvId && <p className="text-xs text-amber-500 mt-1">Iniciando conversación…</p>}
+                {proofChatMsg && <p className="text-xs mt-1 text-gray-500 dark:text-gray-400">{proofChatMsg}</p>}
+              </div>
+            )}
           </div>
         </div>
       )}
