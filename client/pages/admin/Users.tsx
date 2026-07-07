@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Helmet } from "react-helmet-async";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { adminApi } from "@/lib/adminApi";
+import { getImageUrl } from "@/utils/imageUrl";
 import { useSocket } from "@/hooks/useSocket";
 import { useAuth } from "@/hooks/useAuth";
 import type { AdminUser } from "@/types/admin";
@@ -49,6 +50,7 @@ export default function AdminUsers() {
   const [verifyChatLoading, setVerifyChatLoading] = useState(false);
   const [verifyChatSending, setVerifyChatSending] = useState(false);
   const [verifyChatInput, setVerifyChatInput] = useState('');
+  const [verifyChatError, setVerifyChatError] = useState<string | null>(null);
   const verifyChatEndRef = useRef<HTMLDivElement>(null);
 
   const DNI_REQUEST_TEMPLATE = 'Hola! Para verificar tu identidad necesitamos que subas las fotos de tu DNI (frente y dorso) desde la sección "Completar registro" en tu perfil. Podés subir imágenes o PDF. Gracias!';
@@ -222,6 +224,8 @@ export default function AdminUsers() {
     setVerifyChatOpen(true);
     setVerifyChatLoading(true);
     setVerifyChatMessages([]);
+    setVerifyChatError(null);
+    setVerifyChatConvId(null);
     try {
       const userId = verifyModal.id || verifyModal._id;
       // Find or create conversation with this user
@@ -243,14 +247,23 @@ export default function AdminUsers() {
           setVerifyChatMessages(msgData.data || []);
           setTimeout(() => verifyChatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
         }
+      } else {
+        setVerifyChatError(data.message || `No se pudo iniciar la conversación (error ${res.status})`);
       }
-    } catch {}
+    } catch (e: any) {
+      setVerifyChatError(e?.message || 'Error de red al iniciar la conversación');
+    }
     setVerifyChatLoading(false);
   };
 
   const sendVerifyMessage = async (text: string) => {
-    if (!verifyChatConvId || !text.trim() || verifyChatSending) return;
+    if (!text.trim() || verifyChatSending) return;
+    if (!verifyChatConvId) {
+      setVerifyChatError('La conversación no se inició. Cerrá y volvé a abrir el chat.');
+      return;
+    }
     setVerifyChatSending(true);
+    setVerifyChatError(null);
     try {
       const res = await fetch(`/api/chat/conversations/${verifyChatConvId}/messages`, {
         method: 'POST',
@@ -262,8 +275,12 @@ export default function AdminUsers() {
         setVerifyChatMessages(prev => [...prev, data.data]);
         setVerifyChatInput('');
         setTimeout(() => verifyChatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+      } else {
+        setVerifyChatError(data.message || `No se pudo enviar el mensaje (error ${res.status})`);
       }
-    } catch {}
+    } catch (e: any) {
+      setVerifyChatError(e?.message || 'Error de red al enviar el mensaje');
+    }
     setVerifyChatSending(false);
   };
 
@@ -441,7 +458,7 @@ export default function AdminUsers() {
                   <div className="flex items-center">
                     <div className="h-10 w-10 flex-shrink-0">
                       {user.avatar ? (
-                        <img className="h-10 w-10 rounded-full object-cover" src={user.avatar} alt="" />
+                        <img className="h-10 w-10 rounded-full object-cover" src={getImageUrl(user.avatar)} alt="" />
                       ) : (
                         <div className="h-10 w-10 rounded-full bg-gradient-to-br from-sky-500 to-sky-600 flex items-center justify-center">
                           <span className="text-white font-semibold text-sm">
@@ -530,7 +547,7 @@ export default function AdminUsers() {
                                 <FileText className="h-4 w-4" />
                               </span>
                             ) : (
-                              <img src={url} alt={label} className="h-10 w-14 rounded object-cover border border-gray-200 dark:border-gray-600 hover:opacity-80" />
+                              <img src={getImageUrl(url)} alt={label} className="h-10 w-14 rounded object-cover border border-gray-200 dark:border-gray-600 hover:opacity-80" />
                             )}
                           </button>
                         ) : (
@@ -841,12 +858,12 @@ export default function AdminUsers() {
                           <div className="px-3 py-1.5 bg-gray-50 dark:bg-gray-700 text-xs font-medium text-gray-600 dark:text-gray-400">{label}</div>
                           {url ? (
                             url.endsWith('.pdf') ? (
-                              <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-3 text-sm text-sky-600 dark:text-sky-400 hover:underline">
+                              <a href={getImageUrl(url)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-3 text-sm text-sky-600 dark:text-sky-400 hover:underline">
                                 <FileText className="h-5 w-5" /> Ver PDF
                               </a>
                             ) : (
-                              <a href={url} target="_blank" rel="noopener noreferrer">
-                                <img src={url} alt={label} className="w-full h-36 object-cover hover:opacity-90 transition-opacity" />
+                              <a href={getImageUrl(url)} target="_blank" rel="noopener noreferrer">
+                                <img src={getImageUrl(url)} alt={label} className="w-full h-36 object-cover hover:opacity-90 transition-opacity" />
                               </a>
                             )
                           ) : (
@@ -947,6 +964,9 @@ export default function AdminUsers() {
                           </div>
                         );
                       })
+                    )}
+                    {verifyChatError && (
+                      <div className="mt-2 text-center text-xs text-red-500 bg-red-50 dark:bg-red-900/20 rounded p-2 break-words">{verifyChatError}</div>
                     )}
                     <div ref={verifyChatEndRef} />
                   </div>
@@ -1084,13 +1104,13 @@ export default function AdminUsers() {
                   <div>
                     <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Documento</p>
                     {licenseDetail.licenseDocumentUrl.endsWith('.pdf') ? (
-                      <a href={licenseDetail.licenseDocumentUrl} target="_blank" rel="noopener noreferrer"
+                      <a href={getImageUrl(licenseDetail.licenseDocumentUrl)} target="_blank" rel="noopener noreferrer"
                         className="flex items-center gap-2 px-4 py-3 border border-dashed border-gray-300 dark:border-gray-600 rounded-xl text-sm text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors">
                         <FileText className="h-5 w-5" /> Ver PDF
                       </a>
                     ) : (
-                      <a href={licenseDetail.licenseDocumentUrl} target="_blank" rel="noopener noreferrer">
-                        <img src={licenseDetail.licenseDocumentUrl} alt="Documento matrícula"
+                      <a href={getImageUrl(licenseDetail.licenseDocumentUrl)} target="_blank" rel="noopener noreferrer">
+                        <img src={getImageUrl(licenseDetail.licenseDocumentUrl)} alt="Documento matrícula"
                           className="w-full max-h-52 object-contain rounded-xl border border-gray-200 dark:border-gray-600 hover:opacity-90 transition-opacity bg-gray-50 dark:bg-gray-700" />
                       </a>
                     )}
