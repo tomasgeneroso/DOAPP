@@ -179,7 +179,8 @@ export default function FinancialTransactions() {
         job_publication: 'Publicación',
         budget_increase: 'Aumento Presupuesto',
         escrow_deposit: 'Escrow',
-        escrow_release: 'Liberación'
+        escrow_release: 'Liberación',
+        withdrawal: 'Retiro'
       };
 
       // Create workbook and worksheet
@@ -630,6 +631,11 @@ export default function FinancialTransactions() {
         label: 'Membresía',
         tooltip: 'Pago de suscripción PRO o SUPER PRO. Otorga beneficios como menor comisión y mayor visibilidad.',
         color: 'bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400'
+      },
+      withdrawal: {
+        label: 'Retiro',
+        tooltip: 'Solicitud de retiro de un usuario: fondos transferidos a su cuenta bancaria (CBU).',
+        color: 'bg-rose-100 text-rose-800 dark:bg-rose-900/20 dark:text-rose-400'
       },
       job_publication: {
         label: 'Publicación',
@@ -1106,6 +1112,7 @@ export default function FinancialTransactions() {
               <option value="job_publication">{t('admin.financial.types.publications', 'Publications')}</option>
               <option value="budget_increase">{t('admin.financial.types.budgetIncrease', 'Budget Increase')}</option>
               <option value="escrow_deposit">{t('admin.financial.types.escrow', 'Escrow')}</option>
+              <option value="withdrawal">{t('admin.financial.types.withdrawals', 'Withdrawals')}</option>
             </select>
           </div>
 

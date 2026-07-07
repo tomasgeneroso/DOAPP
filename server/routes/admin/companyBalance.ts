@@ -277,6 +277,58 @@ router.get(
         if (endDate) where.createdAt[Op.lte] = new Date(endDate as string);
       }
 
+      // Withdrawals live in a separate model (WithdrawalRequest). When the admin
+      // filters by "withdrawal", list those here mapped to the transaction shape,
+      // with proper pagination.
+      if (type === 'withdrawal') {
+        const wWhere: any = {};
+        if (status && status !== 'all') wWhere.status = status;
+        if (startDate || endDate) {
+          wWhere.requestedAt = {};
+          if (startDate) wWhere.requestedAt[Op.gte] = new Date(startDate as string);
+          if (endDate) wWhere.requestedAt[Op.lte] = new Date(endDate as string);
+        }
+        const { count, rows } = await WithdrawalRequest.findAndCountAll({
+          where: wWhere,
+          include: [{ association: 'user', attributes: ['name', 'email'], required: false }],
+          order: [['requestedAt', 'DESC']],
+          offset,
+          limit: Number(limit),
+        });
+        const wTransactions = rows
+          .filter((w: any) => !(w.user?.email || '').match(/@(example|test)\.com$/))
+          .map((w: any) => ({
+            id: w.id,
+            date: w.requestedAt || w.createdAt,
+            type: 'withdrawal',
+            status: w.status,
+            totalAmount: Number(w.amount) || 0,
+            currency: 'ARS',
+            platformFee: 0,
+            platformFeePercentage: 0,
+            doer: null,
+            jobTitle: null,
+            jobPrice: null,
+            contract: null,
+            payer: null,
+            recipient: w.user ? { name: w.user.name, email: w.user.email } : null,
+            isEscrow: false,
+            escrowAmount: 0,
+            escrowReleased: false,
+            paymentMethod: 'bank_transfer',
+            description: `Retiro · ${w.bankingInfo?.bankName || 'Banco'} · CBU ${w.bankingInfo?.cbu || '—'}`,
+            proofOfTransfer: w.proofOfTransfer || null,
+          }));
+        res.json({
+          success: true,
+          data: {
+            transactions: wTransactions,
+            pagination: { total: count, page: Number(page), limit: Number(limit), pages: Math.ceil(count / Number(limit)) },
+          },
+        });
+        return;
+      }
+
       // Get payments with contract, user details, and payment proof
       const payments = await Payment.findAll({
         where,
