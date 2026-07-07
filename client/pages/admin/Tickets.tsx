@@ -295,32 +295,50 @@ export default function AdminTickets() {
           <option value="payment">Pago</option>
           <option value="other">Otro</option>
         </select>
-        <select
-          value={priorityFilter}
-          onChange={(e) => setPriorityFilter(e.target.value)}
-          className="px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-sm text-gray-900 dark:text-white"
-        >
-          <option value="">Todas las prioridades</option>
-          <option value="urgent">Urgente</option>
-          <option value="high">Alta</option>
-          <option value="medium">Media</option>
-          <option value="low">Baja</option>
-        </select>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 min-w-0 lg:col-span-2">
           <input
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
-            className="w-full px-2 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-xs text-gray-900 dark:text-white"
+            className="flex-1 min-w-0 px-2 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-xs text-gray-900 dark:text-white"
           />
           <span className="text-gray-400 shrink-0">—</span>
           <input
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            className="w-full px-2 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-xs text-gray-900 dark:text-white"
+            className="flex-1 min-w-0 px-2 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-xs text-gray-900 dark:text-white"
           />
         </div>
+      </div>
+
+      {/* Priority filter (chips like the dispute priority distribution) */}
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        <span className="text-xs font-medium text-slate-500 dark:text-slate-400 mr-1">Prioridad:</span>
+        {([
+          { key: "", label: "Todas", cls: "text-slate-700 dark:text-slate-300" },
+          { key: "urgent", label: "Urgente", cls: "text-red-700 dark:text-red-300" },
+          { key: "high", label: "Alta", cls: "text-orange-700 dark:text-orange-300" },
+          { key: "medium", label: "Media", cls: "text-blue-700 dark:text-blue-300" },
+          { key: "low", label: "Baja", cls: "text-slate-600 dark:text-slate-400" },
+        ] as const).map((p) => {
+          const count = p.key ? tickets.filter((tk) => (tk as any).priority === p.key).length : tickets.length;
+          const active = priorityFilter === p.key;
+          return (
+            <button
+              key={p.key || "all"}
+              onClick={() => setPriorityFilter(p.key)}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-all ${
+                active
+                  ? "border-sky-500 ring-2 ring-sky-400/50 bg-sky-50 dark:bg-sky-900/20"
+                  : "border-slate-200 dark:border-slate-700 bg-white dark:bg-gray-800 hover:border-slate-300 dark:hover:border-slate-600"
+              }`}
+            >
+              <span className={p.cls}>{p.label}</span>
+              <span className="ml-1 text-slate-400">({count})</span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Tickets List */}

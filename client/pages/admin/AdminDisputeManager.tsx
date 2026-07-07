@@ -491,27 +491,24 @@ const AdminDisputeManager: React.FC = () => {
         {stats && stats.byPriority && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-8">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('admin.disputes.priorityDistribution', 'Priority Distribution')}</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">{t('admin.disputes.priorityFilterHint', 'Click a priority to filter (click again to clear)')}</p>
             <div className="flex flex-wrap gap-4">
-              <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <span className="text-gray-400">○</span>
-                <span className="text-sm text-gray-600 dark:text-gray-300">{t('common.priority.low', 'Low')}:</span>
-                <span className="font-bold text-gray-900 dark:text-white">{stats.byPriority.low || 0}</span>
-              </div>
-              <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                <span className="text-blue-500">◐</span>
-                <span className="text-sm text-blue-600 dark:text-blue-300">{t('common.priority.medium', 'Medium')}:</span>
-                <span className="font-bold text-blue-700 dark:text-blue-200">{stats.byPriority.medium || 0}</span>
-              </div>
-              <div className="flex items-center gap-2 px-4 py-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-                <span className="text-orange-500">●</span>
-                <span className="text-sm text-orange-600 dark:text-orange-300">{t('common.priority.high', 'High')}:</span>
-                <span className="font-bold text-orange-700 dark:text-orange-200">{stats.byPriority.high || 0}</span>
-              </div>
-              <div className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                <span>⚠️</span>
-                <span className="text-sm text-red-600 dark:text-red-300">{t('common.priority.urgent', 'Urgent')}:</span>
-                <span className="font-bold text-red-700 dark:text-red-200">{stats.byPriority.urgent || 0}</span>
-              </div>
+              {([
+                { key: 'low', icon: '○', label: t('common.priority.low', 'Low'), count: stats.byPriority.low || 0, box: 'bg-gray-50 dark:bg-gray-700', icoCls: 'text-gray-400', txtCls: 'text-gray-600 dark:text-gray-300', numCls: 'text-gray-900 dark:text-white', ring: 'ring-gray-400' },
+                { key: 'medium', icon: '◐', label: t('common.priority.medium', 'Medium'), count: stats.byPriority.medium || 0, box: 'bg-blue-50 dark:bg-blue-900/20', icoCls: 'text-blue-500', txtCls: 'text-blue-600 dark:text-blue-300', numCls: 'text-blue-700 dark:text-blue-200', ring: 'ring-blue-400' },
+                { key: 'high', icon: '●', label: t('common.priority.high', 'High'), count: stats.byPriority.high || 0, box: 'bg-orange-50 dark:bg-orange-900/20', icoCls: 'text-orange-500', txtCls: 'text-orange-600 dark:text-orange-300', numCls: 'text-orange-700 dark:text-orange-200', ring: 'ring-orange-400' },
+                { key: 'urgent', icon: '⚠️', label: t('common.priority.urgent', 'Urgent'), count: stats.byPriority.urgent || 0, box: 'bg-red-50 dark:bg-red-900/20', icoCls: '', txtCls: 'text-red-600 dark:text-red-300', numCls: 'text-red-700 dark:text-red-200', ring: 'ring-red-400' },
+              ] as const).map((p) => (
+                <button
+                  key={p.key}
+                  onClick={() => { setFilterPriority(filterPriority === p.key ? '' : p.key); setPage(1); }}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg cursor-pointer transform hover:scale-105 transition-all duration-200 ${p.box} ${filterPriority === p.key ? `ring-2 ${p.ring}` : ''}`}
+                >
+                  <span className={p.icoCls}>{p.icon}</span>
+                  <span className={`text-sm ${p.txtCls}`}>{p.label}:</span>
+                  <span className={`font-bold ${p.numCls}`}>{p.count}</span>
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -547,24 +544,6 @@ const AdminDisputeManager: React.FC = () => {
                 <option value="resolved_released">{t('admin.disputes.resolvedReleased', 'Resolved - Released')}</option>
                 <option value="resolved_refunded">{t('admin.disputes.resolvedRefunded', 'Resolved - Refunded')}</option>
                 <option value="resolved_partial">{t('admin.disputes.resolvedPartial', 'Resolved - Partial')}</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('common.priority.label', 'Priority')}</label>
-              <select
-                value={filterPriority}
-                onChange={(e) => {
-                  setFilterPriority(e.target.value);
-                  setPage(1);
-                }}
-                className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-              >
-                <option value="">{t('common.all', 'All')}</option>
-                <option value="low">{t('common.priority.low', 'Low')}</option>
-                <option value="medium">{t('common.priority.medium', 'Medium')}</option>
-                <option value="high">{t('common.priority.high', 'High')}</option>
-                <option value="urgent">{t('common.priority.urgent', 'Urgent')}</option>
               </select>
             </div>
 
