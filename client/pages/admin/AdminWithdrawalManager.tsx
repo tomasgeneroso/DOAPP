@@ -343,68 +343,13 @@ export default function AdminWithdrawalManager() {
         </div>
       )}
 
-      {/* Stats Grid */}
+      {/* Compact totals strip (cards removed in favour of the detailed table below) */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <button
-            onClick={() => setFilterStatus('pending')}
-            className={`text-left w-full bg-white dark:bg-gray-800 rounded-lg shadow p-6 cursor-pointer transform hover:scale-105 hover:shadow-lg transition-all duration-200 ${filterStatus === 'pending' ? 'ring-2 ring-yellow-500' : ''}`}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center">
-                <Clock className="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
-              </div>
-            </div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">
-              {stats.pending}
-            </p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">{t('common.status.pending', 'Pending')}</p>
-          </button>
-
-          <button
-            onClick={() => setFilterStatus('approved')}
-            className={`text-left w-full bg-white dark:bg-gray-800 rounded-lg shadow p-6 cursor-pointer transform hover:scale-105 hover:shadow-lg transition-all duration-200 ${filterStatus === 'approved' ? 'ring-2 ring-blue-500' : ''}`}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
-                <TrendingUp className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-              </div>
-            </div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">
-              {stats.approved}
-            </p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">{t('common.status.approved', 'Approved')}</p>
-          </button>
-
-          <button
-            onClick={() => setFilterStatus('completed')}
-            className={`text-left w-full bg-white dark:bg-gray-800 rounded-lg shadow p-6 cursor-pointer transform hover:scale-105 hover:shadow-lg transition-all duration-200 ${filterStatus === 'completed' ? 'ring-2 ring-green-500' : ''}`}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
-                <CheckCircle className="w-6 h-6 text-green-600 dark:text-green-400" />
-              </div>
-            </div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">
-              {stats.completed}
-            </p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">{t('common.status.completed', 'Completed')}</p>
-          </button>
-
-          <button
-            onClick={() => setFilterStatus('all')}
-            className={`text-left w-full bg-white dark:bg-gray-800 rounded-lg shadow p-6 cursor-pointer transform hover:scale-105 hover:shadow-lg transition-all duration-200 ${filterStatus === 'all' ? 'ring-2 ring-purple-500' : ''}`}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-12 h-12 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center">
-                <DollarSign className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-              </div>
-            </div>
-            <p className="text-2xl font-bold text-gray-900 dark:text-white">
-              ${stats.totalAmount?.toLocaleString('es-AR') || 0}
-            </p>
-            <p className="text-sm text-gray-600 dark:text-gray-400">{t('admin.withdrawals.totalAmount', 'Total Amount')}</p>
-          </button>
+        <div className="flex flex-wrap gap-x-6 gap-y-1 mb-6 text-sm text-gray-600 dark:text-gray-400">
+          <span>{t('common.status.pending', 'Pending')}: <strong className="text-gray-900 dark:text-white">{stats.pending}</strong></span>
+          <span>{t('common.status.approved', 'Approved')}: <strong className="text-gray-900 dark:text-white">{stats.approved}</strong></span>
+          <span>{t('common.status.completed', 'Completed')}: <strong className="text-gray-900 dark:text-white">{stats.completed}</strong></span>
+          <span>{t('admin.withdrawals.totalAmount', 'Total Amount')}: <strong className="text-gray-900 dark:text-white">${stats.totalAmount?.toLocaleString('es-AR') || 0}</strong></span>
         </div>
       )}
 
@@ -427,124 +372,94 @@ export default function AdminWithdrawalManager() {
         </div>
       </div>
 
-      {/* Withdrawals List */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+      {/* Withdrawals Table */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white">
             {t('admin.withdrawals.requests', 'Withdrawal Requests')} ({withdrawals.length})
           </h2>
         </div>
 
-        <div className="divide-y divide-gray-200 dark:divide-gray-700">
-          {withdrawals.length === 0 ? (
-            <div className="p-12 text-center">
-              <ArrowDownCircle className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-500 dark:text-gray-400">
-                {t('admin.withdrawals.noRequests', 'No requests match this filter')}
-              </p>
-            </div>
-          ) : (
-            withdrawals.map((withdrawal) => {
-              const user = typeof withdrawal.user === 'object' ? withdrawal.user : null;
-
-              return (
-                <div key={withdrawal._id} className="p-6 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-3">
-                        <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                          ${withdrawal.amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
-                        </p>
-                        {getStatusBadge(withdrawal.status)}
-                      </div>
-
-                      {user && (
-                        <div className="mb-3 text-sm text-gray-600 dark:text-gray-400">
-                          <span className="font-medium">{t('common.user', 'User')}:</span> {user.name} ({user.email})
-                        </div>
-                      )}
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-400">
-                        <div className="flex items-center gap-2">
-                          <User className="w-4 h-4" />
-                          <span>{withdrawal.bankingInfo.accountHolder}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Building2 className="w-4 h-4" />
-                          <span>{withdrawal.bankingInfo.bankName}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Hash className="w-4 h-4" />
-                          <span className="font-mono">{withdrawal.bankingInfo.cbu}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4" />
-                          <span>{new Date(withdrawal.requestedAt).toLocaleDateString('es-AR')} {new Date(withdrawal.requestedAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</span>
-                        </div>
-                      </div>
-
-                      {withdrawal.adminNotes && (
-                        <div className="mt-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded p-3">
-                          <p className="text-sm text-blue-800 dark:text-blue-200">
-                            <strong>{t('admin.withdrawals.adminNotes', 'Admin notes')}:</strong> {withdrawal.adminNotes}
-                          </p>
-                        </div>
-                      )}
-
-                      {withdrawal.rejectionReason && (
-                        <div className="mt-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-3">
-                          <p className="text-sm text-red-800 dark:text-red-200">
-                            <strong>{t('admin.withdrawals.rejectionReason', 'Rejection reason')}:</strong> {withdrawal.rejectionReason}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                      <Button
-                        variant="secondary"
-                        onClick={() => {
-                          setSelectedWithdrawal(withdrawal);
-                          setShowDetailsModal(true);
-                        }}
-                        className="w-full lg:w-auto"
-                      >
-                        <Eye className="w-4 h-4 mr-2" />
-                        {t('common.viewDetails', 'View Details')}
-                      </Button>
-
-                      {withdrawal.status === 'pending' && (
+        {withdrawals.length === 0 ? (
+          <div className="p-12 text-center">
+            <ArrowDownCircle className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+            <p className="text-gray-500 dark:text-gray-400">
+              {t('admin.withdrawals.noRequests', 'No requests match this filter')}
+            </p>
+          </div>
+        ) : (
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+            <thead className="bg-gray-50 dark:bg-gray-900">
+              <tr>
+                {['Fecha', 'Usuario', 'Titular / CBU', 'Banco', 'Monto', 'Estado', 'Comprobante', 'Acciones'].map((h) => (
+                  <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+              {withdrawals.map((withdrawal) => {
+                const user = typeof withdrawal.user === 'object' ? withdrawal.user : null;
+                const proof = (withdrawal as any).proofOfTransfer;
+                return (
+                  <tr key={withdrawal._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                    <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-400">
+                      <div>{new Date(withdrawal.requestedAt).toLocaleDateString('es-AR')}</div>
+                      <div className="text-xs">{new Date(withdrawal.requestedAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {user ? (
                         <>
-                          <Button
-                            variant="primary"
-                            onClick={() => handleApprove(withdrawal._id)}
-                            disabled={processing === withdrawal._id}
-                            className="w-full lg:w-auto"
-                          >
-                            <CheckCircle className="w-4 h-4 mr-2" />
-                            {t('common.approve', 'Approve')}
-                          </Button>
+                          <div className="font-medium text-gray-900 dark:text-white">{user.name}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">{user.email}</div>
                         </>
+                      ) : <span className="text-gray-400">—</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="text-gray-900 dark:text-white">{withdrawal.bankingInfo?.accountHolder || '—'}</div>
+                      <div className="font-mono text-xs text-gray-500 dark:text-gray-400">{withdrawal.bankingInfo?.cbu || '—'}</div>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 whitespace-nowrap">{withdrawal.bankingInfo?.bankName || '—'}</td>
+                    <td className="px-4 py-3 whitespace-nowrap font-bold text-gray-900 dark:text-white">
+                      ${withdrawal.amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-4 py-3">
+                      {getStatusBadge(withdrawal.status)}
+                      {withdrawal.rejectionReason && (
+                        <div className="mt-1 text-xs text-red-500 max-w-[12rem]">{withdrawal.rejectionReason}</div>
                       )}
-
-                      {withdrawal.status === 'approved' && (
-                        <Button
-                          variant="primary"
-                          onClick={() => handleProcessing(withdrawal._id)}
-                          disabled={processing === withdrawal._id}
-                          className="w-full lg:w-auto"
-                        >
-                          <Loader2 className="w-4 h-4 mr-2" />
-                          {t('common.process', 'Process')}
-                        </Button>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {proof ? (
+                        <span className="inline-flex items-center gap-1 text-green-600 dark:text-green-400" title="Confirmación de transferencia">
+                          <CheckCircle className="w-4 h-4" /> {proof}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">—</span>
                       )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => { setSelectedWithdrawal(withdrawal); setShowDetailsModal(true); }} className="text-sky-600 hover:text-sky-800 dark:text-sky-400" title={t('common.viewDetails', 'View Details')}>
+                          <Eye className="w-5 h-5" />
+                        </button>
+                        {withdrawal.status === 'pending' && (
+                          <button onClick={() => handleApprove(withdrawal._id)} disabled={processing === withdrawal._id} className="text-green-600 hover:text-green-800 disabled:opacity-50" title={t('common.approve', 'Approve')}>
+                            <CheckCircle className="w-5 h-5" />
+                          </button>
+                        )}
+                        {withdrawal.status === 'approved' && (
+                          <button onClick={() => handleProcessing(withdrawal._id)} disabled={processing === withdrawal._id} className="text-blue-600 hover:text-blue-800 disabled:opacity-50" title={t('common.process', 'Process')}>
+                            <Loader2 className="w-5 h-5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* Details Modal */}
