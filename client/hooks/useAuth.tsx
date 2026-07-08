@@ -119,6 +119,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (data.field) {
           error.field = data.field;
         }
+        // Propagar el flag de email no verificado para mostrar el flujo de reenvío
+        if (data.emailNotVerified) {
+          error.emailNotVerified = true;
+          error.email = data.email;
+        }
         throw error;
       }
 

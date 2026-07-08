@@ -73,9 +73,15 @@ class ErrorBoundary extends Component<Props, State> {
               Algo salió mal
             </h2>
 
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
               Este componente encontró un error. El resto de la aplicación sigue funcionando normalmente.
             </p>
+
+            {this.state.error && (
+              <p className="mb-6 text-xs font-mono text-red-500 dark:text-red-400 break-words">
+                {this.state.error.message || this.state.error.toString()}
+              </p>
+            )}
 
             {process.env.NODE_ENV === 'development' && this.state.error && (
               <div className="mb-6 p-4 bg-gray-100 dark:bg-gray-900 rounded-lg text-left overflow-auto max-h-40">

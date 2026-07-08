@@ -908,24 +908,39 @@ export default function LoginScreen() {
               </>
             )}
 
-            {/* Email not verified banner */}
+            {/* Email not verified modal */}
             {emailNotVerified && (
-              <div className="rounded-xl p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700">
-                <p className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-1">📧 Email no verificado</p>
-                <p className="text-sm text-amber-700 dark:text-amber-300 mb-3">
-                  Debés verificar tu email antes de ingresar. Revisá tu casilla de correo (incluyendo spam).
-                </p>
-                {verificationSent && (
-                  <p className="text-xs text-green-600 dark:text-green-400 mb-2">✓ Nuevo enlace enviado a {emailNotVerified}</p>
-                )}
-                <button
-                  type="button"
-                  onClick={() => handleResendVerification(emailNotVerified)}
-                  disabled={resendingVerification}
-                  className="w-full py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition disabled:opacity-50"
-                >
-                  {resendingVerification ? 'Enviando...' : 'Reenviar email de verificación'}
-                </button>
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setEmailNotVerified(null)}>
+                <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">📧</span>
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-white">Email no verificado</h3>
+                    </div>
+                    <button type="button" onClick={() => setEmailNotVerified(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">✕</button>
+                  </div>
+                  <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
+                    Debés verificar tu email <strong className="break-all">{emailNotVerified}</strong> antes de ingresar. Revisá tu casilla de correo (incluyendo spam).
+                  </p>
+                  {verificationSent ? (
+                    <p className="text-sm text-green-600 dark:text-green-400 mb-3 text-center">✓ Nuevo enlace enviado a {emailNotVerified}</p>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => handleResendVerification(emailNotVerified)}
+                    disabled={resendingVerification}
+                    className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition disabled:opacity-50 mb-3"
+                  >
+                    {resendingVerification ? 'Enviando...' : 'Reenviar email de verificación'}
+                  </button>
+                  <div className="rounded-lg bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 p-3">
+                    <p className="text-xs text-sky-800 dark:text-sky-300">
+                      💡 ¿Te registraste con Google? Te recomendamos también{' '}
+                      <a href="/forgot-password" className="underline font-medium">crear una contraseña</a>{' '}
+                      para poder ingresar sin depender de Google.
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
 
