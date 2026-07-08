@@ -596,7 +596,7 @@ router.get("/conversations/:id/messages", protect, async (req: AuthRequest, res:
         {
           model: User,
           as: 'sender',
-          attributes: ['id', 'name', 'avatar'],
+          attributes: ['id', 'name', 'avatar', 'adminRole'],
         },
       ],
       order: [['createdAt', 'DESC']],
@@ -737,7 +737,7 @@ router.post(
           {
             model: User,
             as: 'sender',
-            attributes: ['id', 'name', 'avatar'],
+            attributes: ['id', 'name', 'avatar', 'adminRole'],
           },
         ],
       });
@@ -807,7 +807,7 @@ router.post(
           include: [{
             model: User,
             as: 'sender',
-            attributes: ['id', 'name', 'avatar'],
+            attributes: ['id', 'name', 'avatar', 'adminRole'],
           }],
         });
         if (populated) allPopulated.push(populated);

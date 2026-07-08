@@ -51,6 +51,21 @@ export default function Dashboard() {
     postedJobs: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [showCompleteProfile, setShowCompleteProfile] = useState(false);
+
+  // Prompt the user to complete the data required to publish jobs / work
+  useEffect(() => {
+    if (!user) return;
+    const u = user as any;
+    const missing =
+      (!u.dni || u.needsDni) ||
+      !u.dniVerified ||
+      !u.phone ||
+      !u.bankingInfo?.cbu;
+    const dismissedAt = Number(localStorage.getItem('completeProfileDismissedAt') || 0);
+    const recentlyDismissed = Date.now() - dismissedAt < 24 * 60 * 60 * 1000; // 24h
+    if (missing && !recentlyDismissed) setShowCompleteProfile(true);
+  }, [user]);
 
   // Determinar si el usuario es FREE
   const isFreeUser = !user?.membershipTier || user?.membershipTier === 'free';
@@ -330,6 +345,58 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 relative">
+      {/* Complete-profile modal: required data to publish jobs / work */}
+      {showCompleteProfile && (() => {
+        const u = user as any;
+        const items = [
+          { ok: !!u.dni && !u.needsDni, label: 'Número de DNI', desc: 'Necesario para verificar tu identidad.', to: '/profile' },
+          { ok: !!u.dniVerified, label: 'Verificación de identidad', desc: 'Subí las fotos de tu DNI (frente y dorso) para poder trabajar y publicar.', to: '/profile' },
+          { ok: !!u.phone, label: 'Teléfono', desc: 'Para poder contactarte sobre tus trabajos.', to: '/settings' },
+          { ok: !!u.bankingInfo?.cbu, label: 'Datos bancarios (CBU)', desc: 'Para recibir tus pagos cuando trabajes.', to: '/settings?tab=banking' },
+        ];
+        const pending = items.filter((i) => !i.ok);
+        if (pending.length === 0) return null;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[calc(100vh-2rem)] flex flex-col">
+              <div className="p-6 shrink-0">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Completá tu perfil</h3>
+                <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
+                  Para publicar trabajos y trabajar necesitás completar estos datos:
+                </p>
+              </div>
+              <div className="px-6 flex-1 min-h-0 overflow-y-auto space-y-2">
+                {pending.map((i) => (
+                  <Link
+                    key={i.label}
+                    to={i.to}
+                    onClick={() => setShowCompleteProfile(false)}
+                    className="block rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10 p-3 hover:bg-amber-100 dark:hover:bg-amber-900/20 transition"
+                  >
+                    <p className="font-semibold text-amber-800 dark:text-amber-200 text-sm">⚠️ {i.label}</p>
+                    <p className="text-xs text-amber-700 dark:text-amber-300">{i.desc}</p>
+                  </Link>
+                ))}
+              </div>
+              <div className="p-6 flex gap-3 shrink-0">
+                <button
+                  onClick={() => { localStorage.setItem('completeProfileDismissedAt', String(Date.now())); setShowCompleteProfile(false); }}
+                  className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                >
+                  Más tarde
+                </button>
+                <Link
+                  to="/profile"
+                  onClick={() => setShowCompleteProfile(false)}
+                  className="flex-1 text-center px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-semibold"
+                >
+                  Completar ahora
+                </Link>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">

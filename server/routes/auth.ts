@@ -509,6 +509,7 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         hasFamilyPlan: user?.hasFamilyPlan,
         familyCodeId: user?.familyCodeId,
         dni: user?.dni,
+        dniVerified: (user as any)?.dniVerified,
         needsDni: !user?.dni && (!!user?.googleId || !!user?.facebookId), // True if OAuth user without DNI
         availabilitySchedule: user?.availabilitySchedule,
         isAvailabilityPublic: user?.isAvailabilityPublic,

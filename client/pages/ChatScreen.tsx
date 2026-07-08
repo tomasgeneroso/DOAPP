@@ -1487,7 +1487,9 @@ export default function ChatScreen() {
                     }`}
                   >
                     <p className="text-sm font-medium mb-1 opacity-75">
-                      {message.sender.name}
+                      {(message.sender as any).adminRole
+                        ? `${(message.sender.name || '').split(' ')[0]} (Soporte DOAPP)`
+                        : message.sender.name}
                     </p>
                     <p className="whitespace-pre-wrap">{messageText}</p>
                     <p
