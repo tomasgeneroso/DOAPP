@@ -458,6 +458,16 @@ router.post(
       // Detectar si es contraoferta (precio diferente al original)
       const isCounterOffer = proposedPrice !== job.price;
 
+      // Respetar la configuración del dueño: si el trabajo no permite contraofertas,
+      // la propuesta debe coincidir con el precio publicado.
+      if (isCounterOffer && (job as any).allowCounterOffers === false) {
+        res.status(400).json({
+          success: false,
+          message: "Este trabajo no permite contraofertas. Debés postularte al precio publicado.",
+        });
+        return;
+      }
+
       // Crear propuesta
       const proposal = await Proposal.create({
         jobId: jobId,

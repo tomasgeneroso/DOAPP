@@ -90,6 +90,7 @@ export default function EditJobScreen() {
   const [hasExpiredDates, setHasExpiredDates] = useState(false);
   const [originalEndDate, setOriginalEndDate] = useState("");
   const [endDateFlexible, setEndDateFlexible] = useState(false);
+  const [allowCounterOffers, setAllowCounterOffers] = useState(true);
   const [overlapWarning, setOverlapWarning] = useState<{ message: string; jobTitle: string } | null>(null);
   const [userJobs, setUserJobs] = useState<any[]>([]);
 
@@ -173,6 +174,7 @@ export default function EditJobScreen() {
           setStartDate(job.startDate ? new Date(job.startDate).toISOString().slice(0, 16) : "");
           setEndDate(job.endDate ? new Date(job.endDate).toISOString().slice(0, 16) : "");
           setEndDateFlexible(job.endDateFlexible || false);
+          setAllowCounterOffers(job.allowCounterOffers !== false);
           setExistingImages(job.images || []);
           setJobStatus(job.status || "");
           setCancellationReason(job.cancellationReason || "");
@@ -304,6 +306,7 @@ export default function EditJobScreen() {
     submitData.append("price", price);
     submitData.append("category", selectedCategory);
     submitData.append("tags", JSON.stringify(selectedTags));
+    submitData.append("allowCounterOffers", String(allowCounterOffers));
     submitData.append("location", location);
     if (latitude !== null && longitude !== null) {
       submitData.append("latitude", String(latitude));
@@ -696,6 +699,27 @@ export default function EditJobScreen() {
                   )}
                 </FormField>
               </div>
+            </div>
+
+            {/* Allow counter-offers setting */}
+            <div className="p-4 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={allowCounterOffers}
+                  onChange={(e) => setAllowCounterOffers(e.target.checked)}
+                  disabled={fieldsDisabled}
+                  className="w-4 h-4 mt-0.5 rounded border-gray-300 dark:border-slate-600 text-sky-600 focus:ring-sky-500 dark:bg-slate-700"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-gray-800 dark:text-slate-200">
+                    Permitir contraofertas
+                  </span>
+                  <span className="block text-xs text-gray-500 dark:text-slate-400 mt-0.5">
+                    Si está activo, los postulantes pueden proponer un precio distinto al publicado. Si lo desactivás, solo pueden postularse al precio que fijaste.
+                  </span>
+                </span>
+              </label>
             </div>
 
             {/* Overlap Warning */}

@@ -191,6 +191,13 @@ export class Job extends Model {
   @Column(DataType.BOOLEAN)
   endDateFlexible!: boolean;
 
+  // Owner setting: whether applicants may counter-offer a different price.
+  // When false, proposals must match the posted price.
+  @Default(true)
+  @AllowNull(false)
+  @Column({ type: DataType.BOOLEAN, field: 'allow_counter_offers' })
+  allowCounterOffers!: boolean;
+
   // Optional: time when worker should be auto-selected (if client chooses scheduling)
   @AllowNull(true)
   @Column(DataType.DATE)

@@ -998,6 +998,7 @@ router.post(
         startDate: req.body.startDate,
         endDate: endDateFlexible ? null : req.body.endDate,
         endDateFlexible,
+        allowCounterOffers: !(req.body.allowCounterOffers === 'false' || req.body.allowCounterOffers === false),
         remoteOk: req.body.remoteOk === 'true',
         images: imageUrls,
         clientId: req.user.id, // Sequelize uses camelCase foreign keys
@@ -1148,6 +1149,11 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
 
     // Prepare update data
     const updateData: any = { ...req.body };
+
+    // Coerce the counter-offer flag from a FormData string to a boolean
+    if (updateData.allowCounterOffers !== undefined) {
+      updateData.allowCounterOffers = !(updateData.allowCounterOffers === 'false' || updateData.allowCounterOffers === false);
+    }
 
     // Coerce coordinates from FormData strings to numbers (null when cleared)
     if (updateData.latitude !== undefined) {
