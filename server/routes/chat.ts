@@ -763,6 +763,43 @@ router.post(
         // Don't fail the request if socket fails
       }
 
+      // Persist a notification so the recipient sees the message even if offline
+      // (deduped: one unread "chat" notification per conversation). Admin senders
+      // are shown by first name only (e.g. "Mensaje de Tomás (Soporte DOAPP)").
+      try {
+        const { Notification } = await import("../models/sql/Notification.model.js");
+        const senderFirstName = (req.user.name || "Usuario").split(" ")[0];
+        const isAdminSender = !!req.user.adminRole;
+        const notifTitle = isAdminSender
+          ? `Mensaje de ${senderFirstName} (Soporte DOAPP)`
+          : `Nuevo mensaje de ${senderFirstName}`;
+        const preview = content ? String(content).substring(0, 120) : (jobId ? "Te compartieron un trabajo" : "Nuevo mensaje");
+        const recipients = conversation.participants.filter((p: string) => p !== userId);
+        await Promise.all(recipients.map(async (participantId: string) => {
+          const existing = await Notification.findOne({
+            where: { recipientId: participantId, category: "chat", relatedId: conversationId, read: false },
+          });
+          if (existing) {
+            existing.title = notifTitle;
+            existing.message = preview;
+            await existing.save();
+          } else {
+            await Notification.create({
+              recipientId: participantId,
+              type: "info",
+              category: "chat",
+              title: notifTitle,
+              message: preview,
+              relatedModel: "Conversation",
+              relatedId: conversationId,
+              sentVia: ["in_app"],
+            });
+          }
+        }));
+      } catch (notifErr) {
+        console.error("Chat notification error:", notifErr);
+      }
+
       // Populate and emit all created messages
       const allPopulated: any[] = [];
       for (const msg of createdMessages) {
