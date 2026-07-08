@@ -163,6 +163,21 @@ export default function QuoteForm() {
     if (isEdit && id) loadQuote(id);
   }, [id]);
 
+  // Pre-fill the sender (emisor) data from the logged-in user's profile when
+  // creating a new quote — only fills empty fields, so it stays fully editable.
+  useEffect(() => {
+    if (isEdit || !user) return;
+    const u = user as any;
+    const addr = typeof u.address === 'object' && u.address ? u.address : null;
+    setSenderInfo(prev => ({
+      name: prev.name || u.name || '',
+      email: prev.email || u.email || '',
+      address: prev.address || u.addressStreet || addr?.street || (typeof u.address === 'string' ? u.address : '') || '',
+      city: prev.city || addr?.city || u.city || u.location || '',
+      cuit: prev.cuit || u.cuit || ((u.legalInfo?.idType === 'cuit' || u.legalInfo?.idType === 'cuil') ? (u.legalInfo?.idNumber || '') : '') || '',
+    }));
+  }, [user, isEdit]);
+
   useEffect(() => {
     if (recipientIdParam) fetchRecipient(recipientIdParam);
   }, [recipientIdParam]);
