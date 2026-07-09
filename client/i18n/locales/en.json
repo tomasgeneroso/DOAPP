@@ -356,7 +356,10 @@
       "pending": "Pending",
       "approved": "Approved",
       "rejected": "Rejected"
-    }
+    },
+    "allowCounterOffers": "Allow counter-offers",
+    "allowCounterOffersHint": "If you disable it, applicants can only apply at the price you set.",
+    "noTaskAssigned": "No task assigned"
   },
   "contracts": {
     "title": "Contracts",

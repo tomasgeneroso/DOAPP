@@ -782,7 +782,10 @@
     "wouldYouReschedule": "¿Querés reprogramarlo?",
     "youConfirmedWaitingWorker": "Confirmaste que el trabajo fue realizado. Estamos esperando que el trabajador también confirme para proceder con los pagos.",
     "yourConfirmations": "Tus confirmaciones (cliente)",
-    "youWereSelected": "¡Fuiste seleccionado para este trabajo!"
+    "youWereSelected": "¡Fuiste seleccionado para este trabajo!",
+    "allowCounterOffers": "Permitir contraofertas",
+    "allowCounterOffersHint": "Si lo desactivás, solo pueden postularse al precio que fijaste.",
+    "noTaskAssigned": "Sin tarea asignada"
   },
   "contracts": {
     "title": "Contratos",

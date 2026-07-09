@@ -532,9 +532,9 @@ export default function CreateContractScreen() {
                           className="mt-0.5 rounded border-gray-300 text-sky-600 shadow-sm focus:ring-sky-500 dark:bg-slate-700 dark:border-slate-600"
                         />
                         <span>
-                          <span className="block text-gray-800 dark:text-slate-200 font-medium">Permitir contraofertas</span>
+                          <span className="block text-gray-800 dark:text-slate-200 font-medium">{t('jobs.allowCounterOffers', 'Permitir contraofertas')}</span>
                           <span className="block text-xs text-gray-500 dark:text-slate-400">
-                            Si lo desactivás, solo pueden postularse al precio que fijaste.
+                            {t('jobs.allowCounterOffersHint', 'Si lo desactivás, solo pueden postularse al precio que fijaste.')}
                           </span>
                         </span>
                       </label>
@@ -566,7 +566,7 @@ export default function CreateContractScreen() {
                     value={addressStreet}
                     onChange={setAddressStreet}
                     location={location}
-                    placeholder="Ej: Av. Corrientes"
+                    placeholder={t('jobs.streetPlaceholder', 'Ej: Av. Corrientes')}
                   />
                 </FormField>
               </div>
@@ -576,7 +576,7 @@ export default function CreateContractScreen() {
                     type="text"
                     value={addressNumber}
                     onChange={(e) => setAddressNumber(e.target.value)}
-                    placeholder="Ej: 1234"
+                    placeholder={t('jobs.numberPlaceholder', 'Ej: 1234')}
                     className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
                   />
                 </FormField>
@@ -845,7 +845,7 @@ export default function CreateContractScreen() {
                             }}
                             className="flex-1 rounded-lg border border-purple-300 dark:border-purple-700 bg-white dark:bg-slate-700 text-sm text-slate-900 dark:text-white px-3 py-1.5 focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                           >
-                            <option value="">Sin tarea asignada</option>
+                            <option value="">{t('jobs.noTaskAssigned', 'Sin tarea asignada')}</option>
                             {requirements.filter(r => r.trim()).map((req, idx) => (
                               <option key={idx} value={req}>{req}</option>
                             ))}

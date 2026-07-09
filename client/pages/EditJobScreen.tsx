@@ -612,9 +612,9 @@ export default function EditJobScreen() {
                     className="w-4 h-4 mt-0.5 rounded border-gray-300 dark:border-slate-600 text-sky-600 focus:ring-sky-500 dark:bg-slate-700"
                   />
                   <span>
-                    <span className="block text-sm font-medium text-gray-800 dark:text-slate-200">Permitir contraofertas</span>
+                    <span className="block text-sm font-medium text-gray-800 dark:text-slate-200">{t('jobs.allowCounterOffers', 'Permitir contraofertas')}</span>
                     <span className="block text-xs text-gray-500 dark:text-slate-400">
-                      Si lo desactivás, solo pueden postularse al precio que fijaste.
+                      {t('jobs.allowCounterOffersHint', 'Si lo desactivás, solo pueden postularse al precio que fijaste.')}
                     </span>
                   </span>
                 </label>
