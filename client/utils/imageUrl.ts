@@ -1,59 +1,54 @@
 /**
- * Get the backend base URL for serving uploads
- * In development, Vite proxy handles /uploads → backend
- * In production, we need to prefix with the API server URL
+ * Resolve an uploaded-file path to a URL that actually loads in production.
+ *
+ * Uploads are served by the backend, and nginx proxies /api to the backend but
+ * usually NOT /uploads. So we route every uploaded file through the API base
+ * (which IS proxied): the backend also serves the files under /api/uploads.
+ *   - dev:  VITE_API_URL = http://localhost:3001/api  → http://localhost:3001/api/uploads/...
+ *   - prod: VITE_API_URL = https://site/api           → https://site/api/uploads/...
+ *   - fallback (no env): same-origin "/api"           → /api/uploads/...
  */
-function getBackendUrl(): string {
-  // If VITE_API_URL is set (e.g. "https://doappar.site/api"), strip /api
-  const apiUrl = import.meta.env.VITE_API_URL;
-  if (apiUrl && apiUrl.startsWith('http')) {
-    return apiUrl.replace(/\/api$/, '');
-  }
-  // In production, use same origin (Nginx should proxy /uploads to backend)
-  // In development, empty string works because Vite proxy handles it
-  return '';
+function getApiBase(): string {
+  const apiUrl = import.meta.env.VITE_API_URL as string | undefined;
+  if (apiUrl && apiUrl.trim()) return apiUrl.replace(/\/+$/, '');
+  return '/api';
 }
-const BACKEND_URL = getBackendUrl();
+const API_BASE = getApiBase();
 
-/**
- * Get full image URL from relative path
- */
 export function getImageUrl(path: string | undefined | null): string {
   if (!path) {
     return 'https://api.dicebear.com/7.x/shapes/svg?seed=default&backgroundColor=0ea5e9';
   }
 
-  // If it's already a full URL, return as is
+  // Already a full URL (external avatars, etc.)
   if (path.startsWith('http://') || path.startsWith('https://')) {
     return path;
   }
 
-  // If it's a relative path starting with /uploads, prefix with backend URL
+  // Stored as "/uploads/job-images/x.jpg" → "<api>/uploads/job-images/x.jpg"
   if (path.startsWith('/uploads')) {
-    return `${BACKEND_URL}${path}`;
+    return `${API_BASE}${path}`;
   }
-
-  // If it's just a filename, assume it's in uploads
+  // Stored as "uploads/job-images/x.jpg"
+  if (path.startsWith('uploads/')) {
+    return `${API_BASE}/${path}`;
+  }
+  // Bare filename → assume it lives at the uploads root
   if (!path.startsWith('/')) {
-    return `${BACKEND_URL}/uploads/${path}`;
+    return `${API_BASE}/uploads/${path}`;
   }
 
-  return path;
+  // Any other absolute-ish path: route it through the API base too
+  return `${API_BASE}${path}`;
 }
 
 /**
  * Get avatar URL with fallback to generated avatar
- * Uses DiceBear API to generate consistent avatars based on name/id
  */
 export function getAvatarUrl(avatar: string | undefined | null, name?: string, id?: string): string {
-  // If avatar is provided and valid, use it
   if (avatar) {
     return getImageUrl(avatar);
   }
-
-  // Generate a consistent seed from name or id
   const seed = name || id || 'user';
-
-  // Use DiceBear initials style for a cleaner look
   return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(seed)}&backgroundColor=0ea5e9&textColor=ffffff`;
 }

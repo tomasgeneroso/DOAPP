@@ -266,13 +266,18 @@ app.use("/api", apiLimiter);
 app.use("/legal", express.static(path.join(__dirname, "../public/legal")));
 
 // Servir archivos subidos con CORS headers
-app.use("/uploads", (req, res, next) => {
+const uploadsCors = (req: express.Request, res: express.Response, next: express.NextFunction) => {
   res.setHeader("Access-Control-Allow-Origin", config.clientUrl);
   res.setHeader("Access-Control-Allow-Methods", "GET");
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
   next();
-}, express.static(path.join(__dirname, "../uploads")));
+};
+const uploadsStatic = express.static(path.join(__dirname, "../uploads"));
+app.use("/uploads", uploadsCors, uploadsStatic);
+// Also under /api/uploads so images load through nginx's /api proxy (nginx often
+// doesn't proxy /uploads). getImageUrl() points here.
+app.use("/api/uploads", uploadsCors, uploadsStatic);
 
 // Feature Flags
 import { features } from './featureFlags.js';
