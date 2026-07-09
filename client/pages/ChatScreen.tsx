@@ -106,6 +106,25 @@ interface Job {
   status: string;
 }
 
+// Render plain message text with clickable URLs
+function linkifyText(text: string): React.ReactNode {
+  return text.split(/(https?:\/\/[^\s]+)/g).map((part, i) =>
+    /^https?:\/\//.test(part) ? (
+      <a
+        key={i}
+        href={part}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline break-all font-medium"
+      >
+        {part}
+      </a>
+    ) : (
+      part
+    )
+  );
+}
+
 export default function ChatScreen() {
   const { t } = useTranslation();
   const { id: conversationId } = useParams();
@@ -1494,7 +1513,7 @@ export default function ChatScreen() {
                         ? `${(message.sender.name || '').split(' ')[0]} (Soporte DOAPP)`
                         : message.sender.name}
                     </p>
-                    <p className="whitespace-pre-wrap">{messageText}</p>
+                    <p className="whitespace-pre-wrap">{linkifyText(messageText)}</p>
                     <p
                       className={`text-xs mt-2 ${
                         (message.sender.id || message.sender._id) === user?.id

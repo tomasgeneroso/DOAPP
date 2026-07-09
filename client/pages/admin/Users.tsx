@@ -53,7 +53,7 @@ export default function AdminUsers() {
   const [verifyChatError, setVerifyChatError] = useState<string | null>(null);
   const verifyChatEndRef = useRef<HTMLDivElement>(null);
 
-  const DNI_REQUEST_TEMPLATE = 'Hola! Para verificar tu identidad necesitamos que subas las fotos de tu DNI (frente y dorso) desde la sección "Completar registro" en tu perfil. Podés subir imágenes o PDF. Gracias!';
+  const DNI_REQUEST_TEMPLATE = `Hola! Para verificar tu identidad necesitamos las fotos de tu DNI (frente y dorso). Podés subirlas desde acá: ${typeof window !== 'undefined' ? window.location.origin : ''}/complete-registration — o adjuntarlas directamente en este chat. Aceptamos imágenes o PDF. Gracias!`;
 
   const isOwner = currentUser?.adminRole === 'owner';
 
