@@ -5,8 +5,23 @@ import { MapPin, Crosshair, RefreshCw } from 'lucide-react';
 interface LocationPinMapProps {
   address: string;
   onCoordinatesChange?: (lat: number, lng: number) => void;
+  onAddressChange?: (address: string) => void;
   initialLat?: number;
   initialLng?: number;
+}
+
+// Reverse geocoding: coordinates → human address (when the user moves the pin)
+async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`,
+      { headers: { 'Accept-Language': 'es', 'User-Agent': 'DoApp/1.0' } }
+    );
+    const data = await res.json();
+    return data?.display_name || null;
+  } catch {
+    return null;
+  }
 }
 
 // Geocoding via Nominatim (OpenStreetMap, gratuito, sin API key)
@@ -33,7 +48,7 @@ const DEFAULT_LAT = -34.6037;
 const DEFAULT_LNG = -58.3816;
 const DEFAULT_ZOOM = 14;
 
-export default function LocationPinMap({ address, onCoordinatesChange, initialLat, initialLng }: LocationPinMapProps) {
+export default function LocationPinMap({ address, onCoordinatesChange, onAddressChange, initialLat, initialLng }: LocationPinMapProps) {
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
   const leafletRef = useRef<any>(null);
@@ -77,17 +92,21 @@ export default function LocationPinMap({ address, onCoordinatesChange, initialLa
 
       // Draggable marker
       const marker = Leaflet.marker([startLat, startLng], { draggable: true }).addTo(map);
-      marker.on('dragend', () => {
+      marker.on('dragend', async () => {
         const pos = marker.getLatLng();
         setCoords({ lat: pos.lat, lng: pos.lng });
         onCoordinatesChange?.(pos.lat, pos.lng);
+        const addr = await reverseGeocode(pos.lat, pos.lng);
+        if (addr) onAddressChange?.(addr);
       });
 
       // Click on map moves marker
-      map.on('click', (e: any) => {
+      map.on('click', async (e: any) => {
         marker.setLatLng(e.latlng);
         setCoords({ lat: e.latlng.lat, lng: e.latlng.lng });
         onCoordinatesChange?.(e.latlng.lat, e.latlng.lng);
+        const addr = await reverseGeocode(e.latlng.lat, e.latlng.lng);
+        if (addr) onAddressChange?.(addr);
       });
 
       mapRef.current = map;
