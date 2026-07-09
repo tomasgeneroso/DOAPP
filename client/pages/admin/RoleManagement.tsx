@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from "react-i18next";
 import { Shield, UserCog, Search, Check, X, Lock, Eye, EyeOff, KeyRound } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -464,7 +465,7 @@ export default function RoleManagement() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
                         <img
-                          src={user.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(user.name)}`}
+                          src={getImageUrl(user.avatar)}
                           alt={user.name}
                           className="h-8 w-8 rounded-full object-cover"
                           onError={(e) => {

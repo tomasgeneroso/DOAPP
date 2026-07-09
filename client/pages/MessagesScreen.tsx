@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from "react";
+import { getImageUrl } from '@/utils/imageUrl';
 import { useNavigate, useParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
@@ -620,7 +621,7 @@ export default function MessagesScreen() {
                     <div className="relative flex-shrink-0">
                       {other?.avatar ? (
                         <img
-                          src={other.avatar}
+                          src={getImageUrl(other.avatar)}
                           alt={other.name}
                           className="h-12 w-12 rounded-full object-cover"
                         />
@@ -688,7 +689,7 @@ export default function MessagesScreen() {
 
                   {otherParticipant?.avatar ? (
                     <img
-                      src={otherParticipant.avatar}
+                      src={getImageUrl(otherParticipant.avatar)}
                       alt={otherParticipant.name}
                       className="h-10 w-10 rounded-full object-cover"
                     />
@@ -973,7 +974,7 @@ export default function MessagesScreen() {
                           className="w-full flex items-center gap-3 p-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                         >
                           {u.avatar ? (
-                            <img src={u.avatar} alt={u.name} className="h-10 w-10 rounded-full object-cover" />
+                            <img src={getImageUrl(u.avatar)} alt={u.name} className="h-10 w-10 rounded-full object-cover" />
                           ) : (
                             <div className="h-10 w-10 rounded-full bg-sky-100 dark:bg-sky-900 flex items-center justify-center">
                               <UserIcon className="h-5 w-5 text-sky-600" />
@@ -995,7 +996,7 @@ export default function MessagesScreen() {
                   {/* Selected User */}
                   <div className="flex items-center gap-3 p-3 bg-sky-50 dark:bg-sky-900/20 rounded-lg">
                     {selectedUser.avatar ? (
-                      <img src={selectedUser.avatar} alt={selectedUser.name} className="h-10 w-10 rounded-full object-cover" />
+                      <img src={getImageUrl(selectedUser.avatar)} alt={selectedUser.name} className="h-10 w-10 rounded-full object-cover" />
                     ) : (
                       <div className="h-10 w-10 rounded-full bg-sky-100 dark:bg-sky-900 flex items-center justify-center">
                         <UserIcon className="h-5 w-5 text-sky-600" />

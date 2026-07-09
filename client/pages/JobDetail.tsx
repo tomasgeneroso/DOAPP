@@ -2018,7 +2018,7 @@ export default function JobDetail() {
                                   <div className="flex items-center gap-3">
                                     {c.doerAvatar ? (
                                       <img
-                                        src={c.doerAvatar}
+                                        src={getImageUrl(c.doerAvatar)}
                                         alt={c.doerName}
                                         className="w-10 h-10 rounded-full object-cover"
                                       />
@@ -3368,6 +3368,16 @@ export default function JobDetail() {
                               "If you don't select a worker 24h before the start, the first applicant will be automatically assigned.",
                             )}
                           </p>
+                        </div>
+
+                        {/* Consejos antes de seleccionar trabajador */}
+                        <div className="rounded-lg border border-sky-200 dark:border-sky-700/50 bg-sky-50 dark:bg-sky-900/20 p-3">
+                          <p className="text-xs font-semibold text-sky-800 dark:text-sky-200 mb-1 flex items-center gap-1.5">
+                            <span>💡</span> {t("jobs.detail.beforeSelectTitle", "Consejos antes de seleccionar trabajador")}
+                          </p>
+                          <ul className="space-y-1 text-xs text-sky-700 dark:text-sky-300">
+                            <li className="flex items-start gap-1.5"><span className="mt-0.5">⭐</span><span>{t("jobs.detail.beforeSelectReviewProfile", "Revisá el perfil y las reseñas del trabajador antes de seleccionarlo.")}</span></li>
+                          </ul>
                         </div>
 
                         {proposals.map((proposal: any) => {

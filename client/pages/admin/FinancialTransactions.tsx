@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { getImageUrl } from "@/utils/imageUrl";
@@ -112,11 +113,13 @@ export default function FinancialTransactions() {
   const [rejectReason, setRejectReason] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
 
-  // Filters
+  // Filters — seed the search box from a ?search= deep-link (e.g. from the
+  // publications proof modal linking to a specific payment).
+  const [searchParams] = useSearchParams();
   const [filters, setFilters] = useState({
     type: 'all',
     status: 'all',
-    search: ''
+    search: searchParams.get('search') || ''
   });
   const [exporting, setExporting] = useState(false);
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
-import { Briefcase, CheckCircle, XCircle, Clock, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Image as ImageIcon, FileText, Download, Bell, Pause, Play, Ban, Plus, UserCheck, UserX } from "lucide-react";
+import { Briefcase, CheckCircle, XCircle, Clock, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Image as ImageIcon, FileText, Download, Bell, Pause, Play, Ban, Plus, UserCheck, UserX, ExternalLink } from "lucide-react";
 import { Link } from "react-router-dom";
 import { getImageUrl } from "@/utils/imageUrl";
 
@@ -47,6 +47,8 @@ interface Job {
   };
   images?: string[];
   paymentProof?: PaymentProof;
+  publicationPaid?: boolean;
+  publicationPaymentId?: string;
   createdAt: string;
   rejectedReason?: string;
   cancellationReason?: string;
@@ -84,7 +86,7 @@ export default function AdminJobManager() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>(null);
-  const [selectedProof, setSelectedProof] = useState<PaymentProof | null>(null);
+  const [selectedProof, setSelectedProof] = useState<(PaymentProof & { paymentId?: string; paid?: boolean }) | null>(null);
   const [rejectModal, setRejectModal] = useState<{ jobId: string; jobTitle: string } | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [newJobAlert, setNewJobAlert] = useState<string | null>(null);
@@ -751,7 +753,7 @@ export default function AdminJobManager() {
                       {job.paymentProof ? (
                         <div className="flex flex-col gap-1">
                           <button
-                            onClick={() => setSelectedProof(job.paymentProof!)}
+                            onClick={() => setSelectedProof({ ...job.paymentProof!, paymentId: job.publicationPaymentId, paid: job.publicationPaid })}
                             className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
                           >
                             {job.paymentProof.fileType === 'pdf' ? (
@@ -778,9 +780,15 @@ export default function AdminJobManager() {
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(job.status)}`}>
-                        {getStatusLabel(job.status)}
-                      </span>
+                      {(['draft', 'pending', 'pending_payment', 'pending_approval'].includes(job.status) && !job.publicationPaid && !job.paymentProof) ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
+                          Esperando pago
+                        </span>
+                      ) : (
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(job.status)}`}>
+                          {getStatusLabel(job.status)}
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400 max-w-xs">
                       {job.pendingNewPrice && job.priceChangeReason ? (
@@ -930,8 +938,18 @@ export default function AdminJobManager() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
+                {selectedProof.paid && selectedProof.paymentId && (
+                  <Link
+                    to={`/admin/financial-transactions?search=${selectedProof.paymentId}`}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-sky-600 hover:text-white hover:bg-sky-600 dark:text-sky-400 border border-sky-300 dark:border-sky-700 rounded-lg transition-colors"
+                    title={t('admin.jobs.viewPaymentInTransactions', 'Ver pago en transacciones')}
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    {t('admin.jobs.viewPayment', 'Ver pago')}
+                  </Link>
+                )}
                 <a
-                  href={selectedProof.fileUrl}
+                  href={getImageUrl(selectedProof.fileUrl)}
                   download={selectedProof.fileName}
                   className="p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors"
                   title={t('common.download', 'Download')}
@@ -951,12 +969,12 @@ export default function AdminJobManager() {
             {selectedProof.fileType === 'pdf' ? (
               <div className="w-full">
                 <iframe
-                  src={selectedProof.fileUrl}
+                  src={getImageUrl(selectedProof.fileUrl)}
                   className="w-full h-[70vh] rounded border border-gray-200 dark:border-gray-700"
                   title="Comprobante PDF"
                 />
                 <a
-                  href={selectedProof.fileUrl}
+                  href={getImageUrl(selectedProof.fileUrl)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="mt-3 inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -967,7 +985,7 @@ export default function AdminJobManager() {
               </div>
             ) : (
               <img
-                src={selectedProof.fileUrl}
+                src={getImageUrl(selectedProof.fileUrl)}
                 alt="Comprobante de pago"
                 className="w-full h-auto rounded shadow-md"
               />

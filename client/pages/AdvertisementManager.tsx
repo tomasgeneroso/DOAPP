@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from 'react-i18next';
 import { useMyAdvertisements } from '@/hooks/useAdvertisements';
 
@@ -195,7 +196,7 @@ const AdvertisementManager: React.FC = () => {
                 {/* Image */}
                 <div className="relative h-48">
                   <img
-                    src={ad.imageUrl}
+                    src={getImageUrl(ad.imageUrl)}
                     alt={ad.title}
                     className="w-full h-full object-cover"
                   />

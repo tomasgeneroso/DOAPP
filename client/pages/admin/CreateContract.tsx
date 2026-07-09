@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { adminApi } from "@/lib/adminApi";
@@ -196,7 +197,7 @@ export default function AdminCreateContract() {
     <div className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-900/20 border-2 border-green-500 rounded-lg">
       <div className="flex items-center gap-3">
         {user.avatar ? (
-          <img src={user.avatar} alt={user.name} className="w-12 h-12 rounded-full object-cover" />
+          <img src={getImageUrl(user.avatar)} alt={user.name} className="w-12 h-12 rounded-full object-cover" />
         ) : (
           <div className="w-12 h-12 bg-green-100 dark:bg-green-900/50 rounded-full flex items-center justify-center">
             <span className="text-lg font-bold text-green-600 dark:text-green-400">
@@ -279,7 +280,7 @@ export default function AdminCreateContract() {
                       className="w-full p-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
                     >
                       {user.avatar ? (
-                        <img src={user.avatar} alt={user.name} className="w-10 h-10 rounded-full object-cover" />
+                        <img src={getImageUrl(user.avatar)} alt={user.name} className="w-10 h-10 rounded-full object-cover" />
                       ) : (
                         <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
                           <span className="text-sm font-bold text-green-600 dark:text-green-400">
@@ -375,7 +376,7 @@ export default function AdminCreateContract() {
                       className="w-full p-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
                     >
                       {user.avatar ? (
-                        <img src={user.avatar} alt={user.name} className="w-10 h-10 rounded-full object-cover" />
+                        <img src={getImageUrl(user.avatar)} alt={user.name} className="w-10 h-10 rounded-full object-cover" />
                       ) : (
                         <div className="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
                           <span className="text-sm font-bold text-green-600 dark:text-green-400">

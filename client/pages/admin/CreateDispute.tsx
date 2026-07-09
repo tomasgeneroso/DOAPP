@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getImageUrl } from '@/utils/imageUrl';
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { adminApi } from "@/lib/adminApi";
@@ -211,7 +212,7 @@ export default function AdminCreateDispute() {
                     >
                       {user.avatar ? (
                         <img
-                          src={user.avatar}
+                          src={getImageUrl(user.avatar)}
                           alt={user.name}
                           className="w-10 h-10 rounded-full object-cover"
                         />
@@ -236,7 +237,7 @@ export default function AdminCreateDispute() {
               <div className="flex items-center gap-3">
                 {selectedUser.avatar ? (
                   <img
-                    src={selectedUser.avatar}
+                    src={getImageUrl(selectedUser.avatar)}
                     alt={selectedUser.name}
                     className="w-12 h-12 rounded-full object-cover"
                   />

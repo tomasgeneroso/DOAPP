@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
@@ -337,7 +338,7 @@ export default function ProposalDetail() {
                   </p>
                   <Link to={`/users/${proposal.freelancer._id}`} className="flex items-center gap-3 group">
                     <img
-                      src={proposal.freelancer.avatar}
+                      src={getImageUrl(proposal.freelancer.avatar)}
                       alt={proposal.freelancer.name}
                       className="h-10 w-10 rounded-full object-cover"
                     />
@@ -361,7 +362,7 @@ export default function ProposalDetail() {
                   <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">Cliente</p>
                   <Link to={`/users/${proposal.client._id}`} className="flex items-center gap-3 group">
                     <img
-                      src={proposal.client.avatar}
+                      src={getImageUrl(proposal.client.avatar)}
                       alt={proposal.client.name}
                       className="h-10 w-10 rounded-full object-cover"
                     />

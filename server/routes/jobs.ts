@@ -2440,20 +2440,10 @@ router.patch("/:id/cancel", protect, async (req: AuthRequest, res: Response): Pr
       return;
     }
 
-    // Para trabajos open o paused, verificar restriccion de 24 horas
-    if (job.status === "open" || job.status === "paused") {
-      const now = new Date();
-      const startDate = new Date(job.startDate);
-      const hoursUntilStart = (startDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-      if (hoursUntilStart <= 24) {
-        res.status(400).json({
-          success: false,
-          message: "No puedes cancelar el trabajo con menos de 24 horas de anticipación. Por favor, contacta a soporte si necesitas ayuda.",
-        });
-        return;
-      }
-    }
+    // Tiempo restante hasta el inicio del trabajo (define el reembolso aplicable)
+    const now = new Date();
+    const startDate = new Date(job.startDate);
+    const hoursUntilStart = (startDate.getTime() - now.getTime()) / (1000 * 60 * 60);
 
     // Obtener razon de cancelacion del body
     const { reason } = req.body;
@@ -2481,16 +2471,135 @@ router.patch("/:id/cancel", protect, async (req: AuthRequest, res: Response): Pr
       cancelledBy: 'owner'
     });
 
-    // Si estaba pending_approval, se reembolsa todo (precio + comision)
-    // TODO: Implementar logica de reembolso via MercadoPago si es necesario
-    const refundMessage = isPendingApproval
-      ? "Publicacion cancelada. Se te reembolsará el total pagado (precio + comisión) ya que estaba pendiente de aprobación."
-      : "Publicacion cancelada. La comision pagada no sera reembolsada.";
+    // ============================================
+    // LÓGICA DE REEMBOLSO
+    // Reglas (configuradas 2026-07):
+    //  - pending_approval (aún no aprobado): reembolso TOTAL (precio + comisión).
+    //  - Una vez aprobado (publicado): la comisión de publicación NO se reembolsa.
+    //  - Cancelación con menos de 2h de anticipación y con trabajador seleccionado:
+    //      se reembolsa la MITAD del precio al cliente y la otra MITAD se paga al
+    //      trabajador cuyo trabajo fue cancelado (la comisión ya extraída no se
+    //      devuelve).
+    //  - Cancelación con más de 2h (o sin trabajador seleccionado): se reembolsa el
+    //      precio del trabajo al cliente (comisión no incluida).
+    // Fuente de verdad del balance: user.balanceArs (BalanceTransaction = historial).
+    // ============================================
+    const { BalanceTransaction } = await import('../models/sql/BalanceTransaction.model.js');
+    const { Notification } = await import('../models/sql/Notification.model.js');
+    const { Payment } = await import('../models/sql/Payment.model.js');
+
+    const jobPrice = Number(job.price) || 0;
+    const selectedWorkers: string[] = Array.isArray(job.selectedWorkers) ? job.selectedWorkers : [];
+    const hasWorker = selectedWorkers.length > 0;
+    const isLateCancellation = hasWorker && hoursUntilStart <= 2;
+
+    // Comisión de publicación pagada (no reembolsable una vez aprobado)
+    let commissionPaid = 0;
+    if (job.publicationPaymentId) {
+      const pubPayment = await Payment.findByPk(job.publicationPaymentId).catch(() => null);
+      if (pubPayment) commissionPaid = Number((pubPayment as any).platformFee) || 0;
+    }
+
+    // Determinar montos
+    let clientRefund = 0;
+    let workerPayout = 0;
+    if (isPendingApproval) {
+      clientRefund = jobPrice + commissionPaid; // total
+    } else if (isLateCancellation) {
+      clientRefund = jobPrice / 2;               // mitad al cliente
+      workerPayout = jobPrice / 2;               // mitad al trabajador
+    } else {
+      clientRefund = jobPrice;                   // precio, sin comisión
+    }
+
+    // Acreditar reembolso al cliente
+    if (clientRefund > 0) {
+      const client = await User.findByPk(job.clientId);
+      if (client) {
+        const before = parseFloat(client.balanceArs as any) || 0;
+        await client.addBalance(clientRefund);
+        await BalanceTransaction.create({
+          userId: job.clientId,
+          type: 'refund',
+          amount: clientRefund,
+          balanceBefore: before,
+          balanceAfter: before + clientRefund,
+          description: `Reembolso por cancelación del trabajo "${job.title}"`,
+          status: 'completed',
+          metadata: {
+            reason: isPendingApproval ? 'job_cancelled_pending_approval' : isLateCancellation ? 'job_cancelled_late' : 'job_cancelled',
+            jobId: job.id,
+            jobPrice,
+            commissionRefunded: isPendingApproval ? commissionPaid : 0,
+            commissionWithheld: isPendingApproval ? 0 : commissionPaid,
+            hoursUntilStart: Math.round(hoursUntilStart * 100) / 100,
+          },
+        } as any);
+        await Notification.create({
+          recipientId: job.clientId,
+          type: 'success',
+          category: 'payment',
+          title: 'Reembolso acreditado',
+          message: `Se acreditaron $${clientRefund.toLocaleString('es-AR')} ARS a tu balance por la cancelación de "${job.title}".`,
+          relatedModel: 'Job',
+          relatedId: job.id,
+          read: false,
+        } as any);
+      }
+    }
+
+    // Pagar la mitad al/los trabajador(es) cuyo trabajo fue cancelado (< 2h)
+    if (workerPayout > 0 && hasWorker) {
+      const perWorker = workerPayout / selectedWorkers.length;
+      for (const workerId of selectedWorkers) {
+        const worker = await User.findByPk(workerId).catch(() => null);
+        if (worker) {
+          const before = parseFloat(worker.balanceArs as any) || 0;
+          await worker.addBalance(perWorker);
+          await BalanceTransaction.create({
+            userId: workerId,
+            type: 'payment',
+            amount: perWorker,
+            balanceBefore: before,
+            balanceAfter: before + perWorker,
+            description: `Compensación por cancelación tardía del trabajo "${job.title}"`,
+            status: 'completed',
+            metadata: { reason: 'job_cancelled_late_compensation', jobId: job.id, jobPrice },
+          } as any);
+          await Notification.create({
+            recipientId: workerId,
+            type: 'info',
+            category: 'payment',
+            title: 'Compensación por cancelación',
+            message: `El cliente canceló "${job.title}" con menos de 2 horas de anticipación. Se te acreditaron $${perWorker.toLocaleString('es-AR')} ARS como compensación.`,
+            relatedModel: 'Job',
+            relatedId: job.id,
+            read: false,
+          } as any);
+          socketService.notifyUser(workerId, 'job_cancelled_compensation', { jobId: job.id, amount: perWorker });
+        }
+      }
+    }
+
+    // Mensaje de resultado
+    let refundMessage: string;
+    if (isPendingApproval) {
+      refundMessage = `Publicación cancelada. Se reembolsaron $${clientRefund.toLocaleString('es-AR')} ARS (precio + comisión) a tu balance.`;
+    } else if (isLateCancellation) {
+      refundMessage = `Publicación cancelada con menos de 2 horas de anticipación. Se reembolsó $${clientRefund.toLocaleString('es-AR')} ARS a tu balance (la mitad del precio); la otra mitad se pagó al trabajador. La comisión de publicación no se reembolsa.`;
+    } else {
+      refundMessage = `Publicación cancelada. Se reembolsaron $${clientRefund.toLocaleString('es-AR')} ARS a tu balance. La comisión de publicación no se reembolsa.`;
+    }
 
     res.json({
       success: true,
       message: refundMessage,
       refundTotal: isPendingApproval,
+      refund: {
+        toClient: clientRefund,
+        toWorker: workerPayout,
+        commissionWithheld: isPendingApproval ? 0 : commissionPaid,
+      },
       job,
     });
   } catch (error: any) {

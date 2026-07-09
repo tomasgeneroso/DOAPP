@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { getImageUrl } from '@/utils/imageUrl';
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
@@ -930,7 +931,7 @@ export default function ContractDetail() {
                       <div className="flex items-center gap-3">
                         {c.doerAvatar ? (
                           <img
-                            src={c.doerAvatar}
+                            src={getImageUrl(c.doerAvatar)}
                             alt={c.doerName}
                             className="w-10 h-10 rounded-full object-cover"
                           />

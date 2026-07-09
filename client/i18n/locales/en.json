@@ -289,7 +289,9 @@
       "noActiveContract": "No active contract for this job yet",
       "applicants": "Applicants",
       "noApplicants": "No applicants yet",
-      "applicantsWillAppear": "Interested professionals will appear here"
+      "applicantsWillAppear": "Interested professionals will appear here",
+      "beforeSelectTitle": "Tips before selecting a worker",
+      "beforeSelectReviewProfile": "Review the worker's profile and reviews before selecting them."
     },
     "actions": {
       "actions": "Actions",

@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from 'react-i18next';
 
 interface AdvertisementProps {
@@ -63,7 +64,7 @@ const Advertisement: React.FC<AdvertisementProps> = ({ ad, onImpression, onClick
       {/* Image container */}
       <div className="relative w-full h-full">
         <img
-          src={ad.imageUrl}
+          src={getImageUrl(ad.imageUrl)}
           alt={ad.title}
           className="w-full h-full object-cover"
         />

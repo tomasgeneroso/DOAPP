@@ -422,7 +422,7 @@ const DisputeDetail: React.FC = () => {
                       <div key={index} className="flex gap-3 group">
                         <div className="flex-shrink-0">
                           {senderAvatar && !isAdmin ? (
-                            <img src={senderAvatar} alt={displayName} className="w-10 h-10 rounded-full ring-2 ring-white dark:ring-gray-700 shadow-sm" />
+                            <img src={getImageUrl(senderAvatar)} alt={displayName} className="w-10 h-10 rounded-full ring-2 ring-white dark:ring-gray-700 shadow-sm" />
                           ) : (
                             <div className={`w-10 h-10 rounded-full flex items-center justify-center ring-2 ring-white dark:ring-gray-700 shadow-sm ${avatarClass}`}>
                               {isAdmin ? (

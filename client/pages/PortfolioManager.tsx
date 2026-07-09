@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
 import { PortfolioItem } from '../types';
@@ -330,7 +331,7 @@ export default function PortfolioManager() {
             >
               {item.images && item.images.length > 0 && (
                 <img
-                  src={item.images[0]}
+                  src={getImageUrl(item.images[0])}
                   alt={item.title}
                   className="w-full h-48 object-cover"
                 />

@@ -6,6 +6,7 @@ import { Heart, MessageCircle, Eye, ArrowLeft, Calendar, DollarSign, Tag, Chevro
 import { Helmet } from "react-helmet-async";
 import Button from "../components/ui/Button";
 import PostComments from "../components/user/PostComments";
+import { getImageUrl } from "../utils/imageUrl";
 
 interface GalleryItem {
   url: string;
@@ -130,12 +131,6 @@ export default function PostDetail() {
       navigator.clipboard.writeText(window.location.href);
       alert('Link copiado al portapapeles');
     }
-  };
-
-  const getImageUrl = (url: string) => {
-    if (!url) return '';
-    if (url.startsWith('http')) return url;
-    return url.startsWith('/') ? url : `/${url}`;
   };
 
   const nextImage = () => {

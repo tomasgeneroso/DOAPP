@@ -456,7 +456,9 @@
       "noApplicants": "Sin postulantes aún",
       "applicantsWillAppear": "Los profesionales interesados aparecerán aquí",
       "tip": "Consejo",
-      "tipText": "Leé la descripción con atención y asegurate de tener las herramientas necesarias antes de postularte."
+      "tipText": "Leé la descripción con atención y asegurate de tener las herramientas necesarias antes de postularte.",
+      "beforeSelectTitle": "Consejos antes de seleccionar trabajador",
+      "beforeSelectReviewProfile": "Revisá el perfil y las reseñas del trabajador antes de seleccionarlo."
     },
     "actions": {
       "actions": "Acciones",
@@ -2335,7 +2337,9 @@
     },
     "jobs": {
       "paymentProof": "Comprobante de pago",
-      "uploadedOn": "Subido el"
+      "uploadedOn": "Subido el",
+      "viewPayment": "Ver pago",
+      "viewPaymentInTransactions": "Ver pago en transacciones"
     },
     "roles": {
       "errorAssigningRole": "Error al asignar el rol",

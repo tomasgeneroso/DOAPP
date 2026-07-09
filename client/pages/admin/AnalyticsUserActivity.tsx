@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from 'react-i18next';
 import { adminApi } from "@/lib/adminApi";
 import { Link } from "react-router-dom";
@@ -75,7 +76,7 @@ function UserAvatar({ user }: { user?: UserInfo }) {
     <div className="flex items-center gap-3 min-w-0">
       {user.avatar ? (
         <img
-          src={user.avatar}
+          src={getImageUrl(user.avatar)}
           alt={user.name}
           className="w-8 h-8 rounded-full object-cover flex-shrink-0"
         />

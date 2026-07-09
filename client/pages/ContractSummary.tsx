@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getImageUrl } from '@/utils/imageUrl';
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
@@ -215,7 +216,7 @@ export default function ContractSummary() {
                 <div className="flex items-center gap-3">
                   {contract.client.avatar ? (
                     <img
-                      src={contract.client.avatar}
+                      src={getImageUrl(contract.client.avatar)}
                       alt={contract.client.name}
                       className="h-12 w-12 rounded-full object-cover"
                     />
@@ -244,7 +245,7 @@ export default function ContractSummary() {
                 <div className="flex items-center gap-3">
                   {contract.doer.avatar ? (
                     <img
-                      src={contract.doer.avatar}
+                      src={getImageUrl(contract.doer.avatar)}
                       alt={contract.doer.name}
                       className="h-12 w-12 rounded-full object-cover"
                     />

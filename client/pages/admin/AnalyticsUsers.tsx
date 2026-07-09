@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getImageUrl } from '@/utils/imageUrl';
 import { adminApi } from "@/lib/adminApi";
 import { Users, TrendingUp, Award, CheckCircle } from "lucide-react";
 import {
@@ -270,7 +271,7 @@ export default function AnalyticsUsers() {
                 </div>
                 {user.avatar ? (
                   <img
-                    src={user.avatar}
+                    src={getImageUrl(user.avatar)}
                     alt={user.name}
                     className="w-10 h-10 rounded-full object-cover"
                   />

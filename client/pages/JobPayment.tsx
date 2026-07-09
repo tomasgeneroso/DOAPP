@@ -616,9 +616,11 @@ export default function JobPayment() {
             </div>
             <ul className="space-y-2 text-sm text-amber-800 dark:text-amber-300">
               <li className="flex items-start gap-2"><span className="mt-0.5">🔑</span> <span>Pedile al trabajador que te muestre su <strong>código de verificación</strong> al iniciar el trabajo para confirmar su identidad.</span></li>
-              <li className="flex items-start gap-2"><span className="mt-0.5">💰</span> <span>La comisión de publicación <strong>no se devuelve</strong> una vez que un trabajador es seleccionado. Podés cancelar con reembolso total solo hasta ese momento o hasta 24hs antes del inicio.</span></li>
+              <li className="flex items-start gap-2"><span className="mt-0.5">💰</span> <span>La comisión de publicación <strong>no se reembolsa</strong> una vez que un trabajador es seleccionado.</span></li>
+              <li className="flex items-start gap-2"><span className="mt-0.5">🕒</span> <span>Si cancelás con <strong>menos de 2 horas</strong> de anticipación al inicio, se te reembolsa <strong>solo la mitad del precio del trabajo</strong> (descontando la comisión ya retenida). La otra mitad se le paga al <strong>trabajador cuyo trabajo cancelaste</strong>.</span></li>
               <li className="flex items-start gap-2"><span className="mt-0.5">📋</span> <span>Describí el trabajo con <strong>la mayor cantidad de detalle posible</strong>: materiales necesarios, acceso al lugar, horario exacto. Evita malentendidos.</span></li>
               <li className="flex items-start gap-2"><span className="mt-0.5">💬</span> <span>Toda comunicación y negociación de precio debe hacerse <strong>dentro de la plataforma</strong> para estar protegido.</span></li>
+              <li className="flex items-start gap-2"><span className="mt-0.5">🛡️</span> <span>Si el trabajo no se completa correctamente, podés abrir una <strong>disputa</strong> y el dinero queda retenido en escrow hasta resolverse.</span></li>
               <li className="flex items-start gap-2"><span className="mt-0.5">⭐</span> <span>Después de completado el trabajo, acordate de <strong>dejar una reseña</strong>: ayuda a otros clientes y mejora el ecosistema.</span></li>
             </ul>
           </div>
@@ -629,14 +631,16 @@ export default function JobPayment() {
               Comisión de Publicación
             </h3>
             <div className="space-y-2 text-sm text-blue-800 dark:text-blue-300">
-              <p>
-                La comisión de publicación varía según tu membresía:
-              </p>
-              <ul className="list-disc list-inside space-y-1 ml-2">
-                <li><strong>Usuario FREE:</strong> 8% del presupuesto</li>
-                <li><strong>Usuario PRO:</strong> 3% del presupuesto</li>
-                <li><strong>Usuario SUPER PRO:</strong> 1% del presupuesto</li>
-              </ul>
+              {isFreeContract ? (
+                <p>
+                  ✨ Este contrato está <strong>libre de comisión</strong>.
+                </p>
+              ) : (
+                <p>
+                  Tu comisión de publicación es del <strong>{commissionRate}%</strong> del presupuesto
+                  {" "}(plan <strong>{user?.membershipTier === 'super_pro' ? 'SUPER PRO' : user?.membershipTier === 'pro' ? 'PRO' : 'FREE'}</strong>).
+                </p>
+              )}
               <p className="pt-2">
                 <strong>Nota:</strong> Para contratos menores a $8,000 ARS, se aplica una comisión mínima de $1,000 ARS.
               </p>
@@ -882,23 +886,6 @@ export default function JobPayment() {
           )}
 
           {/* Actions */}
-          {/* Tips before payment */}
-          <div className="px-6 pb-2">
-            <div className="rounded-xl border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-base">💡</span>
-                <span className="text-sm font-semibold text-amber-800 dark:text-amber-200">Antes de publicar</span>
-              </div>
-              <ul className="space-y-1.5 text-xs text-amber-700 dark:text-amber-300">
-                <li className="flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span>Las comisiones <strong>no se devuelven</strong> salvo que canceles antes de seleccionar un trabajador y más de 42hs antes del inicio.</span></li>
-                <li className="flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span>Verificá el <strong>código del trabajador</strong> cuando llegue al lugar de trabajo para mayor seguridad.</span></li>
-                <li className="flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span>Publicá los <strong>requisitos de finalización</strong> con detalle para evitar disputas.</span></li>
-                <li className="flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span>Si el trabajo no se completa correctamente, podés abrir una <strong>disputa</strong> y el dinero queda retenido en escrow hasta resolverse.</span></li>
-                <li className="flex items-start gap-1.5"><span className="text-amber-500 mt-0.5">•</span><span>Revisá el perfil y las reseñas del trabajador antes de seleccionarlo.</span></li>
-              </ul>
-            </div>
-          </div>
-
           <div className="p-6 bg-slate-50 dark:bg-slate-900/60 space-y-3">
             <button
               onClick={handlePayment}

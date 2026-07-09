@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../hooks/useAuth';
 import {
@@ -433,7 +434,7 @@ export default function FamilyCodes() {
                         {code.usedBy ? (
                           <div className="flex items-center gap-2">
                             <img
-                              src={code.usedBy.avatar || '/default-avatar.png'}
+                              src={getImageUrl(code.usedBy.avatar)}
                               alt={code.usedBy.name}
                               className="h-8 w-8 rounded-full object-cover"
                             />

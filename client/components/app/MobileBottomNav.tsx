@@ -1,4 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
+import { getImageUrl } from '@/utils/imageUrl';
 import { useState, useEffect } from "react";
 import { Home, Briefcase, PlusCircle, MessageCircle, User as UserIcon, LogIn } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -106,7 +107,7 @@ export default function MobileBottomNav() {
             >
               {user.avatar ? (
                 <img
-                  src={user.avatar}
+                  src={getImageUrl(user.avatar)}
                   alt=""
                   className={`h-6 w-6 rounded-full object-cover ${isActive("/profile") ? "ring-2 ring-sky-500" : ""}`}
                 />

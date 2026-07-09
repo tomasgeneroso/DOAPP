@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from 'react-i18next';
 import { Loader2 } from 'lucide-react';
 
@@ -82,7 +83,7 @@ export default function ShowcaseSection({ userId }: ShowcaseProps) {
               return (
                 <div key={item.id} className="bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden hover:shadow-lg transition">
                   {item.image && (
-                    <img src={item.image} alt={item.title} className="w-full h-40 object-cover" />
+                    <img src={getImageUrl(item.image)} alt={item.title} className="w-full h-40 object-cover" />
                   )}
                   <div className="p-4">
                     <h3 className="font-bold text-slate-900 dark:text-white">{item.title}</h3>
@@ -100,7 +101,7 @@ export default function ShowcaseSection({ userId }: ShowcaseProps) {
               return (
                 <div key={item.id} className="bg-white dark:bg-slate-800 rounded-lg shadow overflow-hidden hover:shadow-lg transition">
                   {item.image && (
-                    <img src={item.image} alt={item.title} className="w-full h-40 object-cover" />
+                    <img src={getImageUrl(item.image)} alt={item.title} className="w-full h-40 object-cover" />
                   )}
                   <div className="p-4">
                     <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 rounded">

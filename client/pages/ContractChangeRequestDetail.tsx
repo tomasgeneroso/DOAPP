@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getImageUrl } from '@/utils/imageUrl';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useTranslation } from 'react-i18next';
@@ -230,7 +231,7 @@ export default function ContractChangeRequestDetail() {
               <div className="flex items-center gap-3">
                 {request.requestedBy.avatar ? (
                   <img
-                    src={request.requestedBy.avatar}
+                    src={getImageUrl(request.requestedBy.avatar)}
                     alt={request.requestedBy.name}
                     className="w-12 h-12 rounded-full object-cover"
                   />

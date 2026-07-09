@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from "react-i18next";
 import { useParams, Link } from "react-router-dom";
 import { adminApi } from "@/lib/adminApi";
@@ -210,7 +211,7 @@ export default function AnalyticsUserActivityDetail() {
         <div className="flex items-center gap-4">
           {user.avatar ? (
             <img
-              src={user.avatar}
+              src={getImageUrl(user.avatar)}
               alt={user.name}
               className="w-16 h-16 rounded-full object-cover"
             />

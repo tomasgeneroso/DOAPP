@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
 import { InvitationCode } from '../types';
@@ -178,7 +179,7 @@ export default function InvitationCodesModal({ isOpen, onClose }: InvitationCode
                         </div>
                         {invitedUser.avatar ? (
                           <img
-                            src={invitedUser.avatar}
+                            src={getImageUrl(invitedUser.avatar)}
                             alt={invitedUser.name}
                             className="w-10 h-10 rounded-full"
                           />

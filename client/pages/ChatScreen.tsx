@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useSocket } from '../hooks/useSocket';
 import { ContractModal, ContractModalType } from '../components/chat/ContractModals';
 import { SystemMessageCard } from '../components/chat/SystemMessageCard';
+import { getImageUrl } from '../utils/imageUrl';
 import {
   Send,
   ArrowLeft,
@@ -1076,7 +1077,7 @@ export default function ChatScreen() {
                   <div className="flex items-center gap-2">
                     {otherParticipant.avatar ? (
                       <img
-                        src={otherParticipant.avatar}
+                        src={getImageUrl(otherParticipant.avatar)}
                         alt={otherParticipant.name}
                         className="h-10 w-10 rounded-full object-cover"
                       />

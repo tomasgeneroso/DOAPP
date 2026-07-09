@@ -1,4 +1,5 @@
 import { Link, useNavigate, useLocation } from "react-router-dom";
+import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
 import { useSocket } from "../../hooks/useSocket";
@@ -297,7 +298,7 @@ export default function Header() {
               >
                 {user.avatar ? (
                   <img
-                    src={user.avatar}
+                    src={getImageUrl(user.avatar)}
                     alt={user.name}
                     className="h-8 w-8 rounded-full object-cover"
                     onError={(e) => {

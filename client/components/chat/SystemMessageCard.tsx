@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
+import { getImageUrl } from '@/utils/imageUrl';
 import {
   Briefcase,
   UserCheck,
@@ -417,7 +418,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
                   return (
                     <a
                       key={index}
-                      href={url}
+                      href={getImageUrl(url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-2 p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg hover:border-sky-400 dark:hover:border-sky-500 transition-colors group"
@@ -428,7 +429,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
                         </div>
                       ) : (
                         <img
-                          src={url}
+                          src={getImageUrl(url)}
                           alt={fileName}
                           className="w-10 h-10 object-cover rounded"
                           onError={(e) => {

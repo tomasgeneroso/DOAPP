@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getImageUrl } from '@/utils/imageUrl';
 import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
@@ -308,7 +309,7 @@ export default function ProposalsScreen() {
                         <div className="flex items-center gap-6 text-sm text-slate-600 dark:text-slate-400">
                           <div className="flex items-center gap-2">
                             <img
-                              src={otherParty.avatar}
+                              src={getImageUrl(otherParty.avatar)}
                               alt={otherParty.name}
                               className="h-8 w-8 rounded-full object-cover"
                             />
@@ -385,7 +386,7 @@ export default function ProposalsScreen() {
                         <div className="flex items-center gap-6 text-sm text-slate-600 dark:text-slate-400">
                           <div className="flex items-center gap-2">
                             <img
-                              src={otherParty.avatar}
+                              src={getImageUrl(otherParty.avatar)}
                               alt={otherParty.name}
                               className="h-8 w-8 rounded-full object-cover"
                             />

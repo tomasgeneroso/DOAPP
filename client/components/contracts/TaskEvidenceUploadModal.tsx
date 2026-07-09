@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from 'react-i18next';
 import { JobTask } from '../../types';
 import { useAuth } from '../../hooks/useAuth';
@@ -320,7 +321,7 @@ export default function TaskEvidenceUploadModal({
                         {currentPhotos.map((photo, index) => (
                           <div key={index} className="relative group">
                             <img
-                              src={photo}
+                              src={getImageUrl(photo)}
                               alt={t('contracts.evidencePhoto', 'Evidence {{number}}', { number: index + 1 })}
                               className="w-full h-24 object-cover rounded-lg"
                             />

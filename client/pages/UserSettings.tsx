@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getImageUrl } from '@/utils/imageUrl';
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
@@ -696,7 +697,7 @@ export default function UserSettings() {
                   <div className="flex items-center gap-5">
                     <div className="relative">
                       <img
-                        src={avatarPreview || user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'U')}&background=0ea5e9&color=fff`}
+                        src={avatarPreview || getImageUrl(user?.avatar)}
                         alt="Avatar"
                         className="w-20 h-20 rounded-full object-cover border-2 border-slate-200 dark:border-slate-600"
                       />

@@ -20,8 +20,14 @@ export function getImageUrl(path: string | undefined | null): string {
     return 'https://api.dicebear.com/7.x/shapes/svg?seed=default&backgroundColor=0ea5e9';
   }
 
-  // Already a full URL (external avatars, etc.)
-  if (path.startsWith('http://') || path.startsWith('https://')) {
+  // Already a full URL (external avatars, etc.) or an in-memory/local preview
+  // (blob: from URL.createObjectURL, data: URIs) — leave these untouched.
+  if (
+    path.startsWith('http://') ||
+    path.startsWith('https://') ||
+    path.startsWith('blob:') ||
+    path.startsWith('data:')
+  ) {
     return path;
   }
 
