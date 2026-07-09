@@ -42,6 +42,7 @@ import MultipleRatings from "../components/user/MultipleRatings";
 import { getCategoryById } from "../../shared/constants/categories";
 import LocationCircleMap from "../components/map/LocationCircleMap";
 import JobTasks from "../components/jobs/JobTasks";
+import { getImageUrl } from "../utils/imageUrl";
 import { analytics } from "../utils/analytics";
 import { parseArgentineNumber, formatBudgetInput } from "../utils/numberFormat";
 import ConfirmationSuccessModal from "../components/jobDetail/ConfirmationSuccessModal";
@@ -2171,6 +2172,33 @@ export default function JobDetail() {
                 {job.description}
               </p>
             </div>
+
+            {/* Job photos */}
+            {Array.isArray((job as any).images) && (job as any).images.length > 0 && (
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">
+                <h2 className="mb-4 text-xl font-bold text-slate-900 dark:text-white">
+                  {t("jobs.photos", "Fotos del trabajo")}
+                </h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {(job as any).images.map((img: string, i: number) => (
+                    <a
+                      key={i}
+                      href={getImageUrl(img)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block aspect-square overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700"
+                    >
+                      <img
+                        src={getImageUrl(img)}
+                        alt={`${job.title} — foto ${i + 1}`}
+                        className="h-full w-full object-cover transition-opacity hover:opacity-90"
+                        onError={(e) => { (e.currentTarget.style.display = 'none'); }}
+                      />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Job Tasks - visible to owner and workers */}
             {(isOwnJob || isWorkerOnJob) &&

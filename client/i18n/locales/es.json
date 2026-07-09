@@ -785,7 +785,8 @@
     "youWereSelected": "¡Fuiste seleccionado para este trabajo!",
     "allowCounterOffers": "Permitir contraofertas",
     "allowCounterOffersHint": "Si lo desactivás, solo pueden postularse al precio que fijaste.",
-    "noTaskAssigned": "Sin tarea asignada"
+    "noTaskAssigned": "Sin tarea asignada",
+    "photos": "Fotos del trabajo"
   },
   "contracts": {
     "title": "Contratos",

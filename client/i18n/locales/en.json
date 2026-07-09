@@ -359,7 +359,8 @@
     },
     "allowCounterOffers": "Allow counter-offers",
     "allowCounterOffersHint": "If you disable it, applicants can only apply at the price you set.",
-    "noTaskAssigned": "No task assigned"
+    "noTaskAssigned": "No task assigned",
+    "photos": "Job photos"
   },
   "contracts": {
     "title": "Contracts",
