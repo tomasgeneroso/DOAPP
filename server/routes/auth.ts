@@ -495,7 +495,10 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
           alias: user.bankingInfo.alias,
         } : undefined,
         dontAskBankingInfo: user?.dontAskBankingInfo,
-        legalInfo: user?.legalInfo,
+        // Owner's own data → return the DNI/CUIT decrypted (it's stored encrypted)
+        legalInfo: user?.legalInfo
+          ? { ...user.legalInfo, idNumber: user.getDecryptedIdNumber?.() ?? user.legalInfo.idNumber }
+          : undefined,
         notificationPreferences: user?.notificationPreferences,
         referralCode: user?.referralCode,
         freeContractsRemaining: user?.freeContractsRemaining,
