@@ -197,7 +197,7 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
           metadata: { jobId, userId, paymentType: 'job_publication' },
           customerEmail: req.user.email,
           successUrl: `${process.env.CLIENT_URL}/payment/success?type=job_publication&jobId=${jobId}`,
-          cancelUrl: `${process.env.CLIENT_URL}/payment/failure?type=job_publication&jobId=${jobId}`,
+          cancelUrl: `${process.env.CLIENT_URL}/jobs/${jobId}/payment`,
         });
         const payment = await Payment.create({
           contractId: null,
@@ -234,7 +234,7 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
         },
         customerEmail: req.user.email,
         successUrl: `${process.env.CLIENT_URL}/payment/success?type=job_publication&jobId=${jobId}`,
-        cancelUrl: `${process.env.CLIENT_URL}/payment/failure?type=job_publication&jobId=${jobId}`,
+        cancelUrl: `${process.env.CLIENT_URL}/jobs/${jobId}/payment`,
       });
 
       if (!mpPayment.checkoutUrl) {
@@ -349,7 +349,7 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
           metadata: { jobId, userId, paymentType: 'budget_increase' },
           customerEmail: req.user.email,
           successUrl: `${process.env.CLIENT_URL}/payment/success?type=budget_increase&jobId=${jobId}`,
-          cancelUrl: `${process.env.CLIENT_URL}/payment/failure?type=budget_increase&jobId=${jobId}`,
+          cancelUrl: `${process.env.CLIENT_URL}/jobs/${jobId}/payment`,
         });
         const payment = await Payment.create({
           contractId: null,
@@ -385,7 +385,7 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
         },
         customerEmail: req.user.email,
         successUrl: `${process.env.CLIENT_URL}/payment/success?type=budget_increase&jobId=${jobId}`,
-        cancelUrl: `${process.env.CLIENT_URL}/payment/failure?type=budget_increase&jobId=${jobId}`,
+        cancelUrl: `${process.env.CLIENT_URL}/jobs/${jobId}/payment`,
       });
 
       if (!mpPayment.checkoutUrl) {
@@ -462,7 +462,7 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
         metadata: { contractId, userId, paymentType: 'contract_payment' },
         customerEmail: req.user.email,
         successUrl: `${process.env.CLIENT_URL}/payment/success?type=contract&contractId=${contractId}`,
-        cancelUrl: `${process.env.CLIENT_URL}/payment/failure?type=contract&contractId=${contractId}`,
+        cancelUrl: `${process.env.CLIENT_URL}/contracts/${contractId}`,
       });
       const payment = await Payment.create({
         contractId, payerId, recipientId,
@@ -518,7 +518,7 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
       metadata: { contractId, userId, paymentType: 'contract_payment' },
       customerEmail: req.user.email,
       successUrl: `${process.env.CLIENT_URL}/payment/success?type=contract&contractId=${contractId}`,
-      cancelUrl: `${process.env.CLIENT_URL}/payment/failure?type=contract&contractId=${contractId}`,
+      cancelUrl: `${process.env.CLIENT_URL}/contracts/${contractId}`,
     });
     if (!mpPayment.checkoutUrl) {
       throw new Error('No se pudo obtener el link de pago de MercadoPago');
