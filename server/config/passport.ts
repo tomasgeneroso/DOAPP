@@ -41,13 +41,28 @@ if (config.googleClientId && config.googleClientSecret) {
             }
           }
 
-          // Si no existe, crear nuevo usuario
+          // Si no existe, crear nuevo usuario — con un username válido y único
+          // (el prefijo del email puede colisionar o no cumplir las reglas)
+          let base = (email.split('@')[0] || `google${profile.id}`)
+            .toLowerCase()
+            .replace(/[^a-z0-9._]/g, '')
+            .replace(/^[._]+|[._]+$/g, '')
+            .replace(/[._]{2,}/g, '.')
+            .slice(0, 25);
+          if (base.length < 3) base = `user${profile.id}`.slice(0, 25);
+          let username = base;
+          let attempt = 0;
+          // eslint-disable-next-line no-await-in-loop
+          while (await User.findOne({ where: { username }, attributes: ['id'] })) {
+            attempt += 1;
+            username = `${base}${attempt}`.slice(0, 30);
+          }
+
           user = await User.create({
             googleId: profile.id,
             name: profile.displayName || 'Google User',
-            username: email.split('@')[0] || `google_${profile.id}`,
+            username,
             email,
-            passwordHash: '', // No necesario para OAuth
             avatar: profile.photos?.[0].value,
             isVerified: true, // Verificado por Google
             termsAccepted: true, // Asumimos aceptación al usar social login
@@ -56,6 +71,7 @@ if (config.googleClientId && config.googleClientSecret) {
 
           return done(null, user);
         } catch (error) {
+          console.error('❌ Google OAuth strategy error:', error);
           return done(error, false);
         }
       }

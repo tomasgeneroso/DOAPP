@@ -525,6 +525,7 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
       },
     });
   } catch (error: any) {
+    console.error('❌ Error in GET /auth/me for user', req.user?.id, ':', error);
     res.status(500).json({
       success: false,
       message: error.message || "Error del servidor",
