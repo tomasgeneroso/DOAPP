@@ -97,6 +97,7 @@ export default function JobApplicationSummary() {
               budget: job.price,
               category: job.category,
               accepted: true, // Indicar que ya aceptó las condiciones
+              allowNegotiation: (job as any).allowCounterOffers !== false, // Owner setting
             }
           }
         });

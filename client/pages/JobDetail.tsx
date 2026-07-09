@@ -2494,6 +2494,11 @@ export default function JobDetail() {
                       )}
                     </button>
                   )}
+                  {(job as any).allowCounterOffers === false && (
+                    <p className="mt-2 text-xs text-center text-amber-600 dark:text-amber-400">
+                      ⚠️ Este trabajo no acepta contraofertas: te postulás al precio publicado.
+                    </p>
+                  )}
                   {error && (
                     <p className="text-sm text-red-600 text-center">{error}</p>
                   )}
