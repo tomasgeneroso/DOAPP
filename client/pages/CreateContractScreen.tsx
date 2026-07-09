@@ -523,6 +523,22 @@ export default function CreateContractScreen() {
                         {t('jobs.quotable', 'A cotizar (el postulante propone el precio)')}
                       </span>
                     </label>
+                    {!isQuotable && (
+                      <label className="flex items-start gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={allowCounterOffers}
+                          onChange={(e) => setAllowCounterOffers(e.target.checked)}
+                          className="mt-0.5 rounded border-gray-300 text-sky-600 shadow-sm focus:ring-sky-500 dark:bg-slate-700 dark:border-slate-600"
+                        />
+                        <span>
+                          <span className="block text-gray-800 dark:text-slate-200 font-medium">Permitir contraofertas</span>
+                          <span className="block text-xs text-gray-500 dark:text-slate-400">
+                            Si lo desactivás, solo pueden postularse al precio que fijaste.
+                          </span>
+                        </span>
+                      </label>
+                    )}
                   </div>
                 </FormField>
               </div>
@@ -605,26 +621,6 @@ export default function CreateContractScreen() {
                 onAddressChange={setLocation}
               />
             </Suspense>
-
-            {/* Allow counter-offers setting */}
-            <div className="p-4 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={allowCounterOffers}
-                  onChange={(e) => setAllowCounterOffers(e.target.checked)}
-                  className="w-4 h-4 mt-0.5 rounded border-gray-300 dark:border-slate-600 text-sky-600 focus:ring-sky-500 dark:bg-slate-700"
-                />
-                <span>
-                  <span className="block text-sm font-medium text-gray-800 dark:text-slate-200">
-                    Permitir contraofertas
-                  </span>
-                  <span className="block text-xs text-gray-500 dark:text-slate-400 mt-0.5">
-                    Si está activo, los postulantes pueden proponer un precio distinto al publicado. Si lo desactivás, solo pueden postularse al precio que fijaste.
-                  </span>
-                </span>
-              </label>
-            </div>
 
             <div className="grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
               <div className="sm:col-span-3">

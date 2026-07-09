@@ -1483,10 +1483,13 @@ export default function ChatScreen() {
                     className={`max-w-[70%] rounded-2xl px-4 py-3 ${
                       (message.sender.id || message.sender._id) === user?.id
                         ? 'bg-sky-600 text-white'
-                        : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700'
+                        : (message.sender as any).adminRole
+                          ? 'bg-sky-50 dark:bg-sky-900/30 text-slate-900 dark:text-white border-2 border-sky-300 dark:border-sky-600 ring-2 ring-sky-200/60 dark:ring-sky-800/40 shadow-sm'
+                          : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-white border border-slate-200 dark:border-slate-700'
                     }`}
                   >
-                    <p className="text-sm font-medium mb-1 opacity-75">
+                    <p className={`text-sm font-medium mb-1 ${(message.sender as any).adminRole ? 'text-sky-600 dark:text-sky-400 flex items-center gap-1' : 'opacity-75'}`}>
+                      {(message.sender as any).adminRole && <span aria-hidden>🛡️</span>}
                       {(message.sender as any).adminRole
                         ? `${(message.sender.name || '').split(' ')[0]} (Soporte DOAPP)`
                         : message.sender.name}

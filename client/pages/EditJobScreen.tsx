@@ -602,6 +602,22 @@ export default function EditJobScreen() {
                     className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                 </FormField>
+                {/* Counter-offers: defined next to the price */}
+                <label className="flex items-start gap-2 mt-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={allowCounterOffers}
+                    onChange={(e) => setAllowCounterOffers(e.target.checked)}
+                    disabled={fieldsDisabled}
+                    className="w-4 h-4 mt-0.5 rounded border-gray-300 dark:border-slate-600 text-sky-600 focus:ring-sky-500 dark:bg-slate-700"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-gray-800 dark:text-slate-200">Permitir contraofertas</span>
+                    <span className="block text-xs text-gray-500 dark:text-slate-400">
+                      Si lo desactivás, solo pueden postularse al precio que fijaste.
+                    </span>
+                  </span>
+                </label>
               </div>
               <div className="sm:col-span-2">
                 <FormField label={t('jobs.cityLabel', 'City')} icon={MapPin} required>
@@ -699,27 +715,6 @@ export default function EditJobScreen() {
                   )}
                 </FormField>
               </div>
-            </div>
-
-            {/* Allow counter-offers setting */}
-            <div className="p-4 rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800/50">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={allowCounterOffers}
-                  onChange={(e) => setAllowCounterOffers(e.target.checked)}
-                  disabled={fieldsDisabled}
-                  className="w-4 h-4 mt-0.5 rounded border-gray-300 dark:border-slate-600 text-sky-600 focus:ring-sky-500 dark:bg-slate-700"
-                />
-                <span>
-                  <span className="block text-sm font-medium text-gray-800 dark:text-slate-200">
-                    Permitir contraofertas
-                  </span>
-                  <span className="block text-xs text-gray-500 dark:text-slate-400 mt-0.5">
-                    Si está activo, los postulantes pueden proponer un precio distinto al publicado. Si lo desactivás, solo pueden postularse al precio que fijaste.
-                  </span>
-                </span>
-              </label>
             </div>
 
             {/* Overlap Warning */}
