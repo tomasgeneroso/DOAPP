@@ -2481,7 +2481,8 @@ router.patch("/:id/cancel", protect, async (req: AuthRequest, res: Response): Pr
     //      trabajador cuyo trabajo fue cancelado (la comisión ya extraída no se
     //      devuelve).
     //  - Cancelación con menos de 2h SIN trabajador seleccionado: se devuelve la
-    //      totalidad al dueño (precio + comisión), ya que nadie fue asignado.
+    //      totalidad del precio al dueño (comisión no incluida — nunca se
+    //      reembolsa si la publicación está aprobada).
     //  - Cancelación con más de 2h: se reembolsa el precio del trabajo al cliente
     //      (comisión no incluida).
     // Fuente de verdad del balance: user.balanceArs (BalanceTransaction = historial).
@@ -2510,8 +2511,9 @@ router.patch("/:id/cancel", protect, async (req: AuthRequest, res: Response): Pr
       clientRefund = jobPrice + commissionPaid; // total (aún no aprobado)
     } else if (isLateNoWorker) {
       // ≤2h sin trabajador seleccionado: nadie fue asignado, se devuelve la
-      // totalidad al dueño del trabajo (precio + comisión).
-      clientRefund = jobPrice + commissionPaid;
+      // totalidad del PRECIO al dueño. La comisión no se reembolsa (publicación
+      // ya aprobada).
+      clientRefund = jobPrice;
     } else if (isLateCancellation) {
       clientRefund = jobPrice / 2;               // mitad al cliente
       workerPayout = jobPrice / 2;               // mitad al trabajador
@@ -2537,8 +2539,8 @@ router.patch("/:id/cancel", protect, async (req: AuthRequest, res: Response): Pr
             reason: isPendingApproval ? 'job_cancelled_pending_approval' : isLateNoWorker ? 'job_cancelled_late_no_worker' : isLateCancellation ? 'job_cancelled_late' : 'job_cancelled',
             jobId: job.id,
             jobPrice,
-            commissionRefunded: (isPendingApproval || isLateNoWorker) ? commissionPaid : 0,
-            commissionWithheld: (isPendingApproval || isLateNoWorker) ? 0 : commissionPaid,
+            commissionRefunded: isPendingApproval ? commissionPaid : 0,
+            commissionWithheld: isPendingApproval ? 0 : commissionPaid,
             hoursUntilStart: Math.round(hoursUntilStart * 100) / 100,
           },
         } as any);
@@ -2593,7 +2595,7 @@ router.patch("/:id/cancel", protect, async (req: AuthRequest, res: Response): Pr
     if (isPendingApproval) {
       refundMessage = `Publicación cancelada. Se reembolsaron $${clientRefund.toLocaleString('es-AR')} ARS (precio + comisión) a tu balance.`;
     } else if (isLateNoWorker) {
-      refundMessage = `Publicación cancelada. Como no había ningún trabajador seleccionado, se te reembolsó la totalidad ($${clientRefund.toLocaleString('es-AR')} ARS, precio + comisión) a tu balance.`;
+      refundMessage = `Publicación cancelada. Como no había ningún trabajador seleccionado, se te reembolsó la totalidad del precio ($${clientRefund.toLocaleString('es-AR')} ARS) a tu balance. La comisión de publicación no se reembolsa.`;
     } else if (isLateCancellation) {
       refundMessage = `Publicación cancelada con menos de 2 horas de anticipación. Se reembolsó $${clientRefund.toLocaleString('es-AR')} ARS a tu balance (la mitad del precio); la otra mitad se pagó al trabajador. La comisión de publicación no se reembolsa.`;
     } else {
@@ -2603,11 +2605,11 @@ router.patch("/:id/cancel", protect, async (req: AuthRequest, res: Response): Pr
     res.json({
       success: true,
       message: refundMessage,
-      refundTotal: isPendingApproval || isLateNoWorker,
+      refundTotal: isPendingApproval,
       refund: {
         toClient: clientRefund,
         toWorker: workerPayout,
-        commissionWithheld: (isPendingApproval || isLateNoWorker) ? 0 : commissionPaid,
+        commissionWithheld: isPendingApproval ? 0 : commissionPaid,
       },
       job,
     });
