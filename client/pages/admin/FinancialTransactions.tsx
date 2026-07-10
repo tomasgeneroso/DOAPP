@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
 import { getImageUrl } from "@/utils/imageUrl";
@@ -21,7 +21,8 @@ import {
   ArrowUp,
   ArrowDown,
   Receipt,
-  ExternalLink
+  ExternalLink,
+  Briefcase
 } from "lucide-react";
 import {
   LineChart,
@@ -85,10 +86,14 @@ interface Transaction {
   proofs?: Array<{
     id: string;
     fileUrl: string;
+    fileType?: string;
+    fileName?: string;
     status: string;
     uploadedAt: string;
   }>;
   hasProof?: boolean;
+  // Associated job (for job_publication payments) — enables linking to the publication
+  jobId?: string;
 }
 
 type ChartType = 'escrow' | 'recent' | 'commissions' | 'total' | null;
@@ -1595,36 +1600,49 @@ export default function FinancialTransactions() {
               <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">{t('admin.financial.paymentReceipt', 'Payment Receipt')}</p>
                 {selectedTransaction.proofs && selectedTransaction.proofs.length > 0 ? (
-                  <div className="space-y-2">
-                    {selectedTransaction.proofs.map((proof, index) => (
-                      <a
-                        key={proof.id}
-                        href={getImageUrl(proof.fileUrl)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 p-3 bg-sky-50 dark:bg-sky-900/20 rounded-lg hover:bg-sky-100 dark:hover:bg-sky-900/30 transition"
-                      >
-                        <Receipt className="h-5 w-5 text-sky-600 dark:text-sky-400" />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-sky-700 dark:text-sky-300">
-                            {t('admin.financial.viewReceipt', 'View Receipt')} {selectedTransaction.proofs!.length > 1 ? `#${index + 1}` : ''}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {new Date(proof.uploadedAt).toLocaleString('es-AR')} -
-                            <span className={`ml-1 ${
-                              proof.status === 'approved' ? 'text-green-600' :
-                              proof.status === 'rejected' ? 'text-red-600' :
-                              'text-amber-600'
-                            }`}>
-                              {proof.status === 'approved' ? t('admin.financial.proofStatuses.approved', 'Approved') :
-                               proof.status === 'rejected' ? t('admin.financial.proofStatuses.rejected', 'Rejected') :
-                               t('admin.financial.proofStatuses.pending', 'Pending')}
-                            </span>
-                          </p>
-                        </div>
-                        <ExternalLink className="h-4 w-4 text-sky-500" />
-                      </a>
-                    ))}
+                  <div className="space-y-3">
+                    {selectedTransaction.proofs.map((proof, index) => {
+                      const isPdf = proof.fileType === 'pdf' || (proof.fileUrl || '').toLowerCase().endsWith('.pdf');
+                      return (
+                      <div key={proof.id} className="rounded-lg border border-sky-100 dark:border-sky-900/40 overflow-hidden bg-sky-50 dark:bg-sky-900/20">
+                        {!isPdf && (
+                          <a href={getImageUrl(proof.fileUrl)} target="_blank" rel="noopener noreferrer" className="block bg-white dark:bg-gray-900">
+                            <img
+                              src={getImageUrl(proof.fileUrl)}
+                              alt={proof.fileName || 'Comprobante'}
+                              className="w-full max-h-72 object-contain mx-auto"
+                            />
+                          </a>
+                        )}
+                        <a
+                          href={getImageUrl(proof.fileUrl)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 p-3 hover:bg-sky-100 dark:hover:bg-sky-900/30 transition"
+                        >
+                          <Receipt className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-sky-700 dark:text-sky-300">
+                              {t('admin.financial.viewReceipt', 'View Receipt')} {selectedTransaction.proofs!.length > 1 ? `#${index + 1}` : ''}
+                            </p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {new Date(proof.uploadedAt).toLocaleString('es-AR')} -
+                              <span className={`ml-1 ${
+                                proof.status === 'approved' ? 'text-green-600' :
+                                proof.status === 'rejected' ? 'text-red-600' :
+                                'text-amber-600'
+                              }`}>
+                                {proof.status === 'approved' ? t('admin.financial.proofStatuses.approved', 'Approved') :
+                                 proof.status === 'rejected' ? t('admin.financial.proofStatuses.rejected', 'Rejected') :
+                                 t('admin.financial.proofStatuses.pending', 'Pending')}
+                              </span>
+                            </p>
+                          </div>
+                          <ExternalLink className="h-4 w-4 text-sky-500" />
+                        </a>
+                      </div>
+                      );
+                    })}
                   </div>
                 ) : selectedTransaction.mercadopagoPaymentId ? (
                   <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
@@ -1639,12 +1657,27 @@ export default function FinancialTransactions() {
                 )}
               </div>
 
-              {/* Info: Go to PendingPayments for approvals */}
-              {selectedTransaction.status === 'pending_verification' && (
-                <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    {t('admin.financial.goToPendingPayments', 'To approve or reject payments, go to')} <span className="font-medium text-sky-600">{t('admin.financial.pendingPayments', 'Pending Payments')}</span> {t('admin.financial.inSidebar', 'in the sidebar')}.
-                  </p>
+              {/* Quick navigation: publication + pending payment */}
+              {(selectedTransaction.jobId || selectedTransaction.status === 'pending_verification') && (
+                <div className="border-t border-gray-200 dark:border-gray-700 pt-4 flex flex-wrap gap-2">
+                  {selectedTransaction.jobId && (
+                    <Link
+                      to={`/jobs/${selectedTransaction.jobId}`}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-sky-600 hover:bg-sky-700 text-white transition-colors"
+                    >
+                      <Briefcase className="h-4 w-4" />
+                      {t('admin.financial.viewPublication', 'Ver publicación')}
+                    </Link>
+                  )}
+                  {selectedTransaction.status === 'pending_verification' && (
+                    <Link
+                      to={`/admin/pending-payments?search=${selectedTransaction.id}`}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+                    >
+                      <Clock className="h-4 w-4" />
+                      {t('admin.financial.viewInPendingPayments', 'Ver en pagos pendientes')}
+                    </Link>
+                  )}
                 </div>
               )}
             </div>

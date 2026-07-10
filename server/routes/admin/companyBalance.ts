@@ -349,7 +349,7 @@ router.get(
             as: 'proofs',
             where: { isActive: true },
             required: false,
-            attributes: ['isOwnBankAccount', 'thirdPartyAccountHolder', 'senderBankName']
+            attributes: ['id', 'fileUrl', 'fileType', 'fileName', 'status', 'uploadedAt', 'isOwnBankAccount', 'thirdPartyAccountHolder', 'senderBankName']
           }
         ],
         order: [['createdAt', 'DESC']],
@@ -489,6 +489,20 @@ router.get(
           isOwnBankAccount: activeProof?.isOwnBankAccount,
           thirdPartyAccountHolder: activeProof?.thirdPartyAccountHolder,
           senderBankName: activeProof?.senderBankName,
+
+          // Uploaded payment proofs (receipts) — so the transaction modal can show them
+          proofs: (payment.proofs || []).map((pr: any) => ({
+            id: pr.id,
+            fileUrl: pr.fileUrl,
+            fileType: pr.fileType,
+            fileName: pr.fileName,
+            status: pr.status,
+            uploadedAt: pr.uploadedAt,
+          })),
+          hasProof: !!(payment.proofs && payment.proofs.length > 0),
+
+          // Associated job for job_publication payments (enables linking to the publication)
+          jobId: paymentToJobMap.get(payment.id)?.id || null,
 
           // Payment IDs
           paypalOrderId: payment.paypalOrderId,

@@ -35,6 +35,8 @@ import {
   MoreVertical,
   Headphones,
   ClipboardList,
+  ShieldCheck,
+  FileText,
 } from "lucide-react";
 import type { Job } from "@/types";
 import { getClientInfo } from "@/lib/utils";
@@ -67,6 +69,8 @@ export default function JobDetail() {
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+  const isAdmin = !!(user as any)?.adminRole;
+  const [adminPayment, setAdminPayment] = useState<any>(null);
   const lastPathRef = useRef(location.pathname);
   const [applying, setApplying] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
@@ -388,6 +392,24 @@ export default function JobDetail() {
 
     fetchProposals();
   }, [job, user, token]);
+
+  // Admin: fetch publication payment + proof details to show on the publication view
+  useEffect(() => {
+    const fetchAdminPayment = async () => {
+      if (!id || !token || !isAdmin) return;
+      try {
+        const res = await fetch(`/api/admin/jobs/${id}/payment`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data?.success) setAdminPayment(data.data);
+      } catch {
+        /* silent: admin panel is best-effort */
+      }
+    };
+    fetchAdminPayment();
+  }, [id, token, isAdmin, refreshKey]);
 
   // Check if current user has already applied to this job
   useEffect(() => {
@@ -2162,6 +2184,86 @@ export default function JobDetail() {
                 </div>
               )}
             </div>
+
+            {/* Admin: publication payment + proof details */}
+            {isAdmin && adminPayment && (
+              <div className="rounded-2xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-900/20 p-6 shadow-sm">
+                <div className="flex items-center gap-2 mb-4">
+                  <ShieldCheck className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                  <h2 className="text-lg font-bold text-indigo-900 dark:text-indigo-200">
+                    {t("jobs.detail.adminPaymentTitle", "Detalles de pago (admin)")}
+                  </h2>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Estado del pago</p>
+                    <p className="font-medium text-slate-900 dark:text-white">
+                      {adminPayment.publicationPaid ? 'Pagado' : (adminPayment.payment?.status || 'Esperando pago')}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Monto</p>
+                    <p className="font-medium text-slate-900 dark:text-white">
+                      ${Number(adminPayment.payment?.amount || adminPayment.price || 0).toLocaleString('es-AR')} ARS
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Comisión</p>
+                    <p className="font-medium text-slate-900 dark:text-white">
+                      ${Number(adminPayment.payment?.platformFee || 0).toLocaleString('es-AR')} ({Number(adminPayment.payment?.platformFeePercentage || 0).toFixed(1)}%)
+                    </p>
+                  </div>
+                  {adminPayment.payment?.paymentMethod && (
+                    <div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Método</p>
+                      <p className="font-medium text-slate-900 dark:text-white">{adminPayment.payment.paymentMethod}</p>
+                    </div>
+                  )}
+                  {adminPayment.client?.name && (
+                    <div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">Pagador</p>
+                      <p className="font-medium text-slate-900 dark:text-white">{adminPayment.client.name}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Proof */}
+                {adminPayment.proof ? (
+                  <div className="mt-4">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Comprobante de pago</p>
+                    {((adminPayment.proof.fileType === 'pdf') || (adminPayment.proof.fileUrl || '').toLowerCase().endsWith('.pdf')) ? (
+                      <a href={getImageUrl(adminPayment.proof.fileUrl)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sky-600 dark:text-sky-400 hover:underline">
+                        <FileText className="h-4 w-4" /> Abrir PDF del comprobante
+                      </a>
+                    ) : (
+                      <a href={getImageUrl(adminPayment.proof.fileUrl)} target="_blank" rel="noopener noreferrer" className="block">
+                        <img src={getImageUrl(adminPayment.proof.fileUrl)} alt="Comprobante" className="max-h-64 rounded-lg border border-slate-200 dark:border-slate-700 object-contain bg-white dark:bg-slate-900" />
+                      </a>
+                    )}
+                  </div>
+                ) : (
+                  <p className="mt-4 text-sm text-slate-500 dark:text-slate-400 italic">Sin comprobante adjunto.</p>
+                )}
+
+                {/* Navigation */}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {adminPayment.payment?.id && (
+                    <Link to={`/admin/financial-transactions?search=${adminPayment.payment.id}`} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
+                      <ExternalLink className="h-4 w-4" /> Ver transacción
+                    </Link>
+                  )}
+                  <Link to={`/admin/jobs?search=${adminPayment.jobId}`} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors">
+                    <Briefcase className="h-4 w-4" /> Ver en gestión de publicaciones
+                  </Link>
+                  {adminPayment.payment?.id && (adminPayment.payment?.status === 'pending_verification' || !adminPayment.publicationPaid) && (
+                    <Link to={`/admin/pending-payments?search=${adminPayment.payment.id}`} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
+                      <Clock className="h-4 w-4" /> Ver en pagos pendientes
+                    </Link>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Description */}
             <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-sm">

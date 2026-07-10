@@ -491,4 +491,81 @@ router.put(
   }
 );
 
+/**
+ * GET /api/admin/jobs/:id/payment
+ * Publication payment + proof details for a job (admin view on the publication page)
+ */
+router.get(
+  '/:id/payment',
+  protect,
+  requireAdminRole,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params;
+      if (!isValidUUID(id)) {
+        res.status(400).json({ success: false, message: 'ID inválido' });
+        return;
+      }
+
+      const job = await Job.findByPk(id, {
+        include: [{ model: User, as: 'client', attributes: ['id', 'name', 'email', 'avatar'] }],
+      });
+      if (!job) {
+        res.status(404).json({ success: false, message: 'Trabajo no encontrado' });
+        return;
+      }
+
+      let payment: any = null;
+      let proof: any = null;
+      if (job.publicationPaymentId) {
+        const p = await Payment.findByPk(job.publicationPaymentId);
+        if (p) {
+          payment = {
+            id: p.id,
+            status: p.status,
+            amount: Number((p as any).amount) || 0,
+            platformFee: Number((p as any).platformFee) || 0,
+            platformFeePercentage: Number((p as any).platformFeePercentage) || 0,
+            paymentType: (p as any).paymentType,
+            paymentMethod: (p as any).paymentMethod,
+            mercadopagoPaymentId: (p as any).mercadopagoPaymentId,
+            description: (p as any).description,
+            createdAt: p.createdAt,
+          };
+          const pr = await PaymentProof.findOne({
+            where: { paymentId: p.id, isActive: true },
+            order: [['uploadedAt', 'DESC']],
+          });
+          if (pr) {
+            proof = {
+              id: pr.id,
+              fileUrl: pr.fileUrl,
+              fileType: pr.fileType,
+              fileName: pr.fileName,
+              status: pr.status,
+              uploadedAt: pr.uploadedAt,
+            };
+          }
+        }
+      }
+
+      res.json({
+        success: true,
+        data: {
+          jobId: job.id,
+          status: job.status,
+          price: Number(job.price) || 0,
+          publicationPaid: job.publicationPaid,
+          publicationPaymentId: job.publicationPaymentId || null,
+          client: (job as any).client || null,
+          payment,
+          proof,
+        },
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+);
+
 export default router;

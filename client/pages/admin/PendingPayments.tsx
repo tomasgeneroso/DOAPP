@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useTranslation } from 'react-i18next';
+import { Link } from "react-router-dom";
 import ExcelJS from "exceljs";
 import { getImageUrl } from "@/utils/imageUrl";
 import {
@@ -247,7 +248,7 @@ export default function PendingPayments() {
   const [maxAmount, setMaxAmount] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);
   // Proof viewer modal (in-page image/PDF + message the payer)
-  const [proofViewer, setProofViewer] = useState<{ url: string; title: string; userId?: string; userName?: string } | null>(null);
+  const [proofViewer, setProofViewer] = useState<{ url: string; title: string; userId?: string; userName?: string; paymentId?: string } | null>(null);
   const [proofImgError, setProofImgError] = useState(false);
   const [proofChatConvId, setProofChatConvId] = useState<string | null>(null);
   const [proofChatInput, setProofChatInput] = useState('');
@@ -353,8 +354,8 @@ export default function PendingPayments() {
   };
 
   // Open the proof in an in-page modal (and prepare a chat with the payer)
-  const openProofViewer = async (url: string, title: string, userId?: string, userName?: string) => {
-    setProofViewer({ url: getImageUrl(url), title, userId, userName });
+  const openProofViewer = async (url: string, title: string, userId?: string, userName?: string, paymentId?: string) => {
+    setProofViewer({ url: getImageUrl(url), title, userId, userName, paymentId });
     setProofImgError(false);
     setProofChatConvId(null);
     setProofChatInput('');
@@ -1500,6 +1501,7 @@ export default function PendingPayments() {
                                   `Comprobante · ${payment.proofs![0].clientName || ''}`,
                                   payment.proofs![0].clientId,
                                   payment.proofs![0].clientName,
+                                  payment.id,
                                 )}
                                 className="inline-flex items-center gap-1 text-sm text-sky-600 hover:text-sky-700 dark:text-sky-400"
                               >
@@ -2980,9 +2982,19 @@ export default function PendingPayments() {
                   className="w-full rounded-lg object-contain max-h-[60vh] bg-gray-100 dark:bg-gray-900"
                 />
               )}
-              <a href={proofViewer.url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block text-xs text-sky-600 dark:text-sky-400 hover:underline">
-                Abrir en pestaña nueva ↗
-              </a>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <a href={proofViewer.url} target="_blank" rel="noopener noreferrer" className="inline-block text-xs text-sky-600 dark:text-sky-400 hover:underline">
+                  Abrir en pestaña nueva ↗
+                </a>
+                {proofViewer.paymentId && (
+                  <Link
+                    to={`/admin/financial-transactions?search=${proofViewer.paymentId}`}
+                    className="inline-flex items-center gap-1 text-xs text-sky-600 dark:text-sky-400 hover:underline"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" /> Ver transacción
+                  </Link>
+                )}
+              </div>
             </div>
             {proofViewer.userId && (
               <div className="p-4 border-t border-gray-200 dark:border-gray-700 shrink-0">
