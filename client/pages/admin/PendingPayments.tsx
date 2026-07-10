@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useTranslation } from 'react-i18next';
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import ExcelJS from "exceljs";
 import { getImageUrl } from "@/utils/imageUrl";
 import {
   CheckCircle,
   XCircle,
   Eye,
+  Search,
   FileText,
   AlertCircle,
   Download,
@@ -190,6 +191,19 @@ export default function PendingPayments() {
   // Main tab state: "app" = Pagos a la App, "workers" = Pagos a Trabajadores
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<"app" | "workers">("app");
+  const [urlParams] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(urlParams.get("search") || "");
+
+  // Generic matcher: search across every field of a payment row (name, email, id, amount, ...)
+  const matchesQuery = (item: any): boolean => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    try {
+      return JSON.stringify(item).toLowerCase().includes(q);
+    } catch {
+      return true;
+    }
+  };
 
   // Sub-filter state for each tab
   const [appSubFilter, setAppSubFilter] = useState<"all" | "pending" | "verified" | "escrow" | "confirmed" | "disputed" | "rejected">("pending");
@@ -1090,6 +1104,26 @@ export default function PendingPayments() {
         </nav>
       </div>
 
+      {/* Search */}
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Buscar por nombre, email, ID, monto..."
+          className="w-full pl-9 pr-9 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery("")}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+          >
+            <XCircle className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
       {/* Sub-filters for active tab */}
       {activeTab === "app" && (
         <div className="flex items-center gap-2 flex-wrap">
@@ -1377,7 +1411,7 @@ export default function PendingPayments() {
                         </td>
                       </tr>
                     ) : (
-                      verificationPayments.map((payment: any) => {
+                      verificationPayments.filter(matchesQuery).map((payment: any) => {
                         // Obtener datos del contrato
                         const contractPrice = payment.contract?.price ? parseFloat(payment.contract.price) : 0;
                         const contractCommission = payment.contract?.commission ? parseFloat(payment.contract.commission) : 0;
@@ -1802,7 +1836,7 @@ export default function PendingPayments() {
                   </td>
                 </tr>
               ) : (
-                payments.map((payment) => (
+                payments.filter(matchesQuery).map((payment) => (
                   <tr key={payment.contractId} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <td className="px-4 py-4 text-sm font-medium text-gray-900 dark:text-white">
                       {payment.contractNumber}
@@ -2100,7 +2134,7 @@ export default function PendingPayments() {
                         </td>
                       </tr>
                     ) : (
-                      completedPayments.map((payment) => (
+                      completedPayments.filter(matchesQuery).map((payment) => (
                         <tr key={payment.contractId} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                           <td className="px-4 py-4 text-sm font-medium text-gray-900 dark:text-white">
                             {payment.rowNumber}

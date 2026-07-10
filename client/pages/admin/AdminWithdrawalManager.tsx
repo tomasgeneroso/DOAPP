@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import { WithdrawalRequest } from '../../types';
 import { useSocket } from '@/hooks/useSocket';
 import {
@@ -7,6 +8,7 @@ import {
   DollarSign,
   CheckCircle,
   XCircle,
+  Search,
   Clock,
   Loader2,
   AlertCircle,
@@ -35,6 +37,19 @@ export default function AdminWithdrawalManager() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [urlParams] = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(urlParams.get('search') || '');
+
+  // Generic matcher: search across every field of a withdrawal (user, CBU, bank, amount, ...)
+  const matchesQuery = (item: any): boolean => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    try {
+      return JSON.stringify(item).toLowerCase().includes(q);
+    } catch {
+      return true;
+    }
+  };
   const [selectedWithdrawal, setSelectedWithdrawal] = useState<WithdrawalRequest | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [proofOfTransfer, setProofOfTransfer] = useState('');
@@ -368,7 +383,25 @@ export default function AdminWithdrawalManager() {
       )}
 
       {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-6 space-y-4">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t('admin.withdrawals.searchPlaceholder', 'Buscar por usuario, CBU, banco, monto...')}
+            className="w-full pl-9 pr-9 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              <XCircle className="h-4 w-4" />
+            </button>
+          )}
+        </div>
         <div className="flex flex-wrap gap-2">
           {['all', 'pending', 'approved', 'processing', 'completed', 'rejected'].map((status) => (
             <button
@@ -390,11 +423,11 @@ export default function AdminWithdrawalManager() {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto">
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-            {t('admin.withdrawals.requests', 'Withdrawal Requests')} ({withdrawals.length})
+            {t('admin.withdrawals.requests', 'Withdrawal Requests')} ({withdrawals.filter(matchesQuery).length})
           </h2>
         </div>
 
-        {withdrawals.length === 0 ? (
+        {withdrawals.filter(matchesQuery).length === 0 ? (
           <div className="p-12 text-center">
             <ArrowDownCircle className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
             <p className="text-gray-500 dark:text-gray-400">
@@ -411,7 +444,7 @@ export default function AdminWithdrawalManager() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {withdrawals.map((withdrawal) => {
+              {withdrawals.filter(matchesQuery).map((withdrawal) => {
                 const user = typeof withdrawal.user === 'object' ? withdrawal.user : null;
                 const proof = (withdrawal as any).proofOfTransfer;
                 return (
