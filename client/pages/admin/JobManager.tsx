@@ -946,7 +946,7 @@ export default function AdminJobManager() {
                     title={t('admin.jobs.viewPaymentInTransactions', 'Ver pago en transacciones')}
                   >
                     <ExternalLink className="w-4 h-4" />
-                    {t('admin.jobs.viewPayment', 'Ver pago')}
+                    {t('admin.jobs.viewTransaction', 'Ver transacción')}
                   </Link>
                 )}
                 <a

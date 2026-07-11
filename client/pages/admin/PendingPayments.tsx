@@ -414,13 +414,19 @@ export default function PendingPayments() {
   };
 
   // Abrir modal de aprobación (Step 1: requiere comprobante + datos)
-  const handleApproveVerificationPayment = (paymentId: string) => {
+  const handleApproveVerificationPayment = (paymentId: string, payment?: any) => {
     setApproveModalPaymentId(paymentId);
     setApproveFile(null);
-    setApproveReference("");
-    setApproveAmount("");
-    setApproveDate("");
-    setApproveSenderBank("");
+    // Auto-fill with the information we already have from the client's uploaded proof
+    const proof = payment?.proofs?.[0] || {};
+    setApproveReference(proof.binanceTransactionId || proof.transferReference || "");
+    setApproveAmount(
+      payment?.amount != null ? String(payment.amount)
+      : proof.transferAmount != null ? String(proof.transferAmount)
+      : ""
+    );
+    setApproveDate(proof.uploadedAt ? new Date(proof.uploadedAt).toISOString().slice(0, 10) : "");
+    setApproveSenderBank(proof.senderBankName || "");
     setApproveNotes("");
   };
 
@@ -1593,7 +1599,7 @@ export default function PendingPayments() {
                               {appSubFilter === "pending" && (
                                 <>
                                   <button
-                                    onClick={() => handleApproveVerificationPayment(payment.id)}
+                                    onClick={() => handleApproveVerificationPayment(payment.id, payment)}
                                     disabled={approvingPaymentId === payment.id}
                                     className="p-1.5 text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/20 rounded disabled:opacity-50"
                                     title="Verificar comprobante"
@@ -2735,10 +2741,11 @@ export default function PendingPayments() {
                 <div>
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                     <CheckCircle className="h-5 w-5 text-green-500" />
-                    Verificar Comprobante de Pago
+                    Verificación Comprobante de pago
                   </h2>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    Todos los campos son obligatorios para aprobar el pago
+                    Confirmá que el pago fue efectivamente recibido en la cuenta. Los datos se
+                    autocompletan con lo que envió el usuario — revisalos antes de aprobar.
                   </p>
                 </div>
                 <button
@@ -2836,12 +2843,12 @@ export default function PendingPayments() {
                 {/* Notas */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Notas adicionales (opcional)
+                    Notas de comprobante de pago (opcional)
                   </label>
                   <textarea
                     value={approveNotes}
                     onChange={(e) => setApproveNotes(e.target.value)}
-                    placeholder="Observaciones sobre el pago..."
+                    placeholder="Ej: el usuario adjuntó una imagen que no corresponde a una transferencia recibida; se solicitó reenvío del comprobante..."
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent"
                     rows={2}
                   />
@@ -3035,6 +3042,23 @@ export default function PendingPayments() {
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
                   Enviar mensaje a {proofViewer.userName || 'el cliente'} (ej: pedir otra foto del comprobante)
                 </p>
+                {/* Predefined quick replies */}
+                <div className="flex flex-wrap gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setProofChatInput('Hola, no pudimos validar el comprobante que enviaste. ¿Podés volver a subir el comprobante de la transferencia? Asegurate de que se vean claramente el monto, la fecha y el número de operación. ¡Gracias!')}
+                    className="text-xs px-2.5 py-1 rounded-full border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors"
+                  >
+                    📄 Pedir reenvío del comprobante
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProofChatInput('Hola, no detectamos la acreditación de tu pago en nuestra cuenta. Por favor verificá que la transferencia se haya realizado correctamente y que no haya sido rechazada o rebotada. Si ya la hiciste, esperá unos minutos y avisanos.')}
+                    className="text-xs px-2.5 py-1 rounded-full border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors"
+                  >
+                    ⚠️ No detectamos tu pago
+                  </button>
+                </div>
                 <div className="flex gap-2">
                   <input
                     type="text"
