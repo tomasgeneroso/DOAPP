@@ -239,6 +239,8 @@ export default function PendingPayments() {
   const [rejectReason, setRejectReason] = useState("");
   const [rejectFile, setRejectFile] = useState<File | null>(null);
   const [rejectUploading, setRejectUploading] = useState(false);
+  const [rejectPayer, setRejectPayer] = useState<{ id?: string; name?: string } | null>(null);
+  const [rejectSendMessage, setRejectSendMessage] = useState(true);
 
   // Approve modal state (mandatory proof upload)
   const [approveModalPaymentId, setApproveModalPaymentId] = useState<string | null>(null);
@@ -650,10 +652,33 @@ export default function PendingPayments() {
   };
 
   // Abrir modal de rechazo
-  const handleRejectVerificationPayment = (paymentId: string) => {
+  const handleRejectVerificationPayment = (paymentId: string, payment?: any) => {
     setRejectModalPaymentId(paymentId);
     setRejectReason("");
     setRejectFile(null);
+    setRejectSendMessage(true);
+    setRejectPayer(payment?.payer ? { id: payment.payer.id, name: payment.payer.name } : null);
+  };
+
+  // Send a chat message to a user (find-or-create conversation, then post).
+  const sendChatMessageTo = async (userId: string, content: string) => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch('/api/chat/conversations/find-or-create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ participantId: userId }),
+      });
+      const data = await res.json();
+      const conv = data.conversation || data.data;
+      const convId = conv?.id || conv?._id;
+      if (!convId) return;
+      await fetch(`/api/chat/conversations/${convId}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ content, type: 'text' }),
+      });
+    } catch { /* best-effort */ }
   };
 
   // Confirmar rechazo desde modal
@@ -702,10 +727,18 @@ export default function PendingPayments() {
 
       const data = await response.json();
       if (data.success) {
-        alert("✅ Pago rechazado. Se notificará al usuario.");
+        // Rechazar + mensaje en un paso: avisar al usuario por chat con el motivo
+        if (rejectSendMessage && rejectPayer?.id) {
+          await sendChatMessageTo(
+            rejectPayer.id,
+            `Rechazamos el comprobante de tu pago. Motivo: ${rejectReason.trim()}. Por favor revisá e intentá nuevamente subiendo un comprobante válido de la transferencia (que se vean monto, fecha y número de operación).`
+          );
+        }
+        alert("✅ Pago rechazado." + (rejectSendMessage && rejectPayer?.id ? " Se envió un mensaje al usuario con el motivo." : ""));
         setRejectModalPaymentId(null);
         setRejectReason("");
         setRejectFile(null);
+        setRejectPayer(null);
         loadVerificationPayments();
       } else {
         alert(data.message || "Error al rechazar el pago");
@@ -1724,7 +1757,7 @@ export default function PendingPayments() {
                                     )}
                                   </button>
                                   <button
-                                    onClick={() => handleRejectVerificationPayment(payment.id)}
+                                    onClick={() => handleRejectVerificationPayment(payment.id, payment)}
                                     disabled={rejectingPaymentId === payment.id}
                                     className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded disabled:opacity-50"
                                     title="Rechazar pago"
@@ -3123,6 +3156,21 @@ export default function PendingPayments() {
                     rows={4}
                   />
                 </div>
+
+                {/* Rechazar + mensaje en un paso */}
+                {rejectPayer?.id && (
+                  <label className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={rejectSendMessage}
+                      onChange={(e) => setRejectSendMessage(e.target.checked)}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      Enviar un mensaje a <strong>{rejectPayer.name || 'el usuario'}</strong> con el motivo del rechazo (pidiendo que reenvíe el comprobante).
+                    </span>
+                  </label>
+                )}
 
                 {/* Adjuntar archivo */}
                 <div>
