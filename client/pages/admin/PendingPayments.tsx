@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from "react-router-dom";
 import ExcelJS from "exceljs";
 import { getImageUrl } from "@/utils/imageUrl";
+import IdBadge from "@/components/admin/IdBadge";
 import {
   CheckCircle,
   XCircle,
@@ -1539,6 +1540,7 @@ export default function PendingPayments() {
                             <div className="text-xs text-gray-500 dark:text-gray-400">
                               {payment.payer?.email || 'N/A'}
                             </div>
+                            <IdBadge id={payment.id} />
                           </td>
                           <td className="px-4 py-4">
                             <div className="text-sm text-gray-900 dark:text-white">

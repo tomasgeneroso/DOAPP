@@ -96,6 +96,7 @@ router.get(
             model: PaymentProof,
             as: "proofs",
             required: false,
+            where: { isActive: true },
             attributes: ["id", "fileUrl", "status", "uploadedAt", "isActive"]
           }
         ],

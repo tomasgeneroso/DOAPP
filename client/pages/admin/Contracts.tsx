@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { FileText, Search, Filter, Eye, Ban, CheckCircle, XCircle, Plus, ArrowUpDown, ArrowUp, ArrowDown, Wifi, WifiOff, Bell, AlertTriangle, X, Calendar, Clock, Edit, Receipt, ExternalLink } from "lucide-react";
+import { getImageUrl } from "../../utils/imageUrl";
+import IdBadge from "../../components/admin/IdBadge";
 import { useSocket } from "../../hooks/useSocket";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -697,6 +699,7 @@ export default function AdminContracts() {
                       <div className="text-xs text-gray-500 dark:text-gray-400">
                         {new Date(contract.createdAt).toLocaleDateString("es-AR")} {new Date(contract.createdAt).toLocaleTimeString("es-AR", { hour: '2-digit', minute: '2-digit' })}
                       </div>
+                      <IdBadge id={contract.id || contract._id} />
                     </td>
                     <td className="px-4 py-4">
                       <a href={`/admin/users?search=${encodeURIComponent(contract.client?.name || '')}`} className="text-sm text-sky-600 dark:text-sky-400 hover:underline">{contract.client?.name || 'N/A'}</a>
@@ -755,20 +758,31 @@ export default function AdminContracts() {
                       )}
                     </td>
                     <td className="px-4 py-4">
-                      {contract.payment?.proofs && contract.payment.proofs.length > 0 ? (
-                        <a
-                          href={contract.payment.proofs[0].fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-sm text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300"
-                        >
-                          <Receipt className="h-4 w-4" />
-                          {t('admin.contracts.view', 'View')}
-                          <ExternalLink className="h-3 w-3" />
-                        </a>
-                      ) : (
-                        <span className="text-xs text-gray-400 dark:text-gray-500">{t('admin.contracts.noReceipt', 'No receipt')}</span>
-                      )}
+                      <div className="flex flex-col gap-1">
+                        {contract.payment?.proofs && contract.payment.proofs.length > 0 ? (
+                          <a
+                            href={getImageUrl(contract.payment.proofs[0].fileUrl)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-sm text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300"
+                          >
+                            <Receipt className="h-4 w-4" />
+                            {t('admin.contracts.view', 'View')}
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        ) : (
+                          <span className="text-xs text-gray-400 dark:text-gray-500">{t('admin.contracts.noReceipt', 'No receipt')}</span>
+                        )}
+                        {contract.payment?.id && (
+                          <Link
+                            to={`/admin/financial-transactions?search=${contract.payment.id}`}
+                            className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-700 dark:text-indigo-400"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            {t('admin.contracts.viewTransaction', 'Ver transacción')}
+                          </Link>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex gap-2">

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useTranslation } from 'react-i18next';
 import { Helmet } from "react-helmet-async";
+import IdBadge from "../../components/admin/IdBadge";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { adminApi } from "@/lib/adminApi";
 import { getImageUrl } from "@/utils/imageUrl";
@@ -481,6 +482,7 @@ export default function AdminUsers() {
                       {user.adminRole && (
                         <div className="text-xs text-sky-600 dark:text-sky-400">{user.adminRole}</div>
                       )}
+                      <IdBadge id={user.id} />
                     </div>
                   </div>
                 </td>

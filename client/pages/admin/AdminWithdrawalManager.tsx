@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
+import IdBadge from '../../components/admin/IdBadge';
 import { WithdrawalRequest } from '../../types';
 import { useSocket } from '@/hooks/useSocket';
 import {
@@ -460,6 +461,7 @@ export default function AdminWithdrawalManager() {
                           <div className="text-xs text-gray-500 dark:text-gray-400">{user.email}</div>
                         </>
                       ) : <span className="text-gray-400">—</span>}
+                      <IdBadge id={(withdrawal as any).id || (withdrawal as any)._id} />
                     </td>
                     <td className="px-4 py-3">
                       <div className="text-gray-900 dark:text-white">{withdrawal.bankingInfo?.accountHolder || '—'}</div>

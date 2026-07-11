@@ -3,6 +3,7 @@ import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { Briefcase, CheckCircle, XCircle, Clock, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Image as ImageIcon, FileText, Download, Bell, Pause, Play, Ban, Plus, UserCheck, UserX, ExternalLink } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
+import IdBadge from "../../components/admin/IdBadge";
 import { getImageUrl } from "@/utils/imageUrl";
 
 // Safe date formatter — never throws on null/undefined/invalid dates
@@ -719,6 +720,7 @@ export default function AdminJobManager() {
                       <div className="text-sm">
                         <a href={`/jobs/${job.id}`} target="_blank" rel="noopener noreferrer" className="font-medium text-sky-600 dark:text-sky-400 hover:underline">{job.title}</a>
                         <p className="text-gray-500 dark:text-gray-400 truncate max-w-xs">{job.description}</p>
+                        <IdBadge id={job.id} />
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
