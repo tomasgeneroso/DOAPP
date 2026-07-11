@@ -71,6 +71,116 @@ router.post("/upload-proof", protect, requireRole('admin', 'super_admin', 'owner
 });
 
 /**
+ * Create a "nota de comprobante de pago" (extra evidence / note) for a payment.
+ * The note is stored as a PaymentProof with kind='note' and isActive=false so it
+ * never pollutes the active-receipt queries. Accepts an already-uploaded fileUrl
+ * (from /upload-proof) OR a chat attachment URL.
+ * POST /api/admin/payments/:paymentId/proof-notes
+ */
+router.post("/:paymentId/proof-notes", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { paymentId } = req.params;
+    if (!isValidUUID(paymentId)) {
+      res.status(400).json({ success: false, message: "ID de pago inválido" });
+      return;
+    }
+    const { fileUrl, fileName, fileSize, caption } = req.body || {};
+    if (!fileUrl || typeof fileUrl !== 'string') {
+      res.status(400).json({ success: false, message: "fileUrl es obligatorio" });
+      return;
+    }
+
+    const payment = await Payment.findByPk(paymentId);
+    if (!payment) {
+      res.status(404).json({ success: false, message: "Pago no encontrado" });
+      return;
+    }
+
+    const ext = (fileName || fileUrl).split('.').pop()?.toLowerCase() || '';
+    const fileType = ext === 'pdf' ? 'pdf' : ext === 'png' ? 'png' : ext === 'jpeg' ? 'jpeg' : 'jpg';
+
+    // Sequence = order of this attachment among everything uploaded for the payment
+    const existingCount = await PaymentProof.count({ where: { paymentId } });
+
+    const note = await PaymentProof.create({
+      paymentId,
+      userId: req.user!.id,
+      kind: 'note',
+      uploadedByRole: 'admin',
+      sequence: existingCount + 1,
+      isActive: false,
+      status: 'approved',
+      fileUrl,
+      fileType,
+      fileName: fileName || fileUrl.split('/').pop() || 'nota',
+      fileSize: Number(fileSize) || 0,
+      notes: (caption || '').toString().slice(0, 2000) || null,
+      uploadedAt: new Date(),
+    } as any);
+
+    res.status(201).json({
+      success: true,
+      note: {
+        id: note.id,
+        fileUrl: note.fileUrl,
+        fileType: note.fileType,
+        fileName: note.fileName,
+        caption: note.notes,
+        sequence: note.sequence,
+        uploadedByRole: note.uploadedByRole,
+        uploadedAt: note.uploadedAt,
+      },
+    });
+  } catch (error: any) {
+    console.error("Error creating proof note:", error);
+    res.status(500).json({ success: false, message: error.message || "Error al crear la nota" });
+  }
+});
+
+/**
+ * List every proof + note for a payment (receipts and notes), ordered by upload.
+ * GET /api/admin/payments/:paymentId/proofs
+ */
+router.get("/:paymentId/proofs", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { paymentId } = req.params;
+    if (!isValidUUID(paymentId)) {
+      res.status(400).json({ success: false, message: "ID de pago inválido" });
+      return;
+    }
+    const proofs = await PaymentProof.findAll({
+      where: { paymentId },
+      include: [{ model: User, as: 'user', attributes: ['id', 'name', 'email'] }],
+      order: [['sequence', 'ASC'], ['uploadedAt', 'ASC']],
+    });
+
+    const map = (p: any) => ({
+      id: p.id,
+      kind: p.kind || 'client_receipt',
+      fileUrl: p.fileUrl,
+      fileType: p.fileType,
+      fileName: p.fileName,
+      caption: p.notes,
+      status: p.status,
+      sequence: p.sequence,
+      uploadedByRole: p.uploadedByRole,
+      uploadedBy: p.user ? { id: p.user.id, name: p.user.name } : null,
+      uploadedAt: p.uploadedAt,
+      isActive: p.isActive,
+    });
+
+    res.json({
+      success: true,
+      receipts: proofs.filter((p: any) => p.kind !== 'note').map(map),
+      notes: proofs.filter((p: any) => p.kind === 'note').map(map),
+    });
+  } catch (error: any) {
+    console.error("Error listing payment proofs:", error);
+    res.status(500).json({ success: false, message: error.message || "Error al listar comprobantes" });
+  }
+});
+
+/**
  * Get all payments pending verification (admin only)
  * GET /api/admin/payments/pending
  * Muestra TODOS los pagos pendientes: MercadoPago y transferencias bancarias

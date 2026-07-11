@@ -200,9 +200,37 @@ export class PaymentProof extends Model {
   @Column({
     type: DataType.TEXT,
     allowNull: true,
-    comment: 'Admin notes about the verification',
+    comment: 'Admin notes about the verification / caption for note-kind entries',
   })
   notes?: string;
+
+  // ============================================
+  // CLASSIFICATION & PROVENANCE
+  // ============================================
+
+  // 'client_receipt' = receipt uploaded by the client
+  // 'admin_verification' = receipt uploaded by the admin when verifying
+  // 'note' = extra evidence/note attached by an admin (may have a caption in `notes`)
+  @Default('client_receipt')
+  @Column({
+    type: DataType.STRING(32),
+    allowNull: false,
+  })
+  kind!: string;
+
+  // Upload order for this payment (1 = first uploaded, 2 = second, ...)
+  @Column({
+    type: DataType.INTEGER,
+    allowNull: true,
+  })
+  sequence?: number;
+
+  // Who uploaded it: 'client' | 'admin'
+  @Column({
+    type: DataType.STRING(16),
+    allowNull: true,
+  })
+  uploadedByRole?: string;
 
   // ============================================
   // TIMESTAMPS

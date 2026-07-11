@@ -268,6 +268,11 @@ export default function PendingPayments() {
   const [proofChatInput, setProofChatInput] = useState('');
   const [proofChatSending, setProofChatSending] = useState(false);
   const [proofChatMsg, setProofChatMsg] = useState<string | null>(null);
+  // Notas de comprobante de pago (evidence attached by admins)
+  const [proofNotes, setProofNotes] = useState<any[]>([]);
+  const [noteCaption, setNoteCaption] = useState('');
+  const [noteUploading, setNoteUploading] = useState(false);
+  const [chatAttachments, setChatAttachments] = useState<{ url: string; type: string; fileName?: string }[]>([]);
 
   // Sorting
   const [sortBy, setSortBy] = useState("createdAt");
@@ -374,6 +379,10 @@ export default function PendingPayments() {
     setProofChatConvId(null);
     setProofChatInput('');
     setProofChatMsg(null);
+    setProofNotes([]);
+    setNoteCaption('');
+    setChatAttachments([]);
+    if (paymentId) loadProofNotes(paymentId);
     if (userId) {
       try {
         const token = localStorage.getItem("token");
@@ -384,9 +393,79 @@ export default function PendingPayments() {
         });
         const data = await res.json();
         const conv = data.conversation || data.data;
-        if (data.success && conv) setProofChatConvId(conv.id || conv._id);
+        if (data.success && conv) {
+          const cid = conv.id || conv._id;
+          setProofChatConvId(cid);
+          loadChatAttachments(cid);
+        }
       } catch { /* chat is best-effort */ }
     }
+  };
+
+  // --- Notas de comprobante de pago ---
+  const loadProofNotes = async (paymentId: string) => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/admin/payments/${paymentId}/proofs`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success) setProofNotes(data.notes || []);
+    } catch { /* best-effort */ }
+  };
+
+  const postProofNote = async (paymentId: string, fileUrl: string, fileName: string, fileSize: number, caption: string) => {
+    const token = localStorage.getItem("token");
+    const res = await fetch(`/api/admin/payments/${paymentId}/proof-notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ fileUrl, fileName, fileSize, caption }),
+    });
+    return res.json();
+  };
+
+  const addProofNoteFromFile = async (file: File) => {
+    if (!proofViewer?.paymentId || noteUploading) return;
+    setNoteUploading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const fd = new FormData();
+      fd.append('file', file);
+      const up = await fetch('/api/admin/payments/upload-proof', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+      const upData = await up.json();
+      if (upData.success && upData.url) {
+        await postProofNote(proofViewer.paymentId, upData.url, upData.originalName || file.name, upData.size || file.size, noteCaption);
+        setNoteCaption('');
+        await loadProofNotes(proofViewer.paymentId);
+      }
+    } catch { /* best-effort */ }
+    setNoteUploading(false);
+  };
+
+  const addProofNoteFromUrl = async (fileUrl: string, fileName?: string) => {
+    if (!proofViewer?.paymentId || noteUploading) return;
+    setNoteUploading(true);
+    try {
+      await postProofNote(proofViewer.paymentId, fileUrl, fileName || fileUrl.split('/').pop() || 'adjunto', 0, noteCaption);
+      setNoteCaption('');
+      await loadProofNotes(proofViewer.paymentId);
+    } catch { /* best-effort */ }
+    setNoteUploading(false);
+  };
+
+  const loadChatAttachments = async (convId: string) => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/chat/conversations/${convId}/messages?limit=40`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      const msgs: any[] = data.messages || data.data || [];
+      const atts: { url: string; type: string; fileName?: string }[] = [];
+      for (const m of msgs) {
+        const u = m.fileUrl || m.metadata?.fileUrl;
+        if (u && (m.type === 'image' || m.type === 'file' || /\.(png|jpe?g|pdf|webp)$/i.test(u))) {
+          atts.push({ url: u, type: /\.pdf$/i.test(u) ? 'pdf' : 'image', fileName: m.fileName });
+        }
+      }
+      setChatAttachments(atts);
+    } catch { /* best-effort */ }
   };
 
   const sendProofMessage = async () => {
@@ -3036,6 +3115,80 @@ export default function PendingPayments() {
                   </Link>
                 )}
               </div>
+
+              {/* Notas de comprobante de pago */}
+              {proofViewer.paymentId && (
+                <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-3">
+                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                    Notas de comprobante de pago {proofNotes.length > 0 && `(${proofNotes.length})`}
+                  </p>
+
+                  {proofNotes.length > 0 ? (
+                    <div className="space-y-2 mb-3">
+                      {proofNotes.map((n) => {
+                        const isPdf = n.fileType === 'pdf' || (n.fileUrl || '').toLowerCase().endsWith('.pdf');
+                        return (
+                          <div key={n.id} className="flex gap-3 p-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40">
+                            <a href={getImageUrl(n.fileUrl)} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                              {isPdf ? (
+                                <div className="w-14 h-14 flex items-center justify-center bg-red-100 dark:bg-red-900/30 rounded"><FileText className="h-6 w-6 text-red-500" /></div>
+                              ) : (
+                                <img src={getImageUrl(n.fileUrl)} alt="nota" className="w-14 h-14 object-cover rounded" />
+                              )}
+                            </a>
+                            <div className="min-w-0 flex-1">
+                              {n.caption && <p className="text-xs text-gray-700 dark:text-gray-300 break-words">{n.caption}</p>}
+                              <p className="text-[11px] text-gray-400 mt-0.5">
+                                #{n.sequence ?? '?'} · {n.uploadedBy?.name || (n.uploadedByRole === 'admin' ? 'Admin' : 'Usuario')} · {new Date(n.uploadedAt).toLocaleString('es-AR')}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-400 dark:text-gray-500 italic mb-3">Sin notas todavía.</p>
+                  )}
+
+                  <input
+                    type="text"
+                    value={noteCaption}
+                    onChange={(e) => setNoteCaption(e.target.value)}
+                    placeholder="Pie de la nota (ej: el usuario mandó otra imagen que no es un comprobante)"
+                    className="w-full text-sm px-3 py-2 mb-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white"
+                  />
+                  <label className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 cursor-pointer hover:bg-sky-50 dark:hover:bg-sky-900/20 ${noteUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                    <Upload className="h-3.5 w-3.5" /> {noteUploading ? 'Subiendo…' : 'Adjuntar archivo como nota'}
+                    <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) addProofNoteFromFile(f); e.currentTarget.value = ''; }} />
+                  </label>
+
+                  {chatAttachments.length > 0 && (
+                    <div className="mt-3">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Adjuntos enviados en el chat — agregalos como nota:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {chatAttachments.map((a, i) => (
+                          <div key={i} className="w-16">
+                            <a href={getImageUrl(a.url)} target="_blank" rel="noopener noreferrer">
+                              {a.type === 'pdf' ? (
+                                <div className="w-14 h-14 flex items-center justify-center bg-red-100 dark:bg-red-900/30 rounded"><FileText className="h-6 w-6 text-red-500" /></div>
+                              ) : (
+                                <img src={getImageUrl(a.url)} alt="adjunto" className="w-14 h-14 object-cover rounded border border-gray-200 dark:border-gray-700" />
+                              )}
+                            </a>
+                            <button
+                              onClick={() => addProofNoteFromUrl(a.url, a.fileName)}
+                              disabled={noteUploading}
+                              className="mt-1 w-14 text-[10px] px-1 py-0.5 rounded bg-sky-600 hover:bg-sky-700 text-white disabled:opacity-50"
+                            >
+                              + nota
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             {proofViewer.userId && (
               <div className="p-4 border-t border-gray-200 dark:border-gray-700 shrink-0">
