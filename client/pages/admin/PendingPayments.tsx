@@ -4,6 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import ExcelJS from "exceljs";
 import { getImageUrl } from "@/utils/imageUrl";
 import IdBadge from "@/components/admin/IdBadge";
+import PaymentProcessTimeline from "@/components/admin/PaymentProcessTimeline";
 import {
   CheckCircle,
   XCircle,
@@ -195,6 +196,7 @@ export default function PendingPayments() {
   const [activeTab, setActiveTab] = useState<"app" | "workers" | "refunds">("app");
   const [refunds, setRefunds] = useState<any[]>([]);
   const [refundsLoading, setRefundsLoading] = useState(false);
+  const [timelinePayment, setTimelinePayment] = useState<any | null>(null);
   const [urlParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(urlParams.get("search") || "");
 
@@ -1741,6 +1743,14 @@ export default function PendingPayments() {
                                   <Eye className="h-4 w-4" />
                                 </button>
                               )}
+                              {/* Timeline / proceso del pago */}
+                              <button
+                                onClick={() => setTimelinePayment(payment)}
+                                className="p-1.5 text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded"
+                                title="Ver proceso / timeline"
+                              >
+                                <History className="h-4 w-4" />
+                              </button>
                               {/* Show approve/reject buttons for pending payments */}
                               {appSubFilter === "pending" && (
                                 <>
@@ -2467,6 +2477,19 @@ export default function PendingPayments() {
             )}
           </div>
         </div>
+      )}
+
+      {/* Payment process timeline */}
+      {timelinePayment && (
+        <PaymentProcessTimeline
+          payment={timelinePayment}
+          busy={approvingPaymentId === timelinePayment.id}
+          onVerify={(p) => { setTimelinePayment(null); handleApproveVerificationPayment(p.id, p); }}
+          onEscrow={(id) => { setTimelinePayment(null); handleVerifyEscrow(id); }}
+          onPayout={(id) => { setTimelinePayment(null); handleConfirmForPayout(id); }}
+          onReject={(p) => { setTimelinePayment(null); handleRejectVerificationPayment(p.id, p); }}
+          onClose={() => setTimelinePayment(null)}
+        />
       )}
 
       {/* Payment Detail Modal */}
