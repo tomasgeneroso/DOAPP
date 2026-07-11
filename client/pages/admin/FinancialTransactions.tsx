@@ -558,7 +558,13 @@ export default function FinancialTransactions() {
   };
 
   const getStatusBadge = (status: string) => {
-    const badges: Record<string, { color: string; icon: any; tooltip: string }> = {
+    const badges: Record<string, { color: string; icon: any; tooltip: string; label?: string }> = {
+      withdrawn: {
+        color: 'bg-rose-100 text-rose-800 dark:bg-rose-900/20 dark:text-rose-400',
+        icon: CheckCircle,
+        label: 'Retirado',
+        tooltip: 'Retiro completado: los fondos ya fueron transferidos a la cuenta bancaria del usuario y salieron de la plataforma.'
+      },
       pending: {
         color: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400',
         icon: Clock,
@@ -624,7 +630,7 @@ export default function FinancialTransactions() {
         title={badge.tooltip}
       >
         <Icon className="w-3 h-3" />
-        {status.replace('_', ' ')}
+        {badge.label || status.replace('_', ' ')}
       </span>
     );
   };

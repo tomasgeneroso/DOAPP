@@ -3,6 +3,7 @@ import { protect, AuthRequest } from "../../middleware/auth.js";
 import { requireRole } from "../../middleware/permissions.js";
 import { Payment } from "../../models/sql/Payment.model.js";
 import { PaymentProof } from "../../models/sql/PaymentProof.model.js";
+import { BalanceTransaction } from "../../models/sql/BalanceTransaction.model.js";
 import { User } from "../../models/sql/User.model.js";
 import { Job } from "../../models/sql/Job.model.js";
 import { Contract } from "../../models/sql/Contract.model.js";
@@ -177,6 +178,56 @@ router.get("/:paymentId/proofs", protect, requireRole('admin', 'super_admin', 'o
   } catch (error: any) {
     console.error("Error listing payment proofs:", error);
     res.status(500).json({ success: false, message: error.message || "Error al listar comprobantes" });
+  }
+});
+
+/**
+ * List refunds (devoluciones) — refunds are credited to a user's balance as
+ * BalanceTransaction(type='refund'). Connected to transactions (each refund is a
+ * balance movement) and to withdrawals (the refunded balance can be withdrawn).
+ * GET /api/admin/payments/refunds
+ */
+router.get("/refunds", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { limit = '50', offset = '0' } = req.query;
+    const { count, rows } = await BalanceTransaction.findAndCountAll({
+      where: { type: 'refund' },
+      include: [{ association: 'user', attributes: ['id', 'name', 'email'], required: false }],
+      order: [['createdAt', 'DESC']],
+      limit: Number(limit),
+      offset: Number(offset),
+    });
+
+    const refunds = rows
+      .filter((r: any) => !((r.user?.email || '').match(/@(example|test)\.com$/)))
+      .map((r: any) => {
+        const meta = r.metadata || {};
+        return {
+          id: r.id,
+          userId: r.userId,
+          user: r.user ? { id: r.user.id, name: r.user.name, email: r.user.email } : null,
+          amount: Number(r.amount) || 0,
+          balanceAfter: Number(r.balanceAfter) || 0,
+          status: r.status,
+          description: r.description,
+          reason: meta.reason || null,
+          jobId: meta.jobId || null,
+          relatedContractId: r.relatedContractId || null,
+          relatedPaymentId: r.relatedPaymentId || null,
+          createdAt: r.createdAt,
+        };
+      });
+
+    res.json({
+      success: true,
+      data: {
+        refunds,
+        pagination: { total: count, limit: Number(limit), offset: Number(offset) },
+      },
+    });
+  } catch (error: any) {
+    console.error("Error listing refunds:", error);
+    res.status(500).json({ success: false, message: error.message || "Error al listar devoluciones" });
   }
 });
 

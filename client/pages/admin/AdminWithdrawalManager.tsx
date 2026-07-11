@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import IdBadge from '../../components/admin/IdBadge';
+import { statusDescription, withdrawalStatusDescriptions } from '../../utils/statusDescriptions';
 import { WithdrawalRequest } from '../../types';
 import { useSocket } from '@/hooks/useSocket';
 import {
@@ -299,7 +300,10 @@ export default function AdminWithdrawalManager() {
     const badge = badges[status as keyof typeof badges] || badges.pending;
 
     return (
-      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium ${badge.color}`}>
+      <span
+        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-medium cursor-help ${badge.color}`}
+        title={statusDescription(withdrawalStatusDescriptions, status)}
+      >
         {badge.icon}
         {badge.text}
       </span>

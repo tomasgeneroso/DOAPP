@@ -29,6 +29,7 @@ import {
   Clock,
   History,
   ExternalLink,
+  ArrowDownCircle,
   Ban,
   RotateCcw,
   FileImage,
@@ -191,7 +192,9 @@ interface CompletedSummary {
 export default function PendingPayments() {
   // Main tab state: "app" = Pagos a la App, "workers" = Pagos a Trabajadores
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<"app" | "workers">("app");
+  const [activeTab, setActiveTab] = useState<"app" | "workers" | "refunds">("app");
+  const [refunds, setRefunds] = useState<any[]>([]);
+  const [refundsLoading, setRefundsLoading] = useState(false);
   const [urlParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(urlParams.get("search") || "");
 
@@ -746,9 +749,22 @@ export default function PendingPayments() {
     }
   };
 
+  const loadRefunds = async () => {
+    setRefundsLoading(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`/api/admin/payments/refunds?limit=100`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      if (data.success) setRefunds(data.data?.refunds || []);
+    } catch { /* best-effort */ }
+    setRefundsLoading(false);
+  };
+
   const reloadActive = () => {
     if (activeTab === "app") {
       loadVerificationPayments();
+    } else if (activeTab === "refunds") {
+      loadRefunds();
     } else if (workersSubFilter === "paid") {
       loadCompletedPayments();
     } else {
@@ -1184,6 +1200,22 @@ export default function PendingPayments() {
             {summary && summary.totalContracts > 0 && workersSubFilter === "pending" && (
               <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300">
                 {summary.totalContracts}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab("refunds")}
+            className={`py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2 transition-colors ${
+              activeTab === "refunds"
+                ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
+            }`}
+          >
+            <ArrowDownCircle className="h-5 w-5" />
+            Devoluciones
+            {refunds.length > 0 && (
+              <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                {refunds.length}
               </span>
             )}
           </button>
@@ -2317,6 +2349,89 @@ export default function PendingPayments() {
             >
               Ir a Gestión de Disputas
             </a>
+          </div>
+        </div>
+      )}
+
+      {/* Devoluciones (refunds) */}
+      {activeTab === "refunds" && (
+        <div className="space-y-3">
+          <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 p-3 text-emerald-800 dark:text-emerald-200">
+            <p className="font-semibold text-sm mb-1">Mecánica de devolución</p>
+            <p className="text-xs leading-relaxed">
+              Las devoluciones se acreditan como <strong>saldo</strong> en el balance del usuario (no vuelven a la tarjeta).
+              Origen típico: <strong>cancelación de una publicación</strong>. Reglas: aún no aprobada → precio + comisión;
+              una vez aprobada, la comisión no se devuelve; con menos de 2h y trabajador asignado → mitad al dueño y mitad
+              al trabajador; sin trabajador → precio total. El usuario puede <strong>retirar</strong> ese saldo (aparece en Retiros).
+            </p>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto">
+            {refundsLoading ? (
+              <div className="p-8 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-emerald-500" /></div>
+            ) : refunds.filter(matchesQuery).length === 0 ? (
+              <div className="p-8 text-center text-gray-500 dark:text-gray-400 text-sm">No hay devoluciones.</div>
+            ) : (
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-900">
+                  <tr>
+                    {['Fecha', 'Usuario', 'Monto', 'Motivo', 'Estado', 'Conexiones'].map((h) => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {refunds.filter(matchesQuery).map((r) => {
+                    const reasonLabels: Record<string, string> = {
+                      job_cancelled_pending_approval: 'Cancelación (antes de aprobar)',
+                      job_cancelled_late: 'Cancelación tardía (<2h)',
+                      job_cancelled_late_no_worker: 'Cancelación <2h sin trabajador',
+                      job_cancelled: 'Cancelación',
+                    };
+                    return (
+                      <tr key={r.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-300">{new Date(r.createdAt).toLocaleString('es-AR')}</td>
+                        <td className="px-4 py-3">
+                          <div className="text-gray-900 dark:text-white">{r.user?.name || '—'}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">{r.user?.email || ''}</div>
+                          <IdBadge id={r.id} />
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap font-semibold text-emerald-600 dark:text-emerald-400">+${Number(r.amount).toLocaleString('es-AR')} ARS</td>
+                        <td className="px-4 py-3 max-w-xs">
+                          <div className="text-gray-700 dark:text-gray-300 truncate" title={r.description || ''}>
+                            {r.description || reasonLabels[r.reason] || r.reason || 'Devolución'}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="px-2 py-0.5 rounded-full text-xs bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 cursor-help" title="Devolución acreditada al saldo del usuario. Queda disponible para retirar.">
+                            Acreditada al saldo
+                          </span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-2 text-xs">
+                            {r.jobId && (
+                              <Link to={`/jobs/${r.jobId}`} className="inline-flex items-center gap-1 text-sky-600 dark:text-sky-400 hover:underline">
+                                <ExternalLink className="h-3 w-3" /> Publicación
+                              </Link>
+                            )}
+                            {r.user && (
+                              <Link to={`/admin/financial-transactions?search=${encodeURIComponent(r.user.email || r.user.name || '')}`} className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 hover:underline">
+                                <ExternalLink className="h-3 w-3" /> Transacciones
+                              </Link>
+                            )}
+                            {r.user && (
+                              <Link to={`/admin/withdrawals?search=${encodeURIComponent(r.user.email || r.user.name || '')}`} className="inline-flex items-center gap-1 text-rose-600 dark:text-rose-400 hover:underline">
+                                <ExternalLink className="h-3 w-3" /> Retiros
+                              </Link>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       )}

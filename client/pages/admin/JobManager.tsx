@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Briefcase, CheckCircle, XCircle, Clock, Eye, Search, ArrowUpDown, ArrowUp, ArrowDown, Image as ImageIcon, FileText, Download, Bell, Pause, Play, Ban, Plus, UserCheck, UserX, ExternalLink } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import IdBadge from "../../components/admin/IdBadge";
+import { statusDescription, jobStatusDescriptions } from "../../utils/statusDescriptions";
 import { getImageUrl } from "@/utils/imageUrl";
 
 // Safe date formatter — never throws on null/undefined/invalid dates
@@ -784,11 +785,11 @@ export default function AdminJobManager() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {(['draft', 'pending', 'pending_payment', 'pending_approval'].includes(job.status) && !job.publicationPaid && !job.paymentProof) ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300 cursor-help" title="Esperando pago: la publicación no fue abonada ni tiene comprobante subido todavía.">
                           Esperando pago
                         </span>
                       ) : (
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusBadge(job.status)}`}>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium cursor-help ${getStatusBadge(job.status)}`} title={statusDescription(jobStatusDescriptions, job.status)}>
                           {getStatusLabel(job.status)}
                         </span>
                       )}

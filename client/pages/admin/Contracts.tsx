@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { FileText, Search, Filter, Eye, Ban, CheckCircle, XCircle, Plus, ArrowUpDown, ArrowUp, ArrowDown, Wifi, WifiOff, Bell, AlertTriangle, X, Calendar, Clock, Edit, Receipt, ExternalLink } from "lucide-react";
 import { getImageUrl } from "../../utils/imageUrl";
 import IdBadge from "../../components/admin/IdBadge";
+import { statusDescription, contractStatusDescriptions, contractPaymentDescriptions } from "../../utils/statusDescriptions";
 import { useSocket } from "../../hooks/useSocket";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -715,12 +716,12 @@ export default function AdminContracts() {
                       </div>
                     </td>
                     <td className="px-4 py-4">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusBadge(contract.status)}`}>
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full cursor-help ${getStatusBadge(contract.status)}`} title={statusDescription(contractStatusDescriptions, contract.status)}>
                         {getStatusLabel(contract.status)}
                       </span>
                     </td>
                     <td className="px-4 py-4">
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPaymentBadge(contract.paymentStatus)}`}>
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full cursor-help ${getPaymentBadge(contract.paymentStatus)}`} title={statusDescription(contractPaymentDescriptions, contract.paymentStatus)}>
                         {contract.paymentStatus}
                       </span>
                     </td>

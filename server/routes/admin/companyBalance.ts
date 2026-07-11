@@ -301,7 +301,8 @@ router.get(
             id: w.id,
             date: w.requestedAt || w.createdAt,
             type: 'withdrawal',
-            status: w.status,
+            // A completed withdrawal means the money left the platform → "Retirado"
+            status: w.status === 'completed' ? 'withdrawn' : w.status,
             totalAmount: Number(w.amount) || 0,
             currency: 'ARS',
             platformFee: 0,
