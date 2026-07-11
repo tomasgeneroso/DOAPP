@@ -232,6 +232,50 @@ router.get("/refunds", protect, requireRole('admin', 'super_admin', 'owner'), as
 });
 
 /**
+ * Detect a reused operation/transaction number across DIFFERENT payments.
+ * Keyed on the reference, NOT the amount (two jobs may share an amount legitimately).
+ * GET /api/admin/payments/check-reference?reference=X&excludePaymentId=Y
+ */
+router.get("/check-reference", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const reference = ((req.query.reference as string) || '').trim();
+    const excludePaymentId = (req.query.excludePaymentId as string) || '';
+    if (!reference) {
+      res.json({ success: true, duplicate: false, matches: [] });
+      return;
+    }
+    const where: any = { bankReference: { [Op.iLike]: reference } };
+    if (excludePaymentId && isValidUUID(excludePaymentId)) {
+      where.paymentId = { [Op.ne]: excludePaymentId };
+    }
+    const proofs = await PaymentProof.findAll({
+      where,
+      include: [{
+        model: Payment,
+        as: 'payment',
+        attributes: ['id', 'amount', 'status'],
+        include: [{ association: 'payer', attributes: ['name', 'email'] }],
+      }],
+      order: [['uploadedAt', 'DESC']],
+      limit: 10,
+    });
+    const matches = proofs.map((p: any) => ({
+      proofId: p.id,
+      paymentId: p.paymentId,
+      reference: p.bankReference,
+      status: p.status,
+      uploadedAt: p.uploadedAt,
+      payerName: p.payment?.payer?.name || null,
+      amount: p.payment ? Number(p.payment.amount) || null : null,
+    }));
+    res.json({ success: true, duplicate: matches.length > 0, matches });
+  } catch (error: any) {
+    console.error("Error checking reference:", error);
+    res.status(500).json({ success: false, message: error.message || "Error al verificar la referencia" });
+  }
+});
+
+/**
  * Get all payments pending verification (admin only)
  * GET /api/admin/payments/pending
  * Muestra TODOS los pagos pendientes: MercadoPago y transferencias bancarias
@@ -611,6 +655,7 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
         fileName: proofUrl.split('/').pop() || 'comprobante',
         fileSize: 0,
         senderBankName: senderBankName || null,
+        bankReference: bankReference || null,
         status: 'approved',
         verifiedBy: adminId,
         verifiedAt: new Date(),
@@ -649,6 +694,7 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
       proof.status = 'approved';
       proof.verifiedBy = adminId;
       proof.verifiedAt = new Date();
+      if (bankReference) proof.bankReference = bankReference;
       if (notes) proof.notes = notes;
       await proof.save();
     }

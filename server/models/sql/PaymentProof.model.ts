@@ -232,6 +232,13 @@ export class PaymentProof extends Model {
   })
   uploadedByRole?: string;
 
+  // Nº de operación / ID de transacción (para detectar comprobantes reusados)
+  @Column({
+    type: DataType.STRING(120),
+    allowNull: true,
+  })
+  bankReference?: string;
+
   // ============================================
   // TIMESTAMPS
   // ============================================

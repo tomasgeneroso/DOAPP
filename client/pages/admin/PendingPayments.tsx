@@ -248,6 +248,7 @@ export default function PendingPayments() {
   const [approveModalPaymentId, setApproveModalPaymentId] = useState<string | null>(null);
   const [approveFile, setApproveFile] = useState<File | null>(null);
   const [approveReference, setApproveReference] = useState("");
+  const [refCheck, setRefCheck] = useState<{ duplicate: boolean; matches: any[] } | null>(null);
   const [approveAmount, setApproveAmount] = useState("");
   const [approveDate, setApproveDate] = useState("");
   const [approveSenderBank, setApproveSenderBank] = useState("");
@@ -504,6 +505,7 @@ export default function PendingPayments() {
   const handleApproveVerificationPayment = (paymentId: string, payment?: any) => {
     setApproveModalPaymentId(paymentId);
     setApproveFile(null);
+    setRefCheck(null);
     // Auto-fill with the information we already have from the client's uploaded proof
     const proof = payment?.proofs?.[0] || {};
     setApproveReference(proof.binanceTransactionId || proof.transferReference || "");
@@ -783,6 +785,26 @@ export default function PendingPayments() {
       setApprovingPaymentId(null);
     }
   };
+
+  // Duplicate operation-number detection (keyed on the reference, not the amount).
+  useEffect(() => {
+    const ref = approveReference.trim();
+    if (!approveModalPaymentId || ref.length < 4) {
+      setRefCheck(null);
+      return;
+    }
+    const handle = setTimeout(async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`/api/admin/payments/check-reference?reference=${encodeURIComponent(ref)}&excludePaymentId=${approveModalPaymentId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data.success) setRefCheck({ duplicate: data.duplicate, matches: data.matches || [] });
+      } catch { /* best-effort */ }
+    }, 500);
+    return () => clearTimeout(handle);
+  }, [approveReference, approveModalPaymentId]);
 
   const loadRefunds = async () => {
     setRefundsLoading(true);
@@ -3047,8 +3069,23 @@ export default function PendingPayments() {
                     value={approveReference}
                     onChange={(e) => setApproveReference(e.target.value)}
                     placeholder="Ej: TRX-123456789"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    className={`w-full px-3 py-2 border rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:border-transparent ${
+                      refCheck?.duplicate ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-600 focus:ring-green-500'
+                    }`}
                   />
+                  {refCheck?.duplicate && (
+                    <div className="mt-2 rounded-lg border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 p-2 text-xs text-red-700 dark:text-red-300">
+                      <p className="font-semibold">⚠️ Este N° de operación ya fue usado en otro pago.</p>
+                      <ul className="mt-1 space-y-0.5">
+                        {refCheck.matches.slice(0, 3).map((m) => (
+                          <li key={m.proofId}>
+                            {m.payerName || 'Usuario'} · ${Number(m.amount || 0).toLocaleString('es-AR')} · {new Date(m.uploadedAt).toLocaleDateString('es-AR')} ({m.status})
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="mt-1 italic">Verificá que no se esté reutilizando un mismo comprobante para dos trabajos distintos.</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Monto y Banco */}
