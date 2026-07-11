@@ -77,16 +77,11 @@ export default function WithdrawalRequestPage() {
     setError(null);
     setSuccess(null);
 
-    const amountNum = parseFloat(amount);
+    // Retiro "todo o nada": siempre se retira el saldo completo (mín $1,000 ARS)
+    const amountNum = balance;
 
-    // Validations
     if (isNaN(amountNum) || amountNum < 1000) {
       setError('El monto mínimo de retiro es $1,000 ARS');
-      return;
-    }
-
-    if (amountNum > balance) {
-      setError('No tienes suficiente saldo disponible');
       return;
     }
 
@@ -332,29 +327,23 @@ export default function WithdrawalRequestPage() {
               </div>
             ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Amount */}
+              {/* Amount — all-or-nothing: the entire available balance is withdrawn */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   {t('withdrawals.amount')}
                 </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <DollarSign className="h-5 w-5 text-gray-400" />
-                  </div>
-                  <input
-                    type="number"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder={t('withdrawals.amountPlaceholder')}
-                    min="1000"
-                    step="0.01"
-                    required
-                    className="pl-10 w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-4 py-2 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
+                <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20 px-4 py-3">
+                  <p className="text-xs text-sky-700 dark:text-sky-300">Vas a retirar <strong>todo tu saldo disponible</strong>:</p>
+                  <p className="text-2xl font-bold text-sky-900 dark:text-sky-100 flex items-center gap-1">
+                    <DollarSign className="h-5 w-5" />{balance.toLocaleString('es-AR')} ARS
+                  </p>
                 </div>
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  {t('withdrawals.amountMin')}
+                  El retiro es por el total del saldo. Mínimo $1.000 ARS. Tu saldo quedará en $0.
                 </p>
+                {balance < 1000 && (
+                  <p className="mt-1 text-xs text-red-500">Tu saldo es menor al mínimo de $1.000 ARS para retirar.</p>
+                )}
               </div>
 
               {/* Account Holder */}
@@ -458,7 +447,7 @@ export default function WithdrawalRequestPage() {
               <Button
                 type="submit"
                 variant="primary"
-                disabled={submitting}
+                disabled={submitting || balance < 1000}
                 className="w-full flex items-center justify-center"
               >
                 {submitting ? (

@@ -169,16 +169,7 @@ router.get("/summary", protect, async (req: AuthRequest, res: Response): Promise
 router.post("/withdraw", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user.id;
-    const { amount, bankingInfo } = req.body;
-
-    // Validations
-    if (!amount || amount < 1000) {
-      res.status(400).json({
-        success: false,
-        message: "El monto mínimo de retiro es $1,000 ARS"
-      });
-      return;
-    }
+    const { bankingInfo } = req.body;
 
     if (!bankingInfo || !bankingInfo.accountHolder || !bankingInfo.bankName || !bankingInfo.cbu) {
       res.status(400).json({
@@ -202,11 +193,12 @@ router.post("/withdraw", protect, async (req: AuthRequest, res: Response): Promi
       return;
     }
 
-    // Check balance
-    if (user.balanceArs < amount) {
+    // Retiro "todo o nada": se retira SIEMPRE el saldo completo disponible (mín $1,000 ARS).
+    const amount = Number(user.balanceArs) || 0;
+    if (amount < 1000) {
       res.status(400).json({
         success: false,
-        message: `Saldo insuficiente. Saldo disponible: $${user.balanceArs.toLocaleString("es-AR")}`
+        message: `El monto mínimo de retiro es $1,000 ARS. Tu saldo disponible es $${amount.toLocaleString("es-AR")}.`
       });
       return;
     }
@@ -240,7 +232,7 @@ router.post("/withdraw", protect, async (req: AuthRequest, res: Response): Promi
       },
       status: 'pending',
       balanceBeforeWithdrawal: user.balanceArs,
-      balanceAfterWithdrawal: user.balanceArs - amount,
+      balanceAfterWithdrawal: 0,
       metadata: {
         ipAddress: req.ip,
         userAgent: req.get('user-agent'),

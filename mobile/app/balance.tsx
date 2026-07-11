@@ -109,15 +109,11 @@ export default function BalanceScreen() {
   }, [isAuthenticated, authLoading]);
 
   const handleWithdraw = async () => {
-    const amount = parseFloat(withdrawAmount);
+    // Retiro "todo o nada": se retira el saldo completo (mín $1,000 ARS)
+    const amount = balance;
 
     if (!amount || amount < 1000) {
       Alert.alert('Error', 'El monto mínimo de retiro es $1,000 ARS');
-      return;
-    }
-
-    if (amount > balance) {
-      Alert.alert('Error', 'No tienes suficiente saldo disponible');
       return;
     }
 
@@ -307,23 +303,25 @@ export default function BalanceScreen() {
             </Text>
 
             <Text style={[styles.inputLabel, { color: themeColors.text.secondary }]}>
-              Monto (mínimo $1,000 ARS)
+              Vas a retirar todo tu saldo (mínimo $1,000 ARS)
             </Text>
-            <TextInput
+            <View
               style={[
                 styles.input,
                 {
                   backgroundColor: themeColors.slate[50],
                   borderColor: themeColors.border,
-                  color: themeColors.text.primary,
+                  justifyContent: 'center',
                 },
               ]}
-              placeholder="Ej: 5000"
-              placeholderTextColor={themeColors.text.muted}
-              value={withdrawAmount}
-              onChangeText={setWithdrawAmount}
-              keyboardType="numeric"
-            />
+            >
+              <Text style={{ color: themeColors.text.primary, fontSize: 18, fontWeight: '700' }}>
+                {formatPrice(balance)}
+              </Text>
+            </View>
+            <Text style={{ color: themeColors.text.muted, fontSize: 12, marginTop: 4, marginBottom: 8 }}>
+              El retiro es por el total del saldo. Tu saldo quedará en $0.
+            </Text>
 
             <Text style={[styles.inputLabel, { color: themeColors.text.secondary }]}>
               CBU (22 dígitos)
