@@ -120,6 +120,12 @@ router.post("/:paymentId/proof-notes", protect, requireRole('admin', 'super_admi
       uploadedAt: new Date(),
     } as any);
 
+    void logAudit({
+      req, action: 'payment.proof_note.add', category: 'payment', severity: 'low',
+      description: `Agregó una nota de comprobante al pago ${paymentId}${caption ? `: ${String(caption).slice(0, 80)}` : ''}`,
+      targetModel: 'Payment', targetId: paymentId, metadata: { noteId: note.id, fileUrl },
+    });
+
     res.status(201).json({
       success: true,
       note: {

@@ -4,6 +4,7 @@ import path from "path";
 import fs from "fs";
 import { protect, AuthRequest } from "../../middleware/auth.js";
 import { requireRole } from "../../middleware/permissions.js";
+import { logAudit } from "../../utils/auditLog.js";
 import { Contract } from "../../models/sql/Contract.model.js";
 import { User } from "../../models/sql/User.model.js";
 import { Job } from "../../models/sql/Job.model.js";
@@ -869,6 +870,13 @@ router.post("/:contractId/mark-paid", protect, requireRole('admin', 'super_admin
     ].filter(Boolean).join(' | ');
     if (fullNotes) contract.paymentAdminNotes = fullNotes;
     await contract.save();
+
+    void logAudit({
+      req, action: 'worker_payout.mark_paid', category: 'payment', severity: 'high',
+      description: `Marcó como pagado al trabajador ${doer?.name || ''} del contrato ${contractId} · monto $${Number(netAmount).toLocaleString('es-AR')}`,
+      targetModel: 'Contract', targetId: contractId,
+      metadata: { netAmount, paymentMethod: paymentMethod || null, deductions: deductions || null, doerId: doer?.id || null },
+    });
 
     // Update worker's balance with the payment
     if (doer) {

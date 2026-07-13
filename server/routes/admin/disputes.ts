@@ -5,6 +5,7 @@ import { User } from "../../models/sql/User.model.js";
 import { Contract } from "../../models/sql/Contract.model.js";
 import { Payment } from "../../models/sql/Payment.model.js";
 import { body, validationResult } from "express-validator";
+import { logAudit } from "../../utils/auditLog.js";
 import emailService from "../../services/email.js";
 import mercadopagoService from "../../services/mercadopago.js";
 import { Op } from 'sequelize';
@@ -153,6 +154,12 @@ router.put(
         assignedAt: new Date(),
         status: "in_review",
         logs: [...currentLogs, newLog],
+      });
+
+      void logAudit({
+        req, action: 'dispute.assign', category: 'contract', severity: 'low',
+        description: `Asignó la disputa ${dispute.id} a un administrador`,
+        targetModel: 'Dispute', targetId: dispute.id, metadata: { assignedTo },
       });
 
       res.json({
@@ -405,6 +412,13 @@ router.post(
 
       disputeUpdateData.logs = [...currentLogs, newLog];
       await dispute.update(disputeUpdateData);
+
+      void logAudit({
+        req, action: 'dispute.resolve', category: 'payment', severity: 'high',
+        description: `Resolvió la disputa ${dispute.id} (${resolutionType})${refundAmount ? ` · reembolso $${Number(refundAmount).toLocaleString('es-AR')}` : ''}`,
+        targetModel: 'Dispute', targetId: dispute.id,
+        metadata: { resolutionType, refundAmount: refundAmount || null, resolution },
+      });
 
       // Send email notifications
       const { Job } = await import("../../models/sql/Job.model.js");

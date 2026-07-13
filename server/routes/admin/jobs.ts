@@ -9,6 +9,7 @@ import { Payment } from '../../models/sql/Payment.model.js';
 import { PaymentProof } from '../../models/sql/PaymentProof.model.js';
 import { Op, literal } from 'sequelize';
 import { isValidUUID } from '../../utils/sanitizer.js';
+import { logAudit } from '../../utils/auditLog.js';
 
 const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&');
 import { socketService } from '../../index.js';
@@ -236,6 +237,14 @@ router.put(
         reviewedAt: new Date(),
       });
 
+      void logAudit({
+        req, action: `job.${status}`, category: 'contract',
+        severity: status === 'rejected' ? 'medium' : 'low',
+        description: `${status === 'approved' ? 'Aprobó' : 'Rechazó'} la publicación "${job.title}"${status === 'rejected' && rejectedReason ? ` (motivo: ${rejectedReason})` : ''}`,
+        targetModel: 'Job', targetId: job.id, targetIdentifier: job.title,
+        metadata: { previousStatus, newStatus, rejectedReason: rejectedReason || null },
+      });
+
       // Refetch job with associations for socket notification
       const updatedJob = await Job.findByPk(id, {
         include: [
@@ -401,6 +410,14 @@ router.put(
           res.status(400).json({ success: false, message: 'Acción no válida' });
           return;
       }
+
+      void logAudit({
+        req, action: `job.${action}`, category: 'contract',
+        severity: action === 'cancel' ? 'medium' : 'low',
+        description: `${action === 'pause' ? 'Pausó' : action === 'resume' ? 'Reanudó' : 'Canceló'} la publicación "${job.title}"${reason ? ` (motivo: ${reason})` : ''}${action === 'cancel' && permanent ? ' [definitiva]' : ''}`,
+        targetModel: 'Job', targetId: job.id, targetIdentifier: job.title,
+        metadata: { action, newStatus, reason: reason || null, permanent: permanent === true },
+      });
 
       // Crear notificación para el usuario
       const { Notification } = await import('../../models/sql/Notification.model.js');
