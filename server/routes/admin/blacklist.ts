@@ -5,6 +5,7 @@ import { authorize } from '../../middleware/auth.js';
 import { BlacklistEntry } from '../../models/sql/BlacklistEntry.model.js';
 import { User } from '../../models/sql/User.model.js';
 import { body, validationResult } from 'express-validator';
+import { logAudit } from '../../utils/auditLog.js';
 
 const router = Router();
 router.use(protect, authorize('admin', 'super_admin', 'owner'));
@@ -120,6 +121,13 @@ router.post(
       // Ban the user
       await user.ban(adminId, `[BLACKLIST] ${reason}`);
 
+      void logAudit({
+        req, action: 'blacklist.add', category: 'user', severity: 'high',
+        description: `Agregó a ${user.name || userId} a la lista negra y lo baneó (${type}, ${severity})${reason ? `: ${reason}` : ''}`,
+        targetModel: 'User', targetId: userId, targetIdentifier: user.name,
+        metadata: { type, severity, reason, blacklistEntryId: entry.id },
+      });
+
       res.status(201).json({
         success: true,
         message: 'Usuario agregado a la lista negra y baneado',
@@ -164,6 +172,12 @@ router.post(
 
       // Unban the user
       await user.unban();
+
+      void logAudit({
+        req, action: 'blacklist.remove', category: 'user', severity: 'medium',
+        description: `Quitó a ${user.name || userId} de la lista negra y lo desbaneó${notes ? `: ${notes}` : ''}`,
+        targetModel: 'User', targetId: userId, targetIdentifier: user.name, metadata: { notes: notes || null },
+      });
 
       res.json({
         success: true,
@@ -224,6 +238,13 @@ router.post(
         await user.ban(adminId, `Auto-baneado tras ${user.infractions} infracciones`);
         autoBlacklisted = true;
       }
+
+      void logAudit({
+        req, action: 'blacklist.infraction', category: 'user', severity: autoBlacklisted ? 'high' : 'medium',
+        description: `Registró una infracción a ${user.name || userId} (${user.infractions}/${INFRACTION_AUTO_BAN_THRESHOLD})${autoBlacklisted ? ' — auto-baneado' : ''}${reason ? `: ${reason}` : ''}`,
+        targetModel: 'User', targetId: userId, targetIdentifier: user.name,
+        metadata: { reason, infractions: user.infractions, autoBlacklisted },
+      });
 
       res.json({
         success: true,

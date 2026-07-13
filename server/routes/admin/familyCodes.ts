@@ -3,6 +3,7 @@ import { Op } from 'sequelize';
 import { FamilyCode } from '../../models/sql/FamilyCode.model.js';
 import { User } from '../../models/sql/User.model.js';
 import { protect, requireAdminRole } from '../../middleware/auth.js';
+import { logAudit } from '../../utils/auditLog.js';
 import type { AuthRequest } from '../../types/index.js';
 
 const router = express.Router();
@@ -121,6 +122,12 @@ router.post('/', protect, ownerOnly, async (req: AuthRequest, res: Response): Pr
       isActive: true,
     });
 
+    void logAudit({
+      req, action: 'family_code.create', category: 'system', severity: 'medium',
+      description: `Creó el código familia ${code} para ${firstName} ${lastName}`,
+      targetModel: 'FamilyCode', targetId: familyCode.id, targetIdentifier: code,
+    });
+
     res.status(201).json({
       success: true,
       message: 'Código familia creado exitosamente',
@@ -161,6 +168,12 @@ router.put('/:id', protect, ownerOnly, async (req: AuthRequest, res: Response): 
       notes: notes !== undefined ? notes?.trim() || null : familyCode.notes,
       expiresAt: expiresAt !== undefined ? (expiresAt ? new Date(expiresAt) : null) : familyCode.expiresAt,
       isActive: isActive !== undefined ? isActive : familyCode.isActive,
+    });
+
+    void logAudit({
+      req, action: 'family_code.update', category: 'system', severity: 'low',
+      description: `Editó el código familia ${familyCode.code}`,
+      targetModel: 'FamilyCode', targetId: familyCode.id, targetIdentifier: familyCode.code,
     });
 
     res.json({
@@ -204,7 +217,14 @@ router.delete('/:id', protect, ownerOnly, async (req: AuthRequest, res: Response
       );
     }
 
+    const fcCode = familyCode.code;
     await familyCode.destroy();
+
+    void logAudit({
+      req, action: 'family_code.delete', category: 'system', severity: 'medium',
+      description: `Eliminó el código familia ${fcCode}`,
+      targetModel: 'FamilyCode', targetId: id, targetIdentifier: fcCode,
+    });
 
     res.json({
       success: true,
@@ -257,6 +277,13 @@ router.post('/:id/revoke', protect, ownerOnly, async (req: AuthRequest, res: Res
     // Marcar el código como revocado (inactivo pero manteniendo el historial)
     await familyCode.update({
       isActive: false,
+    });
+
+    void logAudit({
+      req, action: 'family_code.revoke', category: 'system', severity: 'medium',
+      description: `Revocó el plan familia (código ${familyCode.code}) del usuario`,
+      targetModel: 'FamilyCode', targetId: id, targetIdentifier: familyCode.code,
+      metadata: { revokedFromUserId: familyCode.usedById },
     });
 
     res.json({

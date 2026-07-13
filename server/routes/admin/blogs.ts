@@ -3,6 +3,7 @@ import { body, validationResult } from "express-validator";
 import { BlogPost } from "../../models/sql/BlogPost.model.js";
 import { protect } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/permissions.js";
+import { logAudit } from "../../utils/auditLog.js";
 import type { AuthRequest } from "../../types/index.js";
 
 const router = express.Router();
@@ -167,6 +168,12 @@ router.post(
         include: [{ association: "createdBy", attributes: ["name", "email"] }],
       });
 
+      void logAudit({
+        req, action: 'blog.create', category: 'system', severity: 'low',
+        description: `Creó el artículo de blog "${(post as any).title || post.id}"`,
+        targetModel: 'BlogPost', targetId: post.id, targetIdentifier: (post as any).title,
+      });
+
       res.status(201).json({
         success: true,
         post: populatedPost,
@@ -253,6 +260,12 @@ router.put(
 
       await post.save();
 
+      void logAudit({
+        req, action: 'blog.update', category: 'system', severity: 'low',
+        description: `Editó el artículo de blog "${(post as any).title || post.id}"`,
+        targetModel: 'BlogPost', targetId: post.id, targetIdentifier: (post as any).title,
+      });
+
       const populatedPost = await BlogPost.findByPk(post.id, {
         include: [
           { association: "createdBy", attributes: ["name", "email"] },
@@ -288,7 +301,14 @@ router.delete("/:id", async (req: AuthRequest, res: Response): Promise<void> => 
       return;
     }
 
+    const blogTitle = (post as any).title;
     await post.destroy();
+
+    void logAudit({
+      req, action: 'blog.delete', category: 'system', severity: 'medium',
+      description: `Eliminó el artículo de blog "${blogTitle || req.params.id}"`,
+      targetModel: 'BlogPost', targetId: req.params.id, targetIdentifier: blogTitle,
+    });
 
     res.json({
       success: true,

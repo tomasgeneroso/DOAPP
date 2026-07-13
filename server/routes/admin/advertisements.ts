@@ -5,6 +5,7 @@ import advertisementService from '../../services/advertisementService.js';
 import { protect, authorize } from '../../middleware/auth.js';
 import type { AuthRequest } from '../../middleware/auth.js';
 import sanitizer from '../../utils/sanitizer.js';
+import { logAudit } from '../../utils/auditLog.js';
 
 const router = express.Router();
 
@@ -149,6 +150,12 @@ router.post(
 
       await advertisement.save();
 
+      void logAudit({
+        req, action: 'advertisement.approve', category: 'system', severity: 'low',
+        description: `Aprobó la publicidad ${advertisement.id}`,
+        targetModel: 'Advertisement', targetId: advertisement.id, targetIdentifier: (advertisement as any).title,
+      });
+
       // Invalidate cache
 
       // TODO: Send notification to advertiser
@@ -199,6 +206,13 @@ router.post(
       advertisement.rejectionReason = sanitizer.sanitizeInput(req.body.reason);
 
       await advertisement.save();
+
+      void logAudit({
+        req, action: 'advertisement.reject', category: 'system', severity: 'low',
+        description: `Rechazó la publicidad ${advertisement.id}: ${req.body.reason}`,
+        targetModel: 'Advertisement', targetId: advertisement.id, targetIdentifier: (advertisement as any).title,
+        metadata: { reason: req.body.reason },
+      });
 
       // Invalidate cache
 
@@ -277,7 +291,14 @@ router.delete(
           .json({ success: false, message: 'Advertisement not found' });
       }
 
+      const adTitle = (advertisement as any).title;
       await advertisement.destroy();
+
+      void logAudit({
+        req, action: 'advertisement.delete', category: 'system', severity: 'medium',
+        description: `Eliminó la publicidad ${req.params.id}`,
+        targetModel: 'Advertisement', targetId: req.params.id, targetIdentifier: adTitle,
+      });
 
       // Invalidate cache
 
