@@ -80,20 +80,49 @@ router.get('/financial/overview', async (_req: AuthRequest, res: Response): Prom
   try {
     const { Payment } = await import('../../models/sql/Payment.model.js');
     const { WithdrawalRequest } = await import('../../models/sql/WithdrawalRequest.model.js');
+    const { Op } = await import('sequelize');
+    let Dispute: any = null;
+    try { Dispute = (await import('../../models/sql/Dispute.model.js')).Dispute; } catch { /* optional */ }
 
-    const [pendingPayments, pendingWithdrawals, totalRevenue] = await Promise.all([
-      Payment.count({ where: { status: 'pending' } }),
-      WithdrawalRequest.count({ where: { status: 'pending' } }),
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const [
+      paymentsToVerify,
+      withdrawalsToProcess,
+      workerPayoutsPending,
+      openDisputes,
+      totalRevenue,
+      todayRevenue,
+      escrowHeld,
+      pendingWithdrawalsAmount,
+    ] = await Promise.all([
+      Payment.count({ where: { status: { [Op.in]: ['pending_verification', 'pending'] } } }),
+      WithdrawalRequest.count({ where: { status: { [Op.in]: ['pending', 'approved', 'processing'] } } }),
+      Payment.count({ where: { status: 'confirmed_for_payout' } }),
+      Dispute ? Dispute.count({ where: { status: { [Op.in]: ['open', 'in_review', 'awaiting_info'] } } }) : Promise.resolve(0),
       Payment.sum('amount', { where: { status: 'completed' } }),
+      Payment.sum('amount', { where: { status: 'completed', createdAt: { [Op.gte]: startOfToday } } }),
+      Payment.sum('amount', { where: { status: 'held_escrow' } }),
+      WithdrawalRequest.sum('amount', { where: { status: { [Op.in]: ['pending', 'approved', 'processing'] } } }),
     ]);
 
     res.json({
       success: true,
       financial: {
-        pendingPayments,
-        pendingWithdrawals,
+        // Bandeja de pendientes (counts)
+        paymentsToVerify,
+        withdrawalsToProcess,
+        workerPayoutsPending,
+        openDisputes,
+        // KPIs (amounts)
         totalRevenueARS: totalRevenue || 0,
-        todayRevenue: 0, // TODO: calculate today's payments
+        todayRevenue: todayRevenue || 0,
+        escrowHeldARS: escrowHeld || 0,
+        pendingWithdrawalsARS: pendingWithdrawalsAmount || 0,
+        // Back-compat
+        pendingPayments: paymentsToVerify,
+        pendingWithdrawals: withdrawalsToProcess,
       },
     });
   } catch (error: any) {
