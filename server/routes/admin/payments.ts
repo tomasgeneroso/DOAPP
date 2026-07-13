@@ -10,6 +10,7 @@ import { Contract } from "../../models/sql/Contract.model.js";
 import { Notification } from "../../models/sql/Notification.model.js";
 import { Op } from 'sequelize';
 import { isValidUUID } from "../../utils/sanitizer.js";
+import { logAudit } from "../../utils/auditLog.js";
 import { generateClientPaymentInvoice } from "../../services/invoiceService.js";
 import multer from "multer";
 import path from "path";
@@ -718,6 +719,13 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
     }
     await payment.save();
 
+    void logAudit({
+      req, action: 'payment.approve', category: 'payment', severity: 'high',
+      description: `Aprobó/verificó el pago ${paymentId} (nuevo estado: ${newStatus})`,
+      targetModel: 'Payment', targetId: paymentId,
+      metadata: { newStatus, bankReference: bankReference || null, amount: Number(payment.amount) || null },
+    });
+
     console.log(`✅ [ADMIN APPROVE] Payment ${paymentId} approved with status: ${newStatus}`);
 
     // Generate client payment invoice (async, don't block)
@@ -927,6 +935,12 @@ router.post("/:paymentId/reject", protect, requireRole('admin', 'super_admin', '
     payment.adminNotes = `[Rechazado] ${reason}${notes ? `\nNotas: ${notes}` : ''}`;
     await payment.save();
 
+    void logAudit({
+      req, action: 'payment.reject', category: 'payment', severity: 'high',
+      description: `Rechazó el pago ${paymentId}. Motivo: ${reason}`,
+      targetModel: 'Payment', targetId: paymentId, metadata: { reason },
+    });
+
     console.log(`[ADMIN REJECT] Payment ${paymentId} rejected. Reason: ${reason}`);
 
     // If job publication payment, set job back to pending_payment
@@ -1094,6 +1108,11 @@ router.post("/:paymentId/verify-escrow", protect, requireRole('admin', 'super_ad
     if (notes) {
       payment.adminNotes = (payment.adminNotes || '') + `\n[Escrow] ${notes}`;
     }
+    void logAudit({
+      req, action: 'payment.verify_escrow', category: 'payment', severity: 'medium',
+      description: `Pasó el pago ${paymentId} a escrow (held_escrow)`,
+      targetModel: 'Payment', targetId: paymentId,
+    });
     await payment.save();
 
     console.log(`✅ [ADMIN VERIFY-ESCROW] Payment ${paymentId} moved to held_escrow`);
@@ -1233,6 +1252,12 @@ router.post("/:paymentId/confirm-for-payout", protect, requireRole('admin', 'sup
       payment.adminNotes = (payment.adminNotes || '') + `\n[Confirmado para pago] ${notes}`;
     }
     await payment.save();
+
+    void logAudit({
+      req, action: 'payment.confirm_for_payout', category: 'payment', severity: 'medium',
+      description: `Confirmó el pago ${paymentId} para transferir al trabajador`,
+      targetModel: 'Payment', targetId: paymentId,
+    });
 
     console.log(`✅ [ADMIN CONFIRM-FOR-PAYOUT] Payment ${paymentId} moved to confirmed_for_payout`);
 

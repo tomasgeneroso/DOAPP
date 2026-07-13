@@ -8,6 +8,7 @@ import emailService from "../../services/email.js";
 import fcmService from "../../services/fcm.js";
 import { Op } from 'sequelize';
 import { generateWithdrawalReceipt } from "../../services/invoiceService.js";
+import { logAudit } from "../../utils/auditLog.js";
 
 const router = express.Router();
 
@@ -105,6 +106,12 @@ router.post("/:id/approve", protect, requireRole('admin', 'super_admin', 'owner'
       ...(adminNotes && { adminNotes })
     });
 
+    void logAudit({
+      req, action: 'withdrawal.approve', category: 'payment', severity: 'high',
+      description: `Aprobó el retiro ${withdrawal.id} por $${Number(withdrawal.amount).toLocaleString('es-AR')}`,
+      targetModel: 'WithdrawalRequest', targetId: withdrawal.id, metadata: { amount: Number(withdrawal.amount) || null },
+    });
+
     // Send email notification
     const user = withdrawal.user as any;
     await emailService.sendWithdrawalApproved(user.email, user.name, withdrawal.amount);
@@ -160,6 +167,12 @@ router.post("/:id/processing", protect, requireRole('admin', 'super_admin', 'own
     await withdrawal.update({
       status: 'processing',
       processedBy: adminId
+    });
+
+    void logAudit({
+      req, action: 'withdrawal.processing', category: 'payment', severity: 'medium',
+      description: `Marcó el retiro ${withdrawal.id} como en proceso`,
+      targetModel: 'WithdrawalRequest', targetId: withdrawal.id,
     });
 
     res.status(200).json({
@@ -250,6 +263,13 @@ router.post("/:id/complete", protect, requireRole('admin', 'super_admin', 'owner
       ...(adminNotes && { adminNotes })
     });
 
+    void logAudit({
+      req, action: 'withdrawal.complete', category: 'payment', severity: 'high',
+      description: `Completó el retiro ${withdrawal.id} por $${Number(withdrawal.amount).toLocaleString('es-AR')} (saldo del usuario: $${newBalance.toLocaleString('es-AR')})`,
+      targetModel: 'WithdrawalRequest', targetId: withdrawal.id,
+      metadata: { amount: Number(withdrawal.amount) || null, newBalance, transactionId: transaction.id },
+    });
+
     // Send email notification
     const userObj = withdrawal.user as any;
     await emailService.sendWithdrawalCompleted(userObj.email, userObj.name, withdrawal.amount, newBalance);
@@ -322,6 +342,12 @@ router.post("/:id/reject", protect, requireRole('admin', 'super_admin', 'owner')
       rejectionReason,
       processedAt: new Date(),
       processedBy: adminId
+    });
+
+    void logAudit({
+      req, action: 'withdrawal.reject', category: 'payment', severity: 'high',
+      description: `Rechazó el retiro ${withdrawal.id}. Motivo: ${rejectionReason}`,
+      targetModel: 'WithdrawalRequest', targetId: withdrawal.id, metadata: { rejectionReason },
     });
 
     // Send email notification

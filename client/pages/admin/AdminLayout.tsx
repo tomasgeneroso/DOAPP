@@ -96,6 +96,7 @@ export default function AdminLayout() {
         { path: "/admin/search", icon: Search, label: t('admin.sidebar.search', 'Global Search'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/analytics", icon: BarChart3, label: t('admin.sidebar.analytics', 'Analytics'), roles: ["owner", "super_admin", "admin", "marketing"] },
         { path: "/admin/performance", icon: Activity, label: t('admin.sidebar.performance', 'Performance'), roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin/audit-logs", icon: Shield, label: t('admin.sidebar.auditLogs', 'Registro de acciones'), roles: ["owner", "super_admin", "admin"] },
       ]
     },
     {

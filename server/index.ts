@@ -346,6 +346,7 @@ app.use("/api/admin/contact", adminContactRoutes);
 app.use("/api/admin/blogs", adminBlogsRoutes);
 app.use("/api/admin/withdrawals", (await import('./routes/admin/withdrawals.js')).default);
 app.use("/api/admin/payments", (await import('./routes/admin/payments.js')).default);
+app.use("/api/admin/audit-logs", (await import('./routes/admin/auditLogs.js')).default);
 app.use("/api/admin/search", (await import('./routes/admin/search.js')).default);
 app.use("/api/admin/company-balance", companyBalanceRoutes);
 app.use("/api/admin/marketing", marketingRoutes);

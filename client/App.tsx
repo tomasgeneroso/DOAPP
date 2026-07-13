@@ -97,6 +97,7 @@ const AdminCreateDispute = lazy(() => import("./pages/admin/CreateDispute"));
 const AdminDisputeDetail = lazy(() => import("./pages/admin/AdminDisputeDetail"));
 const AdminWithdrawalManager = lazy(() => import("./pages/admin/AdminWithdrawalManager"));
 const FinancialTransactions = lazy(() => import("./pages/admin/FinancialTransactions"));
+const AuditLogs = lazy(() => import("./pages/admin/AuditLogs"));
 const PendingPayments = lazy(() => import("./pages/admin/PendingPayments"));
 const AdminJobManager = lazy(() => import("./pages/admin/JobManager"));
 const AdminFamilyCodes = lazy(() => import("./pages/admin/FamilyCodes"));
@@ -539,6 +540,7 @@ export default function App() {
               <Route path="withdrawals" element={<AdminWithdrawalManager />} />
               <Route path="pending-payments" element={<PendingPayments />} />
               <Route path="financial-transactions" element={<FinancialTransactions />} />
+              <Route path="audit-logs" element={<AuditLogs />} />
               {/* Legacy/hub links without a dedicated page → redirect to where that
                   info actually lives (nothing was deleted, only relocated). */}
               <Route path="payments" element={<Navigate to="/admin/pending-payments" replace />} />

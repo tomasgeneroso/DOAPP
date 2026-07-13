@@ -4,7 +4,7 @@ import type { AuthRequest } from "../types/index.js";
 interface LogAuditParams {
   req: AuthRequest;
   action: string;
-  category: "user" | "contract" | "ticket" | "role" | "permission" | "system";
+  category: "user" | "contract" | "ticket" | "role" | "permission" | "payment" | "system";
   severity?: "low" | "medium" | "high" | "critical";
   description: string;
   targetModel?: string;
