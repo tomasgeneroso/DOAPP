@@ -279,8 +279,10 @@ export default function PendingPayments() {
   const [proofChatMsg, setProofChatMsg] = useState<string | null>(null);
   // Notas de comprobante de pago (evidence attached by admins)
   const [proofNotes, setProofNotes] = useState<any[]>([]);
+  const [proofReceipts, setProofReceipts] = useState<any[]>([]);
   const [noteCaption, setNoteCaption] = useState('');
   const [noteUploading, setNoteUploading] = useState(false);
+  const [noteMsg, setNoteMsg] = useState<string | null>(null);
   const [chatAttachments, setChatAttachments] = useState<{ url: string; type: string; fileName?: string }[]>([]);
 
   // Sorting
@@ -389,6 +391,7 @@ export default function PendingPayments() {
     setProofChatInput('');
     setProofChatMsg(null);
     setProofNotes([]);
+    setProofReceipts([]);
     setNoteCaption('');
     setChatAttachments([]);
     if (paymentId) loadProofNotes(paymentId);
@@ -417,7 +420,10 @@ export default function PendingPayments() {
       const token = localStorage.getItem("token");
       const res = await fetch(`/api/admin/payments/${paymentId}/proofs`, { headers: { Authorization: `Bearer ${token}` } });
       const data = await res.json();
-      if (data.success) setProofNotes(data.notes || []);
+      if (data.success) {
+        setProofNotes(data.notes || []);
+        setProofReceipts(data.receipts || []);
+      }
     } catch { /* best-effort */ }
   };
 
@@ -432,31 +438,51 @@ export default function PendingPayments() {
   };
 
   const addProofNoteFromFile = async (file: File) => {
-    if (!proofViewer?.paymentId || noteUploading) return;
+    if (!proofViewer?.paymentId) { setNoteMsg('No hay un pago asociado a esta nota.'); return; }
+    if (noteUploading) return;
     setNoteUploading(true);
+    setNoteMsg(null);
     try {
       const token = localStorage.getItem("token");
       const fd = new FormData();
       fd.append('file', file);
       const up = await fetch('/api/admin/payments/upload-proof', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
       const upData = await up.json();
-      if (upData.success && upData.url) {
-        await postProofNote(proofViewer.paymentId, upData.url, upData.originalName || file.name, upData.size || file.size, noteCaption);
-        setNoteCaption('');
-        await loadProofNotes(proofViewer.paymentId);
+      if (!upData.success || !upData.url) {
+        setNoteMsg(upData.message || 'No se pudo subir el archivo.');
+      } else {
+        const noteRes = await postProofNote(proofViewer.paymentId, upData.url, upData.originalName || file.name, upData.size || file.size, noteCaption);
+        if (noteRes?.success) {
+          setNoteCaption('');
+          setNoteMsg('Nota agregada ✓');
+          await loadProofNotes(proofViewer.paymentId);
+        } else {
+          setNoteMsg(noteRes?.message || 'No se pudo guardar la nota.');
+        }
       }
-    } catch { /* best-effort */ }
+    } catch (e: any) {
+      setNoteMsg('Error de red al agregar la nota.');
+    }
     setNoteUploading(false);
   };
 
   const addProofNoteFromUrl = async (fileUrl: string, fileName?: string) => {
-    if (!proofViewer?.paymentId || noteUploading) return;
+    if (!proofViewer?.paymentId) { setNoteMsg('No hay un pago asociado a esta nota.'); return; }
+    if (noteUploading) return;
     setNoteUploading(true);
+    setNoteMsg(null);
     try {
-      await postProofNote(proofViewer.paymentId, fileUrl, fileName || fileUrl.split('/').pop() || 'adjunto', 0, noteCaption);
-      setNoteCaption('');
-      await loadProofNotes(proofViewer.paymentId);
-    } catch { /* best-effort */ }
+      const noteRes = await postProofNote(proofViewer.paymentId, fileUrl, fileName || fileUrl.split('/').pop() || 'adjunto', 0, noteCaption);
+      if (noteRes?.success) {
+        setNoteCaption('');
+        setNoteMsg('Nota agregada ✓');
+        await loadProofNotes(proofViewer.paymentId);
+      } else {
+        setNoteMsg(noteRes?.message || 'No se pudo guardar la nota.');
+      }
+    } catch {
+      setNoteMsg('Error de red al agregar la nota.');
+    }
     setNoteUploading(false);
   };
 
@@ -575,9 +601,11 @@ export default function PendingPayments() {
 
       const data = await response.json();
       if (data.success) {
-        alert("✅ Comprobante verificado. Ahora debes verificar el escrow para que el contrato pueda continuar.");
+        alert("✅ Comprobante verificado. El pago salió de 'Pendiente' y ahora aparece en la pestaña 'Verificado' (siguiente paso: verificar el escrow).");
         setApproveModalPaymentId(null);
-        loadVerificationPayments();
+        // Move to the "Verificado" sub-filter so the admin sees the result and can
+        // continue the flow (the effect on appSubFilter reloads the list).
+        setAppSubFilter("verified");
       } else {
         alert(data.message || "Error al aprobar el pago");
       }
@@ -2510,6 +2538,7 @@ export default function PendingPayments() {
           onEscrow={(id) => { setTimelinePayment(null); handleVerifyEscrow(id); }}
           onPayout={(id) => { setTimelinePayment(null); handleConfirmForPayout(id); }}
           onReject={(p) => { setTimelinePayment(null); handleRejectVerificationPayment(p.id, p); }}
+          onViewProof={(p) => { setTimelinePayment(null); openProofViewer(p.proofs?.[0]?.fileUrl || '', `Comprobante · ${p.payer?.name || ''}`, p.payer?.id, p.payer?.name, p.id); }}
           onClose={() => setTimelinePayment(null)}
         />
       )}
@@ -3310,36 +3339,61 @@ export default function PendingPayments() {
               </button>
             </div>
             <div className="p-4 flex-1 min-h-0 overflow-y-auto">
-              {proofViewer.url.toLowerCase().includes('.pdf') ? (
-                <a href={proofViewer.url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 py-12 text-sky-600 dark:text-sky-400 hover:underline">
-                  <FileText className="h-8 w-8" /> Abrir PDF del comprobante
-                </a>
-              ) : proofImgError ? (
-                <div className="text-center py-10 text-sm text-gray-500 dark:text-gray-400">
-                  No se pudo cargar la imagen.
-                  <a href={proofViewer.url} target="_blank" rel="noopener noreferrer" className="block mt-2 text-sky-600 dark:text-sky-400 hover:underline">Abrir en pestaña nueva</a>
-                </div>
-              ) : (
-                <img
-                  src={proofViewer.url}
-                  alt="Comprobante"
-                  onError={() => setProofImgError(true)}
-                  className="w-full rounded-lg object-contain max-h-[60vh] bg-gray-100 dark:bg-gray-900"
-                />
-              )}
-              <div className="mt-2 flex flex-wrap items-center gap-3">
-                <a href={proofViewer.url} target="_blank" rel="noopener noreferrer" className="inline-block text-xs text-sky-600 dark:text-sky-400 hover:underline">
-                  Abrir en pestaña nueva ↗
-                </a>
-                {proofViewer.paymentId && (
+              {/* Comprobantes: del cliente + de verificación (admin), cada uno etiquetado */}
+              {(proofReceipts.length > 0
+                ? proofReceipts
+                : [{ id: 'main', kind: 'client_receipt', fileUrl: proofViewer.url, fileType: proofViewer.url.toLowerCase().includes('.pdf') ? 'pdf' : 'img', caption: null }]
+              ).map((r: any) => {
+                const isPdf = r.fileType === 'pdf' || (r.fileUrl || '').toLowerCase().includes('.pdf');
+                const url = getImageUrl(r.fileUrl);
+                const label = r.kind === 'admin_verification' ? 'Comprobante de verificación (admin)' : 'Comprobante del cliente';
+                const labelClass = r.kind === 'admin_verification'
+                  ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                  : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300';
+                return (
+                  <div key={r.id} className="mb-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded ${labelClass}`}>{label}</span>
+                      <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-sky-600 dark:text-sky-400 hover:underline inline-flex items-center gap-1">Abrir en pestaña nueva <ExternalLink className="h-3 w-3" /></a>
+                    </div>
+                    {isPdf ? (
+                      <a href={url} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 py-8 text-sky-600 dark:text-sky-400 hover:underline border border-gray-200 dark:border-gray-700 rounded-lg">
+                        <FileText className="h-6 w-6" /> Abrir PDF del comprobante
+                      </a>
+                    ) : (
+                      <>
+                        <img
+                          src={url}
+                          alt={label}
+                          className="w-full rounded-lg object-contain max-h-[50vh] bg-gray-100 dark:bg-gray-900"
+                          onError={(e) => {
+                            const t = e.target as HTMLImageElement;
+                            t.style.display = 'none';
+                            const sib = t.nextElementSibling as HTMLElement | null;
+                            if (sib) sib.style.display = 'block';
+                          }}
+                        />
+                        <div style={{ display: 'none' }} className="text-center py-6 text-xs text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded-lg">
+                          No se pudo cargar la imagen (el archivo puede no existir).
+                          <a href={url} target="_blank" rel="noopener noreferrer" className="block mt-1 text-sky-600 dark:text-sky-400 hover:underline">Abrir en pestaña nueva</a>
+                        </div>
+                      </>
+                    )}
+                    {r.caption && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 whitespace-pre-line">{r.caption}</p>}
+                  </div>
+                );
+              })}
+
+              {proofViewer.paymentId && (
+                <div className="mb-2">
                   <Link
                     to={`/admin/financial-transactions?search=${proofViewer.paymentId}`}
                     className="inline-flex items-center gap-1 text-xs text-sky-600 dark:text-sky-400 hover:underline"
                   >
                     <ExternalLink className="h-3.5 w-3.5" /> Ver transacción
                   </Link>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* Notas de comprobante de pago */}
               {proofViewer.paymentId && (
@@ -3386,6 +3440,9 @@ export default function PendingPayments() {
                     <Upload className="h-3.5 w-3.5" /> {noteUploading ? 'Subiendo…' : 'Adjuntar archivo como nota'}
                     <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) addProofNoteFromFile(f); e.currentTarget.value = ''; }} />
                   </label>
+                  {noteMsg && (
+                    <p className={`text-xs mt-1 ${noteMsg.includes('✓') ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>{noteMsg}</p>
+                  )}
 
                   {chatAttachments.length > 0 && (
                     <div className="mt-3">

@@ -1,5 +1,4 @@
 import { CheckCircle, Circle, Loader2, Clock, X, ArrowRight } from 'lucide-react';
-import { getImageUrl } from '../../utils/imageUrl';
 
 interface Step {
   key: string;
@@ -18,12 +17,13 @@ interface Props {
   onEscrow: (paymentId: string) => void; // verified -> held_escrow
   onPayout: (paymentId: string) => void; // held_escrow -> confirmed_for_payout
   onReject: (payment: any) => void;
+  onViewProof: (payment: any) => void;
   onClose: () => void;
 }
 
 const ORDER = ['pending_verification', 'verified', 'held_escrow', 'confirmed_for_payout', 'completed'];
 
-export default function PaymentProcessTimeline({ payment, busy, onVerify, onEscrow, onPayout, onReject, onClose }: Props) {
+export default function PaymentProcessTimeline({ payment, busy, onVerify, onEscrow, onPayout, onReject, onViewProof, onClose }: Props) {
   const status: string = payment?.status || 'pending_verification';
   const rank = (s: string) => {
     const i = ORDER.indexOf(s);
@@ -118,11 +118,11 @@ export default function PaymentProcessTimeline({ payment, busy, onVerify, onEscr
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{s.description}</p>
                 {s.at && <p className="text-[11px] text-gray-400 mt-0.5">{new Date(s.at).toLocaleString('es-AR')}</p>}
 
-                {/* Attached proof at the verification step */}
+                {/* Attached proof at the verification step — opens the in-app viewer */}
                 {s.key === 'proof' && proof && (
-                  <a href={getImageUrl(proof.fileUrl)} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs text-sky-600 dark:text-sky-400 hover:underline">
+                  <button type="button" onClick={() => onViewProof(payment)} className="mt-1 inline-flex items-center gap-1 text-xs text-sky-600 dark:text-sky-400 hover:underline">
                     Ver comprobante <ArrowRight className="w-3 h-3" />
-                  </a>
+                  </button>
                 )}
 
                 {/* Inline action for the current step */}

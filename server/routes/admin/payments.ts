@@ -649,17 +649,23 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
       return;
     }
 
-    // If admin uploaded a proof directly, create a PaymentProof record for it
+    // If admin uploaded a proof directly, store it as the ADMIN VERIFICATION proof
+    // (kind='admin_verification', isActive=false) so it never replaces the client's
+    // receipt in active-proof queries — both are kept and shown separately.
     if (proofUrl && !proofId) {
       const ext = (proofUrl.split('.').pop() || 'jpg').toLowerCase() as any;
       const allowedExts = ['pdf', 'png', 'jpeg', 'jpg'];
       const fileType = allowedExts.includes(ext) ? ext : 'jpg';
+      const existingCount = await PaymentProof.count({ where: { paymentId } });
       await PaymentProof.create({
         paymentId,
-        userId: payment.payerId || adminId,
+        userId: adminId,
+        kind: 'admin_verification',
+        uploadedByRole: 'admin',
+        sequence: existingCount + 1,
         fileUrl: proofUrl,
         fileType,
-        fileName: proofUrl.split('/').pop() || 'comprobante',
+        fileName: proofUrl.split('/').pop() || 'comprobante-verificacion',
         fileSize: 0,
         senderBankName: senderBankName || null,
         bankReference: bankReference || null,
@@ -672,9 +678,9 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
           transferDate ? `Fecha: ${transferDate}` : null,
           notes || null
         ].filter(Boolean).join(' | ') || null,
-        isActive: true,
+        isActive: false,
         uploadedAt: new Date(),
-      });
+      } as any);
     }
 
     // Check if there's a proof to verify (only for bank transfers with uploaded proofs)
