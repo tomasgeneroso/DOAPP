@@ -90,23 +90,24 @@ export class PaymentProof extends Model {
   // FILE INFORMATION
   // ============================================
 
+  // Nullable so a note-kind entry can be text-only (no attachment).
   @Column({
     type: DataType.STRING(500),
-    allowNull: false,
+    allowNull: true,
   })
-  fileUrl!: string;
+  fileUrl?: string;
 
   @Column({
     type: DataType.ENUM('pdf', 'png', 'jpeg', 'jpg'),
-    allowNull: false,
+    allowNull: true,
   })
-  fileType!: PaymentProofFileType;
+  fileType?: PaymentProofFileType;
 
   @Column({
     type: DataType.STRING(255),
-    allowNull: false,
+    allowNull: true,
   })
-  fileName!: string;
+  fileName?: string;
 
   @Column({
     type: DataType.INTEGER,

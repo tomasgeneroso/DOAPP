@@ -87,8 +87,11 @@ router.post("/:paymentId/proof-notes", protect, requireRole('admin', 'super_admi
       return;
     }
     const { fileUrl, fileName, fileSize, caption } = req.body || {};
-    if (!fileUrl || typeof fileUrl !== 'string') {
-      res.status(400).json({ success: false, message: "fileUrl es obligatorio" });
+    const hasFile = fileUrl && typeof fileUrl === 'string';
+    const captionText = (caption || '').toString().trim();
+    // A note needs either a file, a caption, or both (text-only notes are allowed).
+    if (!hasFile && !captionText) {
+      res.status(400).json({ success: false, message: "Escribí un pie o adjuntá un archivo para la nota." });
       return;
     }
 
@@ -98,8 +101,11 @@ router.post("/:paymentId/proof-notes", protect, requireRole('admin', 'super_admi
       return;
     }
 
-    const ext = (fileName || fileUrl).split('.').pop()?.toLowerCase() || '';
-    const fileType = ext === 'pdf' ? 'pdf' : ext === 'png' ? 'png' : ext === 'jpeg' ? 'jpeg' : 'jpg';
+    let fileType: string | null = null;
+    if (hasFile) {
+      const ext = (fileName || fileUrl).split('.').pop()?.toLowerCase() || '';
+      fileType = ext === 'pdf' ? 'pdf' : ext === 'png' ? 'png' : ext === 'jpeg' ? 'jpeg' : 'jpg';
+    }
 
     // Sequence = order of this attachment among everything uploaded for the payment
     const existingCount = await PaymentProof.count({ where: { paymentId } });
@@ -112,11 +118,11 @@ router.post("/:paymentId/proof-notes", protect, requireRole('admin', 'super_admi
       sequence: existingCount + 1,
       isActive: false,
       status: 'approved',
-      fileUrl,
+      fileUrl: hasFile ? fileUrl : null,
       fileType,
-      fileName: fileName || fileUrl.split('/').pop() || 'nota',
+      fileName: hasFile ? (fileName || fileUrl.split('/').pop() || 'nota') : null,
       fileSize: Number(fileSize) || 0,
-      notes: (caption || '').toString().slice(0, 2000) || null,
+      notes: captionText.slice(0, 2000) || null,
       uploadedAt: new Date(),
     } as any);
 

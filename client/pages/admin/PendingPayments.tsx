@@ -468,6 +468,27 @@ export default function PendingPayments() {
     setNoteUploading(false);
   };
 
+  const addProofNoteTextOnly = async () => {
+    if (!proofViewer?.paymentId) { setNoteMsg('No hay un pago asociado a esta nota.'); return; }
+    if (!noteCaption.trim()) { setNoteMsg('Escribí un pie para guardar la nota.'); return; }
+    if (noteUploading) return;
+    setNoteUploading(true);
+    setNoteMsg(null);
+    try {
+      const noteRes = await postProofNote(proofViewer.paymentId, '', '', 0, noteCaption);
+      if (noteRes?.success) {
+        setNoteCaption('');
+        setNoteMsg('Nota agregada ✓');
+        await loadProofNotes(proofViewer.paymentId);
+      } else {
+        setNoteMsg(noteRes?.message || 'No se pudo guardar la nota.');
+      }
+    } catch {
+      setNoteMsg('Error de red al agregar la nota.');
+    }
+    setNoteUploading(false);
+  };
+
   const addProofNoteFromUrl = async (fileUrl: string, fileName?: string) => {
     if (!proofViewer?.paymentId) { setNoteMsg('No hay un pago asociado a esta nota.'); return; }
     if (noteUploading) return;
@@ -3410,13 +3431,17 @@ export default function PendingPayments() {
                         const isPdf = n.fileType === 'pdf' || (n.fileUrl || '').toLowerCase().endsWith('.pdf');
                         return (
                           <div key={n.id} className="flex gap-3 p-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40">
-                            <a href={getImageUrl(n.fileUrl)} target="_blank" rel="noopener noreferrer" className="shrink-0">
-                              {isPdf ? (
-                                <div className="w-14 h-14 flex items-center justify-center bg-red-100 dark:bg-red-900/30 rounded"><FileText className="h-6 w-6 text-red-500" /></div>
-                              ) : (
-                                <img src={getImageUrl(n.fileUrl)} alt="nota" className="w-14 h-14 object-cover rounded" />
-                              )}
-                            </a>
+                            {n.fileUrl ? (
+                              <a href={getImageUrl(n.fileUrl)} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                                {isPdf ? (
+                                  <div className="w-14 h-14 flex items-center justify-center bg-red-100 dark:bg-red-900/30 rounded"><FileText className="h-6 w-6 text-red-500" /></div>
+                                ) : (
+                                  <img src={getImageUrl(n.fileUrl)} alt="nota" className="w-14 h-14 object-cover rounded" onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.3'; }} />
+                                )}
+                              </a>
+                            ) : (
+                              <div className="w-14 h-14 flex items-center justify-center bg-gray-200 dark:bg-gray-700 rounded shrink-0"><FileText className="h-5 w-5 text-gray-400" /></div>
+                            )}
                             <div className="min-w-0 flex-1">
                               {n.caption && <p className="text-xs text-gray-700 dark:text-gray-300 break-words">{n.caption}</p>}
                               <p className="text-[11px] text-gray-400 mt-0.5">
@@ -3438,10 +3463,20 @@ export default function PendingPayments() {
                     placeholder="Pie de la nota (ej: el usuario mandó otra imagen que no es un comprobante)"
                     className="w-full text-sm px-3 py-2 mb-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white"
                   />
-                  <label className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 cursor-pointer hover:bg-sky-50 dark:hover:bg-sky-900/20 ${noteUploading ? 'opacity-50 pointer-events-none' : ''}`}>
-                    <Upload className="h-3.5 w-3.5" /> {noteUploading ? 'Subiendo…' : 'Adjuntar archivo como nota'}
-                    <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) addProofNoteFromFile(f); e.currentTarget.value = ''; }} />
-                  </label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={addProofNoteTextOnly}
+                      disabled={noteUploading || !noteCaption.trim()}
+                      className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {noteUploading ? 'Guardando…' : 'Guardar nota'}
+                    </button>
+                    <label className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-sky-300 dark:border-sky-700 text-sky-700 dark:text-sky-300 cursor-pointer hover:bg-sky-50 dark:hover:bg-sky-900/20 ${noteUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                      <Upload className="h-3.5 w-3.5" /> Adjuntar archivo
+                      <input type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) addProofNoteFromFile(f); e.currentTarget.value = ''; }} />
+                    </label>
+                  </div>
                   {noteMsg && (
                     <p className={`text-xs mt-1 ${noteMsg.includes('✓') ? 'text-green-600 dark:text-green-400' : 'text-red-500'}`}>{noteMsg}</p>
                   )}
