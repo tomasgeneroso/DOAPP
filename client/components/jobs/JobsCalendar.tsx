@@ -248,7 +248,8 @@ function JobsCalendar({ jobs, title, showFilters = true, availabilitySlots = [],
   const handleCellContextMenu = useCallback((e: React.MouseEvent, dayOfWeek: number, date?: Date, hour?: number) => {
     e.preventDefault();
     const existingSlots = availabilitySlots.filter(s => s.day === dayOfWeek);
-    const zoom = window.innerWidth > 769 ? 0.75 : 1;
+    // No CSS zoom anymore (it was removed); keep 1 so positions aren't offset.
+    const zoom = 1;
     const x = e.clientX / zoom;
     const y = e.clientY / zoom;
     const maxW = window.innerWidth / zoom - 250;

@@ -169,10 +169,10 @@ export default function AdminLayout() {
   };
 
   return (
-    <div className="flex bg-slate-50 dark:bg-slate-900" style={{ minHeight: 'calc(100vh / 0.75)' }}>
+    <div className="flex bg-slate-50 dark:bg-slate-900" style={{ minHeight: '100vh' }}>
       {/* Sidebar */}
-      <aside className="w-64 bg-white dark:bg-slate-800 shadow-md border-r border-slate-200 dark:border-slate-700 flex-shrink-0" style={{ minHeight: 'calc(100vh / 0.75)' }}>
-        <div className="p-4 sticky top-0 overflow-y-auto flex flex-col" style={{ height: 'calc(100vh / 0.75)' }}>
+      <aside className="w-64 bg-white dark:bg-slate-800 shadow-md border-r border-slate-200 dark:border-slate-700 flex-shrink-0" style={{ minHeight: '100vh' }}>
+        <div className="p-4 sticky top-0 overflow-y-auto flex flex-col" style={{ height: '100vh' }}>
           {/* Header with connection status */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
@@ -307,7 +307,7 @@ export default function AdminLayout() {
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-auto bg-slate-50 dark:bg-slate-900" style={{ minHeight: 'calc(100vh / 0.75)' }}>
+      <main className="flex-1 overflow-auto bg-slate-50 dark:bg-slate-900" style={{ minHeight: '100vh' }}>
         <div className="p-6 min-h-[calc(100vh-1px)]">
           <Outlet />
         </div>
