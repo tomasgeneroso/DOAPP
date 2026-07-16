@@ -714,13 +714,15 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
     // If no proof exists, that's OK - we can still approve the payment directly
     // This handles MercadoPago payments and migrated payments without proofs
 
-    // Determine the correct status based on payment type
-    // For contract payments: go to "verified" first (two-step verification)
-    //   Step 1: pending_verification → verified (proof verified)
-    //   Step 2: verified → held_escrow (escrow confirmed by admin)
-    // For other payments (job_publication, etc.): go to completed
-    const isContractPayment = payment.paymentType === 'contract_payment' || payment.paymentType === 'escrow_deposit';
-    const newStatus = isContractPayment ? 'verified' : 'completed';
+    // Determine the correct status based on payment type.
+    // Escrow flow (money that ends up with the worker) goes through the full
+    // sequence: pending_verification → verified → held_escrow → confirmed_for_payout.
+    //   - contract_payment / escrow_deposit: the contract amount.
+    //   - budget_increase: the extra budget also goes to the worker, so it must
+    //     follow the same escrow flow (NOT jump straight to "completed").
+    // Other payments (job_publication, membership, ...) finish at "completed".
+    const isEscrowFlow = ['contract_payment', 'escrow_deposit', 'budget_increase'].includes(payment.paymentType);
+    const newStatus = isEscrowFlow ? 'verified' : 'completed';
 
     // Update payment
     payment.status = newStatus;
@@ -745,6 +747,10 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
       console.error('[Invoice] Failed to generate client invoice:', err.message)
     );
 
+    // Side-effects (job/notification updates) are best-effort: the payment status
+    // was already saved above, so a failure here must NOT return a 500 (that made
+    // the admin think verification failed while it actually persisted).
+    try {
     // Handle job publication payment
     if (payment.paymentType === 'job_publication') {
       const job = await Job.findOne({
@@ -872,6 +878,9 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
       relatedId: paymentId,
       relatedModel: 'Payment',
     });
+    } catch (sideErr: any) {
+      console.error("[approve side-effects] non-fatal error after status was saved:", sideErr?.message);
+    }
 
     res.json({
       success: true,
