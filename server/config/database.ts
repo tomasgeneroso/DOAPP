@@ -91,6 +91,15 @@ export async function initDatabase() {
     await sequelize.authenticate();
     console.log('✅ PostgreSQL connection established successfully');
 
+    // Idempotent safety net: guarantee drift-prone tables/columns exist even when
+    // a migration didn't run (production doesn't sync — it relies on migrations).
+    try {
+      const { ensureCriticalSchema } = await import('./ensureSchema.js');
+      await ensureCriticalSchema(sequelize);
+    } catch (err: any) {
+      console.warn('⚠️  ensureCriticalSchema failed (non-fatal):', err?.message);
+    }
+
     // Sync models in development (use migrations in production)
     if (!isProduction) {
       await sequelize.sync({ force: false, alter: false });
