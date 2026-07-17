@@ -1514,6 +1514,12 @@
   "settings": {
     "pageTitle": "Configuración",
     "title": "Configuración",
+    "licenseNumberPlaceholder": "Ej: 12345",
+    "licenseCategoryPlaceholder": "Ej: A, B, Clase 1...",
+    "licenseCertPlaceholder": "Ej: CERT-2024-001",
+    "dropFileHere": "Hacé clic o arrastrá el archivo aquí",
+    "fileHint10mb": "JPG, PNG, WEBP o PDF — máx. 10 MB",
+    "avatarHint5mb": "JPG, PNG o GIF · máx 5 MB",
     "tabs": {
       "basic": "Información Básica",
       "address": "Dirección",

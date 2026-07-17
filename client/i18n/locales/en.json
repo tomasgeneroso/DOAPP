@@ -628,6 +628,12 @@
   "settings": {
     "pageTitle": "Settings",
     "title": "Settings",
+    "licenseNumberPlaceholder": "e.g. 12345",
+    "licenseCategoryPlaceholder": "e.g. A, B, Class 1...",
+    "licenseCertPlaceholder": "e.g. CERT-2024-001",
+    "dropFileHere": "Click or drag the file here",
+    "fileHint10mb": "JPG, PNG, WEBP or PDF — max. 10 MB",
+    "avatarHint5mb": "JPG, PNG or GIF · max 5 MB",
     "tabs": {
       "basic": "Basic Info",
       "address": "Address",

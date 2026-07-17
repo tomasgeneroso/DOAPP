@@ -313,7 +313,7 @@ function ProfessionTab({
                 type="text"
                 value={licenseNumber}
                 onChange={e => setLicenseNumber(e.target.value)}
-                placeholder="Ej: 12345"
+                placeholder={t('settings.licenseNumberPlaceholder')}
                 required={isRegulated}
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 text-sm"
               />
@@ -326,7 +326,7 @@ function ProfessionTab({
                 type="text"
                 value={licenseCategory}
                 onChange={e => setLicenseCategory(e.target.value)}
-                placeholder="Ej: A, B, Clase 1..."
+                placeholder={t('settings.licenseCategoryPlaceholder')}
                 required={isRegulated}
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 text-sm"
               />
@@ -339,7 +339,7 @@ function ProfessionTab({
                 type="text"
                 value={licenseCertNumber}
                 onChange={e => setLicenseCertNumber(e.target.value)}
-                placeholder="Ej: CERT-2024-001"
+                placeholder={t('settings.licenseCertPlaceholder')}
                 required={isRegulated}
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500 text-sm"
               />
@@ -378,9 +378,9 @@ function ProfessionTab({
                 <label className="flex flex-col items-center justify-center gap-2 h-28 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg cursor-pointer hover:border-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 transition-colors">
                   <Upload className="w-6 h-6 text-slate-400" />
                   <span className="text-sm text-slate-500 dark:text-slate-400">
-                    {licenseFile ? licenseFile.name : 'Hacé clic o arrastrá el archivo aquí'}
+                    {licenseFile ? licenseFile.name : t('settings.dropFileHere')}
                   </span>
-                  <span className="text-xs text-slate-400">JPG, PNG, WEBP o PDF — máx. 10 MB</span>
+                  <span className="text-xs text-slate-400">{t('settings.fileHint10mb')}</span>
                   <input
                     type="file"
                     className="hidden"
@@ -722,7 +722,7 @@ export default function UserSettings() {
                           onChange={handleAvatarChange}
                         />
                       </label>
-                      <p className="text-xs text-slate-400 mt-1">JPG, PNG o GIF · máx 5 MB</p>
+                      <p className="text-xs text-slate-400 mt-1">{t('settings.avatarHint5mb')}</p>
                     </div>
                   </div>
 
