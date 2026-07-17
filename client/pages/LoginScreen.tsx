@@ -27,6 +27,7 @@ function DniPhotoSlot({
   onPhoto: (f: File | null) => void;
   fileRef: React.RefObject<HTMLInputElement>;
 }) {
+  const { t } = useTranslation();
   const [showCamera, setShowCamera] = useState(false);
 
   return (
@@ -66,7 +67,7 @@ function DniPhotoSlot({
               className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs text-slate-600 dark:text-slate-300"
             >
               <Upload className="w-4 h-4" />
-              <span>Galería</span>
+              <span>{t('auth.gallery')}</span>
             </button>
             <button
               type="button"
@@ -74,7 +75,7 @@ function DniPhotoSlot({
               className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-lg bg-sky-100 dark:bg-sky-900/30 hover:bg-sky-200 dark:hover:bg-sky-900/50 transition-colors text-xs text-sky-700 dark:text-sky-300"
             >
               <Camera className="w-4 h-4" />
-              <span>Cámara</span>
+              <span>{t('auth.camera')}</span>
             </button>
           </div>
         </div>
@@ -248,14 +249,14 @@ export default function LoginScreen() {
         return;
       } else {
         if (!formData.termsAccepted) {
-          setError("Debes aceptar los términos y condiciones.");
+          setError(t('auth.termsRequired'));
           setIsLoading(false);
           return;
         }
 
         // Validar número de DNI obligatorio
         if (!formData.dni.trim()) {
-          setError("El número de DNI es obligatorio.");
+          setError(t('auth.dniNumberRequired'));
           setIsLoading(false);
           return;
         }
@@ -269,8 +270,8 @@ export default function LoginScreen() {
         const hasDniForValidation = dniMode === 'pdf' ? !!dniPdf : (!!dniPhotoFront && !!dniPhotoBack);
         if (!hasDniForValidation) {
           setError(dniMode === 'pdf'
-            ? "El PDF del DNI es obligatorio."
-            : "Debés subir la foto de frente Y dorso del DNI.");
+            ? t('auth.dniPdfRequired')
+            : t('auth.dniPhotosRequired'));
           setIsLoading(false);
           return;
         }
@@ -388,7 +389,7 @@ export default function LoginScreen() {
               <span className="text-3xl">📧</span>
             </div>
           </div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">¡Registrado!</h2>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">{t('auth.registered')}</h2>
           <p className="text-slate-600 dark:text-slate-400 mb-4">
             Te enviamos un email de verificación. Revisá tu casilla y hacé clic en el enlace para activar tu cuenta.
           </p>
@@ -523,7 +524,7 @@ export default function LoginScreen() {
                         required={isRegister}
                         onChange={handleInputChange}
                         value={formData.firstName}
-                        placeholder="Juan"
+                        placeholder={t('auth.firstNamePlaceholder')}
                         className="block w-full h-9 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-1.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                       />
                     </div>
@@ -544,7 +545,7 @@ export default function LoginScreen() {
                         required={isRegister}
                         onChange={handleInputChange}
                         value={formData.lastName}
-                        placeholder="Pérez"
+                        placeholder={t('auth.lastNamePlaceholder')}
                         className="block w-full h-9 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-1.5 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                       />
                     </div>
@@ -567,7 +568,7 @@ export default function LoginScreen() {
                       required={isRegister}
                       onChange={handleInputChange}
                       value={formData.username}
-                      placeholder="juanperez"
+                      placeholder={t('auth.usernamePlaceholder')}
                       maxLength={30}
                       className={`block w-full h-12 rounded-lg border ${
                         usernameStatus === 'available' ? 'border-green-500 dark:border-green-500' :
@@ -616,7 +617,7 @@ export default function LoginScreen() {
                   required
                   onChange={handleInputChange}
                   value={formData.email}
-                  placeholder="tucorreo@email.com"
+                  placeholder={t('auth.emailPlaceholder')}
                   className={`block w-full h-12 rounded-lg border ${
                     errorField === 'email'
                       ? 'border-red-500 dark:border-red-500 focus:ring-red-500'
@@ -646,7 +647,7 @@ export default function LoginScreen() {
                 )}
                 {isRegister && emailStatus === 'taken' && (
                   <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                    Este correo ya está registrado. ¿Querés <button type="button" onClick={() => setMode('login')} className="underline font-medium">iniciar sesión</button>?
+                    {t('auth.emailExistsQuestion')} <button type="button" onClick={() => setMode('login')} className="underline font-medium">{t('auth.signInAction')}</button>?
                   </p>
                 )}
                 {errorField === 'email' && (
@@ -767,7 +768,7 @@ export default function LoginScreen() {
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300">
-                      Foto del DNI <span className="text-red-500">*</span>
+                      {t('auth.dniPhotoLabel')} <span className="text-red-500">*</span>
                     </label>
                     <div className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600 text-xs">
                       <button
@@ -775,7 +776,7 @@ export default function LoginScreen() {
                         onClick={() => { setDniMode('images'); setDniPdf(null); }}
                         className={`px-3 py-1.5 flex items-center gap-1 transition-colors ${dniMode === 'images' ? 'bg-sky-500 text-white' : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600'}`}
                       >
-                        <Image className="w-3 h-3" /> 2 fotos
+                        <Image className="w-3 h-3" /> {t('auth.dniTwoPhotos')}
                       </button>
                       <button
                         type="button"
@@ -791,14 +792,14 @@ export default function LoginScreen() {
                     <div className="grid grid-cols-2 gap-3">
                       {/* ── Frente ── */}
                       <DniPhotoSlot
-                        label="Frente del DNI"
+                        label={t('auth.dniFront')}
                         photo={dniPhotoFront}
                         onPhoto={setDniPhotoFront}
                         fileRef={frontInputRef}
                       />
                       {/* ── Dorso ── */}
                       <DniPhotoSlot
-                        label="Dorso del DNI"
+                        label={t('auth.dniBack')}
                         photo={dniPhotoBack}
                         onPhoto={setDniPhotoBack}
                         fileRef={backInputRef}
@@ -819,19 +820,19 @@ export default function LoginScreen() {
                         ) : (
                           <>
                             <Upload className="w-5 h-5 text-slate-400" />
-                            <span className="text-slate-500 dark:text-slate-400">PDF con ambas caras del DNI</span>
+                            <span className="text-slate-500 dark:text-slate-400">{t('auth.dniPdfBothSides')}</span>
                           </>
                         )}
                       </button>
                       {dniPdf && (
                         <button type="button" onClick={() => setDniPdf(null)} className="mt-1 text-xs text-red-500 hover:text-red-600 flex items-center gap-1">
-                          <X className="w-3 h-3" /> Quitar
+                          <X className="w-3 h-3" /> {t('auth.remove')}
                         </button>
                       )}
                     </div>
                   )}
                   <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-                    Requerido para verificar tu identidad y operar en la plataforma.
+                    {t('auth.dniPhotoHelper')}
                   </p>
                 </div>
 
@@ -840,7 +841,7 @@ export default function LoginScreen() {
                     htmlFor="referralCode"
                     className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
                   >
-                    {t('auth.referralCode')} <span className="text-slate-400">(opcional)</span>
+                    {t('auth.referralCode')} <span className="text-slate-400">({t('auth.optional')})</span>
                   </label>
                   <div className="mt-2">
                     <input
@@ -920,7 +921,7 @@ export default function LoginScreen() {
                     <button type="button" onClick={() => setEmailNotVerified(null)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">✕</button>
                   </div>
                   <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">
-                    Debés verificar tu email <strong className="break-all">{emailNotVerified}</strong> antes de ingresar. Revisá tu casilla de correo (incluyendo spam).
+                    {t('auth.verifyEmailBefore')} <strong className="break-all">{emailNotVerified}</strong> {t('auth.verifyEmailAfter')}
                   </p>
                   {verificationSent ? (
                     <p className="text-sm text-green-600 dark:text-green-400 mb-3 text-center">✓ Nuevo enlace enviado a {emailNotVerified}</p>
