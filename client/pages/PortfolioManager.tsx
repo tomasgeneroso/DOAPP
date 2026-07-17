@@ -64,11 +64,11 @@ export default function PortfolioManager() {
     setSuccess(null);
 
     if (!formData.title.trim()) {
-      setError('El título es requerido');
+      setError(t('portfolio.titleRequired'));
       return;
     }
     if (!formData.description.trim()) {
-      setError('La descripción es requerida');
+      setError(t('portfolio.descriptionRequired'));
       return;
     }
     if (!formData.category) {
@@ -119,7 +119,7 @@ export default function PortfolioManager() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Estás seguro de eliminar este item?')) return;
+    if (!confirm(t('portfolio.confirmDelete'))) return;
 
     try {
       const token = localStorage.getItem('token');
@@ -166,7 +166,7 @@ export default function PortfolioManager() {
           variant="primary"
           onClick={() => setShowCreateForm(!showCreateForm)}
         >
-          {showCreateForm ? 'Cancelar' : '+ Agregar Trabajo'}
+          {showCreateForm ? t('portfolio.cancel') : t('portfolio.addWork')}
         </Button>
       </div>
 
@@ -185,39 +185,39 @@ export default function PortfolioManager() {
       {showCreateForm && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-8">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
-            Agregar Nuevo Trabajo
+            {t('portfolio.addNewWork')}
           </h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Título *
+                {t('portfolio.titleLabel')}
               </label>
               <Input
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                 required
-                placeholder="Ej: Desarrollo de sitio web e-commerce"
+                placeholder={t('portfolio.titlePlaceholder')}
               />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Descripción *
+                {t('portfolio.descriptionLabel')}
               </label>
               <Textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 required
                 rows={4}
-                placeholder="Describe el proyecto, tu rol, desafíos y resultados..."
+                placeholder={t('portfolio.descriptionPlaceholder')}
               />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Categoría *
+                  {t('portfolio.categoryLabel')}
                 </label>
                 <select
                   value={formData.category}
@@ -225,26 +225,26 @@ export default function PortfolioManager() {
                   required
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 >
-                  <option value="">Seleccionar categoría</option>
-                  <option value="desarrollo_web">Desarrollo Web</option>
-                  <option value="diseno_grafico">Diseño Gráfico</option>
-                  <option value="marketing">Marketing</option>
-                  <option value="redaccion">Redacción</option>
-                  <option value="video">Video y Animación</option>
-                  <option value="musica">Música y Audio</option>
-                  <option value="otro">Otro</option>
+                  <option value="">{t('portfolio.catSelect')}</option>
+                  <option value="desarrollo_web">{t('portfolio.catWebDev')}</option>
+                  <option value="diseno_grafico">{t('portfolio.catGraphicDesign')}</option>
+                  <option value="marketing">{t('portfolio.catMarketing')}</option>
+                  <option value="redaccion">{t('portfolio.catWriting')}</option>
+                  <option value="video">{t('portfolio.catVideo')}</option>
+                  <option value="musica">{t('portfolio.catMusic')}</option>
+                  <option value="otro">{t('portfolio.catOther')}</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Precio (ARS) - Opcional
+                  {t('portfolio.priceLabel')}
                 </label>
                 <Input
                   type="number"
                   value={formData.price}
                   onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                  placeholder="Ej: 50000"
+                  placeholder={t('portfolio.pricePlaceholder')}
                 />
               </div>
             </div>
@@ -252,41 +252,41 @@ export default function PortfolioManager() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Cliente (opcional)
+                  {t('portfolio.clientLabel')}
                 </label>
                 <Input
                   value={formData.clientName}
                   onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
-                  placeholder="Nombre del cliente o empresa"
+                  placeholder={t('portfolio.clientPlaceholder')}
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Duración del proyecto (opcional)
+                  {t('portfolio.durationLabel')}
                 </label>
                 <Input
                   value={formData.projectDuration}
                   onChange={(e) => setFormData({ ...formData, projectDuration: e.target.value })}
-                  placeholder="Ej: 2 meses"
+                  placeholder={t('portfolio.durationPlaceholder')}
                 />
               </div>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Tags (separados por comas)
+                {t('portfolio.tagsLabel')}
               </label>
               <Input
                 value={formData.tags}
                 onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
-                placeholder="Ej: React, TypeScript, E-commerce"
+                placeholder={t('portfolio.tagsPlaceholder')}
               />
             </div>
 
             <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
               <p className="text-sm text-blue-800 dark:text-blue-200">
-                <strong>Nota:</strong> Para agregar imágenes, videos y documentos, primero crea el item y luego edítalo para subir archivos.
+                <strong>{t('portfolio.noteLabel')}</strong> {t('portfolio.uploadNote')}
               </p>
             </div>
 
@@ -296,10 +296,10 @@ export default function PortfolioManager() {
                 variant="secondary"
                 onClick={() => setShowCreateForm(false)}
               >
-                Cancelar
+                {t('portfolio.cancel')}
               </Button>
               <Button type="submit" variant="primary">
-                Crear Item
+                {t('portfolio.createItem')}
               </Button>
             </div>
           </form>

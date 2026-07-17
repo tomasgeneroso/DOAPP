@@ -214,7 +214,7 @@ const CreateTicket: React.FC = () => {
             Te enviamos una confirmación a tu email. Guardá el número de ticket para hacer seguimiento.
           </p>
           <div className="bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-lg p-4 mb-6">
-            <p className="text-xs text-sky-600 dark:text-sky-400 uppercase tracking-wide font-medium mb-1">Número de ticket</p>
+            <p className="text-xs text-sky-600 dark:text-sky-400 uppercase tracking-wide font-medium mb-1">{t('tickets.ticketNumber', 'Número de ticket')}</p>
             <p className="text-2xl font-mono font-bold text-sky-700 dark:text-sky-300">{created.ticketNumber}</p>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{created.subject}</p>
           </div>
@@ -297,7 +297,7 @@ const CreateTicket: React.FC = () => {
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6 flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
             <div>
-              <h3 className="text-sm font-medium text-red-800 dark:text-red-200">Error</h3>
+              <h3 className="text-sm font-medium text-red-800 dark:text-red-200">{t('common.error', 'Error')}</h3>
               <p className="text-sm text-red-700 dark:text-red-300 mt-1">{error}</p>
             </div>
           </div>
@@ -321,7 +321,7 @@ const CreateTicket: React.FC = () => {
                   onChange={e => setGuestEmail(e.target.value)}
                   required
                   className="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-transparent text-gray-900 dark:text-white"
-                  placeholder="tu@email.com"
+                  placeholder={t('tickets.emailPlaceholder', 'tu@email.com')}
                 />
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   Debe ser el email con el que te registraste en DOAPP.
