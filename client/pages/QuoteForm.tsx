@@ -125,6 +125,7 @@ const CONCEPT_EXAMPLES = [
 const emptyItem = (): QuoteItem => ({ qty: 1, description: '', unitPrice: 0, amount: 0 });
 
 export default function QuoteForm() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -360,7 +361,7 @@ export default function QuoteForm() {
   return (
     <>
       <Helmet>
-        <title>{isEdit ? 'Editar cotización' : 'Nueva cotización'} - DOAPP</title>
+        <title>{isEdit ? t('quote.editTitle') : t('quote.newTitle')} - DOAPP</title>
       </Helmet>
 
       <div className="container mx-auto max-w-4xl px-4 py-8">
@@ -369,7 +370,7 @@ export default function QuoteForm() {
           className="flex items-center gap-2 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white mb-6 text-sm"
         >
           <ArrowLeft className="h-4 w-4" />
-          Volver
+          {t('quote.back')}
         </button>
 
         <div className="flex items-center gap-3 mb-4">
@@ -378,10 +379,10 @@ export default function QuoteForm() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-              {applyMode ? 'Postularse con cotización' : isEdit ? 'Editar cotización' : 'Nueva cotización'}
+              {applyMode ? t('quote.applyTitle') : isEdit ? t('quote.editTitle') : t('quote.newTitle')}
             </h1>
             {recipientName && (
-              <p className="text-slate-500 dark:text-slate-400 text-sm">Para: {recipientName}</p>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">{t('quote.forRecipient')} {recipientName}</p>
             )}
           </div>
         </div>
@@ -392,11 +393,11 @@ export default function QuoteForm() {
             <Briefcase className="h-4 w-4 text-sky-600 dark:text-sky-400 shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-sky-800 dark:text-sky-300 truncate">
-                {applyMode ? 'Postulación para:' : 'Trabajo adjunto:'} {jobTitle}
+                {applyMode ? t('quote.applicationFor') : t('quote.jobAttached')} {jobTitle}
               </p>
               {applyMode && (
                 <p className="text-xs text-sky-600 dark:text-sky-400 mt-0.5">
-                  Si el cliente acepta la cotización, el contrato se crea automáticamente.
+                  {t('quote.autoContractNote')}
                 </p>
               )}
             </div>
@@ -419,7 +420,7 @@ export default function QuoteForm() {
                 className="flex items-center gap-2 px-4 py-2 text-sm border border-dashed border-slate-300 dark:border-slate-600 rounded-lg text-slate-500 dark:text-slate-400 hover:border-sky-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors w-full"
               >
                 <Briefcase className="h-4 w-4" />
-                Adjuntar trabajo a esta cotización (opcional)
+                {t('quote.attachJob')}
               </button>
 
               {showJobSearch && (
@@ -428,7 +429,7 @@ export default function QuoteForm() {
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                     <input
                       type="text"
-                      placeholder="Buscar trabajo por nombre..."
+                      placeholder={t('quote.searchJobPlaceholder')}
                       value={jobSearch}
                       onChange={e => handleJobSearchChange(e.target.value)}
                       autoFocus
@@ -450,9 +451,9 @@ export default function QuoteForm() {
                       ))}
                     </div>
                   ) : jobSearch ? (
-                    <p className="text-xs text-slate-400 text-center py-2">Sin resultados</p>
+                    <p className="text-xs text-slate-400 text-center py-2">{t('quote.noResults')}</p>
                   ) : (
-                    <p className="text-xs text-slate-400 text-center py-2">Escribí para buscar</p>
+                    <p className="text-xs text-slate-400 text-center py-2">{t('quote.typeToSearch')}</p>
                   )}
                 </div>
               )}
@@ -464,18 +465,18 @@ export default function QuoteForm() {
           {/* Sender / Recipient info */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-              <h3 className="font-semibold text-slate-900 dark:text-white mb-4">Datos del remitente</h3>
+              <h3 className="font-semibold text-slate-900 dark:text-white mb-4">{t('quote.senderData')}</h3>
               <div className="space-y-3">
                 <input
                   type="text"
-                  placeholder="Nombre / Empresa"
+                  placeholder={t('quote.nameCompany')}
                   value={senderInfo.name}
                   onChange={e => setSenderInfo(p => ({ ...p, name: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
                 />
                 <input
                   type="text"
-                  placeholder="Dirección"
+                  placeholder={t('quote.address')}
                   value={senderInfo.address}
                   onChange={e => setSenderInfo(p => ({ ...p, address: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
@@ -483,14 +484,14 @@ export default function QuoteForm() {
                 <div className="grid grid-cols-2 gap-2">
                   <input
                     type="text"
-                    placeholder="Ciudad"
+                    placeholder={t('quote.city')}
                     value={senderInfo.city}
                     onChange={e => setSenderInfo(p => ({ ...p, city: e.target.value }))}
                     className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
                   />
                   <input
                     type="text"
-                    placeholder="CUIT / DNI"
+                    placeholder={t('quote.cuitDni')}
                     value={senderInfo.cuit}
                     onChange={e => setSenderInfo(p => ({ ...p, cuit: e.target.value }))}
                     className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
@@ -500,18 +501,18 @@ export default function QuoteForm() {
             </div>
 
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-              <h3 className="font-semibold text-slate-900 dark:text-white mb-4">Datos del cliente</h3>
+              <h3 className="font-semibold text-slate-900 dark:text-white mb-4">{t('quote.clientData')}</h3>
               <div className="space-y-3">
                 <input
                   type="text"
-                  placeholder="Nombre / Empresa"
+                  placeholder={t('quote.nameCompany')}
                   value={recipientInfo.name}
                   onChange={e => setRecipientInfo(p => ({ ...p, name: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
                 />
                 <input
                   type="text"
-                  placeholder="Dirección"
+                  placeholder={t('quote.address')}
                   value={recipientInfo.address}
                   onChange={e => setRecipientInfo(p => ({ ...p, address: e.target.value }))}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
@@ -519,14 +520,14 @@ export default function QuoteForm() {
                 <div className="grid grid-cols-2 gap-2">
                   <input
                     type="text"
-                    placeholder="Ciudad"
+                    placeholder={t('quote.city')}
                     value={recipientInfo.city}
                     onChange={e => setRecipientInfo(p => ({ ...p, city: e.target.value }))}
                     className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
                   />
                   <input
                     type="text"
-                    placeholder="CUIT / DNI"
+                    placeholder={t('quote.cuitDni')}
                     value={recipientInfo.cuit}
                     onChange={e => setRecipientInfo(p => ({ ...p, cuit: e.target.value }))}
                     className="px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
@@ -541,8 +542,8 @@ export default function QuoteForm() {
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
               <div className="flex items-center gap-2 mb-3">
                 <Layers className="h-4 w-4 text-sky-500" />
-                <h3 className="font-semibold text-slate-900 dark:text-white text-sm">Plantilla por rubro</h3>
-                <span className="text-xs text-slate-500 dark:text-slate-400">— Seleccioná uno para pre-rellenar los ítems</span>
+                <h3 className="font-semibold text-slate-900 dark:text-white text-sm">{t('quote.templateByType')}</h3>
+                <span className="text-xs text-slate-500 dark:text-slate-400">{t('quote.selectToPrefill')}</span>
               </div>
               <div className="flex flex-wrap gap-2">
                 {QUOTE_TEMPLATES.map(tpl => (
@@ -567,18 +568,18 @@ export default function QuoteForm() {
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Título de la cotización *</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('quote.quoteTitleLabel')}</label>
                 <input
                   type="text"
                   value={title}
                   onChange={e => setTitle(e.target.value)}
-                  placeholder={applyMode && jobTitle ? `Cotización para: ${jobTitle}` : 'Ej: Servicio de plomería, Armado de muebles, Envío...'}
+                  placeholder={applyMode && jobTitle ? `${t('quote.quoteForPrefix')} ${jobTitle}` : t('quote.titlePlaceholder')}
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Válida hasta</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">{t('quote.validUntil')}</label>
                 <input
                   type="date"
                   value={validUntil}
@@ -591,15 +592,15 @@ export default function QuoteForm() {
 
           {/* Items table */}
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-            <h3 className="font-semibold text-slate-900 dark:text-white mb-4">Ítems</h3>
+            <h3 className="font-semibold text-slate-900 dark:text-white mb-4">{t('quote.items')}</h3>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-700">
-                    <th className="text-left py-2 px-2 text-slate-600 dark:text-slate-400 font-medium w-20">Cant.</th>
-                    <th className="text-left py-2 px-2 text-slate-600 dark:text-slate-400 font-medium">Descripción</th>
-                    <th className="text-right py-2 px-2 text-slate-600 dark:text-slate-400 font-medium w-32">Precio unit.</th>
-                    <th className="text-right py-2 px-2 text-slate-600 dark:text-slate-400 font-medium w-32">Importe</th>
+                    <th className="text-left py-2 px-2 text-slate-600 dark:text-slate-400 font-medium w-20">{t('quote.qty')}</th>
+                    <th className="text-left py-2 px-2 text-slate-600 dark:text-slate-400 font-medium">{t('quote.descriptionCol')}</th>
+                    <th className="text-right py-2 px-2 text-slate-600 dark:text-slate-400 font-medium w-32">{t('quote.unitPriceCol')}</th>
+                    <th className="text-right py-2 px-2 text-slate-600 dark:text-slate-400 font-medium w-32">{t('quote.amountCol')}</th>
                     <th className="w-10" />
                   </tr>
                 </thead>
@@ -620,7 +621,7 @@ export default function QuoteForm() {
                           type="text"
                           value={item.description}
                           onChange={e => updateItem(i, 'description', e.target.value)}
-                          placeholder={`Ej: ${CONCEPT_EXAMPLES[i % CONCEPT_EXAMPLES.length]}`}
+                          placeholder={`${t('quote.exPrefix')} ${CONCEPT_EXAMPLES[i % CONCEPT_EXAMPLES.length]}`}
                           className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
                         />
                       </td>
@@ -656,9 +657,9 @@ export default function QuoteForm() {
                 className="flex items-center gap-2 text-sky-600 dark:text-sky-400 hover:text-sky-700 text-sm font-medium"
               >
                 <Plus className="h-4 w-4" />
-                Agregar ítem
+                {t('quote.addItem')}
               </button>
-              <span className="text-slate-400 text-xs">Sugerencias:</span>
+              <span className="text-slate-400 text-xs">{t('quote.suggestions')}</span>
               {CONCEPT_EXAMPLES.slice(0, 6).map(concept => (
                 <button
                   key={concept}
@@ -682,7 +683,7 @@ export default function QuoteForm() {
             <div className="mt-6 border-t border-slate-200 dark:border-slate-700 pt-4">
               <div className="flex flex-col items-end gap-1 text-sm">
                 <div className="flex justify-between w-64">
-                  <span className="text-slate-600 dark:text-slate-400">Subtotal</span>
+                  <span className="text-slate-600 dark:text-slate-400">{t('quote.subtotal')}</span>
                   <span className="font-medium text-slate-900 dark:text-white">${subtotal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
                 </div>
 
@@ -710,7 +711,7 @@ export default function QuoteForm() {
                         type="text"
                         value={ot.name}
                         onChange={e => setOtherTaxes(p => p.map((t, idx) => idx === i ? { ...t, name: e.target.value } : t))}
-                        placeholder="Nombre"
+                        placeholder={t('quote.namePlaceholder')}
                         className="w-24 px-2 py-0.5 border border-slate-300 dark:border-slate-600 rounded text-xs bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
                       />
                       <input
@@ -740,7 +741,7 @@ export default function QuoteForm() {
                   onClick={() => setOtherTaxes(p => [...p, { name: '', rate: 0, amount: 0 }])}
                   className="text-xs text-sky-600 dark:text-sky-400 hover:underline self-start"
                 >
-                  + Agregar otro impuesto
+                  {t('quote.addTax')}
                 </button>
 
                 <div className="flex justify-between w-64 border-t border-slate-300 dark:border-slate-600 pt-2 mt-1">
@@ -754,22 +755,22 @@ export default function QuoteForm() {
           {/* Notes & Terms */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Condiciones de pago</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{t('quote.paymentTermsLabel')}</label>
               <input
                 type="text"
                 value={paymentTerms}
                 onChange={e => setPaymentTerms(e.target.value)}
-                placeholder="Ej: El pago se realizará en un plazo de 15 días"
+                placeholder={t('quote.paymentTermsPlaceholder')}
                 className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
               />
             </div>
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5">
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Observaciones</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">{t('quote.observations')}</label>
               <textarea
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
                 rows={3}
-                placeholder="Notas adicionales..."
+                placeholder={t('quote.notesPlaceholder')}
                 className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm resize-none"
               />
             </div>
@@ -787,7 +788,7 @@ export default function QuoteForm() {
               onClick={() => navigate(-1)}
               className="px-6 py-3 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 font-medium"
             >
-              Cancelar
+              {t('quote.cancel')}
             </button>
             <button
               type="submit"
@@ -795,7 +796,7 @@ export default function QuoteForm() {
               className="flex items-center gap-2 px-6 py-3 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded-lg font-semibold"
             >
               <Send className="h-4 w-4" />
-              {saving ? 'Enviando...' : isEdit ? 'Actualizar y enviar' : applyMode ? 'Postularme con esta cotización' : 'Enviar cotización'}
+              {saving ? t('quote.sending') : isEdit ? t('quote.updateSend') : applyMode ? t('quote.applySend') : t('quote.send')}
             </button>
           </div>
         </form>
