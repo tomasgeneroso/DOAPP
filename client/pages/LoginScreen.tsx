@@ -261,7 +261,7 @@ export default function LoginScreen() {
           return;
         }
         if (!/^\d{7,9}$/.test(formData.dni.trim())) {
-          setError("El DNI debe tener entre 7 y 9 dígitos.");
+          setError(t('auth.dniInvalid'));
           setIsLoading(false);
           return;
         }
@@ -319,7 +319,7 @@ export default function LoginScreen() {
         setRegistrationPendingVerification(true);
       }
     } catch (err: any) {
-      const errorMessage = err.message || "Ocurrió un error. Por favor, intenta de nuevo.";
+      const errorMessage = err.message || t('auth.genericError');
 
       // Capturar el campo específico del error si está disponible
       if (err.field) {
@@ -391,20 +391,20 @@ export default function LoginScreen() {
           </div>
           <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">{t('auth.registered')}</h2>
           <p className="text-slate-600 dark:text-slate-400 mb-4">
-            Te enviamos un email de verificación. Revisá tu casilla y hacé clic en el enlace para activar tu cuenta.
+            {t('auth.verificationEmailSent')}
           </p>
           <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-            No te va a llegar el correo? Revisá la carpeta de spam o solicitá un nuevo enlace.
+            {t('auth.verificationSpamNote')}
           </p>
           {verificationSent && (
-            <p className="text-sm text-green-600 dark:text-green-400 mb-4">✓ Nuevo enlace enviado.</p>
+            <p className="text-sm text-green-600 dark:text-green-400 mb-4">{t('auth.newLinkSent')}</p>
           )}
           <button
             onClick={() => handleResendVerification(formData.email)}
             disabled={resendingVerification}
             className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-medium rounded-xl transition disabled:opacity-50 mb-3"
           >
-            {resendingVerification ? 'Enviando...' : 'Reenviar email de verificación'}
+            {resendingVerification ? t('auth.sending') : t('auth.resendVerification')}
           </button>
           <button
             onClick={() => {
@@ -418,7 +418,7 @@ export default function LoginScreen() {
             }}
             className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
           >
-            Ir a iniciar sesión
+            {t('auth.goToSignIn')}
           </button>
         </div>
       </div>
@@ -594,8 +594,8 @@ export default function LoginScreen() {
                   </div>
                   <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                     {usernameStatus === 'taken'
-                      ? 'Este nombre de usuario ya está en uso'
-                      : 'Este será tu URL pública: doapp.com/u/tuusuario'}
+                      ? t('auth.usernameTaken')
+                      : t('auth.usernameUrl')}
                   </p>
                 </div>
               </>
@@ -699,7 +699,7 @@ export default function LoginScreen() {
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-                  aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                  aria-label={showPassword ? t('auth.hidePassword') : t('auth.showPassword')}
                 >
                   {showPassword ? (
                     <EyeOff className="h-5 w-5" />
@@ -932,13 +932,13 @@ export default function LoginScreen() {
                     disabled={resendingVerification}
                     className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-lg transition disabled:opacity-50 mb-3"
                   >
-                    {resendingVerification ? 'Enviando...' : 'Reenviar email de verificación'}
+                    {resendingVerification ? t('auth.sending') : t('auth.resendVerification')}
                   </button>
                   <div className="rounded-lg bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 p-3">
                     <p className="text-xs text-sky-800 dark:text-sky-300">
-                      💡 ¿Te registraste con Google? Te recomendamos también{' '}
-                      <a href="/forgot-password" className="underline font-medium">crear una contraseña</a>{' '}
-                      para poder ingresar sin depender de Google.
+                      💡 {t('auth.googlePasswordTipBefore')}{' '}
+                      <a href="/forgot-password" className="underline font-medium">{t('auth.createPassword')}</a>{' '}
+                      {t('auth.googlePasswordTipAfter')}
                     </p>
                   </div>
                 </div>
@@ -1017,7 +1017,7 @@ export default function LoginScreen() {
               onClick={loginWithFacebook}
               disabled={fbLoading || isLoading}
               className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-xl text-sky-600 transition hover:border-sky-300 hover:bg-slate-50 dark:hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="Ingresar con Facebook"
+              aria-label={t('auth.signInWithFacebook')}
             >
               <Facebook className="h-5 w-5" />
             </button>
@@ -1025,7 +1025,7 @@ export default function LoginScreen() {
             <a
               href={`${import.meta.env.VITE_API_URL}/auth/google`}
               className="flex h-11 w-11 sm:h-12 sm:w-12 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-xl transition hover:border-sky-300 hover:bg-slate-50 dark:hover:bg-slate-600"
-              aria-label="Ingresar con Google"
+              aria-label={t('auth.signInWithGoogle')}
             >
               <svg className="h-5 w-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
