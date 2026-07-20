@@ -16,8 +16,10 @@ const toNum = (v: any): number => {
 const DIMENSIONS = [
   {
     key: 'puntualidadRating' as keyof User,
-    label: 'Puntualidad',
-    desc: '¿Llegó a la hora acordada?',
+    labelKey: 'profile.ratings.dimTimeliness',
+    labelDefault: 'Puntualidad',
+    descKey: 'profile.ratings.dimTimelinessDesc',
+    descDefault: '¿Llegó a la hora acordada?',
     icon: Clock,
     color: 'text-blue-500',
     bg: 'bg-blue-50 dark:bg-blue-900/20',
@@ -25,8 +27,10 @@ const DIMENSIONS = [
   },
   {
     key: 'presencialidadRating' as keyof User,
-    label: 'Presencialidad',
-    desc: '¿Se presentó? ¿No dejó plantado al cliente?',
+    labelKey: 'profile.ratings.dimAttendance',
+    labelDefault: 'Presencialidad',
+    descKey: 'profile.ratings.dimAttendanceDesc',
+    descDefault: '¿Se presentó? ¿No dejó plantado al cliente?',
     icon: MapPin,
     color: 'text-orange-500',
     bg: 'bg-orange-50 dark:bg-orange-900/20',
@@ -34,8 +38,10 @@ const DIMENSIONS = [
   },
   {
     key: 'comoPersonaRating' as keyof User,
-    label: 'Como persona',
-    desc: 'Trato, actitud y respeto hacia el cliente',
+    labelKey: 'profile.ratings.dimAsPerson',
+    labelDefault: 'Como persona',
+    descKey: 'profile.ratings.dimAsPersonDesc',
+    descDefault: 'Trato, actitud y respeto hacia el cliente',
     icon: Heart,
     color: 'text-pink-500',
     bg: 'bg-pink-50 dark:bg-pink-900/20',
@@ -43,8 +49,10 @@ const DIMENSIONS = [
   },
   {
     key: 'precioJustoRating' as keyof User,
-    label: 'Precio justo',
-    desc: 'Cobró lo acordado, sin cargos sorpresa',
+    labelKey: 'profile.ratings.dimFairPrice',
+    labelDefault: 'Precio justo',
+    descKey: 'profile.ratings.dimFairPriceDesc',
+    descDefault: 'Cobró lo acordado, sin cargos sorpresa',
     icon: DollarSign,
     color: 'text-green-500',
     bg: 'bg-green-50 dark:bg-green-900/20',
@@ -52,8 +60,10 @@ const DIMENSIONS = [
   },
   {
     key: 'calidadTrabajoRating' as keyof User,
-    label: 'Calidad de trabajo',
-    desc: 'Resultado final: ¿quedó bien hecho?',
+    labelKey: 'profile.ratings.dimQuality',
+    labelDefault: 'Calidad de trabajo',
+    descKey: 'profile.ratings.dimQualityDesc',
+    descDefault: 'Resultado final: ¿quedó bien hecho?',
     icon: Star,
     color: 'text-yellow-500',
     bg: 'bg-yellow-50 dark:bg-yellow-900/20',
@@ -61,8 +71,10 @@ const DIMENSIONS = [
   },
   {
     key: 'profesionalidadRating' as keyof User,
-    label: 'Profesionalidad',
-    desc: 'Herramientas ordenadas, presencia limpia, trabajo prolijo',
+    labelKey: 'profile.ratings.dimProfessionalism',
+    labelDefault: 'Profesionalidad',
+    descKey: 'profile.ratings.dimProfessionalismDesc',
+    descDefault: 'Herramientas ordenadas, presencia limpia, trabajo prolijo',
     icon: Wrench,
     color: 'text-violet-500',
     bg: 'bg-violet-50 dark:bg-violet-900/20',
@@ -112,10 +124,10 @@ export default function MultipleRatings({ user, showAll = true }: MultipleRating
           </div>
           <div>
             <p className="text-sm font-semibold text-gray-900 dark:text-white leading-tight">
-              Puntuación total
+              {t('profile.ratings.total', 'Puntuación total')}
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              {hasReviews ? `${user.reviewsCount} calificacion${user.reviewsCount !== 1 ? 'es' : ''}` : 'Sin calificaciones'}
+              {hasReviews ? t('profile.ratings.count', { count: user.reviewsCount }) : t('profile.ratings.noRatingsShort', 'Sin calificaciones')}
             </p>
           </div>
         </div>
@@ -132,7 +144,7 @@ export default function MultipleRatings({ user, showAll = true }: MultipleRating
       </div>
 
       {/* Per-dimension rows */}
-      {visible.map(({ key, label, desc, icon: Icon, color, bg, border }) => {
+      {visible.map(({ key, labelKey, labelDefault, descKey, descDefault, icon: Icon, color, bg, border }) => {
         const val = toNum(user[key]);
         const rated = val > 0;
 
@@ -144,12 +156,12 @@ export default function MultipleRatings({ user, showAll = true }: MultipleRating
             <div className="flex items-center gap-2 min-w-0">
               <Icon className={`w-4 h-4 ${color} shrink-0`} />
               <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate cursor-help">
-                {label}
+                {t(labelKey, labelDefault)}
               </span>
               {/* Tooltip */}
               <div className="absolute left-0 top-full mt-1 z-50 w-56 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all pointer-events-none">
                 <div className="absolute -top-1 left-6 w-2 h-2 bg-gray-900 rotate-45" />
-                {desc}
+                {t(descKey, descDefault)}
               </div>
             </div>
 
@@ -162,7 +174,7 @@ export default function MultipleRatings({ user, showAll = true }: MultipleRating
                   </span>
                 </>
               ) : (
-                <span className="text-xs text-gray-400">Sin datos</span>
+                <span className="text-xs text-gray-400">{t('profile.ratings.noData', 'Sin datos')}</span>
               )}
             </div>
           </div>

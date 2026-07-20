@@ -1,7 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 const LocationPinMap = lazy(() => import('../components/LocationPinMap'));
 import { Helmet } from "react-helmet-async";
-import { useTranslation } from "react-i18next";
+import { useTranslation, Trans } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import {
@@ -351,7 +351,7 @@ export default function CreateContractScreen() {
             <p className={`text-2xl font-extrabold leading-none ${
               (user?.freeContractsRemaining ?? 0) > 0 ? 'text-green-600 dark:text-green-400' : 'text-slate-400'
             }`}>{user?.freeContractsRemaining ?? 0}</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">publicaciones<br/>sin comisión</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-tight"><Trans i18nKey="contracts.freePostingsLabel" components={{ br: <br /> }} defaults="publicaciones<br/>sin comisión" /></p>
           </div>
         </div>
 
@@ -855,7 +855,7 @@ export default function CreateContractScreen() {
                     })}
                   </div>
                   <p className="mt-2 text-xs text-purple-600 dark:text-purple-400">
-                    Al seleccionar al trabajador, se le asignará automáticamente la tarea correspondiente a su vacante.
+                    {t('contracts.autoAssignTaskHint', 'Al seleccionar al trabajador, se le asignará automáticamente la tarea correspondiente a su vacante.')}
                   </p>
                 </div>
               )}

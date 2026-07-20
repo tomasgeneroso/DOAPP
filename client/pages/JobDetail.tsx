@@ -2203,26 +2203,26 @@ export default function JobDetail() {
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Monto</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{t('jobs.adminPayment.amount', 'Monto')}</p>
                     <p className="font-medium text-slate-900 dark:text-white">
                       ${Number(adminPayment.payment?.amount || adminPayment.price || 0).toLocaleString('es-AR')} ARS
                     </p>
                   </div>
                   <div>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Comisión</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{t('jobs.adminPayment.commission', 'Comisión')}</p>
                     <p className="font-medium text-slate-900 dark:text-white">
                       ${Number(adminPayment.payment?.platformFee || 0).toLocaleString('es-AR')} ({Number(adminPayment.payment?.platformFeePercentage || 0).toFixed(1)}%)
                     </p>
                   </div>
                   {adminPayment.payment?.paymentMethod && (
                     <div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Método</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{t('jobs.adminPayment.method', 'Método')}</p>
                       <p className="font-medium text-slate-900 dark:text-white">{adminPayment.payment.paymentMethod}</p>
                     </div>
                   )}
                   {adminPayment.client?.name && (
                     <div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">Pagador</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">{t('jobs.adminPayment.payer', 'Pagador')}</p>
                       <p className="font-medium text-slate-900 dark:text-white">{adminPayment.client.name}</p>
                     </div>
                   )}
@@ -2231,34 +2231,34 @@ export default function JobDetail() {
                 {/* Proof */}
                 {adminPayment.proof ? (
                   <div className="mt-4">
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Comprobante de pago</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">{t('jobs.adminPayment.proofLabel', 'Comprobante de pago')}</p>
                     {((adminPayment.proof.fileType === 'pdf') || (adminPayment.proof.fileUrl || '').toLowerCase().endsWith('.pdf')) ? (
                       <a href={getImageUrl(adminPayment.proof.fileUrl)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sky-600 dark:text-sky-400 hover:underline">
-                        <FileText className="h-4 w-4" /> Abrir PDF del comprobante
+                        <FileText className="h-4 w-4" /> {t('jobs.adminPayment.openPdfProof', 'Abrir PDF del comprobante')}
                       </a>
                     ) : (
                       <a href={getImageUrl(adminPayment.proof.fileUrl)} target="_blank" rel="noopener noreferrer" className="block">
-                        <img src={getImageUrl(adminPayment.proof.fileUrl)} alt="Comprobante" className="max-h-64 rounded-lg border border-slate-200 dark:border-slate-700 object-contain bg-white dark:bg-slate-900" />
+                        <img src={getImageUrl(adminPayment.proof.fileUrl)} alt={t('jobs.adminPayment.proofAlt', 'Comprobante')} className="max-h-64 rounded-lg border border-slate-200 dark:border-slate-700 object-contain bg-white dark:bg-slate-900" />
                       </a>
                     )}
                   </div>
                 ) : (
-                  <p className="mt-4 text-sm text-slate-500 dark:text-slate-400 italic">Sin comprobante adjunto.</p>
+                  <p className="mt-4 text-sm text-slate-500 dark:text-slate-400 italic">{t('jobs.adminPayment.noProof', 'Sin comprobante adjunto.')}</p>
                 )}
 
                 {/* Navigation */}
                 <div className="mt-4 flex flex-wrap gap-2">
                   {adminPayment.payment?.id && (
                     <Link to={`/admin/financial-transactions?search=${adminPayment.payment.id}`} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
-                      <ExternalLink className="h-4 w-4" /> Ver transacción
+                      <ExternalLink className="h-4 w-4" /> {t('jobs.adminPayment.viewTransaction', 'Ver transacción')}
                     </Link>
                   )}
                   <Link to={`/admin/jobs?search=${adminPayment.jobId}`} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors">
-                    <Briefcase className="h-4 w-4" /> Ver en gestión de publicaciones
+                    <Briefcase className="h-4 w-4" /> {t('jobs.adminPayment.viewInJobManagement', 'Ver en gestión de publicaciones')}
                   </Link>
                   {adminPayment.payment?.id && (adminPayment.payment?.status === 'pending_verification' || !adminPayment.publicationPaid) && (
                     <Link to={`/admin/pending-payments?search=${adminPayment.payment.id}`} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors">
-                      <Clock className="h-4 w-4" /> Ver en pagos pendientes
+                      <Clock className="h-4 w-4" /> {t('jobs.adminPayment.viewInPendingPayments', 'Ver en pagos pendientes')}
                     </Link>
                   )}
                 </div>
@@ -2626,7 +2626,7 @@ export default function JobDetail() {
                   )}
                   {(job as any).allowCounterOffers === false && (
                     <p className="mt-2 text-xs text-center text-amber-600 dark:text-amber-400">
-                      ⚠️ Este trabajo no acepta contraofertas: te postulás al precio publicado.
+                      {t('jobs.noCounterOffersWarning', '⚠️ Este trabajo no acepta contraofertas: te postulás al precio publicado.')}
                     </p>
                   )}
                   {error && (
@@ -2963,7 +2963,7 @@ export default function JobDetail() {
                             )}
                       </p>
                       <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                        Iniciará el{" "}
+                        {t('jobs.willStartOnShort', 'Iniciará el')}{" "}
                         {new Date(job.startDate).toLocaleDateString("es-AR", {
                           day: "numeric",
                           month: "long",
@@ -3000,7 +3000,7 @@ export default function JobDetail() {
                                 )}
                               </p>
                               <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                                El trabajo finalizó el{" "}
+                                {t("jobs.jobFinishedOn", "El trabajo finalizó el")}{" "}
                                 {new Date(job.endDate).toLocaleDateString(
                                   "es-AR",
                                   {
@@ -3168,7 +3168,7 @@ export default function JobDetail() {
                           {job.endDate && (
                             <>
                               <p className="text-sm text-green-600 dark:text-green-400 mt-2">
-                                El trabajo terminará el{" "}
+                                {t("jobs.jobWillEndOn", "El trabajo terminará el")}{" "}
                                 {new Date(job.endDate).toLocaleDateString(
                                   "es-AR",
                                   {
@@ -3649,7 +3649,7 @@ export default function JobDetail() {
                                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-50 dark:bg-sky-900/30 border border-sky-200 dark:border-sky-700 text-sm font-medium text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/50 transition-colors"
                                 >
                                   <ClipboardList className="h-4 w-4" />
-                                  Ver cotización #{proposal.quote.quoteNumber}
+                                  {t('jobs.viewQuoteNumber', 'Ver cotización #{{number}}', { number: proposal.quote.quoteNumber })}
                                   <span className="text-sky-600 dark:text-sky-400 font-semibold">
                                     · ${Number(proposal.quote.total).toLocaleString('es-AR')} ARS
                                   </span>
@@ -3868,7 +3868,7 @@ export default function JobDetail() {
                         {t("jobs.jobFinished", "Job finished!")}
                       </p>
                       <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                        El trabajo finalizó el{" "}
+                        {t("jobs.jobFinishedOn", "El trabajo finalizó el")}{" "}
                         {new Date(job.endDate).toLocaleDateString("es-AR", {
                           day: "numeric",
                           month: "long",

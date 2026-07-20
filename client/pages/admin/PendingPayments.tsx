@@ -2574,11 +2574,26 @@ export default function PendingPayments() {
               <div className="flex justify-between items-start mb-6">
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                    Detalles del Pago
+                    {t('admin.pendingPayments.paymentDetailsTitle', 'Detalles del Pago')}
                   </h2>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    Contrato ID: {selectedPayment.contract.id.slice(0, 8)}...
-                  </p>
+                  <div className="text-sm text-gray-500 dark:text-gray-400 mt-1 space-y-0.5">
+                    <p>
+                      {t('admin.pendingPayments.contractIdLabel', 'Contrato ID')}:{' '}
+                      <span className="font-mono text-gray-700 dark:text-gray-300 select-all">{selectedPayment.contract.id}</span>
+                    </p>
+                    {selectedPayment.payment?.mercadopagoId && (
+                      <p>
+                        {t('admin.pendingPayments.transactionIdLabel', 'ID de transacción')}:{' '}
+                        <span className="font-mono text-gray-700 dark:text-gray-300 select-all">{selectedPayment.payment.mercadopagoId}</span>
+                      </p>
+                    )}
+                    {selectedPayment.payment?.id && (
+                      <p>
+                        {t('admin.pendingPayments.paymentIdLabel', 'ID de pago')}:{' '}
+                        <span className="font-mono text-gray-700 dark:text-gray-300 select-all">{selectedPayment.payment.id}</span>
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <button
                   onClick={() => setShowModal(false)}

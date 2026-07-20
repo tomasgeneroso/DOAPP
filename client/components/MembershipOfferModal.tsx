@@ -25,68 +25,64 @@ export default function MembershipOfferModal({ isOpen, onClose, onUpgrade }: Mem
 
   if (!isOpen) return null;
 
+  const proFeatures = [
+    t('membership.proFeat1', '1 publicación/mes sin comisión'),
+    t('membership.proFeat2', '2 publicaciones iniciales gratis'),
+    t('membership.proFeat3', '3% comisión adicional'),
+    t('membership.proFeat4', 'Prioridad en búsquedas'),
+    t('membership.proFeat5', 'Badge PRO dorado'),
+  ];
+
   const plans = [
     {
       id: 'free',
-      name: 'Versión Gratis',
-      price: 'Gratis',
-      priceNote: 'siempre',
+      name: t('membership.planFreeName', 'Versión Gratis'),
+      price: t('membership.planFreePrice', 'Gratis'),
+      priceNote: t('membership.priceNoteAlways', 'siempre'),
       color: 'slate',
       features: [
-        '3 publicaciones sin comisión*',
-        '8% comisión fija',
-        '3 códigos de invitación',
+        t('membership.freeFeat1', '3 publicaciones sin comisión*'),
+        t('membership.freeFeat2', '8% comisión fija'),
+        t('membership.freeFeat3', '3 códigos de invitación'),
       ],
     },
     {
       id: 'monthly',
-      name: 'PRO Mensual',
+      name: t('membership.planMonthlyName', 'PRO Mensual'),
       price: '$4.999',
-      priceNote: 'ARS/mes',
-      badge: 'MÁS POPULAR',
+      priceNote: t('membership.priceNoteMonth', 'ARS/mes'),
+      badge: t('membership.badgePopular', 'MÁS POPULAR'),
       badgeColor: 'sky',
       color: 'sky',
       isPopular: true,
-      features: [
-        '1 publicación/mes sin comisión',
-        '2 publicaciones iniciales gratis',
-        '3% comisión adicional',
-        'Prioridad en búsquedas',
-        'Badge PRO dorado',
-      ],
+      features: proFeatures,
     },
     {
       id: 'quarterly',
-      name: 'PRO Trimestral',
+      name: t('membership.planQuarterlyName', 'PRO Trimestral'),
       price: '$13.347',
-      priceNote: 'ARS/3 meses',
-      badge: 'Ahorrá $1.650',
+      priceNote: t('membership.priceNoteQuarter', 'ARS/3 meses'),
+      badge: t('membership.badgeSave', 'Ahorrá $1.650'),
       badgeColor: 'green',
       color: 'sky',
       savings: true,
-      features: [
-        '1 publicación/mes sin comisión',
-        '2 publicaciones iniciales gratis',
-        '3% comisión adicional',
-        'Prioridad en búsquedas',
-        'Badge PRO dorado',
-      ],
+      features: proFeatures,
     },
     {
       id: 'super_pro',
-      name: 'SUPER PRO',
+      name: t('membership.planSuperProName', 'SUPER PRO'),
       price: '$8.999',
-      priceNote: 'ARS/mes',
-      badge: 'PREMIUM',
+      priceNote: t('membership.priceNoteMonth', 'ARS/mes'),
+      badge: t('membership.badgePremium', 'PREMIUM'),
       badgeColor: 'purple',
       color: 'purple',
       isSuperPro: true,
       features: [
-        '2 publicaciones/mes sin comisión',
-        '2 publicaciones iniciales gratis',
-        '1% comisión adicional',
-        'Analytics avanzados',
-        'Reportes mensuales',
+        t('membership.superProFeat1', '2 publicaciones/mes sin comisión'),
+        t('membership.proFeat2', '2 publicaciones iniciales gratis'),
+        t('membership.superProFeat3', '1% comisión adicional'),
+        t('membership.superProFeat4', 'Analytics avanzados'),
+        t('membership.superProFeat5', 'Reportes mensuales'),
       ],
     },
   ];
@@ -174,7 +170,7 @@ export default function MembershipOfferModal({ isOpen, onClose, onUpgrade }: Mem
         </div>
 
         {/* Note */}
-        <p className="text-[10px] text-slate-400 text-center px-4">*Para los primeros 1.000 usuarios</p>
+        <p className="text-[10px] text-slate-400 text-center px-4">{t('membership.offerNote', '*Para los primeros 1.000 usuarios')}</p>
 
         {/* Actions */}
         <div className="px-4 pb-4 pt-2 flex flex-col gap-2 flex-shrink-0">
@@ -184,16 +180,16 @@ export default function MembershipOfferModal({ isOpen, onClose, onUpgrade }: Mem
               className={`w-full py-2.5 rounded-xl font-semibold text-sm text-white bg-gradient-to-r ${btnGradient} transition-all flex items-center justify-center gap-2`}
             >
               <Zap className="w-4 h-4" />
-              Activar {selectedPlanData?.name}
+              {t('membership.activate', 'Activar {{plan}}', { plan: selectedPlanData?.name })}
             </button>
           )}
           <button
             onClick={onClose}
             className="w-full py-2 rounded-xl font-medium text-sm border-2 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
           >
-            Continuar con Versión Gratis
+            {t('membership.continueFree', 'Continuar con Versión Gratis')}
           </button>
-          <p className="text-[10px] text-center text-slate-400">Cancelás cuando quieras · Siempre podés subir de plan</p>
+          <p className="text-[10px] text-center text-slate-400">{t('membership.offerFooter', 'Cancelás cuando quieras · Siempre podés subir de plan')}</p>
         </div>
       </div>
     </div>
