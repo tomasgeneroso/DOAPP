@@ -2,7 +2,7 @@ import { useAuth } from "../hooks/useAuth";
 import { Helmet } from "react-helmet-async";
 import { Link, useLocation } from "react-router-dom";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useTranslation } from "react-i18next";
+import { useTranslation, Trans } from "react-i18next";
 import { MapPin, Calendar, Clock, Star, Briefcase, CheckCircle, Plus } from "lucide-react";
 import { JOB_CATEGORIES } from "../../shared/constants/categories";
 import type { Job, User as UserType } from "@/types";
@@ -340,7 +340,7 @@ export default function Index() {
                 to="/register"
                 className="w-full sm:w-auto text-center rounded-xl border-2 border-slate-600 px-6 sm:px-10 py-4 text-base font-semibold text-slate-300 hover:border-sky-500 hover:text-white transition-all duration-200"
               >
-                Ver trabajos disponibles
+                {t('home.ctaSeeJobs', 'Ver trabajos disponibles')}
               </Link>
             </div>
             {/* Scroll indicator */}
@@ -462,7 +462,7 @@ export default function Index() {
             <div className="flex items-end justify-between mb-8">
               <div>
                 <span className="inline-block px-4 py-1.5 bg-sky-500/20 text-sky-400 text-xs font-bold uppercase tracking-widest rounded-full border border-sky-500/30 mb-3">
-                  En este momento
+                  {t('home.rightNow', 'En este momento')}
                 </span>
                 <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight">
                   {t('home.availableJobs')}
@@ -472,7 +472,7 @@ export default function Index() {
                 to="/register"
                 className="hidden sm:inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-sm font-semibold transition-colors"
               >
-                Ver todos
+                {t('home.seeAll', 'Ver todos')}
               </Link>
             </div>
             {jobsLoading ? (
@@ -526,7 +526,7 @@ export default function Index() {
                     to="/register"
                     className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-white text-sm font-semibold transition-colors"
                   >
-                    Ver todos los trabajos
+                    {t('home.seeAllJobs', 'Ver todos los trabajos')}
                   </Link>
                 </div>
               </>
@@ -541,13 +541,13 @@ export default function Index() {
             <div className="relative max-w-6xl mx-auto">
               <div className="text-center mb-10">
                 <span className="inline-block px-4 py-1.5 bg-orange-500/20 text-orange-400 text-xs font-bold uppercase tracking-widest rounded-full border border-orange-500/30 mb-4">
-                  Así se ve un trabajo en DoApp
+                  {t('home.showcaseBadge', 'Así se ve un trabajo en DoApp')}
                 </span>
                 <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight">
-                  Cada detalle, bajo <span className="text-sky-400">control</span>
+                  <Trans i18nKey="home.showcaseTitle" components={{ hl: <span className="text-sky-400" /> }} defaults="Cada detalle, bajo <hl>control</hl>" />
                 </h2>
                 <p className="mt-3 text-slate-400 max-w-lg mx-auto text-sm sm:text-base">
-                  Publicá lo que necesitás, elegí al mejor profesional y pagá de forma segura.
+                  {t('home.showcaseSubtitle', 'Publicá lo que necesitás, elegí al mejor profesional y pagá de forma segura.')}
                 </p>
               </div>
               <div className="max-w-2xl mx-auto bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-2xl shadow-black/40 hover:-translate-y-2 hover:border-sky-500/40 hover:shadow-sky-500/10 transition-all duration-500 cursor-default group/card">
@@ -555,15 +555,15 @@ export default function Index() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="w-2 h-2 rounded-full bg-green-400 inline-block animate-pulse" />
-                      <span className="text-xs font-semibold text-green-400 uppercase tracking-wide">Abierto</span>
+                      <span className="text-xs font-semibold text-green-400 uppercase tracking-wide">{t('home.demoStatusOpen', 'Abierto')}</span>
                     </div>
-                    <h3 className="text-lg font-bold text-white leading-tight">Reparación de plomería urgente</h3>
-                    <p className="text-slate-400 text-sm mt-1 line-clamp-2">Necesito un plomero para arreglar una pérdida de agua en la cocina. Trabajo de media jornada.</p>
+                    <h3 className="text-lg font-bold text-white leading-tight">{t('home.demoJobTitle', 'Reparación de plomería urgente')}</h3>
+                    <p className="text-slate-400 text-sm mt-1 line-clamp-2">{t('home.demoJobDesc', 'Necesito un plomero para arreglar una pérdida de agua en la cocina. Trabajo de media jornada.')}</p>
                   </div>
                   <span className="flex-shrink-0 bg-sky-500 text-white text-base font-bold px-4 py-1.5 rounded-full shadow-lg shadow-sky-500/20 group-hover/card:shadow-sky-500/50 group-hover/card:scale-105 transition-all duration-300">$18.000</span>
                 </div>
                 <div className="grid grid-cols-2 gap-3 mb-5">
-                  {[{ label: 'Fecha inicio', value: '15 Feb 2025' }, { label: 'Hora inicio', value: '09:00 hs' }, { label: 'Fecha fin', value: '15 Feb 2025' }, { label: 'Hora fin', value: '14:00 hs' }].map(({ label, value }) => (
+                  {[{ label: t('home.demoStartDate', 'Fecha inicio'), value: '15 Feb 2025' }, { label: t('home.demoStartTime', 'Hora inicio'), value: '09:00 hs' }, { label: t('home.demoEndDate', 'Fecha fin'), value: '15 Feb 2025' }, { label: t('home.demoEndTime', 'Hora fin'), value: '14:00 hs' }].map(({ label, value }) => (
                     <div key={label} className="bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 hover:border-sky-600/40 hover:bg-slate-800/80 transition-colors duration-200">
                       <p className="text-xs text-slate-500 mb-0.5">{label}</p>
                       <p className="text-sm font-semibold text-white">{value}</p>
@@ -571,7 +571,7 @@ export default function Index() {
                   ))}
                 </div>
                 <div className="grid grid-cols-3 gap-3 mb-5">
-                  {[{ label: 'Partes', value: '1 cliente · 1 profesional' }, { label: 'Pago', value: 'Garantizado en escrow' }, { label: 'Ubicación', value: 'Palermo, CABA' }].map(({ label, value }) => (
+                  {[{ label: t('home.demoParties', 'Partes'), value: t('home.demoPartiesValue', '1 cliente · 1 profesional') }, { label: t('home.demoPayment', 'Pago'), value: t('home.demoPaymentValue', 'Garantizado en escrow') }, { label: t('home.demoLocation', 'Ubicación'), value: 'Palermo, CABA' }].map(({ label, value }) => (
                     <div key={label} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 hover:border-sky-600/40 hover:bg-slate-800/80 transition-colors duration-200">
                       <p className="text-xs text-slate-500 mb-1">{label}</p>
                       <p className="text-xs font-medium text-slate-300 leading-tight">{value}</p>
@@ -581,14 +581,14 @@ export default function Index() {
                 <div className="flex items-center gap-4 pt-4 border-t border-slate-700">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-500 to-sky-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 group-hover/card:ring-2 group-hover/card:ring-sky-400/50 transition-all duration-300">MC</div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs text-slate-500 mb-1">Publicado por</p>
+                    <p className="text-xs text-slate-500 mb-1">{t('home.demoPostedBy', 'Publicado por')}</p>
                     <p className="text-sm font-semibold text-white">María C.</p>
                     <div className="flex items-center gap-2 mt-1.5">
-                      {['Calidad', 'Trato', 'Puntualidad'].map((label) => (
+                      {[{ label: t('home.demoRatingQuality', 'Calidad'), width: 92 }, { label: t('home.demoRatingTreatment', 'Trato'), width: 88 }, { label: t('home.demoRatingPunctuality', 'Puntualidad'), width: 95 }].map(({ label, width }) => (
                         <div key={label} className="flex-1">
                           <span className="text-[10px] text-slate-500">{label}</span>
                           <div className="h-1 bg-[#1e2d42] rounded-full overflow-hidden mt-0.5">
-                            <div className="h-full bg-sky-500 rounded-full" style={{ width: `${label === 'Calidad' ? 92 : label === 'Trato' ? 88 : 95}%` }} />
+                            <div className="h-full bg-sky-500 rounded-full" style={{ width: `${width}%` }} />
                           </div>
                         </div>
                       ))}
@@ -607,13 +607,13 @@ export default function Index() {
           <div className="relative max-w-4xl mx-auto">
             <div className="text-center mb-10">
               <span className="inline-block px-4 py-1.5 bg-sky-500/20 text-sky-400 text-xs font-bold uppercase tracking-widest rounded-full border border-sky-500/30 mb-4">
-                Pagos seguros
+                {t('home.paymentsBadge', 'Pagos seguros')}
               </span>
               <h2 className="text-3xl sm:text-4xl font-extrabold text-white leading-tight">
-                Elegí cómo pagar o cobrar
+                {t('home.paymentsTitle', 'Elegí cómo pagar o cobrar')}
               </h2>
               <p className="mt-3 text-slate-400 max-w-lg mx-auto text-sm sm:text-base">
-                Tu dinero queda en garantía hasta que ambas partes confirmen el trabajo. Sin sorpresas.
+                {t('home.paymentsSubtitle', 'Tu dinero queda en garantía hasta que ambas partes confirmen el trabajo. Sin sorpresas.')}
               </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
@@ -623,19 +623,19 @@ export default function Index() {
                 </div>
                 <div>
                   <p className="text-white font-semibold text-sm">Mercado Pago</p>
-                  <p className="text-slate-500 text-xs mt-1">Tarjeta, débito o saldo MP. Acreditación en 48 hs.</p>
+                  <p className="text-slate-500 text-xs mt-1">{t('home.mpDesc', 'Tarjeta, débito o saldo MP. Acreditación en 48 hs.')}</p>
                 </div>
-                <span className="text-xs font-bold text-sky-400 bg-sky-500/10 border border-sky-500/20 px-2.5 py-1 rounded-full self-start">Popular</span>
+                <span className="text-xs font-bold text-sky-400 bg-sky-500/10 border border-sky-500/20 px-2.5 py-1 rounded-full self-start">{t('home.mpBadge', 'Popular')}</span>
               </div>
               <div className="group bg-slate-800 border border-slate-700 rounded-2xl p-6 flex flex-col gap-3 hover:border-green-500/50 hover:scale-[1.02] hover:-translate-y-1 transition-all duration-300 cursor-default">
                 <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:bg-green-500/20">
                   <svg className="w-5 h-5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
                 </div>
                 <div>
-                  <p className="text-white font-semibold text-sm">Transferencia bancaria</p>
-                  <p className="text-slate-500 text-xs mt-1">CVU o CBU. Validación manual por el equipo DoApp.</p>
+                  <p className="text-white font-semibold text-sm">{t('home.bankTransfer', 'Transferencia bancaria')}</p>
+                  <p className="text-slate-500 text-xs mt-1">{t('home.bankDesc', 'CVU o CBU. Validación manual por el equipo DoApp.')}</p>
                 </div>
-                <span className="text-xs font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded-full self-start">Sin comisión bancaria</span>
+                <span className="text-xs font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded-full self-start">{t('home.bankBadge', 'Sin comisión bancaria')}</span>
               </div>
               <div className="group bg-slate-800 border border-slate-700 rounded-2xl p-6 flex flex-col gap-3 hover:border-orange-500/50 hover:scale-[1.02] hover:-translate-y-1 transition-all duration-300 cursor-default">
                 <div className="w-10 h-10 rounded-xl bg-orange-500/10 flex items-center justify-center transition-all duration-300 group-hover:scale-110 group-hover:bg-orange-500/20">
@@ -643,9 +643,9 @@ export default function Index() {
                 </div>
                 <div>
                   <p className="text-white font-semibold text-sm">Cripto (USDT/BTC)</p>
-                  <p className="text-slate-500 text-xs mt-1">Pagos descentralizados. Próximamente.</p>
+                  <p className="text-slate-500 text-xs mt-1">{t('home.cryptoDesc', 'Pagos descentralizados. Próximamente.')}</p>
                 </div>
-                <span className="text-xs font-bold text-orange-400 bg-orange-500/10 border border-orange-500/20 px-2.5 py-1 rounded-full self-start">Próximamente</span>
+                <span className="text-xs font-bold text-orange-400 bg-orange-500/10 border border-orange-500/20 px-2.5 py-1 rounded-full self-start">{t('home.comingSoon', 'Próximamente')}</span>
               </div>
             </div>
           </div>
@@ -762,7 +762,7 @@ export default function Index() {
             ) : users.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-gray-500 dark:text-slate-400">
-                  Escribí un nombre o @usuario para buscar.
+                  {t('home.searchUserHint', 'Escribí un nombre o @usuario para buscar.')}
                 </p>
               </div>
             ) : (
