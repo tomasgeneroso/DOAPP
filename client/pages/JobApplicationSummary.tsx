@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "../hooks/useAuth";
@@ -21,6 +21,7 @@ import type { Job } from "@/types";
 import { getClientInfo } from "@/lib/utils";
 
 export default function JobApplicationSummary() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const { user, token } = useAuth();
   const navigate = useNavigate();
@@ -208,12 +209,12 @@ export default function JobApplicationSummary() {
           <div className="rounded-2xl border border-slate-200 bg-slate-50 dark:bg-slate-800 dark:border-slate-700 p-8 text-center">
             <AlertCircle className="h-12 w-12 text-slate-500 dark:text-slate-400 mx-auto mb-4" />
             <p className="text-slate-700 dark:text-slate-300 mb-4 text-lg">
-              {job.status === 'pending_approval' && 'Este trabajo está pendiente de aprobación'}
-              {job.status === 'in_progress' && 'Este trabajo ya tiene un profesional asignado'}
-              {job.status === 'completed' && 'Este trabajo ya fue completado'}
-              {job.status === 'cancelled' && 'Este trabajo fue cancelado'}
-              {job.status === 'paused' && 'Este trabajo está pausado'}
-              {!['pending_approval', 'in_progress', 'completed', 'cancelled', 'paused'].includes(job.status) && 'Este trabajo no está disponible para aplicaciones'}
+              {job.status === 'pending_approval' && t('jobApply.statusPendingApproval')}
+              {job.status === 'in_progress' && t('jobApply.statusInProgress')}
+              {job.status === 'completed' && t('jobApply.statusCompleted')}
+              {job.status === 'cancelled' && t('jobApply.statusCancelled')}
+              {job.status === 'paused' && t('jobApply.statusPaused')}
+              {!['pending_approval', 'in_progress', 'completed', 'cancelled', 'paused'].includes(job.status) && t('jobApply.statusUnavailable')}
             </p>
             <Link
               to={`/jobs/${job.id || job._id}`}
@@ -275,7 +276,7 @@ export default function JobApplicationSummary() {
                   </div>
                 </div>
                 <div className="rounded-2xl bg-gradient-to-r from-sky-500 to-sky-600 px-6 py-3 text-center">
-                  <div className="text-sm text-sky-100">Pago</div>
+                  <div className="text-sm text-sky-100">{t('jobApply.payment')}</div>
                   <div className="text-2xl font-bold text-white">
                     ${job.price.toLocaleString("es-AR")}
                   </div>
@@ -390,15 +391,15 @@ export default function JobApplicationSummary() {
             <div className="rounded-xl border border-sky-200 dark:border-sky-700 bg-sky-50 dark:bg-sky-900/20 p-4 mb-6">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-base">💡</span>
-                <span className="text-sm font-semibold text-sky-800 dark:text-sky-200">Consejos para trabajadores</span>
+                <span className="text-sm font-semibold text-sky-800 dark:text-sky-200">{t('jobApply.tipsTitle')}</span>
               </div>
               <ul className="space-y-1.5 text-xs text-sky-700 dark:text-sky-300">
-                <li className="flex items-start gap-1.5"><span className="text-sky-500 mt-0.5">⭐</span> Realizá un trabajo <strong>excelente</strong>: cada trabajo completo mejora tu reputación y aumenta tus posibilidades de ser seleccionado.</li>
-                <li className="flex items-start gap-1.5"><span className="text-sky-500 mt-0.5">📝</span> Publicá <strong>artículos en el blog</strong> sobre tu área de trabajo para adquirir clientes y ganar credibilidad.</li>
-                <li className="flex items-start gap-1.5"><span className="text-sky-500 mt-0.5">🔑</span> Al llegar al lugar de trabajo, mostrá el <strong>código de verificación</strong> al cliente para confirmar tu identidad.</li>
-                <li className="flex items-start gap-1.5"><span className="text-sky-500 mt-0.5">💬</span> Comunicá avances y cualquier inconveniente <strong>a tiempo</strong>: la comunicación es clave para una buena reseña.</li>
-                <li className="flex items-start gap-1.5"><span className="text-sky-500 mt-0.5">📸</span> Sacá fotos antes y después del trabajo como evidencia en caso de disputas.</li>
-                <li className="flex items-start gap-1.5"><span className="text-sky-500 mt-0.5">🤝</span> Si el precio no te conviene, <strong>contraofertá</strong> antes de aplicar directamente.</li>
+                <li className="flex items-start gap-1.5"><span className="text-sky-500 mt-0.5">⭐</span> <span><Trans i18nKey="jobApply.tipExcellent" components={{ b: <strong /> }} /></span></li>
+                <li className="flex items-start gap-1.5"><span className="text-sky-500 mt-0.5">📝</span> <span><Trans i18nKey="jobApply.tipBlog" components={{ b: <strong /> }} /></span></li>
+                <li className="flex items-start gap-1.5"><span className="text-sky-500 mt-0.5">🔑</span> <span><Trans i18nKey="jobApply.tipCode" components={{ b: <strong /> }} /></span></li>
+                <li className="flex items-start gap-1.5"><span className="text-sky-500 mt-0.5">💬</span> <span><Trans i18nKey="jobApply.tipCommunicate" components={{ b: <strong /> }} /></span></li>
+                <li className="flex items-start gap-1.5"><span className="text-sky-500 mt-0.5">📸</span> {t('jobApply.tipPhotos')}</li>
+                <li className="flex items-start gap-1.5"><span className="text-sky-500 mt-0.5">🤝</span> <span><Trans i18nKey="jobApply.tipCounterOffer" components={{ b: <strong /> }} /></span></li>
               </ul>
             </div>
 
@@ -422,8 +423,8 @@ export default function JobApplicationSummary() {
                 ) : (
                   <CheckCircle className="h-6 w-6" />
                 )}
-                <span className="text-base">Postularme</span>
-                <span className="text-xs text-sky-100 font-normal">Sin cotización</span>
+                <span className="text-base">{t('jobApply.applyNow')}</span>
+                <span className="text-xs text-sky-100 font-normal">{t('jobApply.noQuote')}</span>
               </button>
 
               {/* Apply with quote */}
@@ -438,8 +439,8 @@ export default function JobApplicationSummary() {
                 className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-emerald-500 bg-white dark:bg-slate-800 px-6 py-5 font-semibold text-emerald-600 dark:text-emerald-400 transition-all hover:bg-emerald-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <ClipboardList className="h-6 w-6" />
-                <span className="text-base">Postularme con cotización</span>
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-normal">Proponé precio y conceptos</span>
+                <span className="text-base">{t('jobApply.applyWithQuote')}</span>
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-normal">{t('jobApply.proposePrice')}</span>
               </button>
 
               {/* Negotiate / Chat */}
@@ -453,34 +454,34 @@ export default function JobApplicationSummary() {
                 ) : (
                   <MessageCircle className="h-6 w-6" />
                 )}
-                <span className="text-base">Chatear primero</span>
-                <span className="text-xs text-slate-400 font-normal">Negociá antes de postularte</span>
+                <span className="text-base">{t('jobApply.chatFirst')}</span>
+                <span className="text-xs text-slate-400 font-normal">{t('jobApply.negotiateFirst')}</span>
               </button>
             </div>
 
             {/* Cómo funciona cada opción */}
             <div className="mt-6 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl p-4 text-left">
-              <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">¿Cómo funciona cada opción?</p>
+              <p className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">{t('jobApply.howItWorks')}</p>
               <div className="space-y-3">
                 <div className="flex gap-3">
                   <span className="text-sky-500 font-bold text-sm shrink-0">1.</span>
                   <div>
-                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Postularte directamente</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">El cliente ve tu perfil y decide si te selecciona. Sin negociación previa.</p>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{t('jobApply.applyDirectlyTitle')}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{t('jobApply.applyDirectlyDesc')}</p>
                   </div>
                 </div>
                 <div className="flex gap-3">
                   <span className="text-emerald-500 font-bold text-sm shrink-0">2.</span>
                   <div>
-                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Postularte con cotización</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Enviás un presupuesto detallado con ítems y precio. Si el cliente lo acepta, <strong className="text-emerald-600 dark:text-emerald-400">el contrato se crea automáticamente</strong>.</p>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{t('jobApply.applyQuoteTitle')}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400"><Trans i18nKey="jobApply.applyQuoteDesc" components={{ b: <strong className="text-emerald-600 dark:text-emerald-400" /> }} /></p>
                   </div>
                 </div>
                 <div className="flex gap-3">
                   <span className="text-slate-400 font-bold text-sm shrink-0">3.</span>
                   <div>
-                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Chatear primero</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Hablás con el cliente antes de postularte. Desde el chat podés cotizar en cualquier momento.</p>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{t('jobApply.chatFirstTitle')}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{t('jobApply.chatFirstDesc')}</p>
                   </div>
                 </div>
               </div>

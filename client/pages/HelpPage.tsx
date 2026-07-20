@@ -193,11 +193,11 @@ export default function HelpPage() {
             <LogIn className="h-5 w-5 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
             <div className="flex-1">
               <p className="text-sm text-sky-800 dark:text-sky-200">
-                <span className="font-medium">Podés crear un ticket sin iniciar sesión</span> — solo necesitás ingresar tu email registrado.{' '}
+                <span className="font-medium">{t('help.createTicketNoLoginBold')}</span> {t('help.createTicketNoLoginRest')}{' '}
                 <Link to="/login?redirect=/help" className="underline hover:no-underline font-medium">
-                  Iniciá sesión
+                  {t('help.signIn')}
                 </Link>{' '}
-                para ver tus tickets y disputas anteriores.
+                {t('help.signInToSeeHistory')}
               </p>
             </div>
           </div>
@@ -427,8 +427,8 @@ export default function HelpPage() {
                 {isGuest ? (
                   <div className="text-center py-12">
                     <AlertCircle className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-                    <p className="text-slate-700 dark:text-slate-200 font-medium mb-2">Iniciá sesión para ver tus disputas</p>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Las disputas están vinculadas a contratos y requieren autenticación.</p>
+                    <p className="text-slate-700 dark:text-slate-200 font-medium mb-2">{t('help.signInToSeeDisputes')}</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">{t('help.disputesNeedAuth')}</p>
                     <Link to="/login?redirect=/help" className="inline-flex items-center gap-2 px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg transition">
                       <LogIn className="h-4 w-4" />
                       Iniciar sesión
@@ -529,9 +529,9 @@ export default function HelpPage() {
                 {isGuest ? (
                   <div className="text-center py-12">
                     <Ticket className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-                    <p className="text-slate-700 dark:text-slate-200 font-medium mb-2">Iniciá sesión para ver tus tickets</p>
+                    <p className="text-slate-700 dark:text-slate-200 font-medium mb-2">{t('help.signInToSeeTickets')}</p>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
-                      ¿Creaste un ticket sin sesión? Guardá el número de ticket que te enviamos por email e iniciá sesión para ver su estado.
+                      {t('help.ticketsNoSessionNote')}
                     </p>
                     <div className="flex flex-col sm:flex-row gap-3 justify-center">
                       <Link to="/login?redirect=/help" className="inline-flex items-center gap-2 px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg transition">
