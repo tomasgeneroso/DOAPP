@@ -14,118 +14,41 @@ interface QuoteTemplate {
   items: Array<{ qty: number; description: string; unitPrice: number }>;
 }
 
-const QUOTE_TEMPLATES: QuoteTemplate[] = [
-  {
-    label: 'Plomería', emoji: '🔧',
-    title: 'Servicio de plomería',
-    items: [
-      { qty: 1, description: 'Mano de obra (por hora)', unitPrice: 0 },
-      { qty: 1, description: 'Materiales (caños, teflon, sellador)', unitPrice: 0 },
-      { qty: 1, description: 'Traslado y viáticos', unitPrice: 0 },
-    ],
-  },
-  {
-    label: 'Electricidad', emoji: '⚡',
-    title: 'Servicio eléctrico',
-    items: [
-      { qty: 1, description: 'Mano de obra electricista (horas)', unitPrice: 0 },
-      { qty: 1, description: 'Materiales (cables, llaves, toma)', unitPrice: 0 },
-      { qty: 1, description: 'Insumos varios', unitPrice: 0 },
-    ],
-  },
-  {
-    label: 'Pintura', emoji: '🎨',
-    title: 'Servicio de pintura',
-    items: [
-      { qty: 1, description: 'Mano de obra pintura interior (m²)', unitPrice: 0 },
-      { qty: 1, description: 'Pintura látex (litros)', unitPrice: 0 },
-      { qty: 1, description: 'Sellador / enduido', unitPrice: 0 },
-      { qty: 1, description: 'Rodillos, pinceles y plástico protector', unitPrice: 0 },
-    ],
-  },
-  {
-    label: 'Construcción', emoji: '🏗️',
-    title: 'Trabajo de construcción',
-    items: [
-      { qty: 1, description: 'Mano de obra albañilería', unitPrice: 0 },
-      { qty: 1, description: 'Cemento Portland (bolsas)', unitPrice: 0 },
-      { qty: 1, description: 'Arena fina (m³)', unitPrice: 0 },
-      { qty: 1, description: 'Materiales varios (ladrillos, varillas)', unitPrice: 0 },
-    ],
-  },
-  {
-    label: 'Carpintería', emoji: '🪵',
-    title: 'Servicio de carpintería',
-    items: [
-      { qty: 1, description: 'Mano de obra carpintería', unitPrice: 0 },
-      { qty: 1, description: 'Madera / MDF (m²)', unitPrice: 0 },
-      { qty: 1, description: 'Herrajes y accesorios', unitPrice: 0 },
-      { qty: 1, description: 'Barniz / laca / terminación', unitPrice: 0 },
-    ],
-  },
-  {
-    label: 'Limpieza', emoji: '🧹',
-    title: 'Servicio de limpieza',
-    items: [
-      { qty: 1, description: 'Limpieza profunda (horas)', unitPrice: 0 },
-      { qty: 1, description: 'Productos de limpieza', unitPrice: 0 },
-      { qty: 1, description: 'Limpieza de vidrios', unitPrice: 0 },
-    ],
-  },
-  {
-    label: 'Mudanza', emoji: '📦',
-    title: 'Servicio de mudanza',
-    items: [
-      { qty: 1, description: 'Flete / camión', unitPrice: 0 },
-      { qty: 1, description: 'Mano de obra carga y descarga', unitPrice: 0 },
-      { qty: 1, description: 'Materiales de embalaje (cajas, film)', unitPrice: 0 },
-      { qty: 1, description: 'Seguro de traslado', unitPrice: 0 },
-    ],
-  },
-  {
-    label: 'Jardinería', emoji: '🌿',
-    title: 'Servicio de jardinería',
-    items: [
-      { qty: 1, description: 'Mano de obra (horas)', unitPrice: 0 },
-      { qty: 1, description: 'Corte de césped', unitPrice: 0 },
-      { qty: 1, description: 'Plantas / semillas / sustrato', unitPrice: 0 },
-      { qty: 1, description: 'Fertilizante y herbicida', unitPrice: 0 },
-    ],
-  },
-  {
-    label: 'Diseño web', emoji: '💻',
-    title: 'Desarrollo / diseño web',
-    items: [
-      { qty: 1, description: 'Diseño UI/UX', unitPrice: 0 },
-      { qty: 1, description: 'Desarrollo frontend', unitPrice: 0 },
-      { qty: 1, description: 'Desarrollo backend / base de datos', unitPrice: 0 },
-      { qty: 1, description: 'Testing y correcciones', unitPrice: 0 },
-    ],
-  },
-  {
-    label: 'Fotografía', emoji: '📷',
-    title: 'Servicio fotográfico',
-    items: [
-      { qty: 1, description: 'Sesión fotográfica (horas)', unitPrice: 0 },
-      { qty: 1, description: 'Edición y retoque', unitPrice: 0 },
-      { qty: 1, description: 'Entrega de archivos digitales', unitPrice: 0 },
-    ],
-  },
-];
+type TFunc = (k: string) => string;
+
+const getQuoteTemplates = (t: TFunc): QuoteTemplate[] => {
+  const item = (key: string) => ({ qty: 1, description: t(key), unitPrice: 0 });
+  const tpl = (emoji: string, key: string, itemCount: number): QuoteTemplate => ({
+    emoji,
+    label: t(`quoteTemplates.${key}.label`),
+    title: t(`quoteTemplates.${key}.title`),
+    items: Array.from({ length: itemCount }, (_, i) => item(`quoteTemplates.${key}.i${i}`)),
+  });
+  return [
+    tpl('🔧', 'plumbing', 3),
+    tpl('⚡', 'electricity', 3),
+    tpl('🎨', 'painting', 4),
+    tpl('🏗️', 'construction', 4),
+    tpl('🪵', 'carpentry', 4),
+    tpl('🧹', 'cleaning', 3),
+    tpl('📦', 'moving', 4),
+    tpl('🌿', 'gardening', 4),
+    tpl('💻', 'webDesign', 4),
+    tpl('📷', 'photography', 3),
+  ];
+};
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
-const CONCEPT_EXAMPLES = [
-  'Plomería', 'Armado de muebles', 'Envío de mercadería', 'Pintura interior',
-  'Electricidad', 'Limpieza profunda', 'Reparación de electrodomésticos',
-  'Diseño gráfico', 'Desarrollo web', 'Fotografía', 'Jardinería',
-  'Mudanza', 'Carpintería', 'Instalación de aires acondicionados', 'Mantenimiento general',
-];
+const getConceptExamples = (t: TFunc): string[] =>
+  Array.from({ length: 15 }, (_, i) => t(`quoteConcepts.c${i}`));
 
 const emptyItem = (): QuoteItem => ({ qty: 1, description: '', unitPrice: 0, amount: 0 });
 
 export default function QuoteForm() {
   const { t } = useTranslation();
+  const quoteTemplates = getQuoteTemplates(t);
+  const conceptExamples = getConceptExamples(t);
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -546,7 +469,7 @@ export default function QuoteForm() {
                 <span className="text-xs text-slate-500 dark:text-slate-400">{t('quote.selectToPrefill')}</span>
               </div>
               <div className="flex flex-wrap gap-2">
-                {QUOTE_TEMPLATES.map(tpl => (
+                {quoteTemplates.map(tpl => (
                   <button
                     key={tpl.label}
                     type="button"
@@ -621,7 +544,7 @@ export default function QuoteForm() {
                           type="text"
                           value={item.description}
                           onChange={e => updateItem(i, 'description', e.target.value)}
-                          placeholder={`${t('quote.exPrefix')} ${CONCEPT_EXAMPLES[i % CONCEPT_EXAMPLES.length]}`}
+                          placeholder={`${t('quote.exPrefix')} ${conceptExamples[i % conceptExamples.length]}`}
                           className="w-full px-2 py-1.5 border border-slate-300 dark:border-slate-600 rounded bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
                         />
                       </td>
@@ -660,7 +583,7 @@ export default function QuoteForm() {
                 {t('quote.addItem')}
               </button>
               <span className="text-slate-400 text-xs">{t('quote.suggestions')}</span>
-              {CONCEPT_EXAMPLES.slice(0, 6).map(concept => (
+              {conceptExamples.slice(0, 6).map(concept => (
                 <button
                   key={concept}
                   type="button"

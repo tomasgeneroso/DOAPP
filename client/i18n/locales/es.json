@@ -21,6 +21,24 @@
     "expired": "Vencida",
     "cancelled": "Cancelada"
   },
+  "quoteTemplates": {
+    "plumbing": { "label": "Plomería", "title": "Servicio de plomería", "i0": "Mano de obra (por hora)", "i1": "Materiales (caños, teflon, sellador)", "i2": "Traslado y viáticos" },
+    "electricity": { "label": "Electricidad", "title": "Servicio eléctrico", "i0": "Mano de obra electricista (horas)", "i1": "Materiales (cables, llaves, toma)", "i2": "Insumos varios" },
+    "painting": { "label": "Pintura", "title": "Servicio de pintura", "i0": "Mano de obra pintura interior (m²)", "i1": "Pintura látex (litros)", "i2": "Sellador / enduido", "i3": "Rodillos, pinceles y plástico protector" },
+    "construction": { "label": "Construcción", "title": "Trabajo de construcción", "i0": "Mano de obra albañilería", "i1": "Cemento Portland (bolsas)", "i2": "Arena fina (m³)", "i3": "Materiales varios (ladrillos, varillas)" },
+    "carpentry": { "label": "Carpintería", "title": "Servicio de carpintería", "i0": "Mano de obra carpintería", "i1": "Madera / MDF (m²)", "i2": "Herrajes y accesorios", "i3": "Barniz / laca / terminación" },
+    "cleaning": { "label": "Limpieza", "title": "Servicio de limpieza", "i0": "Limpieza profunda (horas)", "i1": "Productos de limpieza", "i2": "Limpieza de vidrios" },
+    "moving": { "label": "Mudanza", "title": "Servicio de mudanza", "i0": "Flete / camión", "i1": "Mano de obra carga y descarga", "i2": "Materiales de embalaje (cajas, film)", "i3": "Seguro de traslado" },
+    "gardening": { "label": "Jardinería", "title": "Servicio de jardinería", "i0": "Mano de obra (horas)", "i1": "Corte de césped", "i2": "Plantas / semillas / sustrato", "i3": "Fertilizante y herbicida" },
+    "webDesign": { "label": "Diseño web", "title": "Desarrollo / diseño web", "i0": "Diseño UI/UX", "i1": "Desarrollo frontend", "i2": "Desarrollo backend / base de datos", "i3": "Testing y correcciones" },
+    "photography": { "label": "Fotografía", "title": "Servicio fotográfico", "i0": "Sesión fotográfica (horas)", "i1": "Edición y retoque", "i2": "Entrega de archivos digitales" }
+  },
+  "quoteConcepts": {
+    "c0": "Plomería", "c1": "Armado de muebles", "c2": "Envío de mercadería", "c3": "Pintura interior",
+    "c4": "Electricidad", "c5": "Limpieza profunda", "c6": "Reparación de electrodomésticos",
+    "c7": "Diseño gráfico", "c8": "Desarrollo web", "c9": "Fotografía", "c10": "Jardinería",
+    "c11": "Mudanza", "c12": "Carpintería", "c13": "Instalación de aires acondicionados", "c14": "Mantenimiento general"
+  },
   "jobApply": {
     "payment": "Pago",
     "tipsTitle": "Consejos para trabajadores",

@@ -21,6 +21,24 @@
     "expired": "Expired",
     "cancelled": "Cancelled"
   },
+  "quoteTemplates": {
+    "plumbing": { "label": "Plumbing", "title": "Plumbing service", "i0": "Labor (per hour)", "i1": "Materials (pipes, teflon, sealant)", "i2": "Travel and expenses" },
+    "electricity": { "label": "Electricity", "title": "Electrical service", "i0": "Electrician labor (hours)", "i1": "Materials (cables, switches, outlet)", "i2": "Miscellaneous supplies" },
+    "painting": { "label": "Painting", "title": "Painting service", "i0": "Interior painting labor (m²)", "i1": "Latex paint (liters)", "i2": "Sealant / filler", "i3": "Rollers, brushes and protective plastic" },
+    "construction": { "label": "Construction", "title": "Construction work", "i0": "Masonry labor", "i1": "Portland cement (bags)", "i2": "Fine sand (m³)", "i3": "Miscellaneous materials (bricks, rebar)" },
+    "carpentry": { "label": "Carpentry", "title": "Carpentry service", "i0": "Carpentry labor", "i1": "Wood / MDF (m²)", "i2": "Hardware and accessories", "i3": "Varnish / lacquer / finish" },
+    "cleaning": { "label": "Cleaning", "title": "Cleaning service", "i0": "Deep cleaning (hours)", "i1": "Cleaning products", "i2": "Window cleaning" },
+    "moving": { "label": "Moving", "title": "Moving service", "i0": "Freight / truck", "i1": "Loading and unloading labor", "i2": "Packing materials (boxes, film)", "i3": "Transit insurance" },
+    "gardening": { "label": "Gardening", "title": "Gardening service", "i0": "Labor (hours)", "i1": "Lawn mowing", "i2": "Plants / seeds / substrate", "i3": "Fertilizer and herbicide" },
+    "webDesign": { "label": "Web design", "title": "Web development / design", "i0": "UI/UX design", "i1": "Frontend development", "i2": "Backend / database development", "i3": "Testing and fixes" },
+    "photography": { "label": "Photography", "title": "Photography service", "i0": "Photo session (hours)", "i1": "Editing and retouching", "i2": "Delivery of digital files" }
+  },
+  "quoteConcepts": {
+    "c0": "Plumbing", "c1": "Furniture assembly", "c2": "Goods delivery", "c3": "Interior painting",
+    "c4": "Electricity", "c5": "Deep cleaning", "c6": "Appliance repair",
+    "c7": "Graphic design", "c8": "Web development", "c9": "Photography", "c10": "Gardening",
+    "c11": "Moving", "c12": "Carpentry", "c13": "Air conditioning installation", "c14": "General maintenance"
+  },
   "help": {
     "createTicketNoLoginBold": "You can create a ticket without signing in",
     "createTicketNoLoginRest": "— you just need to enter your registered email.",
