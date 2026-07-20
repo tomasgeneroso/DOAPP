@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../components/ui/Toast';
 import { Crown, Check, TrendingUp, Shield, BarChart3, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
@@ -300,17 +300,17 @@ export default function MembershipCheckout() {
                   {t('membership.upgradeToSuperPro', 'Upgrade a SUPER PRO')}
                 </h3>
                 <p className="text-purple-800 dark:text-purple-200 text-sm mb-3">
-                  Tienes <strong>{upgradeInfo.daysRemaining} días restantes</strong> en tu membresía PRO actual. Solo pagarás la diferencia prorrateada para actualizar a SUPER PRO por el tiempo restante.
+                  <Trans i18nKey="membership.upgradeDaysRemaining" values={{ days: upgradeInfo.daysRemaining }} components={{ b: <strong /> }} defaults="Tienes <b>{{days}} días restantes</b> en tu membresía PRO actual. Solo pagarás la diferencia prorrateada para actualizar a SUPER PRO por el tiempo restante." />
                 </p>
                 <div className="bg-white/50 dark:bg-gray-800/50 rounded-lg p-3 text-sm">
                   <p className="text-purple-900 dark:text-purple-100 font-semibold mb-1">
-                    ¿Cómo funciona el upgrade?
+                    {t('membership.upgradeHowTitle', '¿Cómo funciona el upgrade?')}
                   </p>
                   <ul className="list-disc list-inside text-purple-800 dark:text-purple-200 space-y-1">
-                    <li>Calculas el valor de tus {upgradeInfo.daysRemaining} días restantes de PRO</li>
-                    <li>Solo pagas la diferencia para tener SUPER PRO por esos mismos días</li>
-                    <li>Tu fecha de renovación se mantiene igual</li>
-                    <li>Obtienes acceso inmediato a todos los beneficios SUPER PRO</li>
+                    <li>{t('membership.upgradeHow1', 'Calculas el valor de tus {{days}} días restantes de PRO', { days: upgradeInfo.daysRemaining })}</li>
+                    <li>{t('membership.upgradeHow2', 'Solo pagas la diferencia para tener SUPER PRO por esos mismos días')}</li>
+                    <li>{t('membership.upgradeHow3', 'Tu fecha de renovación se mantiene igual')}</li>
+                    <li>{t('membership.upgradeHow4', 'Obtienes acceso inmediato a todos los beneficios SUPER PRO')}</li>
                   </ul>
                 </div>
               </div>

@@ -349,10 +349,10 @@ export default function Dashboard() {
       {showCompleteProfile && (() => {
         const u = user as any;
         const items = [
-          { ok: !!u.dni && !u.needsDni, label: 'Número de DNI', desc: 'Necesario para verificar tu identidad.', to: '/profile' },
-          { ok: !!u.dniVerified, label: 'Verificación de identidad', desc: 'Subí las fotos de tu DNI (frente y dorso) para poder trabajar y publicar.', to: '/profile' },
-          { ok: !!u.phone, label: 'Teléfono', desc: 'Para poder contactarte sobre tus trabajos.', to: '/settings' },
-          { ok: !!u.bankingInfo?.cbu, label: 'Datos bancarios (CBU)', desc: 'Para recibir tus pagos cuando trabajes.', to: '/settings?tab=banking' },
+          { ok: !!u.dni && !u.needsDni, label: t('dashboard.completeProfile.dniLabel', 'Número de DNI'), desc: t('dashboard.completeProfile.dniDesc', 'Necesario para verificar tu identidad.'), to: '/profile' },
+          { ok: !!u.dniVerified, label: t('dashboard.completeProfile.identityLabel', 'Verificación de identidad'), desc: t('dashboard.completeProfile.identityDesc', 'Subí las fotos de tu DNI (frente y dorso) para poder trabajar y publicar.'), to: '/profile' },
+          { ok: !!u.phone, label: t('dashboard.completeProfile.phoneLabel', 'Teléfono'), desc: t('dashboard.completeProfile.phoneDesc', 'Para poder contactarte sobre tus trabajos.'), to: '/settings' },
+          { ok: !!u.bankingInfo?.cbu, label: t('dashboard.completeProfile.bankingLabel', 'Datos bancarios (CBU)'), desc: t('dashboard.completeProfile.bankingDesc', 'Para recibir tus pagos cuando trabajes.'), to: '/settings?tab=banking' },
         ];
         const pending = items.filter((i) => !i.ok);
         if (pending.length === 0) return null;
@@ -360,9 +360,9 @@ export default function Dashboard() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md max-h-[calc(100vh-2rem)] flex flex-col">
               <div className="p-6 shrink-0">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">Completá tu perfil</h3>
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">{t('dashboard.completeProfile.title', 'Completá tu perfil')}</h3>
                 <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">
-                  Para publicar trabajos y trabajar necesitás completar estos datos:
+                  {t('dashboard.completeProfile.subtitle', 'Para publicar trabajos y trabajar necesitás completar estos datos:')}
                 </p>
               </div>
               <div className="px-6 flex-1 min-h-0 overflow-y-auto space-y-2">
@@ -383,14 +383,14 @@ export default function Dashboard() {
                   onClick={() => { localStorage.setItem('completeProfileDismissedAt', String(Date.now())); setShowCompleteProfile(false); }}
                   className="flex-1 px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
                 >
-                  Más tarde
+                  {t('dashboard.completeProfile.later', 'Más tarde')}
                 </button>
                 <Link
                   to="/profile"
                   onClick={() => setShowCompleteProfile(false)}
                   className="flex-1 text-center px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-semibold"
                 >
-                  Completar ahora
+                  {t('dashboard.completeProfile.completeNow', 'Completar ahora')}
                 </Link>
               </div>
             </div>

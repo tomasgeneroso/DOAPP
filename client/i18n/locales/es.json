@@ -189,6 +189,20 @@
     "pendingApproval": "Pendiente de aprobación"
   },
   "dashboard": {
+    "completeProfile": {
+      "title": "Completá tu perfil",
+      "subtitle": "Para publicar trabajos y trabajar necesitás completar estos datos:",
+      "dniLabel": "Número de DNI",
+      "dniDesc": "Necesario para verificar tu identidad.",
+      "identityLabel": "Verificación de identidad",
+      "identityDesc": "Subí las fotos de tu DNI (frente y dorso) para poder trabajar y publicar.",
+      "phoneLabel": "Teléfono",
+      "phoneDesc": "Para poder contactarte sobre tus trabajos.",
+      "bankingLabel": "Datos bancarios (CBU)",
+      "bankingDesc": "Para recibir tus pagos cuando trabajes.",
+      "later": "Más tarde",
+      "completeNow": "Completar ahora"
+    },
     "subtitle": "Resumen de tu actividad en la plataforma",
     "earningsDescription": "Dinero recibido (sin comisiones)",
     "expensesDescription": "Incluye comisión de la plataforma",
@@ -1246,6 +1260,8 @@
     "pending": "Pendiente",
     "worker": "Trabajador",
     "confirmed": "Confirmado",
+    "pairingCode": "Código de emparejamiento",
+    "pairingVerified": "Código verificado — ambas partes confirmaron",
     "workVerification": "Verificación del trabajo",
     "originalSchedule": "Cronograma original del contrato",
     "start": "Inicio",
@@ -1591,6 +1607,12 @@
   },
   "membership": {
     "title": "Membresía",
+    "upgradeDaysRemaining": "Tienes <b>{{days}} días restantes</b> en tu membresía PRO actual. Solo pagarás la diferencia prorrateada para actualizar a SUPER PRO por el tiempo restante.",
+    "upgradeHowTitle": "¿Cómo funciona el upgrade?",
+    "upgradeHow1": "Calculas el valor de tus {{days}} días restantes de PRO",
+    "upgradeHow2": "Solo pagas la diferencia para tener SUPER PRO por esos mismos días",
+    "upgradeHow3": "Tu fecha de renovación se mantiene igual",
+    "upgradeHow4": "Obtienes acceso inmediato a todos los beneficios SUPER PRO",
     "free": "Gratis",
     "pro": "PRO",
     "superPro": "SUPER PRO",

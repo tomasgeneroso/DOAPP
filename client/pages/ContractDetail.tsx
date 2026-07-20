@@ -727,12 +727,12 @@ export default function ContractDetail() {
                   <div className="border-t pt-3">
                     <p className="text-xs text-gray-500 mb-2 font-medium flex items-center gap-1">
                       <Key className="h-3.5 w-3.5" />
-                      Código de emparejamiento
+                      {t('contracts.pairingCode', 'Código de emparejamiento')}
                     </p>
                     {contract.clientConfirmedPairing && contract.doerConfirmedPairing ? (
                       <div className="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
                         <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-400 shrink-0" />
-                        <span className="text-xs font-semibold text-green-800 dark:text-green-300">Código verificado — ambas partes confirmaron</span>
+                        <span className="text-xs font-semibold text-green-800 dark:text-green-300">{t('contracts.pairingVerified', 'Código verificado — ambas partes confirmaron')}</span>
                       </div>
                     ) : (
                       <div className="space-y-1.5">

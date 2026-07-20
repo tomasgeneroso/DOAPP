@@ -214,6 +214,20 @@
     "send": "Send quote"
   },
   "dashboard": {
+    "completeProfile": {
+      "title": "Complete your profile",
+      "subtitle": "To publish jobs and work, you need to complete this information:",
+      "dniLabel": "ID number (DNI)",
+      "dniDesc": "Required to verify your identity.",
+      "identityLabel": "Identity verification",
+      "identityDesc": "Upload photos of your ID (front and back) to be able to work and publish.",
+      "phoneLabel": "Phone",
+      "phoneDesc": "So we can contact you about your jobs.",
+      "bankingLabel": "Banking info (CBU)",
+      "bankingDesc": "To receive your payments when you work.",
+      "later": "Later",
+      "completeNow": "Complete now"
+    },
     "subtitle": "Summary of your activity on the platform",
     "earningsDescription": "Money received (without commissions)",
     "expensesDescription": "Includes platform commission",
@@ -617,6 +631,8 @@
   },
   "contracts": {
     "title": "Contracts",
+    "pairingCode": "Pairing code",
+    "pairingVerified": "Code verified — both parties confirmed",
     "myContracts": "My Contracts",
     "subtitle": "Manage all your active and completed contracts",
     "noContracts": "You have no contracts",
@@ -780,6 +796,12 @@
   },
   "membership": {
     "title": "Membership",
+    "upgradeDaysRemaining": "You have <b>{{days}} days remaining</b> on your current PRO membership. You'll only pay the prorated difference to upgrade to SUPER PRO for the remaining time.",
+    "upgradeHowTitle": "How does the upgrade work?",
+    "upgradeHow1": "We calculate the value of your {{days}} remaining PRO days",
+    "upgradeHow2": "You only pay the difference to have SUPER PRO for those same days",
+    "upgradeHow3": "Your renewal date stays the same",
+    "upgradeHow4": "You get immediate access to all SUPER PRO benefits",
     "free": "Free",
     "pro": "PRO",
     "superPro": "SUPER PRO",
