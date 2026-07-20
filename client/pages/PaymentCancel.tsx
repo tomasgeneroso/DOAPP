@@ -15,10 +15,10 @@ export default function PaymentCancel() {
             <XCircle className="w-16 h-16 text-amber-500" />
           </div>
           <h1 className="text-4xl md:text-5xl font-bold mb-4">
-            Pago Cancelado
+            {t('paymentResult.cancelTitle')}
           </h1>
           <p className="text-xl text-amber-100">
-            No se procesó ningún cargo
+            {t('paymentResult.cancelSubtitle')}
           </p>
         </div>
 
@@ -26,7 +26,7 @@ export default function PaymentCancel() {
         <div className="p-8 md:p-12">
           <div className="text-center mb-8">
             <p className="text-lg text-gray-600 dark:text-gray-300 mb-6">
-              Cancelaste el proceso de pago. Tu trabajo no ha sido publicado y no se realizó ningún cargo a tu cuenta.
+              {t('paymentResult.cancelDescription')}
             </p>
           </div>
 
@@ -35,20 +35,20 @@ export default function PaymentCancel() {
             <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-6">
               <h3 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                 <HelpCircle className="w-5 h-5 text-blue-500" />
-                ¿Qué puedes hacer ahora?
+                {t('paymentResult.cancelWhatToDo')}
               </h3>
               <ul className="space-y-2 text-gray-600 dark:text-gray-300">
                 <li className="flex items-start gap-2">
                   <span className="text-blue-500">•</span>
-                  <span>Intentar nuevamente con otro método de pago</span>
+                  <span>{t('paymentResult.cancelRetry')}</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-blue-500">•</span>
-                  <span>Revisar los detalles de tu trabajo antes de publicar</span>
+                  <span>{t('paymentResult.cancelReview')}</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-blue-500">•</span>
-                  <span>Contactar con soporte si tuviste algún problema</span>
+                  <span>{t('paymentResult.cancelContactSupport')}</span>
                 </li>
               </ul>
             </div>
@@ -61,25 +61,25 @@ export default function PaymentCancel() {
               className="flex-1 bg-amber-600 hover:bg-amber-700 text-white font-semibold px-6 py-4 rounded-xl transition-colors flex items-center justify-center gap-2 group"
             >
               <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-              Intentar Nuevamente
+              {t('paymentResult.tryAgain')}
             </button>
             <button
               onClick={() => window.location.href = "/"}
               className="flex-1 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-white font-semibold px-6 py-4 rounded-xl transition-colors"
             >
-              Ver Trabajos
+              {t('paymentResult.viewJobs')}
             </button>
           </div>
 
           {/* Ayuda */}
           <div className="text-center mt-8">
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              ¿Necesitas ayuda?{" "}
+              {t('paymentResult.needHelp')}{" "}
               <button
                 onClick={() => navigate("/help")}
                 className="text-blue-600 dark:text-blue-400 hover:underline font-medium"
               >
-                Contacta con soporte
+                {t('paymentResult.contactSupport')}
               </button>
             </p>
           </div>

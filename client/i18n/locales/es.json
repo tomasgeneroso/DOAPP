@@ -1,4 +1,17 @@
 {
+  "paymentResult": {
+    "cancelTitle": "Pago Cancelado",
+    "cancelSubtitle": "No se procesó ningún cargo",
+    "cancelDescription": "Cancelaste el proceso de pago. Tu trabajo no ha sido publicado y no se realizó ningún cargo a tu cuenta.",
+    "cancelWhatToDo": "¿Qué puedes hacer ahora?",
+    "cancelRetry": "Intentar nuevamente con otro método de pago",
+    "cancelReview": "Revisar los detalles de tu trabajo antes de publicar",
+    "cancelContactSupport": "Contactar con soporte si tuviste algún problema",
+    "tryAgain": "Intentar Nuevamente",
+    "viewJobs": "Ver Trabajos",
+    "needHelp": "¿Necesitas ayuda?",
+    "contactSupport": "Contacta con soporte"
+  },
   "professions": {
     "unspecified": "Sin especificar",
     "gasista": "Gasista matriculado",

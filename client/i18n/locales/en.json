@@ -1,4 +1,17 @@
 {
+  "paymentResult": {
+    "cancelTitle": "Payment Cancelled",
+    "cancelSubtitle": "No charge was processed",
+    "cancelDescription": "You cancelled the payment process. Your job was not published and no charge was made to your account.",
+    "cancelWhatToDo": "What can you do now?",
+    "cancelRetry": "Try again with another payment method",
+    "cancelReview": "Review your job details before publishing",
+    "cancelContactSupport": "Contact support if you had any problem",
+    "tryAgain": "Try Again",
+    "viewJobs": "View Jobs",
+    "needHelp": "Need help?",
+    "contactSupport": "Contact support"
+  },
   "professions": {
     "unspecified": "Unspecified",
     "gasista": "Licensed gas fitter",
