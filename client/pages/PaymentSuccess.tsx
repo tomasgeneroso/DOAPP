@@ -252,12 +252,12 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
                 onClick={() => navigate("/")}
                 className="w-full bg-sky-600 hover:bg-sky-700 text-white font-semibold px-8 py-3 rounded-lg transition-colors"
               >
-                Volver al Inicio
+                {t('paymentResult.backHome')}
               </button>
               {confirmation.message?.includes('No se encontraron parámetros') && (
                 <div className="mt-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
                   <p className="text-sm text-yellow-800 dark:text-yellow-300">
-                    <strong>Tip:</strong> Para realizar un pago, debes crear un contrato, publicar un trabajo o comprar una membresía desde la plataforma.
+                    <strong>{t('paymentResult.tipLabel')}</strong> {t('paymentResult.tipNoParams')}
                   </p>
                 </div>
               )}
@@ -319,13 +319,13 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
         <div className="p-8 md:p-12">
           <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-6 mb-8">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-gray-600 dark:text-gray-300 font-medium">Monto pagado:</span>
+              <span className="text-gray-600 dark:text-gray-300 font-medium">{t('paymentResult.amountPaid')}</span>
               <span className="text-3xl font-bold text-gray-900 dark:text-white">
                 ${Number(confirmation.amount || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-500 dark:text-gray-400">ID de transacción:</span>
+              <span className="text-gray-500 dark:text-gray-400">{t('paymentResult.transactionId')}</span>
               <span className="text-gray-700 dark:text-gray-300 font-mono">
                 {confirmation.token.substring(0, 16)}...
               </span>
@@ -521,15 +521,15 @@ Si acabas de realizar un pago y ves este error, por favor contacta a soporte.`
               </div>
               <div className="flex-1">
                 <h4 className="font-semibold text-blue-900 dark:text-blue-300 mb-2">
-                  Sistema de Protección Escrow
+                  {t('paymentResult.escrowTitle')}
                 </h4>
                 <p className="text-blue-800 dark:text-blue-300 text-sm">
-                  Tu dinero está protegido. No se le pagará al profesional hasta que:
+                  {t('paymentResult.escrowDescription')}
                 </p>
                 <ul className="list-disc list-inside text-blue-700 dark:text-blue-300 text-sm mt-2 space-y-1">
-                  <li>El trabajo esté completado según lo acordado</li>
-                  <li>Tú confirmes que estás satisfecho con el resultado</li>
-                  <li>El profesional confirme que completó el trabajo</li>
+                  <li>{t('paymentResult.escrowCond1')}</li>
+                  <li>{t('paymentResult.escrowCond2')}</li>
+                  <li>{t('paymentResult.escrowCond3')}</li>
                 </ul>
               </div>
             </div>

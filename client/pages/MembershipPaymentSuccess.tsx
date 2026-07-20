@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { CheckCircle, Crown, TrendingUp, Shield, BarChart3, ArrowRight, Sparkles } from "lucide-react";
 import { useAuth } from "../hooks/useAuth";
@@ -25,12 +25,12 @@ export default function MembershipPaymentSuccess() {
     } else if (status === "pending") {
       return {
         status: "processing",
-        message: "Tu pago está siendo procesado. Te notificaremos cuando se complete."
+        message: t('membershipSuccess.processingMessage')
       };
     } else {
       return {
         status: "error",
-        message: "No se pudo confirmar el pago. Por favor contacta a soporte si ya realizaste el pago."
+        message: t('membershipSuccess.errorCouldNotConfirm')
       };
     }
   };
@@ -72,7 +72,7 @@ export default function MembershipPaymentSuccess() {
           setConfirmation({ status: "confirmed" });
         } catch (error: any) {
           console.error("❌ Error activating membership:", error);
-          setConfirmation({ status: "error", message: error.message || "Error al activar la membresía" });
+          setConfirmation({ status: "error", message: error.message || t('membershipSuccess.errorActivating') });
         }
       };
 
@@ -150,16 +150,16 @@ export default function MembershipPaymentSuccess() {
               </svg>
             </div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
-              Error en el Pago
+              {t('membershipSuccess.errorTitle')}
             </h1>
             <p className="text-gray-600 dark:text-gray-300 mb-8">
-              {confirmation.message || "Hubo un problema al procesar tu pago de membresía. Por favor, intenta nuevamente."}
+              {confirmation.message || t('membershipSuccess.errorDefault')}
             </p>
             <button
               onClick={() => navigate("/membership")}
               className="bg-red-600 hover:bg-red-700 text-white font-semibold px-8 py-3 rounded-lg transition-colors"
             >
-              Volver a Membresías
+              {t('membershipSuccess.backToMembership')}
             </button>
           </div>
         </div>
@@ -176,10 +176,10 @@ export default function MembershipPaymentSuccess() {
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600 dark:border-purple-400"></div>
             </div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
-              Procesando Pago de Membresía...
+              {t('membershipSuccess.processingTitle')}
             </h1>
             <p className="text-gray-600 dark:text-gray-300">
-              Estamos confirmando tu pago con MercadoPago y activando tu membresía PRO.
+              {t('membershipSuccess.processingSubtitle')}
             </p>
           </div>
         </div>
@@ -207,10 +207,10 @@ export default function MembershipPaymentSuccess() {
             <Crown className="w-16 h-16 text-yellow-500" />
           </div>
           <h1 className="text-4xl md:text-5xl font-bold mb-4">
-            ¡Bienvenido a PRO! 🎉
+            {t('membershipSuccess.welcomeTitle')}
           </h1>
           <p className="text-xl text-purple-100">
-            Tu membresía PRO ha sido activada exitosamente
+            {t('membershipSuccess.welcomeSubtitle')}
           </p>
         </div>
 
@@ -218,12 +218,12 @@ export default function MembershipPaymentSuccess() {
         <div className="p-8 md:p-12">
           <div className="bg-gradient-to-r from-purple-50 to-sky-50 dark:from-purple-900/20 dark:to-sky-900/20 rounded-xl p-6 mb-8 border border-purple-200 dark:border-purple-800">
             <div className="text-center">
-              <p className="text-gray-600 dark:text-gray-300 mb-2">Tu inversión mensual</p>
+              <p className="text-gray-600 dark:text-gray-300 mb-2">{t('membershipSuccess.monthlyInvestment')}</p>
               <p className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-sky-600">
                 $4.999
               </p>
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                Renovación automática mensual
+                {t('membershipSuccess.autoRenewal')}
               </p>
             </div>
           </div>
@@ -231,7 +231,7 @@ export default function MembershipPaymentSuccess() {
           {/* Beneficios desbloqueados */}
           <div className="space-y-6 mb-8">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 text-center">
-              🚀 Ya tenés acceso a todos estos beneficios:
+              {t('membershipSuccess.benefitsTitle')}
             </h2>
 
             {/* Beneficio 1 */}
@@ -243,10 +243,10 @@ export default function MembershipPaymentSuccess() {
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                  ⚡ Comisión reducida al 1%
+                  {t('membershipSuccess.benefit1Title')}
                 </h3>
                 <p className="text-gray-600 dark:text-gray-300 text-sm">
-                  Ahorrá un 7% en cada transacción. Tus primeros 3 contratos mensuales solo tendrán 1% de comisión.
+                  {t('membershipSuccess.benefit1Desc')}
                 </p>
               </div>
             </div>
@@ -260,10 +260,10 @@ export default function MembershipPaymentSuccess() {
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                  👑 Badge PRO Dorado
+                  {t('membershipSuccess.benefit2Title')}
                 </h3>
                 <p className="text-gray-600 dark:text-gray-300 text-sm">
-                  Tu perfil ahora muestra un badge dorado. Destacá como profesional verificado.
+                  {t('membershipSuccess.benefit2Desc')}
                 </p>
               </div>
             </div>
@@ -277,10 +277,10 @@ export default function MembershipPaymentSuccess() {
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                  🔍 Prioridad en Búsquedas
+                  {t('membershipSuccess.benefit3Title')}
                 </h3>
                 <p className="text-gray-600 dark:text-gray-300 text-sm">
-                  Aparecés primero cuando clientes busquen servicios. Más visibilidad = más trabajos.
+                  {t('membershipSuccess.benefit3Desc')}
                 </p>
               </div>
             </div>
@@ -294,10 +294,10 @@ export default function MembershipPaymentSuccess() {
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">
-                  📊 Estadísticas Avanzadas
+                  {t('membershipSuccess.benefit4Title')}
                 </h3>
                 <p className="text-gray-600 dark:text-gray-300 text-sm">
-                  Accedé a analytics detallados de tus contratos, aplicaciones y balances.
+                  {t('membershipSuccess.benefit4Desc')}
                 </p>
               </div>
             </div>
@@ -311,11 +311,10 @@ export default function MembershipPaymentSuccess() {
               </div>
               <div className="flex-1">
                 <h4 className="font-semibold text-yellow-900 dark:text-yellow-300 mb-2">
-                  🎁 Bonus Mensual Disponible
+                  {t('membershipSuccess.bonusTitle')}
                 </h4>
                 <p className="text-yellow-800 dark:text-yellow-300 text-sm">
-                  Completá 3 contratos este mes y ganás <strong>1 publicación libre de comisión</strong>.
-                  ¡Aprovechá al máximo tu membresía!
+                  <Trans i18nKey="membershipSuccess.bonusDesc" components={{ b: <strong /> }} />
                 </p>
               </div>
             </div>
@@ -324,31 +323,31 @@ export default function MembershipPaymentSuccess() {
           {/* Próximos pasos */}
           <div className="bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-800 rounded-xl p-6 mb-8">
             <h3 className="font-bold text-sky-900 dark:text-sky-300 mb-4 text-lg">
-              📋 Próximos Pasos
+              {t('membershipSuccess.nextStepsTitle')}
             </h3>
             <ul className="space-y-3 text-sky-800 dark:text-sky-300 text-sm">
               <li className="flex items-start gap-2">
                 <CheckCircle className="w-5 h-5 text-sky-600 dark:text-sky-400 flex-shrink-0 mt-0.5" />
                 <span>
-                  <strong>Visitá tu Dashboard PRO</strong> para ver tu uso mensual de contratos
+                  <Trans i18nKey="membershipSuccess.step1" components={{ b: <strong /> }} />
                 </span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle className="w-5 h-5 text-sky-600 dark:text-sky-400 flex-shrink-0 mt-0.5" />
                 <span>
-                  <strong>Empezá a publicar trabajos</strong> con solo 1% de comisión
+                  <Trans i18nKey="membershipSuccess.step2" components={{ b: <strong /> }} />
                 </span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle className="w-5 h-5 text-sky-600 dark:text-sky-400 flex-shrink-0 mt-0.5" />
                 <span>
-                  <strong>Aplicá a más trabajos</strong> y destacá con tu badge PRO
+                  <Trans i18nKey="membershipSuccess.step3" components={{ b: <strong /> }} />
                 </span>
               </li>
               <li className="flex items-start gap-2">
                 <CheckCircle className="w-5 h-5 text-sky-600 dark:text-sky-400 flex-shrink-0 mt-0.5" />
                 <span>
-                  <strong>Monitoreá tus estadísticas</strong> en el panel de analytics
+                  <Trans i18nKey="membershipSuccess.step4" components={{ b: <strong /> }} />
                 </span>
               </li>
             </ul>
@@ -361,20 +360,20 @@ export default function MembershipPaymentSuccess() {
               className="flex-1 bg-gradient-to-r from-purple-600 to-sky-600 hover:from-purple-700 hover:to-sky-700 text-white font-semibold px-6 py-4 rounded-xl transition-all flex items-center justify-center gap-2 group shadow-lg"
             >
               <Crown className="w-5 h-5" />
-              Ver Dashboard PRO
+              {t('membershipSuccess.viewDashboard')}
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </button>
             <button
               onClick={() => navigate("/")}
               className="flex-1 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-white font-semibold px-6 py-4 rounded-xl transition-colors"
             >
-              Explorar Trabajos
+              {t('membershipSuccess.exploreJobs')}
             </button>
           </div>
 
           {/* Auto-redirect countdown */}
           <div className="text-center mt-8 text-sm text-gray-500 dark:text-gray-400">
-            Redirigiendo a tu Dashboard PRO en {countdown} segundos...
+            {t('membershipSuccess.redirecting', { count: countdown })}
           </div>
         </div>
       </div>
