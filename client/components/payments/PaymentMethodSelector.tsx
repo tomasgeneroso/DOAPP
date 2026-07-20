@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 import { Building2, Copy, Check } from 'lucide-react';
 
 export type PaymentMethod = 'mercadopago' | 'astropay' | 'binance' | 'bank_transfer';
@@ -198,12 +198,12 @@ export default function PaymentMethodSelector({
         <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
         <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">
           {selectedMethod === 'mercadopago'
-            ? 'Pago seguro con MercadoPago'
+            ? t('payments.dividerMercadopago', 'Pago seguro con MercadoPago')
             : selectedMethod === 'astropay'
-            ? 'Tarjeta, débito o métodos locales'
+            ? t('payments.dividerAstropay', 'Tarjeta, débito o métodos locales')
             : selectedMethod === 'binance'
-            ? 'Transferencia de criptomonedas'
-            : 'Transferencia bancaria'}
+            ? t('payments.dividerBinance', 'Transferencia de criptomonedas')
+            : t('payments.dividerBank', 'Transferencia bancaria')}
         </span>
         <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
       </div>
@@ -216,7 +216,7 @@ export default function PaymentMethodSelector({
               <span className="text-[10px] font-black text-white leading-none">MP</span>
             </div>
             <p className="text-sm text-sky-800 dark:text-sky-300 leading-snug">
-              <span className="font-semibold">Serás redirigido a MercadoPago</span> para completar el pago de forma segura. Aceptás tarjetas de crédito/débito, transferencia bancaria y efectivo — no ingresás los datos de la tarjeta acá.
+              <Trans i18nKey="payments.mpRedirectNotice" components={{ b: <span className="font-semibold" /> }} defaults="<b>Serás redirigido a MercadoPago</b> para completar el pago de forma segura. Aceptás tarjetas de crédito/débito, transferencia bancaria y efectivo — no ingresás los datos de la tarjeta acá." />
             </p>
           </div>
         </div>
@@ -228,28 +228,28 @@ export default function PaymentMethodSelector({
           {loadingConversion ? (
             <div className="flex items-center justify-center gap-3 py-8 text-slate-500 dark:text-slate-400">
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-amber-400 border-t-transparent" />
-              <span className="text-sm">Calculando conversión...</span>
+              <span className="text-sm">{t('payments.calculatingConversion', 'Calculando conversión...')}</span>
             </div>
           ) : (
             <>
               {/* Conversion card */}
               <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-medium text-amber-800 dark:text-amber-200">Monto en ARS</span>
+                  <span className="text-xs font-medium text-amber-800 dark:text-amber-200">{t('payments.amountArs', 'Monto en ARS')}</span>
                   <span className="text-base font-bold text-amber-900 dark:text-amber-100">
                     ${amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
                   </span>
                 </div>
                 <div className="h-px bg-amber-200 dark:bg-amber-700 mb-2" />
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-amber-800 dark:text-amber-200">Equivalente USDT</span>
+                  <span className="text-xs font-medium text-amber-800 dark:text-amber-200">{t('payments.usdtEquivalent', 'Equivalente USDT')}</span>
                   <span className="text-lg font-bold text-green-600 dark:text-green-400">
                     {usdtAmount?.toFixed(2) || '0.00'} USDT
                   </span>
                 </div>
                 {usdtRate && (
                   <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1.5">
-                    Tasa: 1 USDT = ${usdtRate.toLocaleString('es-AR')} ARS
+                    {t('payments.usdtRate', 'Tasa: 1 USDT = ${{rate}} ARS', { rate: usdtRate.toLocaleString('es-AR') })}
                   </p>
                 )}
               </div>
@@ -257,7 +257,7 @@ export default function PaymentMethodSelector({
               {/* Binance ID & Nickname */}
               {(binanceInfo.binanceId || binanceInfo.binanceNickname) && (
                 <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 space-y-3">
-                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Datos para transferir:</p>
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{t('payments.transferData', 'Datos para transferir:')}</p>
                   {binanceInfo.binanceId && (
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs text-slate-500 dark:text-slate-400 w-24 flex-shrink-0">Binance ID</span>
@@ -277,7 +277,7 @@ export default function PaymentMethodSelector({
                     </div>
                   )}
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs text-slate-500 dark:text-slate-400 w-24 flex-shrink-0">Monto</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400 w-24 flex-shrink-0">{t('payments.amount', 'Monto')}</span>
                     <code className="flex-1 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 px-3 py-1.5 text-sm font-mono font-bold text-green-800 dark:text-green-300">
                       {usdtAmount?.toFixed(2) || '0.00'} USDT
                     </code>
@@ -290,13 +290,13 @@ export default function PaymentMethodSelector({
               <div className="space-y-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-                    Tu Binance ID / Nickname <span className="text-red-500">*</span>
+                    {t('payments.yourBinanceId', 'Tu Binance ID / Nickname')} <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={binanceSenderUserId}
                     onChange={(e) => setBinanceSenderUserId(e.target.value)}
-                    placeholder="Ej: 123456789 o @tunombre"
+                    placeholder={t('payments.binanceIdPlaceholder', 'Ej: 123456789 o @tunombre')}
                     className="block w-full h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-4 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200 dark:focus:ring-amber-800 transition-all"
                   />
                 </div>
@@ -308,7 +308,7 @@ export default function PaymentMethodSelector({
                     type="text"
                     value={binanceTransactionId}
                     onChange={(e) => setBinanceTransactionId(e.target.value)}
-                    placeholder="0x1234abcd... o TxID de Binance"
+                    placeholder={t('payments.txIdPlaceholder', '0x1234abcd... o TxID de Binance')}
                     className="block w-full h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-4 text-sm font-mono text-slate-900 dark:text-white placeholder:text-slate-400 placeholder:font-sans focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-200 dark:focus:ring-amber-800 transition-all"
                   />
                 </div>
@@ -325,13 +325,13 @@ export default function PaymentMethodSelector({
           <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden">
             <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-900 px-4 py-3 border-b border-slate-200 dark:border-slate-700">
               <Building2 className="h-5 w-5 text-slate-500" />
-              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Datos para Transferencia</span>
+              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{t('payments.transferDetails', 'Datos para Transferencia')}</span>
             </div>
             <div className="p-4 space-y-2.5 text-sm">
               {[
-                { label: 'Titular', value: 'DOAPP S.R.L.' },
+                { label: t('payments.holder', 'Titular'), value: 'DOAPP S.R.L.' },
                 { label: 'CUIT', value: '30-12345678-9' },
-                { label: 'Banco', value: 'Banco Galicia' },
+                { label: t('payments.bank', 'Banco'), value: 'Banco Galicia' },
                 { label: 'Alias', value: 'DOAPP.PAGOS' },
               ].map(({ label, value }) => (
                 <div key={label} className="flex items-center justify-between">
@@ -350,7 +350,7 @@ export default function PaymentMethodSelector({
                 </div>
               </div>
               <div className="pt-2 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
-                <span className="text-slate-500 dark:text-slate-400">Monto a transferir</span>
+                <span className="text-slate-500 dark:text-slate-400">{t('payments.amountToTransfer', 'Monto a transferir')}</span>
                 <span className="text-lg font-bold text-slate-900 dark:text-white">
                   ${amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })} ARS
                 </span>
@@ -361,13 +361,13 @@ export default function PaymentMethodSelector({
           {/* Bank name field */}
           <div>
             <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-              Banco emisor <span className="text-red-500">*</span>
+              {t('payments.issuingBank', 'Banco emisor')} <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               value={senderBankName}
               onChange={(e) => setSenderBankName(e.target.value)}
-              placeholder="Ej: Banco Galicia, Santander, BBVA..."
+              placeholder={t('payments.issuingBankPlaceholder', 'Ej: Banco Galicia, Santander, BBVA...')}
               className="block w-full h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-4 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:focus:ring-sky-800 transition-all"
             />
           </div>
@@ -381,27 +381,27 @@ export default function PaymentMethodSelector({
               className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
             />
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-              La cuenta bancaria está a mi nombre
+              {t('payments.ownAccount', 'La cuenta bancaria está a mi nombre')}
             </span>
           </label>
 
           {!isOwnBankAccount && (
             <div className="animate-fadeIn">
               <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
-                Titular de la cuenta <span className="text-red-500">*</span>
+                {t('payments.accountHolder', 'Titular de la cuenta')} <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 value={thirdPartyAccountHolder}
                 onChange={(e) => setThirdPartyAccountHolder(e.target.value)}
-                placeholder="Nombre completo del titular"
+                placeholder={t('payments.accountHolderPlaceholder', 'Nombre completo del titular')}
                 className="block w-full h-11 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 px-4 text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-200 dark:focus:ring-sky-800 transition-all"
               />
             </div>
           )}
 
           <p className="text-xs text-slate-400 dark:text-slate-500">
-            ⏱ Verificación en 24-48hs hábiles. El trabajo se publicará una vez aprobado el pago.
+            {t('payments.verificationNotice', '⏱ Verificación en 24-48hs hábiles. El trabajo se publicará una vez aprobado el pago.')}
           </p>
         </div>
       )}

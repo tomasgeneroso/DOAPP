@@ -12,45 +12,56 @@ interface ReviewFormProps {
 
 const DIMENSIONS = [
   {
-  const { t } = useTranslation();
     key: 'timeliness' as const,
-    label: 'Puntualidad',
-    desc: '¿Llegó a la hora acordada?',
+    labelKey: 'review.dimTimeliness',
+    labelDefault: 'Puntualidad',
+    descKey: 'review.dimTimelinessDesc',
+    descDefault: '¿Llegó a la hora acordada?',
     icon: Clock,
     color: 'text-blue-500',
   },
   {
     key: 'attendance' as const,
-    label: 'Presencialidad',
-    desc: '¿Se presentó? ¿No te dejó esperando o plantado?',
+    labelKey: 'review.dimAttendance',
+    labelDefault: 'Presencialidad',
+    descKey: 'review.dimAttendanceDesc',
+    descDefault: '¿Se presentó? ¿No te dejó esperando o plantado?',
     icon: MapPin,
     color: 'text-orange-500',
   },
   {
     key: 'communication' as const,
-    label: 'Como persona',
-    desc: 'Trato, actitud y respeto durante el trabajo',
+    labelKey: 'review.dimCommunication',
+    labelDefault: 'Como persona',
+    descKey: 'review.dimCommunicationDesc',
+    descDefault: 'Trato, actitud y respeto durante el trabajo',
     icon: Heart,
     color: 'text-pink-500',
   },
   {
     key: 'fairPrice' as const,
-    label: 'Precio justo',
-    desc: '¿Cobró lo acordado? ¿Sin cargos sorpresa?',
+    labelKey: 'review.dimFairPrice',
+    labelDefault: 'Precio justo',
+    descKey: 'review.dimFairPriceDesc',
+    descDefault: '¿Cobró lo acordado? ¿Sin cargos sorpresa?',
     icon: DollarSign,
     color: 'text-green-500',
   },
   {
     key: 'quality' as const,
-    label: 'Calidad de trabajo',
-    desc: 'Resultado final: ¿quedó bien hecho?',
+    labelKey: 'review.dimQuality',
+    labelDefault: 'Calidad de trabajo',
+    descKey: 'review.dimQualityDesc',
+    descDefault: 'Resultado final: ¿quedó bien hecho?',
     icon: Star,
     color: 'text-yellow-500',
   },
   {
     key: 'professionalism' as const,
-    label: 'Profesionalidad',
-    desc: 'Herramientas ordenadas, presencia limpia, trabajo prolijo',
+    labelKey: 'review.dimProfessionalism',
+    labelDefault: 'Profesionalidad',
+    descKey: 'review.dimProfessionalismDesc',
+    descDefault: 'Herramientas ordenadas, presencia limpia, trabajo prolijo',
     icon: Wrench,
     color: 'text-violet-500',
   },
@@ -92,10 +103,19 @@ function StarPicker({
   );
 }
 
-const LABELS = ['', 'Muy malo', 'Malo', 'Regular', 'Bueno', 'Excelente'];
+const getRatingLabels = (t: (k: string, d: string) => string) => [
+  '',
+  t('review.rating1', 'Muy malo'),
+  t('review.rating2', 'Malo'),
+  t('review.rating3', 'Regular'),
+  t('review.rating4', 'Bueno'),
+  t('review.rating5', 'Excelente'),
+];
 
 export default function ReviewForm({ contractId, reviewedName, onSuccess, onCancel }: ReviewFormProps) {
+  const { t } = useTranslation();
   const { token } = useAuth();
+  const LABELS = getRatingLabels(t);
 
   const [overallRating, setOverallRating] = useState(0);
   const [dimensions, setDimensions] = useState<Record<DimensionKey, number>>({
@@ -122,8 +142,8 @@ export default function ReviewForm({ contractId, reviewedName, onSuccess, onCanc
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (effectiveOverall === 0) { setError('Calificá al menos una dimensión o la puntuación general'); return; }
-    if (comment.length < 10) { setError('El comentario debe tener al menos 10 caracteres'); return; }
+    if (effectiveOverall === 0) { setError(t('review.errorNoRating', 'Calificá al menos una dimensión o la puntuación general')); return; }
+    if (comment.length < 10) { setError(t('review.errorShortComment', 'El comentario debe tener al menos 10 caracteres')); return; }
     setError('');
     setLoading(true);
     try {
@@ -142,7 +162,7 @@ export default function ReviewForm({ contractId, reviewedName, onSuccess, onCanc
         body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Error al enviar reseña');
+      if (!res.ok) throw new Error(data.message || t('review.errorSubmit', 'Error al enviar reseña'));
       onSuccess();
     } catch (err: any) {
       setError(err.message);
@@ -156,8 +176,8 @@ export default function ReviewForm({ contractId, reviewedName, onSuccess, onCanc
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h3 className="text-lg font-bold text-gray-900 dark:text-white">Dejar reseña</h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400">para {reviewedName}</p>
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white">{t('review.title', 'Dejar reseña')}</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{t('review.forName', 'para {{name}}', { name: reviewedName })}</p>
         </div>
         <button onClick={onCancel} className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition">
           <X className="w-5 h-5 text-gray-500" />
@@ -168,29 +188,29 @@ export default function ReviewForm({ contractId, reviewedName, onSuccess, onCanc
         {/* Overall rating */}
         <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">Puntuación general</span>
+            <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">{t('review.overallRating', 'Puntuación general')}</span>
             {effectiveOverall > 0 && (
               <span className="text-xs text-gray-500 dark:text-gray-400">{LABELS[effectiveOverall]}</span>
             )}
           </div>
           <StarPicker value={effectiveOverall} onChange={setOverallRating} color="text-sky-500" />
           {autoOverall > 0 && overallRating === 0 && (
-            <p className="text-xs text-gray-400 mt-1">Calculado automáticamente del promedio de dimensiones</p>
+            <p className="text-xs text-gray-400 mt-1">{t('review.autoCalculated', 'Calculado automáticamente del promedio de dimensiones')}</p>
           )}
         </div>
 
         {/* 6 dimensions */}
         <div className="space-y-3">
           <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-            Dimensiones (opcionales pero recomendadas)
+            {t('review.dimensionsHeader', 'Dimensiones (opcionales pero recomendadas)')}
           </p>
-          {DIMENSIONS.map(({ key, label, desc, icon: Icon, color }) => (
+          {DIMENSIONS.map(({ key, labelKey, labelDefault, descKey, descDefault, icon: Icon, color }) => (
             <div key={key} className="flex items-start gap-3 py-1">
               <div className="flex items-start gap-2 w-48 shrink-0">
                 <Icon className={`w-4 h-4 ${color} shrink-0 mt-0.5`} />
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white leading-tight">{label}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 leading-snug mt-0.5">{desc}</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-white leading-tight">{t(labelKey, labelDefault)}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 leading-snug mt-0.5">{t(descKey, descDefault)}</p>
                 </div>
               </div>
               <div className="flex flex-col gap-1 flex-1 pt-0.5">
@@ -206,7 +226,7 @@ export default function ReviewForm({ contractId, reviewedName, onSuccess, onCanc
         {/* Comment */}
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-            Comentario *
+            {t('review.commentLabel', 'Comentario *')}
           </label>
           <textarea
             value={comment}
@@ -215,7 +235,7 @@ export default function ReviewForm({ contractId, reviewedName, onSuccess, onCanc
             rows={4}
             minLength={10}
             maxLength={1000}
-            placeholder="Contá tu experiencia con este trabajador..."
+            placeholder={t('review.commentPlaceholder', 'Contá tu experiencia con este trabajador...')}
             className="w-full px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-900 dark:text-white resize-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
           />
           <p className="text-xs text-gray-400 mt-1 text-right">{comment.length}/1000</p>
@@ -234,14 +254,14 @@ export default function ReviewForm({ contractId, reviewedName, onSuccess, onCanc
             className="flex-1 flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 text-white font-medium py-2.5 rounded-lg transition disabled:opacity-50"
           >
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-            {loading ? 'Enviando...' : 'Enviar reseña'}
+            {loading ? t('review.submitting', 'Enviando...') : t('review.submit', 'Enviar reseña')}
           </button>
           <button
             type="button"
             onClick={onCancel}
             className="px-5 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition"
           >
-            Cancelar
+            {t('review.cancel', 'Cancelar')}
           </button>
         </div>
       </form>

@@ -70,7 +70,7 @@ export default function NeighborhoodAutocomplete({
         <label className="block text-sm font-medium leading-6 text-gray-900 dark:text-slate-200 mb-2">
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-            Barrio
+            {t("location.neighborhood", "Barrio")}
           </div>
         </label>
         <input
@@ -78,7 +78,7 @@ export default function NeighborhoodAutocomplete({
           value={neighborhood}
           onChange={(e) => handleNeighborhoodInput(e.target.value)}
           onFocus={handleFocus}
-          placeholder={hasSuggestions ? "Escribí para ver sugerencias…" : "Ej: Palermo, Villa Crespo"}
+          placeholder={hasSuggestions ? t("location.neighborhoodSuggestPlaceholder", "Escribí para ver sugerencias…") : t("location.neighborhoodPlaceholder", "Ej: Palermo, Villa Crespo")}
           disabled={disabled}
           className={baseInputClass}
           autoComplete="off"
@@ -104,14 +104,14 @@ export default function NeighborhoodAutocomplete({
         <label className="block text-sm font-medium leading-6 text-gray-900 dark:text-slate-200 mb-2">
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-            Código Postal
+            {t("location.postalCode", "Código Postal")}
           </div>
         </label>
         <input
           type="text"
           value={postalCode}
           onChange={(e) => onPostalCodeChange(e.target.value.replace(/[^0-9A-Za-z]/g, ""))}
-          placeholder="Ej: C1425 o 1425"
+          placeholder={t("location.postalCodePlaceholder", "Ej: C1425 o 1425")}
           maxLength={8}
           disabled={disabled}
           className={baseInputClass}

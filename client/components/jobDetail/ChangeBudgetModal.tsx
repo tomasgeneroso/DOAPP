@@ -58,7 +58,7 @@ export default function ChangeBudgetModal({
               inputMode="decimal"
               value={newBudget}
               onChange={(e) => onNewBudgetChange(formatBudgetInput(e.target.value))}
-              placeholder="Ej: 25000 o 25.000"
+              placeholder={t("jobs.newBudgetPlaceholder", "E.g.: 25000 or 25.000")}
               className="w-full rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-white placeholder:text-slate-500 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
             />
             {newBudget && (
