@@ -240,7 +240,7 @@ function TaxTab({ data, onSaved }: { data: Analytics; onSaved: (d: Partial<Analy
               </label>
               <label className="text-sm">
                 <span className="block text-slate-600 dark:text-slate-400 mb-1.5">{t("finance.annualCap", "Tope anual (ARS)")}</span>
-                <input type="number" inputMode="numeric" value={limit} onChange={(e) => setLimit(e.target.value)} placeholder="Ej: 6450000" className={inputCls} />
+                <input type="number" inputMode="numeric" value={limit} onChange={(e) => setLimit(e.target.value)} placeholder={t("finance.annualCapPlaceholder", "Ej: 6450000")} className={inputCls} />
               </label>
             </>
           )}
@@ -434,7 +434,7 @@ function ProfessionalTab({ data, onSaved }: { data: Analytics; onSaved: (d: Part
         <div className="grid sm:grid-cols-3 gap-4">
           <label className="text-sm">
             <span className="block text-slate-600 dark:text-slate-400 mb-1.5">{t("finance.profession", "Profesión")}</span>
-            <input value={profession} onChange={(e) => setProfession(e.target.value)} placeholder="Ej: Electricista" className={inputCls} />
+            <input value={profession} onChange={(e) => setProfession(e.target.value)} placeholder={t("finance.professionPlaceholder", "Ej: Electricista")} className={inputCls} />
           </label>
           <label className="text-sm">
             <span className="block text-slate-600 dark:text-slate-400 mb-1.5">{t("finance.licenseNumber", "N° de matrícula")}</span>
