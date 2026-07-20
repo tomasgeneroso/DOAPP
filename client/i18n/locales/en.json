@@ -32,6 +32,7 @@
     "uploadNote": "To add images, videos and documents, first create the item and then edit it to upload files."
   },
   "quote": {
+    "rejectReasonPlaceholder": "Explain why you reject this quote...",
     "newTitle": "New quote",
     "editTitle": "Edit quote",
     "applyTitle": "Apply with a quote",
@@ -541,6 +542,8 @@
   "chat": {
     "title": "Messages",
     "newMessage": "New message",
+    "searchUserPlaceholder": "Search by name or @username...",
+    "messagePlaceholder": "Write your message...",
     "searchUsers": "Search users...",
     "selectUser": "Select a user to chat with",
     "attachJob": "Attach a published job",
@@ -677,6 +680,7 @@
     "subtitle": "Need help? Create a support ticket and our team will assist you.",
     "ticketNumber": "Ticket number",
     "emailPlaceholder": "you@email.com",
+    "messagePlaceholder": "Write your message...",
     "subject": "Subject",
     "subjectPlaceholder": "Briefly describe your issue",
     "category": "Category",

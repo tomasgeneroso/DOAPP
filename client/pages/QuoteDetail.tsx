@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../hooks/useAuth';
 import { FileText, Download, Check, X, Edit, ArrowLeft, Clock, Briefcase } from 'lucide-react';
@@ -25,6 +26,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function QuoteDetail() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { token, user } = useAuth();
@@ -338,7 +340,7 @@ export default function QuoteDetail() {
               value={rejectReason}
               onChange={e => setRejectReason(e.target.value)}
               rows={3}
-              placeholder="Explica por qué rechazas esta cotización..."
+              placeholder={t('quote.rejectReasonPlaceholder', 'Explica por qué rechazas esta cotización...')}
               className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm resize-none mb-4"
             />
             <div className="flex gap-3 justify-end">

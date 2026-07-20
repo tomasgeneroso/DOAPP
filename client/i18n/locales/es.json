@@ -1,5 +1,6 @@
 {
   "quote": {
+    "rejectReasonPlaceholder": "Explica por qué rechazas esta cotización...",
     "newTitle": "Nueva cotización",
     "editTitle": "Editar cotización",
     "applyTitle": "Postularse con cotización",
@@ -1249,6 +1250,8 @@
   "chat": {
     "title": "Mensajes",
     "newMessage": "Nuevo mensaje",
+    "searchUserPlaceholder": "Buscar por nombre o @usuario...",
+    "messagePlaceholder": "Escribí tu mensaje...",
     "searchUsers": "Buscar usuarios...",
     "selectUser": "Selecciona un usuario para chatear",
     "attachJob": "Adjuntar un trabajo publicado",
@@ -1531,6 +1534,7 @@
     "subtitle": "¿Necesitas ayuda? Crea un ticket de soporte y nuestro equipo te asistirá",
     "ticketNumber": "Número de ticket",
     "emailPlaceholder": "tu@email.com",
+    "messagePlaceholder": "Escribe tu mensaje...",
     "subject": "Asunto",
     "subjectPlaceholder": "Describe brevemente tu problema",
     "category": "Categoría",

@@ -77,6 +77,7 @@ const priorityLabels: Record<string, { label: string; color: string }> = {
 };
 
 export default function TicketDetail() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const { token, user } = useAuth();
   const [ticket, setTicket] = useState<Ticket | null>(null);
@@ -305,7 +306,7 @@ export default function TicketDetail() {
                   type="text"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  placeholder="Escribe tu mensaje..."
+                  placeholder={t('tickets.messagePlaceholder', 'Escribe tu mensaje...')}
                   className="flex-1 px-4 py-2 bg-slate-100 dark:bg-slate-700 border-0 rounded-lg text-slate-900 dark:text-white placeholder-slate-500 focus:ring-2 focus:ring-sky-500"
                 />
                 <button

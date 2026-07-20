@@ -954,7 +954,7 @@ export default function MessagesScreen() {
                       type="text"
                       value={userSearchQuery}
                       onChange={(e) => handleUserSearchChange(e.target.value)}
-                      placeholder="Buscar por nombre o @usuario..."
+                      placeholder={t('chat.searchUserPlaceholder', 'Buscar por nombre o @usuario...')}
                       className="w-full pl-10 pr-4 py-2.5 bg-slate-100 dark:bg-slate-700 border-none rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500"
                       autoFocus
                     />
@@ -1076,7 +1076,7 @@ export default function MessagesScreen() {
                     <textarea
                       value={newConversationMessage}
                       onChange={(e) => setNewConversationMessage(e.target.value)}
-                      placeholder="Escribí tu mensaje..."
+                      placeholder={t('chat.messagePlaceholder', 'Escribí tu mensaje...')}
                       rows={3}
                       className="w-full px-4 py-2.5 bg-slate-100 dark:bg-slate-700 border-none rounded-lg text-sm text-slate-900 dark:text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none"
                     />
