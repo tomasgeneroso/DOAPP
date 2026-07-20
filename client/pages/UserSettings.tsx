@@ -221,6 +221,7 @@ function ProfessionTab({
   licenseUploading: boolean; setLicenseUploading: (v: boolean) => void;
   token: string;
 }) {
+  const { t } = useTranslation();
   const isRegulated = REGULATED_PROFESSIONS.includes(profession);
 
   const handleUpload = async () => {
@@ -244,19 +245,19 @@ function ProfessionTab({
     }
   };
 
-  const profLabel = PROFESSION_OPTIONS.find(p => p.value === profession)?.label;
+  const profLabel = t(`professions.${profession || 'unspecified'}`, PROFESSION_OPTIONS.find(p => p.value === profession)?.label || '');
 
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
         <Briefcase className="w-5 h-5 text-sky-500" />
-        Profesión y matrícula
+        {t('settings.professionTitle', 'Profesión y matrícula')}
       </h2>
 
       {/* Selector de profesión */}
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-          Profesión
+          {t('settings.professionLabel', 'Profesión')}
         </label>
         <select
           value={profession}
@@ -264,7 +265,7 @@ function ProfessionTab({
           className="w-full px-4 py-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
         >
           {PROFESSION_OPTIONS.map(opt => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
+            <option key={opt.value} value={opt.value}>{t(`professions.${opt.value || 'unspecified'}`, opt.label)}</option>
           ))}
         </select>
         {isRegulated && (

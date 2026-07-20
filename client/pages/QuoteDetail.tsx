@@ -152,7 +152,7 @@ export default function QuoteDetail() {
                 <div className="flex items-center gap-3 flex-wrap">
                   <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{quote.title}</h1>
                   <span className={`px-3 py-1 rounded-full text-xs font-semibold ${STATUS_COLORS[quote.status]}`}>
-                    {STATUS_LABELS[quote.status]}
+                    {t(`quoteStatus.${quote.status}`, STATUS_LABELS[quote.status])}
                   </span>
                 </div>
                 <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">

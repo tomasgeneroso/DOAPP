@@ -1,4 +1,26 @@
 {
+  "professions": {
+    "unspecified": "Sin especificar",
+    "gasista": "Gasista matriculado",
+    "electricista": "Electricista matriculado",
+    "plomero": "Plomero",
+    "maestro_mayor_obras": "Maestro Mayor de Obras",
+    "instalador_aire": "Instalador de Aire Acondicionado / Termomecánica",
+    "pintor": "Pintor",
+    "carpintero": "Carpintero",
+    "jardinero": "Jardinero",
+    "limpieza": "Limpieza",
+    "mecanico": "Mecánico",
+    "otro": "Otro"
+  },
+  "quoteStatus": {
+    "draft": "Borrador",
+    "sent": "Enviada",
+    "accepted": "Aceptada",
+    "rejected": "Rechazada",
+    "expired": "Vencida",
+    "cancelled": "Cancelada"
+  },
   "jobApply": {
     "payment": "Pago",
     "tipsTitle": "Consejos para trabajadores",
@@ -1601,6 +1623,8 @@
     "dropFileHere": "Hacé clic o arrastrá el archivo aquí",
     "fileHint10mb": "JPG, PNG, WEBP o PDF — máx. 10 MB",
     "avatarHint5mb": "JPG, PNG o GIF · máx 5 MB",
+    "professionTitle": "Profesión y matrícula",
+    "professionLabel": "Profesión",
     "tabs": {
       "basic": "Información Básica",
       "address": "Dirección",
