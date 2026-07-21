@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Briefcase, User, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 export default function WorkerModeToggle() {
+  const { t } = useTranslation();
   const { user, token, refreshUser } = useAuth();
   const [loading, setLoading] = useState(false);
 
@@ -52,13 +54,13 @@ export default function WorkerModeToggle() {
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 tracking-wider">Modos activos</p>
+      <p className="text-xs font-semibold uppercase text-slate-500 dark:text-slate-400 tracking-wider">{t('profile.activeModes', 'Modos activos')}</p>
       <div className="flex items-center gap-3">
         {/* Client mode */}
         <button
           onClick={handleClientClick}
           disabled={loading || (isClient && !isWorker)}
-          title={isClient ? (isWorker ? 'Desactivar modo cliente' : 'Modo cliente activo (único modo)') : 'Activar modo cliente'}
+          title={isClient ? (isWorker ? t('profile.deactivateClientMode', 'Desactivar modo cliente') : t('profile.clientModeOnly', 'Modo cliente activo (único modo)')) : t('profile.activateClientMode', 'Activar modo cliente')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border-2 transition-all ${
             isClient
               ? 'bg-sky-600 border-sky-600 text-white shadow-sm'
@@ -66,14 +68,14 @@ export default function WorkerModeToggle() {
           } disabled:opacity-60 disabled:cursor-not-allowed`}
         >
           {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <User className="h-4 w-4" />}
-          Modo cliente
+          {t('profile.clientMode', 'Modo cliente')}
         </button>
 
         {/* Worker mode */}
         <button
           onClick={handleWorkerClick}
           disabled={loading || (isWorker && !isClient)}
-          title={isWorker ? (isClient ? 'Desactivar modo trabajador' : 'Modo trabajador activo (único modo)') : 'Activar modo trabajador'}
+          title={isWorker ? (isClient ? t('profile.deactivateWorkerMode', 'Desactivar modo trabajador') : t('profile.workerModeOnly', 'Modo trabajador activo (único modo)')) : t('profile.activateWorkerMode', 'Activar modo trabajador')}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border-2 transition-all ${
             isWorker
               ? 'bg-emerald-600 border-emerald-600 text-white shadow-sm'
@@ -81,11 +83,11 @@ export default function WorkerModeToggle() {
           } disabled:opacity-60 disabled:cursor-not-allowed`}
         >
           {loading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Briefcase className="h-4 w-4" />}
-          Modo trabajador
+          {t('profile.workerMode', 'Modo trabajador')}
         </button>
       </div>
       <p className="text-xs text-slate-400 dark:text-slate-500">
-        {user.role === 'both' ? 'Podés publicar trabajos y aplicar a trabajos' : isWorker ? 'Podés aplicar a trabajos y enviar cotizaciones' : 'Podés publicar y contratar trabajadores'}
+        {user.role === 'both' ? t('profile.modeBothDesc', 'Podés publicar trabajos y aplicar a trabajos') : isWorker ? t('profile.modeWorkerDesc', 'Podés aplicar a trabajos y enviar cotizaciones') : t('profile.modeClientDesc', 'Podés publicar y contratar trabajadores')}
       </p>
     </div>
   );

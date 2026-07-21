@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MapPin, Loader2 } from 'lucide-react';
 
 interface LocationCircleMapProps {
@@ -22,6 +23,7 @@ function generalArea(location: string): string {
 }
 
 export default function LocationCircleMap({ location, latitude, longitude }: LocationCircleMapProps) {
+  const { t } = useTranslation();
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const [coordinates, setCoordinates] = useState<[number, number] | null>(null);
@@ -177,7 +179,7 @@ export default function LocationCircleMap({ location, latitude, longitude }: Loc
       <div className="flex items-center gap-2 mb-2">
         <MapPin className="h-4 w-4 text-gray-500 dark:text-gray-400" />
         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-          Ubicación Aproximada
+          {t('map.approximateLocation', 'Ubicación Aproximada')}
         </span>
         {loading && (
           <Loader2 className="h-4 w-4 animate-spin text-sky-500" />
@@ -192,14 +194,13 @@ export default function LocationCircleMap({ location, latitude, longitude }: Loc
           <div className="absolute inset-0 flex items-center justify-center bg-slate-100 dark:bg-slate-800">
             <div className="text-center">
               <Loader2 className="h-8 w-8 animate-spin text-sky-500 mx-auto" />
-              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">Cargando mapa...</p>
+              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">{t('map.loadingMap', 'Cargando mapa...')}</p>
             </div>
           </div>
         )}
       </div>
       <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-        El círculo muestra un área aproximada de 1km de radio en {generalArea(location)}. La
-        dirección exacta solo se comparte con el trabajador asignado.
+        {t('map.circleCaption', 'El círculo muestra un área aproximada de 1km de radio en {{area}}. La dirección exacta solo se comparte con el trabajador asignado.', { area: generalArea(location) })}
       </p>
     </div>
   );

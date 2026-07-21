@@ -922,7 +922,7 @@ export default function MessagesScreen() {
                 {t('chat.selectUser')}
               </h2>
               <p className="text-slate-600 dark:text-slate-400 max-w-md">
-                Elige una conversación de la lista para empezar a chatear
+                {t('chat.selectConversationHint', 'Elige una conversación de la lista para empezar a chatear')}
               </p>
             </div>
           )}
