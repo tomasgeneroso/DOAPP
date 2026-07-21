@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import {
@@ -50,26 +50,31 @@ const categoryLabels: Record<string, { label: string; icon: any; color: string }
   other: { label: 'Otro', icon: AlertCircle, color: 'text-gray-600 bg-gray-100 dark:bg-gray-700' },
 };
 
-const priorityLabels: Record<string, { label: string; color: string }> = {
-  low: { label: 'Baja', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' },
-  medium: { label: 'Media', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
-  high: { label: 'Alta', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300' },
-  urgent: { label: 'Urgente', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
-};
+type TFn = (k: string, d: string) => string;
 
-const statusLabels: Record<string, { label: string; color: string; icon: any }> = {
-  open: { label: 'Abierta', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', icon: AlertCircle },
-  in_review: { label: 'En revisión', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300', icon: Clock },
-  awaiting_info: { label: 'Esperando info', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', icon: MessageSquare },
-  resolved_released: { label: 'Resuelta - Liberado', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: CheckCircle },
-  resolved_refunded: { label: 'Resuelta - Reembolsado', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: CheckCircle },
-  resolved_partial: { label: 'Resuelta - Parcial', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: CheckCircle },
-  cancelled: { label: 'Cancelada', color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300', icon: XCircle },
-};
+const getPriorityLabels = (t: TFn): Record<string, { label: string; color: string }> => ({
+  low: { label: t('common.priority.low', 'Baja'), color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300' },
+  medium: { label: t('common.priority.medium', 'Media'), color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300' },
+  high: { label: t('common.priority.high', 'Alta'), color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300' },
+  urgent: { label: t('common.priority.urgent', 'Urgente'), color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' },
+});
+
+const getStatusLabels = (t: TFn): Record<string, { label: string; color: string; icon: any }> => ({
+  open: { label: t('myDisputes.statusOpen', 'Abierta'), color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', icon: AlertCircle },
+  in_review: { label: t('myDisputes.statusInReview', 'En revisión'), color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300', icon: Clock },
+  awaiting_info: { label: t('myDisputes.statusAwaitingInfo', 'Esperando info'), color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', icon: MessageSquare },
+  resolved_released: { label: t('myDisputes.statusResolvedReleased', 'Resuelta - Liberado'), color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: CheckCircle },
+  resolved_refunded: { label: t('myDisputes.statusResolvedRefunded', 'Resuelta - Reembolsado'), color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: CheckCircle },
+  resolved_partial: { label: t('myDisputes.statusResolvedPartial', 'Resuelta - Parcial'), color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', icon: CheckCircle },
+  cancelled: { label: t('myDisputes.statusCancelled', 'Cancelada'), color: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300', icon: XCircle },
+});
 
 export default function MyDisputes() {
+  const { t } = useTranslation();
   const { token } = useAuth();
   const navigate = useNavigate();
+  const priorityLabels = getPriorityLabels(t);
+  const statusLabels = getStatusLabels(t);
   const [disputes, setDisputes] = useState<Dispute[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'all' | 'contracts' | 'other'>('all');
@@ -130,10 +135,10 @@ export default function MyDisputes() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-bold text-slate-900 dark:text-white">
-              Mis Disputas
+              {t('myDisputes.title', 'Mis Disputas')}
             </h1>
             <p className="text-slate-600 dark:text-slate-400 mt-1">
-              Gestiona tus reclamos y reportes
+              {t('myDisputes.subtitle', 'Gestiona tus reclamos y reportes')}
             </p>
           </div>
           <div className="flex gap-2">
@@ -142,7 +147,7 @@ export default function MyDisputes() {
               className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors"
             >
               <Plus className="h-4 w-4" />
-              Nueva Disputa
+              {t('myDisputes.newDispute', 'Nueva Disputa')}
             </Link>
           </div>
         </div>
@@ -158,7 +163,7 @@ export default function MyDisputes() {
                   : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700'
               }`}
             >
-              Todas ({disputes.length})
+              {t('myDisputes.tabAll', 'Todas')} ({disputes.length})
             </button>
             <button
               onClick={() => setActiveTab('contracts')}
@@ -170,7 +175,7 @@ export default function MyDisputes() {
             >
               <span className="flex items-center justify-center gap-2">
                 <Briefcase className="h-4 w-4" />
-                Contratos ({contractDisputes.length})
+                {t('myDisputes.tabContracts', 'Contratos')} ({contractDisputes.length})
               </span>
             </button>
             <button
@@ -183,7 +188,7 @@ export default function MyDisputes() {
             >
               <span className="flex items-center justify-center gap-2">
                 <Bug className="h-4 w-4" />
-                Otros ({otherDisputes.length})
+                {t('myDisputes.tabOther', 'Otros')} ({otherDisputes.length})
               </span>
             </button>
           </div>
@@ -197,14 +202,14 @@ export default function MyDisputes() {
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="text-sm px-3 py-1.5 bg-slate-100 dark:bg-slate-700 border-0 rounded-lg text-slate-700 dark:text-slate-300"
               >
-                <option value="all">Todos los estados</option>
-                <option value="open">Abiertas</option>
-                <option value="in_review">En revisión</option>
-                <option value="awaiting_info">Esperando información</option>
-                <option value="resolved_released">Resueltas - Liberado</option>
-                <option value="resolved_refunded">Resueltas - Reembolsado</option>
-                <option value="resolved_partial">Resueltas - Parcial</option>
-                <option value="cancelled">Canceladas</option>
+                <option value="all">{t('myDisputes.filterAll', 'Todos los estados')}</option>
+                <option value="open">{t('myDisputes.filterOpen', 'Abiertas')}</option>
+                <option value="in_review">{t('myDisputes.filterInReview', 'En revisión')}</option>
+                <option value="awaiting_info">{t('myDisputes.filterAwaitingInfo', 'Esperando información')}</option>
+                <option value="resolved_released">{t('myDisputes.filterResolvedReleased', 'Resueltas - Liberado')}</option>
+                <option value="resolved_refunded">{t('myDisputes.filterResolvedRefunded', 'Resueltas - Reembolsado')}</option>
+                <option value="resolved_partial">{t('myDisputes.filterResolvedPartial', 'Resueltas - Parcial')}</option>
+                <option value="cancelled">{t('myDisputes.filterCancelled', 'Canceladas')}</option>
               </select>
             </div>
           </div>
@@ -215,14 +220,14 @@ export default function MyDisputes() {
               <div className="p-8 text-center">
                 <AlertCircle className="h-12 w-12 text-slate-400 mx-auto mb-4" />
                 <p className="text-slate-600 dark:text-slate-400">
-                  No tienes disputas {activeTab !== 'all' ? `en esta categoría` : ''}
+                  {activeTab !== 'all' ? t('myDisputes.noDisputesInCategory', 'No tienes disputas en esta categoría') : t('myDisputes.noDisputes', 'No tienes disputas')}
                 </p>
                 <Link
                   to="/disputes/create"
                   className="inline-flex items-center gap-2 mt-4 text-sky-600 hover:text-sky-700"
                 >
                   <Plus className="h-4 w-4" />
-                  Crear nueva disputa
+                  {t('myDisputes.createNew', 'Crear nueva disputa')}
                 </Link>
               </div>
             ) : (
@@ -248,7 +253,7 @@ export default function MyDisputes() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <h3 className="font-medium text-slate-900 dark:text-white truncate">
-                          {dispute.reason || 'Sin motivo especificado'}
+                          {dispute.reason || t('myDisputes.noReason', 'Sin motivo especificado')}
                         </h3>
                         {/* Priority Badge */}
                         <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${priority.color}`}>
@@ -259,7 +264,7 @@ export default function MyDisputes() {
                       {/* Contract/Job info */}
                       {dispute.contract && (
                         <p className="text-sm text-slate-600 dark:text-slate-400 truncate">
-                          Contrato: {dispute.contract.title || `#${dispute.contract.id.slice(0, 8)}`}
+                          {t('myDisputes.contractLabel', 'Contrato')}: {dispute.contract.title || `#${dispute.contract.id.slice(0, 8)}`}
                         </p>
                       )}
 
@@ -274,7 +279,7 @@ export default function MyDisputes() {
                         {dispute.messagesCount && dispute.messagesCount > 0 && (
                           <span className="inline-flex items-center gap-1 text-xs text-slate-500">
                             <MessageSquare className="h-3 w-3" />
-                            {dispute.messagesCount} mensajes
+                            {t('myDisputes.messagesCount', '{{count}} mensajes', { count: dispute.messagesCount })}
                           </span>
                         )}
 
@@ -300,12 +305,12 @@ export default function MyDisputes() {
             <AlertTriangle className="h-5 w-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
             <div>
               <h4 className="font-medium text-blue-900 dark:text-blue-100">
-                ¿Cuándo crear una disputa?
+                {t('myDisputes.whenToCreate', '¿Cuándo crear una disputa?')}
               </h4>
               <ul className="mt-2 text-sm text-blue-800 dark:text-blue-200 space-y-1">
-                <li>• <strong>Problemas con contratos:</strong> Calidad del trabajo, pagos, incumplimiento de plazos</li>
-                <li>• <strong>Reportes de bugs:</strong> Problemas técnicos en la plataforma</li>
-                <li>• <strong>Otros:</strong> Cualquier otro inconveniente que necesites reportar</li>
+                <li>• <Trans i18nKey="myDisputes.tipContracts" components={{ b: <strong /> }} defaults="<b>Problemas con contratos:</b> Calidad del trabajo, pagos, incumplimiento de plazos" /></li>
+                <li>• <Trans i18nKey="myDisputes.tipBugs" components={{ b: <strong /> }} defaults="<b>Reportes de bugs:</b> Problemas técnicos en la plataforma" /></li>
+                <li>• <Trans i18nKey="myDisputes.tipOther" components={{ b: <strong /> }} defaults="<b>Otros:</b> Cualquier otro inconveniente que necesites reportar" /></li>
               </ul>
             </div>
           </div>

@@ -77,6 +77,7 @@ const StatusIcon = ({ status }: { status: 'good' | 'fair' | 'needs-improvement' 
 };
 
 export default function SeoTipsPanel({ analysis, showTips = true }: SeoTipsPanelProps) {
+  const { t } = useTranslation();
   const [tips, setTips] = useState<SeoTip[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState(true);
@@ -108,10 +109,10 @@ export default function SeoTipsPanel({ analysis, showTips = true }: SeoTipsPanel
   };
 
   const getScoreLabel = (score: number) => {
-    if (score >= 80) return 'Excelente';
-    if (score >= 60) return 'Bueno';
-    if (score >= 40) return 'Regular';
-    return 'Necesita mejora';
+    if (score >= 80) return t('seoTips.scoreExcellent', 'Excelente');
+    if (score >= 60) return t('seoTips.scoreGood', 'Bueno');
+    if (score >= 40) return t('seoTips.scoreFair', 'Regular');
+    return t('seoTips.scoreNeedsImprovement', 'Necesita mejora');
   };
 
   return (
@@ -124,7 +125,7 @@ export default function SeoTipsPanel({ analysis, showTips = true }: SeoTipsPanel
         <div className="flex items-center gap-2">
           <Lightbulb className="h-5 w-5 text-sky-600 dark:text-sky-400" />
           <span className="font-semibold text-slate-900 dark:text-white">
-            Consejos SEO
+            {t('seoTips.title', 'Consejos SEO')}
           </span>
           {analysis && (
             <span className={`ml-2 font-bold ${getScoreColor(analysis.seoScore)}`}>
@@ -180,10 +181,10 @@ export default function SeoTipsPanel({ analysis, showTips = true }: SeoTipsPanel
                     {getScoreLabel(analysis.seoScore)}
                   </p>
                   <p className="text-sm text-slate-500 dark:text-slate-400">
-                    {analysis.wordCount} palabras
+                    {t('seoTips.wordsCount', '{{count}} palabras', { count: analysis.wordCount })}
                   </p>
                   <p className="text-sm text-slate-500 dark:text-slate-400">
-                    {analysis.readingTime} min de lectura
+                    {t('seoTips.readingTime', '{{count}} min de lectura', { count: analysis.readingTime })}
                   </p>
                 </div>
               </div>
@@ -193,29 +194,29 @@ export default function SeoTipsPanel({ analysis, showTips = true }: SeoTipsPanel
                 <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-700/50">
                   <StatusIcon status={analysis.scoreBreakdown.title} />
                   <div>
-                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Título</p>
-                    <p className="text-xs text-slate-500">{analysis.titleLength} caracteres</p>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('seoTips.titleLabel', 'Título')}</p>
+                    <p className="text-xs text-slate-500">{t('seoTips.charsCount', '{{count}} caracteres', { count: analysis.titleLength })}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-700/50">
                   <StatusIcon status={analysis.scoreBreakdown.metaDescription} />
                   <div>
-                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Meta descripción</p>
-                    <p className="text-xs text-slate-500">{analysis.metaDescriptionLength} caracteres</p>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('seoTips.metaDescription', 'Meta descripción')}</p>
+                    <p className="text-xs text-slate-500">{t('seoTips.charsCount', '{{count}} caracteres', { count: analysis.metaDescriptionLength })}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-700/50">
                   <StatusIcon status={analysis.scoreBreakdown.content} />
                   <div>
-                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Contenido</p>
-                    <p className="text-xs text-slate-500">{analysis.wordCount} palabras</p>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('seoTips.contentLabel', 'Contenido')}</p>
+                    <p className="text-xs text-slate-500">{t('seoTips.wordsCount', '{{count}} palabras', { count: analysis.wordCount })}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-50 dark:bg-slate-700/50">
                   <StatusIcon status={analysis.scoreBreakdown.tags} />
                   <div>
-                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Etiquetas</p>
-                    <p className="text-xs text-slate-500">{analysis.tagsCount} tags</p>
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('seoTips.tagsLabel', 'Etiquetas')}</p>
+                    <p className="text-xs text-slate-500">{t('seoTips.tagsCount', '{{count}} tags', { count: analysis.tagsCount })}</p>
                   </div>
                 </div>
               </div>
@@ -225,7 +226,7 @@ export default function SeoTipsPanel({ analysis, showTips = true }: SeoTipsPanel
                 <div className="space-y-2">
                   <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2">
                     <Target className="h-4 w-4 text-sky-500" />
-                    Sugerencias de mejora
+                    {t('seoTips.improvementSuggestions', 'Sugerencias de mejora')}
                   </h4>
                   <ul className="space-y-2">
                     {analysis.suggestions.map((suggestion, index) => (
@@ -248,7 +249,7 @@ export default function SeoTipsPanel({ analysis, showTips = true }: SeoTipsPanel
             <div className="space-y-3">
               <h4 className="font-medium text-slate-900 dark:text-white flex items-center gap-2">
                 <Lightbulb className="h-4 w-4 text-amber-500" />
-                Tips para mejorar tu SEO
+                {t('seoTips.tipsToImprove', 'Tips para mejorar tu SEO')}
               </h4>
 
               {loading ? (
@@ -282,14 +283,14 @@ export default function SeoTipsPanel({ analysis, showTips = true }: SeoTipsPanel
           {/* Quick Reference */}
           <div className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
             <h4 className="font-medium text-slate-900 dark:text-white mb-2">
-              Referencia rápida
+              {t('seoTips.quickReference', 'Referencia rápida')}
             </h4>
             <ul className="text-sm text-slate-600 dark:text-slate-400 space-y-1">
-              <li>• Título: 30-60 caracteres</li>
-              <li>• Meta descripción: 120-160 caracteres</li>
-              <li>• Contenido: mínimo 300 palabras (ideal 1000+)</li>
-              <li>• Etiquetas: 3-5 relevantes</li>
-              <li>• Palabras clave: 3-5 principales</li>
+              <li>• {t('seoTips.refTitle', 'Título: 30-60 caracteres')}</li>
+              <li>• {t('seoTips.refMeta', 'Meta descripción: 120-160 caracteres')}</li>
+              <li>• {t('seoTips.refContent', 'Contenido: mínimo 300 palabras (ideal 1000+)')}</li>
+              <li>• {t('seoTips.refTags', 'Etiquetas: 3-5 relevantes')}</li>
+              <li>• {t('seoTips.refKeywords', 'Palabras clave: 3-5 principales')}</li>
             </ul>
           </div>
         </div>

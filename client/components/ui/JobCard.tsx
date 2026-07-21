@@ -20,6 +20,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 const JobCardComponent: React.FC<JobCardProps> = ({ job, index = 0 }) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [isHovered, setIsHovered] = useState(false);
   const cardRef = React.useRef<HTMLButtonElement>(null);
@@ -125,7 +126,7 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, index = 0 }) => {
               )}
               aria-hidden="true"
             >
-              Ver
+              {t('common.view', 'Ver')}
               <ArrowRight className="h-3 w-3" />
             </span>
           </div>
