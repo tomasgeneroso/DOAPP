@@ -108,7 +108,7 @@ export default function FirstContractGuide() {
       >
         <div className="flex items-center gap-2 text-white">
           <Sparkles className="h-4 w-4" />
-          <span className="font-semibold text-sm">Tu guía de inicio</span>
+          <span className="font-semibold text-sm">{t('firstContract.startGuide', 'Tu guía de inicio')}</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-white/80 text-xs font-medium">

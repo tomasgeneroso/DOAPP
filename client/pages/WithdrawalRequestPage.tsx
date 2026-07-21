@@ -342,7 +342,7 @@ export default function WithdrawalRequestPage() {
                   El retiro es por el total del saldo. Mínimo $1.000 ARS. Tu saldo quedará en $0.
                 </p>
                 {balance < 1000 && (
-                  <p className="mt-1 text-xs text-red-500">Tu saldo es menor al mínimo de $1.000 ARS para retirar.</p>
+                  <p className="mt-1 text-xs text-red-500">{t('withdrawals.belowMinimum', 'Tu saldo es menor al mínimo de $1.000 ARS para retirar.')}</p>
                 )}
               </div>
 

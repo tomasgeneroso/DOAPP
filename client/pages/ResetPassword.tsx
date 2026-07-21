@@ -75,7 +75,7 @@ export default function ResetPassword() {
   return (
     <>
       <Helmet>
-        <title>Restablecer Contraseña - DoApp</title>
+        <title>{t('auth.resetPasswordTitle', 'Restablecer Contraseña - DoApp')}</title>
         <meta
           name="description"
           content="Crea una nueva contraseña para tu cuenta de DoApp"

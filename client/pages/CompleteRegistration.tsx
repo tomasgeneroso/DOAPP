@@ -157,7 +157,7 @@ export default function CompleteRegistration() {
             <Camera className="w-8 h-8 text-slate-400" />
             <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
               Tocá para subir<br />
-              <span className="text-slate-400">JPG, PNG o PDF · máx 10MB</span>
+              <span className="text-slate-400">{t('auth.fileHintJpgPngPdf', 'JPG, PNG o PDF · máx 10MB')}</span>
             </p>
           </div>
         )}

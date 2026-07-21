@@ -49,6 +49,7 @@ const DEFAULT_LNG = -58.3816;
 const DEFAULT_ZOOM = 14;
 
 export default function LocationPinMap({ address, onCoordinatesChange, onAddressChange, initialLat, initialLng }: LocationPinMapProps) {
+  const { t } = useTranslation();
   const mapRef = useRef<any>(null);
   const markerRef = useRef<any>(null);
   const leafletRef = useRef<any>(null);
@@ -156,7 +157,7 @@ export default function LocationPinMap({ address, onCoordinatesChange, onAddress
       <div className="flex items-center justify-between px-3 py-2 bg-slate-50 dark:bg-slate-700/60 border-b border-slate-200 dark:border-slate-600">
         <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
           <MapPin className="w-4 h-4 text-sky-500" />
-          <span className="font-medium">Ajustá el pin en el mapa</span>
+          <span className="font-medium">{t('map.adjustPin', 'Ajustá el pin en el mapa')}</span>
         </div>
         <div className="flex items-center gap-2">
           {coords && (

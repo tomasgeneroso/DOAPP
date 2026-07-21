@@ -42,7 +42,6 @@ interface Dispute {
 
 const categoryLabels: Record<string, { label: string; icon: any; color: string }> = {
   service_not_delivered: { label: 'Servicio no entregado', icon: Briefcase, color: 'text-red-600 bg-red-100 dark:bg-red-900/30' },
-  const { t } = useTranslation();
   incomplete_work: { label: 'Trabajo incompleto', icon: FileText, color: 'text-orange-600 bg-orange-100 dark:bg-orange-900/30' },
   quality_issues: { label: 'Problemas de calidad', icon: AlertTriangle, color: 'text-yellow-600 bg-yellow-100 dark:bg-yellow-900/30' },
   payment_issues: { label: 'Problema de pago', icon: DollarSign, color: 'text-red-600 bg-red-100 dark:bg-red-900/30' },

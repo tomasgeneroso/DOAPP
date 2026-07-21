@@ -118,7 +118,7 @@ export default function PaymentStatusModal({
                 </div>
                 <div className="pt-1">
                   <p className="text-sm font-medium text-slate-900 dark:text-white">Pago procesado</p>
-                  <p className="text-xs text-slate-600 dark:text-slate-400">Tu dinero está asegurado en escrow</p>
+                  <p className="text-xs text-slate-600 dark:text-slate-400">{t('payments.moneySecuredEscrow', 'Tu dinero está asegurado en escrow')}</p>
                 </div>
               </div>
 

@@ -1189,7 +1189,9 @@
     "facebookLoginError": "Error signing in with Facebook",
     "dniLengthError": "The ID must be between 7 and 8 digits",
     "dniNumericError": "The ID must contain only numbers",
-    "freelancePlatform": "Freelance work platform"
+    "freelancePlatform": "Freelance work platform",
+    "fileHintJpgPngPdf": "JPG, PNG, or PDF · max 10MB",
+    "resetPasswordTitle": "Reset Password - DoApp"
   },
   "home": {
     "ctaSeeJobs": "See available jobs",
@@ -2152,7 +2154,9 @@
     "errorStarting": "Error starting the conversation",
     "opening": "Opening chat...",
     "noConversationsFound": "No conversations found matching that criteria",
-    "selectConversationHint": "Choose a conversation from the list to start chatting"
+    "selectConversationHint": "Choose a conversation from the list to start chatting",
+    "selectJob": "Select the job",
+    "noOpenJobs": "You have no open jobs"
   },
   "balance": {
     "title": "Balance",
@@ -2706,7 +2710,8 @@
     "noPaymentUrl": "Payment URL was not received",
     "paymentError": "Payment error",
     "errorProcessing": "Error processing the payment",
-    "cancelChange": "Cancel change"
+    "cancelChange": "Cancel change",
+    "moneySecuredEscrow": "Your money is secured in escrow"
   },
   "withdrawals": {
     "pageTitle": "Balance Withdrawal - DoApp",
@@ -2752,7 +2757,8 @@
       "cancelled": "Cancelled"
     },
     "zeroBalanceTitle": "Insufficient balance",
-    "zeroBalanceDesc": "Your available balance is $0. You need a balance to request a withdrawal."
+    "zeroBalanceDesc": "Your available balance is $0. You need a balance to request a withdrawal.",
+    "belowMinimum": "Your balance is below the $1,000 ARS minimum to withdraw."
   },
   "categories": {
     "plomeria": "Plumbing",
@@ -2838,7 +2844,8 @@
   "map": {
     "approximateLocation": "Approximate Location",
     "loadingMap": "Loading map...",
-    "circleCaption": "The circle shows an approximate 1km radius area in {{area}}. The exact address is only shared with the assigned worker."
+    "circleCaption": "The circle shows an approximate 1km radius area in {{area}}. The exact address is only shared with the assigned worker.",
+    "adjustPin": "Adjust the pin on the map"
   },
   "disputes": {
     "noPermission": "You don't have permission to create disputes",
@@ -3353,5 +3360,85 @@
     "profileViewsHelp": "How many times other people viewed your profile (and how many unique). It's the start of the funnel: more views = more chances of getting hired.",
     "annualCapPlaceholder": "E.g.: 6450000",
     "professionPlaceholder": "E.g.: Electrician"
+  },
+  "proUsage": {
+    "notPro": "This feature is only available for PRO members",
+    "backToDashboard": "Back to Dashboard",
+    "dashboardSuperPro": "SUPER PRO Dashboard",
+    "premium": "PREMIUM",
+    "monthlyUsagePro": "PRO Monthly Usage",
+    "subtitleSuperPro": "2% commission + exclusive advanced analytics",
+    "subtitlePro": "Manage your monthly contracts with a reduced commission",
+    "professionalCenter": "Professional Center",
+    "professionalCenterDesc": "Your invoicing, taxes, reputation, and license — explained simply.",
+    "planValidUntil": "PRO plan valid until",
+    "referralContracts": "Referral contracts",
+    "monthlyProgress": "Monthly Progress",
+    "contractsWithCommission": "Contracts with {{pct}} commission",
+    "ofSep": "of",
+    "contractsResetMonthly": "Contracts reset on the 1st of each month",
+    "bonusContract": "Bonus Contract",
+    "unlocked": "Unlocked!",
+    "bonusUnlockedDesc": "🎉 Congratulations! You completed 3 contracts this month and earned 1 extra commission-free posting.",
+    "bonusAboutToEarn": "✨ You're about to earn 1 bonus contract! Complete these contracts to unlock it.",
+    "bonusProgressDesc": "Complete 3 contracts this month to earn 1 extra commission-free posting.",
+    "progress": "Progress",
+    "benefitsSuperPro": "Your SUPER PRO Membership benefits",
+    "benefitsPro": "Your PRO Membership benefits",
+    "benefit3Contracts": "3 monthly contracts with just {{pct}} commission (vs 8% normal)",
+    "benefitBonus": "Bonus of 1 commission-free posting when you complete 3 contracts in the month",
+    "benefitBadge": "Verified {{tier}} badge and priority in searches",
+    "benefitStats": "Advanced statistics and identity document verification",
+    "benefitAnalytics": "<b>Advanced analytics</b> of visits and conversations",
+    "benefitExclusiveDashboard": "<b>Exclusive dashboard</b> with detailed metrics",
+    "benefitMonthlyReports": "<b>Monthly reports</b> automated by email",
+    "upgradeToSuperPro": "Upgrade to SUPER PRO",
+    "premiumBadge": "Premium",
+    "maximizeBenefits": "Maximize your benefits",
+    "upgrade1pct": "<b>Just 1% commission</b> on your 3 contracts/month",
+    "upgradeStats": "<b>Advanced statistics</b> for your profile",
+    "upgradeAnalytics": "<b>Analytics</b> of visits and conversations",
+    "upgradeReports": "<b>Detailed monthly reports</b>",
+    "arsPerMonth": "ARS/month",
+    "upgradePlan": "Upgrade Plan"
+  },
+  "jobPayment": {
+    "labelTitle": "Title:",
+    "labelCategory": "Category:",
+    "labelDescription": "Description:",
+    "minContract": "Minimum contract",
+    "minContractDesc": "The budget is under $8,000 ARS. The publication commission will be $1,000 ARS (minimum commission).",
+    "tipsTitle": "Tips before publishing",
+    "tip1": "Ask the worker to show you their <b>verification code</b> when starting the job to confirm their identity.",
+    "tip2": "The publication commission is <b>non-refundable</b> once the listing has been <b>approved</b>.",
+    "tip3": "You can cancel until the job starts. With <b>more than 2 hours</b> notice you're refunded the job price; with <b>2 hours or less</b>, <b>half the price is refunded to you and the other half to the worker</b>. If there's still <b>no worker selected</b>, you're refunded the <b>full price</b> (the commission is not refunded).",
+    "tip4": "Describe the job in <b>as much detail as possible</b>: needed materials, access to the location, exact schedule. Avoid misunderstandings.",
+    "tip5": "All communication and price negotiation must happen <b>within the platform</b> to stay protected.",
+    "tip6": "If the job isn't completed correctly, you can open a <b>dispute</b> and the money stays held in escrow until resolved.",
+    "tip7": "After the job is completed, remember to <b>leave a review</b>: it helps other clients and improves the ecosystem.",
+    "uploadBinanceProof": "Upload a screenshot of the Binance receipt in PNG or JPG format.",
+    "proofClearHint": "Make sure the Transaction ID, amount, and date are clearly visible.",
+    "publishAfterApproval5": "The job will be published once the payment is approved (5-15 min).",
+    "have24h": "You have <b>24 hours</b> to upload the receipt.",
+    "uploadFromJobView": "You can also upload it from the job view.",
+    "publishAfterApproval": "The job will be published once the payment is approved."
+  },
+  "autoSelect": {
+    "imminentTitle": "⚠️ Auto-selection Imminent",
+    "pendingTitle": "⏰ Hiring Pending",
+    "willBeAssigned": "Your job <b>\"{{jobTitle}}\"</b> will be automatically assigned in <b>{{hours}} hours</b> because there's only 1 proposal.",
+    "optionsLabel": "Options:",
+    "optionConfirm": "Confirm now and close the applications",
+    "optionPause": "Pause the job to fix your schedule or wait for more proposals",
+    "optionAutoSelect": "Let it auto-select in {{hours}} hours",
+    "pauseListing": "Pause Listing",
+    "viewProposal": "View Proposal",
+    "workerOnlyApplicant": "You are the only applicant for <b>\"{{jobTitle}}\"</b>. You will be automatically assigned in <b>{{hours}} hours</b>.",
+    "workerPrepare": "Get ready: make sure you're available from the agreed time.",
+    "whatItMeans": "<b>What it means:</b> You are the only applicant for \"{{jobTitle}}\". If the client doesn't select another worker before this time, you'll be automatically assigned.",
+    "prepareInfo": "<b>Get ready:</b> Make sure you're available to start the job on its scheduled date and time."
+  },
+  "firstContract": {
+    "startGuide": "Your getting-started guide"
   }
 }

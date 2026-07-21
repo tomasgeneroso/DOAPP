@@ -12,7 +12,6 @@ interface JobCardProps {
 
 const CATEGORY_COLORS: Record<string, string> = {
   Limpieza:      "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
-  const { t } = useTranslation();
   Reparaciones:  "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300",
   Jardín:        "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
   Mantenimiento: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",

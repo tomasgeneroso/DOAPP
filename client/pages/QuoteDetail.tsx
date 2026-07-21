@@ -247,7 +247,7 @@ export default function QuoteDetail() {
               </div>
               {quote.validUntil && (
                 <div className="flex justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">Válida hasta</span>
+                  <span className="text-slate-500 dark:text-slate-400">{t('quote.validUntil', 'Válida hasta')}</span>
                   <span className="font-medium text-slate-900 dark:text-white">{new Date(quote.validUntil).toLocaleDateString('es-AR')}</span>
                 </div>
               )}

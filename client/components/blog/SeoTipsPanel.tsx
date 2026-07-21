@@ -49,7 +49,6 @@ interface SeoTipsPanelProps {
 
 const iconMap: Record<string, React.ElementType> = {
   title: Type,
-  const { t } = useTranslation();
   description: FileText,
   key: Hash,
   content: FileText,

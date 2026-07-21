@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+import { useTranslation, Trans } from "react-i18next";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/components/ui/Toast";
@@ -400,7 +400,7 @@ export default function JobPayment() {
             <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 space-y-3">
               {/* Título */}
               <div>
-                <span className="text-sm text-gray-600 dark:text-gray-400">Título:</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">{t('jobPayment.labelTitle', 'Título:')}</span>
                 <p className="font-medium text-gray-900 dark:text-white mt-1">
                   {job?.title || '-'}
                 </p>
@@ -408,14 +408,14 @@ export default function JobPayment() {
 
               {/* Categoría */}
               <div>
-                <span className="text-sm text-gray-600 dark:text-gray-400">Categoría:</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">{t('jobPayment.labelCategory', 'Categoría:')}</span>
                 <p className="text-gray-900 dark:text-white mt-1">{job?.category || '-'}</p>
               </div>
 
               {/* Descripción */}
               {job?.description && (
                 <div>
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Descripción:</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">{t('jobPayment.labelDescription', 'Descripción:')}</span>
                   <p className="text-gray-900 dark:text-white mt-1 text-sm line-clamp-3">
                     {job.description}
                   </p>
@@ -507,9 +507,9 @@ export default function JobPayment() {
                 <div className="flex items-start gap-2">
                   <FileText className="h-5 w-5 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5" />
                   <div className="text-sm text-orange-800 dark:text-orange-300">
-                    <p className="font-semibold mb-1">Mínimo de contrato</p>
+                    <p className="font-semibold mb-1">{t('jobPayment.minContract', 'Mínimo de contrato')}</p>
                     <p>
-                      El presupuesto es menor a $8,000 ARS. La comisión de publicación será de $1,000 ARS (comisión mínima).
+                      {t('jobPayment.minContractDesc', 'El presupuesto es menor a $8,000 ARS. La comisión de publicación será de $1,000 ARS (comisión mínima).')}
                     </p>
                   </div>
                 </div>
@@ -612,16 +612,16 @@ export default function JobPayment() {
           <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-amber-50 dark:bg-amber-900/10">
             <div className="flex items-center gap-2 mb-3">
               <span className="text-lg">💡</span>
-              <h3 className="font-semibold text-amber-900 dark:text-amber-200">Consejos antes de publicar</h3>
+              <h3 className="font-semibold text-amber-900 dark:text-amber-200">{t('jobPayment.tipsTitle', 'Consejos antes de publicar')}</h3>
             </div>
             <ul className="space-y-2 text-sm text-amber-800 dark:text-amber-300">
-              <li className="flex items-start gap-2"><span className="mt-0.5">🔑</span> <span>Pedile al trabajador que te muestre su <strong>código de verificación</strong> al iniciar el trabajo para confirmar su identidad.</span></li>
-              <li className="flex items-start gap-2"><span className="mt-0.5">💰</span> <span>La comisión de publicación <strong>no se reembolsa</strong> una vez que la publicación fue <strong>aprobada</strong>.</span></li>
-              <li className="flex items-start gap-2"><span className="mt-0.5">🕒</span> <span>Podés cancelar hasta el inicio del trabajo. Con <strong>más de 2 horas</strong> de anticipación se te reembolsa el precio del trabajo; con <strong>2 horas o menos</strong>, se reembolsa <strong>la mitad del precio a vos y la otra mitad al trabajador</strong>. Si todavía <strong>no hay ningún trabajador seleccionado</strong>, se te reembolsa la <strong>totalidad del precio</strong> (la comisión no se reembolsa).</span></li>
-              <li className="flex items-start gap-2"><span className="mt-0.5">📋</span> <span>Describí el trabajo con <strong>la mayor cantidad de detalle posible</strong>: materiales necesarios, acceso al lugar, horario exacto. Evita malentendidos.</span></li>
-              <li className="flex items-start gap-2"><span className="mt-0.5">💬</span> <span>Toda comunicación y negociación de precio debe hacerse <strong>dentro de la plataforma</strong> para estar protegido.</span></li>
-              <li className="flex items-start gap-2"><span className="mt-0.5">🛡️</span> <span>Si el trabajo no se completa correctamente, podés abrir una <strong>disputa</strong> y el dinero queda retenido en escrow hasta resolverse.</span></li>
-              <li className="flex items-start gap-2"><span className="mt-0.5">⭐</span> <span>Después de completado el trabajo, acordate de <strong>dejar una reseña</strong>: ayuda a otros clientes y mejora el ecosistema.</span></li>
+              <li className="flex items-start gap-2"><span className="mt-0.5">🔑</span> <span><Trans i18nKey="jobPayment.tip1" components={{ b: <strong /> }} defaults="Pedile al trabajador que te muestre su <b>código de verificación</b> al iniciar el trabajo para confirmar su identidad." /></span></li>
+              <li className="flex items-start gap-2"><span className="mt-0.5">💰</span> <span><Trans i18nKey="jobPayment.tip2" components={{ b: <strong /> }} defaults="La comisión de publicación <b>no se reembolsa</b> una vez que la publicación fue <b>aprobada</b>." /></span></li>
+              <li className="flex items-start gap-2"><span className="mt-0.5">🕒</span> <span><Trans i18nKey="jobPayment.tip3" components={{ b: <strong /> }} defaults="Podés cancelar hasta el inicio del trabajo. Con <b>más de 2 horas</b> de anticipación se te reembolsa el precio del trabajo; con <b>2 horas o menos</b>, se reembolsa <b>la mitad del precio a vos y la otra mitad al trabajador</b>. Si todavía <b>no hay ningún trabajador seleccionado</b>, se te reembolsa la <b>totalidad del precio</b> (la comisión no se reembolsa)." /></span></li>
+              <li className="flex items-start gap-2"><span className="mt-0.5">📋</span> <span><Trans i18nKey="jobPayment.tip4" components={{ b: <strong /> }} defaults="Describí el trabajo con <b>la mayor cantidad de detalle posible</b>: materiales necesarios, acceso al lugar, horario exacto. Evita malentendidos." /></span></li>
+              <li className="flex items-start gap-2"><span className="mt-0.5">💬</span> <span><Trans i18nKey="jobPayment.tip5" components={{ b: <strong /> }} defaults="Toda comunicación y negociación de precio debe hacerse <b>dentro de la plataforma</b> para estar protegido." /></span></li>
+              <li className="flex items-start gap-2"><span className="mt-0.5">🛡️</span> <span><Trans i18nKey="jobPayment.tip6" components={{ b: <strong /> }} defaults="Si el trabajo no se completa correctamente, podés abrir una <b>disputa</b> y el dinero queda retenido en escrow hasta resolverse." /></span></li>
+              <li className="flex items-start gap-2"><span className="mt-0.5">⭐</span> <span><Trans i18nKey="jobPayment.tip7" components={{ b: <strong /> }} defaults="Después de completado el trabajo, acordate de <b>dejar una reseña</b>: ayuda a otros clientes y mejora el ecosistema." /></span></li>
             </ul>
           </div>
 
@@ -680,16 +680,16 @@ export default function JobPayment() {
                       Subir Comprobante de Transferencia
                     </h4>
                     <p className="text-sm text-yellow-800 dark:text-yellow-200 mb-3">
-                      Sube una captura de pantalla del comprobante de Binance en formato PNG o JPG.
+                      {t('jobPayment.uploadBinanceProof', 'Sube una captura de pantalla del comprobante de Binance en formato PNG o JPG.')}
                     </p>
                     <div className="space-y-2 mb-4">
                       <p className="text-xs text-yellow-700 dark:text-yellow-300 flex items-start gap-2">
                         <span className="font-semibold">📸</span>
-                        <span>Asegúrate que se vea claramente el Transaction ID, monto y fecha.</span>
+                        <span>{t('jobPayment.proofClearHint', 'Asegúrate que se vea claramente el Transaction ID, monto y fecha.')}</span>
                       </p>
                       <p className="text-xs text-yellow-700 dark:text-yellow-300 flex items-start gap-2">
                         <span className="font-semibold">✅</span>
-                        <span>El trabajo se publicará una vez que se apruebe el pago (5-15 min).</span>
+                        <span>{t('jobPayment.publishAfterApproval5', 'El trabajo se publicará una vez que se apruebe el pago (5-15 min).')}</span>
                       </p>
                     </div>
 
@@ -809,15 +809,15 @@ export default function JobPayment() {
                     <div className="space-y-2 mb-4">
                       <p className="text-xs text-yellow-700 dark:text-yellow-300 flex items-start gap-2">
                         <span className="font-semibold">⏰</span>
-                        <span>Tienes <strong>24 horas</strong> para subir el comprobante.</span>
+                        <span><Trans i18nKey="jobPayment.have24h" components={{ b: <strong /> }} defaults="Tienes <b>24 horas</b> para subir el comprobante." /></span>
                       </p>
                       <p className="text-xs text-yellow-700 dark:text-yellow-300 flex items-start gap-2">
                         <span className="font-semibold">📄</span>
-                        <span>También puedes subirlo desde la vista del trabajo.</span>
+                        <span>{t('jobPayment.uploadFromJobView', 'También puedes subirlo desde la vista del trabajo.')}</span>
                       </p>
                       <p className="text-xs text-yellow-700 dark:text-yellow-300 flex items-start gap-2">
                         <span className="font-semibold">✅</span>
-                        <span>El trabajo se publicará una vez que se apruebe el pago.</span>
+                        <span>{t('jobPayment.publishAfterApproval', 'El trabajo se publicará una vez que se apruebe el pago.')}</span>
                       </p>
                     </div>
 

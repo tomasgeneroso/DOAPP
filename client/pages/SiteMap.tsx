@@ -404,7 +404,7 @@ export default function SiteMap() {
                   onChange={(e) => setCategoryFilter(e.target.value)}
                   className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white text-sm"
                 >
-                  <option value="all">Todas las categorías</option>
+                  <option value="all">{t('search.allCategories', 'Todas las categorías')}</option>
                   {categories.map(cat => (
                     <option key={cat} value={cat}>{cat}</option>
                   ))}

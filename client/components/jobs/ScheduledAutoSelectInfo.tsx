@@ -1,5 +1,5 @@
 import { Clock, AlertCircle } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 
 interface ScheduledAutoSelectInfoProps {
   autoSelectAt?: string;
@@ -57,8 +57,7 @@ export default function ScheduledAutoSelectInfo({
 
             <div className="mt-3 p-3 bg-blue-100 dark:bg-blue-900/40 rounded border border-blue-300 dark:border-blue-700">
               <p className="text-xs leading-relaxed">
-                💡 <strong>Qué significa:</strong> Eres el único postulado para &quot;{jobTitle}&quot;.
-                Si el cliente no selecciona otro worker antes de esta hora, serás asignado automáticamente.
+                💡 <Trans i18nKey="autoSelect.whatItMeans" values={{ jobTitle }} components={{ b: <strong /> }} defaults='<b>Qué significa:</b> Eres el único postulado para "{{jobTitle}}". Si el cliente no selecciona otro worker antes de esta hora, serás asignado automáticamente.' />
               </p>
             </div>
 
@@ -66,7 +65,7 @@ export default function ScheduledAutoSelectInfo({
               <div className="flex gap-2">
                 <AlertCircle className="h-4 w-4 text-yellow-700 dark:text-yellow-300 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-yellow-800 dark:text-yellow-200 leading-relaxed">
-                  <strong>Prepárate:</strong> Asegúrate de estar disponible para comenzar el trabajo en su fecha y hora programada.
+                  <Trans i18nKey="autoSelect.prepareInfo" components={{ b: <strong /> }} defaults="<b>Prepárate:</b> Asegúrate de estar disponible para comenzar el trabajo en su fecha y hora programada." />
                 </p>
               </div>
             </div>

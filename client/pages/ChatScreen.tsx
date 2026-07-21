@@ -1123,7 +1123,7 @@ export default function ChatScreen() {
 
               {/* Job selector */}
               <div className="mb-3">
-                <p className="text-xs text-amber-700 dark:text-amber-400 mb-1.5 font-medium">Seleccioná el trabajo</p>
+                <p className="text-xs text-amber-700 dark:text-amber-400 mb-1.5 font-medium">{t('chat.selectJob', 'Seleccioná el trabajo')}</p>
                 {loadingMyJobs ? (
                   <div className="flex items-center gap-2 text-xs text-amber-600"><Loader2 className="h-3 w-3 animate-spin" /> Cargando trabajos...</div>
                 ) : (
@@ -1162,7 +1162,7 @@ export default function ChatScreen() {
                       </button>
                     ))}
                     {!jobForProposal && allMyJobs.length === 0 && (
-                      <p className="text-xs text-amber-600 dark:text-amber-400">No tenés trabajos abiertos</p>
+                      <p className="text-xs text-amber-600 dark:text-amber-400">{t('chat.noOpenJobs', 'No tenés trabajos abiertos')}</p>
                     )}
                   </div>
                 )}
