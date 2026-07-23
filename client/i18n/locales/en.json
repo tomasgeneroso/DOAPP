@@ -2068,7 +2068,9 @@
     "addBankingNow": "Do you want to add your banking details now?",
     "addBankingDetails": "Add banking details",
     "continueWithout": "Continue without adding",
-    "dontAskAgain": "Don't ask again"
+    "dontAskAgain": "Don't ask again",
+    "forceStartTitle": "Start without verifying the code",
+    "confirmForceStart": "Do you confirm starting the job without verifying the code? This will record your presence and the contract will begin when the other party also confirms."
   },
   "chat": {
     "title": "Messages",

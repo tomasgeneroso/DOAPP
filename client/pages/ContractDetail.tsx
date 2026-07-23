@@ -13,6 +13,7 @@ import ContractExtensionApproval from "@/components/contracts/ContractExtensionA
 import TaskClaimModal from "@/components/contracts/TaskClaimModal";
 import TaskClaimResponse from "@/components/contracts/TaskClaimResponse";
 import TaskEvidenceUploadModal from "@/components/contracts/TaskEvidenceUploadModal";
+import ConfirmModal from "@/components/ui/ConfirmModal";
 import {
   ArrowLeft,
   Calendar,
@@ -50,6 +51,19 @@ export default function ContractDetail() {
   const [loadingPairing, setLoadingPairing] = useState(false);
   const [pairingMessage, setPairingMessage] = useState("");
   const [pairingFailed, setPairingFailed] = useState(false);
+
+  // Single dialog slot replacing native confirm()/alert().
+  // `acknowledge: true` renders it as a plain OK notice.
+  const [dialog, setDialog] = useState<{
+    tone: 'danger' | 'warning' | 'info' | 'success';
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    onConfirm?: () => void;
+    acknowledge?: boolean;
+  } | null>(null);
+  const notify = (message: string, tone: 'danger' | 'success' = 'danger') =>
+    setDialog({ tone, title: t(tone === 'success' ? 'common.important' : 'common.attention', tone === 'success' ? 'Listo' : 'Atención'), message, acknowledge: true });
   const [showExtensionForm, setShowExtensionForm] = useState(false);
   const [showTaskClaimModal, setShowTaskClaimModal] = useState(false);
   const [showEvidenceModal, setShowEvidenceModal] = useState(false);
@@ -127,16 +141,24 @@ export default function ContractDetail() {
     registerContractUpdateHandler(handler);
   }, [id, loadContract, loadPayments, registerContractUpdateHandler]);
 
-  const handleReleaseEscrow = async (paymentId: string) => {
-    if (!confirm(t('contracts.confirmReleaseEscrow', 'Are you sure you want to release the escrow payment?'))) return;
+  const handleReleaseEscrow = (paymentId: string) => {
+    setDialog({
+      tone: 'warning',
+      title: t('contracts.releasePayment', 'Liberar pago'),
+      message: t('contracts.confirmReleaseEscrow', 'Are you sure you want to release the escrow payment?'),
+      onConfirm: () => doReleaseEscrow(paymentId),
+    });
+  };
 
+  const doReleaseEscrow = async (paymentId: string) => {
     try {
       await paymentApi.releaseEscrow(paymentId);
-      alert(t('contracts.paymentReleasedSuccess', 'Payment released successfully'));
+      setDialog(null);
+      notify(t('contracts.paymentReleasedSuccess', 'Payment released successfully'), 'success');
       loadPayments();
       loadContract();
     } catch (error: any) {
-      alert(`Error: ${error.message}`);
+      notify(`Error: ${error.message}`);
     }
   };
 
@@ -152,7 +174,7 @@ export default function ContractDetail() {
       }
     } catch (error) {
       console.error("Error opening chat:", error);
-      alert(t('contracts.errorOpeningChat', 'Error opening chat. Please try again.'));
+      notify(t('contracts.errorOpeningChat', 'Error opening chat. Please try again.'));
     } finally {
       setLoadingChat(false);
     }
@@ -201,9 +223,21 @@ export default function ContractDetail() {
     }
   };
 
-  const handleForceStartPairing = async () => {
+  const handleForceStartPairing = () => {
     if (!id) return;
-    if (!confirm('¿Confirmas el inicio del trabajo sin verificar el código? Esto registrará tu presencia y el contrato comenzará cuando la otra parte también confirme.')) return;
+    setDialog({
+      tone: 'warning',
+      title: t('contracts.forceStartTitle', 'Iniciar sin verificar el código'),
+      message: t(
+        'contracts.confirmForceStart',
+        '¿Confirmas el inicio del trabajo sin verificar el código? Esto registrará tu presencia y el contrato comenzará cuando la otra parte también confirme.',
+      ),
+      onConfirm: doForceStartPairing,
+    });
+  };
+
+  const doForceStartPairing = async () => {
+    setDialog(null);
     setLoadingPairing(true);
     setPairingMessage('');
     try {
@@ -242,11 +276,11 @@ export default function ContractDetail() {
 
   const handleProposeHours = async () => {
     if (!id || !proposedStart || !proposedEnd) {
-      alert(t('contracts.mustIndicateStartEnd', 'You must indicate start and end times'));
+      notify(t('contracts.mustIndicateStartEnd', 'You must indicate start and end times'));
       return;
     }
     if (new Date(proposedEnd) <= new Date(proposedStart)) {
-      alert(t('contracts.endMustBeAfterStart', 'End time must be after start time'));
+      notify(t('contracts.endMustBeAfterStart', 'End time must be after start time'));
       return;
     }
 
@@ -263,16 +297,25 @@ export default function ContractDetail() {
         loadContract();
       }
     } catch (error: any) {
-      alert(error.response?.data?.message || t('contracts.errorConfirming', 'Error confirming'));
+      notify(error.response?.data?.message || t('contracts.errorConfirming', 'Error confirming'));
     } finally {
       setConfirmingWork(false);
     }
   };
 
-  const handleConfirmCompletion = async () => {
+  const handleConfirmCompletion = () => {
     if (!id) return;
-    if (!confirm(t('contracts.confirmHoursCorrect', 'Do you confirm that the reported hours are correct and the work was completed?'))) return;
+    setDialog({
+      tone: 'success',
+      title: t('contracts.confirmHours', 'Confirmar horas'),
+      message: t('contracts.confirmHoursCorrect', 'Do you confirm that the reported hours are correct and the work was completed?'),
+      confirmLabel: t('common.confirm', 'Confirmar'),
+      onConfirm: doConfirmCompletion,
+    });
+  };
 
+  const doConfirmCompletion = async () => {
+    setDialog(null);
     setConfirmingWork(true);
     try {
       const response = await api.post(`/contracts/${id}/confirm`);
@@ -285,7 +328,7 @@ export default function ContractDetail() {
         }
       }
     } catch (error: any) {
-      alert(error.response?.data?.message || t('contracts.errorConfirmingCompletion', 'Error confirming work completion'));
+      notify(error.response?.data?.message || t('contracts.errorConfirmingCompletion', 'Error confirming work completion'));
     } finally {
       setConfirmingWork(false);
     }
@@ -293,7 +336,7 @@ export default function ContractDetail() {
 
   const handleRejectConfirmation = async () => {
     if (!id || !rejectionReason.trim()) {
-      alert(t('contracts.mustProvideRejectionReason', 'You must provide a rejection reason'));
+      notify(t('contracts.mustProvideRejectionReason', 'You must provide a rejection reason'));
       return;
     }
 
@@ -304,11 +347,11 @@ export default function ContractDetail() {
       });
       if (response.success) {
         setShowRejectModal(false);
-        alert(t('contracts.confirmationRejectedDisputeCreated', 'Confirmation rejected. A dispute has been created automatically.'));
+        notify(t('contracts.confirmationRejectedDisputeCreated', 'Confirmation rejected. A dispute has been created automatically.'), 'success');
         loadContract();
       }
     } catch (error: any) {
-      alert(error.response?.data?.message || t('contracts.errorRejecting', 'Error rejecting'));
+      notify(error.response?.data?.message || t('contracts.errorRejecting', 'Error rejecting'));
     } finally {
       setConfirmingWork(false);
     }
@@ -1496,6 +1539,17 @@ export default function ContractDetail() {
           }}
         />
       )}
+
+      <ConfirmModal
+        open={!!dialog}
+        tone={dialog?.tone || 'warning'}
+        title={dialog?.title || ''}
+        message={dialog?.message || ''}
+        confirmLabel={dialog?.acknowledge ? t('common.accept', 'Aceptar') : dialog?.confirmLabel}
+        hideCancel={dialog?.acknowledge}
+        onConfirm={() => (dialog?.onConfirm ? dialog.onConfirm() : setDialog(null))}
+        onClose={() => setDialog(null)}
+      />
     </>
   );
 }
