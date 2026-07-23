@@ -12,6 +12,7 @@ import PostCard from '../components/user/PostCard';
 import CreatePost from '../components/user/CreatePost';
 import PostComments from '../components/user/PostComments';
 import ReportProfileModal from '../components/user/ReportProfileModal';
+import ConfirmModal from '../components/ui/ConfirmModal';
 import { useAuth } from '../hooks/useAuth';
 import Button from '../components/ui/Button';
 import WorkerModeToggle from '../components/profile/WorkerModeToggle';
@@ -89,6 +90,8 @@ export default function ProfilePage() {
   const [shareSearchResults, setShareSearchResults] = useState<User[]>([]);
   const [shareSearchLoading, setShareSearchLoading] = useState(false);
   const [shareSending, setShareSending] = useState(false);
+  // Replaces native alert()
+  const [notice, setNotice] = useState<{ text: string; tone: 'danger' | 'success' } | null>(null);
 
   // Determine which identifier to use
   const profileIdentifier = username || userId;
@@ -406,10 +409,10 @@ export default function ProfilePage() {
       setShareSearchResults([]);
 
       // Show success notification
-      alert(`Perfil compartido con ${targetUser.name}`);
+      setNotice({ text: t('profile.sharedWith', 'Perfil compartido con {{name}}', { name: targetUser.name }), tone: 'success' });
     } catch (err) {
       console.error('Error sharing profile:', err);
-      alert('Error al compartir el perfil');
+      setNotice({ text: t('profile.errorSharing', 'Error al compartir el perfil'), tone: 'danger' });
     } finally {
       setShareSending(false);
     }
@@ -1433,7 +1436,7 @@ export default function ProfilePage() {
             userName={user.name}
             onClose={() => setShowReportModal(false)}
             onSuccess={() => {
-              alert('Denuncia enviada exitosamente. El equipo de soporte la revisará.');
+              setNotice({ text: t('profile.reportSent', 'Denuncia enviada exitosamente. El equipo de soporte la revisará.'), tone: 'success' });
               setShowReportModal(false);
             }}
           />
@@ -1632,6 +1635,17 @@ export default function ProfilePage() {
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        open={!!notice}
+        tone={notice?.tone || 'danger'}
+        title={t(notice?.tone === 'success' ? 'common.important' : 'common.attention', notice?.tone === 'success' ? 'Listo' : 'Atención')}
+        message={notice?.text || ''}
+        confirmLabel={t('common.accept', 'Aceptar')}
+        hideCancel
+        onConfirm={() => setNotice(null)}
+        onClose={() => setNotice(null)}
+      />
     </>
   );
 }

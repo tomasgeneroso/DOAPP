@@ -1891,7 +1891,9 @@
       "escalatedToSupport": "Escalated to support",
       "escalatedDesc": "This request was automatically escalated to our support team because no response was received within 2 days. The team will get in touch soon.",
       "escalatedOn": "Escalated on {{date}}",
-      "respondToRequest": "Respond to this request"
+      "respondToRequest": "Respond to this request",
+      "typeAcceptTitle": "Accept request",
+      "typeRejectTitle": "Reject request"
     },
     "backToContracts": "Back to contracts",
     "backToContract": "Back to the contract",
@@ -2325,7 +2327,10 @@
     "activateWorkerMode": "Activate worker mode",
     "modeBothDesc": "You can post jobs and apply to jobs",
     "modeWorkerDesc": "You can apply to jobs and send quotes",
-    "modeClientDesc": "You can post jobs and hire workers"
+    "modeClientDesc": "You can post jobs and hire workers",
+    "sharedWith": "Profile shared with {{name}}",
+    "errorSharing": "Error sharing the profile",
+    "reportSent": "Report sent successfully. The support team will review it."
   },
   "membership": {
     "title": "Membership",
@@ -2822,7 +2827,15 @@
     "client": "Client",
     "freelancer": "Professional",
     "directApplications": "Direct applications",
-    "jobPrice": "Job price"
+    "jobPrice": "Job price",
+    "acceptProposal": "Accept proposal",
+    "confirmAccept": "Accept this proposal? The contract will be created automatically.",
+    "rejectProposal": "Reject proposal",
+    "rejectReasonPrompt": "Why are you rejecting this proposal? (optional)",
+    "rejectReasonPlaceholder": "Reason (optional)",
+    "errorAccepting": "Error accepting the proposal",
+    "errorRejecting": "Error rejecting the proposal",
+    "errorProcessing": "Error processing the request"
   },
   "posts": {
     "maxFilesAllowed": "Maximum 10 files allowed",

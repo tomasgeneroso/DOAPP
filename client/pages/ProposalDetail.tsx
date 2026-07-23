@@ -16,6 +16,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 import MultipleRatings from "../components/user/MultipleRatings";
+import ConfirmModal from "../components/ui/ConfirmModal";
 
 interface Proposal {
   _id?: string;
@@ -63,6 +64,11 @@ export default function ProposalDetail() {
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  // Replaces native confirm()/alert()/prompt()
+  const [notice, setNotice] = useState<string | null>(null);
+  const [confirmAcceptOpen, setConfirmAcceptOpen] = useState(false);
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
   const { token } = useAuth();
 
   useEffect(() => {
@@ -130,11 +136,14 @@ export default function ProposalDetail() {
     }
   };
 
-  const handleAccept = async () => {
+  const handleAccept = () => {
     if (!proposal || !token) return;
+    setConfirmAcceptOpen(true);
+  };
 
-    if (!confirm('¿Aceptar esta propuesta? Se creará el contrato automáticamente.')) return;
-
+  const doAccept = async () => {
+    if (!proposal || !token) return;
+    setConfirmAcceptOpen(false);
     setActionLoading(true);
     try {
       const response = await fetch(`/api/proposals/${proposal._id}/approve`, {
@@ -153,22 +162,26 @@ export default function ProposalDetail() {
           loadProposal();
         }
       } else {
-        alert(data.message || 'Error al aceptar la propuesta');
+        setNotice(data.message || t('proposals.errorAccepting', 'Error al aceptar la propuesta'));
       }
     } catch (error) {
       console.error('Error:', error);
-      alert('Error al procesar la solicitud');
+      setNotice(t('proposals.errorProcessing', 'Error al procesar la solicitud'));
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleReject = async () => {
+  const handleReject = () => {
     if (!proposal || !token) return;
+    setRejectReason('');
+    setRejectOpen(true);
+  };
 
-    const reason = prompt('¿Por qué rechazas esta propuesta? (opcional)');
-    if (reason === null) return; // User cancelled
-
+  const doReject = async () => {
+    if (!proposal || !token) return;
+    const reason = rejectReason;
+    setRejectOpen(false);
     setActionLoading(true);
     try {
       const response = await fetch(`/api/proposals/${proposal._id}/reject`, {
@@ -184,11 +197,11 @@ export default function ProposalDetail() {
       if (data.success) {
         loadProposal();
       } else {
-        alert(data.message || 'Error al rechazar la propuesta');
+        setNotice(data.message || t('proposals.errorRejecting', 'Error al rechazar la propuesta'));
       }
     } catch (error) {
       console.error('Error:', error);
-      alert('Error al procesar la solicitud');
+      setNotice(t('proposals.errorProcessing', 'Error al procesar la solicitud'));
     } finally {
       setActionLoading(false);
     }
@@ -472,6 +485,50 @@ export default function ProposalDetail() {
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        open={confirmAcceptOpen}
+        tone="success"
+        title={t('proposals.acceptProposal', 'Aceptar propuesta')}
+        message={t('proposals.confirmAccept', '¿Aceptar esta propuesta? Se creará el contrato automáticamente.')}
+        confirmLabel={t('common.accept', 'Aceptar')}
+        loading={actionLoading}
+        onConfirm={doAccept}
+        onClose={() => setConfirmAcceptOpen(false)}
+      />
+
+      <ConfirmModal
+        open={rejectOpen}
+        tone="danger"
+        title={t('proposals.rejectProposal', 'Rechazar propuesta')}
+        message={
+          <div>
+            <p className="mb-3">{t('proposals.rejectReasonPrompt', '¿Por qué rechazás esta propuesta? (opcional)')}</p>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              rows={3}
+              className="w-full rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white"
+              placeholder={t('proposals.rejectReasonPlaceholder', 'Motivo (opcional)')}
+            />
+          </div>
+        }
+        confirmLabel={t('common.reject', 'Rechazar')}
+        loading={actionLoading}
+        onConfirm={doReject}
+        onClose={() => setRejectOpen(false)}
+      />
+
+      <ConfirmModal
+        open={!!notice}
+        tone="danger"
+        title={t('common.attention', 'Atención')}
+        message={notice || ''}
+        confirmLabel={t('common.accept', 'Aceptar')}
+        hideCancel
+        onConfirm={() => setNotice(null)}
+        onClose={() => setNotice(null)}
+      />
     </>
   );
 }

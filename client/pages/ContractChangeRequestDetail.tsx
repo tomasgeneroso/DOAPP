@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/hooks/useAuth';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 import {
   ArrowLeft,
   Clock,
@@ -68,6 +69,15 @@ export default function ContractChangeRequestDetail() {
   const [request, setRequest] = useState<ContractChangeRequest | null>(null);
   const [loading, setLoading] = useState(true);
   const [responding, setResponding] = useState(false);
+  // Replaces native confirm()/alert()
+  const [notice, setNotice] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<{
+    tone: 'danger' | 'success';
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -94,19 +104,24 @@ export default function ContractChangeRequestDetail() {
     }
   };
 
-  const handleRespond = async (accept: boolean) => {
+  const handleRespond = (accept: boolean) => {
     if (!request) return;
+    setDialog({
+      tone: accept ? 'success' : 'danger',
+      title: accept
+        ? t('contracts.changeRequest.typeAcceptTitle', 'Aceptar solicitud')
+        : t('contracts.changeRequest.typeRejectTitle', 'Rechazar solicitud'),
+      message: accept
+        ? t('contracts.changeRequest.confirmAccept', 'Are you sure you want to accept this request?')
+        : t('contracts.changeRequest.confirmReject', 'Are you sure you want to reject this request?'),
+      confirmLabel: accept ? t('common.accept', 'Aceptar') : t('common.reject', 'Rechazar'),
+      onConfirm: () => doRespond(accept),
+    });
+  };
 
-    if (
-      !confirm(
-        accept
-          ? t('contracts.changeRequest.confirmAccept', 'Are you sure you want to accept this request?')
-          : t('contracts.changeRequest.confirmReject', 'Are you sure you want to reject this request?')
-      )
-    ) {
-      return;
-    }
-
+  const doRespond = async (accept: boolean) => {
+    if (!request) return;
+    setDialog(null);
     setResponding(true);
     try {
       const response = await fetch(`/api/contract-change-requests/${id}/respond`, {
@@ -120,14 +135,13 @@ export default function ContractChangeRequestDetail() {
 
       const data = await response.json();
       if (data.success) {
-        alert(data.message);
         navigate(`/contracts/${request.contract._id}`);
       } else {
-        alert(data.message || t('contracts.changeRequest.respondError', 'Error responding to request'));
+        setNotice(data.message || t('contracts.changeRequest.respondError', 'Error responding to request'));
       }
     } catch (error) {
       console.error('Error responding to request:', error);
-      alert(t('contracts.changeRequest.respondError', 'Error responding to request'));
+      setNotice(t('contracts.changeRequest.respondError', 'Error responding to request'));
     } finally {
       setResponding(false);
     }
@@ -474,6 +488,28 @@ export default function ContractChangeRequestDetail() {
           )}
         </div>
       </div>
+
+      <ConfirmModal
+        open={!!dialog}
+        tone={dialog?.tone || 'success'}
+        title={dialog?.title || ''}
+        message={dialog?.message || ''}
+        confirmLabel={dialog?.confirmLabel}
+        loading={responding}
+        onConfirm={() => dialog?.onConfirm()}
+        onClose={() => setDialog(null)}
+      />
+
+      <ConfirmModal
+        open={!!notice}
+        tone="danger"
+        title={t('common.attention', 'Atención')}
+        message={notice || ''}
+        confirmLabel={t('common.accept', 'Aceptar')}
+        hideCancel
+        onConfirm={() => setNotice(null)}
+        onClose={() => setNotice(null)}
+      />
     </>
   );
 }
