@@ -56,6 +56,7 @@ import DeleteJobModal from "../components/jobDetail/DeleteJobModal";
 import ChangeBudgetModal from "../components/jobDetail/ChangeBudgetModal";
 import SelectWorkerConfirmModal from "../components/jobDetail/SelectWorkerConfirmModal";
 import BudgetPaymentConfirmModal from "../components/jobDetail/BudgetPaymentConfirmModal";
+import ConfirmModal from "../components/ui/ConfirmModal";
 import JobActionsMenu from "../components/jobDetail/JobActionsMenu";
 import ClientDropdownMenu from "../components/jobDetail/ClientDropdownMenu";
 import AdminJobDetailsPanel from "../components/jobDetail/AdminJobDetailsPanel";
@@ -159,6 +160,10 @@ export default function JobDetail() {
   const [copiedPairingCode, setCopiedPairingCode] = useState(false);
   const [copiedJobCode, setCopiedJobCode] = useState(false);
   const [hasApplied, setHasApplied] = useState(false);
+  const [myProposalId, setMyProposalId] = useState<string | null>(null);
+  const [myProposalStatus, setMyProposalStatus] = useState<string | null>(null);
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [confirmWithdrawOpen, setConfirmWithdrawOpen] = useState(false);
   const [checkingApplication, setCheckingApplication] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
 
@@ -437,6 +442,8 @@ export default function JobDetail() {
         const data = await response.json();
         if (data.success) {
           setHasApplied(data.hasApplied || false);
+          setMyProposalId(data.proposalId || null);
+          setMyProposalStatus(data.proposalStatus || null);
         }
       } catch (err) {
         console.error("Error checking application status:", err);
@@ -682,6 +689,34 @@ export default function JobDetail() {
     }
 
     navigate(`/jobs/${id}/apply`);
+  };
+
+  // Withdraw an application straight from the job view (previously only possible from chat)
+  const handleWithdrawApplication = async () => {
+    if (!myProposalId || withdrawing) return;
+    setWithdrawing(true);
+    try {
+      const res = await fetch(`/api/proposals/${myProposalId}/withdraw`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setHasApplied(false);
+        setMyProposalId(null);
+        setMyProposalStatus(null);
+      } else {
+        setError(data.message || t("jobs.errorWithdrawing", "No se pudo cancelar la postulación"));
+      }
+    } catch (err: any) {
+      setError(t("jobs.errorWithdrawing", "No se pudo cancelar la postulación"));
+    } finally {
+      setWithdrawing(false);
+      setConfirmWithdrawOpen(false);
+    }
   };
 
   const handleSendMessage = async () => {
@@ -2601,6 +2636,18 @@ export default function JobDetail() {
                         >
                           <ClipboardList className="h-5 w-5" />
                           {t("jobs.sendQuote", "Enviar cotización")}
+                        </button>
+                      )}
+                      {myProposalId && myProposalStatus === 'pending' && (
+                        <button
+                          onClick={() => setConfirmWithdrawOpen(true)}
+                          disabled={withdrawing}
+                          className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 px-6 py-3 text-base font-semibold transition-all disabled:opacity-50"
+                        >
+                          <XCircle className="h-5 w-5" />
+                          {withdrawing
+                            ? t("jobs.withdrawing", "Cancelando...")
+                            : t("jobs.withdrawApplication", "Cancelar postulación")}
                         </button>
                       )}
                     </div>
@@ -4585,6 +4632,20 @@ export default function JobDetail() {
           loading={deleting}
           onConfirm={handleDeleteJob}
           onClose={() => setShowDeleteModal(false)}
+        />
+
+        <ConfirmModal
+          open={confirmWithdrawOpen}
+          tone="danger"
+          loading={withdrawing}
+          title={t("jobs.withdrawApplication", "Cancelar postulación")}
+          message={t(
+            "jobs.confirmWithdrawApplication",
+            "¿Seguro que querés cancelar tu postulación a este trabajo? Vas a poder volver a postularte mientras siga abierto.",
+          )}
+          confirmLabel={t("jobs.yesWithdraw", "Sí, cancelar postulación")}
+          onConfirm={handleWithdrawApplication}
+          onClose={() => setConfirmWithdrawOpen(false)}
         />
 
         <ChangeBudgetModal

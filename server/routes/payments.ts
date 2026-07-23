@@ -19,7 +19,7 @@ import { Invoice } from '../models/sql/Invoice.model.js';
 import { getUserInvoices, getInvoiceById } from '../services/invoiceService.js';
 import logger from "../services/logger.js";
 import { socketService } from "../index.js";
-import { calculateCommission } from "../services/commissionService.js";
+import { calculateCommission, consumeCommissionFreeCredit } from "../services/commissionService.js";
 
 // Ensure upload directory exists
 const PAYMENT_PROOFS_DIR = path.join(process.cwd(), 'uploads', 'payment-proofs');
@@ -813,6 +813,12 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
         job.publicationPaidAt = new Date();
         await job.save();
 
+        // Consume the commission-free credit now that the payment is confirmed
+        // (deliberately not at job creation, so abandoned drafts don't burn it).
+        if (Number(payment.platformFee || 0) === 0) {
+          await consumeCommissionFreeCredit(payment.payerId);
+        }
+
         // Notify user that job is published
         await Notification.create({
           recipientId: payment.payerId,
@@ -1385,6 +1391,9 @@ router.post("/webhook/astropay", express.raw({ type: "*/*" }), async (req, res):
           relatedJob.status = "pending_approval";
           (relatedJob as any).publicationPaid = true;
           await relatedJob.save();
+          if (Number(payment.platformFee || 0) === 0) {
+            await consumeCommissionFreeCredit(payment.payerId);
+          }
         }
       } else {
         payment.status = "completed";
@@ -1891,6 +1900,10 @@ router.post("/:paymentId/proof/:proofId/approve", protect, requireRole('admin', 
         job.status = 'open';
         job.publicationPaid = true;
         await job.save();
+
+        if (Number(payment.platformFee || 0) === 0) {
+          await consumeCommissionFreeCredit(payment.payerId);
+        }
 
         // Notify job owner
         await Notification.create({

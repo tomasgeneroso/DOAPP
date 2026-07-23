@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { getImageUrl } from '@/utils/imageUrl';
@@ -150,13 +150,18 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
   const navigate = useNavigate();
   const { header, title, data } = parseSystemMessage(message.message);
 
+  // Optimistic status: the card must reflect the new state immediately after acting,
+  // without waiting for the refetch/socket to deliver the updated metadata.
+  const [localStatus, setLocalStatus] = useState<string | undefined>(undefined);
+  const proposalStatus = localStatus ?? message.metadata?.proposalStatus;
+
   const isCurrentUser = (message.sender?.id || message.sender?._id) === currentUserId;
-  const isPending = message.metadata?.proposalStatus === 'pending';
-  const isApproved = message.metadata?.proposalStatus === 'approved';
-  const isRejected = message.metadata?.proposalStatus === 'rejected';
+  const isPending = proposalStatus === 'pending';
+  const isApproved = proposalStatus === 'approved';
+  const isRejected = proposalStatus === 'rejected';
   const isDirectProposal = message.metadata?.action === 'direct_contract_proposal' || header === 'direct_proposal';
 
-  const statusConfig = getStatusConfig(message.metadata?.proposalStatus, t);
+  const statusConfig = getStatusConfig(proposalStatus, t);
   const StatusIcon = statusConfig.icon;
 
   // Determine card style based on status and sender
@@ -232,8 +237,16 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
 
       const result = await response.json();
 
-      if (result.success && result.contractId) {
-        navigate(`/contracts/${result.contractId}/summary`);
+      if (result.success) {
+        // Reflect the new state right away, then refetch so the card picks up the
+        // canonical metadata. Navigating is optional: not every accept path returns
+        // a contractId (worker selection creates it later), and a missing one must
+        // NOT be treated as a failure.
+        setLocalStatus('approved');
+        onRefresh();
+        if (result.contractId) {
+          navigate(`/contracts/${result.contractId}/summary`);
+        }
       } else {
         alert(result.message || t('chat.errorAccepting', 'Error accepting'));
       }
@@ -264,6 +277,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
 
       const result = await response.json();
       if (result.success) {
+        setLocalStatus('rejected');
         onRefresh();
       } else {
         alert(result.message || t('chat.errorRejecting', 'Error rejecting'));
@@ -291,6 +305,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
 
       const result = await response.json();
       if (result.success) {
+        setLocalStatus('withdrawn');
         onRefresh();
       } else {
         alert(result.message || t('chat.errorCancelling', 'Error cancelling'));

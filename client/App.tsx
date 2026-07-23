@@ -191,6 +191,8 @@ export default function App() {
                   </ProtectedRoute>
                 }
               />
+              {/* Legacy alias: some links pointed to /create-job (route never existed → blank page) */}
+              <Route path="/create-job" element={<Navigate to="/contracts/create" replace />} />
               <Route
                 path="/contracts/:id/summary"
                 element={

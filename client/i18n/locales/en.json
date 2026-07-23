@@ -1687,7 +1687,12 @@
     "wouldYouReschedule": "Would you like to reschedule it?",
     "youConfirmedWaitingWorker": "You confirmed that the job was done. We're waiting for the worker to also confirm to proceed with the payments.",
     "yourConfirmations": "Your confirmations (client)",
-    "youWereSelected": "You were selected for this job!"
+    "youWereSelected": "You were selected for this job!",
+    "withdrawApplication": "Cancel application",
+    "withdrawing": "Cancelling...",
+    "confirmWithdrawApplication": "Are you sure you want to cancel your application to this job? You can apply again while it stays open.",
+    "yesWithdraw": "Yes, cancel application",
+    "errorWithdrawing": "Could not cancel the application"
   },
   "contracts": {
     "title": "Contracts",
@@ -3496,5 +3501,23 @@
     "refContent": "Content: minimum 300 words (ideal 1000+)",
     "refTags": "Tags: 3-5 relevant",
     "refKeywords": "Keywords: 3-5 main ones"
+  },
+  "completeReg": {
+    "metaTitle": "Complete registration - DOAPP",
+    "title": "Complete your registration",
+    "subtitle": "We need to verify your identity with your ID",
+    "greeting": "Hi <b>{{name}}</b>, upload your ID to keep using the platform.",
+    "dniLabel": "ID number",
+    "dniHint": "No dots or spaces (7-8 digits)",
+    "dniPhotos": "ID photos",
+    "front": "Front",
+    "back": "Back",
+    "tapToUpload": "Tap to upload",
+    "photosHint": "Photos must be clear and legible. They will be verified by the team.",
+    "privacyNote": "Your data is protected and will not be shared with third parties. The ID is required by Argentine regulations.",
+    "saving": "Saving...",
+    "continue": "Continue",
+    "errorOnlyImages": "Only images (JPG, PNG) or PDF are accepted",
+    "errorBothPhotos": "You must upload both the front and back photo of your ID"
   }
 }

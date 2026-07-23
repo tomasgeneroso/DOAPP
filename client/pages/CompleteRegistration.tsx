@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { useTranslation } from 'react-i18next';
+import { useTranslation, Trans } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
 import { User, CreditCard, ArrowRight, Loader2, AlertCircle, Upload, Camera, CheckCircle2, X } from 'lucide-react';
 
@@ -27,7 +27,7 @@ export default function CompleteRegistration() {
   ) => {
     if (!file) return;
     if (!file.type.startsWith('image/') && file.type !== 'application/pdf') {
-      setError('Solo se aceptan imágenes (JPG, PNG) o PDF');
+      setError(t('completeReg.errorOnlyImages', 'Solo se aceptan imágenes (JPG, PNG) o PDF'));
       return;
     }
     if (file.size > 10 * 1024 * 1024) {
@@ -57,7 +57,7 @@ export default function CompleteRegistration() {
       return;
     }
     if (!photoFront || !photoBack) {
-      setError('Debés subir la foto del frente y dorso del DNI');
+      setError(t('completeReg.errorBothPhotos', 'Debés subir la foto del frente y dorso del DNI'));
       return;
     }
 
@@ -156,7 +156,7 @@ export default function CompleteRegistration() {
           <div className="flex flex-col items-center justify-center h-32 gap-2 px-4">
             <Camera className="w-8 h-8 text-slate-400" />
             <p className="text-xs text-slate-500 dark:text-slate-400 text-center">
-              Tocá para subir<br />
+              {t('completeReg.tapToUpload', 'Tocá para subir')}<br />
               <span className="text-slate-400">{t('auth.fileHintJpgPngPdf', 'JPG, PNG o PDF · máx 10MB')}</span>
             </p>
           </div>
@@ -168,7 +168,7 @@ export default function CompleteRegistration() {
   return (
     <>
       <Helmet>
-        <title>Completar registro - DOAPP</title>
+        <title>{t('completeReg.metaTitle', 'Completar registro - DOAPP')}</title>
       </Helmet>
 
       <div className="fixed inset-0 bg-slate-50 dark:bg-slate-900 -z-10" aria-hidden="true" />
@@ -187,17 +187,17 @@ export default function CompleteRegistration() {
                 <User className="w-8 h-8 text-sky-600 dark:text-sky-400" />
               </div>
               <h2 className="text-2xl font-bold text-slate-900 dark:text-white">
-                Completá tu registro
+                {t('completeReg.title', 'Completá tu registro')}
               </h2>
               <p className="text-slate-600 dark:text-slate-400 mt-2">
-                Necesitamos verificar tu identidad con tu DNI
+                {t('completeReg.subtitle', 'Necesitamos verificar tu identidad con tu DNI')}
               </p>
             </div>
 
             {user && (
               <div className="rounded-xl p-4 mb-6 border border-sky-200 dark:border-sky-800 bg-sky-50 dark:bg-sky-900/20">
                 <p className="text-sm text-sky-700 dark:text-sky-300">
-                  Hola <strong>{user.name}</strong>, subí tu DNI para continuar usando la plataforma.
+                  <Trans i18nKey="completeReg.greeting" values={{ name: user.name }} components={{ b: <strong /> }} defaults="Hola <b>{{name}}</b>, subí tu DNI para continuar usando la plataforma." />
                 </p>
               </div>
             )}
@@ -206,7 +206,7 @@ export default function CompleteRegistration() {
               {/* DNI number */}
               <div>
                 <label htmlFor="dni" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                  Número de DNI
+                  {t('completeReg.dniLabel', 'Número de DNI')}
                 </label>
                 <div className="relative">
                   <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -222,7 +222,7 @@ export default function CompleteRegistration() {
                   />
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  Sin puntos ni espacios (7-8 dígitos)
+                  {t('completeReg.dniHint', 'Sin puntos ni espacios (7-8 dígitos)')}
                 </p>
               </div>
 
@@ -231,13 +231,13 @@ export default function CompleteRegistration() {
                 <div className="flex items-center gap-2 mb-3">
                   <Upload className="w-4 h-4 text-slate-500" />
                   <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Fotos del DNI <span className="text-red-500">*</span>
+                    {t('completeReg.dniPhotos', 'Fotos del DNI')} <span className="text-red-500">*</span>
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <PhotoUploadBox
                     side="front"
-                    label="Frente"
+                    label={t('completeReg.front', 'Frente')}
                     preview={previewFront}
                     file={photoFront}
                     inputRef={frontInputRef}
@@ -245,7 +245,7 @@ export default function CompleteRegistration() {
                   />
                   <PhotoUploadBox
                     side="back"
-                    label="Dorso"
+                    label={t('completeReg.back', 'Dorso')}
                     preview={previewBack}
                     file={photoBack}
                     inputRef={backInputRef}
@@ -253,7 +253,7 @@ export default function CompleteRegistration() {
                   />
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">
-                  Las fotos deben ser claras y legibles. Serán verificadas por el equipo.
+                  {t('completeReg.photosHint', 'Las fotos deben ser claras y legibles. Serán verificadas por el equipo.')}
                 </p>
               </div>
 
@@ -272,11 +272,11 @@ export default function CompleteRegistration() {
                 {loading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Guardando...
+                    {t('completeReg.saving', 'Guardando...')}
                   </>
                 ) : (
                   <>
-                    Continuar
+                    {t('completeReg.continue', 'Continuar')}
                     <ArrowRight className="w-5 h-5" />
                   </>
                 )}
@@ -284,7 +284,7 @@ export default function CompleteRegistration() {
             </form>
 
             <p className="text-xs text-center text-slate-500 dark:text-slate-400 mt-6">
-              Tus datos están protegidos y no serán compartidos con terceros. El DNI es requerido por regulaciones argentinas.
+              {t('completeReg.privacyNote', 'Tus datos están protegidos y no serán compartidos con terceros. El DNI es requerido por regulaciones argentinas.')}
             </p>
           </div>
         </div>

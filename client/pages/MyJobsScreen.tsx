@@ -981,7 +981,7 @@ export default function MyJobsScreen() {
                   {t('jobs.noJobs', 'No tienes trabajos en este momento')}
                 </p>
                 <Link
-                  to="/create-job"
+                  to="/contracts/create"
                   className="mt-4 inline-block px-6 py-2 bg-sky-500 hover:bg-sky-600 text-white font-medium rounded-lg transition-colors"
                 >
                   {t('jobs.publishJob', 'Publicar Trabajo')}

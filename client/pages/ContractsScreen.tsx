@@ -311,7 +311,7 @@ export default function ContractsScreen() {
                 {t('contracts.exploreJobs', 'Explorar trabajos')}
               </Link>
               <Link
-                to="/create-job"
+                to="/contracts/create"
                 className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-lg font-medium transition-colors"
               >
                 <Plus className="w-4 h-4" />

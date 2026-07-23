@@ -885,9 +885,10 @@ router.post(
       const proContractsUsed = user.proContractsUsedThisMonth || 0;
       const hasMonthlyFreeContracts = proContractsUsed < monthlyFreeLimit;
 
-      // In development, auto-publish all jobs without payment
-      const isDev = process.env.NODE_ENV !== 'production';
-      const canPublishForFree = isDev || hasFreeInitialContracts || hasMonthlyFreeContracts;
+      // A "free contract" credit waives the COMMISSION only — never the job price, which
+      // funds the escrow that pays the worker. So publishing ALWAYS requires payment and
+      // the credit is consumed at payment time, not here (an unpaid draft must not burn it).
+      const hasCommissionFreeCredit = hasFreeInitialContracts || hasMonthlyFreeContracts;
 
       // Process uploaded images
       const uploadedFiles = req.files as Express.Multer.File[];
@@ -1002,8 +1003,8 @@ router.post(
         remoteOk: req.body.remoteOk === 'true',
         images: imageUrls,
         clientId: req.user.id, // Sequelize uses camelCase foreign keys
-        status: canPublishForFree ? "open" : "draft", // Free contracts auto-publish, others need payment
-        publicationPaid: canPublishForFree, // Free contracts don't need payment
+        status: "draft", // Always starts as draft — becomes visible only after payment
+        publicationPaid: false, // Payment is always required (job price funds the escrow)
         publicationAmount: 0, // Will be calculated if payment needed
         maxWorkers, // New: support for multiple workers (1-5)
         selectedWorkers: [], // Initialize empty array
@@ -1033,17 +1034,8 @@ router.post(
       // Invalidate jobs cache so new job appears immediately
       cacheService.delPattern('jobs:*');
 
-      // If can publish for free, decrement the appropriate counter
-      if (canPublishForFree) {
-        if (hasFreeInitialContracts) {
-          user.freeContractsRemaining = user.freeContractsRemaining - 1;
-          console.log(`✅ User ${user.id} used initial free contract. Remaining: ${user.freeContractsRemaining}`);
-        } else if (hasMonthlyFreeContracts) {
-          user.proContractsUsedThisMonth = proContractsUsed + 1;
-          console.log(`✅ User ${user.id} used monthly ${user.membershipTier} contract. Used: ${user.proContractsUsedThisMonth}/${monthlyFreeLimit}`);
-        }
-        await user.save();
-      }
+      // NOTE: the commission-free credit is intentionally NOT consumed here. It is consumed
+      // when the publication payment is confirmed, so abandoned drafts don't burn a credit.
 
       // Populate job for response and notifications
       const populatedJob = await Job.findByPk(job.id, {
@@ -1066,29 +1058,17 @@ router.post(
         }
       );
 
-      // Notify admin panel of new job (only if published)
-      if (canPublishForFree) {
-        socketService.notifyNewJob(populatedJob?.toJSON());
-      }
+      // Admin is notified once the job is actually published (after payment), not on draft.
 
-      // Different responses based on whether payment is needed
-      if (canPublishForFree) {
-        res.status(201).json({
-          success: true,
-          message: hasFreeInitialContracts
-            ? "Trabajo publicado exitosamente (contrato inicial gratuito)"
-            : `Trabajo publicado exitosamente (contrato mensual ${(user.membershipTier || 'free').toUpperCase()})`,
-          job: populatedJob?.toJSON(),
-          requiresPayment: false,
-        });
-      } else {
-        res.status(201).json({
-          success: true,
-          message: "Job creado. Procede al pago para publicarlo",
-          job: populatedJob?.toJSON(),
-          requiresPayment: true,
-        });
-      }
+      res.status(201).json({
+        success: true,
+        message: hasCommissionFreeCredit
+          ? "Job creado. Procede al pago del trabajo (sin comisión por tu contrato gratuito)"
+          : "Job creado. Procede al pago para publicarlo",
+        job: populatedJob?.toJSON(),
+        requiresPayment: true,
+        commissionFree: hasCommissionFreeCredit,
+      });
     } catch (error: any) {
       res.status(500).json({
         success: false,
