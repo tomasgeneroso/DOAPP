@@ -12,7 +12,6 @@ import { Op } from 'sequelize';
 import { isValidUUID } from "../../utils/sanitizer.js";
 import { logAudit } from "../../utils/auditLog.js";
 import { generateClientPaymentInvoice } from "../../services/invoiceService.js";
-import { consumeCommissionFreeCredit } from "../../services/commissionService.js";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -768,10 +767,6 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
         job.status = 'open';
         job.publicationPaid = true;
         await job.save();
-
-        if (Number(payment.platformFee || 0) === 0) {
-          await consumeCommissionFreeCredit(payment.payerId);
-        }
 
         // Notify job owner
         await Notification.create({

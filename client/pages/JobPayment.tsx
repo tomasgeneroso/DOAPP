@@ -102,13 +102,10 @@ export default function JobPayment() {
   // Calculate costs
   // For budget increase, use the amount from URL params (already includes commission)
   // For regular job payment, calculate commission based on job price
-  // calculateCommission() already returns 0 for free contracts, so the commission is
-  // waived there. The job price itself is ALWAYS charged: it funds the escrow that pays
-  // the worker, so a "free" contract must never zero out the total.
   const publicationCost = isBudgetIncrease ? 0 : calculateCommission();
   const totalAmount = isBudgetIncrease
     ? parseFloat(amountParam || '0')
-    : jobPrice + publicationCost;
+    : (isFreeContract ? 0 : jobPrice + publicationCost);
 
   useEffect(() => {
     loadJob();

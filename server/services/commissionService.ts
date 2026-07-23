@@ -282,46 +282,11 @@ export function getCommissionTiers() {
   ];
 }
 
-/**
- * Consume one commission-free credit (initial free contract, or the monthly PRO/SUPER PRO
- * allowance) for a user. Call this when a publication payment is CONFIRMED — never at job
- * creation, otherwise an abandoned draft burns the credit.
- * Returns which kind of credit was consumed, or null if the user had none.
- */
-export async function consumeCommissionFreeCredit(
-  userId: string
-): Promise<'initial' | 'monthly' | null> {
-  const user = await User.findByPk(userId);
-  if (!user) return null;
-
-  if ((user.freeContractsRemaining || 0) > 0) {
-    user.freeContractsRemaining = user.freeContractsRemaining - 1;
-    await user.save();
-    console.log(`✅ User ${userId} consumed an initial free contract. Remaining: ${user.freeContractsRemaining}`);
-    return 'initial';
-  }
-
-  let monthlyLimit = 0;
-  if (user.membershipTier === 'super_pro') monthlyLimit = 2;
-  else if (user.membershipTier === 'pro') monthlyLimit = 1;
-
-  const used = user.proContractsUsedThisMonth || 0;
-  if (used < monthlyLimit) {
-    user.proContractsUsedThisMonth = used + 1;
-    await user.save();
-    console.log(`✅ User ${userId} consumed a monthly ${user.membershipTier} contract. Used: ${user.proContractsUsedThisMonth}/${monthlyLimit}`);
-    return 'monthly';
-  }
-
-  return null;
-}
-
 export default {
   calculateCommission,
   getUserCommissionRate,
   getUserMonthlyVolume,
   getCommissionRateByVolume,
   getCommissionTiers,
-  consumeCommissionFreeCredit,
   MINIMUM_COMMISSION,
 };

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { getImageUrl } from '@/utils/imageUrl';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 import {
   Briefcase,
   UserCheck,
@@ -153,6 +154,18 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
   // Optimistic status: the card must reflect the new state immediately after acting,
   // without waiting for the refetch/socket to deliver the updated metadata.
   const [localStatus, setLocalStatus] = useState<string | undefined>(undefined);
+
+  // Single dialog slot replacing the native confirm()/alert() calls.
+  // `acknowledge: true` renders it as a plain OK notice.
+  const [dialog, setDialog] = useState<{
+    tone: 'danger' | 'warning' | 'info' | 'success';
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    onConfirm?: () => void;
+    acknowledge?: boolean;
+  } | null>(null);
+  const [dialogLoading, setDialogLoading] = useState(false);
   const proposalStatus = localStatus ?? message.metadata?.proposalStatus;
 
   const isCurrentUser = (message.sender?.id || message.sender?._id) === currentUserId;
@@ -209,19 +222,30 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
     return t('chat.userWantsToWork', '{{name}} wants to work with you', { name: message.sender?.name || '' });
   };
 
+  /** Show a non-blocking acknowledge dialog (replaces alert()). */
+  const notify = (msg: string) =>
+    setDialog({ tone: 'danger', title: t('common.attention', 'Atención'), message: msg, acknowledge: true });
+
   // Handle accept proposal
-  const handleAccept = async () => {
+  const handleAccept = () => {
     if (!message.metadata?.proposalId) {
-      alert(t('chat.proposalNotFound', 'Proposal not found'));
+      notify(t('chat.proposalNotFound', 'Proposal not found'));
       return;
     }
 
-    const confirmMsg = isDirectProposal
-      ? t('chat.confirmAcceptDirect', 'Accept this proposal? The job and contract will be created automatically.')
-      : t('chat.confirmSelectWorker', 'Select this worker for the job?');
+    setDialog({
+      tone: 'success',
+      title: t('chat.acceptWorker', 'Aceptar trabajador'),
+      message: isDirectProposal
+        ? t('chat.confirmAcceptDirect', 'Accept this proposal? The job and contract will be created automatically.')
+        : t('chat.confirmSelectWorker', 'Select this worker for the job?'),
+      confirmLabel: t('common.accept', 'Aceptar'),
+      onConfirm: doAccept,
+    });
+  };
 
-    if (!confirm(confirmMsg)) return;
-
+  const doAccept = async () => {
+    setDialogLoading(true);
     try {
       const endpoint = isDirectProposal
         ? `/api/proposals/${message.metadata.proposalId}/accept-direct`
@@ -243,25 +267,36 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
         // a contractId (worker selection creates it later), and a missing one must
         // NOT be treated as a failure.
         setLocalStatus('approved');
+        setDialog(null);
         onRefresh();
         if (result.contractId) {
           navigate(`/contracts/${result.contractId}/summary`);
         }
       } else {
-        alert(result.message || t('chat.errorAccepting', 'Error accepting'));
+        notify(result.message || t('chat.errorAccepting', 'Error accepting'));
       }
     } catch (error) {
       console.error('Error:', error);
-      alert(t('chat.errorProcessing', 'Error processing request'));
+      notify(t('chat.errorProcessing', 'Error processing request'));
+    } finally {
+      setDialogLoading(false);
     }
   };
 
   // Handle reject proposal
-  const handleReject = async () => {
+  const handleReject = () => {
     if (!message.metadata?.proposalId) return;
+    setDialog({
+      tone: 'danger',
+      title: t('chat.denyWorker', 'Rechazar trabajador'),
+      message: t('chat.confirmReject', 'Reject this application?'),
+      confirmLabel: t('common.reject', 'Rechazar'),
+      onConfirm: doReject,
+    });
+  };
 
-    if (!confirm(t('chat.confirmReject', 'Reject this application?'))) return;
-
+  const doReject = async () => {
+    setDialogLoading(true);
     try {
       const endpoint = isDirectProposal
         ? `/api/proposals/${message.metadata.proposalId}/reject-direct`
@@ -278,22 +313,33 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
       const result = await response.json();
       if (result.success) {
         setLocalStatus('rejected');
+        setDialog(null);
         onRefresh();
       } else {
-        alert(result.message || t('chat.errorRejecting', 'Error rejecting'));
+        notify(result.message || t('chat.errorRejecting', 'Error rejecting'));
       }
     } catch (error) {
       console.error('Error:', error);
-      alert(t('chat.errorRejecting', 'Error rejecting'));
+      notify(t('chat.errorRejecting', 'Error rejecting'));
+    } finally {
+      setDialogLoading(false);
     }
   };
 
   // Handle withdraw proposal
-  const handleWithdraw = async () => {
+  const handleWithdraw = () => {
     if (!message.metadata?.proposalId) return;
+    setDialog({
+      tone: 'warning',
+      title: t('chat.confirmWithdrawTitle', 'Retirar postulación'),
+      message: t('chat.confirmWithdraw', 'Withdraw your application?'),
+      confirmLabel: t('common.yesCancel', 'Sí, cancelar'),
+      onConfirm: doWithdraw,
+    });
+  };
 
-    if (!confirm(t('chat.confirmWithdraw', 'Withdraw your application?'))) return;
-
+  const doWithdraw = async () => {
+    setDialogLoading(true);
     try {
       const response = await fetch(`/api/proposals/${message.metadata.proposalId}/withdraw`, {
         method: 'PUT',
@@ -306,13 +352,16 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
       const result = await response.json();
       if (result.success) {
         setLocalStatus('withdrawn');
+        setDialog(null);
         onRefresh();
       } else {
-        alert(result.message || t('chat.errorCancelling', 'Error cancelling'));
+        notify(result.message || t('chat.errorCancelling', 'Error cancelling'));
       }
     } catch (error) {
       console.error('Error:', error);
-      alert(t('chat.errorCancelling', 'Error cancelling'));
+      notify(t('chat.errorCancelling', 'Error cancelling'));
+    } finally {
+      setDialogLoading(false);
     }
   };
 
@@ -559,6 +608,18 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
           })}
         </div>
       </div>
+
+      <ConfirmModal
+        open={!!dialog}
+        tone={dialog?.tone || 'warning'}
+        title={dialog?.title || ''}
+        message={dialog?.message || ''}
+        loading={dialogLoading}
+        confirmLabel={dialog?.acknowledge ? t('common.accept', 'Aceptar') : dialog?.confirmLabel}
+        hideCancel={dialog?.acknowledge}
+        onConfirm={() => (dialog?.onConfirm ? dialog.onConfirm() : setDialog(null))}
+        onClose={() => setDialog(null)}
+      />
     </div>
   );
 };
