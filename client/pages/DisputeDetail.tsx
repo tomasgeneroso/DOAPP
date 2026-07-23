@@ -5,6 +5,7 @@ import axios from 'axios';
 import { useDropzone } from 'react-dropzone';
 import { useAuth } from '../hooks/useAuth';
 import { getImageUrl } from '../utils/imageUrl';
+import ConfirmModal from '../components/ui/ConfirmModal';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -68,6 +69,8 @@ const DisputeDetail: React.FC = () => {
   const { token, user } = useAuth();
 
   const [dispute, setDispute] = useState<Dispute | null>(null);
+  // Replaces native alert()
+  const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState('');
   const [messageFiles, setMessageFiles] = useState<File[]>([]);
@@ -152,11 +155,11 @@ const DisputeDetail: React.FC = () => {
         setMessageFiles([]);
         await fetchDispute();
       } else {
-        alert(response.data.message || t('disputes.errorSendingMessage', 'Error sending message'));
+        setNotice(response.data.message || t('disputes.errorSendingMessage', 'Error sending message'));
       }
     } catch (error: any) {
       const errorMsg = error.response?.data?.message || t('disputes.errorSendingMessage', 'Error sending message');
-      alert(errorMsg);
+      setNotice(errorMsg);
     } finally {
       setSubmitting(false);
     }
@@ -672,6 +675,17 @@ const DisputeDetail: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        open={!!notice}
+        tone="danger"
+        title={t('common.attention', 'Atención')}
+        message={notice || ''}
+        confirmLabel={t('common.accept', 'Aceptar')}
+        hideCancel
+        onConfirm={() => setNotice(null)}
+        onClose={() => setNotice(null)}
+      />
     </div>
   );
 };

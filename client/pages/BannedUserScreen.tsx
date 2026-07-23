@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/useAuth";
+import ConfirmModal from "@/components/ui/ConfirmModal";
 import { Ban, Mail, Send, AlertCircle } from "lucide-react";
 
 const SUPPORT_EMAIL = "support@doapp.com.ar";
@@ -9,6 +10,8 @@ export default function BannedUserScreen() {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
   const [appealText, setAppealText] = useState("");
+  // Replaces native alert()
+  const [notice, setNotice] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [appealSubmitted, setAppealSubmitted] = useState(false);
 
@@ -16,7 +19,7 @@ export default function BannedUserScreen() {
     e.preventDefault();
 
     if (!appealText.trim()) {
-      alert(t('banned.enterAppeal', 'Please enter your appeal'));
+      setNotice(t('banned.enterAppeal', 'Please enter your appeal'));
       return;
     }
 
@@ -48,7 +51,7 @@ export default function BannedUserScreen() {
       }
     } catch (error: any) {
       console.error("Error submitting appeal:", error);
-      alert(error.message || t('banned.errorSendingAppealContact', 'Error sending appeal. Please contact support directly.'));
+      setNotice(error.message || t('banned.errorSendingAppealContact', 'Error sending appeal. Please contact support directly.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -187,6 +190,17 @@ export default function BannedUserScreen() {
           </div>
         </div>
       </div>
+
+      <ConfirmModal
+        open={!!notice}
+        tone="danger"
+        title={t('common.attention', 'Atención')}
+        message={notice || ''}
+        confirmLabel={t('common.accept', 'Aceptar')}
+        hideCancel
+        onConfirm={() => setNotice(null)}
+        onClose={() => setNotice(null)}
+      />
     </div>
   );
 }

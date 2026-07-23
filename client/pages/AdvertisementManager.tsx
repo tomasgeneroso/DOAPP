@@ -2,9 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from 'react-i18next';
 import { useMyAdvertisements } from '@/hooks/useAdvertisements';
+import ConfirmModal from '@/components/ui/ConfirmModal';
 
 const AdvertisementManager: React.FC = () => {
   const { t } = useTranslation();
+  // Replaces native confirm()/alert()
+  const [notice, setNotice] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<{
+    tone: 'danger' | 'warning' | 'success';
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    onConfirm: () => void;
+  } | null>(null);
   const {
     ads,
     loading,
@@ -38,34 +48,53 @@ const AdvertisementManager: React.FC = () => {
     }
   };
 
-  const handlePause = async (adId: string) => {
-    if (confirm(t('ads.confirmPause', 'Pause this advertisement?'))) {
-      try {
-        await pauseAd(adId);
-      } catch (err) {
-        alert(t('ads.pauseError', 'Error pausing advertisement'));
-      }
-    }
+  const handlePause = (adId: string) => {
+    setDialog({
+      tone: 'warning',
+      title: t('ads.pause', 'Pausar'),
+      message: t('ads.confirmPause', 'Pause this advertisement?'),
+      onConfirm: async () => {
+        setDialog(null);
+        try {
+          await pauseAd(adId);
+        } catch {
+          setNotice(t('ads.pauseError', 'Error pausing advertisement'));
+        }
+      },
+    });
   };
 
-  const handleResume = async (adId: string) => {
-    if (confirm(t('ads.confirmResume', 'Resume this advertisement?'))) {
-      try {
-        await resumeAd(adId);
-      } catch (err) {
-        alert(t('ads.resumeError', 'Error resuming advertisement'));
-      }
-    }
+  const handleResume = (adId: string) => {
+    setDialog({
+      tone: 'success',
+      title: t('ads.resume', 'Reanudar'),
+      message: t('ads.confirmResume', 'Resume this advertisement?'),
+      onConfirm: async () => {
+        setDialog(null);
+        try {
+          await resumeAd(adId);
+        } catch {
+          setNotice(t('ads.resumeError', 'Error resuming advertisement'));
+        }
+      },
+    });
   };
 
-  const handleDelete = async (adId: string) => {
-    if (confirm(t('ads.confirmDelete', 'Delete this advertisement? This action cannot be undone.'))) {
-      try {
-        await deleteAd(adId);
-      } catch (err) {
-        alert(t('ads.deleteError', 'Error deleting advertisement'));
-      }
-    }
+  const handleDelete = (adId: string) => {
+    setDialog({
+      tone: 'danger',
+      title: t('ads.delete', 'Eliminar'),
+      message: t('ads.confirmDelete', 'Delete this advertisement? This action cannot be undone.'),
+      confirmLabel: t('common.yesDelete', 'Sí, eliminar'),
+      onConfirm: async () => {
+        setDialog(null);
+        try {
+          await deleteAd(adId);
+        } catch {
+          setNotice(t('ads.deleteError', 'Error deleting advertisement'));
+        }
+      },
+    });
   };
 
   const getStatusBadge = (status: string) => {
@@ -433,6 +462,27 @@ const AdvertisementManager: React.FC = () => {
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        open={!!dialog}
+        tone={dialog?.tone || 'warning'}
+        title={dialog?.title || ''}
+        message={dialog?.message || ''}
+        confirmLabel={dialog?.confirmLabel}
+        onConfirm={() => dialog?.onConfirm()}
+        onClose={() => setDialog(null)}
+      />
+
+      <ConfirmModal
+        open={!!notice}
+        tone="danger"
+        title={t('common.attention', 'Atención')}
+        message={notice || ''}
+        confirmLabel={t('common.accept', 'Aceptar')}
+        hideCancel
+        onConfirm={() => setNotice(null)}
+        onClose={() => setNotice(null)}
+      />
     </div>
   );
 };

@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, memo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import ConfirmModal from '../ui/ConfirmModal';
 import {
   ChevronLeft,
   ChevronRight,
@@ -220,6 +221,8 @@ function JobsCalendar({ jobs, title, showFilters = true, availabilitySlots = [],
   const { t } = useTranslation();
   const displayTitle = title || t('calendar.jobCalendar', 'Job Calendar');
   const [currentDate, setCurrentDate] = useState(new Date());
+  // Replaces native alert()
+  const [notice, setNotice] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('month');
   const [selectedJob, setSelectedJob] = useState<CalendarJob | null>(null);
   const [showFilterPanel, setShowFilterPanel] = useState(false);
@@ -947,10 +950,10 @@ function JobsCalendar({ jobs, title, showFilters = true, availabilitySlots = [],
                         const data = await res.json();
                         if (data.success) {
                           await navigator.clipboard.writeText(data.data.feedUrl);
-                          alert(t('calendar.feedUrlCopied', 'Feed URL copied to clipboard.\n\nIn Google Calendar:\n1. Click "+" next to "Other calendars"\n2. Select "From a URL"\n3. Paste the copied URL'));
+                          setNotice(t('calendar.feedUrlCopied', 'Feed URL copied to clipboard.\n\nIn Google Calendar:\n1. Click "+" next to "Other calendars"\n2. Select "From a URL"\n3. Paste the copied URL'));
                         }
                       } catch {
-                        alert(t('calendar.errorGettingFeedUrl', 'Error getting feed URL'));
+                        setNotice(t('calendar.errorGettingFeedUrl', 'Error getting feed URL'));
                       }
                       setShowSyncMenu(false);
                     }}
@@ -1331,6 +1334,17 @@ function JobsCalendar({ jobs, title, showFilters = true, availabilitySlots = [],
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={!!notice}
+        tone="info"
+        title={t('common.important', 'Aviso')}
+        message={notice || ''}
+        confirmLabel={t('common.accept', 'Aceptar')}
+        hideCancel
+        onConfirm={() => setNotice(null)}
+        onClose={() => setNotice(null)}
+      />
     </div>
   );
 }

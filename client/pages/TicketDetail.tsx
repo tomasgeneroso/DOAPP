@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useTranslation } from 'react-i18next';
 import { useParams, Link } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
+import ConfirmModal from "../components/ui/ConfirmModal";
 import {
   ArrowLeft,
   Send,
@@ -81,6 +82,8 @@ export default function TicketDetail() {
   const { id } = useParams<{ id: string }>();
   const { token, user } = useAuth();
   const [ticket, setTicket] = useState<Ticket | null>(null);
+  // Replaces native alert()
+  const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
@@ -129,10 +132,10 @@ export default function TicketDetail() {
         setMessage("");
         await loadTicket();
       } else {
-        alert(data.message || 'Error al enviar mensaje');
+        setNotice(data.message || 'Error al enviar mensaje');
       }
     } catch (err) {
-      alert("Error al enviar mensaje");
+      setNotice("Error al enviar mensaje");
     } finally {
       setSending(false);
     }
@@ -330,6 +333,17 @@ export default function TicketDetail() {
           )}
         </div>
       </div>
+
+      <ConfirmModal
+        open={!!notice}
+        tone="danger"
+        title={t('common.attention', 'Atención')}
+        message={notice || ''}
+        confirmLabel={t('common.accept', 'Aceptar')}
+        hideCancel
+        onConfirm={() => setNotice(null)}
+        onClose={() => setNotice(null)}
+      />
     </div>
   );
 }
