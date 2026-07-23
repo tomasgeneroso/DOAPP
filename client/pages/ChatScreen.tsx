@@ -33,6 +33,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import QuoteMessage from '../components/chat/QuoteMessage';
+import ConfirmModal from '../components/ui/ConfirmModal';
 
 interface ConversationPreview {
   id?: string;
@@ -128,6 +129,9 @@ function linkifyText(text: string): React.ReactNode {
 
 export default function ChatScreen() {
   const { t } = useTranslation();
+  // Replaces native alert(): a non-blocking, styled, translatable notice.
+  const [notice, setNotice] = useState<{ text: string; tone: 'danger' | 'success' } | null>(null);
+  const notify = (text: string, tone: 'danger' | 'success' = 'danger') => setNotice({ text, tone });
   const { id: conversationId } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -715,7 +719,7 @@ export default function ChatScreen() {
             setShowContractModal(false);
             fetchConversationData(); // Reload messages
           } else {
-            alert(directData.message || t('chat.errorSendingApplication', 'Error sending application'));
+            notify(directData.message || t('chat.errorSendingApplication', 'Error sending application'));
           }
           break;
         }
@@ -742,7 +746,7 @@ export default function ChatScreen() {
             setShowContractModal(false);
             fetchConversationData(); // Reload messages
           } else {
-            alert(negotiateData.message || t('chat.errorSendingCounteroffer', 'Error sending counteroffer'));
+            notify(negotiateData.message || t('chat.errorSendingCounteroffer', 'Error sending counteroffer'));
           }
           break;
         }
@@ -800,17 +804,17 @@ export default function ChatScreen() {
 
           const changeData = await changeResponse.json();
           if (changeData.success) {
-            alert(t('chat.requestSentSuccessfully', 'Request sent successfully'));
+            notify(t('chat.requestSentSuccessfully', 'Request sent successfully'), 'success');
             setShowContractModal(false);
           } else {
-            alert(changeData.message || t('chat.errorSendingRequest', 'Error sending request'));
+            notify(changeData.message || t('chat.errorSendingRequest', 'Error sending request'));
           }
           break;
         }
       }
     } catch (error) {
       console.error('Error submitting modal:', error);
-      alert(t('chat.errorProcessingRequest', 'Error processing request'));
+      notify(t('chat.errorProcessingRequest', 'Error processing request'));
     } finally {
       setModalLoading(false);
     }
@@ -887,11 +891,11 @@ export default function ChatScreen() {
           fetchConversationData(); // Reload messages to show the new proposal
         }
       } else {
-        alert(result.message || t('chat.errorSendingProposal', 'Error sending proposal'));
+        notify(result.message || t('chat.errorSendingProposal', 'Error sending proposal'));
       }
     } catch (error) {
       console.error('Error sending direct proposal:', error);
-      alert(t('chat.errorSendingProposal', 'Error sending proposal'));
+      notify(t('chat.errorSendingProposal', 'Error sending proposal'));
     } finally {
       setModalLoading(false);
     }
@@ -1627,6 +1631,17 @@ export default function ChatScreen() {
           isLoading={modalLoading}
         />
       )}
+
+      <ConfirmModal
+        open={!!notice}
+        tone={notice?.tone || 'danger'}
+        title={t(notice?.tone === 'success' ? 'common.important' : 'common.attention', notice?.tone === 'success' ? 'Listo' : 'Atención')}
+        message={notice?.text || ''}
+        confirmLabel={t('common.accept', 'Aceptar')}
+        hideCancel
+        onConfirm={() => setNotice(null)}
+        onClose={() => setNotice(null)}
+      />
     </>
   );
 }

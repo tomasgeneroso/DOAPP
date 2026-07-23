@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import ConfirmModal from '../ui/ConfirmModal';
 import {
   X,
   Send,
@@ -61,6 +62,21 @@ export function ContractModal({
   isLoading = false,
 }: ContractModalProps) {
   const { t } = useTranslation();
+  // Replaces native alert() for the in-modal validation notices.
+  const [notice, setNotice] = useState<string | null>(null);
+  const notify = (text: string) => setNotice(text);
+  const noticeModal = (
+    <ConfirmModal
+      open={!!notice}
+      tone="danger"
+      title={t('common.attention', 'Atención')}
+      message={notice || ''}
+      confirmLabel={t('common.accept', 'Aceptar')}
+      hideCancel
+      onConfirm={() => setNotice(null)}
+      onClose={() => setNotice(null)}
+    />
+  );
   const [amount, setAmount] = useState('');
   const [message, setMessage] = useState('');
   const [reason, setReason] = useState('');
@@ -105,19 +121,19 @@ export function ContractModal({
 
       // Check file type
       if (!allowedTypes.includes(file.type)) {
-        alert(`El archivo "${file.name}" no es válido. Solo se permiten JPG, PNG y PDF.`);
+        notify(t('chat.fileTypeInvalid', 'El archivo "{{name}}" no es válido. Solo se permiten JPG, PNG y PDF.', { name: file.name }));
         continue;
       }
 
       // Check file size
       if (file.size > maxSize) {
-        alert(`El archivo "${file.name}" es muy grande. Máximo 10MB por archivo.`);
+        notify(t('chat.fileTooLarge', 'El archivo "{{name}}" es muy grande. Máximo 10MB por archivo.', { name: file.name }));
         continue;
       }
 
       // Check max files
       if (attachedFiles.length + newFiles.length >= maxFiles) {
-        alert(`Máximo ${maxFiles} archivos permitidos.`);
+        notify(t('chat.maxFilesReached', 'Máximo {{count}} archivos permitidos.', { count: maxFiles }));
         break;
       }
 
@@ -157,7 +173,7 @@ export function ContractModal({
 
       case 'apply_negotiate':
         if (!amount) {
-          alert('Por favor ingresa un monto');
+          notify(t('chat.enterAmount', 'Por favor ingresa un monto'));
           return;
         }
         await onSubmit({
@@ -177,7 +193,7 @@ export function ContractModal({
 
       case 'request_changes':
         if (!reason.trim()) {
-          alert('Por favor proporciona una razón');
+          notify(t('chat.provideReason', 'Por favor proporciona una razón'));
           return;
         }
         await onSubmit({
@@ -338,6 +354,7 @@ export function ContractModal({
     if (!jobData) return null;
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        {noticeModal}
         <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 rounded-2xl shadow-2xl max-w-md w-full p-8 border-2 border-slate-200 dark:border-slate-700">
           <div className="flex items-start justify-between mb-6">
             <div>
@@ -556,6 +573,7 @@ export function ContractModal({
   if (modalType === 'request_changes') {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        {noticeModal}
         <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 rounded-2xl shadow-2xl max-w-md w-full p-8 border-2 border-slate-200 dark:border-slate-700">
           <div className="flex items-start justify-between mb-6">
             <div>
@@ -662,6 +680,7 @@ export function ContractModal({
   if (modalType === 'direct_proposal' && directProposalData) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        {noticeModal}
         <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border-2 border-slate-200 dark:border-slate-700">
           <div className="sticky top-0 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-900 p-6 border-b border-slate-200 dark:border-slate-700 z-10">
             <div className="flex items-start justify-between">

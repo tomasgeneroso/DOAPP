@@ -812,7 +812,8 @@
     "sending": "Sending...",
     "updateSend": "Update and send",
     "applySend": "Apply with this quote",
-    "send": "Send quote"
+    "send": "Send quote",
+    "errorStartingPayment": "Error starting the payment"
   },
   "dashboard": {
     "completeProfile": {
@@ -1043,7 +1044,8 @@
     "you": "(you)",
     "completed": "completed",
     "preview": "Preview",
-    "goHome": "Back to home"
+    "goHome": "Back to home",
+    "connectionError": "Connection error"
   },
   "nav": {
     "home": "Home",
@@ -2164,7 +2166,12 @@
     "selectConversationHint": "Choose a conversation from the list to start chatting",
     "selectJob": "Select the job",
     "noOpenJobs": "You have no open jobs",
-    "confirmWithdrawTitle": "Withdraw application"
+    "confirmWithdrawTitle": "Withdraw application",
+    "fileTypeInvalid": "The file \"{{name}}\" is not valid. Only JPG, PNG and PDF are allowed.",
+    "fileTooLarge": "The file \"{{name}}\" is too large. Maximum 10MB per file.",
+    "maxFilesReached": "Maximum {{count}} files allowed.",
+    "enterAmount": "Please enter an amount",
+    "provideReason": "Please provide a reason"
   },
   "balance": {
     "title": "Balance",

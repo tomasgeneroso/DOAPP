@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { FileText, Check, X, ExternalLink, ArrowRight } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
+import ConfirmModal from '../ui/ConfirmModal';
 
 const STATUS_LABELS: Record<string, string> = {
   sent: 'Pendiente',
@@ -51,6 +52,8 @@ export default function QuoteMessage({ message, onRefresh, token }: Props) {
   const [acting, setActing] = useState(false);
   const [localStatus, setLocalStatus] = useState(meta.quoteStatus || 'sent');
   const [contractId, setContractId] = useState<string | null>(null);
+  // Replaces native alert()
+  const [notice, setNotice] = useState<string | null>(null);
 
   const quoteId = meta.quoteId;
   const hasJobId = !!meta.jobId;
@@ -88,10 +91,10 @@ export default function QuoteMessage({ message, onRefresh, token }: Props) {
       if (data.success && data.paymentUrl) {
         window.location.href = data.paymentUrl;
       } else {
-        alert(data.message || 'Error al iniciar el pago');
+        setNotice(data.message || t('quote.errorStartingPayment', 'Error al iniciar el pago'));
       }
     } catch {
-      alert('Error de conexión');
+      setNotice(t('common.connectionError', 'Error de conexión'));
     }
     setActing(false);
   };
@@ -213,6 +216,17 @@ export default function QuoteMessage({ message, onRefresh, token }: Props) {
           )}
         </div>
       </div>
+
+      <ConfirmModal
+        open={!!notice}
+        tone="danger"
+        title={t('common.attention', 'Atención')}
+        message={notice || ''}
+        confirmLabel={t('common.accept', 'Aceptar')}
+        hideCancel
+        onConfirm={() => setNotice(null)}
+        onClose={() => setNotice(null)}
+      />
     </div>
   );
 }
