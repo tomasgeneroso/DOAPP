@@ -3730,7 +3730,7 @@ router.get(
       }
 
       // Determinar límite según plan
-      const isSuperPro = user.membershipType === 'super_pro';
+      const isSuperPro = user.membershipTier === 'super_pro';
       const cancellationHourLimit = isSuperPro ? 24 : 48;
       const canCancel = hoursUntilStart >= cancellationHourLimit;
 
@@ -3740,7 +3740,7 @@ router.get(
         canCancelSelection: canCancel,
         hoursUntilStart: Math.round(hoursUntilStart * 100) / 100,
         cancellationHourLimit,
-        membershipType: user.membershipType,
+        membershipType: user.membershipTier, // response key kept as the frontend alias
         workerId: job.doerId,
         message: canCancel
           ? `Puedes cancelar la selección hasta ${cancellationHourLimit} horas antes (faltan ${Math.round(hoursUntilStart * 100) / 100} horas)`
@@ -3822,7 +3822,7 @@ router.post(
           message: `No puedes cancelar la selección. Faltan ${hoursRemaining} horas para el inicio. Límite: ${cancellationHourLimit} horas`,
           hoursUntilStart: hoursRemaining,
           cancellationHourLimit,
-          membershipType: user.membershipType
+          membershipType: user.membershipTier // response key kept as the frontend alias
         });
         return;
       }

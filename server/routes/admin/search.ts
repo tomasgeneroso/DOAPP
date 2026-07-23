@@ -144,7 +144,7 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
           { email: { [Op.iLike]: `%${escapeLike(searchStr)}%` } },
         ],
       },
-      attributes: ['id', 'name', 'email', 'membershipType', 'balance', 'createdAt'],
+      attributes: ['id', 'name', 'email', 'membershipTier', 'balance', 'createdAt'],
       limit: 5,
     }).catch(() => []);
     results.users = users;

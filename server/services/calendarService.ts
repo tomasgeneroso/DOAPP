@@ -1,7 +1,8 @@
 import { User } from '../models/sql/User.model.js';
 import { Contract } from '../models/sql/Contract.model.js';
 import { Job } from '../models/sql/Job.model.js';
-import { google } from 'googleapis';
+// NOTE: no `googleapis` import — the Google Calendar API calls are still a TODO
+// (see addContractToCalendars). Re-add the dependency when they're implemented.
 
 /**
  * Servicio para sincronizar contratos con Google Calendar

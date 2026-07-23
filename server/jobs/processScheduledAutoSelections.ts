@@ -48,7 +48,8 @@ async function processScheduledAutoSelections() {
 
         // Seleccionar el primer worker (el que propuso primero)
         const selectedProposal = proposals[0];
-        const selectedDoerId = selectedProposal.doerId;
+        // Proposal stores the applying doer as `freelancerId` (there is no `doerId`)
+        const selectedDoerId = selectedProposal.freelancerId;
 
         // Crear contrato si no existe
         let contract = await Contract.findOne({
