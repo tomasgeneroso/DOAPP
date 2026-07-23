@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import useDialog from '../hooks/useDialog';
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation, Trans } from "react-i18next";
 import { Helmet } from "react-helmet-async";
@@ -9,6 +10,7 @@ import PaymentMethodSelector, { PaymentMethod, BinancePaymentData, BankTransferP
 
 export default function JobPayment() {
   const { t } = useTranslation();
+  const { notify, dialog } = useDialog();
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -776,7 +778,7 @@ export default function JobPayment() {
                           <button
                             onClick={() => {
                               navigator.clipboard.writeText('00700999200001234567');
-                              alert('CBU copiado al portapapeles');
+                              notify(t('jobPayment.cbuCopied', 'CBU copiado al portapapeles'), 'success');
                             }}
                             className="ml-2 text-xs text-blue-600 dark:text-blue-400 hover:underline"
                           >
@@ -925,6 +927,8 @@ export default function JobPayment() {
           </div>
         </div>
       </div>
+
+      {dialog}
     </>
   );
 }

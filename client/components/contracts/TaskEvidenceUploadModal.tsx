@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import useDialog from '@/hooks/useDialog';
 import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from 'react-i18next';
 import { JobTask } from '../../types';
@@ -20,6 +21,7 @@ export default function TaskEvidenceUploadModal({
   onSuccess,
 }: TaskEvidenceUploadModalProps) {
   const { t } = useTranslation();
+  const { confirm: confirmDialog, dialog } = useDialog();
   const { user } = useAuth();
   const [tasks, setTasks] = useState<any[]>([]);
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
@@ -154,9 +156,12 @@ export default function TaskEvidenceUploadModal({
 
   const handleSkip = () => {
     // Allow skipping but show a warning
-    if (confirm(t('contracts.skipEvidenceWarning', 'Evidence photos help protect your work in case of disputes. Are you sure you want to continue without uploading photos?'))) {
-      onClose();
-    }
+    confirmDialog({
+      tone: 'warning',
+      title: t('contracts.skipForNow', 'Omitir por ahora'),
+      message: t('contracts.skipEvidenceWarning', 'Evidence photos help protect your work in case of disputes. Are you sure you want to continue without uploading photos?'),
+      onConfirm: onClose,
+    });
   };
 
   if (!isOpen) return null;
@@ -386,6 +391,7 @@ export default function TaskEvidenceUploadModal({
           </div>
         </div>
       </div>
+      {dialog}
     </div>
   );
 }

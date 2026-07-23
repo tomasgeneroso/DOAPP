@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import useDialog from '@/hooks/useDialog';
 import { useTranslation } from "react-i18next";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
@@ -47,6 +48,7 @@ interface Post {
 
 export default function PostDetail() {
   const { t } = useTranslation();
+  const { notify, dialog } = useDialog();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, token } = useAuth();
@@ -129,7 +131,7 @@ export default function PostDetail() {
     } else {
       // Fallback: copy to clipboard
       navigator.clipboard.writeText(window.location.href);
-      alert('Link copiado al portapapeles');
+      notify('Link copiado al portapapeles');
     }
   };
 
@@ -354,6 +356,7 @@ export default function PostDetail() {
           </div>
         </div>
       </div>
+      {dialog}
     </>
   );
 }

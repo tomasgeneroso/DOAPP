@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import useDialog from '@/hooks/useDialog';
 import { Link, useParams } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
@@ -22,6 +23,7 @@ import {
 
 export default function BlogDetailScreen() {
   const { t } = useTranslation();
+  const { notify, dialog } = useDialog();
   const { slug } = useParams<{ slug: string }>();
   const [post, setPost] = useState<BlogPost | null>(null);
   const [relatedPosts, setRelatedPosts] = useState<BlogPost[]>([]);
@@ -111,7 +113,7 @@ export default function BlogDetailScreen() {
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(window.location.href);
-    alert(t('blog.linkCopied', 'Link copied to clipboard'));
+    notify(t('blog.linkCopied', 'Link copied to clipboard'));
   };
 
   if (loading) {
@@ -416,6 +418,7 @@ export default function BlogDetailScreen() {
           </section>
         )}
       </div>
+      {dialog}
     </>
   );
 }

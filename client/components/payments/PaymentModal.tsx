@@ -1,4 +1,5 @@
 import { useState } from "react";
+import useDialog from '@/hooks/useDialog';
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import { PayPalButton } from "./PayPalButton";
@@ -25,6 +26,7 @@ export function PaymentModal({
   onSuccess,
 }: PaymentModalProps) {
   const { t } = useTranslation();
+  const { notify, dialog } = useDialog();
   const [paymentSuccess, setPaymentSuccess] = useState(false);
 
   if (!isOpen) return null;
@@ -43,7 +45,7 @@ export function PaymentModal({
   };
 
   const handleError = (error: string) => {
-    alert(`${t('payments.errorProcessingPayment', 'Error processing payment')}: ${error}`);
+    notify(`${t('payments.errorProcessingPayment', 'Error processing payment')}: ${error}`);
   };
 
   return (
@@ -181,6 +183,7 @@ export function PaymentModal({
           )}
         </div>
       </div>
+      {dialog}
     </div>
   );
 }

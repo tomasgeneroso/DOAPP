@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import useDialog from '@/hooks/useDialog';
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../../hooks/useAuth";
 import { useSocket } from "../../hooks/useSocket";
@@ -52,6 +53,7 @@ interface JobTasksProps {
 
 export default function JobTasks({ jobId, isOwner, isWorker, jobStatus, singleDelivery = true, jobEndDate, clientConfirmed = false }: JobTasksProps) {
   const { t } = useTranslation();
+  const { confirm: confirmDialog, dialog } = useDialog();
   const { token } = useAuth();
   const { registerJobUpdateHandler } = useSocket();
   const [tasks, setTasks] = useState<JobTask[]>([]);
@@ -157,8 +159,18 @@ export default function JobTasks({ jobId, isOwner, isWorker, jobStatus, singleDe
   };
 
   // Delete task
-  const handleDeleteTask = async (taskId: string) => {
-    if (!token || !confirm(t('tasks.confirmDelete', 'Are you sure you want to delete this task?'))) return;
+  const handleDeleteTask = (taskId: string) => {
+    if (!token) return;
+    confirmDialog({
+      tone: 'danger',
+      title: t('tasks.editTask', 'Tarea'),
+      message: t('tasks.confirmDelete', 'Are you sure you want to delete this task?'),
+      confirmLabel: t('common.yesDelete', 'Sí, eliminar'),
+      onConfirm: () => doDeleteTask(taskId),
+    });
+  };
+
+  const doDeleteTask = async (taskId: string) => {
 
     try {
       const response = await fetch(`/api/jobs/${jobId}/tasks/${taskId}`, {
@@ -563,6 +575,7 @@ export default function JobTasks({ jobId, isOwner, isWorker, jobStatus, singleDe
           )}
         </div>
       )}
+      {dialog}
     </div>
   );
 }

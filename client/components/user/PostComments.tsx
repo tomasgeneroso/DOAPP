@@ -1,4 +1,5 @@
 import { getImageUrl } from '../../utils/imageUrl';
+import useDialog from '@/hooks/useDialog';
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from 'react-i18next';
 import { Link } from "react-router-dom";
@@ -32,6 +33,7 @@ interface PostCommentsProps {
 
 export default function PostComments({ postId }: PostCommentsProps) {
   const { t } = useTranslation();
+  const { confirm: confirmDialog, dialog } = useDialog();
   const { user } = useAuth();
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState("");
@@ -125,8 +127,17 @@ export default function PostComments({ postId }: PostCommentsProps) {
     }
   };
 
-  const handleDeleteComment = async (commentId: string) => {
-    if (!confirm(t('posts.confirmDeleteComment', 'Are you sure you want to delete this comment?'))) return;
+  const handleDeleteComment = (commentId: string) => {
+    confirmDialog({
+      tone: 'danger',
+      title: t('posts.comment', 'Comentario'),
+      message: t('posts.confirmDeleteComment', 'Are you sure you want to delete this comment?'),
+      confirmLabel: t('common.yesDelete', 'Sí, eliminar'),
+      onConfirm: () => doDeleteComment(commentId),
+    });
+  };
+
+  const doDeleteComment = async (commentId: string) => {
 
     try {
       const response = await fetch(`/api/posts/${postId}/comments/${commentId}`, {
@@ -294,6 +305,7 @@ export default function PostComments({ postId }: PostCommentsProps) {
           })
         )}
       </div>
+      {dialog}
     </div>
   );
 }

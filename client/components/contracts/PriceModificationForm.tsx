@@ -1,4 +1,5 @@
 import { useState } from "react";
+import useDialog from '@/hooks/useDialog';
 import { useTranslation } from "react-i18next";
 import { DollarSign, AlertCircle, Loader2 } from "lucide-react";
 import type { Contract } from "@/types";
@@ -11,6 +12,7 @@ interface Props {
 
 export default function PriceModificationForm({ contract, onSuccess, onCancel }: Props) {
   const { t } = useTranslation();
+  const { notify, dialog } = useDialog();
   const [newPrice, setNewPrice] = useState(contract.price);
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(false);
@@ -49,7 +51,7 @@ export default function PriceModificationForm({ contract, onSuccess, onCancel }:
         throw new Error(data.message || t('contracts.errorModifyingPrice', 'Error modifying price'));
       }
 
-      alert(data.message);
+      notify(data.message);
       onSuccess();
     } catch (err: any) {
       setError(err.message || t('contracts.errorModifyingPrice', 'Error modifying price'));
@@ -157,6 +159,7 @@ export default function PriceModificationForm({ contract, onSuccess, onCancel }:
           <strong>{t('contracts.note', 'Note')}:</strong> {t('contracts.priceModificationNote', 'You can only modify the price before someone has applied to the job.')}
         </p>
       </div>
+      {dialog}
     </div>
   );
 }

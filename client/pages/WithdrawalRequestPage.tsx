@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import useDialog from '@/hooks/useDialog';
 import { useTranslation } from 'react-i18next';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../hooks/useAuth';
@@ -22,6 +23,7 @@ import { useNavigate } from 'react-router-dom';
 
 export default function WithdrawalRequestPage() {
   const { t } = useTranslation();
+  const { confirm: confirmDialog, dialog } = useDialog();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [balance, setBalance] = useState(0);
@@ -144,10 +146,17 @@ export default function WithdrawalRequestPage() {
     }
   };
 
-  const handleCancel = async (withdrawalId: string) => {
-    if (!confirm(t('withdrawals.confirmCancel'))) {
-      return;
-    }
+  const handleCancel = (withdrawalId: string) => {
+    confirmDialog({
+      tone: 'danger',
+      title: t('common.cancel', 'Cancelar'),
+      message: t('withdrawals.confirmCancel'),
+      confirmLabel: t('common.yesCancel', 'Sí, cancelar'),
+      onConfirm: () => doCancel(withdrawalId),
+    });
+  };
+
+  const doCancel = async (withdrawalId: string) => {
 
     try {
       const token = localStorage.getItem('token');
@@ -558,6 +567,7 @@ export default function WithdrawalRequestPage() {
       </div>
     </div>
     </div>
+    {dialog}
     </>
   );
 }

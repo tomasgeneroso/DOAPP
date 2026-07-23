@@ -57,6 +57,7 @@ import ChangeBudgetModal from "../components/jobDetail/ChangeBudgetModal";
 import SelectWorkerConfirmModal from "../components/jobDetail/SelectWorkerConfirmModal";
 import BudgetPaymentConfirmModal from "../components/jobDetail/BudgetPaymentConfirmModal";
 import ConfirmModal from "../components/ui/ConfirmModal";
+import useDialog from "../hooks/useDialog";
 import JobActionsMenu from "../components/jobDetail/JobActionsMenu";
 import ClientDropdownMenu from "../components/jobDetail/ClientDropdownMenu";
 import AdminJobDetailsPanel from "../components/jobDetail/AdminJobDetailsPanel";
@@ -164,6 +165,7 @@ export default function JobDetail() {
   const [myProposalStatus, setMyProposalStatus] = useState<string | null>(null);
   const [withdrawing, setWithdrawing] = useState(false);
   const [confirmWithdrawOpen, setConfirmWithdrawOpen] = useState(false);
+  const { notify, dialog } = useDialog();
   const [checkingApplication, setCheckingApplication] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
 
@@ -870,7 +872,7 @@ export default function JobDetail() {
       setShowPauseApprovalModal(false);
       if (data.success) {
         setError(null);
-        alert(t("jobs.pauseApprovalSent", "Se envió la solicitud de pausa al trabajador. Esperá su respuesta."));
+        notify(t("jobs.pauseApprovalSent", "Se envió la solicitud de pausa al trabajador. Esperá su respuesta."), 'success');
       } else {
         setError(data.message || "Error al enviar solicitud");
       }
@@ -4647,6 +4649,8 @@ export default function JobDetail() {
           onConfirm={handleWithdrawApplication}
           onClose={() => setConfirmWithdrawOpen(false)}
         />
+
+        {dialog}
 
         <ChangeBudgetModal
           open={showBudgetModal}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import useDialog from '@/hooks/useDialog';
 import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
@@ -10,6 +11,7 @@ import Textarea from '../components/ui/Textarea';
 export default function PortfolioManager() {
   const { user } = useAuth();
   const { t } = useTranslation();
+  const { confirm: confirmDialog, dialog } = useDialog();
   const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -118,8 +120,17 @@ export default function PortfolioManager() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm(t('portfolio.confirmDelete'))) return;
+  const handleDelete = (id: string) => {
+    confirmDialog({
+      tone: 'danger',
+      title: t('common.remove', 'Quitar'),
+      message: t('portfolio.confirmDelete'),
+      confirmLabel: t('common.yesDelete', 'Sí, eliminar'),
+      onConfirm: () => doDelete(id),
+    });
+  };
+
+  const doDelete = async (id: string) => {
 
     try {
       const token = localStorage.getItem('token');
@@ -369,6 +380,7 @@ export default function PortfolioManager() {
           );})}
         </div>
       )}
+      {dialog}
     </div>
   );
 }
