@@ -64,12 +64,12 @@ export const adminApi = {
       });
       return res.json() as Promise<ApiResponse<void>>;
     },
-    delete: async (id: string, ownerPassword: string) => {
+    delete: async (id: string, ownerPassword: string, reason?: string) => {
 
       const res = await fetchWithAuth(`${API_URL}/admin/users/${id}`, {
 
         method: "DELETE",
-        body: JSON.stringify({ ownerPassword }),
+        body: JSON.stringify({ ownerPassword, reason }),
       });
       return res.json() as Promise<ApiResponse<void>>;
     },

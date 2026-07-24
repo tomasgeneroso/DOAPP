@@ -8,7 +8,7 @@ import { getImageUrl } from "@/utils/imageUrl";
 import { useSocket } from "@/hooks/useSocket";
 import { useAuth } from "@/hooks/useAuth";
 import type { AdminUser } from "@/types/admin";
-import { Search, Ban, CheckCircle, Eye, Wifi, WifiOff, UserPlus, Crown, X, ShieldCheck, ShieldOff, Loader2, FileText, Briefcase, FileCheck, Award, AlertCircle } from "lucide-react";
+import { Search, Ban, CheckCircle, Eye, Wifi, WifiOff, UserPlus, Crown, X, ShieldCheck, ShieldOff, Loader2, FileText, Briefcase, FileCheck, Award, AlertCircle, Trash2 } from "lucide-react";
 
 export default function AdminUsers() {
   const navigate = useNavigate();
@@ -29,6 +29,13 @@ export default function AdminUsers() {
   const [membershipTier, setMembershipTier] = useState<'free' | 'pro' | 'super_pro'>('pro');
   const [membershipDays, setMembershipDays] = useState("30");
   const [membershipLoading, setMembershipLoading] = useState(false);
+
+  // Delete profile modal (owner only)
+  const [deleteModal, setDeleteModal] = useState<AdminUser | null>(null);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Verification modal
   const [verifyModal, setVerifyModal] = useState<AdminUser | null>(null);
@@ -132,6 +139,42 @@ export default function AdminUsers() {
       loadUsers();
     } catch (error) {
       alert("Error al desbanear usuario");
+    }
+  };
+
+  const openDeleteModal = (user: AdminUser) => {
+    setDeleteModal(user);
+    setDeletePassword("");
+    setDeleteReason(user.banReason || "");
+    setDeleteError(null);
+  };
+
+  const handleDelete = async () => {
+    if (!deleteModal) return;
+    if (!deletePassword.trim()) {
+      setDeleteError("Ingresá tu contraseña de owner para confirmar.");
+      return;
+    }
+    setDeleteLoading(true);
+    setDeleteError(null);
+    try {
+      const res = await adminApi.users.delete(
+        deleteModal.id || deleteModal._id!,
+        deletePassword,
+        deleteReason.trim() || undefined,
+      );
+      if (res.success) {
+        setDeleteModal(null);
+        setDeletePassword("");
+        setDeleteReason("");
+        loadUsers();
+      } else {
+        setDeleteError(res.message || "No se pudo eliminar el usuario.");
+      }
+    } catch (error: any) {
+      setDeleteError(error?.message || "Error al eliminar el usuario.");
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -676,6 +719,18 @@ export default function AdminUsers() {
                         <Ban className="h-5 w-5" />
                       </button>
                     )}
+                    {isOwner && user.adminRole !== 'owner' && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openDeleteModal(user);
+                        }}
+                        className="text-red-700 hover:text-red-900 dark:text-red-500 dark:hover:text-red-300"
+                        title="Eliminar perfil permanentemente"
+                      >
+                        <Trash2 className="h-5 w-5" />
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -769,6 +824,85 @@ export default function AdminUsers() {
                 className="flex-1 px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors"
               >
                 {membershipLoading ? 'Guardando...' : 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Profile Modal (owner only) */}
+      {deleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-red-700 dark:text-red-400 flex items-center gap-2">
+                <Trash2 className="h-5 w-5" /> Eliminar perfil
+              </h2>
+              <button onClick={() => setDeleteModal(null)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
+              Vas a eliminar <strong>permanentemente</strong> el perfil de{" "}
+              <strong>{deleteModal.name}</strong> ({deleteModal.email}). Esta acción no se puede deshacer.
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+              El email y DNI quedan registrados en el historial de identidades baneadas para impedir nuevos registros.
+            </p>
+
+            {(deleteModal.infractions ?? 0) < 2 && (
+              <div className="mb-4 flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                <span>
+                  Este usuario tiene {deleteModal.infractions ?? 0} infracción(es). Se requieren al menos 2 para poder
+                  eliminarlo permanentemente. Banealo primero si corresponde.
+                </span>
+              </div>
+            )}
+
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+              Motivo (opcional)
+            </label>
+            <textarea
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)}
+              rows={2}
+              placeholder="Motivo de la eliminación"
+              className="w-full mb-4 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+            />
+
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+              Tu contraseña de owner
+            </label>
+            <input
+              type="password"
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              placeholder="Contraseña de owner"
+              autoComplete="off"
+              className="w-full mb-3 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-white"
+            />
+
+            {deleteError && (
+              <div className="mb-3 text-xs text-red-600 dark:text-red-400">{deleteError}</div>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => setDeleteModal(null)}
+                disabled={deleteLoading}
+                className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleteLoading || (deleteModal.infractions ?? 0) < 2}
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors flex items-center justify-center gap-2"
+              >
+                {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                {deleteLoading ? 'Eliminando...' : 'Eliminar permanentemente'}
               </button>
             </div>
           </div>
