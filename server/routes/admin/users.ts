@@ -4,6 +4,7 @@ import { Contract } from "../../models/sql/Contract.model.js";
 import { Job } from "../../models/sql/Job.model.js";
 import { RefreshToken } from "../../models/sql/RefreshToken.model.js";
 import { BannedIdentity } from "../../models/sql/BannedIdentity.model.js";
+import emailService from "../../services/email.js";
 import { protect } from "../../middleware/auth.js";
 import { requirePermission, requireRole } from "../../middleware/permissions.js";
 import { verifyOwnerPassword } from "../../middleware/ownerVerification.js";
@@ -328,6 +329,13 @@ router.post(
       // A banned person who wants their account back must contact support.
       await BannedIdentity.recordBan(user, reason, req.user.id);
 
+      // Notify the banned user by email (best-effort).
+      if (user.email) {
+        emailService.sendAccountBannedEmail(user.email, user.name, reason, user.banExpiresAt).catch((e: any) =>
+          console.warn('[ban] email failed:', e?.message)
+        );
+      }
+
       // Revocar todos los refresh tokens activos
       await RefreshToken.update(
         {
@@ -514,8 +522,18 @@ router.delete(
       }
 
       const userEmail = user.email;
+      const userName = user.name;
       const userId = user.id;
       const infractions = user.infractions;
+      const deleteReason = (req.body?.reason as string) || user.banReason || '';
+
+      // Record the identity permanently and notify BEFORE destroying the row.
+      await BannedIdentity.recordBan(user, deleteReason || 'Cuenta eliminada por el administrador', req.user.id);
+      if (userEmail) {
+        emailService.sendAccountDeletedEmail(userEmail, userName, deleteReason).catch((e: any) =>
+          console.warn('[delete] email failed:', e?.message)
+        );
+      }
 
       await user.destroy();
 
@@ -575,6 +593,13 @@ router.post(
         verificationLevel: verified ? "document" : "email",
         legalInfo: { ...currentLegalInfo, ...verificationMeta },
       });
+
+      // Notify the user by email only when their identity is APPROVED (not on revoke).
+      if (verified && user.email) {
+        emailService.sendAccountVerifiedEmail(user.email, user.name).catch((e: any) =>
+          console.warn('[verify] email failed:', e?.message)
+        );
+      }
 
       await logAudit({
         req,

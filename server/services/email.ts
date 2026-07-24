@@ -462,6 +462,57 @@ class EmailService {
     await this.sendToUser(userId, '¡Bienvenido a DOAPP!', html);
   }
 
+  /** Admin verified the user's identity (DNI). */
+  async sendAccountVerifiedEmail(email: string, userName: string): Promise<boolean> {
+    const html = this.tpl({
+      eyebrow: 'Verificación',
+      accent: 'green',
+      title: '¡Tu identidad fue verificada!',
+      body: `
+        <p>Hola <strong>${userName}</strong>,</p>
+        <p>Nuestro equipo verificó tu documento de identidad. Tu cuenta ahora muestra la <strong>insignia de verificación</strong> y podés operar con total normalidad en DOAPP.</p>
+        ${this.callout('success', 'Listo', 'Ya podés publicar trabajos, postularte y recibir pagos con tu identidad verificada.')}
+      `,
+      cta: { label: 'Ir a mi perfil', url: `${config.clientUrl}/profile` },
+    });
+    return await this.sendEmail({ to: email, subject: 'Tu identidad fue verificada · DOAPP', html });
+  }
+
+  /** Admin banned/suspended the account. */
+  async sendAccountBannedEmail(email: string, userName: string, reason: string, expiresAt?: Date | null): Promise<boolean> {
+    const html = this.tpl({
+      eyebrow: 'Cuenta suspendida',
+      accent: 'red',
+      title: 'Tu cuenta fue suspendida',
+      body: `
+        <p>Hola <strong>${userName}</strong>,</p>
+        <p>Tu cuenta en DOAPP fue suspendida y por el momento no vas a poder acceder a la plataforma.</p>
+        ${this.callout('warning', 'Motivo', reason || 'No especificado')}
+        ${expiresAt ? `<p>La suspensión vence el <strong>${new Date(expiresAt).toLocaleDateString('es-AR')}</strong>.</p>` : ''}
+        <p>Si creés que se trata de un error o querés apelar esta decisión, escribí a nuestro equipo de soporte respondiendo este email o desde el Centro de Ayuda.</p>
+      `,
+      cta: { label: 'Contactar a soporte', url: `${config.clientUrl}/help` },
+    });
+    return await this.sendEmail({ to: email, subject: 'Tu cuenta fue suspendida · DOAPP', html });
+  }
+
+  /** Admin permanently deleted the account. */
+  async sendAccountDeletedEmail(email: string, userName: string, reason?: string): Promise<boolean> {
+    const html = this.tpl({
+      eyebrow: 'Cuenta eliminada',
+      accent: 'red',
+      title: 'Tu cuenta fue eliminada',
+      body: `
+        <p>Hola <strong>${userName}</strong>,</p>
+        <p>Tu cuenta en DOAPP fue eliminada permanentemente por incumplimientos de nuestros términos y condiciones.</p>
+        ${reason ? this.callout('warning', 'Motivo', reason) : ''}
+        <p>Si creés que se trata de un error, podés escribir a nuestro equipo de soporte para revisar el caso.</p>
+      `,
+      cta: { label: 'Contactar a soporte', url: `${config.clientUrl}/help` },
+    });
+    return await this.sendEmail({ to: email, subject: 'Tu cuenta fue eliminada · DOAPP', html });
+  }
+
   /**
    * Send email verification.
    * verificationUrl: the full URL including the token query param.
