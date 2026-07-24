@@ -3542,5 +3542,10 @@
     "continue": "Continue",
     "errorOnlyImages": "Only images (JPG, PNG) or PDF are accepted",
     "errorBothPhotos": "You must upload both the front and back photo of your ID"
+  },
+  "imageViewer": {
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "reset": "Reset"
   }
 }

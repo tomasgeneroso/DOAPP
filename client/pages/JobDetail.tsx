@@ -58,6 +58,7 @@ import SelectWorkerConfirmModal from "../components/jobDetail/SelectWorkerConfir
 import BudgetPaymentConfirmModal from "../components/jobDetail/BudgetPaymentConfirmModal";
 import ConfirmModal from "../components/ui/ConfirmModal";
 import useDialog from "../hooks/useDialog";
+import useImageViewer from "../hooks/useImageViewer";
 import JobActionsMenu from "../components/jobDetail/JobActionsMenu";
 import ClientDropdownMenu from "../components/jobDetail/ClientDropdownMenu";
 import AdminJobDetailsPanel from "../components/jobDetail/AdminJobDetailsPanel";
@@ -166,6 +167,7 @@ export default function JobDetail() {
   const [withdrawing, setWithdrawing] = useState(false);
   const [confirmWithdrawOpen, setConfirmWithdrawOpen] = useState(false);
   const { notify, dialog } = useDialog();
+  const { openImage, viewer } = useImageViewer();
   const [checkingApplication, setCheckingApplication] = useState(false);
   const [loadingChat, setLoadingChat] = useState(false);
 
@@ -2320,12 +2322,11 @@ export default function JobDetail() {
                 </h2>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {(job as any).images.map((img: string, i: number) => (
-                    <a
+                    <button
                       key={i}
-                      href={getImageUrl(img)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block aspect-square overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700"
+                      type="button"
+                      onClick={() => openImage(getImageUrl(img), `${job.title} — foto ${i + 1}`)}
+                      className="block aspect-square overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 cursor-zoom-in"
                     >
                       <img
                         src={getImageUrl(img)}
@@ -2333,7 +2334,7 @@ export default function JobDetail() {
                         className="h-full w-full object-cover transition-opacity hover:opacity-90"
                         onError={(e) => { (e.currentTarget.style.display = 'none'); }}
                       />
-                    </a>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -4651,6 +4652,7 @@ export default function JobDetail() {
         />
 
         {dialog}
+        {viewer}
 
         <ChangeBudgetModal
           open={showBudgetModal}

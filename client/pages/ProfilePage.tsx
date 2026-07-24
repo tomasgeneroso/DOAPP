@@ -13,6 +13,7 @@ import CreatePost from '../components/user/CreatePost';
 import PostComments from '../components/user/PostComments';
 import ReportProfileModal from '../components/user/ReportProfileModal';
 import ConfirmModal from '../components/ui/ConfirmModal';
+import useImageViewer from '../hooks/useImageViewer';
 import { useAuth } from '../hooks/useAuth';
 import Button from '../components/ui/Button';
 import WorkerModeToggle from '../components/profile/WorkerModeToggle';
@@ -92,6 +93,7 @@ export default function ProfilePage() {
   const [shareSending, setShareSending] = useState(false);
   // Replaces native alert()
   const [notice, setNotice] = useState<{ text: string; tone: 'danger' | 'success' } | null>(null);
+  const { openImage, viewer } = useImageViewer();
 
   // Determine which identifier to use
   const profileIdentifier = username || userId;
@@ -555,12 +557,13 @@ export default function ProfilePage() {
           <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden mb-8">
             {/* Cover Image */}
             <div
-              className="h-48 bg-gradient-to-r from-sky-500 to-blue-600 relative bg-cover bg-center"
+              className={`h-48 bg-gradient-to-r from-sky-500 to-blue-600 relative bg-cover bg-center ${user.coverImage ? 'cursor-zoom-in' : ''}`}
               style={{ backgroundImage: user.coverImage ? `url(${getImageUrl(user.coverImage)})` : undefined }}
+              onClick={() => user.coverImage && openImage(getImageUrl(user.coverImage), user.name)}
             >
               {/* Upload Cover Button (own profile only) */}
               {isOwnProfile() && (
-                <div className="absolute top-4 left-4">
+                <div className="absolute top-4 left-4" onClick={(e) => e.stopPropagation()}>
                   <input
                     type="file"
                     id="cover-upload"
@@ -604,7 +607,8 @@ export default function ProfilePage() {
                     <img
                       src={getImageUrl(user.avatar)}
                       alt={user.name}
-                      className="w-32 h-32 rounded-2xl object-cover border-4 border-white dark:border-slate-800 shadow-lg"
+                      onClick={() => openImage(getImageUrl(user.avatar!), user.name)}
+                      className="w-32 h-32 rounded-2xl object-cover border-4 border-white dark:border-slate-800 shadow-lg cursor-zoom-in"
                       onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden'); }}
                     />
                   ) : null}
@@ -1646,6 +1650,8 @@ export default function ProfilePage() {
         onConfirm={() => setNotice(null)}
         onClose={() => setNotice(null)}
       />
+
+      {viewer}
     </>
   );
 }

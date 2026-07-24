@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import useDialog from '@/hooks/useDialog';
+import useImageViewer from '@/hooks/useImageViewer';
 import { getImageUrl } from '@/utils/imageUrl';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../hooks/useAuth';
@@ -12,6 +13,7 @@ export default function PortfolioManager() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const { confirm: confirmDialog, dialog } = useDialog();
+  const { openImage, viewer } = useImageViewer();
   const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -344,7 +346,8 @@ export default function PortfolioManager() {
                 <img
                   src={getImageUrl(item.images[0])}
                   alt={item.title}
-                  className="w-full h-48 object-cover"
+                  onClick={() => openImage(getImageUrl(item.images[0]), item.title)}
+                  className="w-full h-48 object-cover cursor-zoom-in"
                 />
               )}
               <div className="p-4">
@@ -381,6 +384,7 @@ export default function PortfolioManager() {
         </div>
       )}
       {dialog}
+      {viewer}
     </div>
   );
 }

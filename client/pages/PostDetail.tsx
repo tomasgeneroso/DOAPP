@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import useDialog from '@/hooks/useDialog';
+import useImageViewer from '@/hooks/useImageViewer';
 import { useTranslation } from "react-i18next";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
@@ -49,6 +50,7 @@ interface Post {
 export default function PostDetail() {
   const { t } = useTranslation();
   const { notify, dialog } = useDialog();
+  const { openImage, viewer } = useImageViewer();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, token } = useAuth();
@@ -204,7 +206,8 @@ export default function PostDetail() {
                   <img
                     src={getImageUrl(post.gallery[currentImageIndex]?.url)}
                     alt={post.gallery[currentImageIndex]?.caption || post.title}
-                    className="w-full max-h-[500px] object-contain"
+                    onClick={() => openImage(getImageUrl(post.gallery[currentImageIndex]?.url), post.gallery[currentImageIndex]?.caption || post.title)}
+                    className="w-full max-h-[500px] object-contain cursor-zoom-in"
                   />
                 )}
 
@@ -357,6 +360,7 @@ export default function PostDetail() {
         </div>
       </div>
       {dialog}
+      {viewer}
     </>
   );
 }
