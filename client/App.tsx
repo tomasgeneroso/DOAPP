@@ -100,6 +100,7 @@ const FinancialTransactions = lazy(() => import("./pages/admin/FinancialTransact
 const AuditLogs = lazy(() => import("./pages/admin/AuditLogs"));
 const PendingPayments = lazy(() => import("./pages/admin/PendingPayments"));
 const AdminJobManager = lazy(() => import("./pages/admin/JobManager"));
+const AdminBlogManager = lazy(() => import("./pages/admin/BlogManager"));
 const AdminFamilyCodes = lazy(() => import("./pages/admin/FamilyCodes"));
 const AdminPerformanceMonitor = lazy(() => import("./pages/admin/PerformanceMonitor"));
 const AdminSearch = lazy(() => import("./pages/admin/AdminSearch"));
@@ -551,6 +552,7 @@ export default function App() {
               <Route path="marketing" element={<Navigate to="/admin/analytics" replace />} />
               <Route path="blogs" element={<Navigate to="/blog" replace />} />
               <Route path="tickets" element={<AdminTickets />} />
+              <Route path="blog" element={<AdminBlogManager />} />
               <Route path="tickets/create" element={<AdminCreateTicket />} />
               <Route path="tickets/:id" element={<AdminTicketDetail />} />
               <Route path="jobs" element={<AdminJobManager />} />

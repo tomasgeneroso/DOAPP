@@ -107,6 +107,7 @@ export default function AdminLayout() {
         { path: "/admin/users", icon: Users, label: t('admin.sidebar.users', 'Users'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/jobs", icon: Briefcase, label: t('admin.sidebar.publications', 'Publications'), roles: ["owner", "super_admin", "admin", "marketing"] },
         { path: "/admin/contracts", icon: FileText, label: t('admin.sidebar.contracts', 'Contracts'), roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin/blog", icon: FileText, label: t('admin.sidebar.blog', 'Blog'), roles: ["owner", "super_admin", "admin"] },
       ]
     },
     {
@@ -170,9 +171,12 @@ export default function AdminLayout() {
 
   return (
     <div className="flex bg-slate-50 dark:bg-slate-900" style={{ minHeight: '100vh' }}>
-      {/* Sidebar */}
-      <aside className="w-64 bg-white dark:bg-slate-800 shadow-md border-r border-slate-200 dark:border-slate-700 flex-shrink-0" style={{ minHeight: '100vh' }}>
-        <div className="p-4 sticky top-0 overflow-y-auto flex flex-col" style={{ height: '100vh' }}>
+      {/* Sidebar — stretches to the taller of the viewport or the page content
+          (flex `stretch` in the row makes the <aside> match the row height, which
+          is max(100vh, main content)). No fixed 100vh/sticky, so on long pages the
+          menu runs the full height and on short pages it just fills the viewport. */}
+      <aside className="w-64 bg-white dark:bg-slate-800 shadow-md border-r border-slate-200 dark:border-slate-700 flex-shrink-0 flex flex-col" style={{ minHeight: '100vh' }}>
+        <div className="p-4 flex flex-col flex-1">
           {/* Header with connection status */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-2">
@@ -306,9 +310,10 @@ export default function AdminLayout() {
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-auto bg-slate-50 dark:bg-slate-900" style={{ minHeight: '100vh' }}>
-        <div className="p-6 min-h-[calc(100vh-1px)]">
+      {/* Main Content — no internal overflow: the PAGE scrolls, so the row grows
+          with the content and the sidebar stretches to match it. */}
+      <main className="flex-1 min-w-0 bg-slate-50 dark:bg-slate-900" style={{ minHeight: '100vh' }}>
+        <div className="p-6">
           <Outlet />
         </div>
       </main>

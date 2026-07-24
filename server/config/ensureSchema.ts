@@ -72,6 +72,25 @@ const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'payment_proofs.file_url nullable', sql: `ALTER TABLE payment_proofs ALTER COLUMN file_url DROP NOT NULL` },
   { label: 'payment_proofs.file_type nullable', sql: `ALTER TABLE payment_proofs ALTER COLUMN file_type DROP NOT NULL` },
   { label: 'payment_proofs.file_name nullable', sql: `ALTER TABLE payment_proofs ALTER COLUMN file_name DROP NOT NULL` },
+
+  // --- banned_identities: permanent email+dni history of banned users ---
+  {
+    label: 'banned_identities table',
+    sql: `CREATE TABLE IF NOT EXISTS banned_identities (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      email VARCHAR(255) NOT NULL,
+      dni VARCHAR(255),
+      user_id UUID,
+      name VARCHAR(255),
+      reason TEXT NOT NULL,
+      banned_by UUID,
+      is_active BOOLEAN NOT NULL DEFAULT true,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`,
+  },
+  { label: 'banned_identities email index', sql: `CREATE INDEX IF NOT EXISTS banned_identities_email ON banned_identities (email)` },
+  { label: 'banned_identities dni index', sql: `CREATE INDEX IF NOT EXISTS banned_identities_dni ON banned_identities (dni)` },
 ];
 
 export async function ensureCriticalSchema(sequelize: Sequelize): Promise<void> {

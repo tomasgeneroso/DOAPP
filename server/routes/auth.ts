@@ -18,6 +18,8 @@ import {
 } from "../utils/tokens.js";
 import { authLimiter } from "../middleware/security.js";
 import { PasswordResetToken } from "../models/sql/PasswordResetToken.model.js";
+import { BannedIdentity } from "../models/sql/BannedIdentity.model.js";
+import { Op } from "sequelize";
 import emailService from "../services/email.js";
 import anomalyDetection from "../services/anomalyDetection.js";
 import { createAuditLog, getClientIp, getUserAgent } from "../utils/auditLogger.js";
@@ -146,6 +148,26 @@ router.post(
           message: "El nombre de usuario ya está en uso",
         });
         return;
+      }
+
+      // Bloquear el re-registro con una identidad (email o DNI) baneada.
+      // El registro persiste para la historia de la app; recuperar la cuenta va por soporte.
+      try {
+        const bannedWhere: any[] = [{ email: (email || '').toLowerCase().trim() }];
+        if (dni) bannedWhere.push({ dni });
+        const bannedIdentity = await BannedIdentity.findOne({
+          where: { isActive: true, [Op.or]: bannedWhere },
+        });
+        if (bannedIdentity) {
+          res.status(403).json({
+            success: false,
+            code: 'IDENTITY_BANNED',
+            message: "Esta identidad está suspendida en DOAPP. Si creés que es un error o querés recuperar tu cuenta, escribí a soporte.",
+          });
+          return;
+        }
+      } catch (e: any) {
+        console.warn('[register] banned-identity check skipped:', e?.message);
       }
 
       // Verificar código de referido si se proporcionó

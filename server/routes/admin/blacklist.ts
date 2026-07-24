@@ -3,6 +3,7 @@ import { Op } from 'sequelize';
 import { protect, AuthRequest } from '../../middleware/auth.js';
 import { authorize } from '../../middleware/auth.js';
 import { BlacklistEntry } from '../../models/sql/BlacklistEntry.model.js';
+import { BannedIdentity } from '../../models/sql/BannedIdentity.model.js';
 import { User } from '../../models/sql/User.model.js';
 import { body, validationResult } from 'express-validator';
 import { logAudit } from '../../utils/auditLog.js';
@@ -236,6 +237,7 @@ router.post(
           autoAdded: true,
         });
         await user.ban(adminId, `Auto-baneado tras ${user.infractions} infracciones`);
+        await BannedIdentity.recordBan(user, `Auto-baneado tras ${user.infractions} infracciones`, adminId);
         autoBlacklisted = true;
       }
 

@@ -158,6 +158,7 @@ async function registerModels() {
   const { Invoice } = await import('../models/sql/Invoice.model.js');
   const { Quote } = await import('../models/sql/Quote.model.js');
   const { BlacklistEntry } = await import('../models/sql/BlacklistEntry.model.js');
+  const { BannedIdentity } = await import('../models/sql/BannedIdentity.model.js');
   const ModuleConfig = (await import('../models/sql/ModuleConfig.model.js')).default;
 
   // Add models to sequelize
@@ -202,6 +203,7 @@ async function registerModels() {
     Invoice,
     Quote,
     BlacklistEntry,
+    BannedIdentity,
     ModuleConfig,
   ]);
 

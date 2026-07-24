@@ -3,6 +3,7 @@ import { User } from "../../models/sql/User.model.js";
 import { Contract } from "../../models/sql/Contract.model.js";
 import { Job } from "../../models/sql/Job.model.js";
 import { RefreshToken } from "../../models/sql/RefreshToken.model.js";
+import { BannedIdentity } from "../../models/sql/BannedIdentity.model.js";
 import { protect } from "../../middleware/auth.js";
 import { requirePermission, requireRole } from "../../middleware/permissions.js";
 import { verifyOwnerPassword } from "../../middleware/ownerVerification.js";
@@ -322,6 +323,11 @@ router.post(
 
       await user.save();
 
+      // Persist the identity (email + DNI) for the app's history, independent of
+      // the user row, so it survives account deletion and blocks re-registration.
+      // A banned person who wants their account back must contact support.
+      await BannedIdentity.recordBan(user, reason, req.user.id);
+
       // Revocar todos los refresh tokens activos
       await RefreshToken.update(
         {
@@ -382,6 +388,17 @@ router.post(
       user.banExpiresAt = undefined;
 
       await user.save();
+
+      // Support restoring the account: deactivate the identity record so the
+      // email/DNI no longer blocks login/registration. The row is kept (history).
+      try {
+        await BannedIdentity.update(
+          { isActive: false },
+          { where: { email: (user.email || '').toLowerCase().trim(), isActive: true } }
+        );
+      } catch (e: any) {
+        console.warn('[unban] could not deactivate banned identity:', e?.message);
+      }
 
       await logAudit({
         req,

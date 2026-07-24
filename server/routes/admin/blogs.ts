@@ -4,30 +4,21 @@ import { BlogPost } from "../../models/sql/BlogPost.model.js";
 import { protect } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/permissions.js";
 import { logAudit } from "../../utils/auditLog.js";
+import { Op } from "sequelize";
 import type { AuthRequest } from "../../types/index.js";
 
 const router = express.Router();
 
 // All routes require authentication and blog management permissions
 router.use(protect);
-router.use(requirePermission("blog.manage"));
+router.use(requirePermission("blog:manage"));
 
 // @route   GET /api/admin/blogs
 // @desc    Get all blog posts (including drafts)
 // @access  Private (Admin)
 router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { status, category, page = 1, limit = 20 } = req.query;
-
-    const query: any = {};
-
-    if (status) {
-      query.status = status;
-    }
-
-    if (category) {
-      query.category = category;
-    }
+    const { status, category, postType, search, page = 1, limit = 20 } = req.query;
 
     const pageNum = parseInt(page as string);
     const limitNum = parseInt(limit as string);
@@ -36,13 +27,22 @@ router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
     const where: any = {};
     if (status) where.status = status;
     if (category) where.category = category;
+    if (postType) where.postType = postType; // 'official' (platform) | 'user' (community)
+    if (search) {
+      const s = `%${(search as string).trim()}%`;
+      where[Op.or] = [
+        { title: { [Op.iLike]: s } },
+        { author: { [Op.iLike]: s } },
+        { slug: { [Op.iLike]: s } },
+      ];
+    }
 
     const [posts, total] = await Promise.all([
       BlogPost.findAll({
         where,
         include: [
-          { association: "createdBy", attributes: ["name", "email"] },
-          { association: "updatedBy", attributes: ["name", "email"] },
+          { association: "creator", attributes: ["name", "email"] },
+          { association: "updater", attributes: ["name", "email"] },
         ],
         order: [["createdAt", "DESC"]],
         offset: skip,
@@ -76,8 +76,8 @@ router.get("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const post = await BlogPost.findByPk(req.params.id, {
       include: [
-        { association: "createdBy", attributes: ["name", "email"] },
-        { association: "updatedBy", attributes: ["name", "email"] },
+        { association: "creator", attributes: ["name", "email"] },
+        { association: "updater", attributes: ["name", "email"] },
       ],
     });
 
@@ -136,6 +136,7 @@ router.post(
         tags,
         category,
         status,
+        postType,
       } = req.body;
 
       // Check if slug already exists
@@ -153,7 +154,7 @@ router.post(
       const post = await BlogPost.create({
         title,
         subtitle,
-        slug,
+        slug, // when empty, the model's @BeforeCreate hook generates it from the title
         content,
         excerpt,
         author,
@@ -161,11 +162,12 @@ router.post(
         tags: tags || [],
         category,
         status: status || "draft",
+        postType: postType === 'user' ? 'user' : 'official', // admin creates platform posts by default
         createdBy: req.user.id,
       });
 
       const populatedPost = await BlogPost.findByPk(post.id, {
-        include: [{ association: "createdBy", attributes: ["name", "email"] }],
+        include: [{ association: "creator", attributes: ["name", "email"] }],
       });
 
       void logAudit({
@@ -231,6 +233,7 @@ router.put(
         tags,
         category,
         status,
+        postType,
       } = req.body;
 
       // Check if new slug conflicts with existing post
@@ -255,6 +258,7 @@ router.put(
       if (tags !== undefined) post.tags = tags;
       if (category !== undefined) post.category = category;
       if (status !== undefined) post.status = status;
+      if (postType !== undefined) post.postType = postType;
 
       post.updatedBy = req.user.id;
 
@@ -268,8 +272,8 @@ router.put(
 
       const populatedPost = await BlogPost.findByPk(post.id, {
         include: [
-          { association: "createdBy", attributes: ["name", "email"] },
-          { association: "updatedBy", attributes: ["name", "email"] },
+          { association: "creator", attributes: ["name", "email"] },
+          { association: "updater", attributes: ["name", "email"] },
         ],
       });
 
