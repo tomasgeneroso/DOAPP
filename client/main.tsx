@@ -3,9 +3,8 @@ import App from "./App";
 import "./i18n";
 import "./global.css";
 import "./styles/datepicker.css";
-import "react-quill/dist/quill.snow.css";
-import "./styles/quill-dark.css";
-import "leaflet/dist/leaflet.css";
+// Note: quill (CreatePost) and leaflet (LocationPinMap) CSS are imported inside
+// those lazy components so they stay out of the critical-path bundle.
 
 // Auto-recover from stale lazy chunks after a deploy: when a hashed chunk no
 // longer exists, the dynamic import throws and shows the error boundary. Reload

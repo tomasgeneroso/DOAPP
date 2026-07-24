@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MapPin, Crosshair, RefreshCw } from 'lucide-react';
+import 'leaflet/dist/leaflet.css';
 
 interface LocationPinMapProps {
   address: string;
