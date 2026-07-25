@@ -1,0 +1,22 @@
+# DoApp — Plataforma Freelance Argentina
+
+> DoApp es la plataforma freelance argentina donde los clientes publican trabajos y los profesionales independientes encuentran oportunidades. Los pagos están protegidos mediante escrow: el dinero se libera únicamente cuando el cliente confirma que el trabajo está completo.
+
+DoApp conecta a clientes con trabajadores en Argentina de forma segura. Comisiones desde 1%, retiros a CBU bancario (mínimo $1.000 ARS), y aplicación nativa para iOS y Android. Los primeros contratos de nuevos usuarios son gratis.
+
+## Principales
+
+- [Inicio](https://doapparg.site/): Publicar trabajos o encontrar oportunidades freelance en Argentina
+- [Registro](https://doapparg.site/register): Crear una cuenta gratis
+- [Iniciar sesión](https://doapparg.site/login): Acceder a tu cuenta
+- [Blog](https://doapparg.site/blog): Artículos, tips y novedades sobre trabajo freelance
+- [Centro de Ayuda](https://doapparg.site/help): Soporte, tickets y resolución de disputas
+- [Planes y comisiones](https://doapparg.site/membership/pricing): FREE, PRO y SUPER PRO
+- [Contacto](https://doapparg.site/contact): Escribir al equipo de DoApp
+
+## Legal
+
+- [Términos y Condiciones](https://doapparg.site/legal/terminos-y-condiciones)
+- [Política de Privacidad](https://doapparg.site/legal/privacidad)
+- [Política de Cookies](https://doapparg.site/legal/cookies)
+- [Política de Disputas](https://doapparg.site/legal/disputas)
