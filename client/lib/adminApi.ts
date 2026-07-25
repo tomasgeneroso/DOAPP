@@ -81,6 +81,34 @@ export const adminApi = {
       return res.json() as Promise<ApiResponse<{ membershipTier: string; membershipExpiresAt: string }>>;
     },
   },
+  // Banned identities (permanent email + DNI registry, survives account deletion)
+  bannedIdentities: {
+    list: async (params?: Record<string, string>) => {
+      const query = new URLSearchParams(params).toString();
+      const res = await fetchWithAuth(`${API_URL}/admin/banned-identities?${query}`);
+      return res.json() as Promise<ApiResponse<any[]>>;
+    },
+    create: async (data: { email: string; dni?: string; name?: string; reason?: string }) => {
+      const res = await fetchWithAuth(`${API_URL}/admin/banned-identities`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
+      return res.json() as Promise<ApiResponse<any>>;
+    },
+    update: async (id: string, data: { email?: string; dni?: string; name?: string; reason?: string; isActive?: boolean }) => {
+      const res = await fetchWithAuth(`${API_URL}/admin/banned-identities/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      });
+      return res.json() as Promise<ApiResponse<any>>;
+    },
+    remove: async (id: string) => {
+      const res = await fetchWithAuth(`${API_URL}/admin/banned-identities/${id}`, {
+        method: "DELETE",
+      });
+      return res.json() as Promise<ApiResponse<void>>;
+    },
+  },
   // Contracts
   contracts: {
 

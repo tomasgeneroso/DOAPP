@@ -29,6 +29,7 @@ import {
   ChevronDown,
   ChevronRight,
   Search,
+  ShieldOff,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -105,6 +106,7 @@ export default function AdminLayout() {
       roles: ["owner", "super_admin", "admin", "marketing"],
       items: [
         { path: "/admin/users", icon: Users, label: t('admin.sidebar.users', 'Users'), roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin/banned-identities", icon: ShieldOff, label: t('admin.sidebar.bannedIdentities', 'Identidades baneadas'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/jobs", icon: Briefcase, label: t('admin.sidebar.publications', 'Publications'), roles: ["owner", "super_admin", "admin", "marketing"] },
         { path: "/admin/contracts", icon: FileText, label: t('admin.sidebar.contracts', 'Contracts'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/blog", icon: FileText, label: t('admin.sidebar.blog', 'Blog'), roles: ["owner", "super_admin", "admin"] },

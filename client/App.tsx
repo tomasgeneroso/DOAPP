@@ -78,6 +78,7 @@ const BannedUserScreen = lazy(() => import("./pages/BannedUserScreen"));
 const AdminLayout = lazy(() => import("./pages/admin/AdminLayout"));
 const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
 const AdminUsers = lazy(() => import("./pages/admin/Users"));
+const AdminBannedIdentities = lazy(() => import("./pages/admin/BannedIdentities"));
 const AdminRoles = lazy(() => import("./pages/admin/RoleManagement"));
 const AdminRolePermissions = lazy(() => import("./pages/admin/RolePermissions"));
 const AdminAnalytics = lazy(() => import("./pages/admin/Analytics"));
@@ -526,6 +527,7 @@ export default function App() {
             >
               <Route index element={<AdminDashboard />} />
               <Route path="users" element={<AdminUsers />} />
+              <Route path="banned-identities" element={<AdminBannedIdentities />} />
               <Route path="roles" element={<AdminRoles />} />
               <Route path="role-permissions" element={<AdminRolePermissions />} />
               <Route path="analytics" element={<AdminAnalytics />} />
