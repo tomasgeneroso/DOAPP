@@ -305,129 +305,137 @@ class EmailService {
     accent?: 'sky' | 'green' | 'amber' | 'red' | 'orange';
     amount?: string;
     amountLabel?: string;
+    preheader?: string;
+    footerNote?: string;
   }): string {
-    const palette = {
-      sky:    { btn: 'linear-gradient(135deg,#0284c7 0%,#2563eb 100%)', pill: '#dbeafe', pillText: '#1d4ed8', amount: '#0ea5e9' },
-      green:  { btn: 'linear-gradient(135deg,#16a34a 0%,#15803d 100%)', pill: '#dcfce7', pillText: '#15803d', amount: '#22c55e' },
-      amber:  { btn: 'linear-gradient(135deg,#d97706 0%,#b45309 100%)', pill: '#fef3c7', pillText: '#b45309', amount: '#f59e0b' },
-      red:    { btn: 'linear-gradient(135deg,#dc2626 0%,#b91c1c 100%)', pill: '#fee2e2', pillText: '#b91c1c', amount: '#ef4444' },
-      orange: { btn: 'linear-gradient(135deg,#ea580c 0%,#c2410c 100%)', pill: '#ffedd5', pillText: '#c2410c', amount: '#f97316' },
+    const ACCENTS = {
+      sky:    { eyebrowBg: '#e0f2fe', eyebrowBorder: '#bae6fd', eyebrowColor: '#0284c7', c1: '#0284c7', c2: '#2563eb', barGrad: 'linear-gradient(90deg,#38bdf8,#0ea5e9,#2563eb)' },
+      green:  { eyebrowBg: '#d1fae5', eyebrowBorder: '#a7f3d0', eyebrowColor: '#047857', c1: '#059669', c2: '#047857', barGrad: 'linear-gradient(90deg,#34d399,#10b981,#047857)' },
+      amber:  { eyebrowBg: '#fef3c7', eyebrowBorder: '#fde68a', eyebrowColor: '#92400e', c1: '#d97706', c2: '#b45309', barGrad: 'linear-gradient(90deg,#fbbf24,#f59e0b,#b45309)' },
+      red:    { eyebrowBg: '#fee2e2', eyebrowBorder: '#fecaca', eyebrowColor: '#b91c1c', c1: '#dc2626', c2: '#b91c1c', barGrad: 'linear-gradient(90deg,#f87171,#ef4444,#b91c1c)' },
+      orange: { eyebrowBg: '#ffedd5', eyebrowBorder: '#fed7aa', eyebrowColor: '#c2410c', c1: '#ea580c', c2: '#c2410c', barGrad: 'linear-gradient(90deg,#fb923c,#f97316,#c2410c)' },
     };
-    const p = palette[opts.accent || 'sky'];
+    const a = ACCENTS[opts.accent || 'sky'];
     const year = new Date().getFullYear();
     const base = config.clientUrl || 'https://doapparg.site';
+    const logo = `${base}/doapp-logo-email.png`;
+    const preheader = opts.preheader || String(opts.title).replace(/<[^>]+>/g, '').trim();
+    const footerNote = opts.footerNote || '¿No reconocés este email? Podés ignorarlo, no haremos nada con tu cuenta.';
+    const preheaderPad = ' ‌'.repeat(40);
+
+    const amountBlock = opts.amount ? `
+      <tr><td class="pad" style="padding:24px 40px 0;text-align:center;">
+        <p style="margin:0 0 4px;font-family:Arial,Helvetica,sans-serif;font-size:11.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.07em;font-weight:700;">${opts.amountLabel || 'Monto'}</p>
+        <p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:40px;font-weight:800;color:${a.c1};letter-spacing:-1.5px;">${opts.amount}</p>
+      </td></tr>` : '';
+
+    const ctaBlock = opts.cta ? `
+      <tr><td align="center" class="pad" style="padding:28px 40px 8px;">
+        <!--[if mso]>
+        <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${opts.cta.url}" style="height:52px;v-text-anchor:middle;width:300px;" arcsize="27%" strokecolor="${a.c1}" fillcolor="${a.c1}">
+        <w:anchorlock/><center style="color:#ffffff;font-family:Arial,sans-serif;font-size:15px;font-weight:bold;">${opts.cta.label}</center>
+        </v:roundrect>
+        <![endif]-->
+        <!--[if !mso]><!-->
+        <a href="${opts.cta.url}" style="background-color:${a.c1};background-image:linear-gradient(135deg,${a.c1} 0%,${a.c2} 100%);color:#ffffff;display:inline-block;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:700;line-height:22px;padding:16px 32px;border-radius:14px;text-decoration:none;">${opts.cta.label}</a>
+        <!--<![endif]-->
+        <p style="margin:14px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#94a3b8;">¿No funciona el botón? Copiá y pegá este link:<br><a href="${opts.cta.url}" style="color:${a.c1};text-decoration:none;word-break:break-all;">${opts.cta.url}</a></p>
+      </td></tr>` : `<tr><td style="height:8px;line-height:8px;font-size:0;">&nbsp;</td></tr>`;
 
     return `<!DOCTYPE html>
-<html lang="es">
+<html lang="es" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>${opts.title}</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title>${preheader}</title>
+<!--[if mso]>
+<noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+<style>table,td,th{border-collapse:collapse;}</style>
+<![endif]-->
+<style>
+  body,table,td,a{-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;}
+  table,td{mso-table-lspace:0pt;mso-table-rspace:0pt;}
+  img{-ms-interpolation-mode:bicubic;border:0;outline:none;text-decoration:none;}
+  body{margin:0;padding:0;width:100% !important;height:100% !important;}
+  a[x-apple-data-detectors]{color:inherit !important;text-decoration:none !important;}
+  @media screen and (max-width:600px){.wrap{width:100% !important;}.pad{padding-left:24px !important;padding-right:24px !important;}.h1{font-size:23px !important;line-height:1.3 !important;}}
+  @media (prefers-color-scheme: dark){
+    .bg-body{background:#070d1a !important;}
+    .card{background:#0f1624 !important;}
+    .fg1{color:#f1f5f9 !important;}
+    .fg2{color:#94a3b8 !important;}
+    .body-text{color:#cbd5e1 !important;}
+    .footer-border{border-color:#1e2d42 !important;}
+  }
+</style>
 </head>
-<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
-  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f1f5f9;">
-    <tr><td style="padding:32px 16px;">
-      <table role="presentation" width="100%" style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 32px rgba(0,0,0,0.10);" cellspacing="0" cellpadding="0" border="0">
-
-        <!-- HEADER -->
-        <tr><td style="background:linear-gradient(135deg,#0c1a2e 0%,#070d1a 100%);padding:26px 40px;">
-          <table role="presentation" cellspacing="0" cellpadding="0" border="0">
-            <tr>
-              <td style="vertical-align:middle;">
-                <span style="display:inline-block;background:#38bdf8;color:#0c1a2e;font-size:19px;font-weight:900;padding:5px 11px;border-radius:8px;letter-spacing:-0.5px;line-height:1.2;">DO</span>
-              </td>
-              <td style="vertical-align:middle;padding-left:7px;">
-                <span style="color:#ffffff;font-size:19px;font-weight:900;letter-spacing:-0.5px;line-height:1.2;">APP</span>
-              </td>
-            </tr>
-          </table>
-        </td></tr>
-
-        <!-- GRADIENT BAR -->
-        <tr><td style="background:linear-gradient(90deg,#38bdf8 0%,#0ea5e9 50%,#2563eb 100%);height:3px;padding:0;font-size:1px;line-height:1px;">&#8203;</td></tr>
-
-        <!-- EYEBROW + TITLE -->
-        <tr><td style="padding:36px 40px 12px;text-align:center;">
-          ${opts.eyebrow ? `<div style="margin-bottom:14px;"><span style="display:inline-block;background:${p.pill};color:${p.pillText};font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;padding:4px 14px;border-radius:999px;">${opts.eyebrow}</span></div>` : ''}
-          <h1 style="margin:0;font-size:28px;font-weight:800;color:#0f172a;line-height:1.25;letter-spacing:-0.5px;">${opts.title}</h1>
-        </td></tr>
-
-        <!-- BODY -->
-        <tr><td style="padding:8px 40px 32px;">
-          <div style="font-size:15.5px;line-height:1.75;color:#334155;">
-            ${opts.body}
-          </div>
-
-          ${opts.amount ? `
-          <div style="text-align:center;margin:28px 0;">
-            <p style="margin:0 0 4px;font-size:11.5px;color:#94a3b8;text-transform:uppercase;letter-spacing:0.07em;font-weight:700;">${opts.amountLabel || 'Monto'}</p>
-            <p style="margin:0;font-size:40px;font-weight:800;color:${p.amount};letter-spacing:-1.5px;">${opts.amount}</p>
-          </div>` : ''}
-
-          ${opts.cta ? `
-          <div style="text-align:center;margin:32px 0 10px;">
-            <a href="${opts.cta.url}" style="display:inline-block;padding:14px 40px;background:${p.btn};color:#ffffff;text-decoration:none;font-weight:700;font-size:15.5px;border-radius:10px;letter-spacing:0.02em;">${opts.cta.label}</a>
-          </div>
-          <div style="text-align:center;margin-bottom:8px;">
-            <p style="margin:0;font-size:12px;color:#94a3b8;">O copiá este enlace:<br><a href="${opts.cta.url}" style="color:#0ea5e9;word-break:break-all;font-size:11px;">${opts.cta.url}</a></p>
-          </div>` : ''}
-        </td></tr>
-
-        <!-- FOOTER -->
-        <tr><td style="background:#0f172a;padding:28px 40px;text-align:center;border-radius:0 0 16px 16px;">
-          <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="width:100%;margin-bottom:16px;">
-            <tr>
-              <td style="text-align:center;">
-                <a href="https://apps.apple.com" style="display:inline-block;margin:0 4px;padding:7px 14px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:7px;color:#94a3b8;text-decoration:none;font-size:11.5px;font-weight:600;">&#xf8ff; App Store</a>
-                <a href="https://play.google.com" style="display:inline-block;margin:0 4px;padding:7px 14px;background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.12);border-radius:7px;color:#94a3b8;text-decoration:none;font-size:11.5px;font-weight:600;">&#9654; Google Play</a>
-              </td>
-            </tr>
-          </table>
-          <p style="margin:0 0 10px;">
-            <a href="${base}/help" style="color:#64748b;font-size:12px;text-decoration:none;margin:0 8px;">Centro de ayuda</a>
-            <span style="color:#334155;">&nbsp;·&nbsp;</span>
-            <a href="${base}/legal/privacidad" style="color:#64748b;font-size:12px;text-decoration:none;margin:0 8px;">Privacidad</a>
-          </p>
-          <p style="margin:0 0 4px;font-size:11px;color:#475569;">© ${year} DOAPP · La plataforma de trabajos argentina</p>
-          <p style="margin:0;font-size:11px;color:#334155;">Correo automático — por favor no respondás.</p>
-        </td></tr>
-
-      </table>
-    </td></tr>
-  </table>
+<body class="bg-body" style="margin:0;padding:0;background:#eef2f7;">
+<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#eef2f7;">${preheader}${preheaderPad}</div>
+<center>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" class="bg-body" style="background:#eef2f7;">
+<tr><td align="center" style="padding:32px 12px;">
+<table role="presentation" class="wrap card" width="600" cellpadding="0" cellspacing="0" border="0" style="width:600px;max-width:600px;background:#ffffff;border-radius:16px;overflow:hidden;">
+<tr><td style="background-color:#0c1a2e;background-image:linear-gradient(135deg,#0c1a2e 0%,#070d1a 100%);padding:26px 40px 22px;" class="pad">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+<td valign="middle"><img src="${logo}" width="34" height="34" alt="DoApp" style="display:block;border:0;"></td>
+<td valign="middle" style="padding-left:10px;font-family:Arial,Helvetica,sans-serif;font-size:22px;font-weight:800;letter-spacing:-0.5px;color:#ffffff;">D<span style="color:#38bdf8;">o</span>App</td>
+</tr></table>
+</td></tr>
+<tr><td style="line-height:0;font-size:0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td height="3" bgcolor="${a.c1}" style="background:${a.barGrad};background-color:${a.c1};font-size:0;line-height:0;">&nbsp;</td></tr></table></td></tr>
+<tr><td class="pad fg1" style="padding:32px 40px 0;">
+${opts.eyebrow ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="${a.eyebrowBg}" style="background:${a.eyebrowBg};border:1px solid ${a.eyebrowBorder};border-radius:9999px;padding:5px 12px;"><span style="font-family:Arial,Helvetica,sans-serif;font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:${a.eyebrowColor};">${opts.eyebrow}</span></td></tr></table>` : ''}
+<h1 class="h1 fg1" style="margin:14px 0 0;font-family:Arial,Helvetica,sans-serif;font-size:28px;line-height:1.25;font-weight:800;letter-spacing:-0.5px;color:#0f172a;">${opts.title}</h1>
+</td></tr>
+<tr><td class="pad body-text" style="padding:8px 40px 0;font-family:Arial,Helvetica,sans-serif;font-size:15.5px;line-height:1.6;color:#334155;">${opts.body}</td></tr>
+${amountBlock}
+${ctaBlock}
+<tr><td style="height:12px;line-height:12px;font-size:0;">&nbsp;</td></tr>
+<tr><td class="pad footer-border" style="padding:28px 40px 32px;border-top:1px solid #e2e8f0;text-align:center;">
+<p class="fg2" style="margin:0 0 8px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#94a3b8;">${footerNote}</p>
+<p class="fg2" style="margin:0 0 8px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#94a3b8;"><a href="${base}" style="color:${a.c1};text-decoration:none;">doapparg.site</a><span style="color:#cbd5e1;">&nbsp;·&nbsp;</span><a href="${base}/help" style="color:${a.c1};text-decoration:none;">Centro de ayuda</a></p>
+<p class="fg2" style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#94a3b8;">© ${year} DoApp · Buenos Aires, Argentina</p>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</center>
 </body>
 </html>`;
   }
 
   /** Callout box: info | warning | success | danger */
   private callout(type: 'info' | 'warning' | 'success' | 'danger', title: string, content: string): string {
-    const s = {
-      info:    { bg: '#f0f9ff', border: '#bae6fd', icon: 'ℹ️', titleColor: '#0c4a6e', textColor: '#0c4a6e' },
-      warning: { bg: '#fffbeb', border: '#fde68a', icon: '⚠️', titleColor: '#78350f', textColor: '#78350f' },
-      success: { bg: '#f0fdf4', border: '#bbf7d0', icon: '✅', titleColor: '#14532d', textColor: '#14532d' },
-      danger:  { bg: '#fef2f2', border: '#fecaca', icon: '🚨', titleColor: '#7f1d1d', textColor: '#7f1d1d' },
+    const c = {
+      info:    { bg: '#e0f2fe', border: '#bae6fd', ic: '#0284c7', icBg: '#bae6fd', fg: '#075985', glyph: 'i' },
+      warning: { bg: '#fffbeb', border: '#fde68a', ic: '#92400e', icBg: '#fef3c7', fg: '#854d0e', glyph: '!' },
+      success: { bg: '#dcfce7', border: '#86efac', ic: '#065f46', icBg: '#bbf7d0', fg: '#065f46', glyph: '✓' },
+      danger:  { bg: '#fee2e2', border: '#fecaca', ic: '#991b1b', icBg: '#fecaca', fg: '#991b1b', glyph: '!' },
     }[type];
-    return `<table role="presentation" style="width:100%;background:${s.bg};border:1px solid ${s.border};border-radius:10px;margin:20px 0;" cellspacing="0" cellpadding="0" border="0">
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${c.bg};border:1px solid ${c.border};border-radius:14px;margin:20px 0;">
       <tr>
-        <td style="padding:14px 12px 14px 16px;vertical-align:top;width:28px;font-size:18px;">${s.icon}</td>
-        <td style="padding:14px 16px 14px 4px;">
-          ${title ? `<p style="margin:0 0 3px;font-size:13.5px;font-weight:700;color:${s.titleColor};">${title}</p>` : ''}
-          <div style="font-size:13.5px;line-height:1.6;color:${s.textColor};">${content}</div>
+        <td width="48" valign="top" style="padding:16px 0 16px 16px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td width="30" height="30" align="center" valign="middle" bgcolor="${c.icBg}" style="background:${c.icBg};border-radius:9999px;font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:800;color:${c.ic};">${c.glyph}</td></tr></table>
+        </td>
+        <td style="padding:16px 16px 16px 12px;font-family:Arial,Helvetica,sans-serif;font-size:13.5px;line-height:1.5;color:${c.fg};">
+          ${title ? `<strong style="display:block;font-size:14px;margin-bottom:2px;color:${c.fg};">${title}</strong>` : ''}${content}
         </td>
       </tr>
     </table>`;
   }
 
-  /** Receipt-style detail card */
+  /** Receipt-style detail card. `highlight` renders the emphasized total row. */
   private detailCard(rows: Array<{ label: string; value: string; highlight?: boolean }>): string {
-    const rowsHtml = rows.map((r, i) => `
+    const rowsHtml = rows.map((r) => `
       <tr>
-        <td style="padding:11px 0;${i < rows.length - 1 ? 'border-bottom:1px solid #e2e8f0;' : ''}font-size:13.5px;color:#64748b;font-weight:500;">${r.label}</td>
-        <td style="padding:11px 0;${i < rows.length - 1 ? 'border-bottom:1px solid #e2e8f0;' : ''}font-size:13.5px;color:${r.highlight ? '#0284c7' : '#0f172a'};font-weight:${r.highlight ? '700' : '600'};text-align:right;">${r.value}</td>
+        <td style="padding:9px 0;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#64748b;border-top:${r.highlight ? '1px solid #e2e8f0' : 'none'};">${r.highlight ? '<div style="padding-top:5px;">' + r.label + '</div>' : r.label}</td>
+        <td align="right" style="padding:9px 0;font-family:Arial,Helvetica,sans-serif;font-weight:${r.highlight ? 900 : 700};font-size:${r.highlight ? '21px' : '14px'};color:${r.highlight ? '#0284c7' : '#0f172a'};border-top:${r.highlight ? '1px solid #e2e8f0' : 'none'};">${r.highlight ? '<div style="padding-top:5px;">' + r.value + '</div>' : r.value}</td>
       </tr>`).join('');
-    return `<table role="presentation" style="width:100%;background:#f8fafc;border-radius:10px;border:1px solid #e2e8f0;margin:20px 0;" cellspacing="0" cellpadding="0" border="0">
-      <tr><td style="padding:4px 20px;">
-        <table role="presentation" style="width:100%;border-collapse:collapse;" cellspacing="0" cellpadding="0" border="0">${rowsHtml}</table>
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:16px;margin:20px 0;">
+      <tr><td style="padding:20px 22px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${rowsHtml}</table>
       </td></tr>
     </table>`;
   }
