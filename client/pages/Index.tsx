@@ -30,6 +30,13 @@ const handleSpotlightLeave = (e: React.MouseEvent<HTMLElement>) => {
 export default function Index() {
   const { user, isLoading } = useAuth();
   const { t } = useTranslation();
+  // A first-time visitor has no auth token in storage, so we can decide
+  // synchronously (on the first paint) to render the landing hero instead of
+  // waiting for the async /auth/me validation. Rendering the full-height hero
+  // immediately reserves its space and eliminates the large layout shift (CLS)
+  // that happened when the hero mounted after auth resolved.
+  const hasStoredToken = typeof window !== 'undefined' && !!localStorage.getItem('token');
+  const showVisitor = !user && (!isLoading || !hasStoredToken);
   const location = useLocation();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [users, setUsers] = useState<UserType[]>([]);
@@ -307,8 +314,8 @@ export default function Index() {
         <meta name="twitter:image" content="https://doapparg.site/og-image.png" />
       </Helmet>
       {/* ── VISITOR LANDING (always dark, full-width) ── */}
-      <div style={(!user && !isLoading) ? { background: '#070d1a' } : undefined}>
-      {!user && !isLoading && (
+      <div style={showVisitor ? { background: '#070d1a' } : undefined}>
+      {showVisitor && (
         <>
           {/* Animated blobs — fixed so they drift while user scrolls */}
           <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }}>
@@ -666,7 +673,7 @@ export default function Index() {
       )}
 
       {/* Search Bar + Jobs */}
-      <div className={`w-full px-3 sm:px-4 pb-20 sm:pb-28${(!user && !isLoading) ? ' dark' : ''}`} style={(!user && !isLoading) ? { position:'relative', zIndex:1 } : undefined}>
+      <div className={`w-full px-3 sm:px-4 pb-20 sm:pb-28${showVisitor ? ' dark' : ''}`} style={showVisitor ? { position:'relative', zIndex:1 } : undefined}>
         {/* Search Bar — solo para usuarios no logueados */}
         {!user && (
           <div className="mt-8 sm:mt-12 max-w-4xl mx-auto px-2" data-onboarding="search">
@@ -838,7 +845,7 @@ export default function Index() {
         )}
 
         {/* Categories sitemap — visitor only, jobs > 3 */}
-        {!user && !isLoading && searchType === 'jobs' && jobs.length > 3 && (
+        {showVisitor && searchType === 'jobs' && jobs.length > 3 && (
           <div className="mt-10 sm:mt-16 px-2">
             <div className="text-center mb-6">
               <h2 className="text-2xl sm:text-3xl font-bold text-white">

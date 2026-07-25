@@ -50,10 +50,14 @@ export default defineConfig({
     chunkSizeWarningLimit: 800,
     rollupOptions: {
       output: {
-        // Split heavy third-party libs into their own long-cached vendor chunks
+        // Split heavy third-party libs into their own long-cached vendor chunks.
+        // NOTE: recharts is intentionally NOT listed here. Forcing it into a
+        // named manual chunk made Vite modulepreload it from the entry (the
+        // landing page pulled ~96 KB of charts it never uses). Left un-chunked,
+        // Rollup keeps it in an async chunk loaded only by the admin/finance
+        // routes that import it.
         manualChunks: {
           "vendor-react": ["react", "react-dom", "react-router-dom"],
-          "vendor-charts": ["recharts"],
           "vendor-maps": ["leaflet", "react-leaflet"],
           "vendor-editor": ["react-quill"],
         },

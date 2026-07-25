@@ -58,8 +58,12 @@ export function FacebookSDK() {
     // Set up the async init callback BEFORE loading the script
     window.fbAsyncInit = initializeFB;
 
-    // Load the SDK script if not already loaded
-    if (!document.getElementById("facebook-jssdk")) {
+    // Load the SDK script when the browser is idle so this ~90 KB third-party
+    // script never competes with the critical first paint (helps LCP/TBT).
+    // Facebook login only matters on the auth screens, which mount later; the
+    // hook waits for FB_SDK_READY_EVENT regardless of when the SDK arrives.
+    const loadSdk = () => {
+      if (document.getElementById("facebook-jssdk")) return;
       const script = document.createElement("script");
       script.id = "facebook-jssdk";
       script.src = "https://connect.facebook.net/en_US/sdk.js";
@@ -69,15 +73,25 @@ export function FacebookSDK() {
       script.onerror = () => {
         console.error("❌ Failed to load Facebook SDK");
       };
+      document.head.appendChild(script);
+    };
 
-      // Insert before first script for faster loading
-      const firstScript = document.getElementsByTagName("script")[0];
-      if (firstScript && firstScript.parentNode) {
-        firstScript.parentNode.insertBefore(script, firstScript);
-      } else {
-        document.head.appendChild(script);
-      }
+    const ric = (window as any).requestIdleCallback as
+      | ((cb: () => void, opts?: { timeout: number }) => number)
+      | undefined;
+    let idleId: number | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    if (ric) {
+      idleId = ric(loadSdk, { timeout: 4000 });
+    } else {
+      timeoutId = setTimeout(loadSdk, 2500);
     }
+
+    return () => {
+      const cic = (window as any).cancelIdleCallback;
+      if (idleId !== undefined && cic) cic(idleId);
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, []);
 
   return null;

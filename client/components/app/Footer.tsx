@@ -33,6 +33,8 @@ export default function Footer() {
                 href="https://facebook.com"
                 target="_blank"
                 rel="noopener noreferrer"
+                aria-label="DoApp en Facebook"
+                title="Facebook"
                 className="text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors duration-200"
               >
                 <Facebook className="h-5 w-5" />
@@ -41,6 +43,8 @@ export default function Footer() {
                 href="https://twitter.com"
                 target="_blank"
                 rel="noopener noreferrer"
+                aria-label="DoApp en X (Twitter)"
+                title="X (Twitter)"
                 className="text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors duration-200"
               >
                 <Twitter className="h-5 w-5" />
@@ -49,6 +53,8 @@ export default function Footer() {
                 href="https://instagram.com"
                 target="_blank"
                 rel="noopener noreferrer"
+                aria-label="DoApp en Instagram"
+                title="Instagram"
                 className="text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors duration-200"
               >
                 <Instagram className="h-5 w-5" />
@@ -57,6 +63,8 @@ export default function Footer() {
                 href="https://linkedin.com"
                 target="_blank"
                 rel="noopener noreferrer"
+                aria-label="DoApp en LinkedIn"
+                title="LinkedIn"
                 className="text-slate-500 dark:text-slate-400 hover:text-sky-600 dark:hover:text-sky-400 transition-colors duration-200"
               >
                 <Linkedin className="h-5 w-5" />
