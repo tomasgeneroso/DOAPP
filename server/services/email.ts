@@ -451,37 +451,32 @@ ${ctaBlock}
    */
   async sendWelcomeEmail(userId: string, userName: string): Promise<void> {
     const html = this.tpl({
-      eyebrow: 'Bienvenida',
-      title: `¡Hola, ${userName}!`,
+      eyebrow: '¡Bienvenido!',
+      accent: 'green',
+      preheader: 'Tu cuenta ya está lista — publicá tu primer trabajo o postulate a uno.',
+      title: `Tu cuenta de DoApp está lista, ${userName}.`,
       body: `
-        <p>Hola <strong>${userName}</strong>,</p>
-        <p>¡Gracias por unirte a DOAPP! Somos la plataforma argentina donde podés encontrar trabajadores de confianza o publicar tu primer trabajo.</p>
-        ${this.callout('info', 'Primeros pasos', `
-          <ul style="margin:6px 0 0;padding-left:18px;">
-            <li>Completá tu perfil para destacar</li>
-            <li>Explorá los trabajos disponibles</li>
-            <li>Publicá tu primer trabajo o postulate a uno</li>
-          </ul>
-        `)}
-        <p>Si tenés alguna pregunta, nuestro equipo está disponible en el <a href="${config.clientUrl}/help" style="color:#0ea5e9;">Centro de Ayuda</a>.</p>
+        <p>Hola <strong>${userName}</strong>, ¡bienvenido! Ya podés <strong>publicar trabajos</strong> o <strong>postularte como Doer</strong>. Tu plata queda guardada en DoApp hasta que el trabajo se confirme — sin sorpresas.</p>
+        ${this.callout('success', 'Pago protegido', 'Todo lo que cobrés o pagués en DoApp queda en garantía hasta que ambas partes confirmen. Así de simple.')}
+        <p>¿Alguna duda? Estamos en el <a href="${config.clientUrl}/help" style="color:#0ea5e9;">Centro de Ayuda</a>.</p>
       `,
-      cta: { label: '🚀 Ir a DOAPP', url: `${config.clientUrl}/` },
+      cta: { label: 'Publicar mi primer trabajo', url: `${config.clientUrl}/` },
     });
-    await this.sendToUser(userId, '¡Bienvenido a DOAPP!', html);
+    await this.sendToUser(userId, '¡Bienvenido a DoApp!', html);
   }
 
   /** Admin verified the user's identity (DNI). */
   async sendAccountVerifiedEmail(email: string, userName: string): Promise<boolean> {
     const html = this.tpl({
-      eyebrow: 'Verificación',
+      eyebrow: 'Identidad verificada',
       accent: 'green',
-      title: '¡Tu identidad fue verificada!',
+      preheader: 'Ya tenés la insignia de identidad verificada en tu perfil.',
+      title: `Tu identidad quedó verificada, ${userName}.`,
       body: `
-        <p>Hola <strong>${userName}</strong>,</p>
-        <p>Nuestro equipo verificó tu documento de identidad. Tu cuenta ahora muestra la <strong>insignia de verificación</strong> y podés operar con total normalidad en DOAPP.</p>
-        ${this.callout('success', 'Listo', 'Ya podés publicar trabajos, postularte y recibir pagos con tu identidad verificada.')}
+        <p>Buenas noticias <strong>${userName}</strong>: confirmamos tu identidad. Tu perfil ahora muestra la insignia de <strong>verificado</strong>, lo que genera más confianza con clientes y Doers.</p>
+        ${this.callout('success', 'Subió tu confianza', 'Los perfiles verificados reciben en promedio más propuestas. Completá tu portafolio para sumar todavía más confianza.')}
       `,
-      cta: { label: 'Ir a mi perfil', url: `${config.clientUrl}/profile` },
+      cta: { label: 'Ver mi perfil', url: `${config.clientUrl}/profile` },
     });
     return await this.sendEmail({ to: email, subject: 'Tu identidad fue verificada · DOAPP', html });
   }
@@ -491,15 +486,15 @@ ${ctaBlock}
     const html = this.tpl({
       eyebrow: 'Cuenta suspendida',
       accent: 'red',
-      title: 'Tu cuenta fue suspendida',
+      preheader: 'Tu cuenta quedó suspendida por incumplir nuestras normas.',
+      title: `Tu cuenta fue suspendida, ${userName}.`,
       body: `
-        <p>Hola <strong>${userName}</strong>,</p>
-        <p>Tu cuenta en DOAPP fue suspendida y por el momento no vas a poder acceder a la plataforma.</p>
-        ${this.callout('warning', 'Motivo', reason || 'No especificado')}
+        <p>Hola <strong>${userName}</strong>, tu cuenta de DoApp fue suspendida por incumplir nuestros <strong>Términos de uso</strong>. Mientras dure la suspensión no vas a poder publicar trabajos, aplicar a propuestas ni liberar pagos.</p>
+        ${this.callout('danger', 'Motivo', reason || 'No especificado')}
         ${expiresAt ? `<p>La suspensión vence el <strong>${new Date(expiresAt).toLocaleDateString('es-AR')}</strong>.</p>` : ''}
-        <p>Si creés que se trata de un error o querés apelar esta decisión, escribí a nuestro equipo de soporte respondiendo este email o desde el Centro de Ayuda.</p>
+        <p>Si creés que es un error, podés apelar esta decisión desde el Centro de Ayuda o respondiendo este email.</p>
       `,
-      cta: { label: 'Contactar a soporte', url: `${config.clientUrl}/help` },
+      cta: { label: 'Apelar la suspensión', url: `${config.clientUrl}/help` },
     });
     return await this.sendEmail({ to: email, subject: 'Tu cuenta fue suspendida · DOAPP', html });
   }
@@ -509,12 +504,13 @@ ${ctaBlock}
     const html = this.tpl({
       eyebrow: 'Cuenta eliminada',
       accent: 'red',
-      title: 'Tu cuenta fue eliminada',
+      preheader: 'Confirmamos que tu cuenta y tus datos fueron dados de baja.',
+      footerNote: 'Si no pediste esta baja, escribinos a soporte dentro de los próximos 7 días.',
+      title: 'Tu cuenta fue eliminada.',
       body: `
-        <p>Hola <strong>${userName}</strong>,</p>
-        <p>Tu cuenta en DOAPP fue eliminada permanentemente por incumplimientos de nuestros términos y condiciones.</p>
-        ${reason ? this.callout('warning', 'Motivo', reason) : ''}
-        <p>Si creés que se trata de un error, podés escribir a nuestro equipo de soporte para revisar el caso.</p>
+        <p>Hola <strong>${userName}</strong>, confirmamos que tu cuenta de DoApp y tus datos personales fueron eliminados. Los contratos ya completados quedan en nuestros registros por motivos legales e impositivos.</p>
+        ${reason ? this.callout('danger', 'Motivo', reason) : ''}
+        <p>Si creés que es un error, podés escribir a soporte para revisar el caso.</p>
       `,
       cta: { label: 'Contactar a soporte', url: `${config.clientUrl}/help` },
     });
@@ -531,47 +527,47 @@ ${ctaBlock}
     verificationUrl: string   // full URL, e.g. /verify-email?token=xxx
   ): Promise<boolean> {
     const html = this.tpl({
-      eyebrow: 'Verificación',
-      title: 'Verificá tu email',
+      eyebrow: 'Confirmá tu cuenta',
+      preheader: 'Un solo clic y ya podés usar DoApp. El link vale 24 horas.',
+      title: 'Verificá tu email.',
       body: `
-        <p>Hola <strong>${userName}</strong>,</p>
-        <p>Gracias por registrarte en DOAPP. Para activar tu cuenta hacé clic en el botón de abajo.</p>
-        ${this.callout('warning', 'Importante', 'Este enlace <strong>expira en 24 horas</strong>. Si no creaste esta cuenta podés ignorar este email.')}
+        <p>Gracias por registrarte en <strong>DoApp</strong>, ${userName}. Para activar tu cuenta y empezar a publicar o aplicar a trabajos, confirmá tu dirección de email.</p>
+        ${this.callout('warning', 'Este enlace expira en 24 horas', 'Si no fuiste vos quien creó esta cuenta, ignorá este email.')}
       `,
-      cta: { label: '✅ Verificar mi email', url: verificationUrl },
+      cta: { label: 'Verificar mi email', url: verificationUrl },
     });
-    return await this.sendEmail({ to: email, subject: 'Verificá tu email · DOAPP', html });
+    return await this.sendEmail({ to: email, subject: 'Confirmá tu email para activar tu cuenta · DoApp', html });
   }
 
   async sendPasswordResetEmail(email: string, userName: string, resetToken: string): Promise<boolean> {
     const url = `${config.clientUrl}/reset-password?token=${resetToken}`;
     const html = this.tpl({
-      eyebrow: 'Seguridad',
+      eyebrow: 'Cambio de contraseña',
       accent: 'red',
-      title: 'Restablecer contraseña',
+      preheader: 'Pediste cambiar tu contraseña. El link vale por tiempo limitado.',
+      title: 'Recuperá tu contraseña.',
       body: `
-        <p>Hola <strong>${userName}</strong>,</p>
-        <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta en DOAPP.</p>
-        ${this.callout('warning', 'Importante', 'Este enlace <strong>expira en 24 horas</strong>. Si no solicitaste el cambio, ignorá este email — tu contraseña no se modificará.')}
+        <p>Hola <strong>${userName}</strong>, pediste recuperar tu contraseña. Tocá el botón y elegí una nueva.</p>
+        ${this.callout('danger', '¿No pediste este cambio?', 'Ignorá este email — tu cuenta sigue segura y tu contraseña no se modifica. Si te sigue pasando, escribinos a soporte.')}
       `,
-      cta: { label: '🔐 Restablecer mi contraseña', url },
+      cta: { label: 'Crear contraseña nueva', url },
     });
-    return await this.sendEmail({ to: email, subject: 'Restablecer contraseña · DOAPP', html });
+    return await this.sendEmail({ to: email, subject: 'Restablecé tu contraseña de DoApp', html });
   }
 
   async sendPasswordChangedEmail(email: string, userName: string): Promise<boolean> {
     const html = this.tpl({
       eyebrow: 'Seguridad',
-      accent: 'green',
-      title: 'Contraseña actualizada',
+      accent: 'red',
+      preheader: 'Confirmamos que tu contraseña se actualizó recién.',
+      title: 'Tu contraseña se actualizó.',
       body: `
-        <p>Hola <strong>${userName}</strong>,</p>
-        <p>Tu contraseña de DOAPP fue actualizada correctamente.</p>
-        ${this.callout('danger', '¿No fuiste vos?', 'Contactá con soporte inmediatamente. Todas tus sesiones activas fueron cerradas.')}
+        <p>Hola <strong>${userName}</strong>, te confirmamos que tu contraseña de DoApp se cambió con éxito. Por seguridad, cerramos todas tus sesiones activas.</p>
+        ${this.callout('danger', '¿No fuiste vos?', 'Restablecé tu contraseña ahora mismo y escribinos a soporte para revisar tu cuenta.')}
       `,
-      cta: { label: 'Contactar soporte', url: `${config.clientUrl}/help` },
+      cta: { label: 'No fui yo, proteger mi cuenta', url: `${config.clientUrl}/reset-password` },
     });
-    return await this.sendEmail({ to: email, subject: 'Contraseña actualizada · DOAPP', html });
+    return await this.sendEmail({ to: email, subject: 'Tu contraseña fue cambiada · DoApp', html });
   }
 
   async sendNewMessageNotification(userId: string, senderName: string, messagePreview: string, conversationId: string): Promise<void> {
