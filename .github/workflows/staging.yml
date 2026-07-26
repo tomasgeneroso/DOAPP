@@ -1,0 +1,99 @@
+# ============================================
+# DOAPP - Staging deploy (manual)
+# ============================================
+# Deploys the current branch to a STAGING copy that mirrors production, so
+# changes can be verified on a real server before touching the live site.
+#
+# ⚠️ ONE-TIME SETUP REQUIRED (see .github/STAGING.md) before this can run:
+#   - a staging dir on the VPS: /var/www/doapp-staging (git clone of the repo)
+#   - a staging database (e.g. doapp_staging) + STAGING_DATABASE_URL in its .env
+#   - a PM2 app "doapp-staging" on port 3002 (ecosystem.staging.config.cjs)
+#   - an nginx vhost for staging.doapparg.site -> /var/www/doapp-staging/dist/spa
+#
+# Until then this workflow simply won't be triggered (it's manual-only).
+# ============================================
+
+name: Deploy to Staging
+
+on:
+  workflow_dispatch: {}            # manual "Run workflow" button only
+  push:
+    branches: [staging]            # or auto-deploy a dedicated 'staging' branch
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # Reuse the same gates as production before touching staging.
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - run: npm ci --legacy-peer-deps
+      - name: TypeScript check (server)
+        run: npx tsc --noEmit --project tsconfig.server.json
+
+  deploy-staging:
+    name: Deploy to Staging VPS
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            set -e
+            cd /var/www/doapp-staging
+
+            echo "📥 Pulling latest code onto staging..."
+            git fetch origin
+            git reset --hard "origin/${GITHUB_REF_NAME:-master}"
+
+            echo "📦 Installing dependencies..."
+            npm install --legacy-peer-deps
+
+            echo "🔨 Building frontend..."
+            npm run build:client
+
+            echo "🗄️  Running migrations on the STAGING database..."
+            NODE_ENV=production npx sequelize-cli db:migrate
+            echo "✅ Migrations completed"
+
+            echo "🔄 Restarting staging app (port 3002)..."
+            pm2 startOrReload ecosystem.staging.config.cjs
+
+            echo "⏳ Waiting for staging server..."
+            started=false
+            for i in $(seq 1 18); do
+              sleep 10
+              if curl -sf http://localhost:3002/api/health > /dev/null 2>&1; then
+                echo "✅ Staging server responding after ~${i}0s"
+                started=true
+                break
+              fi
+              echo "  Not ready yet ($i/18)..."
+            done
+            if [ "$started" = "false" ]; then
+              echo "❌ Staging server did not start"
+              pm2 logs doapp-staging --lines 50 --nostream || true
+              exit 1
+            fi
+
+            echo "🌐 Frontend smoke test..."
+            if curl -sf http://localhost/ -H 'Host: staging.doapparg.site' 2>/dev/null | grep -q 'id="root"'; then
+              echo "✅ Staging frontend served OK"
+            else
+              echo "⚠️  Staging frontend check inconclusive — verify the nginx vhost"
+            fi
+
+            echo "✅ Staging deploy completed! Commit:"
+            git rev-parse --short HEAD

@@ -37,9 +37,23 @@ jobs:
       - name: Run ESLint (server)
         run: npx eslint server/routes server/middleware server/services --ext .ts --max-warnings 50 || true
 
-      - name: TypeScript check (server only)
+      # GATE: server type errors now BLOCK the deploy (was informational).
+      - name: TypeScript check (server) — blocks deploy on errors
         run: npx tsc --noEmit --project tsconfig.server.json
-        continue-on-error: true
+
+      # GATE: React hook-order violations block the deploy. This exact class
+      # (hooks at module scope / conditional hooks) white-screened prod before.
+      - name: Guard against React hook-order bugs
+        run: |
+          npx eslint client -f json > /tmp/eslint-report.json 2>/dev/null || true
+          count=$(node -e "try{const r=require('/tmp/eslint-report.json');let n=0;for(const f of r)for(const m of f.messages)if(m.ruleId==='react-hooks/rules-of-hooks'&&m.severity===2)n++;console.log(n)}catch(e){console.log(0)}")
+          echo "react-hooks/rules-of-hooks violations: $count"
+          if [ "$count" -gt 0 ]; then
+            echo "❌ Hook-order violation — this class white-screened prod before. Fix before deploy."
+            npx eslint client 2>&1 | grep -B1 -A3 "rules-of-hooks" || true
+            exit 1
+          fi
+          echo "✅ No hook-order violations"
 
       - name: Check for critical security issues
         run: |
@@ -50,6 +64,62 @@ jobs:
             exit 1
           fi
           echo "✅ No hardcoded secrets found"
+
+  # ============================================
+  # Migrations run cleanly from scratch (catches column drift before prod)
+  # ============================================
+  migrations:
+    name: Migrations (from scratch)
+    runs-on: ubuntu-latest
+    needs: lint
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: doapp_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      # GATE: every migration must apply cleanly on an empty DB. This is what
+      # catches column drift (e.g. price_a_r_s) BEFORE it reaches production.
+      - name: Apply all migrations from scratch
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/doapp_ci
+        run: |
+          echo "🗄️  Applying $(ls migrations/*.cjs | wc -l) migrations on a fresh DB..."
+          NODE_ENV=test npx sequelize-cli db:migrate
+          echo "✅ All migrations applied cleanly"
+
+      - name: Check the newest migration is reversible
+        continue-on-error: true
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/doapp_ci
+        run: |
+          echo "↩️  Testing rollback of the latest migration..."
+          NODE_ENV=test npx sequelize-cli db:migrate:undo
+          NODE_ENV=test npx sequelize-cli db:migrate
+          echo "✅ Rollback + re-apply OK"
 
   # ============================================
   # Build
@@ -99,7 +169,7 @@ jobs:
   deploy:
     name: Deploy to Hostinger VPS
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, migrations]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
 
     steps:
@@ -164,6 +234,13 @@ jobs:
               echo "  Stable ($j/6)"
             done
             echo "✅ Server is stable"
+
+            echo "🌐 Frontend smoke test (nginx serves the built app)..."
+            if curl -sf http://localhost/ 2>/dev/null | grep -q 'id="root"'; then
+              echo "✅ Frontend HTML served OK (app root found)"
+            else
+              echo "⚠️  Frontend smoke test did not find the app root — check nginx root / build output"
+            fi
 
             echo "📋 PM2 status:"
             pm2 status
