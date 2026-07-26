@@ -636,21 +636,25 @@ ${ctaBlock}
   async sendContractCreatedEmail(clientId: string, doerId: string, contractId: string, jobTitle: string, price: number, currency = 'ARS'): Promise<void> {
     const url = `${config.clientUrl}/contracts/${contractId}`;
     const makeHtml = (name: string, role: 'client' | 'doer') => this.tpl({
-      eyebrow: 'Contrato',
-      accent: 'green',
-      title: role === 'client' ? 'Contrato creado' : '¡Te seleccionaron!',
+      eyebrow: role === 'client' ? 'Nuevo contrato' : '¡Te seleccionaron!',
+      accent: 'sky',
+      preheader: role === 'client'
+        ? `Ya tenés un contrato activo para "${jobTitle}".`
+        : `Te eligieron para "${jobTitle}". Revisá y aceptá para arrancar.`,
+      title: role === 'client' ? 'Se creó tu contrato.' : `Te seleccionaron para un trabajo.`,
       body: `
-        <p>Hola <strong>${name}</strong>,</p>
-        <p>${role === 'client' ? 'Creaste un nuevo contrato para la siguiente publicación.' : 'Fuiste seleccionado para trabajar en este contrato.'}</p>
+        <p>Hola <strong>${name}</strong>, ${role === 'client'
+          ? 'tu contrato quedó creado. En cuanto se confirme el pago, el dinero queda protegido en DoApp hasta que se complete el trabajo.'
+          : 'te eligieron para este trabajo. Revisá los detalles y aceptá el contrato para comenzar.'}</p>
         ${this.detailCard([
-          { label: 'Publicación', value: jobTitle },
+          { label: 'Trabajo', value: jobTitle },
           { label: 'Monto', value: `${currency} $${price.toLocaleString('es-AR')}`, highlight: true },
         ])}
         ${role === 'client'
-          ? this.callout('info', 'Próximos pasos', '<ul style="margin:4px 0 0;padding-left:18px;"><li>El trabajador debe aceptar el contrato</li><li>Realizá el pago (escrow)</li><li>Al finalizar, ambas partes confirman</li></ul>')
-          : '<p>Revisá los detalles y aceptá el contrato para comenzar.</p>'}
+          ? this.callout('info', 'Próximos pasos', '<ul style="margin:4px 0 0;padding-left:18px;"><li>El Doer acepta el contrato</li><li>Confirmás el pago (queda en garantía)</li><li>Al terminar, ambos confirman y se libera</li></ul>')
+          : ''}
       `,
-      cta: { label: 'Ver contrato', url },
+      cta: { label: role === 'client' ? 'Ver el contrato' : 'Revisar y aceptar', url },
     });
 
     const client = await User.findByPk(clientId);
@@ -662,15 +666,15 @@ ${ctaBlock}
   async sendContractAcceptedEmail(clientId: string, doerId: string, contractId: string, jobTitle: string): Promise<void> {
     const url = `${config.clientUrl}/contracts/${contractId}`;
     const makeHtml = (name: string) => this.tpl({
-      eyebrow: 'Contrato',
+      eyebrow: 'Contrato aceptado',
       accent: 'green',
-      title: 'Contrato aceptado',
+      preheader: `Ya pueden coordinar los detalles de "${jobTitle}" por el chat.`,
+      title: 'Contrato aceptado.',
       body: `
-        <p>Hola <strong>${name}</strong>,</p>
-        <p>Ambas partes aceptaron el contrato para <strong>${jobTitle}</strong>. ¡El trabajo puede comenzar!</p>
-        ${this.callout('success', '¡Listo para comenzar!', 'El contrato está activo. Coordiná con la otra parte para arrancar.')}
+        <p>Buenas noticias, <strong>${name}</strong>: el contrato de "<strong>${jobTitle}</strong>" quedó aceptado. Ya pueden coordinar por el chat y arrancar.</p>
+        ${this.callout('success', '¡Listo para comenzar!', 'El contrato está activo. Con el pago en garantía, tu plata está protegida hasta confirmar el trabajo.')}
       `,
-      cta: { label: 'Ver contrato', url },
+      cta: { label: 'Ver el contrato', url },
     });
     const client = await User.findByPk(clientId);
     const doer = await User.findByPk(doerId);
@@ -682,34 +686,36 @@ ${ctaBlock}
     const user = await User.findByPk(userId);
     if (!user?.email) return;
     const html = this.tpl({
-      eyebrow: 'Pago',
-      accent: 'green',
-      title: 'Pago en escrow',
+      eyebrow: 'Pago protegido',
+      accent: 'sky',
+      preheader: 'La plata queda en DoApp hasta que confirmen que el trabajo está listo.',
+      title: 'Tu plata está guardada.',
       body: `
-        <p>Hola <strong>${user.name}</strong>,</p>
-        <p>El pago por <strong>${jobTitle}</strong> está retenido en escrow de forma segura.</p>
-        ${this.callout('info', '¿Qué es el escrow?', 'El dinero se libera automáticamente al trabajador cuando ambas partes confirmen la finalización del trabajo.')}
+        <p>Hola <strong>${user.name}</strong>, recibimos tu pago por "<strong>${jobTitle}</strong>". Queda retenido en DoApp hasta que confirmen que el trabajo está terminado. Si algo no sale como acordaron, abrís un reclamo y se devuelve.</p>
+        ${this.callout('info', '¿Cómo se libera?', 'Cuando ambos confirmen que el trabajo está terminado, el dinero pasa al Doer. Sin sorpresas.')}
       `,
       amount: `${currency} $${Number(amount).toLocaleString('es-AR')}`,
-      cta: { label: 'Ver contrato', url: `${config.clientUrl}/contracts/${contractId}` },
+      amountLabel: 'Total guardado',
+      cta: { label: 'Ver el contrato', url: `${config.clientUrl}/contracts/${contractId}` },
     });
     await this.sendEmail({ to: user.email, subject: `Pago en escrow: ${jobTitle}`, html });
   }
 
   async sendContractAwaitingConfirmationEmail(to: string, userName: string, jobTitle: string, contractId: string, isClient: boolean): Promise<void> {
     const html = this.tpl({
-      eyebrow: 'Contrato',
+      eyebrow: 'Esperando confirmación',
       accent: 'amber',
-      title: 'Confirmación pendiente',
+      preheader: isClient ? 'Confirmá que todo esté OK para liberar el pago.' : 'Esperando que el cliente confirme el trabajo.',
+      title: isClient ? 'Confirmá que el trabajo está terminado.' : 'Trabajo marcado como terminado.',
       body: `
-        <p>Hola <strong>${userName}</strong>,</p>
-        <p>El trabajo <strong>${jobTitle}</strong> está pendiente de confirmación.</p>
+        <p>Hola <strong>${userName}</strong>, ${isClient
+          ? `el Doer marcó como completado el trabajo "<strong>${jobTitle}</strong>". Revisá que todo esté en orden y confirmá para liberar el pago — o abrí un reclamo si algo no salió bien.`
+          : `marcaste como completado el trabajo "<strong>${jobTitle}</strong>". Ahora esperamos que el cliente confirme para liberar tu pago.`}</p>
         ${isClient
-          ? this.callout('warning', 'Tu acción es requerida', 'El trabajador marcó el trabajo como completado. Revisá el trabajo y confirmá si estás conforme.')
-          : this.callout('info', 'En espera', 'Marcaste el trabajo como completado. Esperá que el cliente confirme.')}
-        <p style="font-size:13px;color:#94a3b8;text-align:center;margin-top:16px;">Si no se confirma en 2 horas, se liberará automáticamente.</p>
+          ? this.callout('warning', 'Se libera automáticamente en 2 horas', 'Si no confirmás ni abrís un reclamo, el pago se libera solo a favor del Doer.')
+          : this.callout('info', 'En espera', 'Si el cliente no responde en 2 horas, el pago se libera automáticamente a tu favor.')}
       `,
-      cta: { label: 'Confirmar trabajo', url: `${config.clientUrl}/contracts/${contractId}` },
+      cta: { label: isClient ? 'Confirmar trabajo' : 'Ver el contrato', url: `${config.clientUrl}/contracts/${contractId}` },
     });
     await this.sendEmail({ to, subject: `Confirmación pendiente: ${jobTitle}`, html });
   }
@@ -721,31 +727,31 @@ ${ctaBlock}
 
     if (doer?.email) {
       const html = this.tpl({
-        eyebrow: 'Contrato',
+        eyebrow: 'Trabajo completado',
         accent: 'green',
-        title: '¡Trabajo completado!',
+        preheader: 'El trabajo se cerró y tu pago ya está en tu balance.',
+        title: '¡Cobraste tu trabajo!',
         body: `
-          <p>Hola <strong>${doer.name}</strong>,</p>
-          <p>El trabajo <strong>${jobTitle}</strong> fue confirmado. Tu pago fue acreditado a tu balance.</p>
-          ${this.callout('success', '¡Excelente trabajo!', 'El dinero ya está disponible en tu balance para retirarlo cuando quieras.')}
+          <p>Buen trabajo, <strong>${doer.name}</strong>. El trabajo "<strong>${jobTitle}</strong>" fue confirmado y tu pago ya se acreditó a tu balance.</p>
+          ${this.callout('success', '¡Excelente!', 'El dinero ya está disponible en tu balance para retirarlo a tu CBU cuando quieras.')}
         `,
         amount: `${currency} $${workerAmount.toLocaleString('es-AR')}`,
         amountLabel: 'Monto acreditado',
-        cta: { label: 'Ver balance', url: `${config.clientUrl}/balance` },
+        cta: { label: 'Ver mi balance', url: `${config.clientUrl}/balance` },
       });
       await this.sendEmail({ to: doer.email, subject: `Trabajo completado: ${jobTitle}`, html });
     }
     if (client?.email) {
       const html = this.tpl({
-        eyebrow: 'Contrato',
+        eyebrow: 'Trabajo completado',
         accent: 'green',
-        title: 'Trabajo completado',
+        preheader: 'El trabajo quedó cerrado y el pago fue liberado.',
+        title: 'Tu contrato quedó completado.',
         body: `
-          <p>Hola <strong>${client.name}</strong>,</p>
-          <p>El trabajo <strong>${jobTitle}</strong> fue completado exitosamente.</p>
-          ${this.callout('info', 'Dejá una reseña', 'Tu opinión ayuda a la comunidad. Calificá al trabajador desde el contrato.')}
+          <p>Gracias por confiar en DoApp, <strong>${client.name}</strong>. El trabajo "<strong>${jobTitle}</strong>" se cerró y el pago ya fue liberado al Doer.</p>
+          ${this.callout('info', 'Dejá una reseña', 'Tu opinión ayuda a la comunidad. Calificá al Doer desde el contrato — tardás 30 segundos.')}
         `,
-        cta: { label: 'Ver contrato y dejar reseña', url },
+        cta: { label: 'Calificar al Doer', url },
       });
       await this.sendEmail({ to: client.email, subject: `Trabajo completado: ${jobTitle}`, html });
     }
@@ -754,16 +760,16 @@ ${ctaBlock}
   async sendDisputeCreatedEmail(clientId: string, doerId: string, disputeId: string, contractTitle: string, reason: string): Promise<void> {
     const url = `${config.clientUrl}/disputes/${disputeId}`;
     const makeHtml = (name: string) => this.tpl({
-      eyebrow: 'Disputa',
-      accent: 'orange',
-      title: 'Disputa abierta',
+      eyebrow: 'Disputa abierta',
+      accent: 'red',
+      preheader: 'El pago queda retenido hasta que se resuelva la disputa.',
+      title: 'Se abrió una disputa.',
       body: `
-        <p>Hola <strong>${name}</strong>,</p>
-        <p>Se abrió una disputa en el contrato <strong>${contractTitle}</strong>.</p>
-        ${this.detailCard([{ label: 'Motivo', value: reason }])}
-        ${this.callout('warning', 'Próximos pasos', 'Nuestro equipo revisará el caso. Podés agregar evidencia y mensajes en el panel de disputa.')}
+        <p>Hola <strong>${name}</strong>, se abrió una disputa sobre el contrato "<strong>${contractTitle}</strong>". El pago queda retenido en garantía hasta que nuestro equipo revise el caso.</p>
+        ${this.callout('danger', 'Motivo informado', reason)}
+        <p>Podés sumar evidencia y responder en el panel de la disputa. Cuanto antes respondas, más rápido avanzamos.</p>
       `,
-      cta: { label: 'Ver disputa', url },
+      cta: { label: 'Responder a la disputa', url },
     });
     const client = await User.findByPk(clientId);
     const doer = await User.findByPk(doerId);
@@ -775,16 +781,16 @@ ${ctaBlock}
     const user = await User.findByPk(userId);
     if (!user?.email) return;
     const html = this.tpl({
-      eyebrow: 'Disputa',
+      eyebrow: 'Disputa resuelta',
       accent: 'green',
-      title: 'Disputa resuelta',
+      preheader: 'Nuestro equipo revisó el caso y tomó una decisión.',
+      title: 'Tu disputa fue resuelta.',
       body: `
-        <p>Hola <strong>${user.name}</strong>,</p>
-        <p>La disputa fue resuelta por nuestro equipo de moderación.</p>
+        <p>Hola <strong>${user.name}</strong>, revisamos tu disputa y ya tomamos una decisión.</p>
         ${this.callout('success', 'Resolución', resolution)}
       `,
       amount: amount > 0 ? `${currency} $${amount.toLocaleString('es-AR')}` : undefined,
-      cta: { label: 'Ver disputa', url: `${config.clientUrl}/disputes/${disputeId}` },
+      cta: { label: 'Ver el detalle', url: `${config.clientUrl}/disputes/${disputeId}` },
     });
     await this.sendEmail({ to: user.email, subject: 'Disputa resuelta · DOAPP', html });
   }
@@ -854,31 +860,33 @@ ${ctaBlock}
 
   async sendPriceModificationEmail(to: string, userName: string, contractId: string, previousPrice: number, newPrice: number, isIncrease: boolean, balanceChange: number): Promise<void> {
     const html = this.tpl({
-      eyebrow: 'Contrato',
+      eyebrow: 'Cambio de precio',
       accent: isIncrease ? 'amber' : 'sky',
-      title: isIncrease ? 'Precio aumentado' : 'Precio reducido',
+      preheader: isIncrease ? 'Hay un aumento de precio en tu contrato.' : 'Se redujo el precio de tu contrato.',
+      title: isIncrease ? 'Se modificó el precio del contrato.' : 'Se redujo el precio del contrato.',
       body: `
-        <p>Hola <strong>${userName}</strong>,</p>
-        <p>El precio del contrato fue modificado.</p>
+        <p>Hola <strong>${userName}</strong>, ${isIncrease
+          ? 'se aplicó un nuevo precio al contrato. Se generó un cargo adicional por la diferencia.'
+          : 'se redujo el precio del contrato y te devolvimos la diferencia a tu balance.'}</p>
         ${this.detailCard([
           { label: 'Precio anterior', value: `$${previousPrice.toLocaleString('es-AR')} ARS` },
           { label: 'Precio nuevo', value: `$${newPrice.toLocaleString('es-AR')} ARS`, highlight: true },
-          { label: isIncrease ? 'Cargo adicional' : 'Reembolso', value: `$${Math.abs(balanceChange).toLocaleString('es-AR')} ARS` },
+          { label: isIncrease ? 'Cargo adicional' : 'Reembolso a tu balance', value: `$${Math.abs(balanceChange).toLocaleString('es-AR')} ARS` },
         ])}
       `,
-      cta: { label: 'Ver contrato', url: `${config.clientUrl}/contracts/${contractId}` },
+      cta: { label: 'Ver el contrato', url: `${config.clientUrl}/contracts/${contractId}` },
     });
     await this.sendEmail({ to, subject: `Precio modificado · DOAPP`, html });
   }
 
   async sendBalanceRefundEmail(to: string, userName: string, amount: number, reason: string, newBalance: number): Promise<void> {
     const html = this.tpl({
-      eyebrow: 'Pago',
+      eyebrow: 'Reembolso',
       accent: 'green',
-      title: 'Reembolso acreditado',
+      preheader: 'El reembolso ya está disponible en tu balance.',
+      title: 'Te devolvimos tu dinero.',
       body: `
-        <p>Hola <strong>${userName}</strong>,</p>
-        <p>Se acreditó un reembolso a tu balance.</p>
+        <p>Hola <strong>${userName}</strong>, procesamos un reembolso a tu balance de DoApp. Ya podés usarlo para publicar un nuevo trabajo o retirarlo a tu CBU.</p>
         ${this.detailCard([
           { label: 'Motivo', value: reason },
           { label: 'Nuevo balance', value: `$${newBalance.toLocaleString('es-AR')} ARS`, highlight: true },
@@ -914,17 +922,17 @@ ${ctaBlock}
       const user = await User.findByPk(userId);
       if (!user?.email) return;
       const html = this.tpl({
-        eyebrow: 'Cuenta',
+        eyebrow: 'Falta información',
         accent: 'amber',
-        title: 'Datos bancarios requeridos',
+        preheader: 'Cargá tu CBU o CVU para poder liberarte el pago.',
+        title: 'Nos falta tu CBU para pagarte.',
         body: `
-          <p>Hola <strong>${user.name}</strong>,</p>
-          <p>¡Tu trabajo fue completado y tenés un pago pendiente! Pero necesitamos tus datos bancarios para transferirte el dinero.</p>
-          ${this.callout('warning', 'Acción requerida', 'Agregá tu CBU o CVU (22 dígitos) en la configuración de tu perfil para recibir el pago.')}
+          <p>Hola <strong>${user.name}</strong>, tu pago ya está listo para liberarse, pero todavía no cargaste un CBU o CVU en tu cuenta. Cargalo para recibir la plata sin demoras.</p>
+          ${this.callout('warning', 'El pago queda en tu balance mientras tanto', 'No se pierde — apenas cargues tu CBU (22 dígitos) lo transferimos.')}
         `,
         amount: `$${amount.toLocaleString('es-AR')} ARS`,
         amountLabel: 'Monto pendiente',
-        cta: { label: 'Completar datos bancarios', url: `${config.clientUrl}/settings?tab=banking` },
+        cta: { label: 'Cargar mi CBU', url: `${config.clientUrl}/settings?tab=banking` },
       });
       await this.sendEmail({ to: user.email, subject: 'Datos bancarios requeridos · DOAPP', html });
     } catch (error) {
@@ -935,18 +943,17 @@ ${ctaBlock}
   async sendTicketCreatedEmail(ticketId: string, ticketNumber: string, subject: string, userEmail: string, userName: string): Promise<void> {
     try {
       const html = this.tpl({
-        eyebrow: 'Soporte',
-        title: `Ticket #${ticketNumber} creado`,
+        eyebrow: 'Ticket creado',
+        preheader: 'Nuestro equipo te va a responder en menos de 24 horas.',
+        title: 'Recibimos tu consulta.',
         body: `
-          <p>Hola <strong>${userName}</strong>,</p>
-          <p>Tu ticket de soporte fue creado correctamente.</p>
+          <p>Hola <strong>${userName}</strong>, tu ticket de soporte fue creado. Nuestro equipo lo revisa y te responde por acá mismo en menos de 24 horas.</p>
           ${this.detailCard([
-            { label: 'Número', value: `#${ticketNumber}` },
+            { label: 'Ticket', value: `#${ticketNumber}` },
             { label: 'Asunto', value: subject },
           ])}
-          <p>Nuestro equipo responderá lo antes posible. Podés agregar más información desde el panel.</p>
         `,
-        cta: { label: 'Ver ticket', url: `${config.clientUrl}/tickets/${ticketId}` },
+        cta: { label: 'Ver mi ticket', url: `${config.clientUrl}/tickets/${ticketId}` },
       });
       await this.sendEmail({ to: userEmail, subject: `Ticket #${ticketNumber} creado · DOAPP`, html });
     } catch (error) {
@@ -958,14 +965,14 @@ ${ctaBlock}
     try {
       const preview = message.length > 200 ? message.substring(0, 200) + '…' : message;
       const html = this.tpl({
-        eyebrow: 'Soporte',
-        title: `Respuesta en ticket #${ticketNumber}`,
+        eyebrow: 'Nuevo mensaje',
+        preheader: 'Tenés una respuesta nueva en tu ticket de soporte.',
+        title: 'Tenés una respuesta de soporte.',
         body: `
-          <p>Hola <strong>${recipientName}</strong>,</p>
-          <p>${isAdminReply ? '<strong>Soporte DOAPP</strong>' : `<strong>${senderName}</strong>`} respondió en tu ticket <strong>${subject}</strong>:</p>
+          <p>Hola <strong>${recipientName}</strong>, ${isAdminReply ? '<strong>Soporte DoApp</strong>' : `<strong>${senderName}</strong>`} respondió en tu ticket "<strong>${subject}</strong>":</p>
           ${this.callout('info', '', `<em>"${preview}"</em>`)}
         `,
-        cta: { label: 'Ver ticket completo', url: `${config.clientUrl}/tickets/${ticketId}` },
+        cta: { label: 'Ver la respuesta', url: `${config.clientUrl}/tickets/${ticketId}` },
       });
       await this.sendEmail({ to: recipientEmail, subject: `Respuesta en ticket #${ticketNumber} · DOAPP`, html });
     } catch (error) {
@@ -977,16 +984,16 @@ ${ctaBlock}
     try {
       const preview = message.length > 200 ? message.substring(0, 200) + '…' : message;
       const html = this.tpl({
-        eyebrow: 'Disputa',
-        accent: 'orange',
-        title: 'Nuevo mensaje en disputa',
+        eyebrow: 'Nuevo mensaje',
+        accent: 'red',
+        preheader: 'Hay un mensaje nuevo en tu disputa.',
+        title: 'Tenés un mensaje en tu disputa.',
         body: `
-          <p>Hola <strong>${recipientName}</strong>,</p>
-          <p>${isAdminMessage ? '<strong>Moderador DOAPP</strong>' : `<strong>${senderName}</strong>`} envió un mensaje en la disputa:</p>
+          <p>Hola <strong>${recipientName}</strong>, ${isAdminMessage ? '<strong>el equipo de mediación de DoApp</strong>' : `<strong>${senderName}</strong>`} dejó un mensaje en la disputa:</p>
           ${this.callout('warning', '', `<em>"${preview}"</em>`)}
-          <p>Es importante que respondas para ayudar a resolver la situación.</p>
+          <p>Te pedimos que respondas para poder avanzar con la resolución.</p>
         `,
-        cta: { label: 'Ver disputa', url: `${config.clientUrl}/disputes/${disputeId}` },
+        cta: { label: 'Ver el mensaje', url: `${config.clientUrl}/disputes/${disputeId}` },
       });
       await this.sendEmail({ to: recipientEmail, subject: 'Nuevo mensaje en disputa · DOAPP', html });
     } catch (error) {
