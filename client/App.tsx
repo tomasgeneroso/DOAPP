@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./hooks/useAuth";
 import { HelmetProvider } from "react-helmet-async";
 import { ToastProvider } from "./components/ui/Toast";
-import { FacebookSDK } from "./components/FacebookSDK";
 import { GoogleAnalytics } from "./components/GoogleAnalytics";
 import { OnboardingProvider } from "./hooks/useOnboarding";
 import OnboardingTooltip from "./components/onboarding/OnboardingTooltip";
@@ -130,7 +129,6 @@ export default function App() {
       <HelmetProvider>
         <AuthProvider>
           <ToastProvider>
-            <FacebookSDK />
             <BrowserRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
               <GoogleAnalytics />
               <OnboardingProvider>

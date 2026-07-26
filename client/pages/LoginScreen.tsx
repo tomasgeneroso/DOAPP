@@ -8,6 +8,7 @@ import { AnimatedButton } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input"; // Asegúrate que este componente se esté usando
 import { Chrome, Facebook, Twitter, Eye, EyeOff, Home, Upload, X, FileText, Image, Camera } from "lucide-react";
 import TokenExpiredNotice from "../components/TokenExpiredNotice";
+import { FacebookSDK } from "../components/FacebookSDK";
 import MembershipOfferModal from "../components/MembershipOfferModal";
 import CameraCapture from "../components/CameraCapture";
 import { analytics, identifyUser } from "../utils/analytics";
@@ -427,6 +428,9 @@ export default function LoginScreen() {
 
   return (
     <>
+      {/* Load the Facebook SDK only on the auth screen (the only place FB login
+          is used), so it never ships to the homepage or any other route. */}
+      <FacebookSDK />
       <Helmet>
         <title>{isRegister ? t('auth.registerButton') : t('auth.loginButton')} - DOAPP</title>
         <meta
