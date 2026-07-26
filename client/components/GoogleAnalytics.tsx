@@ -30,19 +30,30 @@ export function GoogleAnalytics() {
       return;
     }
 
-    // Load Google Analytics script
-    const script = document.createElement('script');
-    script.async = true;
-    script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`;
-    script.onload = () => {
-      if (window.gtag) {
-        window.gtag('config', GA_MEASUREMENT_ID, {
-          page_path: window.location.pathname,
-          send_page_view: true,
-        });
-      }
+    // Load Google Analytics when the browser is idle, so the ~65 KB gtag.js
+    // never competes with the critical first paint (helps LCP/TBT). The first
+    // page_view still fires as soon as the script finishes loading.
+    const loadGa = () => {
+      if (document.querySelector(`script[src*="googletagmanager.com/gtag"]`)) return;
+      const script = document.createElement('script');
+      script.async = true;
+      script.src = `https://www.googletagmanager.com/gtag/js?id=${GA_MEASUREMENT_ID}`;
+      script.onload = () => {
+        if (window.gtag) {
+          window.gtag('config', GA_MEASUREMENT_ID, {
+            page_path: window.location.pathname,
+            send_page_view: true,
+          });
+        }
+      };
+      document.head.appendChild(script);
     };
-    document.head.appendChild(script);
+
+    const ric = (window as any).requestIdleCallback as
+      | ((cb: () => void, opts?: { timeout: number }) => number)
+      | undefined;
+    if (ric) ric(loadGa, { timeout: 4000 });
+    else setTimeout(loadGa, 2500);
     initialized.current = true;
   }, []);
 
