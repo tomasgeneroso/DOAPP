@@ -333,7 +333,7 @@ export default function Index() {
             <p className="mx-auto mt-6 max-w-xl text-lg sm:text-xl leading-7 text-slate-300">
               {t('home.subtitle')}
             </p>
-            <p className="mx-auto mt-3 max-w-lg text-sm text-slate-500">
+            <p className="mx-auto mt-3 max-w-lg text-sm text-slate-400">
               {t('home.subtitleSecond')}
             </p>
             <div className="mt-10 flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full max-w-sm sm:max-w-none sm:w-auto px-4 sm:px-0">

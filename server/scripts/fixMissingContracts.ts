@@ -4,7 +4,7 @@
  */
 
 import pg from 'pg';
-import dbConfig from '../../config/database.json' with { type: 'json' };
+import dbConfig from '../../config/database.cjs';
 
 const env = process.env.NODE_ENV || 'development';
 const config = (dbConfig as any)[env];
