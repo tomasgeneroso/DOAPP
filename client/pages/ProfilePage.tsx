@@ -8,6 +8,8 @@ import { getImageUrl } from '../utils/imageUrl';
 import ShareProfileModal from '../components/profile/ShareProfileModal';
 import ImageEditorModal from '../components/profile/ImageEditorModal';
 import MultipleRatings from '../components/user/MultipleRatings';
+import CredibilityBadge from '../components/CredibilityBadge';
+import PhoneVerification from '../components/PhoneVerification';
 import PostCard from '../components/user/PostCard';
 import CreatePost from '../components/user/CreatePost';
 import PostComments from '../components/user/PostComments';
@@ -670,6 +672,11 @@ export default function ProfilePage() {
                           </div>
                         );
                       })()}
+                      {(user as any).credibility && (
+                        <div className="mb-3">
+                          <CredibilityBadge credibility={(user as any).credibility} variant="compact" />
+                        </div>
+                      )}
                       {user.bio && (
                         <p className="text-slate-600 dark:text-slate-400 max-w-2xl">
                           {user.bio}
@@ -805,6 +812,28 @@ export default function ProfilePage() {
           {isOwnProfile() && (
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 mb-6">
               <WorkerModeToggle />
+            </div>
+          )}
+
+          {/* Credibility & verification (own profile only) */}
+          {isOwnProfile() && (user as any).credibility && (
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 mb-6 space-y-4">
+              <CredibilityBadge credibility={(user as any).credibility} variant="full" />
+              {!(user as any).phoneVerified && (
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-2">Verificá tu teléfono</h3>
+                  <PhoneVerification
+                    phone={(user as any).phone}
+                    verified={(user as any).phoneVerified}
+                    onVerified={() => setUser({ ...(user as any), phoneVerified: true })}
+                  />
+                </div>
+              )}
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Subí tu DNI, selfie{(user as any).credibility.isProfessional ? ', matrícula y seguro' : ''} desde{' '}
+                <Link to="/settings" className="text-sky-600 dark:text-sky-400 hover:underline">Configuración</Link>{' '}
+                para subir tu credibilidad.
+              </p>
             </div>
           )}
 
