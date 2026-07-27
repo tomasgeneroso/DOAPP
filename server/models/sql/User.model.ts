@@ -134,6 +134,21 @@ export class User extends Model {
   @Column(DataType.STRING)
   phone?: string;
 
+  // Phone verification: a code is sent (WhatsApp) and the user pastes it back.
+  @Default(false)
+  @AllowNull(false)
+  @Column(DataType.BOOLEAN)
+  phoneVerified!: boolean;
+
+  @Column(DataType.DATE)
+  phoneVerifiedAt?: Date;
+
+  @Column(DataType.STRING(10))
+  phoneVerificationCode?: string;
+
+  @Column(DataType.DATE)
+  phoneVerificationExpires?: Date;
+
   @Index
   @Column(DataType.STRING(20))
   dni?: string;
@@ -143,6 +158,10 @@ export class User extends Model {
 
   @Column(DataType.TEXT)
   dniPhotoBack?: string;
+
+  // Selfie (front camera) for identity matching — adds profile credibility.
+  @Column(DataType.TEXT)
+  selfieUrl?: string;
 
   @Default(false)
   @AllowNull(false)
@@ -200,6 +219,34 @@ export class User extends Model {
   // Vencimiento de la matrícula (para recordatorios de renovación)
   @Column(DataType.DATE)
   licenseExpiresAt?: Date;
+
+  // ============================================
+  // SEGURO (para profesionales matriculados / autónomos)
+  // ============================================
+
+  @Column(DataType.TEXT)
+  insuranceDocumentUrl?: string;
+
+  @Default(false)
+  @AllowNull(false)
+  @Column(DataType.BOOLEAN)
+  insuranceVerified!: boolean;
+
+  @Default('pending')
+  @Column(DataType.STRING(20))
+  insuranceVerificationStatus?: 'pending' | 'approved' | 'rejected';
+
+  @Column(DataType.TEXT)
+  insuranceRejectedReason?: string;
+
+  @Column(DataType.UUID)
+  insuranceVerifiedBy?: string;
+
+  @Column(DataType.DATE)
+  insuranceVerifiedAt?: Date;
+
+  @Column(DataType.DATE)
+  insuranceExpiresAt?: Date;
 
   // ============================================
   // RATINGS SYSTEM (Multiple Categories)
@@ -723,6 +770,45 @@ export class User extends Model {
    */
   isVerifiedUser(): boolean {
     return this.isVerified;
+  }
+
+  /**
+   * Progressive credibility ladder (0–4):
+   *   1 = identity verified (DNI)
+   *   2 = phone + email verified
+   *   3 = professional license (matrícula) approved
+   *   4 = insurance (seguro) approved
+   * A normal user tops out at 2; a professional (has profession/license) can reach 4.
+   * Higher tiers require the lower ones (you can't be level 3 without level 2).
+   */
+  getCredibilityInfo(): {
+    score: number;
+    max: number;
+    isProfessional: boolean;
+    breakdown: Array<{ level: number; label: string; achieved: boolean }>;
+  } {
+    const isProfessional = !!(this.profession || this.licenseNumber || this.licenseDocumentUrl);
+    const idOk = !!this.dniVerified;
+    const contactOk = !!this.phoneVerified && !!this.isVerified;
+    const licenseOk = !!this.licenseVerified;
+    const insuranceOk = !!this.insuranceVerified;
+
+    let score = 0;
+    if (idOk) score = 1;
+    if (score === 1 && contactOk) score = 2;
+    if (isProfessional && score === 2 && licenseOk) score = 3;
+    if (isProfessional && score === 3 && insuranceOk) score = 4;
+
+    const breakdown = [
+      { level: 1, label: 'Identidad comprobada', achieved: idOk },
+      { level: 2, label: 'Teléfono y correo', achieved: contactOk },
+    ];
+    if (isProfessional) {
+      breakdown.push({ level: 3, label: 'Matrícula', achieved: licenseOk });
+      breakdown.push({ level: 4, label: 'Seguro', achieved: insuranceOk });
+    }
+
+    return { score, max: isProfessional ? 4 : 2, isProfessional, breakdown };
   }
 
   /**

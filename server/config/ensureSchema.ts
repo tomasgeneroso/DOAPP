@@ -91,6 +91,20 @@ const STATEMENTS: Array<{ label: string; sql: string }> = [
   },
   { label: 'banned_identities email index', sql: `CREATE INDEX IF NOT EXISTS banned_identities_email ON banned_identities (email)` },
   { label: 'banned_identities dni index', sql: `CREATE INDEX IF NOT EXISTS banned_identities_dni ON banned_identities (dni)` },
+
+  // --- profile credibility ladder: phone verification, selfie, insurance ---
+  { label: 'users.phone_verified', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN NOT NULL DEFAULT false` },
+  { label: 'users.phone_verified_at', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified_at TIMESTAMPTZ` },
+  { label: 'users.phone_verification_code', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verification_code VARCHAR(10)` },
+  { label: 'users.phone_verification_expires', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verification_expires TIMESTAMPTZ` },
+  { label: 'users.selfie_url', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS selfie_url TEXT` },
+  { label: 'users.insurance_document_url', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS insurance_document_url TEXT` },
+  { label: 'users.insurance_verified', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS insurance_verified BOOLEAN NOT NULL DEFAULT false` },
+  { label: 'users.insurance_verification_status', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS insurance_verification_status VARCHAR(20) DEFAULT 'pending'` },
+  { label: 'users.insurance_rejected_reason', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS insurance_rejected_reason TEXT` },
+  { label: 'users.insurance_verified_by', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS insurance_verified_by UUID` },
+  { label: 'users.insurance_verified_at', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS insurance_verified_at TIMESTAMPTZ` },
+  { label: 'users.insurance_expires_at', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS insurance_expires_at TIMESTAMPTZ` },
 ];
 
 export async function ensureCriticalSchema(sequelize: Sequelize): Promise<void> {
