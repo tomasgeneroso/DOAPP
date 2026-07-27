@@ -126,6 +126,8 @@ export default function LoginScreen() {
   const frontInputRef = useRef<HTMLInputElement>(null);
   const backInputRef = useRef<HTMLInputElement>(null);
   const pdfInputRef = useRef<HTMLInputElement>(null);
+  const selfieInputRef = useRef<HTMLInputElement>(null);
+  const [selfie, setSelfie] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [errorField, setErrorField] = useState<'email' | 'password' | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -295,7 +297,7 @@ export default function LoginScreen() {
         }
 
         // Upload DNI photos if provided
-        const hasDniFiles = dniMode === 'pdf' ? !!dniPdf : (!!dniPhotoFront || !!dniPhotoBack);
+        const hasDniFiles = (dniMode === 'pdf' ? !!dniPdf : (!!dniPhotoFront || !!dniPhotoBack)) || !!selfie;
         if (hasDniFiles) {
           try {
             const token = localStorage.getItem('token');
@@ -306,6 +308,7 @@ export default function LoginScreen() {
               if (dniPhotoFront) fd.append('dniPhotoFront', dniPhotoFront);
               if (dniPhotoBack) fd.append('dniPhotoBack', dniPhotoBack);
             }
+            if (selfie) fd.append('selfie', selfie);
             await fetch('/api/auth/dni-photos', {
               method: 'POST',
               headers: { Authorization: `Bearer ${token}` },
@@ -415,6 +418,7 @@ export default function LoginScreen() {
               setDniPhotoFront(null);
               setDniPhotoBack(null);
               setDniPdf(null);
+              setSelfie(null);
               setError(null);
             }}
             className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
@@ -838,6 +842,21 @@ export default function LoginScreen() {
                   <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
                     {t('auth.dniPhotoHelper')}
                   </p>
+
+                  {/* ── Selfie (suma credibilidad al perfil) ── */}
+                  <div className="mt-3">
+                    <div className="max-w-[50%]">
+                      <DniPhotoSlot
+                        label={t('auth.selfieLabel', 'Selfie (suma credibilidad)')}
+                        photo={selfie}
+                        onPhoto={setSelfie}
+                        fileRef={selfieInputRef}
+                      />
+                    </div>
+                    <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
+                      {t('auth.selfieHelper', 'Sacate una selfie para confirmar que sos vos. Con la cámara, usá el botón de girar para la cámara frontal.')}
+                    </p>
+                  </div>
                 </div>
 
                 <div>
