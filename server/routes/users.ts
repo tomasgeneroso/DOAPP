@@ -236,6 +236,9 @@ router.get("/:id/profile", dataMinimizationMiddleware, async (req: Request, res:
         licenseCertNumber: user.licenseCertNumber,
         licenseDocumentUrl: user.licenseDocumentUrl,
         licenseVerified: user.licenseVerified,
+        insuranceVerified: user.insuranceVerified,
+        phoneVerified: user.phoneVerified,
+        credibility: user.getCredibilityInfo(),
       },
     });
   } catch (error: any) {

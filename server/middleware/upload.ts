@@ -489,11 +489,12 @@ export const uploadDniPhotos = multer({
   fileFilter: dniFileFilter,
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB
-    files: 2,
+    files: 3,
   },
 }).fields([
   { name: "dniPhotoFront", maxCount: 1 },
   { name: "dniPhotoBack", maxCount: 1 },
+  { name: "selfie", maxCount: 1 },
 ]);
 
 // License document storage (foto o PDF de matrícula)
@@ -515,6 +516,24 @@ export const uploadLicenseDocument = multer({
   },
   limits: { fileSize: 10 * 1024 * 1024, files: 1 },
 }).single('licenseDocument');
+
+// Insurance document storage (foto o PDF del seguro del profesional)
+export const uploadInsuranceDocument = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, LICENSE_DIR),
+    filename: (_req, file, cb) => {
+      const uniqueSuffix = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, `insurance-${uniqueSuffix}${ext}`);
+    },
+  }),
+  fileFilter: (_req, file, cb) => {
+    const allowed = [...ALLOWED_IMAGE_TYPES, 'application/pdf'];
+    if (allowed.includes(file.mimetype)) cb(null, true);
+    else cb(new Error('Solo se aceptan imágenes (JPG, PNG, WEBP) o PDF'));
+  },
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+}).single('insuranceDocument');
 
 /**
  * Delete uploaded file

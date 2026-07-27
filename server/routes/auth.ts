@@ -23,7 +23,8 @@ import { Op } from "sequelize";
 import emailService from "../services/email.js";
 import anomalyDetection from "../services/anomalyDetection.js";
 import { createAuditLog, getClientIp, getUserAgent } from "../utils/auditLogger.js";
-import { uploadAvatar, uploadCover, uploadDniPhotos, uploadLicenseDocument, getFileUrl, verifyMagicBytes } from "../middleware/upload.js";
+import { uploadAvatar, uploadCover, uploadDniPhotos, uploadLicenseDocument, uploadInsuranceDocument, getFileUrl, verifyMagicBytes } from "../middleware/upload.js";
+import { sendWhatsAppCode } from "../services/whatsapp.js";
 import twitterOAuth from "../services/twitterOAuth.js";
 
 const router = express.Router();
@@ -547,6 +548,14 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         licenseVerificationStatus: (user as any)?.licenseVerificationStatus,
         licenseRejectedReason: (user as any)?.licenseRejectedReason,
         personalPairingCode: (user as any)?.personalPairingCode,
+        // Credibility ladder
+        selfieUrl: (user as any)?.selfieUrl,
+        phoneVerified: (user as any)?.phoneVerified,
+        insuranceDocumentUrl: (user as any)?.insuranceDocumentUrl,
+        insuranceVerified: (user as any)?.insuranceVerified,
+        insuranceVerificationStatus: (user as any)?.insuranceVerificationStatus,
+        insuranceRejectedReason: (user as any)?.insuranceRejectedReason,
+        credibility: user?.getCredibilityInfo(),
       },
     });
   } catch (error: any) {
@@ -2164,8 +2173,8 @@ router.post("/dni-photos", protect, (req: AuthRequest, res: Response): void => {
     try {
       const files = (req as any).files as Record<string, Express.Multer.File[]> | undefined;
 
-      if (!files || (!files.dniPhotoFront && !files.dniPhotoBack)) {
-        res.status(400).json({ success: false, message: "Debés subir al menos una foto del DNI" });
+      if (!files || (!files.dniPhotoFront && !files.dniPhotoBack && !files.selfie)) {
+        res.status(400).json({ success: false, message: "Debés subir al menos una foto" });
         return;
       }
 
@@ -2182,14 +2191,18 @@ router.post("/dni-photos", protect, (req: AuthRequest, res: Response): void => {
       if (files.dniPhotoBack?.[0]) {
         updates.dniPhotoBack = `/uploads/dni/${files.dniPhotoBack[0].filename}`;
       }
+      if (files.selfie?.[0]) {
+        updates.selfieUrl = `/uploads/dni/${files.selfie[0].filename}`;
+      }
 
       await user.update(updates);
 
       res.json({
         success: true,
-        message: "Fotos del DNI enviadas correctamente. Serán verificadas por el equipo.",
+        message: "Fotos enviadas correctamente. Serán verificadas por el equipo.",
         dniPhotoFront: (user as any).dniPhotoFront,
         dniPhotoBack: (user as any).dniPhotoBack,
+        selfieUrl: (user as any).selfieUrl,
       });
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message });
@@ -2231,6 +2244,131 @@ router.post("/license-document", protect, (req: AuthRequest, res: Response): voi
     }
     });
   });
+});
+
+// @route   POST /api/auth/insurance-document
+// @desc    Upload seguro del profesional (imagen o PDF)
+// @access  Private
+router.post("/insurance-document", protect, (req: AuthRequest, res: Response): void => {
+  uploadInsuranceDocument(req as any, res, async (err: any) => {
+    if (err) {
+      res.status(400).json({ success: false, message: err.message });
+      return;
+    }
+    verifyMagicBytes(req as any, res, async () => {
+    try {
+      const file = (req as any).file as Express.Multer.File | undefined;
+      if (!file) {
+        res.status(400).json({ success: false, message: "Debés subir un documento (imagen o PDF)" });
+        return;
+      }
+      const user = await User.findByPk(req.user!.id);
+      if (!user) {
+        res.status(404).json({ success: false, message: "Usuario no encontrado" });
+        return;
+      }
+      const docUrl = `/uploads/licenses/${file.filename}`;
+      // New upload resets verification so the admin re-reviews it.
+      await user.update({
+        insuranceDocumentUrl: docUrl,
+        insuranceVerified: false,
+        insuranceVerificationStatus: 'pending',
+        insuranceRejectedReason: null as any,
+      });
+      res.json({
+        success: true,
+        message: "Documento del seguro subido correctamente. Será verificado por el equipo.",
+        insuranceDocumentUrl: docUrl,
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+    });
+  });
+});
+
+// @route   POST /api/auth/phone/send-code
+// @desc    Send a 6-digit verification code to the user's phone via WhatsApp
+// @access  Private
+router.post("/phone/send-code", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const user = await User.findByPk(req.user!.id);
+    if (!user) { res.status(404).json({ success: false, message: "Usuario no encontrado" }); return; }
+
+    const phone = ((req.body?.phone as string) || user.phone || '').trim();
+    if (!phone) { res.status(400).json({ success: false, message: "Ingresá un número de teléfono" }); return; }
+    if (user.phoneVerified && phone === user.phone) {
+      res.status(400).json({ success: false, message: "Tu teléfono ya está verificado" }); return;
+    }
+
+    // Basic rate-limit: block a resend within 60s of the previous one.
+    if (user.phoneVerificationCode && user.phoneVerificationExpires) {
+      const sentAgoMs = 10 * 60 * 1000 - (new Date(user.phoneVerificationExpires).getTime() - Date.now());
+      if (sentAgoMs >= 0 && sentAgoMs < 60 * 1000) {
+        res.status(429).json({ success: false, message: "Esperá un momento antes de pedir otro código" }); return;
+      }
+    }
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    await user.update({
+      phone,
+      phoneVerified: false,
+      phoneVerificationCode: code,
+      phoneVerificationExpires: new Date(Date.now() + 10 * 60 * 1000),
+    });
+
+    let result;
+    try {
+      result = await sendWhatsAppCode(phone, code);
+    } catch (e: any) {
+      console.warn('[phone/send-code] WhatsApp failed:', e?.message);
+      res.status(502).json({ success: false, message: "No pudimos enviar el código por WhatsApp. Probá de nuevo en un momento." });
+      return;
+    }
+
+    res.json({
+      success: true,
+      message: result.sent ? "Te enviamos un código por WhatsApp." : "Código generado (modo prueba).",
+      // Only exposed in non-production when WhatsApp isn't configured yet, for testing.
+      devCode: (result.dev && process.env.NODE_ENV !== 'production') ? code : undefined,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// @route   POST /api/auth/phone/verify-code
+// @desc    Verify the code the user pasted; marks the phone as verified
+// @access  Private
+router.post("/phone/verify-code", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const code = String(req.body?.code || '').trim();
+    if (!code) { res.status(400).json({ success: false, message: "Ingresá el código" }); return; }
+
+    const user = await User.findByPk(req.user!.id);
+    if (!user) { res.status(404).json({ success: false, message: "Usuario no encontrado" }); return; }
+
+    if (!user.phoneVerificationCode || !user.phoneVerificationExpires) {
+      res.status(400).json({ success: false, message: "Pedí un código primero" }); return;
+    }
+    if (new Date() > new Date(user.phoneVerificationExpires)) {
+      res.status(400).json({ success: false, message: "El código venció. Pedí uno nuevo." }); return;
+    }
+    if (code !== user.phoneVerificationCode) {
+      res.status(400).json({ success: false, message: "Código incorrecto" }); return;
+    }
+
+    await user.update({
+      phoneVerified: true,
+      phoneVerifiedAt: new Date(),
+      phoneVerificationCode: null as any,
+      phoneVerificationExpires: null as any,
+    });
+
+    res.json({ success: true, message: "¡Teléfono verificado!", credibility: user.getCredibilityInfo() });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
 });
 
 export default router;
