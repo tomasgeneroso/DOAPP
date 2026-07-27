@@ -730,6 +730,120 @@ router.post(
   }
 );
 
+// @route   POST /api/admin/users/:id/approve-insurance
+// @desc    Aprobar el seguro de un profesional
+// @access  Admin+
+router.post(
+  "/:id/approve-insurance",
+  requirePermission("users:write"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      if (!isValidUUID(req.params.id)) {
+        res.status(400).json({ success: false, message: "ID inválido" });
+        return;
+      }
+      const user = await User.findByPk(req.params.id);
+      if (!user) {
+        res.status(404).json({ success: false, message: "Usuario no encontrado" });
+        return;
+      }
+      if (!user.insuranceDocumentUrl) {
+        res.status(400).json({ success: false, message: "El usuario no subió un seguro para aprobar" });
+        return;
+      }
+
+      await user.update({
+        insuranceVerified: true,
+        insuranceVerificationStatus: 'approved',
+        insuranceRejectedReason: undefined,
+        insuranceVerifiedBy: req.user!.id,
+        insuranceVerifiedAt: new Date(),
+      });
+
+      await logAudit({
+        req,
+        action: 'insurance_approved',
+        category: 'user',
+        severity: 'medium',
+        description: `Seguro de ${user.email} aprobado`,
+        targetModel: 'User',
+        targetId: user.id,
+        targetIdentifier: user.email,
+      });
+
+      try {
+        const { Notification } = await import('../../models/sql/Notification.model.js');
+        const { socketService } = await import('../../index.js');
+        const notif = await Notification.create({
+          recipientId: user.id,
+          title: 'Seguro aprobado',
+          message: 'Tu seguro fue verificado y aprobado por el equipo de DoApp.',
+          type: 'success',
+          category: 'account',
+          actionText: 'Ver mi perfil',
+          data: { tab: 'profession' },
+        });
+        socketService.notifyUser(user.id, 'notification:new', notif.toJSON());
+      } catch (notifErr) {
+        console.error('Error sending insurance approval notification:', notifErr);
+      }
+
+      res.json({ success: true, message: "Seguro aprobado correctamente" });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+    }
+  }
+);
+
+// @route   POST /api/admin/users/:id/reject-insurance
+// @desc    Rechazar el seguro de un profesional (con motivo)
+// @access  Admin+
+router.post(
+  "/:id/reject-insurance",
+  requirePermission("users:write"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      if (!isValidUUID(req.params.id)) {
+        res.status(400).json({ success: false, message: "ID inválido" });
+        return;
+      }
+      const { reason } = req.body;
+      if (!reason || typeof reason !== 'string' || !reason.trim()) {
+        res.status(400).json({ success: false, message: "El motivo de rechazo es obligatorio" });
+        return;
+      }
+      const user = await User.findByPk(req.params.id);
+      if (!user) {
+        res.status(404).json({ success: false, message: "Usuario no encontrado" });
+        return;
+      }
+
+      await user.update({
+        insuranceVerified: false,
+        insuranceVerificationStatus: 'rejected',
+        insuranceRejectedReason: reason.trim(),
+        insuranceVerifiedBy: req.user!.id,
+        insuranceVerifiedAt: new Date(),
+      });
+
+      await logAudit({
+        req,
+        action: 'insurance_rejected',
+        category: 'user',
+        severity: 'medium',
+        description: `Seguro de ${user.email} rechazado. Motivo: ${reason.trim()}`,
+        targetModel: 'User',
+        targetId: user.id,
+        targetIdentifier: user.email,
+      });
+
+      res.json({ success: true, message: "Seguro rechazado" });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message || "Error del servidor" });
+    }
+  }
+);
+
 // @route   POST /api/admin/users/:id/reject-license
 // @desc    Rechazar matrícula/licencia de un usuario (con motivo + email)
 // @access  Admin+

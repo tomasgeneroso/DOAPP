@@ -4,6 +4,7 @@ import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import InsuranceUpload from "../components/InsuranceUpload";
 import {
   User,
   MapPin,
@@ -799,6 +800,17 @@ export default function UserSettings() {
                   licenseFile={licenseFile} setLicenseFile={setLicenseFile}
                   licenseUploading={licenseUploading} setLicenseUploading={setLicenseUploading}
                   token={token || ''}
+                />
+              )}
+              {activeTab === "profession" && profession && (
+                <InsuranceUpload
+                  token={token || ''}
+                  initial={{
+                    url: (user as any)?.insuranceDocumentUrl,
+                    status: (user as any)?.insuranceVerificationStatus,
+                    verified: (user as any)?.insuranceVerified,
+                    rejectedReason: (user as any)?.insuranceRejectedReason,
+                  }}
                 />
               )}
 
