@@ -556,6 +556,7 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         insuranceVerified: (user as any)?.insuranceVerified,
         insuranceVerificationStatus: (user as any)?.insuranceVerificationStatus,
         insuranceRejectedReason: (user as any)?.insuranceRejectedReason,
+        kycStatus: (user as any)?.kycStatus,
         credibility: user?.getCredibilityInfo(),
       },
     });

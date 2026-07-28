@@ -823,7 +823,7 @@ export default function ProfilePage() {
               {!(user as any).dniVerified && (
                 <div>
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-2">Verificá tu identidad</h3>
-                  <KycButton verified={(user as any).dniVerified} />
+                  <KycButton verified={(user as any).dniVerified} kycStatus={(user as any).kycStatus} />
                 </div>
               )}
               {!(user as any).phoneVerified && (

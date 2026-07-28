@@ -20,8 +20,9 @@ export default function VerificationUploads() {
   const selfieDone = !!user?.selfieUrl;
   const insuranceDone = !!user?.insuranceVerified || !!user?.insuranceDocumentUrl;
   const identityDone = !!user?.dniVerified;
+  const kycDeclined = user?.kycStatus === 'Declined';
 
-  const startKyc = async () => {
+  const runKyc = async () => {
     setBusy('kyc');
     try {
       const res: any = await post('/auth/kyc/start', {});
@@ -34,6 +35,36 @@ export default function VerificationUploads() {
       Alert.alert('Error', e?.message || 'No pudimos iniciar la verificación.');
     } finally {
       setBusy(null);
+    }
+  };
+
+  const reportKycProblem = async () => {
+    try {
+      const res: any = await post('/tickets', {
+        email: user?.email,
+        subject: 'Problema con la verificación automática (KYC)',
+        category: 'support',
+        message: 'No pude completar la verificación de identidad automática. Por favor revisen mi caso para poder terminar el registro.',
+      });
+      Alert.alert(res.success ? 'Reporte enviado' : 'Error', res.success ? 'Nuestro equipo va a revisar tu caso.' : (res.message || 'No se pudo enviar.'));
+    } catch (e: any) {
+      Alert.alert('Error', 'No se pudo enviar el reporte.');
+    }
+  };
+
+  const startKyc = () => {
+    if (kycDeclined) {
+      Alert.alert(
+        'Verificación rechazada',
+        'Tu registro quedó sin terminar. Podés reintentar o reportar un problema.',
+        [
+          { text: 'Reintentar', onPress: runKyc },
+          { text: 'Reportar problema', onPress: reportKycProblem },
+          { text: 'Cancelar', style: 'cancel' },
+        ],
+      );
+    } else {
+      runKyc();
     }
   };
 
@@ -115,7 +146,7 @@ export default function VerificationUploads() {
         kind: 'kyc',
         icon: <BadgeCheck size={20} color={colors.primary[600]} />,
         label: 'Verificar identidad',
-        hint: identityDone ? 'Identidad verificada' : 'Con documento y selfie (Didit) — nivel 1',
+        hint: identityDone ? 'Identidad verificada' : kycDeclined ? 'Rechazado · registro sin terminar — tocá para reintentar' : 'Con documento y selfie (Didit) — nivel 1',
         done: identityDone,
         onPress: startKyc,
       })}

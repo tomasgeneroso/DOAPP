@@ -44,6 +44,7 @@ export default function UserData() {
   const [rows, setRows] = useState<UserRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [status, setStatus] = useState<"all" | "incomplete" | "verified">("all");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -52,7 +53,7 @@ export default function UserData() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await adminApi.userData.list({ page: String(page), limit: "25", search });
+      const res = await adminApi.userData.list({ page: String(page), limit: "25", search, status: status === "all" ? "" : status });
       if (res.success && res.data) {
         setRows(res.data as UserRecord[]);
         const p = (res as any).pagination;
@@ -60,7 +61,7 @@ export default function UserData() {
         setTotal(p?.total || 0);
       }
     } catch { /* noop */ } finally { setLoading(false); }
-  }, [page, search]);
+  }, [page, search, status]);
 
   useEffect(() => {
     const t = setTimeout(load, 250);
@@ -70,7 +71,7 @@ export default function UserData() {
   const exportCsv = async () => {
     setExporting(true);
     try {
-      const qs = new URLSearchParams({ search }).toString();
+      const qs = new URLSearchParams({ search, status: status === "all" ? "" : status }).toString();
       const res = await fetch(`/api/admin/user-data/export.csv?${qs}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -108,14 +109,24 @@ export default function UserData() {
         Padrón completo con identidad, KYC, datos profesionales y actividad. {total} usuarios.
       </p>
 
-      <div className="relative max-w-md mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <input
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-          placeholder="Buscar por nombre, email, teléfono o DNI"
-          className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
-        />
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="relative flex-1 min-w-[220px] max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            placeholder="Buscar por nombre, email, teléfono o DNI"
+            className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+          />
+        </div>
+        <div className="flex gap-1">
+          {([["all", "Todos"], ["incomplete", "Sin terminar"], ["verified", "Verificados"]] as const).map(([key, label]) => (
+            <button key={key} onClick={() => { setStatus(key); setPage(1); }}
+              className={`px-3 py-2 rounded-lg text-sm font-medium ${status === key ? "bg-sky-500 text-white" : "bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow overflow-x-auto">
@@ -140,7 +151,13 @@ export default function UserData() {
                 <td className="px-3 py-2 text-center"><YesNo v={u.phoneVerified} /></td>
                 <td className="px-3 py-2">{u.dni || "—"}</td>
                 <td className="px-3 py-2 text-center"><YesNo v={u.dniVerified} /></td>
-                <td className="px-3 py-2">{u.kycStatus || "—"}</td>
+                <td className="px-3 py-2">
+                  {u.kycStatus === "Declined" || u.kycStatus === "In Review" ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                      {u.kycStatus === "Declined" ? "Rechazado · sin terminar" : "En revisión"}
+                    </span>
+                  ) : (u.kycStatus || "—")}
+                </td>
                 <td className="px-3 py-2">{u.credibility}</td>
                 <td className="px-3 py-2">{u.role}</td>
                 <td className="px-3 py-2">{u.membershipTier}</td>

@@ -11,18 +11,22 @@ import { User } from '../../models/sql/User.model.js';
 const router = Router();
 router.use(protect, authorize('admin', 'super_admin', 'owner'));
 
-function buildWhere(search?: string): any {
-  if (!search || !String(search).trim()) return {};
-  const q = `%${String(search).trim()}%`;
-  return {
-    [Op.or]: [
+function buildWhere(search?: string, status?: string): any {
+  const where: any = {};
+  if (search && String(search).trim()) {
+    const q = `%${String(search).trim()}%`;
+    where[Op.or] = [
       { name: { [Op.iLike]: q } },
       { username: { [Op.iLike]: q } },
       { email: { [Op.iLike]: q } },
       { phone: { [Op.iLike]: q } },
       { dni: { [Op.iLike]: q } },
-    ],
-  };
+    ];
+  }
+  // "incomplete" = KYC not approved (declined / in review) → registro sin terminar.
+  if (status === 'incomplete') where.kycStatus = { [Op.in]: ['Declined', 'In Review'] };
+  else if (status === 'verified') where.dniVerified = true;
+  return where;
 }
 
 function toRecord(u: any) {
@@ -63,9 +67,9 @@ function toRecord(u: any) {
 // GET /api/admin/user-data  — paginated, searchable
 router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { page = 1, limit = 25, search = '' } = req.query;
+    const { page = 1, limit = 25, search = '', status = '' } = req.query;
     const { rows, count } = await User.findAndCountAll({
-      where: buildWhere(search as string),
+      where: buildWhere(search as string, status as string),
       attributes: { exclude: ['password', 'twoFactorSecret', 'twoFactorBackupCodes'] },
       order: [['createdAt', 'DESC']],
       limit: Number(limit),
@@ -123,9 +127,9 @@ function csvCell(v: any): string {
 // GET /api/admin/user-data/export.csv  — all rows matching the search
 router.get('/export.csv', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { search = '' } = req.query;
+    const { search = '', status = '' } = req.query;
     const users = await User.findAll({
-      where: buildWhere(search as string),
+      where: buildWhere(search as string, status as string),
       attributes: { exclude: ['password', 'twoFactorSecret', 'twoFactorBackupCodes'] },
       order: [['createdAt', 'DESC']],
     });
