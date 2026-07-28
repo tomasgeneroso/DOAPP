@@ -15,10 +15,11 @@ module.exports = {
     await add('didit_session_id', { type: Sequelize.STRING, allowNull: true });
     await add('kyc_status', { type: Sequelize.STRING(20), allowNull: true });
     await add('kyc_verified_at', { type: Sequelize.DATE, allowNull: true });
+    await add('kyc_data', { type: Sequelize.JSONB, allowNull: true });
   },
 
   async down(queryInterface) {
-    for (const c of ['didit_session_id', 'kyc_status', 'kyc_verified_at']) {
+    for (const c of ['didit_session_id', 'kyc_status', 'kyc_verified_at', 'kyc_data']) {
       await queryInterface.removeColumn('users', c).catch(() => {});
     }
   },

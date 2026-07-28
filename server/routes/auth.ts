@@ -2408,11 +2408,10 @@ router.get("/kyc/status", protect, async (req: AuthRequest, res: Response): Prom
       try {
         const decision = await getDiditDecision(user.diditSessionId);
         const status = decision?.status || decision?.decision?.status;
-        if (status && status !== user.kycStatus) {
-          const updates: any = { kycStatus: status };
-          if (status === 'Approved') { updates.dniVerified = true; updates.kycVerifiedAt = new Date(); }
-          await user.update(updates);
-        }
+        const updates: any = { kycData: decision };
+        if (status) updates.kycStatus = status;
+        if (status === 'Approved') { updates.dniVerified = true; updates.kycVerifiedAt = new Date(); }
+        await user.update(updates);
       } catch (e: any) {
         console.warn('[kyc/status] decision fetch failed:', e?.message);
       }
@@ -2446,6 +2445,15 @@ router.post("/kyc/webhook", async (req: Request, res: Response): Promise<void> =
         const updates: any = { kycStatus: status };
         if (payload.session_id) updates.diditSessionId = payload.session_id;
         if (status === 'Approved') { updates.dniVerified = true; updates.kycVerifiedAt = new Date(); }
+        // Store the full decision (document data, scores, AML, warnings). Prefer
+        // the authoritative API decision; fall back to the webhook's payload.
+        let decision: any = payload.decision;
+        try {
+          if (payload.session_id) decision = await getDiditDecision(payload.session_id);
+        } catch (e: any) {
+          console.warn('[kyc/webhook] decision fetch failed:', e?.message);
+        }
+        if (decision) updates.kycData = decision;
         await user.update(updates);
       }
     }

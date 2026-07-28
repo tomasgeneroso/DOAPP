@@ -570,53 +570,49 @@ router.post(
   requirePermission("users:write"),
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const { verified = true } = req.body;
+      const { verified } = req.body;
+
+      // Identity is now verified automatically via KYC (Didit) — admins can no
+      // longer APPROVE identity manually. Revoking a bad verification is still
+      // allowed as a safety valve. The DNI photo is kept as a backup regardless.
+      if (verified) {
+        res.status(400).json({
+          success: false,
+          message: "La identidad se verifica automáticamente por KYC (Didit). No se aprueba manualmente.",
+        });
+        return;
+      }
+
       const user = await User.findByPk(req.params.id, {
         attributes: { exclude: ["password", "twoFactorSecret", "twoFactorBackupCodes"] },
       });
-
       if (!user) {
         res.status(404).json({ success: false, message: "Usuario no encontrado" });
         return;
       }
 
-      const adminUser = await User.findByPk(req.user!.id, { attributes: ['id', 'name', 'email', 'adminRole'] });
-
-      // Store who verified in legalInfo JSONB (no migration needed)
+      const adminUser = await User.findByPk(req.user!.id, { attributes: ['id', 'name'] });
       const currentLegalInfo = (user as any).legalInfo || {};
-      const verificationMeta = verified
-        ? { adminVerifiedBy: req.user!.id, adminVerifiedByName: adminUser?.name || 'Admin', adminVerifiedAt: new Date().toISOString() }
-        : { adminVerifiedBy: null, adminVerifiedByName: null, adminVerifiedAt: null };
 
       await user.update({
-        dniVerified: Boolean(verified),
-        verificationLevel: verified ? "document" : "email",
-        legalInfo: { ...currentLegalInfo, ...verificationMeta },
+        dniVerified: false,
+        verificationLevel: "email",
+        kycStatus: user.kycStatus === 'Approved' ? 'Revoked' : user.kycStatus,
+        legalInfo: { ...currentLegalInfo, adminVerifiedBy: null, adminVerifiedByName: null, adminVerifiedAt: null },
       });
-
-      // Notify the user by email only when their identity is APPROVED (not on revoke).
-      if (verified && user.email) {
-        emailService.sendAccountVerifiedEmail(user.email, user.name).catch((e: any) =>
-          console.warn('[verify] email failed:', e?.message)
-        );
-      }
 
       await logAudit({
         req,
-        action: verified ? "verify_user" : "revoke_user_verification",
+        action: "revoke_user_verification",
         category: "user",
         severity: "medium",
-        description: `Verificación de identidad ${verified ? "aprobada" : "revocada"} para ${user.email} por ${adminUser?.name}`,
+        description: `Verificación de identidad revocada para ${user.email} por ${adminUser?.name}`,
         targetModel: "User",
         targetId: user.id,
         targetIdentifier: user.email,
       });
 
-      res.json({
-        success: true,
-        message: verified ? "Usuario verificado correctamente" : "Verificación revocada",
-        data: { dniVerified: user.dniVerified, verificationLevel: user.verificationLevel, legalInfo: user.legalInfo },
-      });
+      res.json({ success: true, message: "Verificación revocada", data: { dniVerified: false } });
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message || "Error del servidor" });
     }

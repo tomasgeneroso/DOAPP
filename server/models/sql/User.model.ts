@@ -159,6 +159,11 @@ export class User extends Model {
   @Column(DataType.DATE)
   kycVerifiedAt?: Date;
 
+  // Full Didit decision (document data, liveness/face-match scores, AML, warnings).
+  // Sensitive — only exposed to admins, never in public/user responses.
+  @Column(DataType.JSONB)
+  kycData?: any;
+
   @Index
   @Column(DataType.STRING(20))
   dni?: string;

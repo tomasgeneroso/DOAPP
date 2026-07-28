@@ -8,7 +8,7 @@ import { getImageUrl } from "@/utils/imageUrl";
 import { useSocket } from "@/hooks/useSocket";
 import { useAuth } from "@/hooks/useAuth";
 import type { AdminUser } from "@/types/admin";
-import { Search, Ban, CheckCircle, Eye, Wifi, WifiOff, UserPlus, Crown, X, ShieldCheck, ShieldOff, Loader2, FileText, Briefcase, FileCheck, Award, AlertCircle, Trash2 } from "lucide-react";
+import { Search, Ban, CheckCircle, Eye, Wifi, WifiOff, UserPlus, Crown, X, ShieldCheck, ShieldOff, Loader2, FileText, Briefcase, FileCheck, Award, AlertCircle, Trash2, BadgeCheck } from "lucide-react";
 
 export default function AdminUsers() {
   const navigate = useNavigate();
@@ -637,9 +637,9 @@ export default function AdminUsers() {
                         )}
                         <button
                           onClick={() => openVerifyModal(user)}
-                          className="mt-0.5 inline-flex items-center gap-1 font-medium text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
+                          className="mt-0.5 inline-flex items-center gap-1 font-medium text-sky-600 hover:text-sky-700 dark:text-sky-400"
                         >
-                          <ShieldCheck className="h-3.5 w-3.5" /> Verificar
+                          <Eye className="h-3.5 w-3.5" /> Ver DNI
                         </button>
                       </div>
                     </div>
@@ -676,7 +676,7 @@ export default function AdminUsers() {
                       className={(user as any).dniVerified
                         ? "text-emerald-600 hover:text-emerald-800 dark:text-emerald-400"
                         : "text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400"}
-                      title={(user as any).dniVerified ? "Verificado — ver detalles" : "Verificar identidad"}
+                      title={(user as any).dniVerified ? "Identidad verificada (KYC) — ver DNI" : "Ver DNI (identidad se verifica por KYC)"}
                     >
                       <ShieldCheck className="h-5 w-5" />
                     </button>
@@ -970,6 +970,46 @@ export default function AdminUsers() {
                   <span className="ml-auto text-xs opacity-70">Nivel: {verifyDetail.user.verificationLevel || 'none'}</span>
                 </div>
 
+                {/* KYC (Didit) data */}
+                {verifyDetail.user.kycData && (() => {
+                  const k: any = verifyDetail.user.kycData;
+                  const idv: any = k.id_verifications?.[0] || k.id_verification || {};
+                  const fm: any = k.face_matches?.[0] || k.face_match;
+                  const lv: any = k.liveness_checks?.[0] || k.liveness;
+                  const fullName = [idv.first_name, idv.last_name].filter(Boolean).join(' ');
+                  const rows: Array<[string, any]> = [
+                    ['Estado KYC', verifyDetail.user.kycStatus || k.status],
+                    ['Nombre', fullName],
+                    ['Documento', idv.document_number],
+                    ['Tipo', idv.document_type],
+                    ['Nacimiento', idv.date_of_birth],
+                    ['Nacionalidad', idv.nationality],
+                    ['Vence', idv.expiry_date || idv.expiration_date],
+                    ['Face match', fm?.score != null ? `${fm.score}% (${fm.status || ''})` : undefined],
+                    ['Liveness', lv?.status ? `${lv.status}${lv.score != null ? ` (${lv.score})` : ''}` : undefined],
+                  ];
+                  return (
+                    <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50/50 dark:bg-sky-900/10 p-3">
+                      <div className="flex items-center gap-2 mb-2 text-sm font-semibold text-sky-700 dark:text-sky-300">
+                        <BadgeCheck className="h-4 w-4" /> Datos del KYC (Didit)
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs">
+                        {rows.filter(([, v]) => v != null && v !== '').map(([label, v]) => (
+                          <div key={label} className="flex justify-between gap-2 border-b border-sky-100 dark:border-sky-900/30 py-1">
+                            <span className="text-gray-500 dark:text-gray-400">{label}</span>
+                            <span className="text-gray-900 dark:text-white font-medium text-right break-all">{String(v)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      {Array.isArray(k.warnings) && k.warnings.length > 0 && (
+                        <div className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                          ⚠ {k.warnings.map((w: any) => w.message || w.risk || String(w)).join(' · ')}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {/* Who verified */}
                 {verifyDetail.user.dniVerified && verifyDetail.user.legalInfo?.adminVerifiedByName && (
                   <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-xs text-gray-600 dark:text-gray-400">
@@ -1176,23 +1216,13 @@ export default function AdminUsers() {
                 Cerrar
               </button>
               {verifyDetail?.user.dniVerified ? (
-                <button
-                  onClick={() => handleVerifyUser(false)}
-                  disabled={verifyLoading}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors"
-                >
-                  {verifyLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldOff className="h-4 w-4" />}
-                  Revocar verificación
-                </button>
+                <div className="flex-1 flex items-center justify-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 font-medium">
+                  <ShieldCheck className="h-4 w-4" /> Identidad verificada (KYC)
+                </div>
               ) : (
-                <button
-                  onClick={() => handleVerifyUser(true)}
-                  disabled={verifyLoading || !verifyDetail?.user.dni}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition-colors"
-                >
-                  {verifyLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
-                  {!verifyDetail?.user.dni ? 'Sin DNI (no verificable)' : 'Verificar identidad'}
-                </button>
+                <div className="flex-1 text-center text-xs text-gray-500 dark:text-gray-400 self-center">
+                  La identidad se verifica automáticamente por KYC (Didit).<br />El DNI se guarda solo como respaldo.
+                </div>
               )}
             </div>
           </div>
