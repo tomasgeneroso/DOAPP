@@ -81,6 +81,14 @@ export const adminApi = {
       return res.json() as Promise<ApiResponse<{ membershipTier: string; membershipExpiresAt: string }>>;
     },
   },
+  // Detailed user data registry (identity, KYC, professional, activity) + export
+  userData: {
+    list: async (params?: Record<string, string>) => {
+      const query = new URLSearchParams(params).toString();
+      const res = await fetchWithAuth(`${API_URL}/admin/user-data?${query}`);
+      return res.json() as Promise<ApiResponse<any[]>>;
+    },
+  },
   // Banned identities (permanent email + DNI registry, survives account deletion)
   bannedIdentities: {
     list: async (params?: Record<string, string>) => {

@@ -55,6 +55,7 @@ import adminRolesRoutes from "./routes/admin/roles.js";
 import adminJobsRoutes from "./routes/admin/jobs.js";
 import adminBlacklistRoutes from "./routes/admin/blacklist.js";
 import adminBannedIdentitiesRoutes from "./routes/admin/bannedIdentities.js";
+import adminUserDataRoutes from "./routes/admin/userData.js";
 import adminModulesRoutes from "./routes/admin/modules.js";
 import adminHubsRoutes from "./routes/admin/hubs.js";
 
@@ -343,6 +344,7 @@ app.use("/api/admin/roles", adminRolesRoutes);
 app.use("/api/admin/jobs", adminJobsRoutes);
 app.use("/api/admin/blacklist", adminBlacklistRoutes);
 app.use("/api/admin/banned-identities", adminBannedIdentitiesRoutes);
+app.use("/api/admin/user-data", adminUserDataRoutes);
 app.use("/api/admin/advertisements", adminAdvertisementsRoutes);
 app.use("/api/admin/contact", adminContactRoutes);
 app.use("/api/admin/blogs", adminBlogsRoutes);
