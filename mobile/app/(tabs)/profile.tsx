@@ -17,6 +17,8 @@ import { useTheme } from '../../context/ThemeContext';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import { LogoIcon } from '../../components/ui/Logo';
 import { get } from '../../services/api';
+import CredibilityBadge from '../../components/CredibilityBadge';
+import PhoneVerification from '../../components/PhoneVerification';
 
 interface DashboardStats {
   totalEarnings: number;
@@ -32,7 +34,7 @@ interface DashboardStats {
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, logout, isAuthenticated, isLoading } = useAuth();
+  const { user, logout, isAuthenticated, isLoading, refreshUser } = useAuth();
   const { isDarkMode, setThemeMode, colors: themeColors } = useTheme();
   const [loggingOut, setLoggingOut] = useState(false);
   const [statsLoading, setStatsLoading] = useState(true);
@@ -206,6 +208,11 @@ export default function ProfileScreen() {
                 {Number(user?.rating || 5).toFixed(1)} · {user?.reviewsCount || 0} opiniones
               </Text>
             </View>
+            {(user as any)?.credibility && (
+              <View style={{ marginTop: 8 }}>
+                <CredibilityBadge credibility={(user as any).credibility} variant="compact" />
+              </View>
+            )}
           </View>
 
           <TouchableOpacity
@@ -216,6 +223,23 @@ export default function ProfileScreen() {
             <Text style={styles.editButtonText}>Editar</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Credibility & phone verification */}
+        {(user as any)?.credibility && (
+          <View style={{ marginHorizontal: 16, marginBottom: 12, gap: 12 }}>
+            <CredibilityBadge credibility={(user as any).credibility} variant="full" />
+            {!(user as any)?.phoneVerified && (
+              <View style={{ backgroundColor: themeColors.card, borderRadius: 14, borderWidth: 1, borderColor: themeColors.border, padding: 16, gap: 8 }}>
+                <Text style={{ fontSize: 14, fontWeight: '700', color: themeColors.text.primary }}>Verificá tu teléfono</Text>
+                <PhoneVerification
+                  phone={(user as any)?.phone}
+                  verified={(user as any)?.phoneVerified}
+                  onVerified={() => refreshUser?.()}
+                />
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Balance Card */}
         <TouchableOpacity
