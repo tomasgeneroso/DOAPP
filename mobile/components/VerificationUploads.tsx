@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, Alert, ActivityIndicator, Linking } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { Camera, Shield, Check } from 'lucide-react-native';
+import { Camera, Shield, Check, BadgeCheck } from 'lucide-react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
-import { upload } from '../services/api';
+import { upload, post } from '../services/api';
 
 /**
  * Selfie + insurance (seguro) uploads for the credibility ladder.
@@ -14,11 +14,28 @@ import { upload } from '../services/api';
 export default function VerificationUploads() {
   const { colors }: any = useTheme();
   const { user, refreshUser } = useAuth() as any;
-  const [busy, setBusy] = useState<null | 'selfie' | 'insurance'>(null);
+  const [busy, setBusy] = useState<null | 'selfie' | 'insurance' | 'kyc'>(null);
 
   const isProfessional = !!(user?.profession || user?.licenseNumber || user?.licenseDocumentUrl);
   const selfieDone = !!user?.selfieUrl;
   const insuranceDone = !!user?.insuranceVerified || !!user?.insuranceDocumentUrl;
+  const identityDone = !!user?.dniVerified;
+
+  const startKyc = async () => {
+    setBusy('kyc');
+    try {
+      const res: any = await post('/auth/kyc/start', {});
+      if (res.success && res.url) {
+        await Linking.openURL(res.url);
+      } else {
+        Alert.alert('No disponible', res.message || 'La verificación de identidad no está disponible por el momento.');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'No pudimos iniciar la verificación.');
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const pick = async (): Promise<string | null> => {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -70,7 +87,7 @@ export default function VerificationUploads() {
     }
   };
 
-  const row = (opts: { icon: React.ReactNode; label: string; hint: string; done: boolean; onPress: () => void; kind: 'selfie' | 'insurance' }) => (
+  const row = (opts: { icon: React.ReactNode; label: string; hint: string; done: boolean; onPress: () => void; kind: 'selfie' | 'insurance' | 'kyc' }) => (
     <TouchableOpacity
       onPress={opts.onPress}
       disabled={busy !== null}
@@ -94,6 +111,15 @@ export default function VerificationUploads() {
 
   return (
     <View style={{ marginTop: 8 }}>
+      {row({
+        kind: 'kyc',
+        icon: <BadgeCheck size={20} color={colors.primary[600]} />,
+        label: 'Verificar identidad',
+        hint: identityDone ? 'Identidad verificada' : 'Con documento y selfie (Didit) — nivel 1',
+        done: identityDone,
+        onPress: startKyc,
+      })}
+
       {row({
         kind: 'selfie',
         icon: <Camera size={20} color={colors.primary[500]} />,

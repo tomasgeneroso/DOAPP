@@ -149,6 +149,16 @@ export class User extends Model {
   @Column(DataType.DATE)
   phoneVerificationExpires?: Date;
 
+  // KYC via Didit (automated identity verification → sets dniVerified on Approved)
+  @Column(DataType.STRING)
+  diditSessionId?: string;
+
+  @Column(DataType.STRING(20))
+  kycStatus?: string; // Approved | Declined | In Review | ...
+
+  @Column(DataType.DATE)
+  kycVerifiedAt?: Date;
+
   @Index
   @Column(DataType.STRING(20))
   dni?: string;

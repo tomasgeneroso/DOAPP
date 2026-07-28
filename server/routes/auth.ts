@@ -25,6 +25,7 @@ import anomalyDetection from "../services/anomalyDetection.js";
 import { createAuditLog, getClientIp, getUserAgent } from "../utils/auditLogger.js";
 import { uploadAvatar, uploadCover, uploadDniPhotos, uploadLicenseDocument, uploadInsuranceDocument, getFileUrl, verifyMagicBytes } from "../middleware/upload.js";
 import { sendWhatsAppCode } from "../services/whatsapp.js";
+import { isDiditConfigured, createDiditSession, getDiditDecision, verifyDiditWebhook } from "../services/didit.js";
 import twitterOAuth from "../services/twitterOAuth.js";
 
 const router = express.Router();
@@ -2368,6 +2369,91 @@ router.post("/phone/verify-code", protect, async (req: AuthRequest, res: Respons
     res.json({ success: true, message: "¡Teléfono verificado!", credibility: user.getCredibilityInfo() });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// @route   POST /api/auth/kyc/start
+// @desc    Start a Didit KYC session; returns the URL to redirect the user to
+// @access  Private
+router.post("/kyc/start", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    if (!isDiditConfigured()) {
+      res.status(503).json({ success: false, message: "La verificación de identidad no está disponible por el momento." });
+      return;
+    }
+    const user = await User.findByPk(req.user!.id);
+    if (!user) { res.status(404).json({ success: false, message: "Usuario no encontrado" }); return; }
+
+    const callback = `${config.clientUrl || 'https://doapparg.site'}/kyc/callback`;
+    const session = await createDiditSession(String(user.id), callback);
+
+    await user.update({ diditSessionId: session.session_id, kycStatus: session.status || 'In Progress' });
+    res.json({ success: true, url: session.url, sessionId: session.session_id });
+  } catch (error: any) {
+    console.warn('[kyc/start]', error?.message);
+    res.status(502).json({ success: false, message: "No pudimos iniciar la verificación. Probá de nuevo." });
+  }
+});
+
+// @route   GET /api/auth/kyc/status
+// @desc    Current KYC status for the user (re-syncs from Didit if pending)
+// @access  Private
+router.get("/kyc/status", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const user = await User.findByPk(req.user!.id);
+    if (!user) { res.status(404).json({ success: false, message: "Usuario no encontrado" }); return; }
+
+    // If there's a session but it's not resolved yet, re-fetch the decision.
+    if (user.diditSessionId && user.kycStatus !== 'Approved' && isDiditConfigured()) {
+      try {
+        const decision = await getDiditDecision(user.diditSessionId);
+        const status = decision?.status || decision?.decision?.status;
+        if (status && status !== user.kycStatus) {
+          const updates: any = { kycStatus: status };
+          if (status === 'Approved') { updates.dniVerified = true; updates.kycVerifiedAt = new Date(); }
+          await user.update(updates);
+        }
+      } catch (e: any) {
+        console.warn('[kyc/status] decision fetch failed:', e?.message);
+      }
+    }
+
+    res.json({ success: true, kycStatus: user.kycStatus, dniVerified: user.dniVerified, credibility: user.getCredibilityInfo() });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+// @route   POST /api/auth/kyc/webhook
+// @desc    Didit webhook — verifies the signature and updates the user's KYC
+// @access  Public (signed)
+router.post("/kyc/webhook", async (req: Request, res: Response): Promise<void> => {
+  try {
+    const signature = (req.headers['x-signature-simple'] as string) || '';
+    const timestamp = (req.headers['x-timestamp'] as string) || '';
+    const payload = req.body || {};
+
+    if (!verifyDiditWebhook({ signature, timestamp }, payload)) {
+      res.status(401).json({ success: false, message: "Firma inválida" });
+      return;
+    }
+
+    const userId = payload.vendor_data as string;
+    const status = payload.status as string;
+    if (userId) {
+      const user = await User.findByPk(userId);
+      if (user) {
+        const updates: any = { kycStatus: status };
+        if (payload.session_id) updates.diditSessionId = payload.session_id;
+        if (status === 'Approved') { updates.dniVerified = true; updates.kycVerifiedAt = new Date(); }
+        await user.update(updates);
+      }
+    }
+    // Always 200 so Didit doesn't retry a processed event.
+    res.json({ success: true });
+  } catch (error: any) {
+    console.error('[kyc/webhook]', error?.message);
+    res.status(200).json({ success: false });
   }
 });
 

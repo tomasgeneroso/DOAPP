@@ -10,6 +10,7 @@ import ImageEditorModal from '../components/profile/ImageEditorModal';
 import MultipleRatings from '../components/user/MultipleRatings';
 import CredibilityBadge from '../components/CredibilityBadge';
 import PhoneVerification from '../components/PhoneVerification';
+import KycButton from '../components/KycButton';
 import PostCard from '../components/user/PostCard';
 import CreatePost from '../components/user/CreatePost';
 import PostComments from '../components/user/PostComments';
@@ -819,6 +820,12 @@ export default function ProfilePage() {
           {isOwnProfile() && (user as any).credibility && (
             <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-5 mb-6 space-y-4">
               <CredibilityBadge credibility={(user as any).credibility} variant="full" />
+              {!(user as any).dniVerified && (
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-2">Verificá tu identidad</h3>
+                  <KycButton verified={(user as any).dniVerified} />
+                </div>
+              )}
               {!(user as any).phoneVerified && (
                 <div>
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-2">Verificá tu teléfono</h3>

@@ -105,6 +105,11 @@ const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'users.insurance_verified_by', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS insurance_verified_by UUID` },
   { label: 'users.insurance_verified_at', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS insurance_verified_at TIMESTAMPTZ` },
   { label: 'users.insurance_expires_at', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS insurance_expires_at TIMESTAMPTZ` },
+
+  // --- Didit KYC ---
+  { label: 'users.didit_session_id', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS didit_session_id VARCHAR(255)` },
+  { label: 'users.kyc_status', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_status VARCHAR(20)` },
+  { label: 'users.kyc_verified_at', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_verified_at TIMESTAMPTZ` },
 ];
 
 export async function ensureCriticalSchema(sequelize: Sequelize): Promise<void> {
