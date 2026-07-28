@@ -41,7 +41,7 @@ export async function sendWhatsAppCode(phone: string, code: string): Promise<Wha
         type: 'template',
         template: {
           name: templateName,
-          language: { code: 'es' },
+          language: { code: process.env.WHATSAPP_OTP_LANG || 'es' },
           components: [{ type: 'body', parameters: [{ type: 'text', text: code }] }],
         },
       }
