@@ -21,6 +21,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { updateProfile, updateSettings } from '../services/auth';
 import { upload, getImageUrl } from '../services/api';
+import VerificationUploads from '../components/VerificationUploads';
 import { AvailabilitySlot, AvailabilitySchedule } from '../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
 import LocationAutocomplete from '../components/ui/LocationAutocomplete';
@@ -323,6 +324,13 @@ export default function EditProfileScreen() {
 
           {/* Form */}
           <View style={styles.form}>
+            {/* Verificación (selfie + seguro) — suma credibilidad */}
+            <View style={styles.inputGroup}>
+              <Text style={[styles.label, { color: themeColors.text.primary }]}>
+                Verificación
+              </Text>
+              <VerificationUploads />
+            </View>
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: themeColors.text.primary }]}>
                 Nombre *
