@@ -230,6 +230,12 @@ export default function ProfileScreen() {
         {(user as any)?.credibility && (
           <View style={{ marginHorizontal: 16, marginBottom: 12, gap: 12 }}>
             <CredibilityBadge credibility={(user as any).credibility} variant="full" />
+            {!(user as any)?.dniVerified && (
+              <View style={{ backgroundColor: '#fffbeb', borderRadius: 14, borderWidth: 1, borderColor: '#fde68a', padding: 14 }}>
+                <Text style={{ fontSize: 13, fontWeight: '700', color: '#92400e', marginBottom: 4 }}>Tu identidad todavía no está verificada</Text>
+                <Text style={{ fontSize: 12, color: '#92400e' }}>Hasta verificarte: podés crear trabajos pero no publicarlos, no podés postularte, ni cobrar o retirar dinero. Sí podés escribir en el blog.</Text>
+              </View>
+            )}
             {!(user as any)?.phoneVerified && (
               <View style={{ backgroundColor: themeColors.card, borderRadius: 14, borderWidth: 1, borderColor: themeColors.border, padding: 16, gap: 8 }}>
                 <Text style={{ fontSize: 14, fontWeight: '700', color: themeColors.text.primary }}>Verificá tu teléfono</Text>

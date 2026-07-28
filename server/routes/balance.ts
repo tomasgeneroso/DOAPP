@@ -1,5 +1,5 @@
 import express, { Response } from "express";
-import { protect, AuthRequest } from "../middleware/auth.js";
+import { protect, requireKyc, AuthRequest } from "../middleware/auth.js";
 import { BalanceTransaction } from "../models/sql/BalanceTransaction.model.js";
 import { User } from "../models/sql/User.model.js";
 import { WithdrawalRequest } from "../models/sql/WithdrawalRequest.model.js";
@@ -166,7 +166,7 @@ router.get("/summary", protect, async (req: AuthRequest, res: Response): Promise
  * Request withdrawal
  * POST /api/balance/withdraw
  */
-router.post("/withdraw", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user.id;
     const { bankingInfo } = req.body;

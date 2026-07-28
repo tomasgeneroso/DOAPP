@@ -8,7 +8,7 @@ import { Conversation } from "../models/sql/Conversation.model.js";
 import { ChatMessage } from "../models/sql/ChatMessage.model.js";
 import { User } from "../models/sql/User.model.js";
 import { Notification } from "../models/sql/Notification.model.js";
-import { protect } from "../middleware/auth.js";
+import { protect, requireKyc } from "../middleware/auth.js";
 import { uploadProposalAttachments, getFileUrl } from "../middleware/upload.js";
 import type { AuthRequest } from "../types/index.js";
 import emailService from "../services/email.js";
@@ -377,6 +377,7 @@ router.get("/:id",
 router.post(
   "/",
   protect,
+  requireKyc,
   [
     body("job").notEmpty().withMessage("El trabajo es requerido"),
     body("coverLetter")

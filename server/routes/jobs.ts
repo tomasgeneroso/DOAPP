@@ -9,7 +9,7 @@ import { JobTask } from "../models/sql/JobTask.model.js";
 import { Notification } from "../models/sql/Notification.model.js";
 import { Conversation } from "../models/sql/Conversation.model.js";
 import { ChatMessage } from "../models/sql/ChatMessage.model.js";
-import { protect } from "../middleware/auth.js";
+import { protect, requireKyc } from "../middleware/auth.js";
 import type { AuthRequest } from "../types/index.js";
 import { socketService } from "../index.js";
 import { Op, Sequelize } from 'sequelize';
@@ -888,6 +888,10 @@ router.post(
       // In development, auto-publish all jobs without payment
       const isDev = process.env.NODE_ENV !== 'production';
       const canPublishForFree = isDev || hasFreeInitialContracts || hasMonthlyFreeContracts;
+      // KYC gate: without a verified identity a job can be CREATED but not
+      // PUBLISHED — it stays a draft, no free contract is consumed.
+      const identityVerified = !!(req.user as any).dniVerified;
+      const willPublish = canPublishForFree && identityVerified;
 
       // Process uploaded images
       const uploadedFiles = req.files as Express.Multer.File[];
@@ -1002,8 +1006,8 @@ router.post(
         remoteOk: req.body.remoteOk === 'true',
         images: imageUrls,
         clientId: req.user.id, // Sequelize uses camelCase foreign keys
-        status: canPublishForFree ? "open" : "draft", // Free contracts auto-publish, others need payment
-        publicationPaid: canPublishForFree, // Free contracts don't need payment
+        status: willPublish ? "open" : "draft", // Publish only if free-eligible AND KYC-verified
+        publicationPaid: willPublish, // Free contracts don't need payment
         publicationAmount: 0, // Will be calculated if payment needed
         maxWorkers, // New: support for multiple workers (1-5)
         selectedWorkers: [], // Initialize empty array
@@ -1033,8 +1037,9 @@ router.post(
       // Invalidate jobs cache so new job appears immediately
       cacheService.delPattern('jobs:*');
 
-      // If can publish for free, decrement the appropriate counter
-      if (canPublishForFree) {
+      // If can publish for free, decrement the appropriate counter (only when
+      // it actually publishes — not when held as a draft pending KYC).
+      if (willPublish) {
         if (hasFreeInitialContracts) {
           user.freeContractsRemaining = user.freeContractsRemaining - 1;
           console.log(`✅ User ${user.id} used initial free contract. Remaining: ${user.freeContractsRemaining}`);
@@ -1067,12 +1072,12 @@ router.post(
       );
 
       // Notify admin panel of new job (only if published)
-      if (canPublishForFree) {
+      if (willPublish) {
         socketService.notifyNewJob(populatedJob?.toJSON());
       }
 
-      // Different responses based on whether payment is needed
-      if (canPublishForFree) {
+      // Different responses: published / draft pending KYC / needs payment.
+      if (willPublish) {
         res.status(201).json({
           success: true,
           message: hasFreeInitialContracts
@@ -1080,6 +1085,14 @@ router.post(
             : `Trabajo publicado exitosamente (contrato mensual ${(user.membershipTier || 'free').toUpperCase()})`,
           job: populatedJob?.toJSON(),
           requiresPayment: false,
+        });
+      } else if (!identityVerified) {
+        res.status(201).json({
+          success: true,
+          message: "Guardamos tu trabajo como borrador. Verificá tu identidad para poder publicarlo.",
+          job: populatedJob?.toJSON(),
+          requiresPayment: false,
+          requiresKyc: true,
         });
       } else {
         res.status(201).json({
@@ -1862,7 +1875,7 @@ router.put("/:id/apply", protect, async (req: AuthRequest, res: Response): Promi
 // @route   POST /api/jobs/:id/initiate-payment
 // @desc    Iniciar pago para publicar trabajo
 // @access  Private
-router.post("/:id/initiate-payment", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+router.post("/:id/initiate-payment", protect, requireKyc, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const job = await Job.findByPk(req.params.id);
 

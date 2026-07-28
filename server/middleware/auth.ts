@@ -73,6 +73,28 @@ export const protect = async (
 };
 
 // Middleware para verificar roles
+/**
+ * Gate an action behind identity verification (KYC). A user without a verified
+ * identity can browse and use the blog, but cannot publish jobs, apply as a
+ * Doer, or move money. Returns 403 with code KYC_REQUIRED so the client can
+ * prompt the user to verify.
+ */
+export const requireKyc = (req: AuthRequest, res: Response, next: NextFunction): void => {
+  if (!req.user) {
+    res.status(401).json({ success: false, message: "Usuario no autenticado" });
+    return;
+  }
+  if (!(req.user as any).dniVerified) {
+    res.status(403).json({
+      success: false,
+      code: "KYC_REQUIRED",
+      message: "Necesitás verificar tu identidad para hacer esto. Verificala desde tu perfil.",
+    });
+    return;
+  }
+  next();
+};
+
 export const authorize = (...roles: string[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
     if (!req.user) {
