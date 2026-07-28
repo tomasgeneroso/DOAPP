@@ -56,7 +56,7 @@ export default function AdminLayout() {
   const location = useLocation();
   const { isDark, toggleTheme } = useTheme();
   const { isConnected, reconnect } = useSocket();
-  const [expandedGroups, setExpandedGroups] = useState<string[]>(['hubs', 'general', 'operations', 'finance', 'support']);
+  const [expandedGroups, setExpandedGroups] = useState<string[]>(['hubs', 'general', 'operations', 'padrones', 'finance', 'support']);
 
   // Redirect if not admin
   if (!user?.adminRole) {
@@ -108,10 +108,20 @@ export default function AdminLayout() {
       items: [
         { path: "/admin/users", icon: Users, label: t('admin.sidebar.users', 'Users'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/banned-identities", icon: ShieldOff, label: t('admin.sidebar.bannedIdentities', 'Identidades baneadas'), roles: ["owner", "super_admin", "admin"] },
-        { path: "/admin/user-data", icon: Database, label: t('admin.sidebar.userData', 'Datos de usuarios'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/jobs", icon: Briefcase, label: t('admin.sidebar.publications', 'Publications'), roles: ["owner", "super_admin", "admin", "marketing"] },
         { path: "/admin/contracts", icon: FileText, label: t('admin.sidebar.contracts', 'Contracts'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/blog", icon: FileText, label: t('admin.sidebar.blog', 'Blog'), roles: ["owner", "super_admin", "admin"] },
+      ]
+    },
+    {
+      label: "padrones",
+      icon: Database,
+      roles: ["owner", "super_admin", "admin"],
+      items: [
+        { path: "/admin/user-data", icon: Database, label: t('admin.sidebar.userData', 'Datos de usuarios'), roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin/padrones/jobs", icon: Briefcase, label: t('admin.sidebar.padronJobs', 'Padrón de trabajos'), roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin/padrones/contracts", icon: FileText, label: t('admin.sidebar.padronContracts', 'Padrón de contratos'), roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin/padrones/disputes", icon: AlertTriangle, label: t('admin.sidebar.padronDisputes', 'Padrón de disputas'), roles: ["owner", "super_admin", "admin"] },
       ]
     },
     {
@@ -152,6 +162,7 @@ export default function AdminLayout() {
     hubs: t('admin.sections.hubs', 'Hubs'),
     general: t('admin.sections.general', 'General'),
     operations: t('admin.sections.operations', 'Operations'),
+    padrones: t('admin.sections.padrones', 'Padrones'),
     finance: t('admin.sections.finance', 'Finance'),
     support: t('admin.sections.support', 'Support'),
     settings: t('admin.sections.settings', 'Settings'),

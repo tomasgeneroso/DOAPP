@@ -79,6 +79,7 @@ const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
 const AdminUsers = lazy(() => import("./pages/admin/Users"));
 const AdminBannedIdentities = lazy(() => import("./pages/admin/BannedIdentities"));
 const AdminUserData = lazy(() => import("./pages/admin/UserData"));
+const AdminPadron = lazy(() => import("./pages/admin/Padron"));
 const AdminRoles = lazy(() => import("./pages/admin/RoleManagement"));
 const AdminRolePermissions = lazy(() => import("./pages/admin/RolePermissions"));
 const AdminAnalytics = lazy(() => import("./pages/admin/Analytics"));
@@ -528,6 +529,33 @@ export default function App() {
               <Route path="users" element={<AdminUsers />} />
               <Route path="banned-identities" element={<AdminBannedIdentities />} />
               <Route path="user-data" element={<AdminUserData />} />
+              <Route path="padrones/jobs" element={<AdminPadron entity="jobs" title="Padrón de trabajos" columns={[
+                { key: 'title', label: 'Título' },
+                { key: 'category', label: 'Categoría' },
+                { key: 'status', label: 'Estado' },
+                { key: 'price', label: 'Precio', type: 'money' },
+                { key: 'maxWorkers', label: 'Cupos' },
+                { key: 'client', label: 'Cliente' },
+                { key: 'startDate', label: 'Inicio', type: 'date' },
+                { key: 'createdAt', label: 'Creado', type: 'date' },
+              ]} />} />
+              <Route path="padrones/contracts" element={<AdminPadron entity="contracts" title="Padrón de contratos" searchable={false} columns={[
+                { key: 'status', label: 'Estado' },
+                { key: 'price', label: 'Precio', type: 'money' },
+                { key: 'escrowStatus', label: 'Escrow' },
+                { key: 'client', label: 'Cliente' },
+                { key: 'doer', label: 'Doer' },
+                { key: 'allocatedAmount', label: 'Asignado', type: 'money' },
+                { key: 'createdAt', label: 'Creado', type: 'date' },
+              ]} />} />
+              <Route path="padrones/disputes" element={<AdminPadron entity="disputes" title="Padrón de disputas" searchable={false} columns={[
+                { key: 'category', label: 'Categoría' },
+                { key: 'status', label: 'Estado' },
+                { key: 'reason', label: 'Motivo' },
+                { key: 'resolution', label: 'Resolución' },
+                { key: 'contractId', label: 'Contrato' },
+                { key: 'createdAt', label: 'Creado', type: 'date' },
+              ]} />} />
               <Route path="roles" element={<AdminRoles />} />
               <Route path="role-permissions" element={<AdminRolePermissions />} />
               <Route path="analytics" element={<AdminAnalytics />} />
