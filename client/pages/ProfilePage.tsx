@@ -11,6 +11,7 @@ import MultipleRatings from '../components/user/MultipleRatings';
 import CredibilityBadge from '../components/CredibilityBadge';
 import PhoneVerification from '../components/PhoneVerification';
 import KycButton from '../components/KycButton';
+import VerifiedBadge from '../components/VerifiedBadge';
 import PostCard from '../components/user/PostCard';
 import CreatePost from '../components/user/CreatePost';
 import PostComments from '../components/user/PostComments';
@@ -648,8 +649,9 @@ export default function ProfilePage() {
                 <div className="flex-1 pt-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
                     <div>
-                      <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2">
+                      <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
                         {user.name}
+                        {(user as any).dniVerified && <VerifiedBadge size={22} />}
                       </h1>
                       {/* Active mode badges (public — visible to all viewers) */}
                       {(() => {

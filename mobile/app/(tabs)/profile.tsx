@@ -19,6 +19,7 @@ import { LogoIcon } from '../../components/ui/Logo';
 import { get } from '../../services/api';
 import CredibilityBadge from '../../components/CredibilityBadge';
 import PhoneVerification from '../../components/PhoneVerification';
+import VerifiedBadge from '../../components/VerifiedBadge';
 
 interface DashboardStats {
   totalEarnings: number;
@@ -193,6 +194,7 @@ export default function ProfileScreen() {
           <View style={styles.profileInfo}>
             <View style={styles.nameRow}>
               <Text style={[styles.userName, { color: themeColors.text.primary }]}>{user?.name || 'Usuario'}</Text>
+              {(user as any)?.dniVerified && <VerifiedBadge size={18} />}
               {membershipBadge && (
                 <View style={[styles.membershipBadge, { backgroundColor: membershipBadge.color }]}>
                   <Text style={styles.membershipBadgeText}>{membershipBadge.label}</Text>

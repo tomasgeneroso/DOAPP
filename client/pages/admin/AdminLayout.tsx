@@ -122,6 +122,8 @@ export default function AdminLayout() {
         { path: "/admin/padrones/jobs", icon: Briefcase, label: t('admin.sidebar.padronJobs', 'Padrón de trabajos'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/padrones/contracts", icon: FileText, label: t('admin.sidebar.padronContracts', 'Padrón de contratos'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/padrones/disputes", icon: AlertTriangle, label: t('admin.sidebar.padronDisputes', 'Padrón de disputas'), roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin/padrones/payments", icon: CreditCard, label: t('admin.sidebar.padronPayments', 'Padrón de pagos'), roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin/padrones/withdrawals", icon: ArrowDownLeft, label: t('admin.sidebar.padronWithdrawals', 'Padrón de retiros'), roles: ["owner", "super_admin", "admin"] },
       ]
     },
     {

@@ -238,6 +238,7 @@ router.get("/:id/profile", dataMinimizationMiddleware, async (req: Request, res:
         licenseVerified: user.licenseVerified,
         insuranceVerified: user.insuranceVerified,
         phoneVerified: user.phoneVerified,
+        dniVerified: user.dniVerified,
         credibility: user.getCredibilityInfo(),
       },
     });

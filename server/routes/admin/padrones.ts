@@ -5,6 +5,8 @@ import { User } from '../../models/sql/User.model.js';
 import { Job } from '../../models/sql/Job.model.js';
 import { Contract } from '../../models/sql/Contract.model.js';
 import { Dispute } from '../../models/sql/Dispute.model.js';
+import { Payment } from '../../models/sql/Payment.model.js';
+import { WithdrawalRequest } from '../../models/sql/WithdrawalRequest.model.js';
 
 /**
  * Registries ("padrones") for jobs, contracts and disputes: detailed tables +
@@ -155,6 +157,86 @@ router.get('/disputes/export.csv', async (req: AuthRequest, res: Response) => {
   try {
     const all = await disputeRecords((req.query as any).status || '');
     sendCsv(res, 'disputas', DISPUTE_COLS as any, all.map((r: any) => DISPUTE_COLS.map((c) => csvCell(r[c.key]))));
+  } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ── PAYMENTS ────────────────────────────────────────────────────────────
+const PAYMENT_COLS = [
+  { key: 'paymentType', label: 'Tipo de pago' },
+  { key: 'status', label: 'Estado' },
+  { key: 'amount', label: 'Monto' },
+  { key: 'currency', label: 'Moneda' },
+  { key: 'platformFee', label: 'Comisión plataforma' },
+  { key: 'workerPaymentAmount', label: 'Pago al trabajador' },
+  { key: 'payer', label: 'Pagador' },
+  { key: 'recipient', label: 'Receptor' },
+  { key: 'createdAt', label: 'Creado' },
+] as const;
+
+async function paymentRecords(status: string) {
+  const where: any = {};
+  if (status) where.status = status;
+  const payments = await Payment.findAll({ where, order: [['createdAt', 'DESC']], limit: 5000 });
+  const names = await nameMap(payments.flatMap((p: any) => [p.payerId, p.recipientId]));
+  return payments.map((p: any) => ({
+    id: p.id, paymentType: p.paymentType, status: p.status, amount: Number(p.amount || 0),
+    currency: p.currency || 'ARS', platformFee: Number(p.platformFee || 0),
+    workerPaymentAmount: Number(p.workerPaymentAmount || 0),
+    payer: names[p.payerId] || p.payerId, recipient: p.recipientId ? (names[p.recipientId] || p.recipientId) : '',
+    createdAt: p.createdAt,
+  }));
+}
+
+router.get('/payments', async (req: AuthRequest, res: Response) => {
+  try {
+    const { page = 1, limit = 25, status = '' } = req.query as any;
+    const all = await paymentRecords(status);
+    const start = (Number(page) - 1) * Number(limit);
+    res.json({ success: true, data: all.slice(start, start + Number(limit)),
+      pagination: { total: all.length, page: Number(page), limit: Number(limit), totalPages: Math.ceil(all.length / Number(limit)) } });
+  } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
+});
+router.get('/payments/export.csv', async (req: AuthRequest, res: Response) => {
+  try {
+    const all = await paymentRecords((req.query as any).status || '');
+    sendCsv(res, 'pagos', PAYMENT_COLS as any, all.map((r: any) => PAYMENT_COLS.map((c) => csvCell(r[c.key]))));
+  } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ── WITHDRAWALS ─────────────────────────────────────────────────────────
+const WITHDRAWAL_COLS = [
+  { key: 'status', label: 'Estado' },
+  { key: 'amount', label: 'Monto ARS' },
+  { key: 'alias', label: 'Alias' },
+  { key: 'user', label: 'Usuario' },
+  { key: 'adminNotes', label: 'Notas admin' },
+  { key: 'createdAt', label: 'Creado' },
+] as const;
+
+async function withdrawalRecords(status: string) {
+  const where: any = {};
+  if (status) where.status = status;
+  const ws = await WithdrawalRequest.findAll({ where, order: [['createdAt', 'DESC']], limit: 5000 });
+  const names = await nameMap(ws.map((w: any) => w.userId));
+  return ws.map((w: any) => ({
+    id: w.id, status: w.status, amount: Number(w.amount || 0), alias: w.alias || '',
+    user: names[w.userId] || w.userId, adminNotes: w.adminNotes || '', createdAt: w.createdAt,
+  }));
+}
+
+router.get('/withdrawals', async (req: AuthRequest, res: Response) => {
+  try {
+    const { page = 1, limit = 25, status = '' } = req.query as any;
+    const all = await withdrawalRecords(status);
+    const start = (Number(page) - 1) * Number(limit);
+    res.json({ success: true, data: all.slice(start, start + Number(limit)),
+      pagination: { total: all.length, page: Number(page), limit: Number(limit), totalPages: Math.ceil(all.length / Number(limit)) } });
+  } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
+});
+router.get('/withdrawals/export.csv', async (req: AuthRequest, res: Response) => {
+  try {
+    const all = await withdrawalRecords((req.query as any).status || '');
+    sendCsv(res, 'retiros', WITHDRAWAL_COLS as any, all.map((r: any) => WITHDRAWAL_COLS.map((c) => csvCell(r[c.key]))));
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
 

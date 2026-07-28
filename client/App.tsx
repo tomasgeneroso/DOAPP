@@ -556,6 +556,25 @@ export default function App() {
                 { key: 'contractId', label: 'Contrato' },
                 { key: 'createdAt', label: 'Creado', type: 'date' },
               ]} />} />
+              <Route path="padrones/payments" element={<AdminPadron entity="payments" title="Padrón de pagos" searchable={false} columns={[
+                { key: 'paymentType', label: 'Tipo de pago' },
+                { key: 'status', label: 'Estado' },
+                { key: 'amount', label: 'Monto', type: 'money' },
+                { key: 'currency', label: 'Moneda' },
+                { key: 'platformFee', label: 'Comisión plataforma', type: 'money' },
+                { key: 'workerPaymentAmount', label: 'Pago al trabajador', type: 'money' },
+                { key: 'payer', label: 'Pagador' },
+                { key: 'recipient', label: 'Receptor' },
+                { key: 'createdAt', label: 'Creado', type: 'date' },
+              ]} />} />
+              <Route path="padrones/withdrawals" element={<AdminPadron entity="withdrawals" title="Padrón de retiros" searchable={false} columns={[
+                { key: 'status', label: 'Estado' },
+                { key: 'amount', label: 'Monto', type: 'money' },
+                { key: 'alias', label: 'Alias' },
+                { key: 'user', label: 'Usuario' },
+                { key: 'adminNotes', label: 'Notas admin' },
+                { key: 'createdAt', label: 'Creado', type: 'date' },
+              ]} />} />
               <Route path="roles" element={<AdminRoles />} />
               <Route path="role-permissions" element={<AdminRolePermissions />} />
               <Route path="analytics" element={<AdminAnalytics />} />
