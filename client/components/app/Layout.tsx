@@ -7,6 +7,7 @@ import Footer from "./Footer";
 import MobileBottomNav from "./MobileBottomNav";
 import ErrorBoundary from "../ErrorBoundary";
 import { useScrollDepth } from "@/hooks/useScrollDepth";
+import KycWelcomeModal from "../KycWelcomeModal";
 
 export default function Layout() {
   const { user, isAuthenticated } = useAuth();
@@ -31,6 +32,7 @@ export default function Layout() {
       >
         Ir al contenido principal
       </a>
+      <KycWelcomeModal />
       <ErrorBoundary>
         <Header />
       </ErrorBoundary>

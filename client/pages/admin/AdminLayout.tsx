@@ -31,6 +31,7 @@ import {
   Search,
   ShieldOff,
   Database,
+  Star,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -124,6 +125,8 @@ export default function AdminLayout() {
         { path: "/admin/padrones/disputes", icon: AlertTriangle, label: t('admin.sidebar.padronDisputes', 'Padrón de disputas'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/padrones/payments", icon: CreditCard, label: t('admin.sidebar.padronPayments', 'Padrón de pagos'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/padrones/withdrawals", icon: ArrowDownLeft, label: t('admin.sidebar.padronWithdrawals', 'Padrón de retiros'), roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin/padrones/reviews", icon: Star, label: t('admin.sidebar.padronReviews', 'Padrón de reseñas'), roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin/padrones/tickets", icon: TicketIcon, label: t('admin.sidebar.padronTickets', 'Padrón de tickets'), roles: ["owner", "super_admin", "admin"] },
       ]
     },
     {

@@ -7,6 +7,8 @@ import { Contract } from '../../models/sql/Contract.model.js';
 import { Dispute } from '../../models/sql/Dispute.model.js';
 import { Payment } from '../../models/sql/Payment.model.js';
 import { WithdrawalRequest } from '../../models/sql/WithdrawalRequest.model.js';
+import { Review } from '../../models/sql/Review.model.js';
+import { Ticket } from '../../models/sql/Ticket.model.js';
 
 /**
  * Registries ("padrones") for jobs, contracts and disputes: detailed tables +
@@ -237,6 +239,80 @@ router.get('/withdrawals/export.csv', async (req: AuthRequest, res: Response) =>
   try {
     const all = await withdrawalRecords((req.query as any).status || '');
     sendCsv(res, 'retiros', WITHDRAWAL_COLS as any, all.map((r: any) => WITHDRAWAL_COLS.map((c) => csvCell(r[c.key]))));
+  } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ── REVIEWS ─────────────────────────────────────────────────────────────
+const REVIEW_COLS = [
+  { key: 'rating', label: 'Rating' },
+  { key: 'comment', label: 'Comentario' },
+  { key: 'reviewer', label: 'Autor' },
+  { key: 'reviewed', label: 'Reseñado' },
+  { key: 'contractId', label: 'Contrato' },
+  { key: 'createdAt', label: 'Creado' },
+] as const;
+
+async function reviewRecords() {
+  const reviews = await Review.findAll({ order: [['createdAt', 'DESC']], limit: 5000 });
+  const names = await nameMap(reviews.flatMap((r: any) => [r.reviewerId, r.reviewedId]));
+  return reviews.map((r: any) => ({
+    id: r.id, rating: Number(r.rating || 0), comment: r.comment || '',
+    reviewer: names[r.reviewerId] || r.reviewerId, reviewed: names[r.reviewedId] || r.reviewedId,
+    contractId: r.contractId, createdAt: r.createdAt,
+  }));
+}
+
+router.get('/reviews', async (req: AuthRequest, res: Response) => {
+  try {
+    const { page = 1, limit = 25 } = req.query as any;
+    const all = await reviewRecords();
+    const start = (Number(page) - 1) * Number(limit);
+    res.json({ success: true, data: all.slice(start, start + Number(limit)),
+      pagination: { total: all.length, page: Number(page), limit: Number(limit), totalPages: Math.ceil(all.length / Number(limit)) } });
+  } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
+});
+router.get('/reviews/export.csv', async (_req: AuthRequest, res: Response) => {
+  try {
+    const all = await reviewRecords();
+    sendCsv(res, 'resenas', REVIEW_COLS as any, all.map((r: any) => REVIEW_COLS.map((c) => csvCell(r[c.key]))));
+  } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ── TICKETS ─────────────────────────────────────────────────────────────
+const TICKET_COLS = [
+  { key: 'ticketNumber', label: 'Nº' },
+  { key: 'subject', label: 'Asunto' },
+  { key: 'category', label: 'Categoría' },
+  { key: 'priority', label: 'Prioridad' },
+  { key: 'status', label: 'Estado' },
+  { key: 'creator', label: 'Creado por' },
+  { key: 'createdAt', label: 'Creado' },
+] as const;
+
+async function ticketRecords(status: string) {
+  const where: any = {};
+  if (status) where.status = status;
+  const tickets = await Ticket.findAll({ where, order: [['createdAt', 'DESC']], limit: 5000 });
+  const names = await nameMap(tickets.map((t: any) => t.createdBy));
+  return tickets.map((t: any) => ({
+    id: t.id, ticketNumber: t.ticketNumber, subject: t.subject, category: t.category,
+    priority: t.priority, status: t.status, creator: names[t.createdBy] || t.createdBy, createdAt: t.createdAt,
+  }));
+}
+
+router.get('/tickets', async (req: AuthRequest, res: Response) => {
+  try {
+    const { page = 1, limit = 25, status = '' } = req.query as any;
+    const all = await ticketRecords(status);
+    const start = (Number(page) - 1) * Number(limit);
+    res.json({ success: true, data: all.slice(start, start + Number(limit)),
+      pagination: { total: all.length, page: Number(page), limit: Number(limit), totalPages: Math.ceil(all.length / Number(limit)) } });
+  } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
+});
+router.get('/tickets/export.csv', async (req: AuthRequest, res: Response) => {
+  try {
+    const all = await ticketRecords((req.query as any).status || '');
+    sendCsv(res, 'tickets', TICKET_COLS as any, all.map((r: any) => TICKET_COLS.map((c) => csvCell(r[c.key]))));
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
 

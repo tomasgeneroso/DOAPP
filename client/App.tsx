@@ -575,6 +575,23 @@ export default function App() {
                 { key: 'adminNotes', label: 'Notas admin' },
                 { key: 'createdAt', label: 'Creado', type: 'date' },
               ]} />} />
+              <Route path="padrones/reviews" element={<AdminPadron entity="reviews" title="Padrón de reseñas" searchable={false} columns={[
+                { key: 'rating', label: 'Rating' },
+                { key: 'comment', label: 'Comentario' },
+                { key: 'reviewer', label: 'Autor' },
+                { key: 'reviewed', label: 'Reseñado' },
+                { key: 'contractId', label: 'Contrato' },
+                { key: 'createdAt', label: 'Creado', type: 'date' },
+              ]} />} />
+              <Route path="padrones/tickets" element={<AdminPadron entity="tickets" title="Padrón de tickets" searchable={false} columns={[
+                { key: 'ticketNumber', label: 'Nº' },
+                { key: 'subject', label: 'Asunto' },
+                { key: 'category', label: 'Categoría' },
+                { key: 'priority', label: 'Prioridad' },
+                { key: 'status', label: 'Estado' },
+                { key: 'creator', label: 'Creado por' },
+                { key: 'createdAt', label: 'Creado', type: 'date' },
+              ]} />} />
               <Route path="roles" element={<AdminRoles />} />
               <Route path="role-permissions" element={<AdminRolePermissions />} />
               <Route path="analytics" element={<AdminAnalytics />} />
