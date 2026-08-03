@@ -88,7 +88,7 @@ export default function MembershipScreen() {
     switch (type) {
       case 'pro': return 'PRO';
       case 'super_pro': return 'SUPER PRO';
-      default: return 'Free';
+      default: return 'Gratis';
     }
   };
 
@@ -148,7 +148,7 @@ export default function MembershipScreen() {
               <Star size={20} color={themeColors.text.secondary} />
             </View>
             <View style={styles.planInfo}>
-              <Text style={[styles.planName, { color: themeColors.text.primary }]}>Free</Text>
+              <Text style={[styles.planName, { color: themeColors.text.primary }]}>Gratis</Text>
               <Text style={[styles.planPrice, { color: themeColors.text.primary }]}>$0</Text>
             </View>
             {currentPlan === 'free' && (
