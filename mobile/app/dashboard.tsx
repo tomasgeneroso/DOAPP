@@ -269,7 +269,7 @@ export default function DashboardScreen() {
           <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/profile')} style={styles.backButton}>
             <ArrowLeft size={24} color={themeColors.text.primary} />
           </TouchableOpacity>
-          <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]}>Dashboard</Text>
+          <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]}>Panel</Text>
           <View style={{ width: 40 }} />
         </View>
         <View style={styles.loadingContainer}>
@@ -285,7 +285,7 @@ export default function DashboardScreen() {
         <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/profile')} style={styles.backButton}>
           <ArrowLeft size={24} color={themeColors.text.primary} />
         </TouchableOpacity>
-        <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]}>Dashboard</Text>
+        <Text style={[styles.topBarTitle, { color: themeColors.text.primary }]}>Panel</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -379,7 +379,7 @@ export default function DashboardScreen() {
           {[
             { icon: Briefcase, label: 'Agenda Do', route: '/my-jobs', color: colors.primary[600] },
             { icon: FileText, label: 'Contratos', route: '/contracts', color: colors.success[600] },
-            { icon: DollarSign, label: 'Balance', route: '/balance', color: colors.warning[600] },
+            { icon: DollarSign, label: 'Saldo', route: '/balance', color: colors.warning[600] },
             { icon: BarChart3, label: 'Pagos', route: '/payments', color: colors.secondary[500] },
           ].map((action, i) => (
             <TouchableOpacity
