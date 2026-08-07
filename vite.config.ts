@@ -24,11 +24,17 @@ export default defineConfig({
         secure: false,
         ws: true,
       },
-      // Proxy para los archivos legales
+      // Proxy para los archivos legales estáticos (PDF/TXT de public/legal).
+      // Sólo los archivos: /legal/<slug> son rutas de la SPA
+      // (/legal/terminos-y-condiciones, /legal/privacidad, …) y esta regla las
+      // tapaba, así que en dev refrescar o abrir un link directo a cualquier
+      // página legal devolvía el 404 de Express. Se distingue por extensión:
+      // con extensión va al backend, sin extensión lo resuelve el router.
       '/legal': {
         target: 'http://localhost:3001',
         changeOrigin: true,
         secure: false,
+        bypass: (req) => (/\.[a-z0-9]+$/i.test(req.url || '') ? undefined : '/index.html'),
       },
       // Proxy para Socket.io
       '/socket.io': {
