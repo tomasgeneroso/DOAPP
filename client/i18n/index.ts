@@ -2,6 +2,10 @@ import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import LanguageDetector from 'i18next-browser-languagedetector';
 import es from './locales/es.json';
+// Legal copy lives in shared/ so web and mobile render the same document.
+// Merged into the `termsPage` namespace here rather than duplicated in the
+// locale JSONs — mobile has no i18n runtime and imports the same module.
+import { termsEs } from '../../shared/legal/terms.es';
 
 if (!localStorage.getItem('language')) {
   localStorage.setItem('language', 'es');
@@ -18,7 +22,7 @@ i18n
   .use(initReactI18next)
   .init({
     resources: {
-      es: { translation: es },
+      es: { translation: { ...es, termsPage: termsEs } },
     },
     lng: initialLng,
     fallbackLng: 'es',
@@ -38,8 +42,13 @@ let enLoading: Promise<void> | null = null;
 async function ensureEnglishBundle(): Promise<void> {
   if (i18n.hasResourceBundle('en', 'translation')) return;
   if (!enLoading) {
-    enLoading = import('./locales/en.json').then((mod) => {
-      i18n.addResourceBundle('en', 'translation', mod.default, true, true);
+    // English terms ride along with the English bundle so they stay out of the
+    // critical-path chunk, same reasoning as en.json itself.
+    enLoading = Promise.all([
+      import('./locales/en.json'),
+      import('../../shared/legal/terms.en'),
+    ]).then(([bundle, terms]) => {
+      i18n.addResourceBundle('en', 'translation', { ...bundle.default, termsPage: terms.termsEn }, true, true);
     });
   }
   await enLoading;
@@ -64,6 +73,9 @@ if (import.meta.hot) {
   });
   import.meta.hot.accept('./locales/es.json', (mod) => {
     if (mod) i18n.addResourceBundle('es', 'translation', mod.default, true, true);
+  });
+  import.meta.hot.accept('../../shared/legal/terms.es', (mod) => {
+    if (mod) i18n.addResourceBundle('es', 'translation', { termsPage: mod.termsEs }, true, true);
   });
 }
 

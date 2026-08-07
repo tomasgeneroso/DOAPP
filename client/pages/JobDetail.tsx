@@ -2560,9 +2560,21 @@ export default function JobDetail() {
                           </a>
                         )}
                         {job.doer.licenseVerified && (
-                          <span className="text-green-600 dark:text-green-400 font-semibold">✓ {t('jobs.verified', 'Verificado')}</span>
+                          // Declared, not verified — DOAPP does not check licences
+                          // against any official registry yet (see Terms 4.4).
+                          <span
+                            className="text-amber-600 dark:text-amber-400 font-semibold"
+                            title={t('jobs.licenseDeclaredHint', 'El trabajador declaró su matrícula y presentó documentación. DOAPP todavía no la verifica contra los registros oficiales.')}
+                          >
+                            {t('jobs.licenseDeclared', 'Matrícula declarada')}
+                          </span>
                         )}
                       </div>
+                      {/* Scope of verification, stated where the hiring decision
+                          actually happens — not only buried in the Terms. */}
+                      <p className="mt-2 text-xs text-slate-500 dark:text-slate-400 bg-amber-50/60 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-lg px-2.5 py-2">
+                        {t('jobs.licenseDisclaimer', 'DOAPP verifica la identidad de los trabajadores, pero por el momento no verifica matrículas ni seguros. Estos datos fueron declarados por el trabajador. Si la tarea lo requiere, confirmalos ante el registro oficial correspondiente.')}
+                      </p>
                     </div>
                   );
                 })()}
@@ -3603,7 +3615,15 @@ export default function JobDetail() {
                                         </span>
                                       )}
                                       {proposal.freelancer.licenseVerified && (
-                                        <span className="text-xs text-green-600 dark:text-green-400 font-semibold">✓</span>
+                                        // A bare green ✓ read as "DOAPP verified this".
+                                        // It is only a declaration until the official
+                                        // registry check exists (see Terms 4.4).
+                                        <span
+                                          className="text-xs text-amber-600 dark:text-amber-400 font-medium"
+                                          title={t('jobs.licenseDeclaredHint', 'El trabajador declaró su matrícula y presentó documentación. DOAPP todavía no la verifica contra los registros oficiales.')}
+                                        >
+                                          {t('jobs.licenseDeclaredShort', 'declarada')}
+                                        </span>
                                       )}
                                     </>
                                   )}

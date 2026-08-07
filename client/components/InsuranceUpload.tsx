@@ -52,12 +52,12 @@ export default function InsuranceUpload({
         Seguro profesional
       </h3>
       <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
-        Subí tu seguro (foto o PDF). Suma credibilidad a tu perfil. Lo verifica el equipo de DoApp.
+        Subí tu seguro (foto o PDF). Suma credibilidad a tu perfil. Queda registrado como declarado por vos: por el momento DoApp no lo verifica ante la aseguradora.
       </p>
 
       {verified && (
         <div className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400 font-medium mb-2">
-          <ShieldCheck className="w-4 h-4" /> Seguro verificado
+          <ShieldCheck className="w-4 h-4" /> Seguro declarado
         </div>
       )}
       {!verified && status === "pending" && url && (

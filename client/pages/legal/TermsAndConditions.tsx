@@ -112,8 +112,14 @@ export default function TermsAndConditions() {
                 <p className="text-slate-600 dark:text-slate-300 mb-3">
                   {t('termsPage.s4p2', '4.2. El Usuario garantiza la veracidad, exactitud y actualización de los datos suministrados.')}
                 </p>
-                <p className="text-slate-600 dark:text-slate-300">
+                <p className="text-slate-600 dark:text-slate-300 mb-3">
                   {t('termsPage.s4p3', '4.3. DOAPP podrá requerir procesos de verificación de identidad (KYC), incluyendo validación de correo electrónico, teléfono, documento de identidad y datos fiscales, especialmente para membresías PRO y SUPER PRO.')}
+                </p>
+                <p className="text-slate-600 dark:text-slate-300 mb-3">
+                  {t('termsPage.s4p4', '4.4. Alcance de la verificación. Al día de hoy DOAPP verifica únicamente la identidad de los Usuarios. Dicha verificación se realiza a través de un proveedor externo especializado en verificación de identidad, que analiza el documento presentado y realiza una prueba de vida mediante reconocimiento facial. DOAPP NO verifica matrículas profesionales, habilitaciones, títulos ni pólizas de seguro. Un Usuario puede declarar que posee una matrícula o un seguro y acompañar documentación respaldatoria: dicha documentación se conserva a título informativo y su exhibición en la Plataforma NO implica que DOAPP haya comprobado su autenticidad, vigencia ni validez ante el organismo o la aseguradora correspondiente.')}
+                </p>
+                <p className="text-slate-600 dark:text-slate-300">
+                  {t('termsPage.s4p5', '4.5. Es responsabilidad exclusiva del Usuario contratante verificar, por sus propios medios y ante los registros oficiales pertinentes, que el profesional cuente con la matrícula, habilitación o seguro que declara, especialmente en actividades reguladas. DOAPP informará oportunamente si en el futuro incorpora la verificación de estos datos contra fuentes oficiales.')}
                 </p>
               </section>
 

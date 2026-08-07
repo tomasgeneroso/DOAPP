@@ -57,8 +57,12 @@ export default function PrivacyPolicyScreen() {
         <S title="4. Compartición de Datos">
           <P>No vendemos tus datos personales. Podemos compartirlos con:</P>
           <P>• Procesadores de pago (MercadoPago) para gestionar transacciones.</P>
+          <P>• Verificación de identidad: Didit (didit.me) actúa como encargado del tratamiento. Le transmitimos las imágenes de tu documento y de tu rostro, junto con los datos biométricos derivados necesarios para la prueba de vida, con la única finalidad de comprobar tu identidad y prevenir el fraude. No los usamos para ningún otro fin ni los cedemos a terceros.</P>
           <P>• Proveedores de infraestructura (hosting, email) bajo acuerdos de confidencialidad.</P>
           <P>• Autoridades legales cuando sea requerido por ley.</P>
+        </S>
+        <S title="4.b Transferencia internacional de datos">
+          <P>Algunos de esos proveedores procesan y almacenan información fuera de la República Argentina. En particular, la verificación de identidad y las imágenes asociadas son tratadas por Didit en servidores ubicados en el exterior. Conforme al artículo 12 de la Ley 25.326, al iniciar la verificación de identidad prestás tu consentimiento expreso para esa transferencia internacional, que se realiza únicamente con la finalidad descripta y bajo obligaciones contractuales de confidencialidad y seguridad. Podés revocar tu consentimiento escribiéndonos, teniendo en cuenta que sin verificación de identidad no es posible operar en la Plataforma.</P>
         </S>
         <S title="5. Seguridad">
           <P>Implementamos medidas técnicas y organizativas para proteger tus datos, incluyendo cifrado SSL/TLS, hashing de contraseñas y control de acceso. Sin embargo, ningún sistema es 100% seguro.</P>

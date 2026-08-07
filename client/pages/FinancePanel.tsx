@@ -414,13 +414,13 @@ function ProfessionalTab({ data, onSaved }: { data: Analytics; onSaved: (d: Part
         <div>
           <p className="font-semibold text-slate-900 dark:text-white">
             {prof.licenseVerified
-              ? t("finance.licenseVerified", "Matrícula verificada")
+              ? t("finance.licenseDeclared", "Matrícula declarada")
               : prof.licenseVerificationStatus === "pending"
                 ? t("finance.licensePending", "Matrícula en revisión")
-                : t("finance.licenseNotVerified", "Matrícula sin verificar")}
+                : t("finance.licenseNotDeclared", "Matrícula sin declarar")}
           </p>
           <p className="text-sm text-slate-500 dark:text-slate-400">
-            {t("finance.licenseTrust", "Una matrícula verificada te muestra como profesional habilitado y genera más confianza.")}
+            {t("finance.licenseTrust", "Tu matrícula figura en tu perfil como declarada por vos. DOAPP todavía no la verifica contra los registros oficiales.")}
           </p>
         </div>
       </div>

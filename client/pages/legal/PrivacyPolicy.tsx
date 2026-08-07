@@ -114,9 +114,16 @@ export default function PrivacyPolicy() {
                 <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 mb-4 space-y-2">
                   <li><Trans i18nKey="privacy.s3li1" components={{ b: <strong /> }} defaults="<b>Con otros usuarios:</b> Tu perfil público, calificaciones y portfolio son visibles para otros usuarios" /></li>
                   <li><Trans i18nKey="privacy.s3li2" components={{ b: <strong /> }} defaults="<b>Proveedores de servicios:</b> MercadoPago para procesamiento de pagos, servicios de email, etc." /></li>
+                  <li><Trans i18nKey="privacy.s3li5" components={{ b: <strong /> }} defaults="<b>Verificación de identidad:</b> Didit (didit.me) actúa como encargado del tratamiento para verificar tu identidad. Le transmitimos las imágenes de tu documento y de tu rostro, junto con los datos biométricos derivados necesarios para la prueba de vida, con la única finalidad de comprobar que sos vos y prevenir el fraude. No utilizamos esos datos para ningún otro fin ni los cedemos a terceros." /></li>
                   <li><Trans i18nKey="privacy.s3li3" components={{ b: <strong /> }} defaults="<b>Cumplimiento legal:</b> Cuando sea requerido por ley o para proteger nuestros derechos" /></li>
                   <li><Trans i18nKey="privacy.s3li4" components={{ b: <strong /> }} defaults="<b>Transferencias empresariales:</b> En caso de fusión, venta o reorganización" /></li>
                 </ul>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white mt-6 mb-2">
+                  {t('privacy.s3intlTitle', 'Transferencia internacional de datos')}
+                </h3>
+                <p className="text-slate-600 dark:text-slate-300 mb-4">
+                  {t('privacy.s3intl', 'Algunos de los proveedores mencionados procesan y almacenan información fuera de la República Argentina. En particular, la verificación de identidad y las imágenes asociadas son tratadas por Didit en servidores ubicados en el exterior. Conforme al artículo 12 de la Ley 25.326 de Protección de los Datos Personales, al iniciar la verificación de identidad prestás tu consentimiento expreso para dicha transferencia internacional, que se realiza únicamente con la finalidad descripta y bajo obligaciones contractuales de confidencialidad y seguridad. Podés revocar tu consentimiento en cualquier momento escribiéndonos, teniendo en cuenta que sin verificación de identidad no es posible operar en la Plataforma.')}
+                </p>
               </section>
 
               <section className="mb-8">

@@ -133,7 +133,7 @@ export default function UserData() {
         <table className="min-w-full text-sm whitespace-nowrap">
           <thead className="bg-gray-50 dark:bg-slate-900/50 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
             <tr>
-              {["Nombre", "Email", "Teléfono", "Teléfono verificado", "DNI", "DNI verificado", "Estado KYC", "Credibilidad", "Rol", "Membresía", "Profesión", "Matrícula verificada", "Seguro verificado", "Ciudad", "Provincia", "Balance", "Trabajos", "Rating", "Registro"].map((h) => (
+              {["Nombre", "Email", "Teléfono", "Teléfono verificado", "DNI", "DNI verificado", "Estado KYC", "Credibilidad", "Rol", "Membresía", "Profesión", "Matrícula declarada", "Seguro declarado", "Ciudad", "Provincia", "Balance", "Trabajos", "Rating", "Registro"].map((h) => (
                 <th key={h} className="px-3 py-3">{h}</th>
               ))}
             </tr>
