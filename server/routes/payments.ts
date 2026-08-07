@@ -1789,8 +1789,11 @@ router.get("/conversion/usdt", async (req: AuthRequest, res: Response): Promise<
     }
 
     const amountARS = Number(amount);
-    const rate = await currencyExchange.getARStoUSDTRate();
-    const amountUSDT = await currencyExchange.convertARStoUSDT(amountARS);
+    // One quote for both figures: fetching the rate twice could straddle a cache
+    // expiry and show an amount that does not match the rate beside it.
+    const quote = await currencyExchange.getQuotedUSDTRate();
+    const rate = quote.rate;
+    const amountUSDT = Math.round((amountARS / rate) * 100) / 100;
 
     res.json({
       success: true,
@@ -1798,6 +1801,10 @@ router.get("/conversion/usdt", async (req: AuthRequest, res: Response): Promise<
         amountARS,
         amountUSDT,
         rate,
+        // When the rate was actually fetched, not when this response was built —
+        // that is the number that tells the user how stale the quote is.
+        quotedAt: quote.timestamp,
+        source: quote.source,
         timestamp: new Date(),
       },
       binanceInfo: {

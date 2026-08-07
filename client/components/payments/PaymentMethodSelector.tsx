@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import { Building2, Copy, Check } from 'lucide-react';
 import { useEnabledPaymentMethods } from '@/hooks/useEnabledPaymentMethods';
+import BinanceQr from './BinanceQr';
 
 export type PaymentMethod = 'mercadopago' | 'astropay' | 'binance' | 'bank_transfer';
 
@@ -90,6 +91,7 @@ export default function PaymentMethodSelector({
   const [usdtRate, setUsdtRate] = useState<number | null>(null);
   const [binanceInfo, setBinanceInfo] = useState<{ binanceId: string | null; binanceNickname: string | null }>({ binanceId: null, binanceNickname: null });
   const [loadingConversion, setLoadingConversion] = useState(false);
+  const [quotedAt, setQuotedAt] = useState<string | null>(null);
   const [binanceTransactionId, setBinanceTransactionId] = useState('');
   const [binanceSenderUserId, setBinanceSenderUserId] = useState('');
 
@@ -120,6 +122,7 @@ export default function PaymentMethodSelector({
         if (!cancelled && data.success) {
           setUsdtAmount(data.conversion.amountUSDT);
           setUsdtRate(data.conversion.rate);
+          setQuotedAt(data.conversion.quotedAt || null);
           setBinanceInfo(data.binanceInfo);
         }
       })
@@ -158,6 +161,22 @@ export default function PaymentMethodSelector({
       logo: <BankIcon />,
     },
   ];
+
+  // Human-readable age of the quote, refreshed every 30s so a checkout left
+  // open does not keep claiming the rate is current.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!quotedAt) return;
+    const id = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(id);
+  }, [quotedAt]);
+
+  const rateAge = (() => {
+    if (!quotedAt) return '';
+    const mins = Math.max(0, Math.floor((now - new Date(quotedAt).getTime()) / 60_000));
+    if (mins < 1) return t('payments.rateJustNow', 'actualizada recién');
+    return t('payments.rateAge', 'actualizada hace {{mins}} min', { mins });
+  })();
 
   // Only offer what the admin enabled AND the backend can actually deliver.
   const visibleMethods = methods.filter((m) => isEnabled(m.id));
@@ -264,6 +283,9 @@ export default function PaymentMethodSelector({
                 {usdtRate && (
                   <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1.5">
                     {t('payments.usdtRate', 'Tasa: 1 USDT = ${{rate}} ARS', { rate: usdtRate.toLocaleString('es-AR') })}
+                    {/* Freshness is stated, not implied: a crypto quote the user
+                        cannot date is a quote they cannot dispute. */}
+                    {quotedAt && <> · {rateAge}</>}
                   </p>
                 )}
               </div>
@@ -272,6 +294,12 @@ export default function PaymentMethodSelector({
               {(binanceInfo.binanceId || binanceInfo.binanceNickname) && (
                 <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 space-y-3">
                   <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{t('payments.transferData', 'Datos para transferir:')}</p>
+                  {binanceInfo.binanceId && (
+                    <BinanceQr
+                      value={binanceInfo.binanceId}
+                      label={t('payments.binanceQrHint', 'Escaneá para no copiar el ID a mano')}
+                    />
+                  )}
                   {binanceInfo.binanceId && (
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs text-slate-500 dark:text-slate-400 w-24 flex-shrink-0">Binance ID</span>

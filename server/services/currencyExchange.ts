@@ -1,6 +1,15 @@
 interface ExchangeRate {
   rate: number;
   timestamp: Date;
+  /** Where the figure came from — shown to the user so the quote is auditable. */
+  source?: string;
+}
+
+/** A rate plus its provenance, for callers that display freshness. */
+export interface QuotedRate {
+  rate: number;
+  timestamp: Date;
+  source: string;
 }
 
 /**
@@ -11,6 +20,10 @@ class CurrencyExchangeService {
   private readonly CACHE_KEY = 'currency:usd_ars_rate';
   private readonly USDT_CACHE_KEY = 'currency:usdt_rate';
   private readonly CACHE_TTL = 3600; // 1 hora (en segundos)
+  // El USDT se cotiza aparte y mucho más corto: una hora de caché sobre un
+  // mercado cripto significa cobrar a un precio que ya no existe, y la
+  // diferencia la termina pagando el usuario o la plataforma.
+  private readonly USDT_CACHE_TTL = 300; // 5 minutos
   private memoryCache: Map<string, { data: any; expiresAt: number }> = new Map();
   private readonly DOLAR_HOY_URL = 'https://dolarhoy.com/';
   private readonly APIS = [
@@ -247,30 +260,55 @@ class CurrencyExchangeService {
    * @returns Tasa de cambio actual (1 USDT = X ARS)
    */
   async getARStoUSDTRate(): Promise<number> {
+    return (await this.getQuotedUSDTRate()).rate;
+  }
+
+  /**
+   * Cotización ARS/USDT con su procedencia y antigüedad.
+   *
+   * Antes esto devolvía la tasa del dólar, con el comentario "USDT es
+   * prácticamente 1:1 con USD". En Argentina no lo es: el USDT cotiza contra el
+   * peso en su propio mercado y la brecha con el dólar de las APIs de referencia
+   * ronda el 5-6%. Sobre un pago de $100.000 eso son ~3,5 USDT que alguien pone
+   * de más. BINANCE_API ya estaba declarado en este archivo pero nunca se usaba.
+   *
+   * Se mantiene la tasa del dólar como respaldo: es incorrecta pero acotada, y
+   * es preferible a dejar el checkout sin cotización.
+   */
+  async getQuotedUSDTRate(): Promise<QuotedRate> {
+    const cached = await this.cacheGet<ExchangeRate>(this.USDT_CACHE_KEY);
+    if (cached?.rate) {
+      return { rate: cached.rate, timestamp: new Date(cached.timestamp), source: cached.source || 'cache' };
+    }
+
+    // 1) Mercado real: par USDT/ARS de Binance.
     try {
-      // Intentar obtener de caché
-      const cached = await this.cacheGet<ExchangeRate>(this.USDT_CACHE_KEY);
-      if (cached?.rate) {
-        console.log('💰 Using cached ARS/USDT rate:', cached.rate);
-        return cached.rate;
+      const resp = await fetch(this.BINANCE_API);
+      if (resp.ok) {
+        const data: any = await resp.json();
+        const rate = Number(data?.price);
+        if (Number.isFinite(rate) && rate > 0) {
+          const quote: ExchangeRate = { rate, timestamp: new Date(), source: 'binance' };
+          await this.cacheSet(this.USDT_CACHE_KEY, quote, this.USDT_CACHE_TTL);
+          console.log(`✅ ARS/USDT rate (binance): ${rate}`);
+          return { rate, timestamp: quote.timestamp, source: 'binance' };
+        }
       }
+      console.warn(`⚠️ Binance USDTARS respondió ${resp.status}, uso la tasa del dólar`);
+    } catch (error: any) {
+      console.warn('⚠️ Binance USDTARS no disponible:', error?.message);
+    }
 
-      // USDT es prácticamente 1:1 con USD, así que usamos la misma tasa
+    // 2) Respaldo: tasa del dólar (aproximación, no el mercado del USDT).
+    try {
       const usdToArsRate = await this.getUSDtoARSRate();
-
-      // Guardar en caché
-      await this.cacheSet(this.USDT_CACHE_KEY, {
-        rate: usdToArsRate,
-        timestamp: new Date()
-      }, this.CACHE_TTL);
-
-      console.log(`✅ ARS/USDT rate: ${usdToArsRate} ARS per USDT`);
-      return usdToArsRate;
+      const quote: ExchangeRate = { rate: usdToArsRate, timestamp: new Date(), source: 'usd-fallback' };
+      await this.cacheSet(this.USDT_CACHE_KEY, quote, this.USDT_CACHE_TTL);
+      return { rate: usdToArsRate, timestamp: quote.timestamp, source: 'usd-fallback' };
     } catch (error) {
       console.error('❌ Error getting ARS/USDT rate:', error);
-      // Fallback a una tasa predeterminada
       console.warn('⚠️ Using fallback rate: 1430 ARS/USDT');
-      return 1430;
+      return { rate: 1430, timestamp: new Date(), source: 'fallback' };
     }
   }
 
