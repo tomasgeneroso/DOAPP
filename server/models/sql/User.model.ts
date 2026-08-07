@@ -164,6 +164,12 @@ export class User extends Model {
   @Column(DataType.JSONB)
   kycData?: any;
 
+  // Number of Didit sessions that came back Declined. Identity is Didit-only;
+  // manual document upload unlocks solely once this reaches KYC_MAX_ATTEMPTS, so
+  // that someone the automated flow cannot handle is not left with no way in.
+  @Column({ type: DataType.INTEGER, defaultValue: 0 })
+  kycAttempts!: number;
+
   @Index
   @Column(DataType.STRING(20))
   dni?: string;
@@ -819,8 +825,10 @@ export class User extends Model {
       { level: 2, label: 'Teléfono y correo', achieved: contactOk },
     ];
     if (isProfessional) {
-      breakdown.push({ level: 3, label: 'Matrícula', achieved: licenseOk });
-      breakdown.push({ level: 4, label: 'Seguro', achieved: insuranceOk });
+      // "Declarada"/"declarado": levels 3 and 4 rest on a records check, not on
+      // any official registry, so the ladder must not imply DOAPP verified them.
+      breakdown.push({ level: 3, label: 'Matrícula declarada', achieved: licenseOk });
+      breakdown.push({ level: 4, label: 'Seguro declarado', achieved: insuranceOk });
     }
 
     return { score, max: isProfessional ? 4 : 2, isProfessional, breakdown };

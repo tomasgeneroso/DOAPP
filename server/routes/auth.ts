@@ -24,8 +24,8 @@ import emailService from "../services/email.js";
 import anomalyDetection from "../services/anomalyDetection.js";
 import { createAuditLog, getClientIp, getUserAgent } from "../utils/auditLogger.js";
 import { uploadAvatar, uploadCover, uploadDniPhotos, uploadLicenseDocument, uploadInsuranceDocument, getFileUrl, verifyMagicBytes } from "../middleware/upload.js";
-import { sendWhatsAppCode } from "../services/whatsapp.js";
-import { isDiditConfigured, createDiditSession, getDiditDecision, verifyDiditWebhook } from "../services/didit.js";
+import { sendWhatsAppCode, getWhatsAppStatus } from "../services/whatsapp.js";
+import { isDiditConfigured, createDiditSession, getDiditDecision, verifyDiditWebhook, applyKycStatus, isManualKycUnlocked, KYC_MAX_ATTEMPTS } from "../services/didit.js";
 import twitterOAuth from "../services/twitterOAuth.js";
 
 const router = express.Router();
@@ -537,6 +537,9 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         familyCodeId: user?.familyCodeId,
         dni: user?.dni,
         dniVerified: (user as any)?.dniVerified,
+        // Owner-only: lets Configuración show which documents are already on file.
+        dniPhotoFront: (user as any)?.dniPhotoFront,
+        dniPhotoBack: (user as any)?.dniPhotoBack,
         needsDni: !user?.dni && (!!user?.googleId || !!user?.facebookId), // True if OAuth user without DNI
         availabilitySchedule: user?.availabilitySchedule,
         isAvailabilityPublic: user?.isAvailabilityPublic,
@@ -558,6 +561,17 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         insuranceRejectedReason: (user as any)?.insuranceRejectedReason,
         kycStatus: (user as any)?.kycStatus,
         credibility: user?.getCredibilityInfo(),
+        // Channels the deployment can actually deliver on. The clients gate
+        // pending-task prompts on these so a task is never shown as required
+        // while the backend has no way to let the user complete it.
+        capabilities: {
+          phoneVerification: getWhatsAppStatus().ready,
+          // Manual document upload stays hidden until Didit has actually failed
+          // this user KYC_MAX_ATTEMPTS times.
+          manualKyc: isManualKycUnlocked(user as any),
+        },
+        kycAttempts: (user as any)?.kycAttempts ?? 0,
+        kycMaxAttempts: KYC_MAX_ATTEMPTS,
       },
     });
   } catch (error: any) {
@@ -2162,9 +2176,23 @@ router.get("/family-plan-status", protect, async (req: AuthRequest, res: Respons
 });
 
 // @route   POST /api/auth/dni-photos
-// @desc    Upload DNI front/back photos (images or PDF)
-// @access  Private
-router.post("/dni-photos", protect, (req: AuthRequest, res: Response): void => {
+// @desc    Upload DNI front/back photos (images or PDF) — manual fallback only
+// @access  Private, and only once the Didit attempts are exhausted
+router.post("/dni-photos", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  // Identity is Didit-only until the automated flow has genuinely failed for
+  // this user. Enforced here and not just in the UI: hiding a button is not a
+  // control, and this endpoint writes the documents the whole ladder rests on.
+  const gateUser = await User.findByPk(req.user!.id, { attributes: ['id', 'kycAttempts', 'dniVerified'] });
+  if (!gateUser) { res.status(404).json({ success: false, message: "Usuario no encontrado" }); return; }
+  if (!isManualKycUnlocked(gateUser as any)) {
+    res.status(403).json({
+      success: false,
+      message: `La verificación de identidad se hace con el sistema automático. La carga manual se habilita después de ${KYC_MAX_ATTEMPTS} intentos rechazados.`,
+      code: 'MANUAL_KYC_LOCKED',
+    });
+    return;
+  }
+
   uploadDniPhotos(req as any, res, async (err) => {
     if (err) {
       res.status(400).json({ success: false, message: err.message });
@@ -2319,20 +2347,27 @@ router.post("/phone/send-code", protect, async (req: AuthRequest, res: Response)
       phoneVerificationExpires: new Date(Date.now() + 10 * 60 * 1000),
     });
 
+    const isProduction = process.env.NODE_ENV === 'production';
     let result;
     try {
       result = await sendWhatsAppCode(phone, code);
     } catch (e: any) {
       console.warn('[phone/send-code] WhatsApp failed:', e?.message);
-      res.status(502).json({ success: false, message: "No pudimos enviar el código por WhatsApp. Probá de nuevo en un momento." });
-      return;
+      // Outside production a broken channel must not block testing the rest of
+      // the flow: fall through to the dev code the same way an unconfigured
+      // channel does. In production there is no code to hand out, so it fails.
+      if (isProduction) {
+        res.status(502).json({ success: false, message: "No pudimos enviar el código por WhatsApp. Probá de nuevo en un momento." });
+        return;
+      }
+      result = { sent: false, dev: true };
     }
 
     res.json({
       success: true,
       message: result.sent ? "Te enviamos un código por WhatsApp." : "Código generado (modo prueba).",
-      // Only exposed in non-production when WhatsApp isn't configured yet, for testing.
-      devCode: (result.dev && process.env.NODE_ENV !== 'production') ? code : undefined,
+      // Only exposed in non-production when WhatsApp isn't usable yet, for testing.
+      devCode: (result.dev && !isProduction) ? code : undefined,
     });
   } catch (error: any) {
     res.status(500).json({ success: false, message: error.message });
@@ -2409,9 +2444,10 @@ router.get("/kyc/status", protect, async (req: AuthRequest, res: Response): Prom
       try {
         const decision = await getDiditDecision(user.diditSessionId);
         const status = decision?.status || decision?.decision?.status;
-        const updates: any = { kycData: decision };
-        if (status) updates.kycStatus = status;
-        if (status === 'Approved') { updates.dniVerified = true; updates.kycVerifiedAt = new Date(); }
+        const updates: any = {
+          kycData: decision,
+          ...applyKycStatus(user.kycStatus, status, user.kycAttempts),
+        };
         await user.update(updates);
       } catch (e: any) {
         console.warn('[kyc/status] decision fetch failed:', e?.message);
@@ -2443,9 +2479,8 @@ router.post("/kyc/webhook", async (req: Request, res: Response): Promise<void> =
     if (userId) {
       const user = await User.findByPk(userId);
       if (user) {
-        const updates: any = { kycStatus: status };
+        const updates: any = applyKycStatus(user.kycStatus, status, user.kycAttempts);
         if (payload.session_id) updates.diditSessionId = payload.session_id;
-        if (status === 'Approved') { updates.dniVerified = true; updates.kycVerifiedAt = new Date(); }
         // Store the full decision (document data, scores, AML, warnings). Prefer
         // the authoritative API decision; fall back to the webhook's payload.
         let decision: any = payload.decision;

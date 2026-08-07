@@ -89,6 +89,37 @@ export interface User {
   banReason?: string;
   availabilitySchedule?: AvailabilitySchedule;
   isAvailabilityPublic?: boolean;
+  // Credibility ladder / verification — served by GET /auth/me.
+  dni?: string;
+  needsDni?: boolean;
+  dniVerified?: boolean;
+  dniPhotoFront?: string;
+  dniPhotoBack?: string;
+  selfieUrl?: string;
+  kycStatus?: string;
+  phoneVerified?: boolean;
+  profession?: string;
+  licenseNumber?: string;
+  licenseDocumentUrl?: string;
+  licenseVerified?: boolean;
+  licenseVerificationStatus?: 'pending' | 'approved' | 'rejected';
+  insuranceDocumentUrl?: string;
+  insuranceVerified?: boolean;
+  insuranceVerificationStatus?: 'pending' | 'approved' | 'rejected';
+  credibility?: CredibilityInfo;
+  capabilities?: UserCapabilities;
+}
+
+/** What the backend can actually deliver — gates pending-task prompts. */
+export interface UserCapabilities {
+  phoneVerification: boolean;
+}
+
+export interface CredibilityInfo {
+  score: number;
+  max: number;
+  isProfessional: boolean;
+  breakdown: Array<{ level: number; label: string; achieved: boolean }>;
 }
 
 export interface AvailabilitySlot {

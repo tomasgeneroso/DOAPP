@@ -5,6 +5,12 @@ import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import InsuranceUpload from "../components/InsuranceUpload";
+import AttentionDot from "../components/AttentionDot";
+import CredibilityBadge from "../components/CredibilityBadge";
+import KycButton from "../components/KycButton";
+import DniUploader from "../components/DniUploader";
+import PhoneVerification from "../components/PhoneVerification";
+import { usePendingTasks } from "../hooks/usePendingTasks";
 import {
   User,
   MapPin,
@@ -282,8 +288,11 @@ function ProfessionTab({
         <div className="space-y-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-700 rounded-xl p-5">
           <div className="flex items-center gap-2 mb-1">
             {licenseVerificationStatus === 'approved' || licenseVerified ? (
+              // "Declarada", not "verificada por DOAPP": the admin check is a
+              // records check against no authoritative registry, so claiming to
+              // have verified it would be telling the user something untrue.
               <span className="flex items-center gap-1.5 text-green-600 dark:text-green-400 text-sm font-semibold">
-                <ShieldCheck className="w-4 h-4" /> Matrícula verificada por DOAPP
+                <ShieldCheck className="w-4 h-4" /> Matrícula declarada
               </span>
             ) : licenseVerificationStatus === 'rejected' ? (
               <div className="w-full">
@@ -301,7 +310,7 @@ function ProfessionTab({
               </div>
             ) : (
               <span className="text-xs text-slate-500 dark:text-slate-400">
-                Tu matrícula será verificada por el equipo de DOAPP.
+                Tu matrícula quedará registrada en tu perfil como declarada. Por el momento DOAPP no verifica matrículas contra los registros oficiales.
               </span>
             )}
           </div>
@@ -428,6 +437,7 @@ export default function UserSettings() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { startOnboarding } = useOnboarding();
+  const { countFor, pending } = usePendingTasks();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<TabType>("basic");
   const [loading, setLoading] = useState(false);
@@ -444,6 +454,16 @@ export default function UserSettings() {
       setActiveTab(tabParam as TabType);
     }
   }, [searchParams]);
+
+  // End of the attention trail: /settings?tab=basic#verificacion scrolls the
+  // user straight to the section that resolves the pending task.
+  useEffect(() => {
+    if (activeTab !== "basic" || window.location.hash !== "#verificacion") return;
+    const timer = setTimeout(() => {
+      document.getElementById("verificacion")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [activeTab]);
 
   // Basic info
   const [name, setName] = useState("");
@@ -624,6 +644,17 @@ export default function UserSettings() {
     );
   };
 
+  // A tab lights up when any unfinished task declares it as its owner, so
+  // adding a task to the registry lights the whole trail with no extra wiring.
+  const dotFor = (tabId: string) => {
+    const count = countFor(tabId as any);
+    if (!count) return null;
+    const priority = pending.find((task) => task.section === tabId)?.priority ?? null;
+    return <AttentionDot priority={priority} count={count} />;
+  };
+
+  const basicTasks = pending.filter((task) => task.section === "basic");
+
   const tabs = [
     { id: "basic", label: t('settings.tabs.basic'), icon: User },
     { id: "profession", label: "Profesión", icon: Briefcase },
@@ -679,7 +710,8 @@ export default function UserSettings() {
                     }`}
                   >
                     <Icon className="h-5 w-5" />
-                    <span>{tab.label}</span>
+                    <span className="flex-1">{tab.label}</span>
+                    {dotFor(tab.id)}
                   </button>
                 );
               })}
@@ -780,6 +812,79 @@ export default function UserSettings() {
                     <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                       {bio.length}/500 {t('settings.basic.bioChars')}
                     </p>
+                  </div>
+
+                  {/* Verification — destination of the attention trail.
+                      Everything here already existed elsewhere (KycButton on the
+                      profile, the uploader inside signup); this is the first place
+                      a registered user can actually reach it. */}
+                  <div
+                    id="verificacion"
+                    className="scroll-mt-24 pt-6 border-t border-slate-200 dark:border-slate-700 space-y-4"
+                  >
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                        Verificar mi perfil
+                      </h3>
+                      <CredibilityBadge credibility={(user as any)?.credibility} variant="compact" />
+                    </div>
+
+                    {basicTasks.length > 0 && (
+                      <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-900/10 p-3">
+                        <p className="text-sm font-medium text-amber-800 dark:text-amber-300 mb-1.5">
+                          Te falta completar:
+                        </p>
+                        <ul className="space-y-1">
+                          {basicTasks.map((task) => (
+                            <li key={task.id} className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300/90">
+                              <AttentionDot priority={task.priority} className="mt-1.5" />
+                              <span>
+                                <strong className="font-medium">{t(task.labelKey, task.label)}</strong>
+                                {task.status === "in_review" && " — en revisión"}
+                                {task.status === "rejected" && " — rechazado, volvé a intentar"}
+                                <span className="block text-xs opacity-80">{t(task.descKey, task.desc)}</span>
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    <CredibilityBadge credibility={(user as any)?.credibility} variant="full" />
+
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                        Verificación automática
+                      </h4>
+                      <KycButton verified={(user as any)?.dniVerified} kycStatus={(user as any)?.kycStatus} />
+                    </div>
+
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                        Teléfono
+                      </h4>
+                      <PhoneVerification
+                        phone={(user as any)?.phone}
+                        verified={(user as any)?.phoneVerified}
+                        onVerified={() => refreshUser?.()}
+                      />
+                    </div>
+
+                    {/* Manual upload is a fallback, not a parallel path: it only
+                        appears once Didit has rejected this user the maximum
+                        number of times. The server enforces the same rule. */}
+                    {(user as any)?.capabilities?.manualKyc && !(user as any)?.dniVerified && (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                          Documentación
+                        </h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          La verificación automática no pudo completarse después de {(user as any)?.kycMaxAttempts ?? 3} intentos.
+                          Subí tu documento y lo revisamos a mano.
+                        </p>
+                        <DniUploader />
+                      </div>
+                    )}
                   </div>
 
                   {/* Password Section */}

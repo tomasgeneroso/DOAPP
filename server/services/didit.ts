@@ -18,6 +18,23 @@ export function isDiditConfigured(): boolean {
   return !!(process.env.DIDIT_API_KEY && process.env.DIDIT_WORKFLOW_ID);
 }
 
+/**
+ * How many Didit rejections a user may collect before the manual document
+ * upload is unlocked for them. Identity is Didit-only up to that point.
+ */
+export const KYC_MAX_ATTEMPTS = Number(process.env.KYC_MAX_ATTEMPTS) || 3;
+
+/**
+ * Whether this user may fall back to uploading documents by hand.
+ *
+ * Also true when Didit is not configured at all — otherwise a deployment
+ * without KYC credentials would have no path to verify anyone.
+ */
+export function isManualKycUnlocked(user: { kycAttempts?: number | null }): boolean {
+  if (!isDiditConfigured()) return true;
+  return (user?.kycAttempts ?? 0) >= KYC_MAX_ATTEMPTS;
+}
+
 export interface DiditSession {
   session_id: string;
   url: string;
@@ -86,4 +103,105 @@ export function verifyDiditWebhook(
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-export default { isDiditConfigured, createDiditSession, getDiditDecision, verifyDiditWebhook };
+/** A media asset Didit holds for a session. `url` is always short-lived. */
+export interface DiditMediaItem {
+  key: string;
+  label: string;
+  url: string;
+}
+
+export interface DiditMedia {
+  sessionId: string;
+  status?: string;
+  items: DiditMediaItem[];
+  fetchedAt: string;
+}
+
+/**
+ * Fetch the media Didit captured for a session (document images, portrait,
+ * face-match and liveness frames) as freshly signed URLs.
+ *
+ * Deliberately NOT persisted anywhere. Didit's docs are explicit that these are
+ * "short-lived presigned links: fetch them promptly or re-request the decision
+ * to get fresh ones, and do not persist them as long-term references". So the
+ * only thing we store is `user.diditSessionId`, and every admin view re-derives
+ * the URLs through here. That keeps a single copy of the biometric data at the
+ * processor instead of a second one on our disk.
+ *
+ * Field paths follow the v3 decision payload; each block is optional because a
+ * workflow may not include every node.
+ */
+export async function getDiditMedia(sessionId: string): Promise<DiditMedia> {
+  const decision: any = await getDiditDecision(sessionId);
+  const items: DiditMediaItem[] = [];
+
+  const push = (key: string, label: string, url: unknown) => {
+    if (typeof url === 'string' && url) items.push({ key, label, url });
+  };
+
+  const id = decision?.id_verifications?.[0];
+  if (id) {
+    push('front_image', 'Documento — frente', id.front_image);
+    push('back_image', 'Documento — dorso', id.back_image);
+    push('full_front_image', 'Documento — frente (completo)', id.full_front_image);
+    push('full_back_image', 'Documento — dorso (completo)', id.full_back_image);
+    push('portrait_image', 'Foto del documento', id.portrait_image);
+  }
+
+  const face = decision?.face_matches?.[0];
+  if (face) {
+    push('face_source', 'Face match — origen', face.source_image);
+    push('face_target', 'Face match — selfie', face.target_image);
+  }
+
+  const liveness = decision?.liveness_checks?.[0];
+  if (liveness) {
+    push('liveness_reference', 'Prueba de vida — referencia', liveness.reference_image);
+    push('liveness_video', 'Prueba de vida — video', liveness.video_url);
+  }
+
+  return {
+    sessionId,
+    status: decision?.status,
+    items,
+    fetchedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Fold a fresh Didit status into the updates for a user, counting rejections.
+ *
+ * Counting has to be transition-based, not state-based: `/kyc/status` re-fetches
+ * the decision on every call while the user is unverified, so incrementing
+ * whenever the status *reads* "Declined" would add one per poll and unlock the
+ * manual upload within seconds. `kyc/start` resets the status on each retry, so
+ * "was not Declined → is Declined" fires exactly once per session.
+ */
+export function applyKycStatus(
+  previousStatus: string | null | undefined,
+  newStatus: string | null | undefined,
+  currentAttempts: number | null | undefined,
+): Record<string, any> {
+  const updates: Record<string, any> = {};
+  if (!newStatus) return updates;
+
+  updates.kycStatus = newStatus;
+  if (newStatus === 'Approved') {
+    updates.dniVerified = true;
+    updates.kycVerifiedAt = new Date();
+  } else if (newStatus === 'Declined' && previousStatus !== 'Declined') {
+    updates.kycAttempts = (currentAttempts ?? 0) + 1;
+  }
+  return updates;
+}
+
+export default {
+  isDiditConfigured,
+  isManualKycUnlocked,
+  createDiditSession,
+  getDiditDecision,
+  getDiditMedia,
+  verifyDiditWebhook,
+  applyKycStatus,
+  KYC_MAX_ATTEMPTS,
+};

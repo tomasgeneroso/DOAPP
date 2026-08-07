@@ -6,84 +6,15 @@ import { useFacebookLogin } from "../hooks/useFacebookLogin";
 import { Helmet } from "react-helmet-async";
 import { AnimatedButton } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input"; // Asegúrate que este componente se esté usando
-import { Chrome, Facebook, Twitter, Eye, EyeOff, Home, Upload, X, FileText, Image, Camera } from "lucide-react";
+import { Chrome, Facebook, Twitter, Eye, EyeOff, Home, BadgeCheck } from "lucide-react";
 import TokenExpiredNotice from "../components/TokenExpiredNotice";
 import { FacebookSDK } from "../components/FacebookSDK";
 import MembershipOfferModal from "../components/MembershipOfferModal";
-import CameraCapture from "../components/CameraCapture";
 import { analytics, identifyUser } from "../utils/analytics";
 import { ThemeToggle } from "../components/ui/ThemeToggle";
 
 type FormMode = "login" | "register";
 
-// ── Sub-component: DNI photo slot with gallery + camera options ───────────────
-function DniPhotoSlot({
-  label,
-  photo,
-  onPhoto,
-  fileRef,
-}: {
-  label: string;
-  photo: File | null;
-  onPhoto: (f: File | null) => void;
-  fileRef: React.RefObject<HTMLInputElement>;
-}) {
-  const { t } = useTranslation();
-  const [showCamera, setShowCamera] = useState(false);
-
-  return (
-    <div>
-      {/* Gallery input */}
-      <input ref={fileRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp" className="hidden"
-        onChange={(e) => onPhoto(e.target.files?.[0] ?? null)} />
-
-      {/* Camera modal */}
-      {showCamera && (
-        <CameraCapture
-          label={label}
-          onCapture={(file) => { onPhoto(file); setShowCamera(false); }}
-          onClose={() => setShowCamera(false)}
-        />
-      )}
-
-      {photo ? (
-        /* Preview */
-        <div className="rounded-lg border-2 border-sky-500 bg-sky-50 dark:bg-sky-900/20 overflow-hidden">
-          <img src={URL.createObjectURL(photo)} alt={label} className="w-full h-20 object-cover" />
-          <div className="flex items-center justify-between px-2 py-1">
-            <span className="text-[10px] text-sky-600 dark:text-sky-400 truncate flex-1">{photo.name}</span>
-            <button type="button" onClick={() => onPhoto(null)} className="text-red-500 hover:text-red-600 ml-1 shrink-0">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      ) : (
-        /* Pick options */
-        <div className="rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600">
-          <p className="text-[10px] text-center text-slate-500 dark:text-slate-400 pt-2 pb-0.5 font-medium px-1">{label}</p>
-          <div className="flex gap-1 p-2">
-            <button
-              type="button"
-              onClick={() => fileRef.current?.click()}
-              className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-lg bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors text-xs text-slate-600 dark:text-slate-300"
-            >
-              <Upload className="w-4 h-4" />
-              <span>{t('auth.gallery')}</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowCamera(true)}
-              className="flex-1 flex flex-col items-center justify-center gap-1 py-2.5 rounded-lg bg-sky-100 dark:bg-sky-900/30 hover:bg-sky-200 dark:hover:bg-sky-900/50 transition-colors text-xs text-sky-700 dark:text-sky-300"
-            >
-              <Camera className="w-4 h-4" />
-              <span>{t('auth.camera')}</span>
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function LoginScreen() {
   const { t } = useTranslation();
@@ -118,16 +49,6 @@ export default function LoginScreen() {
   const [usernameDebounce, setUsernameDebounce] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [emailStatus, setEmailStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const [emailDebounce, setEmailDebounce] = useState<ReturnType<typeof setTimeout> | null>(null);
-  // DNI photos
-  const [dniMode, setDniMode] = useState<'images' | 'pdf'>('images');
-  const [dniPhotoFront, setDniPhotoFront] = useState<File | null>(null);
-  const [dniPhotoBack, setDniPhotoBack] = useState<File | null>(null);
-  const [dniPdf, setDniPdf] = useState<File | null>(null);
-  const frontInputRef = useRef<HTMLInputElement>(null);
-  const backInputRef = useRef<HTMLInputElement>(null);
-  const pdfInputRef = useRef<HTMLInputElement>(null);
-  const selfieInputRef = useRef<HTMLInputElement>(null);
-  const [selfie, setSelfie] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [errorField, setErrorField] = useState<'email' | 'password' | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -269,15 +190,9 @@ export default function LoginScreen() {
           return;
         }
 
-        // Validar fotos de DNI obligatorias
-        const hasDniForValidation = dniMode === 'pdf' ? !!dniPdf : (!!dniPhotoFront && !!dniPhotoBack);
-        if (!hasDniForValidation) {
-          setError(dniMode === 'pdf'
-            ? t('auth.dniPdfRequired')
-            : t('auth.dniPhotosRequired'));
-          setIsLoading(false);
-          return;
-        }
+        // No document upload at signup any more: identity is proven through
+        // Didit right after registering (KycWelcomeModal), and the manual
+        // fallback only unlocks once that flow has actually failed.
         const newUser = await register({
           name: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
           username: formData.username.toLowerCase().trim(),
@@ -296,28 +211,6 @@ export default function LoginScreen() {
           identifyUser(newUser.id);
         }
 
-        // Upload DNI photos if provided
-        const hasDniFiles = (dniMode === 'pdf' ? !!dniPdf : (!!dniPhotoFront || !!dniPhotoBack)) || !!selfie;
-        if (hasDniFiles) {
-          try {
-            const token = localStorage.getItem('token');
-            const fd = new FormData();
-            if (dniMode === 'pdf' && dniPdf) {
-              fd.append('dniPhotoFront', dniPdf);
-            } else {
-              if (dniPhotoFront) fd.append('dniPhotoFront', dniPhotoFront);
-              if (dniPhotoBack) fd.append('dniPhotoBack', dniPhotoBack);
-            }
-            if (selfie) fd.append('selfie', selfie);
-            await fetch('/api/auth/dni-photos', {
-              method: 'POST',
-              headers: { Authorization: `Bearer ${token}` },
-              body: fd,
-            });
-          } catch {
-            // Non-blocking — user can upload later from profile
-          }
-        }
 
         // Show email verification pending screen instead of navigating
         setRegistrationPendingVerification(true);
@@ -415,10 +308,6 @@ export default function LoginScreen() {
               setRegistrationPendingVerification(false);
               setMode('login');
               setFormData({ firstName: '', lastName: '', username: '', email: '', password: '', phone: '', dni: '', referralCode: '', cbu: '', termsAccepted: false });
-              setDniPhotoFront(null);
-              setDniPhotoBack(null);
-              setDniPdf(null);
-              setSelfie(null);
               setError(null);
             }}
             className="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
@@ -772,92 +661,16 @@ export default function LoginScreen() {
                   </p>
                 </div>
 
-                {/* DNI Photos */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300">
-                      {t('auth.dniPhotoLabel')} <span className="text-red-500">*</span>
-                    </label>
-                    <div className="flex rounded-lg overflow-hidden border border-slate-300 dark:border-slate-600 text-xs">
-                      <button
-                        type="button"
-                        onClick={() => { setDniMode('images'); setDniPdf(null); }}
-                        className={`px-3 py-1.5 flex items-center gap-1 transition-colors ${dniMode === 'images' ? 'bg-sky-500 text-white' : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600'}`}
-                      >
-                        <Image className="w-3 h-3" /> {t('auth.dniTwoPhotos')}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => { setDniMode('pdf'); setDniPhotoFront(null); setDniPhotoBack(null); }}
-                        className={`px-3 py-1.5 flex items-center gap-1 transition-colors ${dniMode === 'pdf' ? 'bg-sky-500 text-white' : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600'}`}
-                      >
-                        <FileText className="w-3 h-3" /> PDF
-                      </button>
-                    </div>
-                  </div>
-
-                  {dniMode === 'images' ? (
-                    <div className="grid grid-cols-2 gap-3">
-                      {/* ── Frente ── */}
-                      <DniPhotoSlot
-                        label={t('auth.dniFront')}
-                        photo={dniPhotoFront}
-                        onPhoto={setDniPhotoFront}
-                        fileRef={frontInputRef}
-                      />
-                      {/* ── Dorso ── */}
-                      <DniPhotoSlot
-                        label={t('auth.dniBack')}
-                        photo={dniPhotoBack}
-                        onPhoto={setDniPhotoBack}
-                        fileRef={backInputRef}
-                      />
-                    </div>
-                  ) : (
-                    <div>
-                      <input ref={pdfInputRef} type="file" accept="application/pdf" className="hidden"
-                        onChange={(e) => setDniPdf(e.target.files?.[0] ?? null)} />
-                      <button type="button" onClick={() => pdfInputRef.current?.click()}
-                        className={`w-full h-20 rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1 text-xs transition-colors ${dniPdf ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20' : 'border-slate-300 dark:border-slate-600 hover:border-sky-400 hover:bg-slate-50 dark:hover:bg-slate-700'}`}
-                      >
-                        {dniPdf ? (
-                          <>
-                            <FileText className="w-6 h-6 text-sky-500" />
-                            <span className="text-sky-600 dark:text-sky-400 font-medium truncate max-w-full px-2">{dniPdf.name}</span>
-                          </>
-                        ) : (
-                          <>
-                            <Upload className="w-5 h-5 text-slate-400" />
-                            <span className="text-slate-500 dark:text-slate-400">{t('auth.dniPdfBothSides')}</span>
-                          </>
-                        )}
-                      </button>
-                      {dniPdf && (
-                        <button type="button" onClick={() => setDniPdf(null)} className="mt-1 text-xs text-red-500 hover:text-red-600 flex items-center gap-1">
-                          <X className="w-3 h-3" /> {t('auth.remove')}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-                    {t('auth.dniPhotoHelper')}
+                {/* Identity is verified after registration, through Didit only.
+                    The manual upload that used to live here is now a fallback
+                    that unlocks solely once the automated flow has failed. */}
+                <div className="rounded-lg border border-sky-200 dark:border-sky-800 bg-sky-50/60 dark:bg-sky-900/10 p-3 flex items-start gap-2">
+                  <BadgeCheck className="w-4 h-4 text-sky-600 dark:text-sky-400 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-slate-600 dark:text-slate-300">
+                    {t('auth.kycAfterRegister', 'Al terminar el registro vas a verificar tu identidad con documento y selfie. Toma un par de minutos y se hace desde el celular.')}
                   </p>
-
-                  {/* ── Selfie (suma credibilidad al perfil) ── */}
-                  <div className="mt-3">
-                    <div className="max-w-[50%]">
-                      <DniPhotoSlot
-                        label={t('auth.selfieLabel', 'Selfie (suma credibilidad)')}
-                        photo={selfie}
-                        onPhoto={setSelfie}
-                        fileRef={selfieInputRef}
-                      />
-                    </div>
-                    <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400">
-                      {t('auth.selfieHelper', 'Sacate una selfie para confirmar que sos vos. Con la cámara, usá el botón de girar para la cámara frontal.')}
-                    </p>
-                  </div>
                 </div>
+
 
                 <div>
                   <label

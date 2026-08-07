@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,7 @@ import {
   TextInput,
   ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ArrowLeft,
@@ -35,6 +35,10 @@ import { useAuth } from '../context/AuthContext';
 import { updateSettings } from '../services/auth';
 import { post } from '../services/api';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../constants/theme';
+import AttentionDot from '../components/AttentionDot';
+import CredibilityBadge from '../components/CredibilityBadge';
+import PhoneVerification from '../components/PhoneVerification';
+import { usePendingTasks, type SettingsSection } from '../hooks/usePendingTasks';
 
 type SettingsTab = 'general' | 'banking' | 'address';
 
@@ -43,8 +47,48 @@ export default function SettingsScreen() {
   const { isDarkMode, themeMode, setThemeMode, colors: themeColors } = useTheme();
   const { logout, user, refreshUser } = useAuth();
 
+  const { section } = useLocalSearchParams<{ section?: string }>();
+  const { pending, countFor } = usePendingTasks();
+  const scrollRef = useRef<ScrollView>(null);
+  const [verifyOffset, setVerifyOffset] = useState<number | null>(null);
+
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const [saving, setSaving] = useState(false);
+
+  const basicTasks = pending.filter((task) => task.section === 'basic');
+
+  // Mobile settings has its own tab names; map them onto the shared registry.
+  const SECTION_OF_TAB: Record<SettingsTab, SettingsSection | null> = {
+    general: 'basic',
+    banking: 'banking',
+    address: null,
+  };
+
+  const tabDotFor = (tab: SettingsTab) => {
+    const target = SECTION_OF_TAB[tab];
+    if (!target) return null;
+    const count = countFor(target);
+    if (!count) return null;
+    const priority = pending.find((task) => task.section === target)?.priority ?? null;
+    return (
+      <AttentionDot
+        priority={priority}
+        count={count}
+        ringColor={themeColors.background}
+        style={{ marginLeft: 6 }}
+      />
+    );
+  };
+
+  // Deep link from the attention trail: /settings?section=verificacion
+  useEffect(() => {
+    if (section !== 'verificacion' || verifyOffset === null) return;
+    setActiveTab('general');
+    const timer = setTimeout(() => {
+      scrollRef.current?.scrollTo({ y: Math.max(0, verifyOffset - 12), animated: true });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [section, verifyOffset]);
 
   const [notifications, setNotifications] = useState({
     push: true,
@@ -203,11 +247,13 @@ export default function SettingsScreen() {
             <Text style={[styles.tabText, { color: activeTab === tab.key ? colors.primary[600] : themeColors.text.muted }]}>
               {tab.label}
             </Text>
+            {tabDotFor(tab.key)}
           </TouchableOpacity>
         ))}
       </View>
 
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
@@ -340,6 +386,53 @@ export default function SettingsScreen() {
         )}
 
         {activeTab === 'general' && <>
+        {/* Verification — end of the attention trail (Perfil → Configuración → acá) */}
+        <View style={styles.section} onLayout={(e) => setVerifyOffset(e.nativeEvent.layout.y)}>
+          <Text style={[styles.sectionTitle, { color: themeColors.text.muted }]}>
+            Verificar mi perfil
+          </Text>
+          <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+            <View style={{ padding: spacing.md, gap: spacing.sm }}>
+              <CredibilityBadge credibility={user?.credibility} variant="full" />
+
+              {basicTasks.length > 0 && (
+                <View style={{ gap: spacing.xs, marginTop: spacing.sm }}>
+                  <Text style={[styles.inputLabel, { color: themeColors.text.secondary }]}>
+                    Te falta completar:
+                  </Text>
+                  {basicTasks.map((task) => (
+                    <View key={task.id} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm }}>
+                      <AttentionDot
+                        priority={task.priority}
+                        ringColor={themeColors.card}
+                        style={{ marginTop: 5 }}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: themeColors.text.primary, fontSize: fontSize.sm, fontWeight: fontWeight.medium }}>
+                          {task.label}
+                          {task.status === 'in_review' ? ' — en revisión' : ''}
+                          {task.status === 'rejected' ? ' — rechazado' : ''}
+                        </Text>
+                        <Text style={{ color: themeColors.text.muted, fontSize: fontSize.xs }}>
+                          {task.desc}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              <View style={{ marginTop: spacing.sm }}>
+                <PhoneVerification
+                  phone={user?.phone}
+                  verified={user?.phoneVerified}
+                  onVerified={() => refreshUser?.()}
+                />
+              </View>
+            </View>
+          </View>
+        </View>
+
         {/* Appearance */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: themeColors.text.muted }]}>
@@ -706,8 +799,10 @@ const styles = StyleSheet.create({
   },
   tab: {
     flex: 1,
+    flexDirection: 'row',
     paddingVertical: spacing.md,
     alignItems: 'center',
+    justifyContent: 'center',
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
