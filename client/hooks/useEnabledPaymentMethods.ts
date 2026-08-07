@@ -32,11 +32,15 @@ export function useEnabledPaymentMethods() {
       .then((r) => r.json())
       .then((data) => {
         if (cancelled) return;
-        if (data?.success && Array.isArray(data.modules)) {
-          setEnabled(new Set(data.modules.map((m: any) => m.moduleId)));
-        } else {
-          setEnabled(new Set([PAYMENT_MODULE_ID.mercadopago]));
-        }
+        const ids: string[] = data?.success && Array.isArray(data.modules)
+          ? data.modules.map((m: any) => m.moduleId)
+          : [];
+        // An empty module_configs table is "not configured yet", not "every
+        // payment method is disabled". Without this a fresh deployment renders
+        // a checkout with zero methods and no way forward — the endpoint
+        // answers success:true with [], so the error path never fires.
+        const hasAnyPayment = ids.some((id) => id.startsWith('payment:'));
+        setEnabled(new Set(hasAnyPayment ? ids : [PAYMENT_MODULE_ID.mercadopago]));
       })
       .catch(() => {
         if (!cancelled) setEnabled(new Set([PAYMENT_MODULE_ID.mercadopago]));
