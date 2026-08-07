@@ -23,6 +23,8 @@ export const termsEn: Record<string, string> = {
   "s1p": "The Platform is operated by DOAPP, with legal domicile in the Argentine Republic (hereinafter, \"DOAPP\").",
   "s2Title": "2. Service Description",
   "s2p": "DOAPP is a digital technological intermediation platform, under the marketplace and social network model, that connects:",
+  "s2li1": "<b>Clients:</b> natural or legal persons who demand services.",
+  "s2li2": "<b>Workers / Doers:</b> natural persons who offer professional services or trades independently.",
   "s2note": "DOAPP does NOT provide the published services, is NOT an employer, does NOT act as a party to the service contract, its role being limited to facilitating technological tools for contact, payment management, custody of funds, and dispute mediation.",
   "s3Title": "3. Legal Nature of the Relationship",
   "s3p1": "3.1. Workers register and act as independent and autonomous providers, without any employment, corporate, dependency, mandate, agency, or franchise relationship with DOAPP.",
@@ -57,6 +59,7 @@ export const termsEn: Record<string, string> = {
   "planSuperProMonth": "SUPER PRO ($8,999/month)",
   "s7p4": "7.4. Minimum commission: for contracts under $8,000 ARS, a fixed commission of $1,000 ARS will apply.",
   "s7p5": "7.5. DOAPP's commission is non-refundable, even in cases of cancellation or dispute.",
+  "s7p6": "7.6. <b>Automatic release due to Client absence:</b> If a job ends (due date reached) and the Client does not confirm receipt of the service within the following 2 (two) hours, the payment held in custody will be automatically released to the assigned Workers. The Platform commission corresponding to the Client's plan is retained in all cases. The Client will receive notifications before and during this process. This clause does not apply if there is an active dispute over the contract.",
   "s7p7": "7.7. Workers will be notified before the start of the work, during its execution, and at the time of payment release. In the event of the Client's absence in accordance with point 7.6, Workers will receive immediate notice by email and notification on the Platform.",
   "s8Title": "8. Memberships and Subscriptions",
   "s8p1": "8.1. DOAPP offers FREE, PRO, and SUPER PRO plans, with automatic monthly renewal.",
@@ -93,5 +96,6 @@ export const termsEn: Record<string, string> = {
   "s17p": "These Terms are governed by the laws of the Argentine Republic. For consumers, the court of the User's domicile will have jurisdiction in accordance with Law 24.240.",
   "s18Title": "18. Acceptance",
   "s18p": "The User declares to have read, understood, and fully accepted these Terms and Conditions.",
+  "importantNote": "<b>Important note:</b> By registering and using DOAPP, you confirm that you have read, understood, and accepted these Terms and Conditions in full.",
   "acceptAndBack": "I accept the terms, go back",
 };

@@ -23,6 +23,8 @@ export const termsEs: Record<string, string> = {
   "s1p": "La Plataforma es operada por DOAPP, con domicilio legal en la República Argentina (en adelante, \"DOAPP\").",
   "s2Title": "2. Descripción del Servicio",
   "s2p": "DOAPP es una plataforma digital de intermediación tecnológica, bajo el modelo de marketplace y red social, que permite vincular:",
+  "s2li1": "<b>Clientes:</b> personas humanas o jurídicas que demandan servicios.",
+  "s2li2": "<b>Trabajadores / Doers:</b> personas humanas que ofrecen servicios profesionales u oficios de manera independiente.",
   "s2note": "DOAPP NO presta los servicios publicados, NO es empleador, NO actúa como parte del contrato de prestación de servicios, limitándose su rol a facilitar herramientas tecnológicas de contacto, gestión de pagos, custodia de fondos y mediación en disputas.",
   "s3Title": "3. Naturaleza Jurídica de la Relación",
   "s3p1": "3.1. Los Trabajadores se registran y actúan como prestadores independientes y autónomos, sin que exista relación laboral, societaria, de dependencia, mandato, agencia o franquicia con DOAPP.",
@@ -57,6 +59,7 @@ export const termsEs: Record<string, string> = {
   "planSuperProMonth": "SUPER PRO ($8.999/mes)",
   "s7p4": "7.4. Comisión mínima: para contratos inferiores a $8.000 ARS se aplicará una comisión fija de $1.000 ARS.",
   "s7p5": "7.5. La comisión de DOAPP no es reembolsable, incluso en casos de cancelación o disputa.",
+  "s7p6": "7.6. <b>Liberación automática por ausencia del Cliente:</b> Si un trabajo finaliza (fecha de vencimiento alcanzada) y el Cliente no confirma la recepción del servicio dentro de las 2 (dos) horas siguientes, el pago retenido en custodia será liberado automáticamente a los Trabajadores asignados. La comisión de la Plataforma correspondiente al plan del Cliente se retiene en todos los casos. El Cliente recibirá notificaciones previas y durante este proceso. Esta cláusula no aplica si existe una disputa activa sobre el contrato.",
   "s7p7": "7.7. Los Trabajadores serán notificados antes del inicio del trabajo, durante su ejecución y al momento de la liberación del pago. En caso de ausencia del Cliente conforme al punto 7.6, los Trabajadores recibirán aviso inmediato por email y notificación en la Plataforma.",
   "s8Title": "8. Membresías y Suscripciones",
   "s8p1": "8.1. DOAPP ofrece planes FREE, PRO y SUPER PRO, con renovación automática mensual.",
@@ -93,5 +96,6 @@ export const termsEs: Record<string, string> = {
   "s17p": "Los presentes Términos se rigen por las leyes de la República Argentina. Para los consumidores, será competente el tribunal del domicilio del Usuario conforme Ley 24.240.",
   "s18Title": "18. Aceptación",
   "s18p": "El Usuario declara haber leído, comprendido y aceptado íntegramente los presentes Términos y Condiciones.",
+  "importantNote": "<b>Nota importante:</b> Al registrarte y utilizar DOAPP, confirmas que has leído, entendido y aceptado estos Términos y Condiciones en su totalidad.",
   "acceptAndBack": "Acepto los términos, volver",
 };

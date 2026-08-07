@@ -6,6 +6,9 @@ import es from './locales/es.json';
 // Merged into the `termsPage` namespace here rather than duplicated in the
 // locale JSONs — mobile has no i18n runtime and imports the same module.
 import { termsEs } from '../../shared/legal/terms.es';
+import { privacyEs } from '../../shared/legal/privacy.es';
+import { cookiesEs } from '../../shared/legal/cookies.es';
+import { disputesEs } from '../../shared/legal/disputes.es';
 
 if (!localStorage.getItem('language')) {
   localStorage.setItem('language', 'es');
@@ -22,7 +25,15 @@ i18n
   .use(initReactI18next)
   .init({
     resources: {
-      es: { translation: { ...es, termsPage: termsEs } },
+      es: {
+        translation: {
+          ...es,
+          termsPage: termsEs,
+          privacy: privacyEs,
+          cookies: cookiesEs,
+          disputeRes: disputesEs,
+        },
+      },
     },
     lng: initialLng,
     fallbackLng: 'es',
@@ -47,8 +58,17 @@ async function ensureEnglishBundle(): Promise<void> {
     enLoading = Promise.all([
       import('./locales/en.json'),
       import('../../shared/legal/terms.en'),
-    ]).then(([bundle, terms]) => {
-      i18n.addResourceBundle('en', 'translation', { ...bundle.default, termsPage: terms.termsEn }, true, true);
+      import('../../shared/legal/privacy.en'),
+      import('../../shared/legal/cookies.en'),
+      import('../../shared/legal/disputes.en'),
+    ]).then(([bundle, terms, privacy, cookies, disputes]) => {
+      i18n.addResourceBundle('en', 'translation', {
+        ...bundle.default,
+        termsPage: terms.termsEn,
+        privacy: privacy.privacyEn,
+        cookies: cookies.cookiesEn,
+        disputeRes: disputes.disputesEn,
+      }, true, true);
     });
   }
   await enLoading;
