@@ -316,4 +316,199 @@ router.get('/tickets/export.csv', async (req: AuthRequest, res: Response) => {
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
 
+// ── MATRÍCULAS (profesionales) ──────────────────────────────────────────
+// A user counts as professional the same way User.getCredibilityInfo() decides
+// it, so this registry and the credibility ladder can never disagree.
+const LICENSE_COLS = [
+  { key: 'name', label: 'Profesional' },
+  { key: 'email', label: 'Email' },
+  { key: 'profession', label: 'Profesión' },
+  { key: 'licenseNumber', label: 'Nº matrícula' },
+  { key: 'licenseCategory', label: 'Categoría' },
+  { key: 'licenseCertNumber', label: 'Nº certificado' },
+  { key: 'licenseStatus', label: 'Estado matrícula' },
+  { key: 'hasLicenseDoc', label: 'Documento' },
+  { key: 'licenseRejectedReason', label: 'Motivo rechazo' },
+  { key: 'licenseVerifiedByName', label: 'Verificada por' },
+  { key: 'licenseVerifiedAt', label: 'Fecha verificación' },
+  { key: 'insuranceStatus', label: 'Estado seguro' },
+  { key: 'insuranceExpiresAt', label: 'Vence seguro' },
+  { key: 'dniVerified', label: 'Identidad' },
+  { key: 'createdAt', label: 'Registrado' },
+] as const;
+
+/**
+ * A professional with no document at all still belongs in the registry — that
+ * is precisely the row an admin is looking for. So "missing" is a value here,
+ * never a reason to filter the person out. `missing` names what is absent so
+ * the label reads the same way in each registry ("falta seguro" vs "falta
+ * matrícula") instead of a generic "sin documento".
+ */
+function verificationLabel(verified: boolean, status: string | null, hasDoc: boolean, missing = 'documento'): string {
+  if (verified) return 'aprobada';
+  if (status === 'rejected') return 'rechazada';
+  if (hasDoc) return 'pendiente';
+  return `falta ${missing}`;
+}
+
+/**
+ * Who belongs in the professional registries. Shared by matrículas and seguros
+ * so the two can never show different populations — a professional missing a
+ * document must still appear, with the gap shown as a value in the row.
+ *
+ * Deliberately a superset of User.getCredibilityInfo()'s `isProfessional`
+ * (profession | licenseNumber | licenseDocumentUrl): it also catches anyone
+ * holding an insurance document. A registry that is narrower than the rule
+ * driving the users' pending tasks would hide exactly the people being chased;
+ * being wider only costs an extra row.
+ */
+const PROFESSIONAL_SCOPE = [
+  { profession: { [Op.ne]: null } },
+  { licenseNumber: { [Op.ne]: null } },
+  { licenseDocumentUrl: { [Op.ne]: null } },
+  { insuranceDocumentUrl: { [Op.ne]: null } },
+];
+
+async function licenseRecords(search: string, status: string) {
+  const where: any = { [Op.or]: PROFESSIONAL_SCOPE };
+  if (search?.trim()) {
+    where[Op.and] = [{
+      [Op.or]: [
+        { name: { [Op.iLike]: `%${search.trim()}%` } },
+        { email: { [Op.iLike]: `%${search.trim()}%` } },
+        { licenseNumber: { [Op.iLike]: `%${search.trim()}%` } },
+      ],
+    }];
+  }
+
+  const users = await User.findAll({ where, order: [['createdAt', 'DESC']], limit: 5000 });
+  const verifiers = await nameMap(users.map((u: any) => u.licenseVerifiedBy));
+
+  const rows = users.map((u: any) => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    profession: u.profession,
+    licenseNumber: u.licenseNumber,
+    licenseCategory: u.licenseCategory,
+    licenseCertNumber: u.licenseCertNumber,
+    licenseStatus: verificationLabel(!!u.licenseVerified, u.licenseVerificationStatus, !!u.licenseDocumentUrl, 'matrícula'),
+    hasLicenseDoc: !!u.licenseDocumentUrl,
+    licenseDocumentUrl: u.licenseDocumentUrl,
+    licenseRejectedReason: u.licenseRejectedReason,
+    licenseVerifiedByName: verifiers[u.licenseVerifiedBy] || '',
+    licenseVerifiedAt: u.licenseVerifiedAt,
+    insuranceStatus: verificationLabel(!!u.insuranceVerified, u.insuranceVerificationStatus, !!u.insuranceDocumentUrl, 'seguro'),
+    insuranceExpiresAt: u.insuranceExpiresAt,
+    dniVerified: !!u.dniVerified,
+    createdAt: u.createdAt,
+  }));
+
+  // Filter on the derived label so the admin can pull "todo lo pendiente" in one go.
+  return status ? rows.filter((r) => r.licenseStatus === status) : rows;
+}
+
+router.get('/licenses', async (req: AuthRequest, res: Response) => {
+  try {
+    const { page = 1, limit = 25, search = '', status = '' } = req.query as any;
+    const all = await licenseRecords(search, status);
+    const start = (Number(page) - 1) * Number(limit);
+    res.json({ success: true, data: all.slice(start, start + Number(limit)),
+      pagination: { total: all.length, page: Number(page), limit: Number(limit), totalPages: Math.ceil(all.length / Number(limit)) } });
+  } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
+});
+router.get('/licenses/export.csv', async (req: AuthRequest, res: Response) => {
+  try {
+    const q = req.query as any;
+    const all = await licenseRecords(q.search || '', q.status || '');
+    sendCsv(res, 'matriculas', LICENSE_COLS as any, all.map((r: any) => LICENSE_COLS.map((c) => csvCell(r[c.key]))));
+  } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
+});
+
+// ── SEGUROS ─────────────────────────────────────────────────────────────
+// Same population as the licence registry (professionals), viewed through the
+// insurance columns, plus expiry tracking the licence registry has no use for.
+const INSURANCE_COLS = [
+  { key: 'name', label: 'Profesional' },
+  { key: 'email', label: 'Email' },
+  { key: 'profession', label: 'Profesión' },
+  { key: 'insuranceStatus', label: 'Estado seguro' },
+  { key: 'hasInsuranceDoc', label: 'Póliza' },
+  { key: 'insuranceRejectedReason', label: 'Motivo rechazo' },
+  { key: 'insuranceVerifiedByName', label: 'Verificado por' },
+  { key: 'insuranceVerifiedAt', label: 'Fecha verificación' },
+  { key: 'insuranceExpiresAt', label: 'Vencimiento' },
+  { key: 'expiryState', label: 'Vigencia' },
+  { key: 'licenseStatus', label: 'Estado matrícula' },
+  { key: 'createdAt', label: 'Registrado' },
+] as const;
+
+function expiryState(expiresAt: Date | null, verified: boolean): string {
+  if (!verified) return '—';
+  if (!expiresAt) return 'sin vencimiento';
+  const days = Math.ceil((new Date(expiresAt).getTime() - Date.now()) / 86400000);
+  if (days < 0) return 'vencido';
+  if (days <= 30) return `vence en ${days}d`;
+  return 'vigente';
+}
+
+async function insuranceRecords(search: string, status: string) {
+  const where: any = { [Op.or]: PROFESSIONAL_SCOPE };
+  if (search?.trim()) {
+    where[Op.and] = [{
+      [Op.or]: [
+        { name: { [Op.iLike]: `%${search.trim()}%` } },
+        { email: { [Op.iLike]: `%${search.trim()}%` } },
+      ],
+    }];
+  }
+
+  const users = await User.findAll({ where, order: [['createdAt', 'DESC']], limit: 5000 });
+  const verifiers = await nameMap(users.map((u: any) => u.insuranceVerifiedBy));
+
+  const rows = users.map((u: any) => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    profession: u.profession,
+    insuranceStatus: verificationLabel(!!u.insuranceVerified, u.insuranceVerificationStatus, !!u.insuranceDocumentUrl, 'seguro'),
+    hasInsuranceDoc: !!u.insuranceDocumentUrl,
+    insuranceDocumentUrl: u.insuranceDocumentUrl,
+    insuranceRejectedReason: u.insuranceRejectedReason,
+    insuranceVerifiedByName: verifiers[u.insuranceVerifiedBy] || '',
+    insuranceVerifiedAt: u.insuranceVerifiedAt,
+    insuranceExpiresAt: u.insuranceExpiresAt,
+    expiryState: expiryState(u.insuranceExpiresAt, !!u.insuranceVerified),
+    licenseStatus: verificationLabel(!!u.licenseVerified, u.licenseVerificationStatus, !!u.licenseDocumentUrl, 'matrícula'),
+    createdAt: u.createdAt,
+  }));
+
+  // `status` filters the derived label, plus two expiry-only shortcuts that are
+  // the whole reason this registry exists separately from matrículas.
+  if (!status) return rows;
+  if (status === 'vencido' || status === 'por_vencer') {
+    return rows.filter((r) =>
+      status === 'vencido' ? r.expiryState === 'vencido' : r.expiryState.startsWith('vence en'),
+    );
+  }
+  return rows.filter((r) => r.insuranceStatus === status);
+}
+
+router.get('/insurances', async (req: AuthRequest, res: Response) => {
+  try {
+    const { page = 1, limit = 25, search = '', status = '' } = req.query as any;
+    const all = await insuranceRecords(search, status);
+    const start = (Number(page) - 1) * Number(limit);
+    res.json({ success: true, data: all.slice(start, start + Number(limit)),
+      pagination: { total: all.length, page: Number(page), limit: Number(limit), totalPages: Math.ceil(all.length / Number(limit)) } });
+  } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
+});
+router.get('/insurances/export.csv', async (req: AuthRequest, res: Response) => {
+  try {
+    const q = req.query as any;
+    const all = await insuranceRecords(q.search || '', q.status || '');
+    sendCsv(res, 'seguros', INSURANCE_COLS as any, all.map((r: any) => INSURANCE_COLS.map((c) => csvCell(r[c.key]))));
+  } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
+});
+
 export default router;

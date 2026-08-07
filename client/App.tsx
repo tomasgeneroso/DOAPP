@@ -592,6 +592,39 @@ export default function App() {
                 { key: 'creator', label: 'Creado por' },
                 { key: 'createdAt', label: 'Creado', type: 'date' },
               ]} />} />
+              <Route path="padrones/licenses" element={<AdminPadron entity="licenses" title="Padrón de matrículas" columns={[
+                { key: 'name', label: 'Profesional' },
+                { key: 'email', label: 'Email' },
+                { key: 'profession', label: 'Profesión' },
+                { key: 'licenseNumber', label: 'Nº matrícula' },
+                { key: 'licenseCategory', label: 'Categoría' },
+                { key: 'licenseStatus', label: 'Estado matrícula' },
+                { key: 'hasLicenseDoc', label: 'Documento', type: 'bool' },
+                { key: 'licenseVerifiedByName', label: 'Verificada por' },
+                { key: 'licenseVerifiedAt', label: 'Fecha verif.', type: 'date' },
+                { key: 'insuranceStatus', label: 'Seguro' },
+                { key: 'insuranceExpiresAt', label: 'Vence seguro', type: 'date' },
+                { key: 'dniVerified', label: 'Identidad', type: 'bool' },
+                { key: 'createdAt', label: 'Registrado', type: 'date' },
+              ]} />} />
+              <Route path="padrones/insurances" element={<AdminPadron entity="insurances" title="Padrón de seguros" columns={[
+                { key: 'name', label: 'Profesional' },
+                { key: 'email', label: 'Email' },
+                { key: 'profession', label: 'Profesión' },
+                { key: 'insuranceStatus', label: 'Estado seguro' },
+                { key: 'hasInsuranceDoc', label: 'Póliza', type: 'bool' },
+                { key: 'insuranceVerifiedByName', label: 'Verificado por' },
+                { key: 'insuranceVerifiedAt', label: 'Fecha verif.', type: 'date' },
+                { key: 'insuranceExpiresAt', label: 'Vencimiento', type: 'date' },
+                { key: 'expiryState', label: 'Vigencia' },
+                { key: 'licenseStatus', label: 'Matrícula' },
+                { key: 'createdAt', label: 'Registrado', type: 'date' },
+              ]}
+              rowTone={(r) => r.expiryState === 'vencido' ? 'danger' : String(r.expiryState || '').startsWith('vence en') ? 'warning' : null}
+              legend={[
+                { tone: 'danger', label: 'Seguro vencido' },
+                { tone: 'warning', label: 'Vence en 30 días o menos' },
+              ]} />} />
               <Route path="roles" element={<AdminRoles />} />
               <Route path="role-permissions" element={<AdminRolePermissions />} />
               <Route path="analytics" element={<AdminAnalytics />} />

@@ -6,10 +6,20 @@ import { Search, Download, Loader2, Database } from "lucide-react";
 export interface PadronColumn {
   key: string;
   label: string;
-  type?: "date" | "money" | "text";
+  type?: "date" | "money" | "text" | "bool";
 }
 
+/** Severity a row can carry, worst first. Kept generic so any registry can opt in. */
+export type PadronTone = "danger" | "warning" | "muted";
+
+const TONE_ROW: Record<PadronTone, string> = {
+  danger: "bg-red-50 dark:bg-red-900/20",
+  warning: "bg-amber-50 dark:bg-amber-900/20",
+  muted: "bg-slate-50 dark:bg-slate-900/40 text-gray-500 dark:text-gray-400",
+};
+
 const fmt = (v: any, type?: string) => {
+  if (type === "bool") return v ? "Sí" : "No";
   if (v === null || v === undefined || v === "") return "—";
   if (type === "date") return new Date(v).toLocaleDateString("es-AR");
   if (type === "money") return `$${Number(v).toLocaleString("es-AR")}`;
@@ -25,11 +35,17 @@ export default function Padron({
   title,
   columns,
   searchable = true,
+  rowTone,
+  legend,
 }: {
   entity: string; // 'jobs' | 'contracts' | 'disputes'
   title: string;
   columns: PadronColumn[];
   searchable?: boolean;
+  /** Optional per-row severity tint, e.g. insurance about to expire. */
+  rowTone?: (row: any) => PadronTone | null | undefined;
+  /** Legend chips describing what the tints mean. */
+  legend?: Array<{ tone: PadronTone; label: string }>;
 }) {
   const { token } = useAuth();
   const [rows, setRows] = useState<any[]>([]);
@@ -95,7 +111,15 @@ export default function Padron({
           Exportar CSV
         </button>
       </div>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">{total} registros.</p>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4">
+        <p className="text-sm text-gray-500 dark:text-gray-400">{total} registros.</p>
+        {legend?.map((l) => (
+          <span key={l.tone} className="inline-flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300">
+            <span className={`inline-block h-3 w-3 rounded border border-gray-300 dark:border-gray-600 ${TONE_ROW[l.tone]}`} />
+            {l.label}
+          </span>
+        ))}
+      </div>
 
       {searchable && (
         <div className="relative max-w-md mb-4">
@@ -116,15 +140,18 @@ export default function Padron({
               <tr><td colSpan={columns.length} className="px-3 py-12 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-sky-500" /></td></tr>
             ) : rows.length === 0 ? (
               <tr><td colSpan={columns.length} className="px-3 py-12 text-center text-gray-500 dark:text-gray-400">Sin resultados.</td></tr>
-            ) : rows.map((r) => (
-              <tr key={r.id} className="text-gray-800 dark:text-gray-200">
+            ) : rows.map((r) => {
+              const tone = rowTone?.(r);
+              return (
+              <tr key={r.id} className={`text-gray-800 dark:text-gray-200 ${tone ? TONE_ROW[tone] : ""}`}>
                 {columns.map((c) => (
                   <td key={c.key} className="px-3 py-2 max-w-[280px] truncate" title={String(r[c.key] ?? "")}>
                     {fmt(r[c.key], c.type)}
                   </td>
                 ))}
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

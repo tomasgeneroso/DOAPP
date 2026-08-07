@@ -32,6 +32,8 @@ import {
   ShieldOff,
   Database,
   Star,
+  BadgeCheck,
+  ShieldCheck,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -127,6 +129,8 @@ export default function AdminLayout() {
         { path: "/admin/padrones/withdrawals", icon: ArrowDownLeft, label: t('admin.sidebar.padronWithdrawals', 'Padrón de retiros'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/padrones/reviews", icon: Star, label: t('admin.sidebar.padronReviews', 'Padrón de reseñas'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/padrones/tickets", icon: TicketIcon, label: t('admin.sidebar.padronTickets', 'Padrón de tickets'), roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin/padrones/licenses", icon: BadgeCheck, label: t('admin.sidebar.padronLicenses', 'Padrón de matrículas'), roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin/padrones/insurances", icon: ShieldCheck, label: t('admin.sidebar.padronInsurances', 'Padrón de seguros'), roles: ["owner", "super_admin", "admin"] },
       ]
     },
     {
