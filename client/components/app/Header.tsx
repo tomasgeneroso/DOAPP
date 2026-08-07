@@ -25,6 +25,8 @@ import { useTheme } from "../../hooks/useTheme";
 import { Sun, Moon, Globe } from "lucide-react";
 import InvitationCodesModal from "../InvitationCodesModal";
 import NotificationDropdown from "../NotificationDropdown";
+import AttentionDot from "../AttentionDot";
+import { usePendingTasks } from "../../hooks/usePendingTasks";
 import analytics from "../../utils/analytics";
 
 export default function Header() {
@@ -32,6 +34,7 @@ export default function Header() {
   const { user, logout, token } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const { registerUnreadUpdateHandler } = useSocket();
+  const { hasPending, pending, highestPriority } = usePendingTasks();
   const navigate = useNavigate();
   const location = useLocation();
   const isVisitorHome = !user && location.pathname === '/';
@@ -325,6 +328,15 @@ export default function Header() {
                 />
               </button>
 
+              {/* Start of the attention trail: avatar → Configuración → pestaña → sección */}
+              {hasPending && (
+                <AttentionDot
+                  floating
+                  priority={highestPriority}
+                  label={`Tenés ${pending.length} ${pending.length === 1 ? "acción pendiente" : "acciones pendientes"} en tu perfil`}
+                />
+              )}
+
               {/* Menú desplegable */}
               {isMenuOpen && (
                 <div
@@ -368,7 +380,8 @@ export default function Header() {
                       role="menuitem"
                     >
                       <Settings className="h-4 w-4" aria-hidden="true" />
-                      {t('nav.settings')}
+                      <span className="flex-1">{t('nav.settings')}</span>
+                      {hasPending && <AttentionDot priority={highestPriority} count={pending.length} />}
                     </Link>
                     <Link
                       to="/help"

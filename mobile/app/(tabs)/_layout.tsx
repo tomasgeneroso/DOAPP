@@ -3,8 +3,19 @@ import { View, StyleSheet, Platform } from 'react-native';
 import { Home, Search, Plus, MessageCircle, User } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { colors, spacing, borderRadius } from '../../constants/theme';
+import AttentionDot from '../../components/AttentionDot';
+import { usePendingTasks } from '../../hooks/usePendingTasks';
 
-const TabIcon = ({ name, focused }: { name: string; focused: boolean }) => {
+const TabIcon = ({
+  name,
+  focused,
+  dot,
+}: {
+  name: string;
+  focused: boolean;
+  /** Start of the mobile attention trail: Perfil → Configuración → Verificación. */
+  dot?: React.ReactNode;
+}) => {
   const { colors: themeColors } = useTheme();
   const activeColor = themeColors.primary[600];
   const inactiveColor = themeColors.text.muted;
@@ -25,6 +36,7 @@ const TabIcon = ({ name, focused }: { name: string; focused: boolean }) => {
   return (
     <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
       {icons[name] || icons.home}
+      {dot ? <View style={styles.tabDot}>{dot}</View> : null}
     </View>
   );
 };
@@ -37,6 +49,7 @@ const CreateTabIcon = ({ focused }: { focused: boolean }) => (
 
 export default function TabsLayout() {
   const { colors: themeColors, isDarkMode } = useTheme();
+  const { hasPending, highestPriority } = usePendingTasks();
 
   return (
     <Tabs
@@ -92,7 +105,21 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: 'Perfil',
-          tabBarIcon: ({ focused }) => <TabIcon name="profile" focused={focused} />,
+          tabBarIcon: ({ focused }) => (
+            <TabIcon
+              name="profile"
+              focused={focused}
+              dot={
+                hasPending ? (
+                  // Ring matches the tab bar surface so the dot reads as a cutout.
+                  <AttentionDot
+                    priority={highestPriority}
+                    ringColor={isDarkMode ? '#0f1624' : '#ffffff'}
+                  />
+                ) : null
+              }
+            />
+          ),
         }}
       />
     </Tabs>
@@ -135,6 +162,11 @@ const styles = StyleSheet.create({
   },
   iconWrapActive: {
     backgroundColor: colors.primary[50],
+  },
+  tabDot: {
+    position: 'absolute',
+    top: 2,
+    right: 10,
   },
   // Botón "Publicar" — pill flotante con gradiente
   createBtn: {

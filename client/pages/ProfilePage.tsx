@@ -11,6 +11,8 @@ import MultipleRatings from '../components/user/MultipleRatings';
 import CredibilityBadge from '../components/CredibilityBadge';
 import PhoneVerification from '../components/PhoneVerification';
 import KycButton from '../components/KycButton';
+import AttentionDot from '../components/AttentionDot';
+import { usePendingTasks } from '../hooks/usePendingTasks';
 import VerifiedBadge from '../components/VerifiedBadge';
 import PostCard from '../components/user/PostCard';
 import CreatePost from '../components/user/CreatePost';
@@ -57,6 +59,9 @@ export default function ProfilePage() {
   const { userId, username } = useParams<{ userId?: string; username?: string }>();
   const { t } = useTranslation();
   const { user: currentUser, token } = useAuth();
+  // Reads the logged-in user, not the profile being viewed — only rendered
+  // inside isOwnProfile().
+  const profileTasks = usePendingTasks();
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -852,7 +857,18 @@ export default function ProfilePage() {
               )}
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 Subí tu DNI, selfie{(user as any).credibility.isProfessional ? ', matrícula y seguro' : ''} desde{' '}
-                <Link to="/settings" className="text-sky-600 dark:text-sky-400 hover:underline">Configuración</Link>{' '}
+                <Link
+                  to="/settings?tab=basic#verificacion"
+                  className="inline-flex items-center gap-1.5 text-sky-600 dark:text-sky-400 hover:underline font-medium"
+                >
+                  Configuración
+                  {profileTasks.hasPending && (
+                    <AttentionDot
+                      priority={profileTasks.highestPriority}
+                      count={profileTasks.pending.length}
+                    />
+                  )}
+                </Link>{' '}
                 para subir tu credibilidad.
               </p>
             </div>

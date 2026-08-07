@@ -5,6 +5,7 @@ import { useAuth } from "../hooks/useAuth";
 import { useSocket } from "../hooks/useSocket";
 import { SkeletonDashboardCard } from "../components/ui/Skeleton";
 import MultipleRatings from "../components/user/MultipleRatings";
+import { usePendingTasks } from "../hooks/usePendingTasks";
 import {
   TrendingUp,
   TrendingDown,
@@ -36,6 +37,7 @@ interface DashboardStats {
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const { modalTasks } = usePendingTasks();
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { registerDashboardRefreshHandler, registerContractUpdateHandler, registerProposalUpdateHandler, registerJobUpdateHandler } = useSocket();
@@ -56,16 +58,12 @@ export default function Dashboard() {
   // Prompt the user to complete the data required to publish jobs / work
   useEffect(() => {
     if (!user) return;
-    const u = user as any;
-    const missing =
-      (!u.dni || u.needsDni) ||
-      !u.dniVerified ||
-      !u.phone ||
-      !u.bankingInfo?.cbu;
+    // The modal is snoozeable for 24h; the attention dots are not, so a user who
+    // dismisses this still keeps a visible path back to the pending task.
     const dismissedAt = Number(localStorage.getItem('completeProfileDismissedAt') || 0);
     const recentlyDismissed = Date.now() - dismissedAt < 24 * 60 * 60 * 1000; // 24h
-    if (missing && !recentlyDismissed) setShowCompleteProfile(true);
-  }, [user]);
+    if (modalTasks.length > 0 && !recentlyDismissed) setShowCompleteProfile(true);
+  }, [user, modalTasks.length]);
 
   // Determinar si el usuario es FREE
   const isFreeUser = !user?.membershipTier || user?.membershipTier === 'free';
@@ -347,14 +345,15 @@ export default function Dashboard() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 relative">
       {/* Complete-profile modal: required data to publish jobs / work */}
       {showCompleteProfile && (() => {
-        const u = user as any;
-        const items = [
-          { ok: !!u.dni && !u.needsDni, label: t('dashboard.completeProfile.dniLabel', 'Número de DNI'), desc: t('dashboard.completeProfile.dniDesc', 'Necesario para verificar tu identidad.'), to: '/profile' },
-          { ok: !!u.dniVerified, label: t('dashboard.completeProfile.identityLabel', 'Verificación de identidad'), desc: t('dashboard.completeProfile.identityDesc', 'Subí las fotos de tu DNI (frente y dorso) para poder trabajar y publicar.'), to: '/profile' },
-          { ok: !!u.phone, label: t('dashboard.completeProfile.phoneLabel', 'Teléfono'), desc: t('dashboard.completeProfile.phoneDesc', 'Para poder contactarte sobre tus trabajos.'), to: '/settings' },
-          { ok: !!u.bankingInfo?.cbu, label: t('dashboard.completeProfile.bankingLabel', 'Datos bancarios (CBU)'), desc: t('dashboard.completeProfile.bankingDesc', 'Para recibir tus pagos cuando trabajes.'), to: '/settings?tab=banking' },
-        ];
-        const pending = items.filter((i) => !i.ok);
+        // Single source of truth (usePendingTasks) — the hardcoded list that used
+        // to live here could disagree with the attention dots. `modalTasks` keeps
+        // this modal limited to the same four items it always blocked on, even
+        // though more tasks now raise a dot.
+        const pending = modalTasks.map((task) => ({
+          label: t(task.labelKey, task.label),
+          desc: t(task.descKey, task.desc),
+          to: task.to,
+        }));
         if (pending.length === 0) return null;
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
@@ -386,7 +385,9 @@ export default function Dashboard() {
                   {t('dashboard.completeProfile.later', 'Más tarde')}
                 </button>
                 <Link
-                  to="/profile"
+                  // Lands on the section that actually resolves the top task
+                  // instead of dropping the user on the profile to hunt for it.
+                  to={modalTasks[0]?.to || '/profile'}
                   onClick={() => setShowCompleteProfile(false)}
                   className="flex-1 text-center px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-sm font-semibold"
                 >

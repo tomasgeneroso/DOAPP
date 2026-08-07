@@ -20,6 +20,8 @@ import { get } from '../../services/api';
 import CredibilityBadge from '../../components/CredibilityBadge';
 import PhoneVerification from '../../components/PhoneVerification';
 import VerifiedBadge from '../../components/VerifiedBadge';
+import AttentionDot from '../../components/AttentionDot';
+import { usePendingTasks } from '../../hooks/usePendingTasks';
 
 interface DashboardStats {
   totalEarnings: number;
@@ -37,6 +39,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { user, logout, isAuthenticated, isLoading, refreshUser } = useAuth();
   const { isDarkMode, setThemeMode, colors: themeColors } = useTheme();
+  const pendingTasks = usePendingTasks();
   const [loggingOut, setLoggingOut] = useState(false);
   const [statsLoading, setStatsLoading] = useState(true);
   const [stats, setStats] = useState<DashboardStats>({
@@ -465,7 +468,21 @@ export default function ProfileScreen() {
             <MenuItem icon="🏆" label={`Dashboard ${membershipBadge.label}`} onPress={() => router.push('/pro-dashboard')} themeColors={themeColors} />
           )}
           <MenuItem icon="🎁" label="Referidos" onPress={() => router.push('/referrals')} themeColors={themeColors} />
-          <MenuItem icon="⚙️" label="Configuracion" onPress={() => router.push('/settings')} themeColors={themeColors} />
+          <MenuItem
+            icon="⚙️"
+            label="Configuracion"
+            onPress={() => router.push(pendingTasks.hasPending ? '/settings?section=verificacion' : '/settings')}
+            themeColors={themeColors}
+            dot={
+              pendingTasks.hasPending ? (
+                <AttentionDot
+                  priority={pendingTasks.highestPriority}
+                  count={pendingTasks.pending.length}
+                  ringColor={themeColors.card}
+                />
+              ) : null
+            }
+          />
           <MenuItem icon="❓" label="Ayuda" onPress={() => router.push('/help')} themeColors={themeColors} last />
         </View>
 
@@ -512,12 +529,14 @@ function RatingRow({ label, value, color }: { label: string; value: number; colo
   );
 }
 
-function MenuItem({ icon, label, onPress, themeColors, badge, last }: {
+function MenuItem({ icon, label, onPress, themeColors, badge, dot, last }: {
   icon: string;
   label: string;
   onPress: () => void;
   themeColors: any;
   badge?: string;
+  /** Attention marker for rows that lead to a pending task. */
+  dot?: React.ReactNode;
   last?: boolean;
 }) {
   return (
@@ -533,6 +552,7 @@ function MenuItem({ icon, label, onPress, themeColors, badge, last }: {
           <Text style={styles.upgradeTagText}>{badge}</Text>
         </View>
       )}
+      {dot}
       <Text style={[styles.menuArrow, { color: themeColors.text.muted }]}>›</Text>
     </TouchableOpacity>
   );
