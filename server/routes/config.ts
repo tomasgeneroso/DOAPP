@@ -1,7 +1,30 @@
 import { Router, Response, Request } from 'express';
 import { ModuleConfig } from '../models/sql/ModuleConfig.model.js';
+import astropayService from '../services/astropay.js';
 
 const router = Router();
+
+/**
+ * Runtime availability checks for modules whose usefulness depends on
+ * credentials rather than on the admin toggle.
+ *
+ * The `module_configs` row says what an admin *wants* enabled; this says what
+ * the deployment can actually deliver. AstroPay was flagged active in the DB
+ * with no merchant credentials, so checkout advertised it and then failed with
+ * "AstroPay no está configurado" the moment anyone chose it. A module must
+ * clear both gates to be published.
+ *
+ * Default is permissive: a module with no entry here is governed by its DB flag
+ * alone, so adding a provider never silently hides it.
+ */
+const PROVIDER_AVAILABLE: Record<string, () => boolean> = {
+  'payment:astropay': () => astropayService.isAvailable(),
+};
+
+function isDeliverable(moduleId: string): boolean {
+  const check = PROVIDER_AVAILABLE[moduleId];
+  return check ? check() : true;
+}
 
 /**
  * GET /api/config/modules
@@ -22,16 +45,21 @@ router.get('/modules', async (_req: Request, res: Response) => {
           modules: (global as any).moduleConfigCache,
           cached: true,
         });
+        // Without this the handler carried on to query the DB and respond a
+        // second time (ERR_HTTP_HEADERS_SENT on every cache hit).
+        return;
       }
     }
 
     // Obtener de la BD
     const modules = await ModuleConfig.findAll({ where: { isActive: true } });
-    const activeModules = modules.map((m) => ({
-      moduleId: m.moduleId,
-      category: m.category,
-      name: m.name,
-    }));
+    const activeModules = modules
+      .filter((m) => isDeliverable(m.moduleId))
+      .map((m) => ({
+        moduleId: m.moduleId,
+        category: m.category,
+        name: m.name,
+      }));
 
     // Guardar en caché
     (global as any).moduleConfigCache = activeModules;
@@ -49,7 +77,9 @@ router.get('/modules', async (_req: Request, res: Response) => {
       success: true,
       modules: [
         { moduleId: 'payment:mercadopago', category: 'payment', name: 'MercadoPago' },
-        { moduleId: 'payment:astropay', category: 'payment', name: 'AstroPay' },
+        // AstroPay intentionally absent: this fallback runs when the DB lookup
+        // fails, and advertising a provider without credentials is what caused
+        // the "AstroPay no está configurado" crash at checkout.
         { moduleId: 'payment:binance', category: 'payment', name: 'Binance Pay' },
         { moduleId: 'dashboard:analytics', category: 'dashboard', name: 'Analytics' },
         { moduleId: 'dashboard:performance', category: 'dashboard', name: 'Performance' },

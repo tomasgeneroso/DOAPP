@@ -20,8 +20,8 @@ const DEFAULT_MODULES = [
     moduleId: 'payment:astropay',
     category: 'payment',
     name: 'AstroPay',
-    description: 'Pagos via AstroPay',
-    isActive: true,
+    description: 'Pagos via AstroPay (sin credenciales de comercio — desactivado)',
+    isActive: false,
   },
   {
     moduleId: 'payment:binance',

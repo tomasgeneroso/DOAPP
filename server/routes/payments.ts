@@ -190,6 +190,16 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
 
       // AstroPay redirect checkout
       if (selectedPaymentMethod === 'astropay') {
+        // Guard: a stale client or a hand-crafted request must not reach the
+        // service and surface as a 500. Fail with a clear 400 instead.
+        if (!astropayService.isAvailable()) {
+          res.status(400).json({
+            success: false,
+            message: "AstroPay no está disponible por el momento. Elegí otro medio de pago.",
+            code: 'PAYMENT_METHOD_UNAVAILABLE',
+          });
+          return;
+        }
         const apPayment = await astropayService.createPayment({
           amount: totalAmountARS,
           currency: 'ARS',
@@ -342,6 +352,16 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
 
       // AstroPay redirect checkout
       if (selectedPaymentMethod === 'astropay') {
+        // Guard: a stale client or a hand-crafted request must not reach the
+        // service and surface as a 500. Fail with a clear 400 instead.
+        if (!astropayService.isAvailable()) {
+          res.status(400).json({
+            success: false,
+            message: "AstroPay no está disponible por el momento. Elegí otro medio de pago.",
+            code: 'PAYMENT_METHOD_UNAVAILABLE',
+          });
+          return;
+        }
         const apPayment = await astropayService.createPayment({
           amount: totalAmountARS,
           currency: 'ARS',

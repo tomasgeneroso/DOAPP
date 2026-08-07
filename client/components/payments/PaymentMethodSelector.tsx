@@ -137,12 +137,10 @@ export default function PaymentMethodSelector({
         </span>
       ),
     },
-    {
-      id: 'astropay',
-      label: 'AstroPay',
-      sub: t('payments.astropayBadge', 'Tarjeta / local'),
-      logo: <AstroPayLogo />,
-    },
+    // AstroPay is out for now: the integration has no merchant credentials, so
+    // offering it here only produced a failed checkout. The service, the route
+    // handler and the logo below stay in place — re-add this entry and set
+    // ASTROPAY_ENABLED=true when the merchant account is live.
     {
       id: 'binance',
       label: 'Binance Pay',

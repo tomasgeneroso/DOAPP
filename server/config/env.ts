@@ -39,9 +39,13 @@ export const config = {
   twitterClientId: process.env.TWITTER_CLIENT_ID || "",
   twitterClientSecret: process.env.TWITTER_CLIENT_SECRET || "",
 
-  // Payment providers toggle (Argentina MVP: MercadoPago + AstroPay; PayPal disabled)
+  // Payment providers toggle (Argentina MVP: MercadoPago; PayPal and AstroPay disabled)
   paypalEnabled: process.env.PAYPAL_ENABLED === "true", // disabled by default
-  astropayEnabled: process.env.ASTROPAY_ENABLED !== "false", // enabled by default for AR
+  // Opt-in, like every other provider. It used to default to ON, so a deployment
+  // with no ASTROPAY_* credentials still advertised AstroPay in the checkout and
+  // then threw "AstroPay no está configurado" the moment anyone picked it.
+  // Set ASTROPAY_ENABLED=true (with API key + secret) to bring it back.
+  astropayEnabled: process.env.ASTROPAY_ENABLED === "true", // disabled by default
   astropayMode: process.env.ASTROPAY_MODE || "sandbox",
   astropayApiKey: process.env.ASTROPAY_API_KEY || "",
   astropaySecretKey: process.env.ASTROPAY_SECRET_KEY || "",
