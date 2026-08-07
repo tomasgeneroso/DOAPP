@@ -173,7 +173,7 @@ export default function ProfileScreen() {
       <View style={[styles.header, { backgroundColor: themeColors.card, borderBottomColor: themeColors.border }]}>
         <View style={styles.headerRow}>
           <LogoIcon size="small" />
-          <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>Dashboard</Text>
+          <Text style={[styles.headerTitle, { color: themeColors.text.primary }]}>Panel</Text>
         </View>
       </View>
 
