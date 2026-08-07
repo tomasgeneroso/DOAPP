@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useTranslation } from 'react-i18next';
 import { Helmet } from "react-helmet-async";
 import IdBadge from "../../components/admin/IdBadge";
+import KycMediaViewer from "../../components/admin/KycMediaViewer";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { adminApi } from "@/lib/adminApi";
 import { getImageUrl } from "@/utils/imageUrl";
@@ -610,9 +611,9 @@ export default function AdminUsers() {
                 {verifiedFilter === 'unverified' && (
                   <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-2">
-                      {(['dniPhotoFront', 'dniPhotoBack'] as const).map((f, i) => {
+                      {(['dniPhotoFront', 'dniPhotoBack', 'selfieUrl'] as const).map((f, i) => {
                         const url = (user as any)[f] as string | undefined;
-                        const label = i === 0 ? 'Frente' : 'Dorso';
+                        const label = i === 0 ? 'Frente' : i === 1 ? 'Dorso' : 'Selfie';
                         return url ? (
                           <button key={f} onClick={() => openVerifyModal(user)} title={`DNI ${label}`} className="block">
                             {url.endsWith('.pdf') ? (
@@ -1050,34 +1051,76 @@ export default function AdminUsers() {
                   </div>
                 </div>
 
-                {/* DNI Photos */}
+                {/* Verification summary — one glance at what this user is missing.
+                    Mirrors the task registry the user sees in Configuración. */}
                 <div>
-                  <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Fotos del DNI</h3>
-                  <div className="grid grid-cols-2 gap-3">
-                    {['dniPhotoFront', 'dniPhotoBack'].map((field, i) => {
-                      const url = verifyDetail.user[field];
-                      const label = i === 0 ? 'Frente' : 'Dorso';
-                      return (
-                        <div key={field} className="rounded-xl border-2 border-gray-200 dark:border-gray-600 overflow-hidden">
-                          <div className="px-3 py-1.5 bg-gray-50 dark:bg-gray-700 text-xs font-medium text-gray-600 dark:text-gray-400">{label}</div>
-                          {url ? (
-                            url.endsWith('.pdf') ? (
-                              <a href={getImageUrl(url)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-3 text-sm text-sky-600 dark:text-sky-400 hover:underline">
-                                <FileText className="h-5 w-5" /> Ver PDF
-                              </a>
-                            ) : (
-                              <a href={getImageUrl(url)} target="_blank" rel="noopener noreferrer">
-                                <img src={getImageUrl(url)} alt={label} className="w-full h-36 object-cover hover:opacity-90 transition-opacity" />
-                              </a>
-                            )
-                          ) : (
-                            <div className="h-36 flex items-center justify-center text-xs text-gray-400">No subido</div>
-                          )}
-                        </div>
-                      );
-                    })}
+                  <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Estado de verificación</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: 'Identidad (KYC)', ok: !!verifyDetail.user.dniVerified, detail: verifyDetail.user.kycStatus },
+                      { label: 'Nº de DNI', ok: !!verifyDetail.user.dni },
+                      { label: 'DNI frente', ok: !!verifyDetail.user.dniPhotoFront },
+                      { label: 'DNI dorso', ok: !!verifyDetail.user.dniPhotoBack },
+                      { label: 'Selfie', ok: !!verifyDetail.user.selfieUrl },
+                      { label: 'Teléfono', ok: !!verifyDetail.user.phoneVerified, detail: verifyDetail.user.phone ? undefined : 'sin número' },
+                      { label: 'CBU', ok: !!verifyDetail.user.bankingInfo?.cbu },
+                      // Same population rule as the matrículas/seguros padrones
+                      // (PROFESSIONAL_SCOPE): a professional shows both rows even
+                      // with nothing uploaded, so the gap is stated rather than
+                      // hidden. Wording matches the registries on purpose.
+                      ...(verifyDetail.user.profession || verifyDetail.user.licenseNumber || verifyDetail.user.licenseDocumentUrl || verifyDetail.user.insuranceDocumentUrl
+                        ? [
+                            {
+                              label: 'Matrícula',
+                              ok: !!verifyDetail.user.licenseVerified,
+                              detail: verifyDetail.user.licenseVerified
+                                ? undefined
+                                : verifyDetail.user.licenseVerificationStatus === 'rejected'
+                                  ? 'rechazada'
+                                  : verifyDetail.user.licenseDocumentUrl
+                                    ? 'pendiente'
+                                    : 'falta matrícula',
+                            },
+                            {
+                              label: 'Seguro',
+                              ok: !!verifyDetail.user.insuranceVerified,
+                              detail: verifyDetail.user.insuranceVerified
+                                ? undefined
+                                : verifyDetail.user.insuranceVerificationStatus === 'rejected'
+                                  ? 'rechazada'
+                                  : verifyDetail.user.insuranceDocumentUrl
+                                    ? 'pendiente'
+                                    : 'falta seguro',
+                            },
+                          ]
+                        : []),
+                    ].map(({ label, ok, detail }) => (
+                      <span
+                        key={label}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                          ok
+                            ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
+                            : 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
+                        }`}
+                      >
+                        {ok ? <ShieldCheck className="h-3.5 w-3.5" /> : <ShieldOff className="h-3.5 w-3.5" />}
+                        {label}
+                        {!ok && detail && <span className="opacity-70">· {detail}</span>}
+                      </span>
+                    ))}
                   </div>
                 </div>
+
+                {/* Identity documentation — Didit on demand, local files as fallback */}
+                <KycMediaViewer
+                  userId={verifyDetail.user.id || verifyDetail.user._id}
+                  hasDiditSession={!!verifyDetail.user.diditSessionId}
+                  localPhotos={{
+                    dniPhotoFront: verifyDetail.user.dniPhotoFront,
+                    dniPhotoBack: verifyDetail.user.dniPhotoBack,
+                    selfieUrl: verifyDetail.user.selfieUrl,
+                  }}
+                />
 
                 {/* Stats */}
                 <div className="grid grid-cols-3 gap-3">

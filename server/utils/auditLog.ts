@@ -114,6 +114,9 @@ export const ACTION_SEVERITIES: Record<string, "low" | "medium" | "high" | "crit
   "delete_user": "critical",
   "update_user_role": "high",
   "assign_permission": "high",
+  // Reading a user's identity documents / biometrics. A read, but a sensitive
+  // one: the presigned URLs expire, so this log is the only lasting trace.
+  "view_kyc_media": "high",
 
   // Contract actions
   "ban_contract": "medium",

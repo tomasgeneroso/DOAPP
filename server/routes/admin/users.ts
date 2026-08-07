@@ -12,6 +12,7 @@ import { logAudit, getSeverityForAction, detectChanges } from "../../utils/audit
 import type { AuthRequest } from "../../types/index.js";
 import { Op, literal } from 'sequelize';
 import { isValidUUID } from "../../utils/sanitizer.js";
+import { isDiditConfigured, getDiditMedia } from "../../services/didit.js";
 
 const escapeLike = (s: string) => s.replace(/[%_\\]/g, '\\$&');
 
@@ -19,6 +20,49 @@ const router = express.Router();
 
 // Todas las rutas requieren autenticación
 router.use(protect);
+
+// @route   GET /api/admin/users/:id/kyc-media
+// @desc    Freshly signed Didit media (documento, selfie, prueba de vida) for a user
+// @access  Admin+ — audited, biometric data
+router.get(
+  "/:id/kyc-media",
+  requirePermission("users:read"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const user = await User.findByPk(req.params.id);
+      if (!user) { res.status(404).json({ success: false, message: "Usuario no encontrado" }); return; }
+
+      const sessionId = (user as any).diditSessionId;
+      if (!sessionId) {
+        res.status(404).json({ success: false, message: "El usuario no tiene una sesión de verificación (Didit)" });
+        return;
+      }
+      if (!isDiditConfigured()) {
+        res.status(503).json({ success: false, message: "Didit no está configurado en este entorno" });
+        return;
+      }
+
+      const media = await getDiditMedia(sessionId);
+
+      // Biometric data: every read is logged, not just writes. The URLs expire
+      // on their own, so the audit trail is the only lasting record of access.
+      await logAudit({
+        req,
+        action: "view_kyc_media",
+        category: "user",
+        severity: getSeverityForAction("view_kyc_media"),
+        description: `Consulta de documentación KYC de ${user.email}`,
+        targetModel: "User",
+        targetId: user.id,
+        targetIdentifier: user.email,
+      });
+
+      res.json({ success: true, data: media });
+    } catch (error: any) {
+      res.status(502).json({ success: false, message: `No se pudo obtener la documentación desde Didit: ${error.message}` });
+    }
+  },
+);
 
 // @route   GET /api/admin/users
 // @desc    Obtener lista de usuarios (con filtros)
