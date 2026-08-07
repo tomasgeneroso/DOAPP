@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import { Building2, Copy, Check } from 'lucide-react';
+import { useEnabledPaymentMethods } from '@/hooks/useEnabledPaymentMethods';
 
 export type PaymentMethod = 'mercadopago' | 'astropay' | 'binance' | 'bank_transfer';
 
@@ -82,6 +83,7 @@ export default function PaymentMethodSelector({
   onBankTransferDataChange,
 }: PaymentMethodSelectorProps) {
   const { t } = useTranslation();
+  const { isEnabled, loading: loadingMethods } = useEnabledPaymentMethods();
 
   // Binance state
   const [usdtAmount, setUsdtAmount] = useState<number | null>(null);
@@ -137,10 +139,12 @@ export default function PaymentMethodSelector({
         </span>
       ),
     },
-    // AstroPay is out for now: the integration has no merchant credentials, so
-    // offering it here only produced a failed checkout. The service, the route
-    // handler and the logo below stay in place — re-add this entry and set
-    // ASTROPAY_ENABLED=true when the merchant account is live.
+    {
+      id: 'astropay',
+      label: 'AstroPay',
+      sub: t('payments.astropayBadge', 'Tarjeta / local'),
+      logo: <AstroPayLogo />,
+    },
     {
       id: 'binance',
       label: 'Binance Pay',
@@ -155,11 +159,23 @@ export default function PaymentMethodSelector({
     },
   ];
 
+  // Only offer what the admin enabled AND the backend can actually deliver.
+  const visibleMethods = methods.filter((m) => isEnabled(m.id));
+
+  // If the selected method gets disabled mid-session (or was remembered from a
+  // previous visit), move off it instead of leaving a selection with no button.
+  useEffect(() => {
+    if (loadingMethods || visibleMethods.length === 0) return;
+    if (!visibleMethods.some((m) => m.id === selectedMethod)) {
+      onMethodChange(visibleMethods[0].id);
+    }
+  }, [loadingMethods, visibleMethods, selectedMethod, onMethodChange]);
+
   return (
     <div className="space-y-3">
       {/* ── Method picker ──────────────────────── */}
       <div className="grid grid-cols-2 gap-2">
-        {methods.map((m) => {
+        {visibleMethods.map((m) => {
           const active = selectedMethod === m.id;
           return (
             <button

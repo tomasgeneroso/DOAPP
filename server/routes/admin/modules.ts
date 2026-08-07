@@ -31,6 +31,13 @@ const DEFAULT_MODULES = [
     isActive: true,
   },
   {
+    moduleId: 'payment:bank_transfer',
+    category: 'payment',
+    name: 'Transferencia bancaria',
+    description: 'Transferencia manual con comprobante (24-48hs)',
+    isActive: true,
+  },
+  {
     moduleId: 'dashboard:analytics',
     category: 'dashboard',
     name: 'Analytics',
