@@ -44,7 +44,7 @@ export default function UserData() {
   const [rows, setRows] = useState<UserRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<"all" | "incomplete" | "verified">("all");
+  const [status, setStatus] = useState<"all" | "unverified" | "incomplete" | "verified">("all");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -119,9 +119,17 @@ export default function UserData() {
             className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
           />
         </div>
+        {/* Disjoint states, so the three tabs add up to "Todos". The titles say
+            each tab names the state it filters instead of describing a feeling
+            about it — "Sin terminar" needed a tooltip to be understood. */}
         <div className="flex gap-1">
-          {([["all", "Todos"], ["incomplete", "Sin terminar"], ["verified", "Verificados"]] as const).map(([key, label]) => (
-            <button key={key} onClick={() => { setStatus(key); setPage(1); }}
+          {([
+            ["all", "Todos", "Todos los usuarios registrados"],
+            ["unverified", "Sin verificar", "Nunca iniciaron la verificación de identidad"],
+            ["incomplete", "Rechazada o en revisión", "Iniciaron la verificación de identidad y todavía no está aprobada"],
+            ["verified", "Verificados", "Identidad aprobada"],
+          ] as const).map(([key, label, hint]) => (
+            <button key={key} title={hint} onClick={() => { setStatus(key); setPage(1); }}
               className={`px-3 py-2 rounded-lg text-sm font-medium ${status === key ? "bg-sky-500 text-white" : "bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300"}`}>
               {label}
             </button>
@@ -154,7 +162,7 @@ export default function UserData() {
                 <td className="px-3 py-2">
                   {u.kycStatus === "Declined" || u.kycStatus === "In Review" ? (
                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                      {u.kycStatus === "Declined" ? "Rechazado · sin terminar" : "En revisión"}
+                      {u.kycStatus === "Declined" ? "Rechazada" : "En revisión"}
                     </span>
                   ) : (u.kycStatus || "—")}
                 </td>

@@ -23,9 +23,27 @@ function buildWhere(search?: string, status?: string): any {
       { dni: { [Op.iLike]: q } },
     ];
   }
-  // "incomplete" = KYC not approved (declined / in review) → registro sin terminar.
-  if (status === 'incomplete') where.kycStatus = { [Op.in]: ['Declined', 'In Review'] };
-  else if (status === 'verified') where.dniVerified = true;
+  // Three disjoint states, so the tabs add up to the total:
+  //   verified   → identidad aprobada.
+  //   incomplete → empezó el KYC y sigue rechazada o en revisión.
+  //   unverified → nunca lo empezó: sin sesión de Didit ni estado.
+  // "unverified" existía sólo dentro de "Todos", que es justo el grupo que un
+  // admin necesita aislar para saber a quién le falta arrancar.
+  if (status === 'incomplete') {
+    where.dniVerified = false;
+    where.kycStatus = { [Op.in]: ['Declined', 'In Review'] };
+  } else if (status === 'unverified') {
+    where.dniVerified = false;
+    // Op.and, not Op.or: the search filter above already owns where[Op.or], and
+    // merging into it would turn "matches the search AND never started" into
+    // "matches the search OR never started".
+    where[Op.and] = [
+      ...(where[Op.and] || []),
+      { [Op.or]: [{ kycStatus: null }, { kycStatus: '' }] },
+    ];
+  } else if (status === 'verified') {
+    where.dniVerified = true;
+  }
   return where;
 }
 
