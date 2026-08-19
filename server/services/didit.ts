@@ -15,7 +15,29 @@ import crypto from 'crypto';
 const BASE_URL = process.env.DIDIT_BASE_URL || 'https://verification.didit.me';
 
 export function isDiditConfigured(): boolean {
-  return !!(process.env.DIDIT_API_KEY && process.env.DIDIT_WORKFLOW_ID);
+  return !diditConfigProblem();
+}
+
+/**
+ * Why Didit cannot be used, or null when it can. Returning the reason (instead
+ * of a bare boolean) keeps a misconfiguration diagnosable from the logs and the
+ * admin side, rather than surfacing to the user as a blank "not available".
+ *
+ * The workflow id is checked for shape on purpose: pasting the verification
+ * link from the Didit dashboard (https://verify.didit.me/u/<id>) instead of the
+ * id itself passes a naive truthiness check and only fails later, when session
+ * creation returns an opaque error.
+ */
+export function diditConfigProblem(): string | null {
+  const key = process.env.DIDIT_API_KEY;
+  const workflow = process.env.DIDIT_WORKFLOW_ID;
+
+  if (!key) return 'Falta DIDIT_API_KEY';
+  if (!workflow) return 'Falta DIDIT_WORKFLOW_ID';
+  if (/^https?:\/\//i.test(workflow)) {
+    return 'DIDIT_WORKFLOW_ID tiene una URL en lugar del id del workflow (usá sólo el identificador, no el link de verificación)';
+  }
+  return null;
 }
 
 /**

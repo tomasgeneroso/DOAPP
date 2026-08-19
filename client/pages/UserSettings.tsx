@@ -10,6 +10,7 @@ import CredibilityBadge from "../components/CredibilityBadge";
 import KycButton from "../components/KycButton";
 import DniUploader from "../components/DniUploader";
 import PhoneVerification from "../components/PhoneVerification";
+import EmailVerification from "../components/EmailVerification";
 import { usePendingTasks } from "../hooks/usePendingTasks";
 import {
   User,
@@ -857,6 +858,38 @@ export default function UserSettings() {
                         Verificación automática
                       </h4>
                       <KycButton verified={(user as any)?.dniVerified} kycStatus={(user as any)?.kycStatus} />
+
+                      {/* Manual upload is a fallback, not a parallel path, so it
+                          sits directly under the automatic flow it replaces —
+                          and only once that flow has actually failed.
+                          The copy branches because the two ways of failing are
+                          not the same: claiming "after N attempts" to someone
+                          who never got to attempt anything (Didit unconfigured)
+                          is telling them something untrue. The server applies
+                          the same rule on /auth/dni-photos either way. */}
+                      {(user as any)?.capabilities?.manualKyc && !(user as any)?.dniVerified && (
+                        <div className="space-y-2 pt-3 pl-3 border-l-2 border-slate-200 dark:border-slate-700">
+                          <h5 className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                            Documentación
+                          </h5>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            {((user as any)?.kycAttempts ?? 0) > 0
+                              ? `La verificación automática no pudo completarse después de ${(user as any)?.kycAttempts} ${(user as any)?.kycAttempts === 1 ? 'intento' : 'intentos'}. Subí tu documento y lo revisamos a mano.`
+                              : 'La verificación automática no está disponible en este momento. Subí tu documento y lo revisamos a mano.'}
+                          </p>
+                          <DniUploader />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-gray-700 dark:text-slate-300">
+                        Correo electrónico
+                      </h4>
+                      <EmailVerification
+                        email={(user as any)?.email}
+                        verified={(user as any)?.isVerified}
+                      />
                     </div>
 
                     <div className="space-y-2">
@@ -869,22 +902,6 @@ export default function UserSettings() {
                         onVerified={() => refreshUser?.()}
                       />
                     </div>
-
-                    {/* Manual upload is a fallback, not a parallel path: it only
-                        appears once Didit has rejected this user the maximum
-                        number of times. The server enforces the same rule. */}
-                    {(user as any)?.capabilities?.manualKyc && !(user as any)?.dniVerified && (
-                      <div className="space-y-2">
-                        <h4 className="text-sm font-medium text-gray-700 dark:text-slate-300">
-                          Documentación
-                        </h4>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">
-                          La verificación automática no pudo completarse después de {(user as any)?.kycMaxAttempts ?? 3} intentos.
-                          Subí tu documento y lo revisamos a mano.
-                        </p>
-                        <DniUploader />
-                      </div>
-                    )}
                   </div>
 
                   {/* Password Section */}

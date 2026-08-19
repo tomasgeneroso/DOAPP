@@ -25,7 +25,7 @@ import anomalyDetection from "../services/anomalyDetection.js";
 import { createAuditLog, getClientIp, getUserAgent } from "../utils/auditLogger.js";
 import { uploadAvatar, uploadCover, uploadDniPhotos, uploadLicenseDocument, uploadInsuranceDocument, getFileUrl, verifyMagicBytes } from "../middleware/upload.js";
 import { sendWhatsAppCode, getWhatsAppStatus } from "../services/whatsapp.js";
-import { isDiditConfigured, createDiditSession, getDiditDecision, verifyDiditWebhook, applyKycStatus, isManualKycUnlocked, KYC_MAX_ATTEMPTS } from "../services/didit.js";
+import { isDiditConfigured, diditConfigProblem, createDiditSession, getDiditDecision, verifyDiditWebhook, applyKycStatus, isManualKycUnlocked, KYC_MAX_ATTEMPTS } from "../services/didit.js";
 import twitterOAuth from "../services/twitterOAuth.js";
 
 const router = express.Router();
@@ -2413,7 +2413,12 @@ router.post("/phone/verify-code", protect, async (req: AuthRequest, res: Respons
 // @access  Private
 router.post("/kyc/start", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if (!isDiditConfigured()) {
+    const configProblem = diditConfigProblem();
+    if (configProblem) {
+      // The user gets the neutral message; the reason goes to the log, where
+      // it is actionable. "No está disponible" with no trace anywhere cost a
+      // round of guessing before.
+      console.warn('[kyc/start] Didit no configurado:', configProblem);
       res.status(503).json({ success: false, message: "La verificación de identidad no está disponible por el momento." });
       return;
     }

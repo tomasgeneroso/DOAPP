@@ -23,6 +23,7 @@ export type TaskId =
   | "identity"
   | "phone"
   | "phone_verified"
+  | "email_verified"
   | "selfie"
   | "cbu"
   | "license"
@@ -162,6 +163,22 @@ export function usePendingTasks(): PendingTasksResult {
             dismissible: false,
           }
         : null,
+      {
+        // The other half of credibility level 2 (getCredibilityInfo pairs
+        // isVerified with phoneVerified), and the only one that had no task:
+        // a signed-in user who lost the original mail had nowhere to resend it.
+        id: "email_verified",
+        labelKey: "tasks.emailVerifiedLabel",
+        label: "Confirmación de correo",
+        descKey: "tasks.emailVerifiedDesc",
+        desc: "Confirmá tu correo desde el enlace que te enviamos, o pedí uno nuevo.",
+        done: !!u.isVerified,
+        priority: "high",
+        section: "basic",
+        to: VERIFY_ANCHOR,
+        inModal: false,
+        dismissible: false,
+      },
       {
         id: "selfie",
         labelKey: "tasks.selfieLabel",

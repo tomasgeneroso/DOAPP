@@ -13,6 +13,7 @@ export type TaskId =
   | 'identity'
   | 'phone'
   | 'phone_verified'
+  | 'email_verified'
   | 'selfie'
   | 'cbu'
   | 'license'
@@ -111,6 +112,16 @@ export function usePendingTasks(): PendingTasksResult {
             to: VERIFY_ROUTE,
           }
         : null,
+      {
+        // Other half of credibility level 2 — see the web hook.
+        id: 'email_verified',
+        label: 'Confirmación de correo',
+        desc: 'Confirmá tu correo desde el enlace que te enviamos, o pedí uno nuevo.',
+        done: !!u.isVerified,
+        priority: 'high',
+        section: 'basic',
+        to: VERIFY_ROUTE,
+      },
       {
         id: 'selfie',
         label: 'Selfie de verificación',
