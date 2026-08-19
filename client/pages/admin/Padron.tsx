@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "@/hooks/useAuth";
-import { Search, Download, Loader2, Database } from "lucide-react";
+import { Search, Download, Loader2, Database, ArrowUp, ArrowDown, ArrowUpDown, X } from "lucide-react";
 
 export interface PadronColumn {
   key: string;
@@ -37,6 +37,7 @@ export default function Padron({
   searchable = true,
   rowTone,
   legend,
+  statusOptions,
 }: {
   entity: string; // 'jobs' | 'contracts' | 'disputes'
   title: string;
@@ -46,6 +47,8 @@ export default function Padron({
   rowTone?: (row: any) => PadronTone | null | undefined;
   /** Legend chips describing what the tints mean. */
   legend?: Array<{ tone: PadronTone; label: string }>;
+  /** Values accepted by this registry's `status` filter, if it has one. */
+  statusOptions?: Array<{ value: string; label: string }>;
 }) {
   const { token } = useAuth();
   const [rows, setRows] = useState<any[]>([]);
@@ -55,13 +58,22 @@ export default function Padron({
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [exporting, setExporting] = useState(false);
+  const [status, setStatus] = useState("");
+  const [sortBy, setSortBy] = useState("");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   const authHeaders = { Authorization: `Bearer ${token}` };
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const qs = new URLSearchParams({ page: String(page), limit: "25", search }).toString();
+      const qs = new URLSearchParams({
+        page: String(page),
+        limit: "25",
+        search,
+        ...(status ? { status } : {}),
+        ...(sortBy ? { sortBy, sortOrder } : {}),
+      }).toString();
       const res = await fetch(`/api/admin/padrones/${entity}?${qs}`, { headers: authHeaders });
       const data = await res.json();
       if (data.success) {
@@ -71,7 +83,7 @@ export default function Padron({
       }
     } catch { /* noop */ } finally { setLoading(false); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entity, page, search, token]);
+  }, [entity, page, search, status, sortBy, sortOrder, token]);
 
   useEffect(() => {
     const t = setTimeout(load, 250);
@@ -79,12 +91,21 @@ export default function Padron({
   }, [load]);
 
   // reset when entity changes
-  useEffect(() => { setPage(1); setSearch(""); }, [entity]);
+  useEffect(() => { setPage(1); setSearch(""); setStatus(""); setSortBy(""); }, [entity]);
+
+  /** Click a header: first click sorts descending, clicking again flips it. */
+  const toggleSort = (key: string) => {
+    setPage(1);
+    if (sortBy !== key) { setSortBy(key); setSortOrder("desc"); return; }
+    setSortOrder((o) => (o === "desc" ? "asc" : "desc"));
+  };
 
   const exportCsv = async () => {
     setExporting(true);
     try {
-      const qs = new URLSearchParams({ search }).toString();
+      // The export deliberately carries the same filters as the table: a CSV
+      // that silently contains more rows than what is on screen is a trap.
+      const qs = new URLSearchParams({ search, ...(status ? { status } : {}) }).toString();
       const res = await fetch(`/api/admin/padrones/${entity}/export.csv?${qs}`, { headers: authHeaders });
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -121,19 +142,61 @@ export default function Padron({
         ))}
       </div>
 
-      {searchable && (
-        <div className="relative max-w-md mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Buscar…"
-            className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white" />
-        </div>
-      )}
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        {searchable && (
+          <div className="relative flex-1 min-w-[240px] max-w-md">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              placeholder="Buscar…"
+              className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white" />
+          </div>
+        )}
+
+        {statusOptions?.length ? (
+          <select
+            value={status}
+            onChange={(e) => { setStatus(e.target.value); setPage(1); }}
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+          >
+            <option value="">Todos los estados</option>
+            {statusOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        ) : null}
+
+        {(status || sortBy) && (
+          <button
+            type="button"
+            onClick={() => { setStatus(""); setSortBy(""); setPage(1); }}
+            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-slate-700"
+          >
+            <X className="h-3.5 w-3.5" /> Limpiar
+          </button>
+        )}
+      </div>
 
       <div className="bg-white dark:bg-slate-800 rounded-lg shadow overflow-x-auto">
         <table className="min-w-full text-sm whitespace-nowrap">
           <thead className="bg-gray-50 dark:bg-slate-900/50 text-left text-xs uppercase text-gray-500 dark:text-gray-400">
-            <tr>{columns.map((c) => <th key={c.key} className="px-3 py-3">{c.label}</th>)}</tr>
+            <tr>
+              {columns.map((c) => {
+                const active = sortBy === c.key;
+                return (
+                  <th key={c.key} className="px-3 py-3">
+                    <button
+                      type="button"
+                      onClick={() => toggleSort(c.key)}
+                      title={`Ordenar por ${c.label}`}
+                      className={`inline-flex items-center gap-1 uppercase hover:text-sky-600 dark:hover:text-sky-400 transition-colors ${active ? "text-sky-600 dark:text-sky-400" : ""}`}
+                    >
+                      {c.label}
+                      {active
+                        ? (sortOrder === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)
+                        : <ArrowUpDown className="h-3 w-3 opacity-30" />}
+                    </button>
+                  </th>
+                );
+              })}
+            </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-slate-700">
             {loading ? (

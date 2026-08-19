@@ -18,6 +18,57 @@ import { Ticket } from '../../models/sql/Ticket.model.js';
 const router = Router();
 router.use(protect, authorize('admin', 'super_admin', 'owner'));
 
+/**
+ * Sorts the mapped rows rather than the SQL query, on purpose: several columns
+ * an admin actually wants to sort by are derived, not stored — `expiryState`
+ * on seguros, the verification labels, the resolved verifier names. Those have
+ * no ORDER BY. The row sets are capped at 5000 by each builder, so ordering in
+ * memory is bounded.
+ */
+function sortRows(rows: any[], sortBy: string, sortOrder: string): any[] {
+  if (!sortBy) return rows;
+  const dir = String(sortOrder).toLowerCase() === 'asc' ? 1 : -1;
+
+  return [...rows].sort((a, b) => {
+    const x = a?.[sortBy];
+    const y = b?.[sortBy];
+
+    // Empty values always sink, whichever direction is applied — a blank cell
+    // is never the answer to "show me the most X".
+    const xEmpty = x === null || x === undefined || x === '';
+    const yEmpty = y === null || y === undefined || y === '';
+    if (xEmpty && yEmpty) return 0;
+    if (xEmpty) return 1;
+    if (yEmpty) return -1;
+
+    if (typeof x === 'boolean' || typeof y === 'boolean') return (Number(y) - Number(x)) * dir;
+    if (typeof x === 'number' && typeof y === 'number') return (x - y) * dir;
+
+    const dx = Date.parse(x as any);
+    const dy = Date.parse(y as any);
+    if (!Number.isNaN(dx) && !Number.isNaN(dy) && typeof x !== 'number') return (dx - dy) * dir;
+
+    return String(x).localeCompare(String(y), 'es', { numeric: true, sensitivity: 'base' }) * dir;
+  });
+}
+
+/** Shared tail of every registry endpoint: sort, paginate, respond. */
+function respondPaged(req: AuthRequest, res: Response, all: any[]): void {
+  const { page = 1, limit = 25, sortBy = '', sortOrder = 'desc' } = req.query as any;
+  const rows = sortRows(all, String(sortBy), String(sortOrder));
+  const start = (Number(page) - 1) * Number(limit);
+  res.json({
+    success: true,
+    data: rows.slice(start, start + Number(limit)),
+    pagination: {
+      total: rows.length,
+      page: Number(page),
+      limit: Number(limit),
+      totalPages: Math.ceil(rows.length / Number(limit)),
+    },
+  });
+}
+
 function csvCell(v: any): string {
   if (v === null || v === undefined) return '';
   let s: string;
@@ -72,11 +123,8 @@ async function jobRecords(search: string, status: string) {
 
 router.get('/jobs', async (req: AuthRequest, res: Response) => {
   try {
-    const { page = 1, limit = 25, search = '', status = '' } = req.query as any;
-    const all = await jobRecords(search, status);
-    const start = (Number(page) - 1) * Number(limit);
-    res.json({ success: true, data: all.slice(start, start + Number(limit)),
-      pagination: { total: all.length, page: Number(page), limit: Number(limit), totalPages: Math.ceil(all.length / Number(limit)) } });
+    const { search = '', status = '' } = req.query as any;
+    respondPaged(req, res, await jobRecords(search, status));
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
 router.get('/jobs/export.csv', async (req: AuthRequest, res: Response) => {
@@ -112,11 +160,9 @@ async function contractRecords(status: string) {
 
 router.get('/contracts', async (req: AuthRequest, res: Response) => {
   try {
-    const { page = 1, limit = 25, status = '' } = req.query as any;
+    const { status = '' } = req.query as any;
     const all = await contractRecords(status);
-    const start = (Number(page) - 1) * Number(limit);
-    res.json({ success: true, data: all.slice(start, start + Number(limit)),
-      pagination: { total: all.length, page: Number(page), limit: Number(limit), totalPages: Math.ceil(all.length / Number(limit)) } });
+    respondPaged(req, res, all);
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
 router.get('/contracts/export.csv', async (req: AuthRequest, res: Response) => {
@@ -148,11 +194,9 @@ async function disputeRecords(status: string) {
 
 router.get('/disputes', async (req: AuthRequest, res: Response) => {
   try {
-    const { page = 1, limit = 25, status = '' } = req.query as any;
+    const { status = '' } = req.query as any;
     const all = await disputeRecords(status);
-    const start = (Number(page) - 1) * Number(limit);
-    res.json({ success: true, data: all.slice(start, start + Number(limit)),
-      pagination: { total: all.length, page: Number(page), limit: Number(limit), totalPages: Math.ceil(all.length / Number(limit)) } });
+    respondPaged(req, res, all);
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
 router.get('/disputes/export.csv', async (req: AuthRequest, res: Response) => {
@@ -191,11 +235,9 @@ async function paymentRecords(status: string) {
 
 router.get('/payments', async (req: AuthRequest, res: Response) => {
   try {
-    const { page = 1, limit = 25, status = '' } = req.query as any;
+    const { status = '' } = req.query as any;
     const all = await paymentRecords(status);
-    const start = (Number(page) - 1) * Number(limit);
-    res.json({ success: true, data: all.slice(start, start + Number(limit)),
-      pagination: { total: all.length, page: Number(page), limit: Number(limit), totalPages: Math.ceil(all.length / Number(limit)) } });
+    respondPaged(req, res, all);
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
 router.get('/payments/export.csv', async (req: AuthRequest, res: Response) => {
@@ -228,11 +270,9 @@ async function withdrawalRecords(status: string) {
 
 router.get('/withdrawals', async (req: AuthRequest, res: Response) => {
   try {
-    const { page = 1, limit = 25, status = '' } = req.query as any;
+    const { status = '' } = req.query as any;
     const all = await withdrawalRecords(status);
-    const start = (Number(page) - 1) * Number(limit);
-    res.json({ success: true, data: all.slice(start, start + Number(limit)),
-      pagination: { total: all.length, page: Number(page), limit: Number(limit), totalPages: Math.ceil(all.length / Number(limit)) } });
+    respondPaged(req, res, all);
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
 router.get('/withdrawals/export.csv', async (req: AuthRequest, res: Response) => {
@@ -264,11 +304,9 @@ async function reviewRecords() {
 
 router.get('/reviews', async (req: AuthRequest, res: Response) => {
   try {
-    const { page = 1, limit = 25 } = req.query as any;
+    
     const all = await reviewRecords();
-    const start = (Number(page) - 1) * Number(limit);
-    res.json({ success: true, data: all.slice(start, start + Number(limit)),
-      pagination: { total: all.length, page: Number(page), limit: Number(limit), totalPages: Math.ceil(all.length / Number(limit)) } });
+    respondPaged(req, res, all);
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
 router.get('/reviews/export.csv', async (_req: AuthRequest, res: Response) => {
@@ -302,11 +340,9 @@ async function ticketRecords(status: string) {
 
 router.get('/tickets', async (req: AuthRequest, res: Response) => {
   try {
-    const { page = 1, limit = 25, status = '' } = req.query as any;
+    const { status = '' } = req.query as any;
     const all = await ticketRecords(status);
-    const start = (Number(page) - 1) * Number(limit);
-    res.json({ success: true, data: all.slice(start, start + Number(limit)),
-      pagination: { total: all.length, page: Number(page), limit: Number(limit), totalPages: Math.ceil(all.length / Number(limit)) } });
+    respondPaged(req, res, all);
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
 router.get('/tickets/export.csv', async (req: AuthRequest, res: Response) => {
@@ -410,11 +446,8 @@ async function licenseRecords(search: string, status: string) {
 
 router.get('/licenses', async (req: AuthRequest, res: Response) => {
   try {
-    const { page = 1, limit = 25, search = '', status = '' } = req.query as any;
-    const all = await licenseRecords(search, status);
-    const start = (Number(page) - 1) * Number(limit);
-    res.json({ success: true, data: all.slice(start, start + Number(limit)),
-      pagination: { total: all.length, page: Number(page), limit: Number(limit), totalPages: Math.ceil(all.length / Number(limit)) } });
+    const { search = '', status = '' } = req.query as any;
+    respondPaged(req, res, await licenseRecords(search, status));
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
 router.get('/licenses/export.csv', async (req: AuthRequest, res: Response) => {
@@ -496,11 +529,8 @@ async function insuranceRecords(search: string, status: string) {
 
 router.get('/insurances', async (req: AuthRequest, res: Response) => {
   try {
-    const { page = 1, limit = 25, search = '', status = '' } = req.query as any;
-    const all = await insuranceRecords(search, status);
-    const start = (Number(page) - 1) * Number(limit);
-    res.json({ success: true, data: all.slice(start, start + Number(limit)),
-      pagination: { total: all.length, page: Number(page), limit: Number(limit), totalPages: Math.ceil(all.length / Number(limit)) } });
+    const { search = '', status = '' } = req.query as any;
+    respondPaged(req, res, await insuranceRecords(search, status));
   } catch (e: any) { res.status(500).json({ success: false, message: e.message }); }
 });
 router.get('/insurances/export.csv', async (req: AuthRequest, res: Response) => {

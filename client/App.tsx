@@ -624,6 +624,14 @@ export default function App() {
               legend={[
                 { tone: 'danger', label: 'Seguro vencido' },
                 { tone: 'warning', label: 'Vence en 30 días o menos' },
+              ]}
+              statusOptions={[
+                { value: 'vencido', label: 'Vencidos' },
+                { value: 'por_vencer', label: 'Vencen en 30 días o menos' },
+                { value: 'aprobada', label: 'Aprobados' },
+                { value: 'pendiente', label: 'Pendientes de revisión' },
+                { value: 'rechazada', label: 'Rechazados' },
+                { value: 'falta seguro', label: 'Sin póliza cargada' },
               ]} />} />
               <Route path="roles" element={<AdminRoles />} />
               <Route path="role-permissions" element={<AdminRolePermissions />} />
