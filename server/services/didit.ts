@@ -69,7 +69,51 @@ export function diditConfigProblem(): string | null {
  * How many Didit rejections a user may collect before the manual document
  * upload is unlocked for them. Identity is Didit-only up to that point.
  */
-export const KYC_MAX_ATTEMPTS = Number(process.env.KYC_MAX_ATTEMPTS) || 3;
+const KYC_ATTEMPTS_FALLBACK = 3;
+
+/** Cached `max_retry_attempts` of the active workflow, filled at boot. */
+let workflowRetryLimit: number | null = null;
+
+/**
+ * Pull the active workflow's retry limit from Didit and cache it.
+ *
+ * Call once at startup; it is fire-and-forget. Everything downstream reads the
+ * cached value synchronously, so a failure here degrades to the fallback
+ * instead of putting a network call on the /auth/me path.
+ */
+export async function refreshDiditWorkflowConfig(): Promise<void> {
+  const apiKey = process.env.DIDIT_API_KEY;
+  if (!apiKey) return;
+  try {
+    const resp = await fetch(`${BASE_URL}/v3/workflows/`, { headers: { 'x-api-key': apiKey } });
+    if (!resp.ok) return;
+    const data: any = await resp.json();
+    const active = (data?.results || []).find((w: any) => w.workflow_id === getDiditWorkflowId());
+    const limit = Number(active?.max_retry_attempts);
+    if (Number.isFinite(limit) && limit > 0) {
+      workflowRetryLimit = limit;
+      console.log(`[didit] workflow ${active.workflow_label}: ${limit} reintentos permitidos`);
+    }
+  } catch (e: any) {
+    console.warn('[didit] no pude leer la config del workflow:', e?.message);
+  }
+}
+
+/**
+ * How many rejections unlock the manual document upload.
+ *
+ * Derived from the workflow's own `max_retry_attempts` rather than hardcoded,
+ * so the manual path opens exactly when Didit stops giving the user retries.
+ * The two numbers happened to both be 3, which is precisely the kind of
+ * coincidence that silently stops being true when someone edits the workflow.
+ *
+ * Precedence: explicit env override, then the workflow, then the fallback.
+ */
+export function getKycMaxAttempts(): number {
+  const fromEnv = Number(process.env.KYC_MAX_ATTEMPTS);
+  if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv;
+  return workflowRetryLimit ?? KYC_ATTEMPTS_FALLBACK;
+}
 
 /**
  * Whether this user may fall back to uploading documents by hand.
@@ -79,7 +123,7 @@ export const KYC_MAX_ATTEMPTS = Number(process.env.KYC_MAX_ATTEMPTS) || 3;
  */
 export function isManualKycUnlocked(user: { kycAttempts?: number | null }): boolean {
   if (!isDiditConfigured()) return true;
-  return (user?.kycAttempts ?? 0) >= KYC_MAX_ATTEMPTS;
+  return (user?.kycAttempts ?? 0) >= getKycMaxAttempts();
 }
 
 export interface DiditSession {
@@ -250,5 +294,6 @@ export default {
   getDiditMedia,
   verifyDiditWebhook,
   applyKycStatus,
-  KYC_MAX_ATTEMPTS,
+  getKycMaxAttempts,
+  refreshDiditWorkflowConfig,
 };

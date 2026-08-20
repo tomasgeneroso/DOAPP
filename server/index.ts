@@ -27,6 +27,7 @@ import { wafMiddleware } from "./middleware/waf.js";
 // import { startEscalateExpiredChangeRequestsJob } from "./jobs/escalateExpiredChangeRequests.js";
 import { startResetProMembershipCountersJob } from "./jobs/resetProMembershipCounters.js";
 import { startAutoSelectWorkerJob } from "./jobs/autoSelectWorker.js";
+import { refreshDiditWorkflowConfig } from "./services/didit.js";
 import { startAutoCancelExpiredJobsJob } from "./jobs/autoCancelExpiredJobs.js";
 import { startJobReminderJob } from "./jobs/jobReminders.js";
 import { startSuspendFlexibleEndDateJob } from "./jobs/suspendFlexibleEndDateJobs.js";
@@ -405,6 +406,11 @@ export { socketService };
 startResetProMembershipCountersJob();
 
 // Initialize auto-select worker job (24h before job start)
+
+// Read the Didit workflow's own retry limit so the manual-upload threshold
+// tracks it instead of being a hardcoded number that happens to match.
+// Fire-and-forget: on failure everything falls back to the default.
+refreshDiditWorkflowConfig();
 startAutoSelectWorkerJob();
 
 // Initialize auto-cancel expired jobs job (jobs with past dates)

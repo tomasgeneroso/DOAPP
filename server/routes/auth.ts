@@ -25,7 +25,7 @@ import anomalyDetection from "../services/anomalyDetection.js";
 import { createAuditLog, getClientIp, getUserAgent } from "../utils/auditLogger.js";
 import { uploadAvatar, uploadCover, uploadDniPhotos, uploadLicenseDocument, uploadInsuranceDocument, getFileUrl, verifyMagicBytes } from "../middleware/upload.js";
 import { sendWhatsAppCode, getWhatsAppStatus } from "../services/whatsapp.js";
-import { isDiditConfigured, diditConfigProblem, createDiditSession, getDiditDecision, verifyDiditWebhook, applyKycStatus, isManualKycUnlocked, KYC_MAX_ATTEMPTS } from "../services/didit.js";
+import { isDiditConfigured, diditConfigProblem, createDiditSession, getDiditDecision, verifyDiditWebhook, applyKycStatus, isManualKycUnlocked, getKycMaxAttempts } from "../services/didit.js";
 import twitterOAuth from "../services/twitterOAuth.js";
 
 const router = express.Router();
@@ -567,11 +567,11 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         capabilities: {
           phoneVerification: getWhatsAppStatus().ready,
           // Manual document upload stays hidden until Didit has actually failed
-          // this user KYC_MAX_ATTEMPTS times.
+          // this user as many times as the Didit workflow allows.
           manualKyc: isManualKycUnlocked(user as any),
         },
         kycAttempts: (user as any)?.kycAttempts ?? 0,
-        kycMaxAttempts: KYC_MAX_ATTEMPTS,
+        kycMaxAttempts: getKycMaxAttempts(),
       },
     });
   } catch (error: any) {
@@ -2187,7 +2187,7 @@ router.post("/dni-photos", protect, async (req: AuthRequest, res: Response): Pro
   if (!isManualKycUnlocked(gateUser as any)) {
     res.status(403).json({
       success: false,
-      message: `La verificación de identidad se hace con el sistema automático. La carga manual se habilita después de ${KYC_MAX_ATTEMPTS} intentos rechazados.`,
+      message: `La verificación de identidad se hace con el sistema automático. La carga manual se habilita después de ${getKycMaxAttempts()} intentos rechazados.`,
       code: 'MANUAL_KYC_LOCKED',
     });
     return;

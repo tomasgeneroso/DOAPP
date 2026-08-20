@@ -165,8 +165,9 @@ export class User extends Model {
   kycData?: any;
 
   // Number of Didit sessions that came back Declined. Identity is Didit-only;
-  // manual document upload unlocks solely once this reaches KYC_MAX_ATTEMPTS, so
-  // that someone the automated flow cannot handle is not left with no way in.
+  // the manual document upload unlocks once this reaches the retry limit of the
+  // Didit workflow itself, so someone the automated flow cannot handle is not
+  // left without a way in.
   @Column({ type: DataType.INTEGER, defaultValue: 0 })
   kycAttempts!: number;
 

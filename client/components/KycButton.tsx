@@ -68,6 +68,21 @@ export default function KycButton({ verified, kycStatus }: { verified?: boolean;
     }
   };
 
+  /**
+   * The Didit workflow is not white-labelled, so clicking the button sends the
+   * user out of DOAPP and onto a page carrying someone else's brand, in the
+   * middle of signing up. Saying so beforehand costs one paragraph; not saying
+   * it makes the redirect look like a hijack, on the one screen where the user
+   * is being asked to hand over their identity document.
+   */
+  const headsUp = (
+    <p className="text-xs text-slate-500 dark:text-slate-400">
+      Te vamos a llevar a <strong className="font-semibold">Didit</strong>, el servicio que verifica
+      tu identidad por nosotros. Tené a mano tu DNI y permitile usar la cámara. Al terminar volvés
+      acá solo. Toma un par de minutos.
+    </p>
+  );
+
   return (
     <div className="space-y-2">
       {inReview ? (
@@ -80,7 +95,7 @@ export default function KycButton({ verified, kycStatus }: { verified?: boolean;
             <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
             <span>Tu verificación de identidad fue rechazada, así que tu registro quedó sin terminar. Podés reintentar o reportar un problema.</span>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 mb-2">
             <button onClick={start} disabled={loading}
               className="inline-flex items-center gap-2 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold">
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />}
@@ -96,17 +111,17 @@ export default function KycButton({ verified, kycStatus }: { verified?: boolean;
               </button>
             )}
           </div>
+          {headsUp}
         </div>
       ) : (
         <>
+          {/* Notice first, then the button: after the redirect it is too late. */}
+          {headsUp}
           <button onClick={start} disabled={loading}
             className="inline-flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold">
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <BadgeCheck className="h-4 w-4" />}
-            Verificar mi identidad
+            Continuar a Didit
           </button>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Verificación automática con documento y selfie (Didit). Toma un par de minutos.
-          </p>
         </>
       )}
       {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
