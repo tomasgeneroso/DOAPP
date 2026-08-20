@@ -14,6 +14,30 @@ import crypto from 'crypto';
 
 const BASE_URL = process.env.DIDIT_BASE_URL || 'https://verification.didit.me';
 
+/**
+ * Workflow "Free KYC" — OCR + prueba de vida + face match, USD 0,33 por sesion.
+ *
+ * Didit's own guidance is that workflow_id is not a secret and belongs in code
+ * rather than the environment. That is right about secrecy, but it is still
+ * deployment configuration: staging and production can point at different
+ * workflows, the choice carries a per-verification cost (0,33 vs 0,65 with
+ * AML), and a second country would want its own.
+ *
+ * So the correct value is committed here as the default and the env var stays
+ * as an override. A missing or malformed DIDIT_WORKFLOW_ID can no longer take
+ * identity verification down -- which is what happened when it held the
+ * dashboard's verification link instead of the UUID. Valid ids come from
+ * GET /v3/workflows/.
+ */
+export const DEFAULT_DIDIT_WORKFLOW_ID = 'f4e86bc9-1223-4366-af72-551d80a7c706';
+
+/** Configured workflow, ignoring a value that plainly is not an id. */
+export function getDiditWorkflowId(): string {
+  const fromEnv = process.env.DIDIT_WORKFLOW_ID;
+  if (!fromEnv || /^https?:\/\//i.test(fromEnv)) return DEFAULT_DIDIT_WORKFLOW_ID;
+  return fromEnv;
+}
+
 export function isDiditConfigured(): boolean {
   return !diditConfigProblem();
 }
@@ -33,9 +57,10 @@ export function diditConfigProblem(): string | null {
   const workflow = process.env.DIDIT_WORKFLOW_ID;
 
   if (!key) return 'Falta DIDIT_API_KEY';
-  if (!workflow) return 'Falta DIDIT_WORKFLOW_ID';
-  if (/^https?:\/\//i.test(workflow)) {
-    return 'DIDIT_WORKFLOW_ID tiene una URL en lugar del id del workflow (usá sólo el identificador, no el link de verificación)';
+  // Not fatal any more — getDiditWorkflowId() falls back to the committed
+  // default — but still worth shouting about so the env gets corrected.
+  if (workflow && /^https?:\/\//i.test(workflow)) {
+    console.warn('[didit] DIDIT_WORKFLOW_ID tiene una URL en lugar del id; uso el workflow por defecto');
   }
   return null;
 }
@@ -66,8 +91,8 @@ export interface DiditSession {
 /** Create a verification session. vendor_data links it back to our user. */
 export async function createDiditSession(vendorData: string, callbackUrl?: string): Promise<DiditSession> {
   const apiKey = process.env.DIDIT_API_KEY;
-  const workflowId = process.env.DIDIT_WORKFLOW_ID;
-  if (!apiKey || !workflowId) throw new Error('Didit no está configurado (falta DIDIT_API_KEY / DIDIT_WORKFLOW_ID)');
+  const workflowId = getDiditWorkflowId();
+  if (!apiKey) throw new Error('Didit no esta configurado (falta DIDIT_API_KEY)');
 
   const body: Record<string, string> = { workflow_id: workflowId, vendor_data: vendorData };
   if (callbackUrl) body.callback = callbackUrl;
