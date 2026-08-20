@@ -85,7 +85,24 @@
     "errorSubmit": "Error al enviar reseña",
     "submitting": "Enviando...",
     "submit": "Enviar reseña",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "postWork": {
+      "title": "Dos preguntas rápidas",
+      "subtitle": "Son opcionales: respondé lo que quieras.",
+      "rateDoer": "¿Querés puntuar el trabajo de {{name}}?",
+      "rateClient": "¿Querés puntuar a {{name}} como cliente?",
+      "recommendApp": "¿Recomendarías DoApp?",
+      "noteLabel": "Nota (opcional)",
+      "notePlaceholder": "Contanos algo más si querés...",
+      "starsAria": "{{stars}} estrellas",
+      "send": "Enviar",
+      "sending": "Enviando...",
+      "skip": "Ahora no",
+      "errorNoAnswer": "Respondé al menos una pregunta o dejá una nota",
+      "errorSubmit": "No pudimos guardar tu puntuación",
+      "thanksTitle": "¡Gracias por tu opinión!",
+      "thanksDesc": "Tu respuesta nos ayuda a mejorar DoApp para todos."
+    }
   },
   "location": {
     "neighborhood": "Barrio",
@@ -1089,7 +1106,9 @@
     "allowCounterOffers": "Permitir contraofertas",
     "allowCounterOffersHint": "Si lo desactivás, solo pueden postularse al precio que fijaste.",
     "noTaskAssigned": "Sin tarea asignada",
-    "photos": "Fotos del trabajo"
+    "photos": "Fotos del trabajo",
+    "theWorker": "el trabajador",
+    "theClient": "el cliente"
   },
   "contracts": {
     "title": "Contratos",
@@ -1464,7 +1483,9 @@
     "addBankingNow": "¿Querés agregar tus datos bancarios ahora?",
     "addBankingDetails": "Agregar datos bancarios",
     "continueWithout": "Continuar sin agregar",
-    "dontAskAgain": "No volver a preguntar"
+    "dontAskAgain": "No volver a preguntar",
+    "theWorker": "el trabajador",
+    "theClient": "el cliente"
   },
   "chat": {
     "title": "Mensajes",

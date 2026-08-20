@@ -48,6 +48,7 @@ import { getImageUrl } from "../utils/imageUrl";
 import { analytics } from "../utils/analytics";
 import { parseArgentineNumber, formatBudgetInput } from "../utils/numberFormat";
 import ConfirmationSuccessModal from "../components/jobDetail/ConfirmationSuccessModal";
+import PostWorkRatingModal from "../components/user/PostWorkRatingModal";
 import ErrorModal from "../components/jobDetail/ErrorModal";
 import ContractRedirectModal from "../components/jobDetail/ContractRedirectModal";
 import PauseApprovalModal from "../components/jobDetail/PauseApprovalModal";
@@ -135,6 +136,8 @@ export default function JobDetail() {
     price?: number;
     commission?: number;
     totalPrice?: number;
+    doerName?: string;
+    clientName?: string;
   } | null>(null);
 
   // All contracts for team jobs (to check if all workers confirmed)
@@ -157,6 +160,8 @@ export default function JobDetail() {
   const [confirmingWork, setConfirmingWork] = useState(false);
   const [showConfirmationSuccessModal, setShowConfirmationSuccessModal] =
     useState(false);
+  // Encuesta post-trabajo (máx. 2 preguntas) tras completarse el contrato
+  const [showPostWorkRating, setShowPostWorkRating] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [copiedPairingCode, setCopiedPairingCode] = useState(false);
@@ -562,6 +567,8 @@ export default function JobDetail() {
             price: data.contract.price,
             commission: data.contract.commission,
             totalPrice: data.contract.totalPrice,
+            doerName: data.contract.doer?.name,
+            clientName: data.contract.client?.name,
           });
         }
       } catch (err) {
@@ -639,6 +646,10 @@ export default function JobDetail() {
         }
         // Show success modal instead of navigating
         setShowConfirmationSuccessModal(true);
+        // Contrato completado → encuesta post-trabajo (máx. 2 preguntas)
+        if (data.contract?.status === "completed") {
+          setShowPostWorkRating(true);
+        }
       } else {
         setErrorMessage(
           data.message || t("jobs.errorConfirming", "Error confirming the job"),
@@ -4735,6 +4746,21 @@ export default function JobDetail() {
           open={showConfirmationSuccessModal}
           onClose={() => setShowConfirmationSuccessModal(false)}
         />
+
+        {/* Puntuación post-trabajo (se muestra al cerrar el de confirmación) */}
+        {contractData?.id && (
+          <PostWorkRatingModal
+            open={showPostWorkRating && !showConfirmationSuccessModal}
+            contractId={contractData.id}
+            reviewedName={
+              isOwnJob
+                ? contractData.doerName || t("jobs.theWorker", "el trabajador")
+                : contractData.clientName || t("jobs.theClient", "el cliente")
+            }
+            reviewedRole={isOwnJob ? "doer" : "client"}
+            onClose={() => setShowPostWorkRating(false)}
+          />
+        )}
 
         <ErrorModal
           open={showErrorModal}

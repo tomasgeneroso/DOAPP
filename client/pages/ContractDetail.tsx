@@ -14,6 +14,7 @@ import TaskClaimModal from "@/components/contracts/TaskClaimModal";
 import TaskClaimResponse from "@/components/contracts/TaskClaimResponse";
 import TaskEvidenceUploadModal from "@/components/contracts/TaskEvidenceUploadModal";
 import ConfirmModal from "@/components/ui/ConfirmModal";
+import PostWorkRatingModal from "@/components/user/PostWorkRatingModal";
 import {
   ArrowLeft,
   Calendar,
@@ -265,6 +266,8 @@ export default function ContractDetail() {
   // Handle work confirmation
   const [confirmingWork, setConfirmingWork] = useState(false);
   const [showConfirmationSuccessModal, setShowConfirmationSuccessModal] = useState(false);
+  // Encuesta post-trabajo (máx. 2 preguntas) tras completarse el contrato
+  const [showPostWorkRating, setShowPostWorkRating] = useState(false);
   // Confirmation hour proposal state
   const [showHoursForm, setShowHoursForm] = useState(false);
   const [proposedStart, setProposedStart] = useState('');
@@ -294,6 +297,9 @@ export default function ContractDetail() {
       if (response.success) {
         setShowHoursForm(false);
         setShowConfirmationSuccessModal(true);
+        if (response.contract?.status === 'completed') {
+          setShowPostWorkRating(true);
+        }
         loadContract();
       }
     } catch (error: any) {
@@ -321,6 +327,9 @@ export default function ContractDetail() {
       const response = await api.post(`/contracts/${id}/confirm`);
       if (response.success) {
         setShowConfirmationSuccessModal(true);
+        if (response.contract?.status === 'completed') {
+          setShowPostWorkRating(true);
+        }
         loadContract();
         if (contract?.job?.id || contract?.jobId) {
           const jobId = contract.job?.id || contract.jobId;
@@ -1539,6 +1548,19 @@ export default function ContractDetail() {
           }}
         />
       )}
+
+      {/* Puntuación post-trabajo: 2 preguntas rápidas + nota opcional */}
+      <PostWorkRatingModal
+        open={showPostWorkRating}
+        contractId={contract.id || id || ''}
+        reviewedName={
+          isClient
+            ? contract.doer?.name || t('contracts.theWorker', 'el trabajador')
+            : contract.client?.name || t('contracts.theClient', 'el cliente')
+        }
+        reviewedRole={isClient ? 'doer' : 'client'}
+        onClose={() => setShowPostWorkRating(false)}
+      />
 
       <ConfirmModal
         open={!!dialog}

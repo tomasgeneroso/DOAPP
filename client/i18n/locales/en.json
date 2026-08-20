@@ -85,7 +85,24 @@
     "errorSubmit": "Error submitting review",
     "submitting": "Submitting...",
     "submit": "Submit review",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "postWork": {
+      "title": "Two quick questions",
+      "subtitle": "Both are optional: answer whatever you like.",
+      "rateDoer": "Would you like to rate {{name}}'s work?",
+      "rateClient": "Would you like to rate {{name}} as a client?",
+      "recommendApp": "Would you recommend DoApp?",
+      "noteLabel": "Note (optional)",
+      "notePlaceholder": "Tell us more if you want...",
+      "starsAria": "{{stars}} stars",
+      "send": "Send",
+      "sending": "Sending...",
+      "skip": "Not now",
+      "errorNoAnswer": "Answer at least one question or leave a note",
+      "errorSubmit": "We couldn't save your rating",
+      "thanksTitle": "Thanks for your feedback!",
+      "thanksDesc": "Your answer helps us make DoApp better for everyone."
+    }
   },
   "location": {
     "neighborhood": "Neighborhood",
@@ -1328,7 +1345,9 @@
     "withdrawing": "Cancelling...",
     "confirmWithdrawApplication": "Are you sure you want to cancel your application to this job? You can apply again while it stays open.",
     "yesWithdraw": "Yes, cancel application",
-    "errorWithdrawing": "Could not cancel the application"
+    "errorWithdrawing": "Could not cancel the application",
+    "theWorker": "the worker",
+    "theClient": "the client"
   },
   "contracts": {
     "title": "Contracts",
@@ -1708,7 +1727,9 @@
     "continueWithout": "Continue without adding",
     "dontAskAgain": "Don't ask again",
     "forceStartTitle": "Start without verifying the code",
-    "confirmForceStart": "Do you confirm starting the job without verifying the code? This will record your presence and the contract will begin when the other party also confirms."
+    "confirmForceStart": "Do you confirm starting the job without verifying the code? This will record your presence and the contract will begin when the other party also confirms.",
+    "theWorker": "the worker",
+    "theClient": "the client"
   },
   "chat": {
     "title": "Messages",

@@ -31,6 +31,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import JobsCalendar from "../components/jobs/JobsCalendar";
+import PostWorkRatingModal from "../components/user/PostWorkRatingModal";
 
 interface Job {
   id: string;
@@ -53,6 +54,22 @@ interface Job {
     proofSubmitted?: boolean;
   };
   proposalCount: number;
+}
+
+interface ContractInfo {
+  id: string;
+  clientConfirmed: boolean;
+  doerConfirmed: boolean;
+  status: string;
+  doerName?: string;
+  clientName?: string;
+}
+
+/** Contrato completado pendiente de la puntuación post-trabajo */
+interface PostWorkRatingTarget {
+  contractId: string;
+  reviewedName: string;
+  reviewedRole: "doer" | "client";
 }
 
 interface Proposal {
@@ -149,8 +166,10 @@ export default function MyJobsScreen() {
   const [showConfirmationSuccessModal, setShowConfirmationSuccessModal] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [jobContracts, setJobContracts] = useState<Record<string, { id: string; clientConfirmed: boolean; doerConfirmed: boolean; status: string }>>({});
-  const [proposalContracts, setProposalContracts] = useState<Record<string, { id: string; clientConfirmed: boolean; doerConfirmed: boolean; status: string }>>({});
+  const [jobContracts, setJobContracts] = useState<Record<string, ContractInfo>>({});
+  const [proposalContracts, setProposalContracts] = useState<Record<string, ContractInfo>>({});
+  // Encuesta post-trabajo (máx. 2 preguntas) tras completarse el contrato
+  const [postWorkRating, setPostWorkRating] = useState<PostWorkRatingTarget | null>(null);
 
   // Availability state
   const [showAvailability, setShowAvailability] = useState(false);
@@ -219,6 +238,8 @@ export default function MyJobsScreen() {
             clientConfirmed: data.contract.clientConfirmed,
             doerConfirmed: data.contract.doerConfirmed,
             status: data.contract.status,
+            doerName: data.contract.doer?.name,
+            clientName: data.contract.client?.name,
           }
         }));
       }
@@ -257,6 +278,12 @@ export default function MyJobsScreen() {
         // Refresh jobs list if contract completed
         if (data.contract?.status === 'completed') {
           fetchMyJobs();
+          // Al completarse, preguntamos la puntuación post-trabajo del doer
+          setPostWorkRating({
+            contractId: contract.id,
+            reviewedName: contract.doerName || t('jobs.theWorker', 'el trabajador'),
+            reviewedRole: 'doer',
+          });
         }
       } else {
         setErrorMessage(data.message || 'Error al confirmar el trabajo');
@@ -299,6 +326,8 @@ export default function MyJobsScreen() {
             clientConfirmed: data.contract.clientConfirmed,
             doerConfirmed: data.contract.doerConfirmed,
             status: data.contract.status,
+            doerName: data.contract.doer?.name,
+            clientName: data.contract.client?.name,
           }
         }));
       }
@@ -337,6 +366,12 @@ export default function MyJobsScreen() {
         // Refresh proposals list if contract completed
         if (data.contract?.status === 'completed') {
           fetchMyProposals();
+          // Al completarse, preguntamos la puntuación post-trabajo del cliente
+          setPostWorkRating({
+            contractId: contract.id,
+            reviewedName: contract.clientName || t('jobs.theClient', 'el cliente'),
+            reviewedRole: 'client',
+          });
         }
       } else {
         setErrorMessage(data.message || 'Error al confirmar el trabajo');
@@ -1376,6 +1411,17 @@ export default function MyJobsScreen() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Post-work rating survey (se muestra al cerrar el modal de confirmación) */}
+      {postWorkRating && !showConfirmationSuccessModal && (
+        <PostWorkRatingModal
+          open
+          contractId={postWorkRating.contractId}
+          reviewedName={postWorkRating.reviewedName}
+          reviewedRole={postWorkRating.reviewedRole}
+          onClose={() => setPostWorkRating(null)}
+        />
       )}
 
       {/* Availability Saved Modal */}
