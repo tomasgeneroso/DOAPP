@@ -29,7 +29,7 @@ module.exports = {
         type: Sequelize.STRING(20),
         allowNull: false,
         defaultValue: 'full',
-        comment: 'full = reseña completa, post_work = encuesta post-trabajo',
+        comment: 'full = reseña completa, post_work = encuesta post-trabajo terminada, post_work_draft = sin terminar',
       });
     }
 

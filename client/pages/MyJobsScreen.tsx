@@ -31,7 +31,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import JobsCalendar from "../components/jobs/JobsCalendar";
-import PostWorkRatingModal from "../components/user/PostWorkRatingModal";
+import { requestPostWorkRatingCheck } from "../utils/postWorkRating";
 
 interface Job {
   id: string;
@@ -61,15 +61,6 @@ interface ContractInfo {
   clientConfirmed: boolean;
   doerConfirmed: boolean;
   status: string;
-  doerName?: string;
-  clientName?: string;
-}
-
-/** Contrato completado pendiente de la puntuación post-trabajo */
-interface PostWorkRatingTarget {
-  contractId: string;
-  reviewedName: string;
-  reviewedRole: "doer" | "client";
 }
 
 interface Proposal {
@@ -168,8 +159,8 @@ export default function MyJobsScreen() {
   const [errorMessage, setErrorMessage] = useState("");
   const [jobContracts, setJobContracts] = useState<Record<string, ContractInfo>>({});
   const [proposalContracts, setProposalContracts] = useState<Record<string, ContractInfo>>({});
-  // Encuesta post-trabajo (máx. 2 preguntas) tras completarse el contrato
-  const [postWorkRating, setPostWorkRating] = useState<PostWorkRatingTarget | null>(null);
+  // Encuesta post-trabajo pendiente tras completarse el contrato
+  const [postWorkPending, setPostWorkPending] = useState(false);
 
   // Availability state
   const [showAvailability, setShowAvailability] = useState(false);
@@ -238,8 +229,6 @@ export default function MyJobsScreen() {
             clientConfirmed: data.contract.clientConfirmed,
             doerConfirmed: data.contract.doerConfirmed,
             status: data.contract.status,
-            doerName: data.contract.doer?.name,
-            clientName: data.contract.client?.name,
           }
         }));
       }
@@ -278,12 +267,8 @@ export default function MyJobsScreen() {
         // Refresh jobs list if contract completed
         if (data.contract?.status === 'completed') {
           fetchMyJobs();
-          // Al completarse, preguntamos la puntuación post-trabajo del doer
-          setPostWorkRating({
-            contractId: contract.id,
-            reviewedName: contract.doerName || t('jobs.theWorker', 'el trabajador'),
-            reviewedRole: 'doer',
-          });
+          // Al completarse queda pendiente la puntuación post-trabajo
+          setPostWorkPending(true);
         }
       } else {
         setErrorMessage(data.message || 'Error al confirmar el trabajo');
@@ -326,8 +311,6 @@ export default function MyJobsScreen() {
             clientConfirmed: data.contract.clientConfirmed,
             doerConfirmed: data.contract.doerConfirmed,
             status: data.contract.status,
-            doerName: data.contract.doer?.name,
-            clientName: data.contract.client?.name,
           }
         }));
       }
@@ -366,12 +349,8 @@ export default function MyJobsScreen() {
         // Refresh proposals list if contract completed
         if (data.contract?.status === 'completed') {
           fetchMyProposals();
-          // Al completarse, preguntamos la puntuación post-trabajo del cliente
-          setPostWorkRating({
-            contractId: contract.id,
-            reviewedName: contract.clientName || t('jobs.theClient', 'el cliente'),
-            reviewedRole: 'client',
-          });
+          // Al completarse queda pendiente la puntuación post-trabajo
+          setPostWorkPending(true);
         }
       } else {
         setErrorMessage(data.message || 'Error al confirmar el trabajo');
@@ -1403,7 +1382,14 @@ export default function MyJobsScreen() {
 
             <div className="flex justify-center">
               <button
-                onClick={() => setShowConfirmationSuccessModal(false)}
+                onClick={() => {
+                  setShowConfirmationSuccessModal(false);
+                  // La puntuación post-trabajo es obligatoria: la pide el portero
+                  if (postWorkPending) {
+                    setPostWorkPending(false);
+                    requestPostWorkRatingCheck();
+                  }
+                }}
                 className="rounded-xl bg-gradient-to-r from-green-500 to-green-600 px-8 py-3 font-semibold text-white shadow-lg transition-all hover:from-green-600 hover:to-green-700"
               >
                 {t('common.understood', 'Entendido')}
@@ -1411,17 +1397,6 @@ export default function MyJobsScreen() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Post-work rating survey (se muestra al cerrar el modal de confirmación) */}
-      {postWorkRating && !showConfirmationSuccessModal && (
-        <PostWorkRatingModal
-          open
-          contractId={postWorkRating.contractId}
-          reviewedName={postWorkRating.reviewedName}
-          reviewedRole={postWorkRating.reviewedRole}
-          onClose={() => setPostWorkRating(null)}
-        />
       )}
 
       {/* Availability Saved Modal */}

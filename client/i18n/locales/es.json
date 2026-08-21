@@ -87,18 +87,23 @@
     "submit": "Enviar reseña",
     "cancel": "Cancelar",
     "postWork": {
-      "title": "Dos preguntas rápidas",
-      "subtitle": "Son opcionales: respondé lo que quieras.",
-      "rateDoer": "¿Querés puntuar el trabajo de {{name}}?",
-      "rateClient": "¿Querés puntuar a {{name}} como cliente?",
+      "rateDoer": "Puntuá el trabajo de {{name}}",
+      "rateClient": "Puntuá a {{name}} como cliente",
+      "theWorker": "el trabajador",
+      "theClient": "el cliente",
+      "stepOf": "Paso {{step}} de 2",
+      "step1Subtitle": "Es obligatorio para cerrar el trabajo.",
+      "step2Title": "Una última cosa",
+      "step2Subtitle": "Contanos qué te pareció DoApp.",
       "recommendApp": "¿Recomendarías DoApp?",
       "noteLabel": "Nota (opcional)",
       "notePlaceholder": "Contanos algo más si querés...",
-      "starsAria": "{{stars}} estrellas",
+      "next": "Continuar",
+      "back": "Volver",
       "send": "Enviar",
       "sending": "Enviando...",
-      "skip": "Ahora no",
-      "errorNoAnswer": "Respondé al menos una pregunta o dejá una nota",
+      "errorNoRating": "Puntuá el trabajo para continuar",
+      "errorNoRecommend": "Contanos si recomendarías DoApp",
       "errorSubmit": "No pudimos guardar tu puntuación",
       "thanksTitle": "¡Gracias por tu opinión!",
       "thanksDesc": "Tu respuesta nos ayuda a mejorar DoApp para todos."
@@ -1106,9 +1111,7 @@
     "allowCounterOffers": "Permitir contraofertas",
     "allowCounterOffersHint": "Si lo desactivás, solo pueden postularse al precio que fijaste.",
     "noTaskAssigned": "Sin tarea asignada",
-    "photos": "Fotos del trabajo",
-    "theWorker": "el trabajador",
-    "theClient": "el cliente"
+    "photos": "Fotos del trabajo"
   },
   "contracts": {
     "title": "Contratos",
@@ -1483,9 +1486,7 @@
     "addBankingNow": "¿Querés agregar tus datos bancarios ahora?",
     "addBankingDetails": "Agregar datos bancarios",
     "continueWithout": "Continuar sin agregar",
-    "dontAskAgain": "No volver a preguntar",
-    "theWorker": "el trabajador",
-    "theClient": "el cliente"
+    "dontAskAgain": "No volver a preguntar"
   },
   "chat": {
     "title": "Mensajes",

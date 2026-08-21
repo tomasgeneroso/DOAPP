@@ -6,6 +6,7 @@ import { User } from "../models/sql/User.model.js";
 import { Referral } from "../models/sql/Referral.model.js";
 import { Notification as NotificationModel } from "../models/sql/Notification.model.js";
 import { protect } from "../middleware/auth.js";
+import { notifyPostWorkRatingPending } from "../services/postWorkRating.js";
 import type { AuthRequest } from "../types/index.js";
 import { socketService } from "../index.js";
 import { Op } from 'sequelize';
@@ -893,6 +894,10 @@ router.put("/:id/complete", protect, async (req: AuthRequest, res: Response): Pr
     await processReferralCredit(contract.clientId, contract.id);
     await processReferralCredit(contract.doerId, contract.id);
 
+    // Puntuación post-trabajo obligatoria para ambas partes
+    await notifyPostWorkRatingPending(contract.clientId.toString(), contract.id.toString());
+    await notifyPostWorkRatingPending(contract.doerId.toString(), contract.id.toString());
+
     // Send real-time notifications via Socket.io
     socketService.notifyContractUpdate(
       contract.id.toString(),
@@ -1264,6 +1269,10 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
     }
 
     await contract.save();
+
+    // Puntuación post-trabajo obligatoria para ambas partes
+    await notifyPostWorkRatingPending(contract.clientId.toString(), contract.id.toString());
+    await notifyPostWorkRatingPending(contract.doerId.toString(), contract.id.toString());
 
     // Socket notifications
     socketService.notifyContractUpdate(

@@ -117,10 +117,16 @@ export class Review extends Model {
   @Column(DataType.BOOLEAN)
   recommendsApp?: boolean;
 
-  /** Origen de la reseña: 'full' (formulario completo) o 'post_work' (encuesta corta) */
+  /**
+   * Origen de la reseña:
+   *  - 'full'             formulario completo de reseña
+   *  - 'post_work'        encuesta post-trabajo terminada
+   *  - 'post_work_draft'  encuesta post-trabajo empezada y sin terminar
+   *                       (guarda el progreso; no es pública ni promedia)
+   */
   @Default('full')
   @Column(DataType.STRING(20))
-  source!: 'full' | 'post_work';
+  source!: 'full' | 'post_work' | 'post_work_draft';
 
   // ============================================
   // MULTIPLE RATING CATEGORIES

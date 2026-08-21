@@ -48,7 +48,7 @@ import { getImageUrl } from "../utils/imageUrl";
 import { analytics } from "../utils/analytics";
 import { parseArgentineNumber, formatBudgetInput } from "../utils/numberFormat";
 import ConfirmationSuccessModal from "../components/jobDetail/ConfirmationSuccessModal";
-import PostWorkRatingModal from "../components/user/PostWorkRatingModal";
+import { requestPostWorkRatingCheck } from "../utils/postWorkRating";
 import ErrorModal from "../components/jobDetail/ErrorModal";
 import ContractRedirectModal from "../components/jobDetail/ContractRedirectModal";
 import PauseApprovalModal from "../components/jobDetail/PauseApprovalModal";
@@ -136,8 +136,6 @@ export default function JobDetail() {
     price?: number;
     commission?: number;
     totalPrice?: number;
-    doerName?: string;
-    clientName?: string;
   } | null>(null);
 
   // All contracts for team jobs (to check if all workers confirmed)
@@ -160,8 +158,8 @@ export default function JobDetail() {
   const [confirmingWork, setConfirmingWork] = useState(false);
   const [showConfirmationSuccessModal, setShowConfirmationSuccessModal] =
     useState(false);
-  // Encuesta post-trabajo (máx. 2 preguntas) tras completarse el contrato
-  const [showPostWorkRating, setShowPostWorkRating] = useState(false);
+  // Encuesta post-trabajo pendiente tras completarse el contrato
+  const [postWorkPending, setPostWorkPending] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [copiedPairingCode, setCopiedPairingCode] = useState(false);
@@ -567,8 +565,6 @@ export default function JobDetail() {
             price: data.contract.price,
             commission: data.contract.commission,
             totalPrice: data.contract.totalPrice,
-            doerName: data.contract.doer?.name,
-            clientName: data.contract.client?.name,
           });
         }
       } catch (err) {
@@ -646,9 +642,9 @@ export default function JobDetail() {
         }
         // Show success modal instead of navigating
         setShowConfirmationSuccessModal(true);
-        // Contrato completado → encuesta post-trabajo (máx. 2 preguntas)
+        // Contrato completado → queda pendiente la puntuación post-trabajo
         if (data.contract?.status === "completed") {
-          setShowPostWorkRating(true);
+          setPostWorkPending(true);
         }
       } else {
         setErrorMessage(
@@ -4744,23 +4740,15 @@ export default function JobDetail() {
         {/* Confirmation Success Modal */}
         <ConfirmationSuccessModal
           open={showConfirmationSuccessModal}
-          onClose={() => setShowConfirmationSuccessModal(false)}
-        />
-
-        {/* Puntuación post-trabajo (se muestra al cerrar el de confirmación) */}
-        {contractData?.id && (
-          <PostWorkRatingModal
-            open={showPostWorkRating && !showConfirmationSuccessModal}
-            contractId={contractData.id}
-            reviewedName={
-              isOwnJob
-                ? contractData.doerName || t("jobs.theWorker", "el trabajador")
-                : contractData.clientName || t("jobs.theClient", "el cliente")
+          onClose={() => {
+            setShowConfirmationSuccessModal(false);
+            // La puntuación post-trabajo es obligatoria: la pide el portero
+            if (postWorkPending) {
+              setPostWorkPending(false);
+              requestPostWorkRatingCheck();
             }
-            reviewedRole={isOwnJob ? "doer" : "client"}
-            onClose={() => setShowPostWorkRating(false)}
-          />
-        )}
+          }}
+        />
 
         <ErrorModal
           open={showErrorModal}
