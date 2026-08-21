@@ -75,6 +75,15 @@ export class Review extends Model {
   @BelongsTo(() => User, 'reviewedId')
   reviewed!: User;
 
+  /**
+   * Papel del reseñado en el contrato. Al doer se lo puntúa en las seis
+   * dimensiones y al cliente sólo en las que le aplican, así que la
+   * reputación de cada rol se promedia por separado.
+   */
+  @Index
+  @Column(DataType.STRING(10))
+  reviewedRole?: 'doer' | 'client';
+
   // ============================================
   // OVERALL RATING
   // ============================================

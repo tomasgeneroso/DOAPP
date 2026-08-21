@@ -14,6 +14,7 @@ import {
   notifyPostWorkRatingPending,
   clearPostWorkRatingNotification,
 } from "../services/postWorkRating.js";
+import { recalculateUserRatings } from "../services/userRatings.js";
 
 const router = Router();
 
@@ -80,11 +81,11 @@ router.post(
         return;
       }
 
-      // Determine who is being reviewed
-      const reviewedId =
-        contract.clientId.toString() === reviewerId.toString()
-          ? contract.doerId
-          : contract.clientId;
+      // Determine who is being reviewed y en qué papel: la reputación como
+      // trabajador y como cliente se promedian por separado.
+      const reviewsTheDoer = contract.clientId.toString() === reviewerId.toString();
+      const reviewedId = reviewsTheDoer ? contract.doerId : contract.clientId;
+      const reviewedRole = reviewsTheDoer ? "doer" : "client";
 
       // Check if review already exists
       const existingReview = await Review.findOne({
@@ -107,6 +108,7 @@ router.post(
         contractId,
         reviewerId,
         reviewedId,
+        reviewedRole,
         rating,
         comment,
         timeliness,
@@ -118,7 +120,7 @@ router.post(
       });
 
       // Update reviewed user's rating
-      await updateUserRating(reviewedId);
+      await recalculateUserRatings(reviewedId);
 
       // Notify reviewed user
       try {
@@ -226,7 +228,12 @@ const readPostWorkPayload = (body: any): PostWorkPayload => {
 async function resolvePostWorkContract(
   req: AuthRequest,
   res: Response
-): Promise<{ contract: Contract; reviewedId: string; existing: Review | null } | null> {
+): Promise<{
+  contract: Contract;
+  reviewedId: string;
+  reviewedRole: "doer" | "client";
+  existing: Review | null;
+} | null> {
   const { contractId } = req.body;
   const reviewerId = req.user.id;
 
@@ -268,6 +275,7 @@ async function resolvePostWorkContract(
   return {
     contract,
     reviewedId: isClient ? contract.doerId : contract.clientId,
+    reviewedRole: isClient ? "doer" : "client",
     existing,
   };
 }
@@ -291,7 +299,7 @@ router.post(
       const resolved = await resolvePostWorkContract(req, res);
       if (!resolved) return;
 
-      const { contract, reviewedId, existing } = resolved;
+      const { contract, reviewedId, reviewedRole, existing } = resolved;
       const { rating, recommendsApp, note, dimensions } = readPostWorkPayload(req.body);
 
       if (rating !== undefined && (rating < 1 || rating > 5)) {
@@ -319,6 +327,7 @@ router.post(
           contractId: contract.id,
           reviewerId: req.user.id,
           reviewedId,
+          reviewedRole,
           ...values,
         });
       }
@@ -362,7 +371,7 @@ router.post(
       const resolved = await resolvePostWorkContract(req, res);
       if (!resolved) return;
 
-      const { contract, reviewedId, existing } = resolved;
+      const { contract, reviewedId, reviewedRole, existing } = resolved;
       const { rating, recommendsApp, note, dimensions } = readPostWorkPayload(req.body);
 
       if (rating === undefined || recommendsApp === undefined) {
@@ -390,12 +399,13 @@ router.post(
           contractId: contract.id,
           reviewerId: req.user.id,
           reviewedId,
+          reviewedRole,
           ...values,
         });
       }
 
       // Ya está completa: impacta en el promedio del reseñado
-      await updateUserRating(reviewedId);
+      await recalculateUserRatings(reviewedId);
       await clearPostWorkRatingNotification(req.user.id, contract.id.toString());
 
       try {
@@ -456,7 +466,7 @@ router.get(
 router.get("/user/:userId", async (req, res): Promise<void> => {
   try {
     const { userId } = req.params;
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 10, role } = req.query;
 
     // Sólo se listan las reseñas con puntuación: la encuesta post-trabajo
     // puede haber respondido únicamente "¿recomendarías la app?".
@@ -470,6 +480,11 @@ router.get("/user/:userId", async (req, res): Promise<void> => {
         { isVisible: null },
       ],
     };
+
+    // ?role=doer|client para ver sólo la reputación de ese papel
+    if (role === "doer" || role === "client") {
+      publicReviewsWhere.reviewedRole = role;
+    }
 
     const reviews = await Review.findAll({
       where: publicReviewsWhere,
@@ -519,10 +534,38 @@ router.get("/user/:userId", async (req, res): Promise<void> => {
       count: 0,
     };
 
+    // Desglose por rol: al doer se lo puntúa en las seis dimensiones y al
+    // cliente sólo en las que le aplican, así que no se promedian juntas.
+    const reviewed = await User.findByPk(userId, {
+      attributes: [
+        "ratingBreakdown",
+        "doerRating",
+        "doerReviewsCount",
+        "clientRating",
+        "clientReviewsCount",
+      ],
+    });
+
+    const byRole = reviewed?.ratingBreakdown?.doer
+      ? reviewed.ratingBreakdown
+      : {
+          doer: {
+            rating: Number(reviewed?.doerRating || 0),
+            count: Number(reviewed?.doerReviewsCount || 0),
+            dimensions: {},
+          },
+          client: {
+            rating: Number(reviewed?.clientRating || 0),
+            count: Number(reviewed?.clientReviewsCount || 0),
+            dimensions: {},
+          },
+        };
+
     res.json({
       success: true,
       data: reviews,
       stats,
+      byRole,
       pagination: {
         page: Number(page),
         limit: Number(limit),
@@ -646,50 +689,5 @@ router.post(
     }
   }
 );
-
-/**
- * Calculates the average of a field across reviews, ignoring null/undefined values.
- */
-function avg(reviews: Review[], field: keyof Review): number {
-  const vals = reviews
-    .map(r => r[field] as number | undefined | null)
-    .filter((v): v is number => v !== null && v !== undefined);
-  if (vals.length === 0) return 0;
-  return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100;
-}
-
-/**
- * Helper function to update user's overall and per-dimension ratings
- */
-async function updateUserRating(userId: any) {
-  const allReviews = await Review.findAll({
-    where: { reviewedId: userId, isVisible: true },
-  });
-
-  // Los borradores (puntuaciones sin terminar) no cuentan en el promedio.
-  const reviews = allReviews.filter(
-    (r) => r.rating !== null && r.rating !== undefined && r.source !== POST_WORK_DRAFT
-  );
-
-  if (reviews.length === 0) return;
-
-  const avgRating = Math.round(
-    (reviews.reduce((sum, r) => sum + (r.rating as number), 0) / reviews.length) * 10
-  ) / 10;
-
-  await User.update(
-    {
-      rating: avgRating,
-      reviewsCount: reviews.length,
-      puntualidadRating:      avg(reviews, 'timeliness'),
-      presencialidadRating:   avg(reviews, 'attendance'),
-      comoPersonaRating:      avg(reviews, 'communication'),
-      precioJustoRating:      avg(reviews, 'fairPrice'),
-      calidadTrabajoRating:   avg(reviews, 'quality'),
-      profesionalidadRating:  avg(reviews, 'professionalism'),
-    },
-    { where: { id: userId } }
-  );
-}
 
 export default router;

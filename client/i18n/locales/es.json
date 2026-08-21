@@ -1643,7 +1643,10 @@
       "dimQuality": "Calidad de trabajo",
       "dimQualityDesc": "Resultado final: ¿quedó bien hecho?",
       "dimProfessionalism": "Profesionalidad",
-      "dimProfessionalismDesc": "Herramientas ordenadas, presencia limpia, trabajo prolijo"
+      "dimProfessionalismDesc": "Herramientas ordenadas, presencia limpia, trabajo prolijo",
+      "asDoer": "Como trabajador",
+      "asClient": "Como cliente",
+      "overCount": "({{n}})"
     },
     "portfolio": "Portafolio",
     "completedWork": "Trabajo Completado",

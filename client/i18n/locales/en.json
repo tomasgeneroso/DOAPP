@@ -1896,7 +1896,10 @@
       "dimQuality": "Work quality",
       "dimQualityDesc": "Final result: was it done well?",
       "dimProfessionalism": "Professionalism",
-      "dimProfessionalismDesc": "Organized tools, clean presence, tidy work"
+      "dimProfessionalismDesc": "Organized tools, clean presence, tidy work",
+      "asDoer": "As a worker",
+      "asClient": "As a client",
+      "overCount": "({{n}})"
     },
     "portfolio": "Portfolio",
     "completedWork": "Completed Work",
