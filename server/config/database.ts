@@ -160,6 +160,8 @@ async function registerModels() {
   const { BlacklistEntry } = await import('../models/sql/BlacklistEntry.model.js');
   const { BannedIdentity } = await import('../models/sql/BannedIdentity.model.js');
   const ModuleConfig = (await import('../models/sql/ModuleConfig.model.js')).default;
+  const { AppSetting } = await import('../models/sql/AppSetting.model.js');
+  const { ActionPassword } = await import('../models/sql/ActionPassword.model.js');
 
   // Add models to sequelize
   sequelize.addModels([
@@ -205,6 +207,8 @@ async function registerModels() {
     BlacklistEntry,
     BannedIdentity,
     ModuleConfig,
+    AppSetting,
+    ActionPassword,
   ]);
 
   normalizeIndexFields();

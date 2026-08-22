@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import Header from "./Header";
+import BetaBanner from "../BetaBanner";
 import Footer from "./Footer";
 import MobileBottomNav from "./MobileBottomNav";
 import ErrorBoundary from "../ErrorBoundary";
@@ -36,6 +37,7 @@ export default function Layout() {
       <ErrorBoundary>
         <Header />
       </ErrorBoundary>
+      <BetaBanner />
       <main id="main-content" className="flex-1 flex flex-col" tabIndex={-1}>
         <ErrorBoundary>
           <div className="flex-1">

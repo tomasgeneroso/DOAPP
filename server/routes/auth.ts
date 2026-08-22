@@ -25,6 +25,7 @@ import anomalyDetection from "../services/anomalyDetection.js";
 import { createAuditLog, getClientIp, getUserAgent } from "../utils/auditLogger.js";
 import { uploadAvatar, uploadCover, uploadDniPhotos, uploadLicenseDocument, uploadInsuranceDocument, getFileUrl, verifyMagicBytes } from "../middleware/upload.js";
 import { sendWhatsAppCode, getWhatsAppStatus } from "../services/whatsapp.js";
+import { getPhaseInfo, isBetaPhase } from "../services/platformPhase.js";
 import { isDiditConfigured, diditConfigProblem, createDiditSession, getDiditDecision, verifyDiditWebhook, applyKycStatus, isManualKycUnlocked, getKycMaxAttempts } from "../services/didit.js";
 import twitterOAuth from "../services/twitterOAuth.js";
 
@@ -572,6 +573,14 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         },
         kycAttempts: (user as any)?.kycAttempts ?? 0,
         kycMaxAttempts: getKycMaxAttempts(),
+        // Platform phase. Exposed on the user payload rather than a separate
+        // call so every screen that renders pricing already has it, and the
+        // beta notice cannot be forgotten on one of them.
+        platform: await getPhaseInfo(),
+        // During the beta everyone gets SUPER PRO features. The stored tier is
+        // left untouched — this is what the UI should gate on, so that when the
+        // beta ends people fall back to what they actually pay for.
+        effectiveMembershipTier: (await isBetaPhase()) ? 'super_pro' : (user?.membershipTier || 'free'),
       },
     });
   } catch (error: any) {

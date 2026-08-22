@@ -80,6 +80,7 @@ const AdminUsers = lazy(() => import("./pages/admin/Users"));
 const AdminBannedIdentities = lazy(() => import("./pages/admin/BannedIdentities"));
 const AdminUserData = lazy(() => import("./pages/admin/UserData"));
 const AdminPadron = lazy(() => import("./pages/admin/Padron"));
+const AdminPlatformPhase = lazy(() => import("./pages/admin/PlatformPhase"));
 const AdminRoles = lazy(() => import("./pages/admin/RoleManagement"));
 const AdminRolePermissions = lazy(() => import("./pages/admin/RolePermissions"));
 const AdminAnalytics = lazy(() => import("./pages/admin/Analytics"));
@@ -633,6 +634,7 @@ export default function App() {
                 { value: 'rechazada', label: 'Rechazados' },
                 { value: 'falta seguro', label: 'Sin póliza cargada' },
               ]} />} />
+              <Route path="platform" element={<AdminPlatformPhase />} />
               <Route path="roles" element={<AdminRoles />} />
               <Route path="role-permissions" element={<AdminRolePermissions />} />
               <Route path="analytics" element={<AdminAnalytics />} />

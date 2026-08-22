@@ -23,6 +23,7 @@
 import { Op } from 'sequelize';
 import { Contract } from '../models/sql/Contract.model.js';
 import { User } from '../models/sql/User.model.js';
+import { isBetaPhase } from './platformPhase.js';
 
 // Fixed commission rates
 const FREE_COMMISSION_RATE = 8;       // 8% for free users
@@ -113,6 +114,25 @@ export async function calculateCommission(
     currentVolume?: number;
   } = {}
 ): Promise<CommissionResult> {
+  // 0. Beta phase = no commission for anybody.
+  //
+  // Checked before anything else, including the user lookup: during the beta
+  // the plan is irrelevant, and the "user not found" path below defaults to 8%,
+  // which would silently charge a commission the platform has publicly said it
+  // is not charging. This is the single funnel every caller goes through
+  // (contracts, jobs, admin, price changes), so one branch covers all of them.
+  if (await isBetaPhase()) {
+    return {
+      rate: 0,
+      commission: 0,
+      monthlyVolume: 0,
+      tierDescription: 'Beta (sin comision)',
+      isFamilyPlan: false,
+      isFreeContract: false,
+      minimumApplied: false,
+    };
+  }
+
   // Get user to check for membership, family plan, etc.
   const user = await User.findByPk(userId);
   if (!user) {

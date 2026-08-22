@@ -117,6 +117,12 @@ export const ACTION_SEVERITIES: Record<string, "low" | "medium" | "high" | "crit
   // Reading a user's identity documents / biometrics. A read, but a sensitive
   // one: the presigned URLs expire, so this log is the only lasting trace.
   "view_kyc_media": "high",
+  // Platform phase: switching out of beta turns commission on for everyone.
+  "platform_phase_changed": "critical",
+  "platform_phase_change_denied": "high",
+  "platform_phase_password_created": "high",
+  "platform_phase_password_reset": "high",
+  "platform_phase_password_reset_requested": "medium",
 
   // Contract actions
   "ban_contract": "medium",

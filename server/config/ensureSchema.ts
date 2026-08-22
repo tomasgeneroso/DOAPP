@@ -18,6 +18,30 @@ import type { Sequelize } from 'sequelize-typescript';
  * here as an idempotent statement.
  */
 const STATEMENTS: Array<{ label: string; sql: string }> = [
+  // --- owner-controlled runtime settings + per-action passwords ---
+  {
+    label: 'app_settings table',
+    sql: `CREATE TABLE IF NOT EXISTS app_settings (
+      key VARCHAR(64) PRIMARY KEY,
+      value JSONB NOT NULL,
+      updated_by UUID,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`,
+  },
+  {
+    label: 'action_passwords table',
+    sql: `CREATE TABLE IF NOT EXISTS action_passwords (
+      action VARCHAR(64) PRIMARY KEY,
+      password_hash VARCHAR(255) NOT NULL,
+      created_by UUID,
+      reset_token_hash VARCHAR(255),
+      reset_token_expires TIMESTAMPTZ,
+      last_used_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )`,
+  },
   // --- user_analytics table (relation "user_analytics" does not exist) ---
   {
     label: 'user_analytics table',
