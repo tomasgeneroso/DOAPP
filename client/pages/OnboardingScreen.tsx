@@ -1,4 +1,5 @@
 import { useState } from "react";
+import BetaNotice from '../components/BetaNotice';
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
@@ -78,6 +79,7 @@ export default function OnboardingScreen() {
             Cuéntanos qué tipo de trabajos te interesan para mostrarte las mejores
             oportunidades
           </p>
+          <BetaNotice className="mt-5 text-left max-w-2xl mx-auto" />
         </div>
 
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-lg p-8 mb-6">

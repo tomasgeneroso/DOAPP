@@ -32,6 +32,19 @@ const SUPER_PRO_COMMISSION_RATE = 1;  // 1% for SUPER PRO
 
 const MINIMUM_COMMISSION = 1000; // $1,000 ARS minimum
 
+/**
+ * IVA on DOAPP's own fee.
+ *
+ * The taxable base is the commission, not the contract: the platform invoices
+ * its intermediation service, and the work itself is a contract between client
+ * and worker that DOAPP is explicitly not a party to (Terms, clause 2). A
+ * registered worker invoices their own IVA separately.
+ *
+ * Consequence worth keeping in mind: with a zero commission the IVA is zero
+ * too, so during the beta the client pays exactly the contract price.
+ */
+const VAT_RATE = 21;
+
 export interface CommissionResult {
   rate: number;                   // Porcentaje de comisión (ej: 6)
   commission: number;             // Monto de comisión calculado
@@ -40,6 +53,9 @@ export interface CommissionResult {
   isFamilyPlan: boolean;          // Si tiene plan familia
   isFreeContract: boolean;        // Si es contrato gratuito
   minimumApplied: boolean;        // Si se aplicó el mínimo de $1,000
+  vatRate: number;                // Alícuota de IVA aplicada a la comisión
+  vat: number;                    // IVA sobre la comisión
+  totalFee: number;               // Lo que cobra la plataforma: comisión + IVA
 }
 
 /**
@@ -105,6 +121,17 @@ export function getCommissionRateByVolume(_monthlyVolume: number): { rate: numbe
  * @param contractPrice - The price of the contract
  * @param options - Additional options (isFreeContract, etc.)
  */
+/** Everything except the tax, which the wrapper below adds in one place. */
+type CommissionBase = Omit<CommissionResult, 'vatRate' | 'vat' | 'totalFee'>;
+
+/**
+ * Commission plus IVA.
+ *
+ * The tax is applied here rather than inside each branch of the calculation:
+ * that function returns from half a dozen places (family plan, free contract,
+ * beta, each tier, and a "user not found" fallback), and adding the same three
+ * lines to every one of them is how one branch quietly ends up untaxed.
+ */
 export async function calculateCommission(
   userId: string,
   contractPrice: number,
@@ -112,8 +139,28 @@ export async function calculateCommission(
     isFreeContract?: boolean;
     skipVolumeCheck?: boolean;
     currentVolume?: number;
-  } = {}
+  } = {},
 ): Promise<CommissionResult> {
+  const base = await computeCommissionBase(userId, contractPrice, options);
+  // Rounded to cents: this figure ends up on an invoice.
+  const vat = Math.round(base.commission * (VAT_RATE / 100) * 100) / 100;
+  return {
+    ...base,
+    vatRate: VAT_RATE,
+    vat,
+    totalFee: Math.round((base.commission + vat) * 100) / 100,
+  };
+}
+
+async function computeCommissionBase(
+  userId: string,
+  contractPrice: number,
+  options: {
+    isFreeContract?: boolean;
+    skipVolumeCheck?: boolean;
+    currentVolume?: number;
+  } = {}
+): Promise<CommissionBase> {
   // 0. Beta phase = no commission for anybody.
   //
   // Checked before anything else, including the user lookup: during the beta

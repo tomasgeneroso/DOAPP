@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, FormEvent, ChangeEvent } from "react";
+import BetaNotice from '../components/BetaNotice';
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
@@ -290,9 +291,10 @@ export default function LoginScreen() {
           <p className="text-slate-600 dark:text-slate-400 mb-4">
             {t('auth.verificationEmailSent')}
           </p>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">
+          <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">
             {t('auth.verificationSpamNote')}
           </p>
+          <BetaNotice className="mb-6 text-left" />
           {verificationSent && (
             <p className="text-sm text-green-600 dark:text-green-400 mb-4">{t('auth.newLinkSent')}</p>
           )}

@@ -20,6 +20,7 @@ import { getUserInvoices, getInvoiceById } from '../services/invoiceService.js';
 import logger from "../services/logger.js";
 import { socketService } from "../index.js";
 import { calculateCommission } from "../services/commissionService.js";
+import { getPhaseInfo } from "../services/platformPhase.js";
 
 // Ensure upload directory exists
 const PAYMENT_PROOFS_DIR = path.join(process.cwd(), 'uploads', 'payment-proofs');
@@ -141,11 +142,16 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
       const jobPrice = parseFloat(job.price as any) || 0;
       const commissionResult = await calculateCommission(userId, jobPrice);
       const publicationCost = commissionResult.commission;
+      const vat = commissionResult.vat;
 
-      // Total amount = job price + publication commission
-      const totalAmountARS = jobPrice + publicationCost;
+      // What the client pays: the work, plus DOAPP's fee, plus IVA on that fee.
+      // The tax sits on the commission only — the platform invoices its own
+      // service, not the work, which is a contract between client and worker.
+      // During the beta the commission is 0, so the IVA is 0 and the client
+      // pays exactly the contract price.
+      const totalAmountARS = Math.round((jobPrice + publicationCost + vat) * 100) / 100;
 
-      console.log(`💵 Job publication payment: ${totalAmountARS.toFixed(2)} ARS (job: ${jobPrice.toFixed(2)}, commission: ${publicationCost.toFixed(2)}) - ${selectedPaymentMethod}`);
+      console.log(`💵 Job publication payment: ${totalAmountARS.toFixed(2)} ARS (job: ${jobPrice.toFixed(2)}, commission: ${publicationCost.toFixed(2)}, IVA ${commissionResult.vatRate}%: ${vat.toFixed(2)}) - ${selectedPaymentMethod}`);
 
       // Handle different payment methods
       if (selectedPaymentMethod === 'bank_transfer') {
@@ -1775,6 +1781,54 @@ router.get("/:paymentId/proofs", protect, async (req: AuthRequest, res: Response
   }
 });
 
+/**
+ * GET /api/payments/quote?price=36000
+ *
+ * The authoritative breakdown for a contract price: commission, IVA and what
+ * the client will actually be charged.
+ *
+ * Exists because JobPayment.tsx used to recompute the commission in the
+ * browser — tiers, free contracts and the $1.000 minimum, all duplicated. That
+ * second implementation cannot know about the platform phase or the tax, so it
+ * showed one number while the server charged another. On a payment screen that
+ * gap is a dispute waiting to happen, so the number comes from the same
+ * function that does the charging.
+ */
+router.get("/quote", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const price = Number((req.query as any).price);
+    if (!Number.isFinite(price) || price <= 0) {
+      res.status(400).json({ success: false, message: "Precio invalido" });
+      return;
+    }
+
+    const isFreeContract = String((req.query as any).isFreeContract || '') === 'true';
+    const c = await calculateCommission(req.user!.id, price, { isFreeContract });
+    const phase = await getPhaseInfo();
+
+    res.json({
+      success: true,
+      data: {
+        price,
+        commission: c.commission,
+        commissionRate: c.rate,
+        minimumApplied: c.minimumApplied,
+        vat: c.vat,
+        vatRate: c.vatRate,
+        platformTotal: c.totalFee,
+        // What the client pays, and what the worker receives — the two figures
+        // people actually care about, so neither side has to add up the parts.
+        totalToPay: Math.round((price + c.totalFee) * 100) / 100,
+        workerReceives: price,
+        tierDescription: c.tierDescription,
+        phase: phase.phase,
+        isBeta: phase.isBeta,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
 /**
  * Get currency conversion rates (ARS to USDT)
  * GET /api/payments/conversion/usdt

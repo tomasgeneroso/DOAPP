@@ -174,6 +174,14 @@ export default function Header() {
             alt="DOAPP"
             className="h-10 w-10 sm:h-12 sm:w-12 transition-transform duration-300 group-hover:scale-105"
           />
+          {/* Beta tag under the logo: the phase is part of what the product is
+              right now, so it travels with the name rather than living only in
+              a banner someone scrolls past. */}
+          {(user as any)?.platform?.isBeta && (
+            <span className="self-end mb-1 -ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+              Beta
+            </span>
+          )}
         </Link>
 
         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">

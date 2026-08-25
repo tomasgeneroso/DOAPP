@@ -71,12 +71,22 @@ export async function setPlatformPhase(phase: PlatformPhase, updatedBy?: string)
 export async function getPhaseInfo() {
   const phase = await getPlatformPhase();
   const endsAt = BETA_ENDS_AT.toISOString();
+
+  // When the switch was actually thrown. The owner can go live before the
+  // deadline, so "the beta ended" and "BETA_ENDS_AT" are not the same date, and
+  // the launch announcement has to key off the real one.
+  let changedAt: string | null = null;
+  try {
+    const row = await AppSetting.findByPk(PHASE_SETTING_KEY);
+    changedAt = row?.value?.changedAt ?? null;
+  } catch { /* table not there yet */ }
   const daysLeft = Math.max(0, Math.ceil((BETA_ENDS_AT.getTime() - Date.now()) / 86_400_000));
   return {
     phase,
     isBeta: phase === 'beta',
     betaEndsAt: endsAt,
     betaDaysLeft: phase === 'beta' ? daysLeft : 0,
+    phaseChangedAt: changedAt,
   };
 }
 

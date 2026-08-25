@@ -14,7 +14,7 @@ export default function JobPayment() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user, refreshUser } = useAuth();
+  const { user, token, refreshUser } = useAuth();
   const toast = useToast();
   const [job, setJob] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -47,67 +47,55 @@ export default function JobPayment() {
     senderBankName: '',
   });
 
-  // Calculate commission based on user tier
-  const getCommissionRate = () => {
-    if (user?.membershipTier === 'super_pro') return 1;
-    if (user?.membershipTier === 'pro') return 3;
-    return 8; // FREE users
-  };
-
-  const calculateCommission = () => {
-    const jobPrice = job?.price || job?.budget || 0;
-    if (!jobPrice) return 0;
-
-    // Check if user has initial free contracts available
-    const freeContractsRemaining = user?.freeContractsRemaining || 0;
-
-    if (freeContractsRemaining > 0) {
-      return 0; // No commission for initial free contracts
-    }
-
-    // Check if user has monthly free contracts (PRO: 1, SUPER PRO: 2)
-    const proContractsUsed = user?.monthlyContractsUsed || 0;
-    let monthlyFreeLimit = 0;
-    if (user?.membershipTier === 'super_pro') monthlyFreeLimit = 2;
-    else if (user?.membershipTier === 'pro') monthlyFreeLimit = 1;
-
-    if (proContractsUsed < monthlyFreeLimit) {
-      return 0; // No commission for monthly free contracts
-    }
-
-    const rate = getCommissionRate();
-    const MINIMUM_COMMISSION = 1000;
-
-    // Calculate commission based on rate
-    const calculatedCommission = jobPrice * (rate / 100);
-
-    // Always apply minimum commission of $1000 ARS
-    return Math.max(calculatedCommission, MINIMUM_COMMISSION);
-  };
+  /**
+   * The breakdown comes from the server.
+   *
+   * This screen used to recompute it here — tiers, free contracts, the $1.000
+   * minimum — a second implementation of the pricing rules. It could not know
+   * about the platform phase or the IVA, so it showed one total while the
+   * server charged another. On a payment screen that gap is a dispute, so the
+   * figures now come from the same function that does the charging.
+   */
+  const [quote, setQuote] = useState<{
+    price: number; commission: number; commissionRate: number; minimumApplied: boolean;
+    vat: number; vatRate: number; platformTotal: number; totalToPay: number;
+    workerReceives: number; tierDescription: string; isBeta: boolean;
+  } | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
 
   const jobPrice = job?.price || job?.budget || 0;
-  const commissionRate = getCommissionRate();
 
-  // Free contracts info
+  useEffect(() => {
+    if (isBudgetIncrease || !jobPrice || !token) return;
+    let cancelled = false;
+    setQuoteLoading(true);
+    fetch(`/api/payments/quote?price=${jobPrice}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled && d.success) setQuote(d.data); })
+      .catch(() => { /* the button stays disabled while there is no quote */ })
+      .finally(() => { if (!cancelled) setQuoteLoading(false); });
+    return () => { cancelled = true; };
+  }, [jobPrice, token, isBudgetIncrease]);
+
+  const commissionRate = quote?.commissionRate ?? 0;
+
+  // Free contracts info (display only — the server decides the amount)
   const freeContractsRemaining = user?.freeContractsRemaining || 0;
   const freeContractsLimit = 3; // Default initial free contracts
 
-  // Monthly free contracts info
   const proContractsUsed = user?.monthlyContractsUsed || 0;
   let monthlyFreeLimit = 0;
   if (user?.membershipTier === 'super_pro') monthlyFreeLimit = 2;
   else if (user?.membershipTier === 'pro') monthlyFreeLimit = 1;
   const monthlyFreeRemaining = Math.max(0, monthlyFreeLimit - proContractsUsed);
 
-  const isFreeContract = freeContractsRemaining > 0 || monthlyFreeRemaining > 0;
+  const isFreeContract = (quote?.commission ?? 0) === 0 && !quote?.isBeta;
 
-  // Calculate costs
-  // For budget increase, use the amount from URL params (already includes commission)
-  // For regular job payment, calculate commission based on job price
-  const publicationCost = isBudgetIncrease ? 0 : calculateCommission();
+  const publicationCost = isBudgetIncrease ? 0 : (quote?.commission ?? 0);
+  const vatAmount = isBudgetIncrease ? 0 : (quote?.vat ?? 0);
   const totalAmount = isBudgetIncrease
     ? parseFloat(amountParam || '0')
-    : (isFreeContract ? 0 : jobPrice + publicationCost);
+    : (quote?.totalToPay ?? 0);
 
   useEffect(() => {
     loadJob();
@@ -599,6 +587,24 @@ export default function JobPayment() {
                       ${publicationCost.toLocaleString('es-AR')} ARS
                     </span>
                   </div>
+                  {vatAmount > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600 dark:text-gray-400">
+                        IVA ({quote?.vatRate ?? 21}%) sobre la comisión
+                      </span>
+                      <span className="font-semibold">
+                        ${vatAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })} ARS
+                      </span>
+                    </div>
+                  )}
+                  {quote?.isBeta && (
+                    <div className="flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+                      <span>
+                        Estás en la <strong>beta</strong>: no cobramos comisión ni IVA. Pagás exactamente
+                        el valor del trabajo y el trabajador lo recibe completo.
+                      </span>
+                    </div>
+                  )}
                   <div className="flex justify-between text-xl font-bold text-gray-900 dark:text-white pt-3 border-t-2 border-gray-300 dark:border-gray-600">
                     <span>Total a pagar ahora</span>
                     <span className={totalAmount === 0 ? "text-green-600 dark:text-green-400" : ""}>

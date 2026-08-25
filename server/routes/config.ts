@@ -1,6 +1,7 @@
 import { Router, Response, Request } from 'express';
 import { ModuleConfig } from '../models/sql/ModuleConfig.model.js';
 import astropayService from '../services/astropay.js';
+import { getPhaseInfo } from '../services/platformPhase.js';
 
 const router = Router();
 
@@ -26,6 +27,21 @@ function isDeliverable(moduleId: string): boolean {
   return check ? check() : true;
 }
 
+/**
+ * GET /api/config/phase
+ *
+ * Public because the phase has to be visible before login: the registration
+ * confirmation and onboarding both announce the beta, and neither has a user
+ * to read it from yet. Nothing here is sensitive — it is the same thing the
+ * banner says to everyone.
+ */
+router.get('/phase', async (_req: Request, res: Response) => {
+  try {
+    res.json({ success: true, data: await getPhaseInfo() });
+  } catch (e: any) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
 /**
  * GET /api/config/modules
  * Obtener lista de módulos activos (público, sin autenticación requerida)
