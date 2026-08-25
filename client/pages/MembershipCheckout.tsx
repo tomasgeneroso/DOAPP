@@ -40,7 +40,10 @@ export default function MembershipCheckout() {
 
   const checkUpgradeEligibility = async () => {
     // Verificar si el usuario puede hacer upgrade (PRO → SUPER PRO)
-    if (user?.membershipTier === 'pro' && user?.hasMembership && plan === 'super_pro') {
+    // realMembershipTier, not membershipTier: during the beta everyone reads as
+    // super_pro, and buying a plan has to be about what they actually pay for.
+    const paidTier = (user as any)?.realMembershipTier ?? user?.membershipTier;
+    if (paidTier === 'pro' && user?.hasMembership && plan === 'super_pro') {
       try {
         const token = localStorage.getItem('token');
         const response = await fetch('/api/membership/usage', {

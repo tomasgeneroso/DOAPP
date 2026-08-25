@@ -94,3 +94,23 @@ export async function getPhaseInfo() {
 export function __resetPhaseCache() {
   cached = null;
 }
+
+/**
+ * The membership tier a user effectively has right now.
+ *
+ * During the beta everyone gets SUPER PRO, so feature gates should ask this
+ * rather than reading `user.membershipTier` directly.
+ *
+ * Deliberately NOT applied everywhere: billing (membershipService, the monthly
+ * counter reset, subscription checkout) and the admin views must keep seeing
+ * the stored tier. If billing believed everyone were SUPER PRO, subscriptions
+ * would silently stop being charged the day the beta ends — the tier a person
+ * pays for and the tier they currently enjoy are two different facts.
+ */
+export async function getEffectiveTier(
+  storedTier: string | null | undefined,
+): Promise<'free' | 'pro' | 'super_pro'> {
+  if (await isBetaPhase()) return 'super_pro';
+  const t = storedTier || 'free';
+  return t === 'pro' || t === 'super_pro' ? t : 'free';
+}

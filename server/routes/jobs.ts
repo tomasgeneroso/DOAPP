@@ -1,3 +1,4 @@
+import { getEffectiveTier } from '../services/platformPhase.js';
 import express, { Request, Response } from "express";
 import { body, param, validationResult } from "express-validator";
 import { Job } from "../models/sql/Job.model.js";
@@ -879,8 +880,9 @@ router.post(
       const hasFreeInitialContracts = user.freeContractsRemaining > 0;
 
       let monthlyFreeLimit = 0;
-      if (user.membershipTier === 'super_pro') monthlyFreeLimit = 2;
-      else if (user.membershipTier === 'pro') monthlyFreeLimit = 1;
+      const effectiveTier = await getEffectiveTier(user.membershipTier);
+      if (effectiveTier === 'super_pro') monthlyFreeLimit = 2;
+      else if (effectiveTier === 'pro') monthlyFreeLimit = 1;
 
       const proContractsUsed = user.proContractsUsedThisMonth || 0;
       const hasMonthlyFreeContracts = proContractsUsed < monthlyFreeLimit;

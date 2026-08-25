@@ -72,6 +72,20 @@ export default function ProUsageDashboard() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
+      {/* Says why the account is SUPER PRO. Showing the badge without the
+          reason invites the reading that it was bought, which makes the end of
+          the beta feel like something being taken away. */}
+      {(user as any)?.membershipIsFromBeta && (
+        <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3 mb-4">
+          <p className="text-xs text-amber-800 dark:text-amber-300">
+            Tenés <strong className="font-semibold">SUPER PRO sin costo porque estás en la beta</strong>,
+            junto con la exención de comisión. Tu plan contratado sigue siendo{" "}
+            <strong className="font-semibold">{((user as any)?.realMembershipTier ?? 'free').toUpperCase().replace('_', ' ')}</strong>.
+            Al terminar la beta volvés a ese plan, salvo que contrates otro.
+          </p>
+        </div>
+      )}
+
       {/* Header */}
       <div className={`rounded-lg p-6 mb-6 text-white ${
         user?.membershipTier === 'super_pro'

@@ -1,4 +1,5 @@
 import express, { Request, Response } from "express";
+import { getEffectiveTier } from '../services/platformPhase.js';
 import { Op, fn, col, literal } from "sequelize";
 import { User } from "../models/sql/User.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
@@ -624,7 +625,7 @@ router.get("/:id/share-stats", async (req: Request, res: Response): Promise<void
         sharesViaMessage: user.profileSharesViaMessage || 0,
         lastShareAt: user.lastProfileShareAt,
         // Only PRO users get detailed stats
-        hasFullAccess: user.hasMembership && ['pro', 'super_pro'].includes(user.membershipTier || ''),
+        hasFullAccess: ['pro', 'super_pro'].includes(await getEffectiveTier(user.membershipTier)),
       },
     });
   } catch (error: any) {

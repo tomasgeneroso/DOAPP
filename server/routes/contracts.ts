@@ -1,4 +1,5 @@
 import express, { Request, Response } from "express";
+import { getEffectiveTier } from '../services/platformPhase.js';
 import { body, validationResult } from "express-validator";
 import { Contract } from "../models/sql/Contract.model.js";
 import { Job } from "../models/sql/Job.model.js";
@@ -3730,7 +3731,7 @@ router.get(
       }
 
       // Determinar límite según plan
-      const isSuperPro = user.membershipTier === 'super_pro';
+      const isSuperPro = (await getEffectiveTier(user.membershipTier)) === 'super_pro';
       const cancellationHourLimit = isSuperPro ? 24 : 48;
       const canCancel = hoursUntilStart >= cancellationHourLimit;
 
@@ -3811,7 +3812,7 @@ router.post(
       }
 
       // Determinar límite de horas para cancelación
-      const isSuperPro = user.membershipTier === 'super_pro';
+      const isSuperPro = (await getEffectiveTier(user.membershipTier)) === 'super_pro';
       const cancellationHourLimit = isSuperPro ? 24 : 48;
 
       // Verificar si puede cancelar

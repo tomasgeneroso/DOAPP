@@ -29,6 +29,32 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+
+/**
+ * Applies the beta's SUPER PRO to the user object the app reads.
+ *
+ * There are ~59 places in the client that compare `membershipTier` to decide
+ * whether to show a feature. Rewriting all of them was the wrong trade: one
+ * missed call site is a feature the beta promised and does not deliver, and the
+ * diff would be impossible to review. So the substitution happens once, here,
+ * where the user object is built.
+ *
+ * The stored tier survives as `realMembershipTier` for the screens that must
+ * show what the person actually pays for — subscription checkout and the
+ * membership panel — so "what you have now" and "what you pay for" stay
+ * distinguishable.
+ */
+function withBetaTier(u: any) {
+  if (!u) return u;
+  if (!u.platform?.isBeta) return u;
+  return {
+    ...u,
+    realMembershipTier: u.membershipTier ?? 'free',
+    membershipTier: 'super_pro',
+    membershipIsFromBeta: true,
+  };
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const { t } = useTranslation();
   const [user, setUser] = useState<User | null>(null);
@@ -64,7 +90,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (data.token) {
             localStorage.setItem("token", data.token);
           }
-          setUser({ ...data.user });
+          setUser(withBetaTier({ ...data.user }));
           setToken(data.token || "cookie"); // Indicador de que usamos cookies
 
           // Mostrar modal de notificaciones si es necesario (después de 30 segundos)
@@ -131,7 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Guardamos el token en localStorage para Socket.io
       localStorage.setItem("token", data.token);
       setToken(data.token);
-      setUser({ ...data.user });
+      setUser(withBetaTier({ ...data.user }));
       console.log("✅ Login exitoso, usuario:", data.user.name);
 
       // Mostrar modal de notificaciones si es necesario (después de 30 segundos)
@@ -219,7 +245,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           localStorage.setItem("token", data.token);
         }
         // Create a new object to force re-render
-        setUser({ ...data.user });
+        setUser(withBetaTier({ ...data.user }));
         console.log("✅ User refreshed:", data.user.name);
         console.log(
           "📊 Free contracts remaining:",

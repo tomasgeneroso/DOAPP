@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import { getEffectiveTier } from '../services/platformPhase.js';
 import { protect, AuthRequest } from "../middleware/auth";
 import { Dispute } from "../models/sql/Dispute.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
@@ -124,7 +125,8 @@ router.post(
 
       // Check if initiating user is PRO
       const initiatingUser = await User.findByPk(userId);
-      const userIsPro = initiatingUser?.membershipTier === 'pro' || initiatingUser?.membershipTier === 'super_pro';
+      const effectiveTier = await getEffectiveTier(initiatingUser?.membershipTier);
+      const userIsPro = effectiveTier === 'pro' || effectiveTier === 'super_pro';
 
       // Calculate automatic priority based on contract value and category
       const disputeCategory = category || 'other';
