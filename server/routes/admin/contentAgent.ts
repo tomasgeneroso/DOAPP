@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { protect, authorize, AuthRequest } from '../../middleware/auth.js';
 import { BlogPost } from '../../models/sql/BlogPost.model.js';
 import { logAudit, getSeverityForAction } from '../../utils/auditLog.js';
-import { isContentAgentConfigured } from '../../services/contentAgent.js';
+import { isContentAgentConfigured, isContentAgentEnabled, setContentAgentEnabled } from '../../services/contentAgent.js';
 import { runBlogDraftGeneration, listPendingDrafts, listRecentlyRejected } from '../../jobs/generateBlogDrafts.js';
 
 /**
@@ -23,6 +23,7 @@ router.get('/queue', async (_req: AuthRequest, res: Response) => {
       success: true,
       data: {
         configured: isContentAgentConfigured(),
+        enabled: await isContentAgentEnabled(),
         pending: pending.map((p: any) => ({
           id: p.id, title: p.title, subtitle: p.subtitle, excerpt: p.excerpt,
           content: p.content, category: p.category, tags: p.tags,
@@ -39,6 +40,24 @@ router.get('/queue', async (_req: AuthRequest, res: Response) => {
   }
 });
 
+// @route POST /api/admin/content-agent/toggle
+// @desc  Turn the scheduled agent on or off.
+router.post('/toggle', async (req: AuthRequest, res: Response) => {
+  try {
+    const enabled = req.body?.enabled === true;
+    await setContentAgentEnabled(enabled, req.user!.id);
+    await logAudit({
+      req, action: enabled ? 'content_agent_enabled' : 'content_agent_disabled', category: 'system',
+      severity: getSeverityForAction(enabled ? 'content_agent_enabled' : 'content_agent_disabled'),
+      description: enabled ? 'Se activo el agente de contenido' : 'Se desactivo el agente de contenido',
+      targetModel: 'AppSetting', targetId: 'content-agent:enabled',
+    });
+    res.json({ success: true, message: enabled ? 'Agente activado' : 'Agente desactivado' });
+  } catch (e: any) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
 // @route POST /api/admin/content-agent/generate
 // @desc  Generate one draft now, without waiting for the schedule.
 router.post('/generate', async (req: AuthRequest, res: Response) => {
@@ -47,7 +66,7 @@ router.post('/generate', async (req: AuthRequest, res: Response) => {
       res.status(503).json({ success: false, message: 'Falta ANTHROPIC_API_KEY en el servidor' });
       return;
     }
-    const result = await runBlogDraftGeneration();
+    const result = await runBlogDraftGeneration({ scheduled: false });
     if (!result.created) { res.status(400).json({ success: false, message: result.reason }); return; }
     res.json({ success: true, message: 'Borrador generado, quedo en la cola de revision' });
   } catch (e: any) {

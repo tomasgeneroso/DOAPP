@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { BlogPost } from '../models/sql/BlogPost.model.js';
 import { Op } from 'sequelize';
+import { AppSetting } from '../models/sql/AppSetting.model.js';
 
 /**
  * Content agent: writes blog drafts about the trades people hire on DOAPP.
@@ -208,5 +209,35 @@ export async function generateDraft(seed = Date.now()): Promise<BlogPost> {
     status: 'draft',
     postType: 'official',
     generatedBy: 'agent',
+  } as any);
+}
+
+// ── On/off switch ────────────────────────────────────────────────────────────
+
+
+export const CONTENT_AGENT_SETTING_KEY = 'content-agent:enabled';
+
+/**
+ * Whether the agent may write.
+ *
+ * Off unless someone turned it on. A scheduled job that starts spending money
+ * and filling a review queue the moment it is deployed is not a good default —
+ * especially one whose output carries the platform's name. Enabling it is a
+ * deliberate act taken in the admin panel.
+ */
+export async function isContentAgentEnabled(): Promise<boolean> {
+  try {
+    const row = await AppSetting.findByPk(CONTENT_AGENT_SETTING_KEY);
+    return row?.value?.enabled === true;
+  } catch {
+    return false; // table not there yet — stay off
+  }
+}
+
+export async function setContentAgentEnabled(enabled: boolean, updatedBy?: string): Promise<void> {
+  await AppSetting.upsert({
+    key: CONTENT_AGENT_SETTING_KEY,
+    value: { enabled, changedAt: new Date().toISOString() },
+    updatedBy,
   } as any);
 }

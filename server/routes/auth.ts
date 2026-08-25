@@ -25,7 +25,7 @@ import anomalyDetection from "../services/anomalyDetection.js";
 import { createAuditLog, getClientIp, getUserAgent } from "../utils/auditLogger.js";
 import { uploadAvatar, uploadCover, uploadDniPhotos, uploadLicenseDocument, uploadInsuranceDocument, getFileUrl, verifyMagicBytes } from "../middleware/upload.js";
 import { sendWhatsAppCode, getWhatsAppStatus } from "../services/whatsapp.js";
-import { getPhaseInfo, isBetaPhase } from "../services/platformPhase.js";
+import { getPhaseInfo, isBetaPhase, getEffectiveTier } from "../services/platformPhase.js";
 import { isDiditConfigured, diditConfigProblem, createDiditSession, getDiditDecision, verifyDiditWebhook, applyKycStatus, isManualKycUnlocked, getKycMaxAttempts } from "../services/didit.js";
 import twitterOAuth from "../services/twitterOAuth.js";
 
@@ -532,7 +532,7 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         hasMembership: user?.hasMembership,
         isPremiumVerified: user?.isPremiumVerified,
         monthlyContractsUsed: user?.proContractsUsedThisMonth ?? 0,
-        monthlyFreeContractsLimit: user?.membershipTier === 'super_pro' ? 2 : 3,
+        monthlyFreeContractsLimit: (await getEffectiveTier(user?.membershipTier)) === 'super_pro' ? 2 : 3,
         balance: user?.balanceArs,
         hasFamilyPlan: user?.hasFamilyPlan,
         familyCodeId: user?.familyCodeId,

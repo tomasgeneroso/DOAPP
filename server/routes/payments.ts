@@ -20,7 +20,7 @@ import { getUserInvoices, getInvoiceById } from '../services/invoiceService.js';
 import logger from "../services/logger.js";
 import { socketService } from "../index.js";
 import { calculateCommission } from "../services/commissionService.js";
-import { getPhaseInfo } from "../services/platformPhase.js";
+import { getPhaseInfo, getEffectiveTier } from "../services/platformPhase.js";
 
 // Ensure upload directory exists
 const PAYMENT_PROOFS_DIR = path.join(process.cwd(), 'uploads', 'payment-proofs');
@@ -115,8 +115,9 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
       // Check monthly free contracts for PRO users (resets every month)
       // PRO: 1 contract/month, SUPER_PRO: 2 contracts/month
       let monthlyFreeLimit = 0;
-      if (user.membershipTier === 'super_pro') monthlyFreeLimit = 2;
-      else if (user.membershipTier === 'pro') monthlyFreeLimit = 1;
+      const effTier = await getEffectiveTier(user.membershipTier);
+      if (effTier === 'super_pro') monthlyFreeLimit = 2;
+      else if (effTier === 'pro') monthlyFreeLimit = 1;
 
       const proContractsUsed = user.proContractsUsedThisMonth || 0;
       if (proContractsUsed < monthlyFreeLimit) {

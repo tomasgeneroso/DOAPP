@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import { getEffectiveTier } from '../services/platformPhase.js';
 import { protect, AuthRequest } from "../middleware/auth.js";
 import membershipService from "../services/membershipService.js";
 import currencyExchange from "../services/currencyExchange.js";
@@ -588,8 +589,9 @@ router.get("/usage", protect, async (req: AuthRequest, res: Response): Promise<v
 
     // Calculate monthly free contract limits
     let monthlyFreeLimit = 0;
-    if (user.membershipTier === 'super_pro') monthlyFreeLimit = 2;
-    else if (user.membershipTier === 'pro') monthlyFreeLimit = 1;
+    const usageTier = await getEffectiveTier(user.membershipTier);
+    if (usageTier === 'super_pro') monthlyFreeLimit = 2;
+    else if (usageTier === 'pro') monthlyFreeLimit = 1;
 
     res.json({
       success: true,
@@ -619,7 +621,7 @@ router.get("/usage", protect, async (req: AuthRequest, res: Response): Promise<v
 router.get("/analytics", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     // Gating: solo SUPER PRO
-    if (req.user.membershipTier !== 'super_pro') {
+    if ((await getEffectiveTier(req.user.membershipTier)) !== 'super_pro') {
       res.status(403).json({
         success: false,
         code: 'SUPER_PRO_REQUIRED',
@@ -947,7 +949,7 @@ router.put("/fiscal", protect, async (req: AuthRequest, res: Response): Promise<
  */
 router.get("/analytics/export.csv", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if (req.user.membershipTier !== 'super_pro') {
+    if ((await getEffectiveTier(req.user.membershipTier)) !== 'super_pro') {
       res.status(403).json({ success: false, message: 'Exclusivo de miembros SUPER PRO' });
       return;
     }
@@ -1011,7 +1013,7 @@ router.get("/analytics/export.csv", protect, async (req: AuthRequest, res: Respo
  */
 router.get("/analytics/export.pdf", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if (req.user.membershipTier !== 'super_pro') {
+    if ((await getEffectiveTier(req.user.membershipTier)) !== 'super_pro') {
       res.status(403).json({ success: false, message: 'Exclusivo de miembros SUPER PRO' });
       return;
     }

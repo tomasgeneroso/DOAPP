@@ -29,6 +29,7 @@ interface Draft {
 export default function ContentAgent() {
   const { token } = useAuth();
   const [configured, setConfigured] = useState(true);
+  const [enabled, setEnabled] = useState(false);
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [rejected, setRejected] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,6 +50,7 @@ export default function ContentAgent() {
         setDrafts(d.data.pending);
         setRejected(d.data.rejected);
         setConfigured(d.data.configured);
+        setEnabled(d.data.enabled);
       }
     } finally { setLoading(false); }
   }, [token]);
@@ -83,7 +85,7 @@ export default function ContentAgent() {
               <Sparkles className="h-6 w-6 text-sky-500" /> Agente de contenido
             </h1>
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-              Escribe tres borradores por semana (lunes, miercoles y viernes). Nada se publica sin tu aprobacion.
+              Escribe borradores sobre los oficios que se contratan en DOAPP. Nada se publica sin tu aprobacion.
             </p>
           </div>
           <button
@@ -93,6 +95,32 @@ export default function ContentAgent() {
           >
             {busy === "generate" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             Generar uno ahora
+          </button>
+        </div>
+
+        {/* The schedule is off by default. Deploying code should not start
+            spending money and filling a review queue on its own. */}
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <p className="font-semibold text-gray-900 dark:text-white text-sm">
+              Generacion automatica: {enabled ? "activada" : "desactivada"}
+            </p>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 max-w-lg">
+              {enabled
+                ? "El agente escribe un borrador los lunes, miercoles y viernes a las 09:00. Siguen necesitando tu aprobacion para publicarse."
+                : "Nadie escribe nada hasta que la actives. Podes probar con el boton de arriba antes de dejarla corriendo."}
+            </p>
+          </div>
+          <button
+            onClick={() => act("toggle", { enabled: !enabled }, enabled ? "Agente desactivado" : "Agente activado")}
+            disabled={busy === "toggle" || !configured}
+            className={`px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-50 ${
+              enabled
+                ? "border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                : "bg-emerald-600 hover:bg-emerald-700 text-white"
+            }`}
+          >
+            {busy === "toggle" ? "..." : enabled ? "Desactivar" : "Activar"}
           </button>
         </div>
 

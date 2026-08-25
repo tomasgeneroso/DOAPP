@@ -126,6 +126,8 @@ export const ACTION_SEVERITIES: Record<string, "low" | "medium" | "high" | "crit
   // Publishing carries the platform's name; both decisions are on the record.
   "blog_agent_draft_approved": "medium",
   "blog_agent_draft_rejected": "low",
+  "content_agent_enabled": "medium",
+  "content_agent_disabled": "low",
 
   // Contract actions
   "ban_contract": "medium",

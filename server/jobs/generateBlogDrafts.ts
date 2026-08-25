@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import { BlogPost } from '../models/sql/BlogPost.model.js';
-import { generateDraft, isContentAgentConfigured } from '../services/contentAgent.js';
+import { generateDraft, isContentAgentConfigured, isContentAgentEnabled } from '../services/contentAgent.js';
 import { Op } from 'sequelize';
 
 /**
@@ -18,9 +18,23 @@ async function pendingCount(): Promise<number> {
   return BlogPost.count({ where: { status: 'draft', generatedBy: 'agent' } });
 }
 
-export async function runBlogDraftGeneration(): Promise<{ created: boolean; reason?: string }> {
+/**
+ * @param scheduled true for the cron, false for an admin pressing "generate now".
+ *
+ * The on/off switch governs the schedule, not the button. An admin asking for
+ * one draft is an explicit human act — and being able to see what the agent
+ * writes before turning it loose is the whole point of having a switch.
+ */
+export async function runBlogDraftGeneration(
+  { scheduled = true }: { scheduled?: boolean } = {},
+): Promise<{ created: boolean; reason?: string }> {
   if (!isContentAgentConfigured()) {
     return { created: false, reason: 'ANTHROPIC_API_KEY no configurada' };
+  }
+  // Off unless an admin turned it on. The schedule exists from the moment the
+  // code deploys; the spending does not.
+  if (scheduled && !(await isContentAgentEnabled())) {
+    return { created: false, reason: 'El agente esta desactivado' };
   }
 
   const pending = await pendingCount();
