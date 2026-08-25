@@ -35,6 +35,7 @@ import {
   BadgeCheck,
   ShieldCheck,
   Rocket,
+  Sparkles,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -115,6 +116,7 @@ export default function AdminLayout() {
         { path: "/admin/jobs", icon: Briefcase, label: t('admin.sidebar.publications', 'Publications'), roles: ["owner", "super_admin", "admin", "marketing"] },
         { path: "/admin/contracts", icon: FileText, label: t('admin.sidebar.contracts', 'Contracts'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/blog", icon: FileText, label: t('admin.sidebar.blog', 'Blog'), roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin/content-agent", icon: Sparkles, label: "Agente de contenido", roles: ["owner", "super_admin", "admin", "marketing"] },
       ]
     },
     {

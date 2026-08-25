@@ -18,6 +18,13 @@ import type { Sequelize } from 'sequelize-typescript';
  * here as an idempotent statement.
  */
 const STATEMENTS: Array<{ label: string; sql: string }> = [
+  // --- blog: agent authorship, review gate and answer-engine blocks ---
+  { label: 'blog_posts.generated_by', sql: `ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS generated_by VARCHAR(16) NOT NULL DEFAULT 'human'` },
+  { label: 'blog_posts.reviewed_by', sql: `ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS reviewed_by UUID` },
+  { label: 'blog_posts.reviewed_at', sql: `ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ` },
+  { label: 'blog_posts.rejection_reason', sql: `ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS rejection_reason TEXT` },
+  { label: 'blog_posts.faq', sql: `ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS faq JSONB NOT NULL DEFAULT '[]'::jsonb` },
+  { label: 'blog_posts.key_takeaways', sql: `ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS key_takeaways JSONB NOT NULL DEFAULT '[]'::jsonb` },
   // --- owner-controlled runtime settings + per-action passwords ---
   {
     label: 'app_settings table',

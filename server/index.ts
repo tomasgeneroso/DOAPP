@@ -28,6 +28,7 @@ import { wafMiddleware } from "./middleware/waf.js";
 import { startResetProMembershipCountersJob } from "./jobs/resetProMembershipCounters.js";
 import { startAutoSelectWorkerJob } from "./jobs/autoSelectWorker.js";
 import { refreshDiditWorkflowConfig } from "./services/didit.js";
+import { startBlogDraftGenerationJob } from "./jobs/generateBlogDrafts.js";
 import { startAutoCancelExpiredJobsJob } from "./jobs/autoCancelExpiredJobs.js";
 import { startJobReminderJob } from "./jobs/jobReminders.js";
 import { startSuspendFlexibleEndDateJob } from "./jobs/suspendFlexibleEndDateJobs.js";
@@ -59,6 +60,7 @@ import adminBannedIdentitiesRoutes from "./routes/admin/bannedIdentities.js";
 import adminUserDataRoutes from "./routes/admin/userData.js";
 import adminPadronesRoutes from "./routes/admin/padrones.js";
 import adminPlatformRoutes from "./routes/admin/platform.js";
+import adminContentAgentRoutes from "./routes/admin/contentAgent.js";
 import adminModulesRoutes from "./routes/admin/modules.js";
 import adminHubsRoutes from "./routes/admin/hubs.js";
 
@@ -350,6 +352,7 @@ app.use("/api/admin/banned-identities", adminBannedIdentitiesRoutes);
 app.use("/api/admin/user-data", adminUserDataRoutes);
 app.use("/api/admin/padrones", adminPadronesRoutes);
 app.use("/api/admin/platform", adminPlatformRoutes);
+app.use("/api/admin/content-agent", adminContentAgentRoutes);
 app.use("/api/admin/advertisements", adminAdvertisementsRoutes);
 app.use("/api/admin/contact", adminContactRoutes);
 app.use("/api/admin/blogs", adminBlogsRoutes);
@@ -413,6 +416,9 @@ startResetProMembershipCountersJob();
 // tracks it instead of being a hardcoded number that happens to match.
 // Fire-and-forget: on failure everything falls back to the default.
 refreshDiditWorkflowConfig();
+
+// Content agent: three blog drafts a week, all awaiting admin approval.
+startBlogDraftGenerationJob();
 startAutoSelectWorkerJob();
 
 // Initialize auto-cancel expired jobs job (jobs with past dates)

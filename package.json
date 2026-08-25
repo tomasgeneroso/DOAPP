@@ -46,6 +46,7 @@
     "test:all": "npm run lint:hooks && npm run typecheck && npm test && npm run test:models"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.120.0",
     "@dagrejs/dagre": "^3.0.0",
     "@paypal/checkout-server-sdk": "^1.0.3",
     "@sendgrid/mail": "^8.1.6",

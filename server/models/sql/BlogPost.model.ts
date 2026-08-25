@@ -173,6 +173,45 @@ export class BlogPost extends Model {
   })
   metaDescription?: string;
 
+  // ── Agent authorship + review gate ────────────────────────────────────
+  // Posts written by the content agent land here as drafts and only become
+  // visible once an admin approves them. Nothing generated publishes itself.
+  @Column({
+    type: DataType.ENUM('human', 'agent'),
+    allowNull: false,
+    defaultValue: 'human',
+  })
+  generatedBy!: 'human' | 'agent';
+
+  @Column({ type: DataType.UUID, allowNull: true })
+  reviewedBy?: string;
+
+  @Column({ type: DataType.DATE, allowNull: true })
+  reviewedAt?: Date;
+
+  @Column({ type: DataType.TEXT, allowNull: true })
+  rejectionReason?: string;
+
+  // ── Answer-engine structure ───────────────────────────────────────────
+  // The two blocks that answer engines actually lift. Stored as data rather
+  // than buried in the prose so they can be emitted as schema.org FAQPage
+  // markup and rendered as a real answer box.
+  @Column({
+    type: DataType.JSONB,
+    allowNull: false,
+    defaultValue: [],
+    comment: 'Preguntas frecuentes: [{ question, answer }]',
+  })
+  faq!: Array<{ question: string; answer: string }>;
+
+  @Column({
+    type: DataType.JSONB,
+    allowNull: false,
+    defaultValue: [],
+    comment: 'Respuestas directas, una oracion cada una',
+  })
+  keyTakeaways!: string[];
+
   @Column({
     type: DataType.ARRAY(DataType.STRING),
     allowNull: false,

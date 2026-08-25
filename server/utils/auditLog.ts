@@ -123,6 +123,9 @@ export const ACTION_SEVERITIES: Record<string, "low" | "medium" | "high" | "crit
   "platform_phase_password_created": "high",
   "platform_phase_password_reset": "high",
   "platform_phase_password_reset_requested": "medium",
+  // Publishing carries the platform's name; both decisions are on the record.
+  "blog_agent_draft_approved": "medium",
+  "blog_agent_draft_rejected": "low",
 
   // Contract actions
   "ban_contract": "medium",
