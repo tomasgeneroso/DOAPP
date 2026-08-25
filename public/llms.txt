@@ -2,7 +2,11 @@
 
 > DoApp es la plataforma freelance argentina donde los clientes publican trabajos y los profesionales independientes encuentran oportunidades. Los pagos están protegidos mediante escrow: el dinero se libera únicamente cuando el cliente confirma que el trabajo está completo.
 
-DoApp conecta a clientes con trabajadores en Argentina de forma segura. Comisiones desde 1%, retiros a CBU bancario (mínimo $1.000 ARS), y aplicación nativa para iOS y Android. Los primeros contratos de nuevos usuarios son gratis.
+DoApp conecta a clientes con trabajadores en Argentina de forma segura. Retiros a CBU bancario (mínimo $1.000 ARS) y aplicación nativa para iOS y Android.
+
+**DoApp está en fase beta hasta el 31 de diciembre de 2026.** Durante la beta la plataforma no cobra comisión: si el trabajo vale $36.000, el cliente paga $36.000 y el trabajador recibe $36.000. Todas las cuentas tienen SUPER PRO sin costo. Terminada la beta rigen las comisiones según el plan (8% FREE, 3% PRO, 1% SUPER PRO, mínimo $1.000) más IVA sobre la comisión.
+
+DoApp verifica la identidad de los usuarios a través de un proveedor externo. **No verifica matrículas profesionales ni pólizas de seguro**: esos datos son declarados por el trabajador.
 
 ## Principales
 

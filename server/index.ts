@@ -61,6 +61,8 @@ import adminUserDataRoutes from "./routes/admin/userData.js";
 import adminPadronesRoutes from "./routes/admin/padrones.js";
 import adminPlatformRoutes from "./routes/admin/platform.js";
 import adminContentAgentRoutes from "./routes/admin/contentAgent.js";
+import wellKnownRoutes, { markdownNegotiation } from "./routes/wellKnown.js";
+import { agentLinkHeaders } from "./middleware/agentDiscovery.js";
 import adminModulesRoutes from "./routes/admin/modules.js";
 import adminHubsRoutes from "./routes/admin/hubs.js";
 
@@ -171,6 +173,10 @@ const __dirname = path.dirname(__filename);
 // Inicializar Express
 const app: Express = express();
 
+// RFC 8288 Link headers on every response. Mounted here so no route
+// registered further down can answer without them.
+app.use(agentLinkHeaders);
+
 // Trust proxy (behind Nginx/Cloudflare)
 app.set('trust proxy', 1);
 
@@ -270,6 +276,8 @@ app.use(passport.session());
 app.use("/api", apiLimiter);
 
 // Servir archivos estáticos (documentos legales)
+app.use("/.well-known", wellKnownRoutes);
+app.use(markdownNegotiation);
 app.use("/legal", express.static(path.join(__dirname, "../public/legal")));
 
 // Servir archivos subidos con CORS headers
