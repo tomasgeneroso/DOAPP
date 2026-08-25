@@ -11,6 +11,7 @@ import KycButton from "../components/KycButton";
 import DniUploader from "../components/DniUploader";
 import PhoneVerification from "../components/PhoneVerification";
 import EmailVerification from "../components/EmailVerification";
+import MembershipStatus from "../components/MembershipStatus";
 import { usePendingTasks } from "../hooks/usePendingTasks";
 import {
   User,
@@ -813,6 +814,16 @@ export default function UserSettings() {
                     <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
                       {bio.length}/500 {t('settings.basic.bioChars')}
                     </p>
+                  </div>
+
+                  {/* Membership. Sits above verification because "what plan do
+                      I have and until when" is the question people open
+                      settings to answer. */}
+                  <div className="pt-6 border-t border-slate-200 dark:border-slate-700 space-y-3">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                      Mi membresía
+                    </h3>
+                    <MembershipStatus />
                   </div>
 
                   {/* Verification — destination of the attention trail.

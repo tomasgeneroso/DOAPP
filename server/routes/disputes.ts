@@ -125,7 +125,7 @@ router.post(
 
       // Check if initiating user is PRO
       const initiatingUser = await User.findByPk(userId);
-      const effectiveTier = await getEffectiveTier(initiatingUser?.membershipTier);
+      const effectiveTier = await getEffectiveTier(initiatingUser?.membershipTier, (initiatingUser as any)?.adminRole);
       const userIsPro = effectiveTier === 'pro' || effectiveTier === 'super_pro';
 
       // Calculate automatic priority based on contract value and category

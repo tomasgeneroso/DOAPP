@@ -880,7 +880,7 @@ router.post(
       const hasFreeInitialContracts = user.freeContractsRemaining > 0;
 
       let monthlyFreeLimit = 0;
-      const effectiveTier = await getEffectiveTier(user.membershipTier);
+      const effectiveTier = await getEffectiveTier(user.membershipTier, (user as any).adminRole);
       if (effectiveTier === 'super_pro') monthlyFreeLimit = 2;
       else if (effectiveTier === 'pro') monthlyFreeLimit = 1;
 

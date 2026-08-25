@@ -3,16 +3,18 @@ import { getEffectiveTier } from '../services/platformPhase.js';
 import { protect, AuthRequest } from "../middleware/auth.js";
 import membershipService from "../services/membershipService.js";
 import currencyExchange from "../services/currencyExchange.js";
+import { MEMBERSHIP_PRICES_EUR } from "../../shared/constants/membershipPricing.js";
 import { body, validationResult } from "express-validator";
 
-// Membresías cotizadas en USD, cobradas en ARS al dólar blue del día (dolarhoy.com).
-const PRO_PRICE_USD = 6;
-const SUPER_PRO_PRICE_USD = 8;
+// Membresías cotizadas en EUROS y cobradas en ARS al cambio del día.
+// El importe en pesos cambia entre meses; el precio en euros no.
+const PRO_PRICE_EUR = MEMBERSHIP_PRICES_EUR.pro;
+const SUPER_PRO_PRICE_EUR = MEMBERSHIP_PRICES_EUR.super_pro;
 async function getProPriceARS(): Promise<number> {
-  return Math.round(await currencyExchange.convertUSDtoARS(PRO_PRICE_USD));
+  return Math.round(await currencyExchange.convertEURtoARS(PRO_PRICE_EUR));
 }
 async function getSuperProPriceARS(): Promise<number> {
-  return Math.round(await currencyExchange.convertUSDtoARS(SUPER_PRO_PRICE_USD));
+  return Math.round(await currencyExchange.convertEURtoARS(SUPER_PRO_PRICE_EUR));
 }
 
 const router = Router();
@@ -172,7 +174,7 @@ router.get("/pricing", async (req, res) => {
           name: 'PRO Mensual',
           price: proPriceARS,
           priceARS: proPriceARS,
-          priceUSD: PRO_PRICE_USD,
+          priceEUR: PRO_PRICE_EUR,
           currency: 'ARS',
           commissionRate: 3,
           benefits: [
@@ -191,7 +193,7 @@ router.get("/pricing", async (req, res) => {
           name: 'SUPER PRO',
           price: superProPriceARS,
           priceARS: superProPriceARS,
-          priceUSD: SUPER_PRO_PRICE_USD,
+          priceEUR: SUPER_PRO_PRICE_EUR,
           currency: 'ARS',
           commissionRate: 1,
           benefits: [
@@ -589,7 +591,7 @@ router.get("/usage", protect, async (req: AuthRequest, res: Response): Promise<v
 
     // Calculate monthly free contract limits
     let monthlyFreeLimit = 0;
-    const usageTier = await getEffectiveTier(user.membershipTier);
+    const usageTier = await getEffectiveTier(user.membershipTier, (user as any).adminRole);
     if (usageTier === 'super_pro') monthlyFreeLimit = 2;
     else if (usageTier === 'pro') monthlyFreeLimit = 1;
 
@@ -621,7 +623,7 @@ router.get("/usage", protect, async (req: AuthRequest, res: Response): Promise<v
 router.get("/analytics", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     // Gating: solo SUPER PRO
-    if ((await getEffectiveTier(req.user.membershipTier)) !== 'super_pro') {
+    if ((await getEffectiveTier(req.user.membershipTier, req.user.adminRole)) !== 'super_pro') {
       res.status(403).json({
         success: false,
         code: 'SUPER_PRO_REQUIRED',
@@ -949,7 +951,7 @@ router.put("/fiscal", protect, async (req: AuthRequest, res: Response): Promise<
  */
 router.get("/analytics/export.csv", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if ((await getEffectiveTier(req.user.membershipTier)) !== 'super_pro') {
+    if ((await getEffectiveTier(req.user.membershipTier, req.user.adminRole)) !== 'super_pro') {
       res.status(403).json({ success: false, message: 'Exclusivo de miembros SUPER PRO' });
       return;
     }
@@ -1013,7 +1015,7 @@ router.get("/analytics/export.csv", protect, async (req: AuthRequest, res: Respo
  */
 router.get("/analytics/export.pdf", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if ((await getEffectiveTier(req.user.membershipTier)) !== 'super_pro') {
+    if ((await getEffectiveTier(req.user.membershipTier, req.user.adminRole)) !== 'super_pro') {
       res.status(403).json({ success: false, message: 'Exclusivo de miembros SUPER PRO' });
       return;
     }

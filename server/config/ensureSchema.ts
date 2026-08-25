@@ -18,6 +18,8 @@ import type { Sequelize } from 'sequelize-typescript';
  * here as an idempotent statement.
  */
 const STATEMENTS: Array<{ label: string; sql: string }> = [
+  // --- memberships: precio de lista en euros ---
+  { label: 'memberships.price_eur', sql: `ALTER TABLE memberships ADD COLUMN IF NOT EXISTS price_eur NUMERIC(10,2)` },
   // --- blog: agent authorship, review gate and answer-engine blocks ---
   { label: 'blog_posts.generated_by', sql: `ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS generated_by VARCHAR(16) NOT NULL DEFAULT 'human'` },
   { label: 'blog_posts.reviewed_by', sql: `ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS reviewed_by UUID` },

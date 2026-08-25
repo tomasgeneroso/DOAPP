@@ -169,22 +169,75 @@ class CurrencyExchangeService {
    * Obtiene la tasa de cambio EUR a ARS
    * @returns Tasa de cambio actual
    */
-  async getEURtoARSRate(): Promise<number> {
+  /**
+   * EUR/USD, live. Cached for an hour like the other rates.
+   *
+   * This used to be hardcoded at 1.08. It is 1.17 today, so every price quoted
+   * in euros was about 8% low — which matters because the membership prices are
+   * denominated in euros precisely so they track the currency.
+   */
+  private async getEURtoUSDRate(): Promise<number> {
+    const cached = await this.cacheGet<ExchangeRate>('currency:eur_usd_rate');
+    if (cached?.rate) return cached.rate;
+
     try {
-      // EUR/ARS = EUR/USD * USD/ARS
-      // Aproximadamente: 1 EUR ≈ 1.08 USD (puede variar)
+      const resp = await fetch('https://api.exchangerate-api.com/v4/latest/EUR');
+      if (resp.ok) {
+        const data: any = await resp.json();
+        const rate = Number(data?.rates?.USD);
+        if (Number.isFinite(rate) && rate > 0.5 && rate < 3) {
+          await this.cacheSet('currency:eur_usd_rate', { rate, timestamp: new Date() }, this.CACHE_TTL);
+          return rate;
+        }
+      }
+    } catch (e: any) {
+      console.warn('EUR/USD no disponible:', e?.message);
+    }
+    // Last resort. Deliberately a recent figure rather than the old 1.08.
+    return 1.17;
+  }
+
+  /**
+   * EUR/ARS, quoted directly.
+   *
+   * Direct rather than EUR/USD x USD/ARS: the membership price is set in euros,
+   * so the euro-to-peso pair is the one that should decide it. Deriving it
+   * through the dollar made the price depend on which dollar this service
+   * happened to be using that day.
+   *
+   * Falls back to the cross rate only if the direct quote is unavailable, and
+   * logs which one was used so a surprising charge can be traced.
+   */
+  async getEURtoARSRate(): Promise<number> {
+    const cached = await this.cacheGet<ExchangeRate>('currency:eur_ars_rate');
+    if (cached?.rate) return cached.rate;
+
+    // 1) Direct EUR/ARS.
+    try {
+      const resp = await fetch('https://api.exchangerate-api.com/v4/latest/EUR');
+      if (resp.ok) {
+        const data: any = await resp.json();
+        const rate = Number(data?.rates?.ARS);
+        if (Number.isFinite(rate) && rate > 100) {
+          await this.cacheSet('currency:eur_ars_rate', { rate, timestamp: new Date(), source: 'eur-direct' }, this.CACHE_TTL);
+          console.log(`EUR/ARS (directo): ${rate.toFixed(2)}`);
+          return rate;
+        }
+      }
+    } catch (e: any) {
+      console.warn('EUR/ARS directo no disponible:', e?.message);
+    }
+
+    // 2) Cross rate, so a missing quote does not stop a payment.
+    try {
       const usdToArs = await this.getUSDtoARSRate();
-
-      // Tasa EUR/USD aproximada (puede actualizarse con API)
-      const eurToUsd = 1.08;
-
-      const eurToArs = usdToArs * eurToUsd;
-      console.log(`EUR/ARS rate: ${eurToArs} (USD/ARS: ${usdToArs} * EUR/USD: ${eurToUsd})`);
-
-      return eurToArs;
+      const eurToUsd = await this.getEURtoUSDRate();
+      const rate = usdToArs * eurToUsd;
+      await this.cacheSet('currency:eur_ars_rate', { rate, timestamp: new Date(), source: 'eur-cross' }, this.CACHE_TTL);
+      console.log(`EUR/ARS (cruzado): ${rate.toFixed(2)} = USD/ARS ${usdToArs} x EUR/USD ${eurToUsd}`);
+      return rate;
     } catch (error) {
       console.error('Error getting EUR/ARS rate:', error);
-      // Fallback: 1080 ARS por EUR
       return 1080;
     }
   }

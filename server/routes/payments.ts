@@ -115,7 +115,7 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
       // Check monthly free contracts for PRO users (resets every month)
       // PRO: 1 contract/month, SUPER_PRO: 2 contracts/month
       let monthlyFreeLimit = 0;
-      const effTier = await getEffectiveTier(user.membershipTier);
+      const effTier = await getEffectiveTier(user.membershipTier, (user as any).adminRole);
       if (effTier === 'super_pro') monthlyFreeLimit = 2;
       else if (effTier === 'pro') monthlyFreeLimit = 1;
 

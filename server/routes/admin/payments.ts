@@ -8,7 +8,7 @@ import { User } from "../../models/sql/User.model.js";
 import { Job } from "../../models/sql/Job.model.js";
 import { Contract } from "../../models/sql/Contract.model.js";
 import { Notification } from "../../models/sql/Notification.model.js";
-import { Op } from 'sequelize';
+import { Op, literal } from 'sequelize';
 import { isValidUUID } from "../../utils/sanitizer.js";
 import { logAudit } from "../../utils/auditLog.js";
 import { generateClientPaymentInvoice } from "../../services/invoiceService.js";
@@ -297,6 +297,7 @@ router.get("/pending", protect, requireRole('admin', 'super_admin', 'owner'), as
   try {
     const {
       status,
+      search,
       paymentType,
       limit = '50',
       offset = '0',
@@ -322,6 +323,31 @@ router.get("/pending", protect, requireRole('admin', 'super_admin', 'owner'), as
       };
     }
 
+    // Free-text search, applied in SQL.
+    //
+    // It used to run in the browser over whatever rows had already loaded,
+    // and this query is capped at 50 rows per status. So searching an id
+    // found it under "Todos" and not under "Pendiente Verificacion": the row
+    // simply was not in the page being filtered. Searching inside a filter
+    // has to reach the whole set, not the visible slice of it.
+    if (search && String(search).trim()) {
+      const q = String(search).trim();
+      const like = { [Op.iLike]: "%" + q + "%" };
+      const or: any[] = [
+        { description: like },
+        { paymentType: like },
+        { paymentMethod: like },
+      ];
+      // Cast uuid columns only when the term could be one. The value is
+      // reduced to uuid characters first, so nothing else can reach the SQL.
+      const uuidish = q.toLowerCase().replace(/[^0-9a-f-]/g, "");
+      if (uuidish.length >= 4 && uuidish.length === q.length) {
+        for (const col of ["id", "payer_id", "contract_id"]) {
+          or.push(literal(`CAST("Payment"."${col}" AS TEXT) ILIKE '%${uuidish}%'`));
+        }
+      }
+      where[Op.or] = or;
+    }
     // Filter by payment type
     if (paymentType) {
       where.paymentType = paymentType;

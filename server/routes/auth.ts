@@ -446,7 +446,7 @@ router.post(
         // user was not SUPER PRO until they happened to reload. The moment
         // someone logs in is exactly when the beta has to be legible.
         platform: await getPhaseInfo(),
-        effectiveMembershipTier: (await isBetaPhase()) ? 'super_pro' : (user.membershipTier || 'free'),
+        effectiveMembershipTier: await getEffectiveTier(user.membershipTier, (user as any).adminRole),
         capabilities: {
           phoneVerification: getWhatsAppStatus().ready,
           manualKyc: isManualKycUnlocked(user as any),
@@ -550,7 +550,7 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         hasMembership: user?.hasMembership,
         isPremiumVerified: user?.isPremiumVerified,
         monthlyContractsUsed: user?.proContractsUsedThisMonth ?? 0,
-        monthlyFreeContractsLimit: (await getEffectiveTier(user?.membershipTier)) === 'super_pro' ? 2 : 3,
+        monthlyFreeContractsLimit: (await getEffectiveTier(user?.membershipTier, (user as any)?.adminRole)) === 'super_pro' ? 2 : 3,
         balance: user?.balanceArs,
         hasFamilyPlan: user?.hasFamilyPlan,
         familyCodeId: user?.familyCodeId,
@@ -598,7 +598,7 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
         // During the beta everyone gets SUPER PRO features. The stored tier is
         // left untouched — this is what the UI should gate on, so that when the
         // beta ends people fall back to what they actually pay for.
-        effectiveMembershipTier: (await isBetaPhase()) ? 'super_pro' : (user?.membershipTier || 'free'),
+        effectiveMembershipTier: await getEffectiveTier(user?.membershipTier, (user as any)?.adminRole),
       },
     });
   } catch (error: any) {

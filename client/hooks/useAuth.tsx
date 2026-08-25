@@ -46,12 +46,18 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
  */
 function withBetaTier(u: any) {
   if (!u) return u;
-  if (!u.platform?.isBeta) return u;
+  // The server already resolved this (beta OR owner); trust it and fall
+  // back to the beta flag only for payloads that predate the field.
+  const entitled = u.effectiveMembershipTier === 'super_pro' || u.platform?.isBeta;
+  if (!entitled) return u;
   return {
     ...u,
     realMembershipTier: u.membershipTier ?? 'free',
     membershipTier: 'super_pro',
-    membershipIsFromBeta: true,
+    // Says WHY, so the UI can explain it: the beta gives it to everyone, the
+    // owner has it permanently.
+    membershipIsFromBeta: !!u.platform?.isBeta,
+    membershipIsFromOwner: u.adminRole === 'owner',
   };
 }
 

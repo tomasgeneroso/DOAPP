@@ -109,7 +109,12 @@ export function __resetPhaseCache() {
  */
 export async function getEffectiveTier(
   storedTier: string | null | undefined,
+  adminRole?: string | null,
 ): Promise<'free' | 'pro' | 'super_pro'> {
+  // The owner always has the full product. Not a perk: they need every screen
+  // reachable to support and debug it, and a support call that ends in "I
+  // cannot see that panel either" is not support.
+  if (adminRole === 'owner') return 'super_pro';
   if (await isBetaPhase()) return 'super_pro';
   const t = storedTier || 'free';
   return t === 'pro' || t === 'super_pro' ? t : 'free';

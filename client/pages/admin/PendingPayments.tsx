@@ -360,6 +360,10 @@ export default function PendingPayments() {
       } else if (appSubFilter === "rejected") {
         params.append("status", "rejected");
       }
+      // The search goes to the server. Filtering the loaded page in the
+      // browser meant a match outside the first 50 rows of the active
+      // filter simply did not exist.
+      if (searchQuery.trim()) params.append("search", searchQuery.trim());
       if (dateFrom) params.append("dateFrom", dateFrom);
       if (dateTo) params.append("dateTo", dateTo);
       if (minAmount) params.append("minAmount", minAmount);
@@ -838,6 +842,13 @@ export default function PendingPayments() {
   };
 
   // Duplicate operation-number detection (keyed on the reference, not the amount).
+  // Re-query when the search term settles, so the server does the filtering.
+  useEffect(() => {
+    const t = setTimeout(() => { loadVerificationPayments(); }, 350);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
+
   useEffect(() => {
     const ref = approveReference.trim();
     if (!approveModalPaymentId || ref.length < 4) {
@@ -1642,8 +1653,19 @@ export default function PendingPayments() {
                         const contractPrice = payment.contract?.price ? parseFloat(payment.contract.price) : 0;
                         const contractCommission = payment.contract?.commission ? parseFloat(payment.contract.commission) : 0;
 
-                        // Comisión: usar del contrato (tiene el valor correcto)
-                        const commission = contractCommission || payment.platformFee || (contractPrice * 0.10);
+                        // Comisión real, nunca inventada.
+                        //
+                        // Antes: contractCommission || platformFee || precio * 0.10.
+                        // Dos problemas. El 10% no existe en ningún plan (son 8/3/1%), y
+                        // con || un cero legítimo es falso: durante la beta la comisión ES
+                        // cero, así que esta pantalla mostraba un 10% fabricado sobre pagos
+                        // que no cobraron nada. Se usa ?? y, si no hay dato, se muestra 0
+                        // en lugar de estimar: un número inventado en una pantalla de
+                        // administración de pagos es peor que un cero.
+                        const commission =
+                          payment.contract?.commission != null ? contractCommission
+                          : payment.platformFee != null ? Number(payment.platformFee)
+                          : 0;
 
                         // Monto para el trabajador (precio del contrato)
                         const workerAmount = contractPrice || payment.amount || 0;
@@ -1656,7 +1678,7 @@ export default function PendingPayments() {
                         const doerConfirmed = payment.contract?.doerConfirmed;
 
                         // Porcentaje de comisión
-                        const commissionPercentage = workerAmount > 0 ? ((commission / workerAmount) * 100).toFixed(1) : '10';
+                        const commissionPercentage = workerAmount > 0 ? ((commission / workerAmount) * 100).toFixed(1) : '0';
 
                         return (
                         <tr key={payment.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
@@ -1702,7 +1724,7 @@ export default function PendingPayments() {
                           </td>
                           <td className="px-4 py-4">
                             <div className="text-sm font-medium text-purple-600 dark:text-purple-400">
-                              ${commission?.toLocaleString('es-AR')}
+                              ${commission?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </div>
                             <div className="text-xs text-gray-500 dark:text-gray-400">
                               {commissionPercentage}%
@@ -1710,10 +1732,10 @@ export default function PendingPayments() {
                           </td>
                           <td className="px-4 py-4">
                             <div className="text-sm font-bold text-green-600 dark:text-green-400">
-                              ${totalExpected?.toLocaleString('es-AR')}
+                              ${totalExpected?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </div>
                             <div className="text-xs text-gray-500 dark:text-gray-400">
-                              Trabajador: ${workerAmount?.toLocaleString('es-AR')}
+                              Trabajador: ${workerAmount?.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </div>
                           </td>
                           <td className="px-4 py-4">

@@ -625,7 +625,7 @@ router.get("/:id/share-stats", async (req: Request, res: Response): Promise<void
         sharesViaMessage: user.profileSharesViaMessage || 0,
         lastShareAt: user.lastProfileShareAt,
         // Only PRO users get detailed stats
-        hasFullAccess: ['pro', 'super_pro'].includes(await getEffectiveTier(user.membershipTier)),
+        hasFullAccess: ['pro', 'super_pro'].includes(await getEffectiveTier(user.membershipTier, (user as any).adminRole)),
       },
     });
   } catch (error: any) {

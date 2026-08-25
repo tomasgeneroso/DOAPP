@@ -1,4 +1,5 @@
 import { Membership } from "../models/sql/Membership.model.js";
+import { MEMBERSHIP_PRICES_EUR } from '../../shared/constants/membershipPricing.js';
 import { User } from "../models/sql/User.model.js";
 import currencyExchange from './currencyExchange.js';
 import { Op } from 'sequelize';
@@ -24,9 +25,12 @@ class MembershipService {
         throw new Error('User already has an active membership');
       }
 
-      const priceUSD = 6;
-      const exchangeRate = await currencyExchange.getUSDtoARSRate();
-      const priceARS = await currencyExchange.convertUSDtoARS(priceUSD);
+      // Priced in euros, charged in pesos at today's rate. priceARS and
+      // exchangeRateAtPurchase below record exactly what was charged, so a past
+      // payment is never recomputed when the rate moves.
+      const priceEUR = MEMBERSHIP_PRICES_EUR.pro;
+      const exchangeRate = await currencyExchange.getEURtoARSRate();
+      const priceARS = await currencyExchange.convertEURtoARS(priceEUR);
 
       const startDate = new Date();
       const endDate = new Date();
@@ -37,7 +41,7 @@ class MembershipService {
         status: 'pending',
         startDate,
         endDate,
-        priceUSD,
+        priceEUR,
         priceARS,
         exchangeRateAtPurchase: exchangeRate,
         freeContractsTotal: 5,
@@ -175,7 +179,7 @@ class MembershipService {
         return null;
       }
 
-      const priceARS = await currencyExchange.convertUSDtoARS(6);
+      const priceARS = await currencyExchange.convertEURtoARS(MEMBERSHIP_PRICES_EUR.pro);
       const newEndDate = new Date(membership.endDate);
       newEndDate.setMonth(newEndDate.getMonth() + 1);
 

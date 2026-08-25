@@ -126,7 +126,13 @@ export class Membership extends Model {
 
   @AllowNull(false)
   @Column({ type: DataType.DECIMAL(10, 2), field: 'price_usd' })
-  priceUSD!: number; // Legacy field - now using ARS pricing ($4,999 or $8,999)
+  priceUSD!: number; // Legacy: filas anteriores a la cotización en euros
+
+  // Precio de lista en euros al momento del cobro. La membresía se cotiza en
+  // euros y se cobra en pesos: priceARS y exchangeRateAtPurchase guardan lo que
+  // efectivamente se cobró, de modo que un pago pasado nunca se recalcula.
+  @Column({ type: DataType.DECIMAL(10, 2), allowNull: true })
+  priceEUR?: number;
 
   @AllowNull(false)
   @Column({ type: DataType.DECIMAL(12, 2), field: 'price_ars' })
