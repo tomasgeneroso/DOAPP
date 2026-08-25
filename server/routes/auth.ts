@@ -439,6 +439,24 @@ router.post(
         hasFamilyPlan: user.hasFamilyPlan,
         availabilitySchedule: user.availabilitySchedule,
         isAvailabilityPublic: user.isAvailabilityPublic,
+        // Same phase/capability block /auth/me returns.
+        //
+        // Without it the first session after signing in had no beta banner, no
+        // beta tag, and withBetaTier() in useAuth had nothing to key off — so a
+        // user was not SUPER PRO until they happened to reload. The moment
+        // someone logs in is exactly when the beta has to be legible.
+        platform: await getPhaseInfo(),
+        effectiveMembershipTier: (await isBetaPhase()) ? 'super_pro' : (user.membershipTier || 'free'),
+        capabilities: {
+          phoneVerification: getWhatsAppStatus().ready,
+          manualKyc: isManualKycUnlocked(user as any),
+        },
+        kycStatus: (user as any).kycStatus,
+        kycAttempts: (user as any).kycAttempts ?? 0,
+        kycMaxAttempts: getKycMaxAttempts(),
+        dniVerified: (user as any).dniVerified,
+        phoneVerified: (user as any).phoneVerified,
+        credibility: user.getCredibilityInfo?.(),
       };
 
       const response: any = {

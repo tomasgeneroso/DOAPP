@@ -38,8 +38,21 @@ export function usePlatformPhase(): { phase: PhaseInfo | null; loading: boolean 
   return { phase, loading };
 }
 
-/** Formats the beta end date the same way everywhere it is announced. */
+/**
+ * Formats the beta end date, pinned to Argentine time.
+ *
+ * The deadline is 31 Dec 2026 23:59 ART, which is 1 Jan 2027 in UTC. Without an
+ * explicit timeZone the browser formats in its own, so anyone on UTC or in
+ * Europe was shown "1 de enero de 2027" — a different end date than the one the
+ * terms state, inside a commercial promise. The platform is Argentine and so is
+ * the deadline, so everyone sees the Argentine date.
+ */
 export function formatBetaEnd(iso?: string): string {
   if (!iso) return "";
-  return new Date(iso).toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" });
+  return new Date(iso).toLocaleDateString("es-AR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "America/Argentina/Buenos_Aires",
+  });
 }

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "@/hooks/useAuth";
 import { Rocket, ShieldCheck, Loader2, AlertTriangle, KeyRound, Mail } from "lucide-react";
+import { formatBetaEnd } from "@/hooks/usePlatformPhase";
 
 interface PhaseInfo {
   phase: "beta" | "live";
@@ -68,9 +69,7 @@ export default function PlatformPhase() {
   }
   if (!info) return <div className="p-8 text-slate-500">No se pudo cargar la fase.</div>;
 
-  const endsAt = new Date(info.betaEndsAt).toLocaleDateString("es-AR", {
-    day: "numeric", month: "long", year: "numeric",
-  });
+  const endsAt = formatBetaEnd(info.betaEndsAt);
 
   return (
     <>

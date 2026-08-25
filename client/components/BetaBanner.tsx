@@ -1,5 +1,6 @@
 import { useAuth } from "@/hooks/useAuth";
 import { Rocket, PartyPopper } from "lucide-react";
+import { formatBetaEnd } from "@/hooks/usePlatformPhase";
 
 /**
  * Standing notice that the platform is in its beta phase.
@@ -42,11 +43,7 @@ export default function BetaBanner() {
     );
   }
 
-  const endsAt = new Date(platform.betaEndsAt).toLocaleDateString("es-AR", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  const endsAt = formatBetaEnd(platform.betaEndsAt);
 
   return (
     <div className="bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800">
