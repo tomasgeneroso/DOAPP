@@ -25,13 +25,17 @@ function buildWhere(search?: string, status?: string): any {
   }
   // Three disjoint states, so the tabs add up to the total:
   //   verified   → identidad aprobada.
-  //   incomplete → empezó el KYC y sigue rechazada o en revisión.
+  //   incomplete → empezó el KYC y todavía no está aprobada.
   //   unverified → nunca lo empezó: sin sesión de Didit ni estado.
   // "unverified" existía sólo dentro de "Todos", que es justo el grupo que un
   // admin necesita aislar para saber a quién le falta arrancar.
   if (status === 'incomplete') {
     where.dniVerified = false;
-    where.kycStatus = { [Op.in]: ['Declined', 'In Review'] };
+    // Anything that started and is not approved — not a hardcoded list of
+    // statuses. Listing only Declined/In Review left users sitting in
+    // "In Progress" or "Not Started" invisible in every tab, so the three
+    // filters did not add up to the total and nobody could see them.
+    where.kycStatus = { [Op.and]: [{ [Op.ne]: null }, { [Op.ne]: '' }] };
   } else if (status === 'unverified') {
     where.dniVerified = false;
     // Op.and, not Op.or: the search filter above already owns where[Op.or], and
