@@ -217,6 +217,23 @@ export default function BlogDetailScreen() {
             "keywords": post.tags.join(', ')
           })}
         </script>
+
+        {/* FAQPage schema. The Q&A pairs are stored as data precisely so they
+            can be emitted here: prose buried in the article is not eligible for
+            rich results and is far harder for an answer engine to lift. */}
+        {Array.isArray(post.faq) && post.faq.length > 0 && (
+          <script type="application/ld+json">
+            {JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "FAQPage",
+              "mainEntity": post.faq.map((f: any) => ({
+                "@type": "Question",
+                "name": f.question,
+                "acceptedAnswer": { "@type": "Answer", "text": f.answer },
+              })),
+            })}
+          </script>
+        )}
       </Helmet>
 
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
@@ -352,11 +369,43 @@ export default function BlogDetailScreen() {
             </div>
           </div>
 
+          {/* Direct answers, before the article. A reader who only wants the
+              answer gets it here, and an answer engine finds a self-contained
+              passage at the top instead of four paragraphs in. */}
+          {Array.isArray(post.keyTakeaways) && post.keyTakeaways.length > 0 && (
+            <div className="mb-8 rounded-2xl border border-sky-200 dark:border-sky-800 bg-sky-50/60 dark:bg-sky-900/15 p-5">
+              <h2 className="text-base font-semibold text-slate-900 dark:text-white mb-3">En resumen</h2>
+              <ul className="space-y-2">
+                {post.keyTakeaways.map((k: string, i: number) => (
+                  <li key={i} className="flex gap-2 text-sm text-slate-700 dark:text-slate-300">
+                    <span className="text-sky-500 flex-shrink-0">•</span>
+                    <span>{k}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
           {/* Content */}
           <div
             className="prose prose-slate dark:prose-invert max-w-none prose-headings:text-slate-900 dark:prose-headings:text-white prose-p:text-slate-600 dark:prose-p:text-slate-300 prose-a:text-sky-600 dark:prose-a:text-sky-400 prose-strong:text-slate-900 dark:prose-strong:text-white prose-code:text-sky-600 dark:prose-code:text-sky-400 prose-pre:bg-slate-900 dark:prose-pre:bg-slate-950"
             dangerouslySetInnerHTML={{ __html: post.content }}
           />
+
+          {/* Preguntas frecuentes */}
+          {Array.isArray(post.faq) && post.faq.length > 0 && (
+            <div className="mt-12 pt-8 border-t border-slate-200 dark:border-slate-700">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-5">Preguntas frecuentes</h2>
+              <div className="space-y-5">
+                {post.faq.map((f: any, i: number) => (
+                  <div key={i}>
+                    <h3 className="font-semibold text-slate-900 dark:text-white mb-1.5">{f.question}</h3>
+                    <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">{f.answer}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Tags */}
           {post.tags.length > 0 && (

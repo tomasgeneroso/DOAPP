@@ -240,6 +240,12 @@ export interface BlogPost {
     avatar?: string;
   };
   seoSuggestions?: string[];
+  /** Answer blocks stored as data so they can be rendered and emitted as
+   *  FAQPage schema, rather than living inside the article prose. */
+  keyTakeaways?: string[];
+  faq?: Array<{ question: string; answer: string }>;
+  /** 'agent' posts come from the content agent and need admin approval. */
+  generatedBy?: 'human' | 'agent';
 }
 
 export interface Contract {

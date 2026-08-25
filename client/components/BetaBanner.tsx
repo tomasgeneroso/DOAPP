@@ -1,6 +1,7 @@
-import { useAuth } from "@/hooks/useAuth";
+import { Link } from "react-router-dom";
 import { Rocket, PartyPopper } from "lucide-react";
-import { formatBetaEnd } from "@/hooks/usePlatformPhase";
+import { formatBetaEnd, usePlatformPhase } from "@/hooks/usePlatformPhase";
+import { BETA_POST_SLUG } from "../../shared/content/betaPost";
 
 /**
  * Standing notice that the platform is in its beta phase.
@@ -14,8 +15,10 @@ import { formatBetaEnd } from "@/hooks/usePlatformPhase";
  * screen can render pricing without it.
  */
 export default function BetaBanner() {
-  const { user } = useAuth() as any;
-  const platform = user?.platform;
+  // usePlatformPhase, not the user object: the banner has to render for
+  // visitors too. Someone deciding whether to sign up is exactly who the
+  // "no cobramos comisión" line is for, and they have no session yet.
+  const { phase: platform } = usePlatformPhase();
 
   // Out of beta: announce it for a while instead of the banner simply
   // vanishing. The free period was stated loudly, so its end has to be too —
@@ -51,13 +54,23 @@ export default function BetaBanner() {
         <Rocket className="h-4 w-4 mt-0.5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
         <p>
           <strong className="font-semibold">Estás en la beta de DOAPP.</strong>{" "}
-          No cobramos comisión: si el contrato es de $36.000, el trabajador recibe $36.000.
-          Además todas las cuentas tienen <strong className="font-semibold">SUPER PRO</strong> con
-          todas las funciones. La beta va hasta el <strong className="font-semibold">{endsAt}</strong>
+          Publicá y postulate gratis. Todas las cuentas tienen membresía{" "}
+          <strong className="font-semibold">SUPER PRO</strong> con todas las funciones disponibles
+          para que las pruebes. La versión beta está disponible hasta el{" "}
+          <strong className="font-semibold">{endsAt}</strong>
           {typeof platform.betaDaysLeft === "number" && platform.betaDaysLeft > 0
             ? ` (faltan ${platform.betaDaysLeft} días)`
             : ""}
-          ; después empiezan a regir las comisiones y las suscripciones.
+          ; luego se aplican comisiones y membresías.{" "}
+          {/* The banner states the offer; the article states its limits. Anyone
+              deciding based on "gratis" deserves one click to the detail. */}
+          <Link
+            to={`/blog/${BETA_POST_SLUG}`}
+            className="underline font-semibold hover:no-underline"
+          >
+            Para más info hacé clic acá
+          </Link>
+          .
         </p>
       </div>
     </div>

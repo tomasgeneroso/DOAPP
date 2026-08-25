@@ -6,6 +6,8 @@ export interface PhaseInfo {
   isBeta: boolean;
   betaEndsAt: string;
   betaDaysLeft: number;
+  /** When the owner actually flipped the switch, if they did. */
+  phaseChangedAt?: string | null;
 }
 
 /**
