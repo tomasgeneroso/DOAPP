@@ -129,8 +129,12 @@ export default function FinancialTransactions() {
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
-    loadTransactions();
-    loadStats();
+    // Debounced: the search is a query now, so it should not fire per keystroke.
+    const t = setTimeout(() => {
+      loadTransactions();
+      loadStats();
+    }, filters.search ? 350 : 0);
+    return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, filters]);
 
@@ -142,7 +146,10 @@ export default function FinancialTransactions() {
         page: page.toString(),
         limit: '50',
         ...(filters.type !== 'all' && { type: filters.type }),
-        ...(filters.status !== 'all' && { status: filters.status })
+        ...(filters.status !== 'all' && { status: filters.status }),
+        // Searched in SQL: the page is 50 rows, so filtering it here hid every
+        // match that sat further back.
+        ...(filters.search ? { search: filters.search } : {})
       });
 
       const response = await fetch(`/api/admin/company-balance/transactions?${queryParams}`, {
@@ -481,18 +488,8 @@ export default function FinancialTransactions() {
   };
 
   const getSortedTransactions = () => {
-    // First filter by search
-    let filtered = transactions;
-    if (filters.search) {
-      const searchLower = filters.search.toLowerCase();
-      filtered = transactions.filter(t => {
-        const id = t.id.toLowerCase();
-        const description = (t.contract?.title || t.jobTitle || t.description || '').toLowerCase();
-        const clientName = (t.contract?.client?.name || t.payer?.name || '').toLowerCase();
-        const doerName = (t.doer?.name || t.contract?.doer?.name || t.recipient?.name || '').toLowerCase();
-        return id.includes(searchLower) || description.includes(searchLower) || clientName.includes(searchLower) || doerName.includes(searchLower);
-      });
-    }
+    // The server already applied the search; this page is the result set.
+    const filtered = transactions;
 
     if (!sortField || !sortDirection) return filtered;
 
@@ -1355,27 +1352,28 @@ export default function FinancialTransactions() {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm">
-                      {transaction.type === 'membership' ? (
-                        <>
-                          <p className="font-medium text-purple-600 dark:text-purple-400">
-                            {(Number(transaction.platformFeePercentage) || 0) >= 3 ? 'PRO' :
-                             (Number(transaction.platformFeePercentage) || 0) >= 2 ? 'SUPER PRO' : 'FREE'}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {(Number(transaction.platformFeePercentage) || 8)}%
-                          </p>
-                        </>
-                      ) : (
-                        <>
-                          <p className="font-medium text-gray-600 dark:text-gray-400">
-                            {(Number(transaction.platformFeePercentage) || 8) <= 2 ? 'SUPER PRO' :
-                             (Number(transaction.platformFeePercentage) || 8) <= 3 ? 'PRO' : 'FREE'}
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {(Number(transaction.platformFeePercentage) || 8).toFixed(1)}%
-                          </p>
-                        </>
-                      )}
+                      {/* The plan used to be inferred from the fee percentage,
+                          with 8% as the fallback. Two things were wrong with
+                          that: a real 0% fee fell through the || and was shown
+                          as 8%, and during the beta everyone pays 0% whatever
+                          their plan, so the percentage carries no information
+                          about the plan at all. Now the fee is reported as
+                          recorded, and nothing is inferred from it. */}
+                      {(() => {
+                        const raw = transaction.platformFeePercentage;
+                        const pct = raw === null || raw === undefined || raw === '' ? null : Number(raw);
+                        const known = pct !== null && Number.isFinite(pct);
+                        return (
+                          <>
+                            <p className={`font-medium ${transaction.type === 'membership' ? 'text-purple-600 dark:text-purple-400' : 'text-gray-600 dark:text-gray-400'}`}>
+                              {!known ? 'Sin dato' : pct === 0 ? 'Sin comisión' : `${pct.toFixed(1)}%`}
+                            </p>
+                            {known && pct === 0 && (
+                              <p className="text-xs text-gray-500 dark:text-gray-400">0,0%</p>
+                            )}
+                          </>
+                        );
+                      })()}
                       {(Number(transaction.platformFee) || 0) > 0 && (
                         <p className="text-xs font-medium text-green-600 dark:text-green-400 mt-1">
                           ${(Number(transaction.platformFee) || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

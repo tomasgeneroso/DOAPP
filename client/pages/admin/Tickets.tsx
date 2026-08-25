@@ -19,6 +19,8 @@ export default function AdminTickets() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
+  // Totals across every ticket, sent by the server (see the route for why).
+  const [stats, setStats] = useState<Record<string, number>>({});
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
   const [sortField, setSortField] = useState<SortField | null>(null);
@@ -50,7 +52,7 @@ export default function AdminTickets() {
   useEffect(() => {
     loadTickets();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, search, statusFilter, categoryFilter, priorityFilter]);
+  }, [page, search, statusFilter, categoryFilter, priorityFilter, dateFrom, dateTo]);
 
   const loadTickets = async () => {
     try {
@@ -62,10 +64,15 @@ export default function AdminTickets() {
       if (statusFilter) params.status = statusFilter;
       if (categoryFilter) params.category = categoryFilter;
       if (priorityFilter) params.priority = priorityFilter;
+      // Dates go to the server too: filtering them here only ever narrowed the
+      // 20 tickets of the current page.
+      if (dateFrom) params.dateFrom = dateFrom;
+      if (dateTo) params.dateTo = dateTo;
 
       const res = await adminApi.tickets.list(params);
       if (res.success && res.data) {
         setTickets(res.data);
+        setStats((res as any).stats || {});
       }
     } catch (error) {
       console.error("Error loading tickets:", error);
@@ -140,14 +147,9 @@ export default function AdminTickets() {
     return order[status] || 0;
   };
 
-  const getFilteredTickets = () => {
-    return tickets.filter((ticket) => {
-      const ticketDate = new Date(ticket.createdAt);
-      const matchesDateFrom = !dateFrom || ticketDate >= new Date(dateFrom);
-      const matchesDateTo = !dateTo || ticketDate <= new Date(dateTo + 'T23:59:59');
-      return matchesDateFrom && matchesDateTo;
-    });
-  };
+  // The server applies search and date range now, so the received page is
+  // already the result set. Sorting below still runs on it.
+  const getFilteredTickets = () => tickets;
 
   const getSortedTickets = () => {
     const filtered = getFilteredTickets();
@@ -237,10 +239,10 @@ export default function AdminTickets() {
       {/* Stats cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
-          { label: "Abiertos", status: "open", value: tickets.filter(t => t.status === "open").length, icon: Inbox, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/20", onClick: () => setStatusFilter("open") },
-          { label: "En progreso", status: "in_progress", value: tickets.filter(t => t.status === "in_progress" || t.status === "assigned").length, icon: Clock, color: "text-yellow-600 dark:text-yellow-400", bg: "bg-yellow-50 dark:bg-yellow-900/20", onClick: () => setStatusFilter("in_progress") },
-          { label: "Resueltos", status: "resolved", value: tickets.filter(t => t.status === "resolved").length, icon: CheckCircle, color: "text-green-600 dark:text-green-400", bg: "bg-green-50 dark:bg-green-900/20", onClick: () => setStatusFilter("resolved") },
-          { label: "Cerrados", status: "closed", value: tickets.filter(t => t.status === "closed").length, icon: XCircle, color: "text-slate-500 dark:text-slate-400", bg: "bg-slate-50 dark:bg-slate-700/30", onClick: () => setStatusFilter("closed") },
+          { label: "Abiertos", status: "open", value: stats.open || 0, icon: Inbox, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-50 dark:bg-blue-900/20", onClick: () => setStatusFilter("open") },
+          { label: "En progreso", status: "in_progress", value: (stats.in_progress || 0) + (stats.assigned || 0), icon: Clock, color: "text-yellow-600 dark:text-yellow-400", bg: "bg-yellow-50 dark:bg-yellow-900/20", onClick: () => setStatusFilter("in_progress") },
+          { label: "Resueltos", status: "resolved", value: stats.resolved || 0, icon: CheckCircle, color: "text-green-600 dark:text-green-400", bg: "bg-green-50 dark:bg-green-900/20", onClick: () => setStatusFilter("resolved") },
+          { label: "Cerrados", status: "closed", value: stats.closed || 0, icon: XCircle, color: "text-slate-500 dark:text-slate-400", bg: "bg-slate-50 dark:bg-slate-700/30", onClick: () => setStatusFilter("closed") },
         ].map(card => (
           <button
             key={card.label}

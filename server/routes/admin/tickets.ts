@@ -1,4 +1,5 @@
 import express, { Request, Response } from "express";
+import { Op, cast, col, fn, where as sqlWhere } from "sequelize";
 import { Ticket } from "../../models/sql/Ticket.model.js";
 import { User } from "../../models/sql/User.model.js";
 import { Notification } from "../../models/sql/Notification.model.js";
@@ -26,6 +27,9 @@ router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
       assignedTo,
       sortBy = "createdAt",
       sortOrder = "desc",
+      search,
+      dateFrom,
+      dateTo,
     } = req.query;
 
     const query: any = {};
@@ -41,6 +45,31 @@ router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
     if (status) query.status = status;
     if (category) query.category = category;
     if (priority) query.priority = priority;
+
+    // The client was already sending `search`, `dateFrom` and `dateTo`; this
+    // route ignored all three and returned the same page regardless, so the
+    // admin search box appeared to work while doing nothing. Filtering has to
+    // happen here: the list is paginated to 20, and anything that matches
+    // outside that page cannot be found by filtering the page in the browser.
+    const q = typeof search === 'string' ? search.trim() : '';
+    if (q) {
+      const like = { [Op.iLike]: `%${q}%` };
+      query[Op.or] = [
+        { ticketNumber: like },
+        { subject: like },
+        // The body of a ticket lives inside the messages JSONB, not in a
+        // column of its own; cast so the whole thread is searchable.
+        sqlWhere(cast(col('Ticket.messages'), 'text'), like),
+        { resolution: like },
+        { '$creator.name$': like },
+        { '$creator.email$': like },
+      ];
+    }
+
+    const range: any = {};
+    if (typeof dateFrom === 'string' && dateFrom) range[Op.gte] = new Date(dateFrom);
+    if (typeof dateTo === 'string' && dateTo) range[Op.lte] = new Date(dateTo + 'T23:59:59');
+    if (Object.getOwnPropertySymbols(range).length) query.createdAt = range;
 
     const skip = (parseInt(page as string) - 1) * parseInt(limit as string);
     const sortOptions: any = {};
@@ -59,9 +88,27 @@ router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
       ]
     });
 
+    // Counts over every ticket, not over the page. The cards used to count
+    // inside the 20 rows that happened to arrive, so "Abiertos: 4" meant
+    // "4 of the 20 I am looking at" while reading as a total -- and applying a
+    // status filter drove the other three cards to zero.
+    const byStatus = await Ticket.findAll({
+      attributes: [
+        'status',
+        [fn('COUNT', col('id')), 'count'],
+      ],
+      where: req.user.adminRole ? {} : { createdBy: req.user._id },
+      group: ['status'],
+      raw: true,
+    }) as unknown as Array<{ status: string; count: string }>;
+
+    const stats: Record<string, number> = {};
+    for (const row of byStatus) stats[row.status] = Number(row.count);
+
     res.json({
       success: true,
       data: tickets,
+      stats,
       pagination: {
         page: parseInt(page as string),
         limit: parseInt(limit as string),

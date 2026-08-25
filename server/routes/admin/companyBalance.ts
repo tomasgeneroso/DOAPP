@@ -9,7 +9,7 @@ import { Advertisement } from "../../models/sql/Advertisement.model.js";
 import { Promoter } from "../../models/sql/Promoter.model.js";
 import { PaymentProof } from "../../models/sql/PaymentProof.model.js";
 import { Job } from "../../models/sql/Job.model.js";
-import { Op } from 'sequelize';
+import { Op, literal } from 'sequelize';
 
 const router = express.Router();
 
@@ -263,7 +263,7 @@ router.get(
   authorize("owner", "super_admin", "admin"),
   async (req: AuthRequest, res: Response) => {
     try {
-      const { page = 1, limit = 50, type, status, startDate, endDate } = req.query;
+      const { page = 1, limit = 50, type, status, startDate, endDate, search } = req.query;
 
       const offset = (Number(page) - 1) * Number(limit);
 
@@ -276,6 +276,37 @@ router.get(
         if (startDate) where.createdAt[Op.gte] = new Date(startDate as string);
         if (endDate) where.createdAt[Op.lte] = new Date(endDate as string);
       }
+
+      // Seed accounts were being dropped in JS after the page was fetched,
+      // which made each page a different size and, worse, made the total a
+      // count of the page. Excluding them in SQL lets COUNT be truthful.
+      const notMockup = (fk: string) => literal(
+        `NOT EXISTS (SELECT 1 FROM users mu WHERE mu.id = "Payment"."${fk}"` +
+        ` AND (mu.email LIKE '%@example.com' OR mu.email LIKE '%@test.com'))`
+      );
+      const conditions: any[] = [notMockup("payer_id"), notMockup("recipient_id")];
+
+      // Searched in SQL for the same reason as the other admin lists: the page
+      // is 50 rows and a match outside it is otherwise unreachable.
+      //
+      // Written as EXISTS subqueries rather than `$payer.name$`: this query
+      // paginates over a hasMany include, so Sequelize wraps it in a subquery
+      // and the joined aliases are not visible from the outer WHERE. The term
+      // travels as a bound parameter, never as concatenated SQL.
+      const q = typeof search === 'string' ? search.trim() : '';
+      const replacements: any = {};
+      if (q) {
+        replacements.q = `%${q}%`;
+        const parts = [
+          `EXISTS (SELECT 1 FROM users su WHERE su.id = "Payment"."payer_id" AND su.name ILIKE :q)`,
+          `EXISTS (SELECT 1 FROM users su WHERE su.id = "Payment"."recipient_id" AND su.name ILIKE :q)`,
+          `EXISTS (SELECT 1 FROM contracts sc JOIN jobs sj ON sj.id = sc.job_id
+                   WHERE sc.id = "Payment"."contract_id" AND sj.title ILIKE :q)`,
+          `CAST("Payment"."id" AS TEXT) ILIKE :q`,
+        ];
+        conditions.push(literal(`(${parts.join(" OR ")})`));
+      }
+      where[Op.and] = conditions;
 
       // Withdrawals live in a separate model (WithdrawalRequest). When the admin
       // filters by "withdrawal", list those here mapped to the transaction shape,
@@ -356,23 +387,16 @@ router.get(
         order: [['createdAt', 'DESC']],
         offset,
         limit: Number(limit),
+        replacements,
       });
 
-      // Filter out mockup transactions (exclude @example.com and @test.com emails)
-      const realPayments = payments.filter((payment: any) => {
-        const payerEmail = payment.payer?.email || '';
-        const recipientEmail = payment.recipient?.email || '';
+      // Seed accounts are already excluded by the WHERE clause above.
+      const realPayments = payments;
 
-        const isMockup =
-          payerEmail.endsWith('@example.com') ||
-          payerEmail.endsWith('@test.com') ||
-          recipientEmail.endsWith('@example.com') ||
-          recipientEmail.endsWith('@test.com');
-
-        return !isMockup;
-      });
-
-      const total = realPayments.length;
+      // Counted over the whole table, not over the page. This used to be
+      // `realPayments.length`, so `pages` was always 1 and the admin could
+      // never reach anything older than the 50 most recent movements.
+      const total = Number(await Payment.count({ where, replacements } as any));
 
       // Get payment IDs for job_publication payments to find associated jobs
       const publicationPaymentIds = realPayments

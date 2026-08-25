@@ -42,16 +42,6 @@ export default function AdminWithdrawalManager() {
   const [urlParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(urlParams.get('search') || '');
 
-  // Generic matcher: search across every field of a withdrawal (user, CBU, bank, amount, ...)
-  const matchesQuery = (item: any): boolean => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return true;
-    try {
-      return JSON.stringify(item).toLowerCase().includes(q);
-    } catch {
-      return true;
-    }
-  };
   const [selectedWithdrawal, setSelectedWithdrawal] = useState<WithdrawalRequest | null>(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [proofOfTransfer, setProofOfTransfer] = useState('');
@@ -90,9 +80,11 @@ export default function AdminWithdrawalManager() {
   }, [registerAdminWithdrawalCreatedHandler, registerAdminWithdrawalUpdatedHandler, handleNewWithdrawal, handleWithdrawalUpdated]);
 
   useEffect(() => {
-    loadData();
+    // Debounced: the search now costs a query, so it should not fire per keystroke.
+    const t = setTimeout(() => loadData(), searchQuery ? 350 : 0);
+    return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterStatus]);
+  }, [filterStatus, searchQuery]);
 
   const loadData = async () => {
     try {
@@ -103,6 +95,10 @@ export default function AdminWithdrawalManager() {
       if (filterStatus !== 'all') {
         params.append('status', filterStatus);
       }
+      // Searched in SQL over every retiro, not over the page that happened to
+      // arrive -- otherwise a match outside the current page is invisible.
+      const q = searchQuery.trim();
+      if (q) params.append('search', q);
 
       const withdrawalsRes = await fetch(`/api/admin/withdrawals?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -428,11 +424,11 @@ export default function AdminWithdrawalManager() {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-x-auto">
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white">
-            {t('admin.withdrawals.requests', 'Withdrawal Requests')} ({withdrawals.filter(matchesQuery).length})
+            {t('admin.withdrawals.requests', 'Withdrawal Requests')} ({withdrawals.length})
           </h2>
         </div>
 
-        {withdrawals.filter(matchesQuery).length === 0 ? (
+        {withdrawals.length === 0 ? (
           <div className="p-12 text-center">
             <ArrowDownCircle className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
             <p className="text-gray-500 dark:text-gray-400">
@@ -449,7 +445,7 @@ export default function AdminWithdrawalManager() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {withdrawals.filter(matchesQuery).map((withdrawal) => {
+              {withdrawals.map((withdrawal) => {
                 const user = typeof withdrawal.user === 'object' ? withdrawal.user : null;
                 const proof = (withdrawal as any).proofOfTransfer;
                 return (

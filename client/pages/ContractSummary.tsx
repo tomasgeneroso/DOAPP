@@ -338,7 +338,7 @@ export default function ContractSummary() {
                 <div className="flex justify-between items-center">
                   <div className="flex flex-col">
                     <span className="text-slate-700 dark:text-slate-300">
-                      {t('contracts.summary.platformCommission', 'Platform commission')} ({contract.commissionPercentage || 8}%)
+                      {t('contracts.summary.platformCommission', 'Platform commission')} ({commissionRate}%)
                       {contract.commission === 0 && (
                         <span className="ml-2 text-xs text-green-600 dark:text-green-400 font-semibold">
                           {t('contracts.summary.free', 'FREE!')}

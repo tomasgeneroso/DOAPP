@@ -80,6 +80,7 @@
     "leaflet": "^1.9.4",
     "lucide-react": "^0.539.0",
     "mailgun.js": "^12.1.0",
+    "marked": "^18.0.11",
     "memorystore": "^1.6.8",
     "mercadopago": "^2.10.0",
     "multer": "^2.0.2",

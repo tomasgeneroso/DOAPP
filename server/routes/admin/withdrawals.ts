@@ -6,7 +6,10 @@ import { User } from "../../models/sql/User.model.js";
 import { BalanceTransaction } from "../../models/sql/BalanceTransaction.model.js";
 import emailService from "../../services/email.js";
 import fcmService from "../../services/fcm.js";
-import { Op } from 'sequelize';
+import { Op, cast, col, where as sqlWhere } from 'sequelize';
+
+/** ILIKE against a column that is not text: uuid, numeric, jsonb. */
+const asText = (column: string, matcher: any) => sqlWhere(cast(col(column), 'text'), matcher);
 import { generateWithdrawalReceipt } from "../../services/invoiceService.js";
 import { logAudit } from "../../utils/auditLog.js";
 
@@ -18,11 +21,38 @@ const router = express.Router();
  */
 router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { limit = 50, offset = 0, status } = req.query;
+    const { limit = 50, offset = 0, status, search } = req.query;
 
     const where: any = {};
     if (status && typeof status === 'string') {
       where.status = status;
+    }
+
+    // The search has to run in SQL, not in the browser. The list is paginated
+    // (50 rows), so filtering only the page that arrived meant a retiro that
+    // matched but sat outside that page simply did not exist as far as the
+    // admin was concerned -- and the narrower the status filter, the more
+    // often that happened.
+    const q = typeof search === 'string' ? search.trim() : '';
+    if (q) {
+      const like = { [Op.iLike]: `%${q}%` };
+      const or: any[] = [
+        asText('WithdrawalRequest.banking_info', like),
+        asText('WithdrawalRequest.amount', like),
+        { '$user.name$': like },
+        { '$user.email$': like },
+      ];
+
+      // Ids are UUIDs, so a CAST is the only way to match a fragment of one.
+      // The term is reduced to hex and dashes; nothing else reaches the query.
+      const uuidish = q.toLowerCase().replace(/[^0-9a-f-]/g, '');
+      if (uuidish.length >= 4 && uuidish.length === q.length) {
+        const idLike = { [Op.iLike]: `%${uuidish}%` };
+        or.push(asText('WithdrawalRequest.id', idLike));
+        or.push(asText('WithdrawalRequest.user_id', idLike));
+      }
+
+      where[Op.or] = or;
     }
 
     const { rows: withdrawals, count: totalCount } = await WithdrawalRequest.findAndCountAll({

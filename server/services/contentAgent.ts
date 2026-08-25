@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { BlogPost } from '../models/sql/BlogPost.model.js';
 import { Op } from 'sequelize';
 import { AppSetting } from '../models/sql/AppSetting.model.js';
+import { markdownToHtml } from '../utils/markdownToHtml.js';
 
 /**
  * Content agent: writes blog drafts about the trades people hire on DOAPP.
@@ -195,7 +196,8 @@ export async function generateDraft(seed = Date.now()): Promise<BlogPost> {
     title: post.title,
     subtitle: post.subtitle,
     excerpt: post.excerpt,
-    content: post.content,
+    // Same reason as the seed: the blog renders HTML.
+    content: markdownToHtml(post.content),
     slug,
     author: 'DOAPP',
     category: topic.category,

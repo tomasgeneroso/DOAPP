@@ -3,6 +3,7 @@ import { Op } from 'sequelize';
 import { BlogPost } from '../models/sql/BlogPost.model.js';
 import { User } from '../models/sql/User.model.js';
 import { betaPost } from '../../shared/content/betaPost.js';
+import { markdownToHtml } from '../utils/markdownToHtml.js';
 
 /**
  * Publishes (or refreshes) the article the beta banner links to.
@@ -36,7 +37,9 @@ import { betaPost } from '../../shared/content/betaPost.js';
     title: betaPost.title,
     subtitle: betaPost.subtitle,
     excerpt: betaPost.excerpt,
-    content: betaPost.content,
+    // Stored as HTML: the blog renders content directly, so Markdown would
+    // show its own syntax on screen.
+    content: markdownToHtml(betaPost.content),
     slug: betaPost.slug,
     author: 'DoApp',
     category: betaPost.category,

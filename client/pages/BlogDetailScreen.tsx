@@ -237,8 +237,10 @@ export default function BlogDetailScreen() {
       </Helmet>
 
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
-        {/* Header - Back button only visible on mobile */}
-        <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 md:hidden">
+        {/* Back to the list. It used to be md:hidden, so on a desktop the
+            article was a dead end: no way back to the blog without the browser
+            button. Every screen you can enter needs a way out of it. */}
+        <div className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
           <div className="container mx-auto px-4 py-4">
             <Link
               to="/blog"

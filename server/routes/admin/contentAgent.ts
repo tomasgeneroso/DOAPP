@@ -3,6 +3,7 @@ import { protect, authorize, AuthRequest } from '../../middleware/auth.js';
 import { BlogPost } from '../../models/sql/BlogPost.model.js';
 import { logAudit, getSeverityForAction } from '../../utils/auditLog.js';
 import { isContentAgentConfigured, isContentAgentEnabled, setContentAgentEnabled } from '../../services/contentAgent.js';
+import { markdownToHtml } from '../../utils/markdownToHtml.js';
 import { runBlogDraftGeneration, listPendingDrafts, listRecentlyRejected } from '../../jobs/generateBlogDrafts.js';
 
 /**
@@ -87,7 +88,8 @@ router.post('/:id/approve', async (req: AuthRequest, res: Response) => {
       ...(title !== undefined ? { title } : {}),
       ...(subtitle !== undefined ? { subtitle } : {}),
       ...(excerpt !== undefined ? { excerpt } : {}),
-      ...(content !== undefined ? { content } : {}),
+      // The admin edits the draft as Markdown in the review screen.
+      ...(content !== undefined ? { content: markdownToHtml(String(content)) } : {}),
       ...(metaTitle !== undefined ? { metaTitle: String(metaTitle).slice(0, 70) } : {}),
       ...(metaDescription !== undefined ? { metaDescription: String(metaDescription).slice(0, 160) } : {}),
       ...(Array.isArray(tags) ? { tags } : {}),
