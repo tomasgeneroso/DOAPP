@@ -346,9 +346,11 @@ export default function PendingPayments() {
       if (appSubFilter === "all") {
         params.append("status", "all");
       } else if (appSubFilter === "pending") {
-        // "Pendiente" = todo lo que espera verificación. No pasamos status para que
-        // el backend use su default [pending_verification, pending] (así no se
-        // esconden pagos creados en estado 'pending', p. ej. budget_increase viejos).
+        // "Pendiente" = todo lo que todavia no fue resuelto. El servidor lo
+        // define excluyendo los estados resueltos, no enumerando los pendientes:
+        // asi ningun pago queda sin pestaña. Se manda explicito en vez de omitir
+        // el parametro para que el pedido diga lo que quiere.
+        params.append("status", "unverified");
       } else if (appSubFilter === "verified") {
         params.append("status", "verified");
       } else if (appSubFilter === "escrow") {

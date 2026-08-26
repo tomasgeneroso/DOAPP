@@ -44,6 +44,30 @@ export type PaymentStatus =
   | 'refunded'
   | 'cancelled';
 
+/**
+ * Statuses meaning an admin already dealt with the payment. Everything else
+ * -- whatever it ends up being called -- is still waiting for verification.
+ *
+ * Defined by exclusion on purpose. The admin panel used to name the pending
+ * statuses instead, so a payment in any of the other nine states belonged to
+ * no filter tab and was invisible outside "Todos".
+ */
+export const RESOLVED_PAYMENT_STATUSES: PaymentStatus[] = [
+  'verified',
+  'held_escrow',
+  'confirmed_for_payout',
+  'completed',
+  'disputed',
+  'rejected',
+  'refunded',
+  'cancelled',
+  'failed',
+];
+
+/** True when the payment still needs an admin to look at it. */
+export const needsVerification = (status: string): boolean =>
+  !RESOLVED_PAYMENT_STATUSES.includes(status as PaymentStatus);
+
 export type PaymentType =
   | 'contract_payment'
   | 'escrow_deposit'

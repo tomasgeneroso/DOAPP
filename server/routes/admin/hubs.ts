@@ -78,7 +78,7 @@ router.get('/moderation/overview', async (_req: AuthRequest, res: Response): Pro
  */
 router.get('/financial/overview', async (_req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { Payment } = await import('../../models/sql/Payment.model.js');
+    const { Payment, RESOLVED_PAYMENT_STATUSES } = await import('../../models/sql/Payment.model.js');
     const { WithdrawalRequest } = await import('../../models/sql/WithdrawalRequest.model.js');
     const { Op } = await import('sequelize');
     let Dispute: any = null;
@@ -97,7 +97,9 @@ router.get('/financial/overview', async (_req: AuthRequest, res: Response): Prom
       escrowHeld,
       pendingWithdrawalsAmount,
     ] = await Promise.all([
-      Payment.count({ where: { status: { [Op.in]: ['pending_verification', 'pending'] } } }),
+      // Same rule as the Pendiente Verificacion tab, or the badge and the
+      // list it points at report different numbers.
+      Payment.count({ where: { status: { [Op.notIn]: RESOLVED_PAYMENT_STATUSES } } }),
       WithdrawalRequest.count({ where: { status: { [Op.in]: ['pending', 'approved', 'processing'] } } }),
       Payment.count({ where: { status: 'confirmed_for_payout' } }),
       Dispute ? Dispute.count({ where: { status: { [Op.in]: ['open', 'in_review', 'awaiting_info'] } } }) : Promise.resolve(0),

@@ -1,7 +1,7 @@
 import { Router, Response } from "express";
 import { protect, AuthRequest } from "../../middleware/auth.js";
 import { requireRole } from "../../middleware/permissions.js";
-import { Payment } from "../../models/sql/Payment.model.js";
+import { Payment, RESOLVED_PAYMENT_STATUSES, needsVerification } from "../../models/sql/Payment.model.js";
 import { PaymentProof } from "../../models/sql/PaymentProof.model.js";
 import { BalanceTransaction } from "../../models/sql/BalanceTransaction.model.js";
 import { User } from "../../models/sql/User.model.js";
@@ -311,16 +311,24 @@ router.get("/pending", protect, requireRole('admin', 'super_admin', 'owner'), as
 
     const where: any = {};
 
-    // Filter by status ("all" → no status filter, show every payment)
+    // "Pendiente Verificacion" is defined by what it is NOT.
+    //
+    // It used to list two statuses by name, pending_verification and pending.
+    // Payment.status has fifteen values and the tabs together named six of
+    // them, so a payment sitting in processing, approved, awaiting_confirmation,
+    // completed, failed, refunded or cancelled belonged to no tab at all: it
+    // showed under "Todos" and nowhere else. An admin filtering for unverified
+    // payments was being told, wrongly, that there were none.
+    //
+    // Naming the resolved states instead means a payment can only leave this
+    // list by actually reaching one of them -- and any status added later
+    // surfaces here for review rather than disappearing from the panel.
     if (status === 'all') {
       // no status constraint
-    } else if (status) {
+    } else if (status && status !== 'unverified') {
       where.status = status;
     } else {
-      // Default: show pending_verification payments
-      where.status = {
-        [Op.in]: ['pending_verification', 'pending']
-      };
+      where.status = { [Op.notIn]: RESOLVED_PAYMENT_STATUSES };
     }
 
     // Free-text search, applied in SQL.
@@ -622,7 +630,7 @@ router.get("/:paymentId", protect, requireRole('admin', 'super_admin', 'owner'),
 
     // Add summary info for admin
     paymentData.adminSummary = {
-      requiresAction: payment.status === 'pending_verification' || payment.status === 'pending',
+      requiresAction: needsVerification(payment.status),
       paymentMethod: payment.mercadopagoPaymentId ? 'MercadoPago' : 'Transferencia Bancaria',
       mercadopagoId: payment.mercadopagoPaymentId,
       amount: payment.amount,
