@@ -9,6 +9,7 @@ import MobileBottomNav from "./MobileBottomNav";
 import ErrorBoundary from "../ErrorBoundary";
 import { useScrollDepth } from "@/hooks/useScrollDepth";
 import KycWelcomeModal from "../KycWelcomeModal";
+import PendingPostWorkRatingGate from "../user/PendingPostWorkRatingGate";
 
 export default function Layout() {
   const { user, isAuthenticated } = useAuth();
@@ -34,6 +35,7 @@ export default function Layout() {
         Ir al contenido principal
       </a>
       <KycWelcomeModal />
+      <PendingPostWorkRatingGate />
       <ErrorBoundary>
         <Header />
       </ErrorBoundary>

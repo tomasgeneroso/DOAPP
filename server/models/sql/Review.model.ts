@@ -75,11 +75,24 @@ export class Review extends Model {
   @BelongsTo(() => User, 'reviewedId')
   reviewed!: User;
 
+  /**
+   * Papel del reseñado en el contrato. Al doer se lo puntúa en las seis
+   * dimensiones y al cliente sólo en las que le aplican, así que la
+   * reputación de cada rol se promedia por separado.
+   */
+  @Index
+  @Column(DataType.STRING(10))
+  reviewedRole?: 'doer' | 'client';
+
   // ============================================
   // OVERALL RATING
   // ============================================
 
-  @AllowNull(false)
+  /**
+   * Puntuación general (1-5).
+   * Opcional: la encuesta post-trabajo permite responder sólo
+   * "¿recomendarías la app?" sin puntuar al doer.
+   */
   @Index
   @Column({
     type: DataType.INTEGER,
@@ -88,19 +101,41 @@ export class Review extends Model {
       max: 5,
     },
   })
-  rating!: number;
+  rating?: number;
 
-  @AllowNull(false)
+  /**
+   * Comentario / nota. Opcional: en la encuesta post-trabajo la nota
+   * es libre. La reseña completa lo exige (10-1000) a nivel de ruta.
+   */
   @Column({
     type: DataType.TEXT,
     validate: {
       len: {
-        args: [10, 1000],
-        msg: 'El comentario debe tener entre 10 y 1000 caracteres',
+        args: [0, 1000],
+        msg: 'El comentario no puede superar los 1000 caracteres',
       },
     },
   })
-  comment!: string;
+  comment?: string;
+
+  // ============================================
+  // POST-WORK SURVEY (máx. 2 preguntas)
+  // ============================================
+
+  /** ¿Recomendarías la app? — segunda (y única otra) pregunta post-trabajo */
+  @Column(DataType.BOOLEAN)
+  recommendsApp?: boolean;
+
+  /**
+   * Origen de la reseña:
+   *  - 'full'             formulario completo de reseña
+   *  - 'post_work'        encuesta post-trabajo terminada
+   *  - 'post_work_draft'  encuesta post-trabajo empezada y sin terminar
+   *                       (guarda el progreso; no es pública ni promedia)
+   */
+  @Default('full')
+  @Column(DataType.STRING(20))
+  source!: 'full' | 'post_work' | 'post_work_draft';
 
   // ============================================
   // MULTIPLE RATING CATEGORIES
@@ -210,14 +245,14 @@ export class Review extends Model {
    * Check if review is positive (4-5 stars)
    */
   isPositive(): boolean {
-    return this.rating >= 4;
+    return this.rating !== null && this.rating !== undefined && this.rating >= 4;
   }
 
   /**
    * Check if review is negative (1-2 stars)
    */
   isNegative(): boolean {
-    return this.rating <= 2;
+    return this.rating !== null && this.rating !== undefined && this.rating <= 2;
   }
 
   /**

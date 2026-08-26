@@ -755,21 +755,33 @@ router.get("/analytics", protect, async (req: AuthRequest, res: Response): Promi
     if (completedCount >= 100) insignias.push('100+ trabajos');
     else if (completedCount >= 50) insignias.push('50+ trabajos');
     else if (completedCount >= 10) insignias.push('10+ trabajos');
-    if (r1(u.rating) >= 4.8 && (Number(u.reviewsCount) || 0) >= 5) insignias.push('Calificación 5★');
+    // Este panel es la reputación como trabajador: se usan las métricas del
+    // rol doer, que se puntúa en las seis dimensiones (el cliente sólo en
+    // algunas). Fallback a las globales si todavía no se recalcularon.
+    const doerStats = (u as any).ratingBreakdown?.doer;
+    const doerRating = r1(Number(u.doerRating) || 0) || r1(u.rating);
+    const doerReviews =
+      Number(u.doerReviewsCount) || Number(u.reviewsCount) || 0;
+    const dimAvg = (key: string, fallback: any) =>
+      doerStats?.dimensions?.[key]?.avg !== undefined
+        ? r1(doerStats.dimensions[key].avg)
+        : r1(fallback);
+
+    if (doerRating >= 4.8 && doerReviews >= 5) insignias.push('Calificación 5★');
     if (disputedAsDoer === 0 && completedCount >= 5) insignias.push('Sin disputas');
     if (tasaFinalizacion >= 0.95 && finalizables >= 5) insignias.push('Cumplidor');
     const reputacion = {
-      overall: r1(u.rating),
-      reviewsCount: Number(u.reviewsCount) || 0,
+      overall: doerRating,
+      reviewsCount: doerReviews,
       completados: completedCount,
       tasaFinalizacion,
       disputas: disputedAsDoer,
       ratings: {
-        calidad: r1(u.calidadTrabajoRating || u.workQualityRating),
-        puntualidad: r1(u.puntualidadRating),
-        profesionalidad: r1(u.profesionalidadRating),
-        precioJusto: r1(u.precioJustoRating),
-        comoPersona: r1(u.comoPersonaRating),
+        calidad: dimAvg('quality', u.calidadTrabajoRating || u.workQualityRating),
+        puntualidad: dimAvg('timeliness', u.puntualidadRating),
+        profesionalidad: dimAvg('professionalism', u.profesionalidadRating),
+        precioJusto: dimAvg('fairPrice', u.precioJustoRating),
+        comoPersona: dimAvg('communication', u.comoPersonaRating),
       },
       insignias,
     };

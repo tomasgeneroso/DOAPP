@@ -11,6 +11,7 @@ import { Notification } from "../models/sql/Notification.model.js";
 import { Conversation } from "../models/sql/Conversation.model.js";
 import { ChatMessage } from "../models/sql/ChatMessage.model.js";
 import { protect, requireKyc } from "../middleware/auth.js";
+import { requirePostWorkRating } from "../middleware/postWorkRating.js";
 import type { AuthRequest } from "../types/index.js";
 import { socketService } from "../index.js";
 import { Op, Sequelize } from 'sequelize';
@@ -840,6 +841,7 @@ router.get("/:id",
 router.post(
   "/",
   protect,
+  requirePostWorkRating, // No se puede publicar con una puntuación pendiente
   upload.array('images', 5), // Handle up to 5 image uploads
   [
     body("title").trim().notEmpty().withMessage("El título es requerido"),

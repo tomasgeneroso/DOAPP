@@ -94,6 +94,30 @@ export interface Job {
   doerId?: string;
 }
 
+/** Promedio y cantidad de opiniones de una dimensión */
+export interface DimensionStat {
+  avg: number;
+  count: number;
+}
+
+/** Reputación de un rol: general, cantidad y detalle por dimensión */
+export interface RoleRatingStats {
+  rating: number;
+  count: number;
+  dimensions: Record<string, DimensionStat>;
+}
+
+/**
+ * Reputación separada por rol. Las dimensiones sin datos no aparecen, para
+ * poder distinguir "sin opiniones" de "puntuación baja".
+ */
+export interface RatingBreakdown {
+  overall?: { rating: number; count: number };
+  doer: RoleRatingStats;
+  client: RoleRatingStats;
+  updatedAt?: string;
+}
+
 export interface User {
   _id: string;
   id?: string; // Alias for _id (PostgreSQL UUID)
@@ -112,13 +136,20 @@ export interface User {
   workQualityReviewsCount?: number;
   workerReviewsCount?: number;
   contractReviewsCount?: number;
-  // Per-dimension ratings
+  // Per-dimension ratings (globales, mezclan ambos roles)
   puntualidadRating?: number;
   presencialidadRating?: number;
   comoPersonaRating?: number;
   precioJustoRating?: number;
   calidadTrabajoRating?: number;
   profesionalidadRating?: number;
+  // Reputación separada por rol: al doer se lo puntúa en las seis
+  // dimensiones y al cliente sólo en las que le aplican.
+  doerRating?: number;
+  doerReviewsCount?: number;
+  clientRating?: number;
+  clientReviewsCount?: number;
+  ratingBreakdown?: RatingBreakdown;
   completedJobs: number;
   role: 'user' | 'admin' | 'client' | 'doer' | 'both';
   adminRole?: 'owner' | 'super_admin' | 'admin' | 'support' | 'marketing' | 'dpo';

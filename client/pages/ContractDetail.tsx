@@ -14,6 +14,7 @@ import TaskClaimModal from "@/components/contracts/TaskClaimModal";
 import TaskClaimResponse from "@/components/contracts/TaskClaimResponse";
 import TaskEvidenceUploadModal from "@/components/contracts/TaskEvidenceUploadModal";
 import ConfirmModal from "@/components/ui/ConfirmModal";
+import { requestPostWorkRatingCheck } from "@/utils/postWorkRating";
 import {
   ArrowLeft,
   Calendar,
@@ -294,6 +295,10 @@ export default function ContractDetail() {
       if (response.success) {
         setShowHoursForm(false);
         setShowConfirmationSuccessModal(true);
+        if (response.contract?.status === 'completed') {
+          // La puntuación post-trabajo es obligatoria: la pide el portero
+          requestPostWorkRatingCheck();
+        }
         loadContract();
       }
     } catch (error: any) {
@@ -321,6 +326,10 @@ export default function ContractDetail() {
       const response = await api.post(`/contracts/${id}/confirm`);
       if (response.success) {
         setShowConfirmationSuccessModal(true);
+        if (response.contract?.status === 'completed') {
+          // La puntuación post-trabajo es obligatoria: la pide el portero
+          requestPostWorkRatingCheck();
+        }
         loadContract();
         if (contract?.job?.id || contract?.jobId) {
           const jobId = contract.job?.id || contract.jobId;

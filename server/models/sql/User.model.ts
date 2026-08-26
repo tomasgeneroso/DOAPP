@@ -319,7 +319,45 @@ export class User extends Model {
   @Column(DataType.INTEGER)
   contractReviewsCount!: number;
 
-  // ── Per-dimension rating averages ────────────────────────────────────────
+  // ── Reputación separada por rol ──────────────────────────────────────────
+  // Al doer se lo puntúa en las seis dimensiones y al cliente sólo en las
+  // que le aplican, por eso los promedios no se mezclan.
+
+  /** Promedio recibido como trabajador */
+  @Default(0.0)
+  @AllowNull(false)
+  @Column(DataType.DECIMAL(3, 2))
+  doerRating!: number;
+
+  /** Promedio recibido como cliente */
+  @Default(0.0)
+  @AllowNull(false)
+  @Column(DataType.DECIMAL(3, 2))
+  clientRating!: number;
+
+  @Default(0)
+  @AllowNull(false)
+  @Column(DataType.INTEGER)
+  doerReviewsCount!: number;
+
+  @Default(0)
+  @AllowNull(false)
+  @Column(DataType.INTEGER)
+  clientReviewsCount!: number;
+
+  /**
+   * Promedio y cantidad de opiniones por rol y por dimensión:
+   * { doer: { rating, count, dimensions: { timeliness: { avg, count } ... } },
+   *   client: { ... } }
+   *
+   * La cantidad permite distinguir "sin datos" de "puntuación baja".
+   */
+  @Default({})
+  @AllowNull(false)
+  @Column(DataType.JSONB)
+  ratingBreakdown!: any;
+
+  // ── Per-dimension rating averages (global, ambos roles) ──────────────────
 
   @Default(0.0)
   @AllowNull(false)

@@ -9,6 +9,7 @@ import { ChatMessage } from "../models/sql/ChatMessage.model.js";
 import { User } from "../models/sql/User.model.js";
 import { Notification } from "../models/sql/Notification.model.js";
 import { protect, requireKyc } from "../middleware/auth.js";
+import { requirePostWorkRating } from "../middleware/postWorkRating.js";
 import { uploadProposalAttachments, getFileUrl } from "../middleware/upload.js";
 import type { AuthRequest } from "../types/index.js";
 import emailService from "../services/email.js";
@@ -378,6 +379,7 @@ router.post(
   "/",
   protect,
   requireKyc,
+  requirePostWorkRating, // No se puede postular con una puntuación pendiente
   [
     body("job").notEmpty().withMessage("El trabajo es requerido"),
     body("coverLetter")

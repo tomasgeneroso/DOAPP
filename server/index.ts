@@ -146,6 +146,7 @@ import calendarRoutes from "./routes/calendar.js";
 
 // Company Balance routes (owner only)
 import companyBalanceRoutes from "./routes/admin/companyBalance.js";
+import adminBusinessPlanRoutes from "./routes/admin/businessPlan.js";
 
 // Marketing routes (owner, super_admin, admin)
 import marketingRoutes from "./routes/admin/marketing.js";
@@ -371,6 +372,7 @@ app.use("/api/admin/search", (await import('./routes/admin/search.js')).default)
 app.use("/api/admin/company-balance", companyBalanceRoutes);
 app.use("/api/admin/marketing", marketingRoutes);
 app.use("/api/admin/family-codes", familyCodesRoutes);
+app.use("/api/admin/business-plan", adminBusinessPlanRoutes);
 app.use("/api/admin/modules", adminModulesRoutes);
 app.use("/api/admin/hubs", adminHubsRoutes);
 app.use("/api/admin/performance", adminPerformanceRoutes);

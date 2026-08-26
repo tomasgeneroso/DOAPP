@@ -85,7 +85,29 @@
     "errorSubmit": "Error al enviar reseña",
     "submitting": "Enviando...",
     "submit": "Enviar reseña",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "postWork": {
+      "rateDoer": "Puntuá el trabajo de {{name}}",
+      "rateClient": "Puntuá a {{name}} como cliente",
+      "theWorker": "el trabajador",
+      "theClient": "el cliente",
+      "stepOf": "Paso {{step}} de 2",
+      "step1Subtitle": "Es obligatorio para cerrar el trabajo.",
+      "step2Title": "Una última cosa",
+      "step2Subtitle": "Contanos qué te pareció DoApp.",
+      "recommendApp": "¿Recomendarías DoApp?",
+      "noteLabel": "Nota (opcional)",
+      "notePlaceholder": "Contanos algo más si querés...",
+      "next": "Continuar",
+      "back": "Volver",
+      "send": "Enviar",
+      "sending": "Enviando...",
+      "errorNoRating": "Puntuá el trabajo para continuar",
+      "errorNoRecommend": "Contanos si recomendarías DoApp",
+      "errorSubmit": "No pudimos guardar tu puntuación",
+      "thanksTitle": "¡Gracias por tu opinión!",
+      "thanksDesc": "Tu respuesta nos ayuda a mejorar DoApp para todos."
+    }
   },
   "location": {
     "neighborhood": "Barrio",
@@ -1621,7 +1643,10 @@
       "dimQuality": "Calidad de trabajo",
       "dimQualityDesc": "Resultado final: ¿quedó bien hecho?",
       "dimProfessionalism": "Profesionalidad",
-      "dimProfessionalismDesc": "Herramientas ordenadas, presencia limpia, trabajo prolijo"
+      "dimProfessionalismDesc": "Herramientas ordenadas, presencia limpia, trabajo prolijo",
+      "asDoer": "Como trabajador",
+      "asClient": "Como cliente",
+      "overCount": "({{n}})"
     },
     "portfolio": "Portafolio",
     "completedWork": "Trabajo Completado",
@@ -2265,7 +2290,8 @@
       "tickets": "Tickets",
       "assignRoles": "Asignar roles",
       "permissions": "Permisos",
-      "settings": "Configuración"
+      "settings": "Configuración",
+      "businessPlan": "Proyección de gastos"
     },
     "sections": {
       "general": "General",

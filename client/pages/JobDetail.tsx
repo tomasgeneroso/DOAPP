@@ -48,6 +48,7 @@ import { getImageUrl } from "../utils/imageUrl";
 import { analytics } from "../utils/analytics";
 import { parseArgentineNumber, formatBudgetInput } from "../utils/numberFormat";
 import ConfirmationSuccessModal from "../components/jobDetail/ConfirmationSuccessModal";
+import { requestPostWorkRatingCheck } from "../utils/postWorkRating";
 import ErrorModal from "../components/jobDetail/ErrorModal";
 import ContractRedirectModal from "../components/jobDetail/ContractRedirectModal";
 import PauseApprovalModal from "../components/jobDetail/PauseApprovalModal";
@@ -157,6 +158,8 @@ export default function JobDetail() {
   const [confirmingWork, setConfirmingWork] = useState(false);
   const [showConfirmationSuccessModal, setShowConfirmationSuccessModal] =
     useState(false);
+  // Encuesta post-trabajo pendiente tras completarse el contrato
+  const [postWorkPending, setPostWorkPending] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [copiedPairingCode, setCopiedPairingCode] = useState(false);
@@ -639,6 +642,10 @@ export default function JobDetail() {
         }
         // Show success modal instead of navigating
         setShowConfirmationSuccessModal(true);
+        // Contrato completado → queda pendiente la puntuación post-trabajo
+        if (data.contract?.status === "completed") {
+          setPostWorkPending(true);
+        }
       } else {
         setErrorMessage(
           data.message || t("jobs.errorConfirming", "Error confirming the job"),
@@ -4733,7 +4740,14 @@ export default function JobDetail() {
         {/* Confirmation Success Modal */}
         <ConfirmationSuccessModal
           open={showConfirmationSuccessModal}
-          onClose={() => setShowConfirmationSuccessModal(false)}
+          onClose={() => {
+            setShowConfirmationSuccessModal(false);
+            // La puntuación post-trabajo es obligatoria: la pide el portero
+            if (postWorkPending) {
+              setPostWorkPending(false);
+              requestPostWorkRatingCheck();
+            }
+          }}
         />
 
         <ErrorModal

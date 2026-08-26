@@ -85,7 +85,29 @@
     "errorSubmit": "Error submitting review",
     "submitting": "Submitting...",
     "submit": "Submit review",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "postWork": {
+      "rateDoer": "Rate {{name}}'s work",
+      "rateClient": "Rate {{name}} as a client",
+      "theWorker": "the worker",
+      "theClient": "the client",
+      "stepOf": "Step {{step}} of 2",
+      "step1Subtitle": "It is required to close the job.",
+      "step2Title": "One last thing",
+      "step2Subtitle": "Tell us what you think of DoApp.",
+      "recommendApp": "Would you recommend DoApp?",
+      "noteLabel": "Note (optional)",
+      "notePlaceholder": "Tell us more if you want...",
+      "next": "Continue",
+      "back": "Back",
+      "send": "Send",
+      "sending": "Sending...",
+      "errorNoRating": "Rate the work to continue",
+      "errorNoRecommend": "Tell us if you would recommend DoApp",
+      "errorSubmit": "We couldn't save your rating",
+      "thanksTitle": "Thanks for your feedback!",
+      "thanksDesc": "Your answer helps us make DoApp better for everyone."
+    }
   },
   "location": {
     "neighborhood": "Neighborhood",
@@ -1874,7 +1896,10 @@
       "dimQuality": "Work quality",
       "dimQualityDesc": "Final result: was it done well?",
       "dimProfessionalism": "Professionalism",
-      "dimProfessionalismDesc": "Organized tools, clean presence, tidy work"
+      "dimProfessionalismDesc": "Organized tools, clean presence, tidy work",
+      "asDoer": "As a worker",
+      "asClient": "As a client",
+      "overCount": "({{n}})"
     },
     "portfolio": "Portfolio",
     "completedWork": "Completed Work",

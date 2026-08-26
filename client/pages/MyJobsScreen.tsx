@@ -31,6 +31,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import JobsCalendar from "../components/jobs/JobsCalendar";
+import { requestPostWorkRatingCheck } from "../utils/postWorkRating";
 
 interface Job {
   id: string;
@@ -53,6 +54,13 @@ interface Job {
     proofSubmitted?: boolean;
   };
   proposalCount: number;
+}
+
+interface ContractInfo {
+  id: string;
+  clientConfirmed: boolean;
+  doerConfirmed: boolean;
+  status: string;
 }
 
 interface Proposal {
@@ -149,8 +157,10 @@ export default function MyJobsScreen() {
   const [showConfirmationSuccessModal, setShowConfirmationSuccessModal] = useState(false);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [jobContracts, setJobContracts] = useState<Record<string, { id: string; clientConfirmed: boolean; doerConfirmed: boolean; status: string }>>({});
-  const [proposalContracts, setProposalContracts] = useState<Record<string, { id: string; clientConfirmed: boolean; doerConfirmed: boolean; status: string }>>({});
+  const [jobContracts, setJobContracts] = useState<Record<string, ContractInfo>>({});
+  const [proposalContracts, setProposalContracts] = useState<Record<string, ContractInfo>>({});
+  // Encuesta post-trabajo pendiente tras completarse el contrato
+  const [postWorkPending, setPostWorkPending] = useState(false);
 
   // Availability state
   const [showAvailability, setShowAvailability] = useState(false);
@@ -257,6 +267,8 @@ export default function MyJobsScreen() {
         // Refresh jobs list if contract completed
         if (data.contract?.status === 'completed') {
           fetchMyJobs();
+          // Al completarse queda pendiente la puntuación post-trabajo
+          setPostWorkPending(true);
         }
       } else {
         setErrorMessage(data.message || 'Error al confirmar el trabajo');
@@ -337,6 +349,8 @@ export default function MyJobsScreen() {
         // Refresh proposals list if contract completed
         if (data.contract?.status === 'completed') {
           fetchMyProposals();
+          // Al completarse queda pendiente la puntuación post-trabajo
+          setPostWorkPending(true);
         }
       } else {
         setErrorMessage(data.message || 'Error al confirmar el trabajo');
@@ -1368,7 +1382,14 @@ export default function MyJobsScreen() {
 
             <div className="flex justify-center">
               <button
-                onClick={() => setShowConfirmationSuccessModal(false)}
+                onClick={() => {
+                  setShowConfirmationSuccessModal(false);
+                  // La puntuación post-trabajo es obligatoria: la pide el portero
+                  if (postWorkPending) {
+                    setPostWorkPending(false);
+                    requestPostWorkRatingCheck();
+                  }
+                }}
                 className="rounded-xl bg-gradient-to-r from-green-500 to-green-600 px-8 py-3 font-semibold text-white shadow-lg transition-all hover:from-green-600 hover:to-green-700"
               >
                 {t('common.understood', 'Entendido')}

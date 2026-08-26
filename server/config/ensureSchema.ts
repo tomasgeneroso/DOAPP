@@ -145,6 +145,32 @@ const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'users.kyc_verified_at', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_verified_at TIMESTAMPTZ` },
   { label: 'users.kyc_data', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_data JSONB` },
   { label: 'users.kyc_attempts', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS kyc_attempts INTEGER NOT NULL DEFAULT 0` },
+  // Reputacion separada por rol (migracion 20260821120000). Las columnas son
+  // NOT NULL, asi que si la migracion no corrio la app arranca y revienta en
+  // el primer SELECT de users.
+  { label: 'users.doer_rating', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS doer_rating NUMERIC(3,2) NOT NULL DEFAULT 0` },
+  { label: 'users.client_rating', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS client_rating NUMERIC(3,2) NOT NULL DEFAULT 0` },
+  { label: 'users.doer_reviews_count', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS doer_reviews_count INTEGER NOT NULL DEFAULT 0` },
+  { label: 'users.client_reviews_count', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS client_reviews_count INTEGER NOT NULL DEFAULT 0` },
+  { label: 'users.rating_breakdown', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS rating_breakdown JSONB NOT NULL DEFAULT '{}'::jsonb` },
+
+  // Puntuacion post-trabajo (migracion 20260820120000).
+  { label: 'reviews.reviewed_role', sql: `ALTER TABLE reviews ADD COLUMN IF NOT EXISTS reviewed_role VARCHAR(10)` },
+  { label: 'reviews.recommends_app', sql: `ALTER TABLE reviews ADD COLUMN IF NOT EXISTS recommends_app BOOLEAN` },
+  { label: 'reviews.source', sql: `ALTER TABLE reviews ADD COLUMN IF NOT EXISTS source VARCHAR(16) NOT NULL DEFAULT 'full'` },
+
+  // Plan de negocio del owner (migracion 20260826120000).
+  {
+    label: 'business_plans',
+    sql: `CREATE TABLE IF NOT EXISTS business_plans (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      slug VARCHAR(60) NOT NULL UNIQUE,
+      data JSONB NOT NULL DEFAULT '{}'::jsonb,
+      updated_by_id UUID REFERENCES users(id) ON UPDATE CASCADE ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+  },
 ];
 
 export async function ensureCriticalSchema(sequelize: Sequelize): Promise<void> {
