@@ -163,6 +163,7 @@ async function registerModels() {
   const { AppSetting } = await import('../models/sql/AppSetting.model.js');
   const { ActionPassword } = await import('../models/sql/ActionPassword.model.js');
   const { BusinessPlan } = await import('../models/sql/BusinessPlan.model.js');
+  const { PaymentAction } = await import('../models/sql/PaymentAction.model.js');
 
   // Add models to sequelize
   sequelize.addModels([
@@ -211,6 +212,7 @@ async function registerModels() {
     AppSetting,
     ActionPassword,
     BusinessPlan,
+    PaymentAction,
   ]);
 
   normalizeIndexFields();

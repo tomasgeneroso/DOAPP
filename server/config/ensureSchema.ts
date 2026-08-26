@@ -171,6 +171,36 @@ const STATEMENTS: Array<{ label: string; sql: string }> = [
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )`,
   },
+  // Libro de acciones financieras. El indice parcial es la regla de negocio:
+  // un solo resultado terminal por contrato (o se paga, o se devuelve).
+  {
+    label: 'payment_actions',
+    sql: `CREATE TABLE IF NOT EXISTS payment_actions (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      contract_id UUID NOT NULL REFERENCES contracts(id) ON UPDATE CASCADE ON DELETE RESTRICT,
+      payment_id UUID,
+      provider VARCHAR(24) NOT NULL,
+      action_type VARCHAR(24) NOT NULL,
+      status VARCHAR(16) NOT NULL DEFAULT 'CREATED',
+      amount NUMERIC(14,2) NOT NULL CHECK (amount > 0),
+      currency VARCHAR(8) NOT NULL DEFAULT 'ARS',
+      external_reference VARCHAR(120),
+      idempotency_key VARCHAR(160) NOT NULL UNIQUE,
+      request_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+      provider_resource_id VARCHAR(120),
+      error_detail TEXT,
+      executed_by_id UUID,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )`,
+  },
+  {
+    label: 'payment_actions.one_terminal_per_contract',
+    sql: `CREATE UNIQUE INDEX IF NOT EXISTS payment_actions_one_terminal_per_contract
+      ON payment_actions (contract_id)
+      WHERE action_type IN ('PAYOUT', 'REFUND_TOTAL', 'REFUND_PARTIAL')
+        AND status <> 'FAILED'`,
+  },
 ];
 
 export async function ensureCriticalSchema(sequelize: Sequelize): Promise<void> {
