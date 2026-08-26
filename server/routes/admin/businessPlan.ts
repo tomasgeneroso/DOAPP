@@ -68,7 +68,59 @@ const defaultPlan = () => ({
   ],
   ueCurrency: 'USD',
   ue: { comision: 12, ticket: 85, contratos: 0.8, disputas: 2.5, soporte: 8, fijos: 18000, fraude: 0.8, mauActual: 0 },
+
+  // Proyección mes a mes: crecimiento, monetización, costos e impuestos.
+  // Las alícuotas son las de una SAS argentina inscripta en IVA.
+  projectionCurrency: 'USD',
+  projection: {
+    growth: {
+      usuariosIniciales: 500,
+      modoCrecimiento: 'porcentaje',
+      crecimientoPct: 15,
+      altasPorMes: 100,
+      churnPct: 8,
+      techoUsuarios: 20000,
+      horizonteMeses: 36,
+      mesInicio: new Date().toISOString().slice(0, 7),
+    },
+    revenue: {
+      ticket: 85,
+      contratosPorUsuario: 0.8,
+      comisionPct: 12,
+      membresiaPct: 5,
+      membresiaPrecio: 9,
+      publicidadMensual: 0,
+      ingresosConIva: true,
+    },
+    costs: {
+      soportePorUsuario: 1.5,
+      infraPorUsuario: 0.3,
+      pspPct: 5,
+      disputasPct: 0.5,
+      fraudePct: 0.3,
+      cac: 6,
+      fijosMensuales: 7600,
+      fijosCrecimientoPct: 2,
+      costosConIvaPct: 70,
+    },
+    taxes: { ivaPct: 21, iibbPct: 4, chequePct: 0.6, gananciasPct: 35 },
+  },
 });
+
+/** Completa el guardado con los valores por defecto que le falten */
+function mergeDeep(defaults: any, saved: any): any {
+  const out: Record<string, any> = { ...defaults, ...saved };
+  for (const [key, value] of Object.entries(defaults)) {
+    if (out[key] === undefined || out[key] === null) out[key] = value;
+    else if (
+      value && typeof value === 'object' && !Array.isArray(value) &&
+      out[key] && typeof out[key] === 'object' && !Array.isArray(out[key])
+    ) {
+      out[key] = mergeDeep(value, out[key]);
+    }
+  }
+  return out;
+}
 
 const daysAgo = (days: number) => new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
@@ -150,9 +202,25 @@ router.get('/', protect, ownerOnly, async (_req: AuthRequest, res: Response): Pr
       return null;
     });
 
+    // Un plan guardado antes de agregar una sección no tiene esa clave:
+    // se completa con el valor por defecto en vez de romper la pantalla.
+    const defaults = defaultPlan();
+    const saved = plan?.data && Object.keys(plan.data).length > 0 ? plan.data : {};
+    const data: Record<string, any> = { ...defaults, ...saved };
+    for (const [key, value] of Object.entries(defaults)) {
+      if (data[key] === undefined || data[key] === null) data[key] = value;
+      // Los bloques de supuestos se completan campo por campo
+      else if (
+        value && typeof value === 'object' && !Array.isArray(value) &&
+        data[key] && typeof data[key] === 'object' && !Array.isArray(data[key])
+      ) {
+        data[key] = mergeDeep(value, data[key]);
+      }
+    }
+
     res.json({
       success: true,
-      data: plan?.data && Object.keys(plan.data).length > 0 ? plan.data : defaultPlan(),
+      data,
       isDefault: !plan,
       updatedAt: plan?.updatedAt || null,
       updatedBy: (plan as any)?.updatedBy?.name || null,
