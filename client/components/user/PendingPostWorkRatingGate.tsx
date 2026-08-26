@@ -76,6 +76,42 @@ export default function PendingPostWorkRatingGate() {
     return () => window.removeEventListener(POST_WORK_RATING_EVENT, handler);
   }, [fetchPending]);
 
+  // Cuando el backend rechaza una acción por la puntuación pendiente.
+  //
+  // El chequeo de arriba corre como mucho una vez por minuto, así que la
+  // puntuación puede aparecer entre dos chequeos: el usuario intenta publicar,
+  // recibe un 403 y se queda con un mensaje de error y sin forma evidente de
+  // destrabarse. Acá se escucha ese código y se abre la encuesta en el acto.
+  //
+  // Va sobre fetch y no sobre cada pantalla porque las llamadas se hacen de
+  // dos formas distintas (fetch directo y el cliente de lib/api), y porque una
+  // lista de pantallas a parchear se desactualiza en cuanto se agrega una ruta
+  // protegida. Sólo observa: devuelve la respuesta original sin tocarla.
+  useEffect(() => {
+    const original = window.fetch;
+
+    window.fetch = async (...args) => {
+      const res = await original(...args);
+      // Sólo se inspecciona el caso puntual; el resto pasa sin costo.
+      if (res.status === 403) {
+        res
+          .clone()
+          .json()
+          .then((body) => {
+            if (body?.code === "PENDING_POST_WORK_RATING") void fetchPending(true);
+          })
+          .catch(() => {
+            /* un 403 sin cuerpo JSON no nos dice nada */
+          });
+      }
+      return res;
+    };
+
+    return () => {
+      window.fetch = original;
+    };
+  }, [fetchPending]);
+
   const current = pending[0];
   if (!current) return null;
 
