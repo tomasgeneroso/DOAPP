@@ -104,6 +104,7 @@ const PendingPayments = lazy(() => import("./pages/admin/PendingPayments"));
 const AdminJobManager = lazy(() => import("./pages/admin/JobManager"));
 const AdminBlogManager = lazy(() => import("./pages/admin/BlogManager"));
 const AdminFamilyCodes = lazy(() => import("./pages/admin/FamilyCodes"));
+const AdminBusinessPlan = lazy(() => import("./pages/admin/BusinessPlan"));
 const AdminPerformanceMonitor = lazy(() => import("./pages/admin/PerformanceMonitor"));
 const AdminSearch = lazy(() => import("./pages/admin/AdminSearch"));
 const DatabaseDiagram = lazy(() => import("./pages/admin/DatabaseDiagram"));
@@ -664,6 +665,7 @@ export default function App() {
               <Route path="tickets/:id" element={<AdminTicketDetail />} />
               <Route path="jobs" element={<AdminJobManager />} />
               <Route path="family-codes" element={<AdminFamilyCodes />} />
+              <Route path="business-plan" element={<AdminBusinessPlan />} />
               <Route path="performance" element={<AdminPerformanceMonitor />} />
               <Route path="search" element={<AdminSearch />} />
               <Route path="database" element={<DatabaseDiagram />} />

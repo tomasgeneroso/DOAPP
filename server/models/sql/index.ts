@@ -34,6 +34,7 @@ export { Ticket } from './Ticket.model.js';
 // ============================================
 export { Portfolio } from './Portfolio.model.js';
 export { Role } from './Role.model.js';
+export { BusinessPlan } from './BusinessPlan.model.js';
 
 // ============================================
 // CONTRACT MANAGEMENT

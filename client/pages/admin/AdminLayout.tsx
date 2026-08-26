@@ -34,6 +34,7 @@ import {
   Star,
   BadgeCheck,
   ShieldCheck,
+  Calculator,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -142,6 +143,7 @@ export default function AdminLayout() {
         { path: "/admin/withdrawals", icon: ArrowDownLeft, label: t('admin.sidebar.withdrawals', 'Withdrawals'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/financial-transactions", icon: TrendingUp, label: t('admin.sidebar.transactions', 'Transactions'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/family-codes", icon: Gift, label: t('admin.sidebar.familyCodes', 'Family Codes'), roles: ["owner"] },
+        { path: "/admin/business-plan", icon: Calculator, label: t('admin.sidebar.businessPlan', 'Proyección de gastos'), roles: ["owner"] },
       ]
     },
     {

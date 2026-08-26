@@ -2290,7 +2290,8 @@
       "tickets": "Tickets",
       "assignRoles": "Asignar roles",
       "permissions": "Permisos",
-      "settings": "Configuración"
+      "settings": "Configuración",
+      "businessPlan": "Proyección de gastos"
     },
     "sections": {
       "general": "General",
