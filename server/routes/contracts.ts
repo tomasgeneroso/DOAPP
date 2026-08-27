@@ -1,5 +1,6 @@
 import express, { Request, Response } from "express";
 import { getEffectiveTier } from '../services/platformPhase.js';
+import { MINIMUM_JOB_AMOUNT_ARS, MINIMUM_COMMISSION_ARS } from '../../shared/pricing/minimums.js';
 import { body, validationResult } from "express-validator";
 import { Contract } from "../models/sql/Contract.model.js";
 import { Job } from "../models/sql/Job.model.js";
@@ -38,9 +39,10 @@ function isAdminUser(user: any): boolean {
   return user?.adminRole && ['owner', 'super_admin', 'admin'].includes(user.adminRole);
 }
 
-// Mínimo de contrato en ARS
-const MINIMUM_CONTRACT_AMOUNT = 8000;
-const MINIMUM_COMMISSION = 1000;
+// Los minimos viven en shared/pricing/minimums.ts: estaban repetidos con
+// valores distintos en cada ruta.
+const MINIMUM_CONTRACT_AMOUNT = MINIMUM_JOB_AMOUNT_ARS;
+const MINIMUM_COMMISSION = MINIMUM_COMMISSION_ARS;
 
 /**
  * Process referral credit when a referred user completes their first contract
@@ -2457,10 +2459,10 @@ router.put("/:id/modify-price", protect, async (req: AuthRequest, res: Response)
     const userId = req.user.id;
 
     // Validations
-    if (!newPrice || newPrice < 5000) {
+    if (!newPrice || newPrice < MINIMUM_CONTRACT_AMOUNT) {
       res.status(400).json({
         success: false,
-        message: "El precio mínimo es de $5000 ARS"
+        message: `El precio mínimo es de $${MINIMUM_CONTRACT_AMOUNT.toLocaleString('es-AR')} ARS`
       });
       return;
     }
@@ -2685,10 +2687,10 @@ router.post("/:id/request-price-change", protect, async (req: AuthRequest, res: 
     const userId = req.user.id;
 
     // Validations
-    if (!newPrice || newPrice < 5000) {
+    if (!newPrice || newPrice < MINIMUM_CONTRACT_AMOUNT) {
       res.status(400).json({
         success: false,
-        message: "El precio mínimo es de $5000 ARS"
+        message: `El precio mínimo es de $${MINIMUM_CONTRACT_AMOUNT.toLocaleString('es-AR')} ARS`
       });
       return;
     }

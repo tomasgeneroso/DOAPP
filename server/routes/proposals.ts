@@ -10,6 +10,7 @@ import { User } from "../models/sql/User.model.js";
 import { Notification } from "../models/sql/Notification.model.js";
 import { protect, requireKyc } from "../middleware/auth.js";
 import { requirePostWorkRating } from "../middleware/postWorkRating.js";
+import { MINIMUM_JOB_AMOUNT_ARS } from "../../shared/pricing/minimums.js";
 import { uploadProposalAttachments, getFileUrl } from "../middleware/upload.js";
 import type { AuthRequest } from "../types/index.js";
 import emailService from "../services/email.js";
@@ -854,8 +855,8 @@ router.put("/:id/approve",
         : jobPrice;
     }
 
-    // Validar monto mínimo de $5000 ARS ANTES de modificar el job
-    const MINIMUM_CONTRACT_AMOUNT = 5000;
+    // Validar monto mínimo ANTES de modificar el job
+    const MINIMUM_CONTRACT_AMOUNT = MINIMUM_JOB_AMOUNT_ARS;
     if (workerAllocation < MINIMUM_CONTRACT_AMOUNT) {
       res.status(400).json({
         success: false,

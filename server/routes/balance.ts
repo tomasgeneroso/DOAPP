@@ -1,5 +1,6 @@
 import express, { Response } from "express";
 import { protect, requireKyc, AuthRequest } from "../middleware/auth.js";
+import { MINIMUM_WITHDRAWAL_ARS } from "../../shared/pricing/minimums.js";
 import { BalanceTransaction } from "../models/sql/BalanceTransaction.model.js";
 import { User } from "../models/sql/User.model.js";
 import { WithdrawalRequest } from "../models/sql/WithdrawalRequest.model.js";
@@ -195,10 +196,10 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
 
     // Retiro "todo o nada": se retira SIEMPRE el saldo completo disponible (mín $1,000 ARS).
     const amount = Number(user.balanceArs) || 0;
-    if (amount < 1000) {
+    if (amount < MINIMUM_WITHDRAWAL_ARS) {
       res.status(400).json({
         success: false,
-        message: `El monto mínimo de retiro es $1,000 ARS. Tu saldo disponible es $${amount.toLocaleString("es-AR")}.`
+        message: `El monto mínimo de retiro es $${MINIMUM_WITHDRAWAL_ARS.toLocaleString("es-AR")} ARS. Tu saldo disponible es $${amount.toLocaleString("es-AR")}.`
       });
       return;
     }

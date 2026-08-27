@@ -30,7 +30,8 @@ const FREE_COMMISSION_RATE = 8;       // 8% for free users
 const PRO_COMMISSION_RATE = 3;        // 3% for PRO
 const SUPER_PRO_COMMISSION_RATE = 1;  // 1% for SUPER PRO
 
-const MINIMUM_COMMISSION = 1000; // $1,000 ARS minimum
+import { MINIMUM_COMMISSION_ARS } from '../../shared/pricing/minimums.js';
+const MINIMUM_COMMISSION = MINIMUM_COMMISSION_ARS;
 
 /**
  * IVA on DOAPP's own fee.
