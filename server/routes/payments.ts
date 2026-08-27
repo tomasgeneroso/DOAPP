@@ -1,5 +1,6 @@
 import express, { Router, Response } from "express";
 import { protect, AuthRequest } from "../middleware/auth.js";
+import { calculateProcessingCost } from "../../shared/pricing/processingCost.js";
 import { requireRole } from "../middleware/permissions.js";
 import { Payment } from "../models/sql/Payment.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
@@ -150,9 +151,16 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
       // service, not the work, which is a contract between client and worker.
       // During the beta the commission is 0, so the IVA is 0 and the client
       // pays exactly the contract price.
-      const totalAmountARS = Math.round((jobPrice + publicationCost + vat) * 100) / 100;
+      const subtotalARS = Math.round((jobPrice + publicationCost + vat) * 100) / 100;
 
-      console.log(`💵 Job publication payment: ${totalAmountARS.toFixed(2)} ARS (job: ${jobPrice.toFixed(2)}, commission: ${publicationCost.toFixed(2)}, IVA ${commissionResult.vatRate}%: ${vat.toFixed(2)}) - ${selectedPaymentMethod}`);
+      // Plus what the gateway charges. It is billed on the gross that passes
+      // through the platform's account, not on DOAPP's margin, so without this
+      // line the platform funds it — and during the beta, with 0% commission,
+      // every single job would be a loss.
+      const processing = calculateProcessingCost(subtotalARS);
+      const totalAmountARS = processing.total;
+
+      console.log(`💵 Job publication payment: ${totalAmountARS.toFixed(2)} ARS (job: ${jobPrice.toFixed(2)}, commission: ${publicationCost.toFixed(2)}, IVA ${commissionResult.vatRate}%: ${vat.toFixed(2)}, procesamiento ${(processing.rate * 100).toFixed(2)}%: ${processing.processingCost.toFixed(2)}) - ${selectedPaymentMethod}`);
 
       // Handle different payment methods
       if (selectedPaymentMethod === 'bank_transfer') {
@@ -1806,6 +1814,7 @@ router.get("/quote", protect, async (req: AuthRequest, res: Response): Promise<v
     const isFreeContract = String((req.query as any).isFreeContract || '') === 'true';
     const c = await calculateCommission(req.user!.id, price, { isFreeContract });
     const phase = await getPhaseInfo();
+    const processing = calculateProcessingCost(Math.round((price + c.totalFee) * 100) / 100);
 
     res.json({
       success: true,
@@ -1817,9 +1826,15 @@ router.get("/quote", protect, async (req: AuthRequest, res: Response): Promise<v
         vat: c.vat,
         vatRate: c.vatRate,
         platformTotal: c.totalFee,
+        // The gateway's cut, quoted separately so the client can see it is not
+        // DOAPP's. It is charged on the whole amount that passes through the
+        // platform's account, so it has to be grossed up rather than added:
+        // see shared/pricing/processingCost.ts.
+        processingCost: processing.processingCost,
+        processingRate: Math.round(processing.rate * 10000) / 100,
         // What the client pays, and what the worker receives — the two figures
         // people actually care about, so neither side has to add up the parts.
-        totalToPay: Math.round((price + c.totalFee) * 100) / 100,
+        totalToPay: processing.total,
         workerReceives: price,
         tierDescription: c.tierDescription,
         phase: phase.phase,

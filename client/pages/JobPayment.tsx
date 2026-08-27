@@ -1,5 +1,9 @@
 import { useState, useEffect } from "react";
 import useDialog from '../hooks/useDialog';
+import {
+  PROCESSING_COST_LABEL,
+  PROCESSING_COST_HELP,
+} from "../../shared/pricing/processingCost";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation, Trans } from "react-i18next";
 import { Helmet } from "react-helmet-async";
@@ -59,6 +63,7 @@ export default function JobPayment() {
   const [quote, setQuote] = useState<{
     price: number; commission: number; commissionRate: number; minimumApplied: boolean;
     vat: number; vatRate: number; platformTotal: number; totalToPay: number;
+    processingCost: number; processingRate: number;
     workerReceives: number; tierDescription: string; isBeta: boolean;
   } | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
@@ -93,6 +98,7 @@ export default function JobPayment() {
 
   const publicationCost = isBudgetIncrease ? 0 : (quote?.commission ?? 0);
   const vatAmount = isBudgetIncrease ? 0 : (quote?.vat ?? 0);
+  const processingCost = isBudgetIncrease ? 0 : (quote?.processingCost ?? 0);
   const totalAmount = isBudgetIncrease
     ? parseFloat(amountParam || '0')
     : (quote?.totalToPay ?? 0);
@@ -597,11 +603,28 @@ export default function JobPayment() {
                       </span>
                     </div>
                   )}
+                  {processingCost > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <div className="flex flex-col">
+                        <span className="text-gray-600 dark:text-gray-400">
+                          {PROCESSING_COST_LABEL}
+                          {quote?.processingRate ? ` (${quote.processingRate}%)` : ''}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                          {PROCESSING_COST_HELP}
+                        </span>
+                      </div>
+                      <span className="font-semibold whitespace-nowrap">
+                        ${processingCost.toLocaleString('es-AR', { minimumFractionDigits: 2 })} ARS
+                      </span>
+                    </div>
+                  )}
                   {quote?.isBeta && (
                     <div className="flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
                       <span>
-                        Estás en la <strong>beta</strong>: no cobramos comisión ni IVA. Pagás exactamente
-                        el valor del trabajo y el trabajador lo recibe completo.
+                        Estás en la <strong>beta</strong>: DOAPP no cobra comisión ni IVA. Sólo se
+                        traslada el costo que cobra la pasarela de pago, y el trabajador recibe el
+                        valor del trabajo completo.
                       </span>
                     </div>
                   )}

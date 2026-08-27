@@ -7,6 +7,10 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { get, post } from '../../../services/api';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../../constants/theme';
+import {
+  PROCESSING_COST_LABEL,
+  PROCESSING_COST_HELP,
+} from '../../../../shared/pricing/processingCost';
 
 export default function JobPaymentScreen() {
   const router = useRouter();
@@ -33,24 +37,40 @@ export default function JobPaymentScreen() {
     }
   };
 
-  const getCommissionRate = () => {
-    if (user?.membershipType === 'super_pro') return 1;
-    if (user?.membershipType === 'pro') return 3;
-    return 8;
-  };
+  /**
+   * El desglose lo calcula el servidor, no esta pantalla.
+   *
+   * Antes se recalculaba acá con las tasas escritas a mano (8/3/1). Eso ignora
+   * la fase beta, el IVA y el costo de la pasarela, así que el celular mostraba
+   * un total y el servidor cobraba otro. En una pantalla de pago esa diferencia
+   * es un reclamo, y encima había que acordarse de tocar dos lugares con cada
+   * cambio de precios. Es el mismo endpoint que usa la web.
+   */
+  const [quote, setQuote] = useState<{
+    price: number; commission: number; commissionRate: number;
+    vat: number; vatRate: number; processingCost: number; processingRate: number;
+    totalToPay: number; workerReceives: number; isBeta: boolean;
+  } | null>(null);
 
-  const calculateCommission = () => {
-    const jobPrice = job?.price || 0;
-    if (!jobPrice) return 0;
-    if ((user?.freeContractsRemaining || 0) > 0) return 0;
-    const rate = getCommissionRate();
-    return Math.max(jobPrice * (rate / 100), 1000);
-  };
-
-  const isFreeContract = (user?.freeContractsRemaining || 0) > 0;
-  const commission = calculateCommission();
   const jobPrice = job?.price || 0;
-  const total = isFreeContract ? 0 : jobPrice + commission;
+
+  useEffect(() => {
+    if (!jobPrice) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await get<any>(`/payments/quote?price=${jobPrice}`);
+        if (!cancelled && res.success) setQuote(res.data);
+      } catch {
+        /* sin presupuesto el botón queda deshabilitado */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [jobPrice]);
+
+  const commission = quote?.commission ?? 0;
+  const isFreeContract = commission === 0 && !quote?.isBeta;
+  const total = quote?.totalToPay ?? 0;
 
   const handlePay = async () => {
     setProcessing(true);
@@ -129,10 +149,37 @@ export default function JobPaymentScreen() {
                 <Text style={[styles.costLabel, { color: themeColors.text.secondary }]}>Precio del trabajo</Text>
                 <Text style={[styles.costValue, { color: themeColors.text.primary }]}>${Number(jobPrice).toLocaleString('es-AR')}</Text>
               </View>
-              <View style={styles.costRow}>
-                <Text style={[styles.costLabel, { color: themeColors.text.secondary }]}>Comisión ({getCommissionRate()}%)</Text>
-                <Text style={[styles.costValue, { color: themeColors.text.primary }]}>${Number(commission).toLocaleString('es-AR')}</Text>
-              </View>
+              {commission > 0 && (
+                <View style={styles.costRow}>
+                  <Text style={[styles.costLabel, { color: themeColors.text.secondary }]}>Comisión ({quote?.commissionRate ?? 0}%)</Text>
+                  <Text style={[styles.costValue, { color: themeColors.text.primary }]}>${Number(commission).toLocaleString('es-AR')}</Text>
+                </View>
+              )}
+              {(quote?.vat ?? 0) > 0 && (
+                <View style={styles.costRow}>
+                  <Text style={[styles.costLabel, { color: themeColors.text.secondary }]}>IVA ({quote?.vatRate ?? 21}%) sobre la comisión</Text>
+                  <Text style={[styles.costValue, { color: themeColors.text.primary }]}>${Number(quote?.vat).toLocaleString('es-AR')}</Text>
+                </View>
+              )}
+              {(quote?.processingCost ?? 0) > 0 && (
+                <View style={styles.costRow}>
+                  <View style={{ flex: 1, paddingRight: 12 }}>
+                    <Text style={[styles.costLabel, { color: themeColors.text.secondary }]}>
+                      {PROCESSING_COST_LABEL} ({quote?.processingRate}%)
+                    </Text>
+                    <Text style={[styles.costLabel, { color: themeColors.text.secondary, fontSize: 11, marginTop: 2 }]}>
+                      {PROCESSING_COST_HELP}
+                    </Text>
+                  </View>
+                  <Text style={[styles.costValue, { color: themeColors.text.primary }]}>${Number(quote?.processingCost).toLocaleString('es-AR')}</Text>
+                </View>
+              )}
+              {quote?.isBeta && (
+                <Text style={[styles.costLabel, { color: themeColors.text.secondary, fontSize: 11, marginTop: 6 }]}>
+                  Estás en la beta: DOAPP no cobra comisión ni IVA. Sólo se traslada el costo que
+                  cobra la pasarela de pago, y el trabajador recibe el valor del trabajo completo.
+                </Text>
+              )}
               <View style={[styles.costRow, styles.totalRow]}>
                 <Text style={[styles.costLabel, styles.totalLabel, { color: themeColors.text.primary }]}>Total a pagar</Text>
                 <Text style={[styles.costValue, styles.totalValue, { color: colors.primary[600] }]}>${Number(total).toLocaleString('es-AR')} ARS</Text>
