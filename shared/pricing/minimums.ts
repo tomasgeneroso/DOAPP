@@ -22,14 +22,31 @@
 /** Piso de la comision de la plataforma, en ARS. */
 export const MINIMUM_COMMISSION_ARS = 1000;
 
+/** La comision mas alta que cobra la plataforma (plan FREE). */
+export const TOP_COMMISSION_RATE = 0.08;
+
 /**
  * Precio minimo de un trabajo y de un contrato, en ARS.
  *
- * Puesto en el punto donde la comision minima deja de distorsionar el precio
- * (12.500 con 8%), redondeado para arriba. Debajo de esto el cliente ve un
- * recargo que no se puede justificar.
+ * No es un numero elegido: sale de la regla. Es el punto exacto donde el piso
+ * de comision deja de distorsionar el precio.
+ *
+ * Debajo de MINIMUM_COMMISSION / tasa, el piso deja de ser un 8% y pasa a ser
+ * una proporcion arbitraria del trabajo. En uno de 3.000 pesos la comision es
+ * el 33%, y con el costo de la pasarela el cliente termina pagando un 52% mas.
+ * Arriba de ese punto el recargo es plano y explicable.
+ *
+ * Derivarlo en vez de fijarlo tiene una ventaja concreta: si algun dia cambia
+ * la comision o su piso, el minimo se reacomoda solo en lugar de quedar
+ * apuntando a un numero que ya no significa nada.
+ *
+ * (Ojo: el costo marginal real de un contrato es mucho mas bajo -- unos 350
+ * pesos entre soporte, disputas y contracargo esperado -- asi que lo que manda
+ * acá no es el costo sino que el precio sea defendible frente al cliente.)
  */
-export const MINIMUM_JOB_AMOUNT_ARS = 15000;
+export const MINIMUM_JOB_AMOUNT_ARS = Math.ceil(
+  MINIMUM_COMMISSION_ARS / TOP_COMMISSION_RATE / 1000,
+) * 1000;
 
 /** Retiro minimo a CBU, en ARS. */
 export const MINIMUM_WITHDRAWAL_ARS = 1000;
@@ -37,11 +54,13 @@ export const MINIMUM_WITHDRAWAL_ARS = 1000;
 /**
  * OJO con la inflacion.
  *
- * Estos numeros estan fijados en pesos, asi que pierden sentido solos: un
- * minimo de 15.000 en 2026 no es el mismo minimo en 2027, y nadie se va a
- * acordar de revisarlo. Los precios de las membresias ya se resolvieron atando
- * el valor al euro por este mismo motivo. Mientras estos sigan en pesos, hay
- * que revisarlos cuando se revisen las comisiones -- por eso viven todos acá y
- * no desparramados por las rutas.
+ * Estos numeros estan fijados en pesos, asi que pierden sentido solos: un piso
+ * de 1.000 en 2026 no es el mismo piso en 2027, y nadie se va a acordar de
+ * revisarlo. Las membresias ya se resolvieron atando el precio al euro por este
+ * mismo motivo, y aca convendria hacer lo mismo.
+ *
+ * Mientras sigan en pesos, hay que revisarlos junto con las comisiones. Viven
+ * todos aca, y no desparramados por las rutas, justamente para que revisarlos
+ * sea tocar un archivo y no buscarlos de a uno.
  */
 export const MINIMUMS_LAST_REVIEWED = '2026-08-27';

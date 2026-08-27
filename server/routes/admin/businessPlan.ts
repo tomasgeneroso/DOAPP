@@ -71,38 +71,69 @@ const defaultPlan = () => ({
 
   // Proyección mes a mes: crecimiento, monetización, costos e impuestos.
   // Las alícuotas son las de una SAS argentina inscripta en IVA.
-  projectionCurrency: 'USD',
+  // Caso base deliberadamente pesimista: la idea es que si se cumple ESTO, los
+  // gastos igual se cubren. Los costos son los reales contratados; los
+  // supuestos de demanda son los conservadores.
+  projectionCurrency: 'EUR',
   projection: {
     growth: {
-      usuariosIniciales: 500,
-      modoCrecimiento: 'porcentaje',
-      crecimientoPct: 15,
+      // Arranca de cero: la beta todavía no salió.
+      usuariosIniciales: 0,
+      modoCrecimiento: 'absoluto',
+      crecimientoPct: 0,
+      // 100 altas al mes es lo que razonablemente compran EUR 400 de pauta.
       altasPorMes: 100,
-      churnPct: 8,
+      // Churn alto a propósito: a un plomero no se lo llama todos los meses,
+      // así que mucha gente se registra, usa una vez y no vuelve.
+      churnPct: 12,
       techoUsuarios: 20000,
       horizonteMeses: 36,
       mesInicio: new Date().toISOString().slice(0, 7),
     },
     revenue: {
-      ticket: 85,
-      contratosPorUsuario: 0.8,
-      comisionPct: 12,
-      membresiaPct: 5,
-      membresiaPrecio: 9,
+      // EUR 22 ≈ ARS 40.000, el ticket medio esperado de un trabajo de oficio.
+      ticket: 22,
+      // 0,15 contratos por usuario por mes. El valor de referencia del sector
+      // para marketplaces de servicios del hogar, no el de una app de delivery:
+      // la frecuencia de uso es baja por naturaleza.
+      contratosPorUsuario: 0.15,
+      // 8%: la comisión del plan FREE, que es donde va a estar casi todo el
+      // mundo. Durante la beta es 0.
+      comisionPct: 8,
+      // Nadie paga membresía todavía. Suponer que sí infla el modelo entero.
+      membresiaPct: 0,
+      membresiaPrecio: 5,
       publicidadMensual: 0,
       ingresosConIva: true,
     },
     costs: {
+      // Didit cobra EUR 1,50 por verificación de identidad, gratis hasta 500.
+      // Se carga completo igual: el plan gratis se acaba justo cuando empieza
+      // a haber volumen.
       soportePorUsuario: 1.5,
-      infraPorUsuario: 0.3,
-      pspPct: 5,
-      disputasPct: 0.5,
-      fraudePct: 0.3,
-      cac: 6,
-      fijosMensuales: 7600,
+      infraPorUsuario: 0,
+      // 0: el costo de la pasarela se le traslada al cliente como línea
+      // separada (ver shared/pricing/processingCost.ts), así que no es un
+      // costo de la plataforma.
+      pspPct: 0,
+      disputasPct: 1,
+      fraudePct: 0.5,
+      // EUR 400 de pauta / 100 altas.
+      cac: 4,
+      // VPS 29 + dominio 1,50 + publicidad 400.
+      //
+      // Sin sueldo: el primer año el dueño no retira. Eso baja el equilibrio de
+      // 5.587 usuarios a 1.687, y es la diferencia entre un objetivo alcanzable
+      // y uno que no lo es. No significa que el soporte sea gratis: significa
+      // que lo paga con su tiempo en vez de con caja. El costo reaparece cuando
+      // el volumen supere lo que una persona sola puede atender (ver el techo
+      // de capacidad mas abajo).
+      fijosMensuales: 430.5,
       fijosCrecimientoPct: 2,
       costosConIvaPct: 70,
     },
+    // Alícuotas de una SAS inscripta en Corrientes. Ganancias al 35%, el tramo
+    // más alto: en un caso base pesimista no corresponde suponer el más bajo.
     taxes: { ivaPct: 21, iibbPct: 4, chequePct: 0.6, gananciasPct: 35 },
   },
 });
