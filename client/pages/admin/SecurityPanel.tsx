@@ -28,6 +28,21 @@ interface SecurityOverview {
   permanentlyBlocked: Array<{ ip: string }>;
   suspiciousBots: Array<{ ip: string; botScore: number; requests: number }>;
   rateLimitBlocks: Array<{ key: string; expiresAt: string }>;
+  recentEvents?: WafEvent[];
+}
+
+/** Un bloqueo del WAF, con la regla que saltó y qué campo la disparó */
+interface WafEvent {
+  reference: string;
+  at: string;
+  type: string;
+  method: string;
+  path: string;
+  ip: string;
+  userAgent: string;
+  field?: string;
+  sample?: string;
+  pattern?: string;
 }
 
 export default function SecurityPanel() {
@@ -283,6 +298,65 @@ export default function SecurityPanel() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* Últimos bloqueos: la referencia que devuelve el WAF se busca acá */}
+        <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-white">
+              Últimos bloqueos del WAF
+            </h2>
+            <span className="text-xs text-slate-400">
+              {data.recentEvents?.length || 0} eventos en memoria
+            </span>
+          </div>
+          <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
+            Cuando alguien reporta un <code className="rounded bg-slate-100 px-1 dark:bg-slate-700">Invalid request</code>,
+            buscá acá la referencia que devolvió la respuesta: muestra qué regla saltó y en qué campo.
+          </p>
+
+          {!data.recentEvents || data.recentEvents.length === 0 ? (
+            <p className="py-4 text-center text-sm text-slate-400">
+              Ningún bloqueo registrado desde que arrancó el servidor.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700">
+                    {['Ref', 'Cuándo', 'Regla', 'Ruta', 'Campo', 'Valor', 'IP'].map(h => (
+                      <th key={h} className="px-2 py-2 text-left font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.recentEvents.map(ev => (
+                    <tr key={ev.reference} className="border-b border-slate-100 dark:border-slate-700/50">
+                      <td className="px-2 py-1.5 font-mono font-semibold text-slate-800 dark:text-slate-200">{ev.reference}</td>
+                      <td className="whitespace-nowrap px-2 py-1.5 text-slate-500 dark:text-slate-400">
+                        {new Date(ev.at).toLocaleString('es-AR')}
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <span className="rounded bg-red-50 px-1.5 py-0.5 font-medium text-red-700 dark:bg-red-900/20 dark:text-red-300">
+                          {ev.type}
+                        </span>
+                      </td>
+                      <td className="px-2 py-1.5 font-mono text-slate-600 dark:text-slate-400">
+                        {ev.method} {ev.path}
+                      </td>
+                      <td className="px-2 py-1.5 font-mono text-slate-600 dark:text-slate-400">{ev.field || '—'}</td>
+                      <td className="max-w-[220px] truncate px-2 py-1.5 font-mono text-slate-500 dark:text-slate-500" title={ev.sample}>
+                        {ev.sample || '—'}
+                      </td>
+                      <td className="px-2 py-1.5 font-mono text-slate-500 dark:text-slate-500">{ev.ip}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

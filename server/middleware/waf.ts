@@ -384,6 +384,37 @@ const threatIntel: ThreatIntelligence = {
   ],
 };
 
+/**
+ * Últimos bloqueos, para poder diagnosticarlos desde el panel de seguridad.
+ *
+ * Sin esto, un falso positivo sólo se puede investigar leyendo el log del
+ * servidor y adivinando cuál de las diez reglas de contenido saltó. Con la
+ * referencia que devuelve la respuesta, el owner encuentra el evento exacto.
+ */
+export interface WafEvent {
+  reference: string;
+  at: string;
+  type: string;
+  method: string;
+  path: string;
+  ip: string;
+  userAgent: string;
+  /** Dónde matcheó el patrón: "query.code", "headers.referer" */
+  field?: string;
+  /** Muestra del valor, con credenciales enmascaradas */
+  sample?: string;
+  pattern?: string;
+  blocked: boolean;
+}
+
+const MAX_RECENT_EVENTS = 200;
+const recentEvents: WafEvent[] = [];
+
+function recordEvent(event: WafEvent) {
+  recentEvents.unshift(event);
+  if (recentEvents.length > MAX_RECENT_EVENTS) recentEvents.length = MAX_RECENT_EVENTS;
+}
+
 // WAF Statistics
 interface WafStats {
   totalRequests: number;
@@ -472,23 +503,49 @@ function checkPatterns(
   return { matched: false };
 }
 
-function inspectValue(value: any, patterns: RegExp[], type: string): { matched: boolean; pattern?: string } {
+interface InspectionResult {
+  matched: boolean;
+  pattern?: string;
+  /** Dónde matcheó: "query.code", "headers.referer". Sin esto no se puede
+   *  diagnosticar un falso positivo sin adivinar. */
+  field?: string;
+  /** Muestra corta del valor, con los tokens enmascarados */
+  sample?: string;
+}
+
+/** Enmascara lo que parezca credencial antes de guardarlo para diagnóstico */
+function redact(value: string): string {
+  return value
+    .replace(/eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, '<jwt>')
+    .replace(/\b[A-Za-z0-9_-]{40,}\b/g, '<token>')
+    .slice(0, 120);
+}
+
+function inspectValue(
+  value: any,
+  patterns: RegExp[],
+  type: string,
+  field = ''
+): InspectionResult {
   if (typeof value === 'string') {
-    return checkPatterns(value, patterns, type);
+    const result = checkPatterns(value, patterns, type);
+    return result.matched ? { ...result, field, sample: redact(value) } : result;
   }
   if (Array.isArray(value)) {
-    for (const item of value) {
-      const result = inspectValue(item, patterns, type);
+    for (let i = 0; i < value.length; i++) {
+      const result = inspectValue(value[i], patterns, type, `${field}[${i}]`);
       if (result.matched) return result;
     }
   }
   if (value && typeof value === 'object') {
     for (const key of Object.keys(value)) {
+      const path = field ? `${field}.${key}` : key;
+
       // También verificar las claves
       const keyResult = checkPatterns(key, patterns, type);
-      if (keyResult.matched) return keyResult;
+      if (keyResult.matched) return { ...keyResult, field: path, sample: redact(key) };
 
-      const valueResult = inspectValue(value[key], patterns, type);
+      const valueResult = inspectValue(value[key], patterns, type, path);
       if (valueResult.matched) return valueResult;
     }
   }
@@ -571,17 +628,22 @@ function isHoneypotPath(path: string): boolean {
 /**
  * Check for SSRF in URL parameters
  */
-function checkSSRF(value: any): { matched: boolean; pattern?: string } {
+function checkSSRF(value: any, field = ''): InspectionResult {
   if (typeof value === 'string') {
     for (const pattern of SSRF_PATTERNS) {
       if (pattern.test(value)) {
-        return { matched: true, pattern: 'SSRF: ' + pattern.source.substring(0, 30) };
+        return {
+          matched: true,
+          pattern: 'SSRF: ' + pattern.source.substring(0, 30),
+          field,
+          sample: redact(value),
+        };
       }
     }
   }
   if (value && typeof value === 'object') {
     for (const key of Object.keys(value)) {
-      const result = checkSSRF(value[key]);
+      const result = checkSSRF(value[key], field ? `${field}.${key}` : key);
       if (result.matched) return result;
     }
   }
@@ -591,17 +653,22 @@ function checkSSRF(value: any): { matched: boolean; pattern?: string } {
 /**
  * Check for zero-day patterns from threat intelligence
  */
-function checkZeroDay(value: any): { matched: boolean; pattern?: string } {
+function checkZeroDay(value: any, field = ''): InspectionResult {
   if (typeof value === 'string') {
     for (const pattern of threatIntel.knownBadPatterns) {
       if (pattern.test(value)) {
-        return { matched: true, pattern: 'ZERO_DAY: ' + pattern.source.substring(0, 30) };
+        return {
+          matched: true,
+          pattern: 'ZERO_DAY: ' + pattern.source.substring(0, 30),
+          field,
+          sample: redact(value),
+        };
       }
     }
   }
   if (value && typeof value === 'object') {
     for (const key of Object.keys(value)) {
-      const result = checkZeroDay(value[key]);
+      const result = checkZeroDay(value[key], field ? `${field}.${key}` : key);
       if (result.matched) return result;
     }
   }
@@ -637,8 +704,7 @@ const WAF_EXEMPT_PATHS = ['/api/health'];
  * Rutas que reciben parámetros generados por un proveedor externo.
  *
  * El `code`, el `state` y el `scope` de un callback OAuth son opacos: los
- * arma Google, Facebook o MercadoPago, no los controla la app, y su forma
- * cambia sin aviso. Pasarlos por reglas genéricas de SQLi o XSS garantiza
+ * arma el proveedor, no los controla la app, y su forma cambia sin aviso. Pasarlos por reglas genéricas de SQLi o XSS garantiza
  * falsos positivos que dejan al usuario sin poder iniciar sesión, y no
  * agrega protección: el código se valida contra el proveedor y no se
  * interpola en SQL ni en HTML.
@@ -651,7 +717,6 @@ const CONTENT_SCAN_EXEMPT_PREFIXES = [
   '/api/auth/google',
   '/api/auth/facebook',
   '/api/auth/twitter',
-  '/api/mercadopago/oauth',
 ];
 
 function skipsContentScan(path: string): boolean {
@@ -675,11 +740,25 @@ function blockRequest(
   res: Response,
   type: string,
   reason: string,
+  detail: { field?: string; sample?: string; pattern?: string } = {},
   status = 400
 ) {
   const reference = blockReference();
   wafStats.blockedRequests++;
   logWafEvent(req, type, `${reason} | ref: ${reference}`, true);
+  recordEvent({
+    reference,
+    at: new Date().toISOString(),
+    type,
+    method: req.method,
+    path: req.path,
+    ip: getClientIP(req),
+    userAgent: (req.headers['user-agent'] || '').toString().slice(0, 160),
+    field: detail.field,
+    sample: detail.sample,
+    pattern: detail.pattern,
+    blocked: true,
+  });
   return res.status(status).json({
     success: false,
     message: 'Invalid request',
@@ -956,7 +1035,7 @@ export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
       // Bloqueo temporal, no definitivo: un falso positivo no puede dejar a
       // un usuario fuera de la plataforma hasta que se reinicie el proceso.
       blacklistIP(ip, ZERO_DAY_BLOCK_MS);
-      return blockRequest(req, res, 'ZERO_DAY', `Pattern: ${zeroDay.pattern}`);
+      return blockRequest(req, res, 'ZERO_DAY', `Pattern: ${zeroDay.pattern}`, { field: zeroDay.field, sample: zeroDay.sample, pattern: zeroDay.pattern });
     }
     logWafEvent(req, 'ZERO_DAY', `Pattern: ${zeroDay.pattern}`, false);
   }
@@ -967,7 +1046,7 @@ export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
     ipState.violations++;
     wafStats.sqlInjectionAttempts++;
     if (WAF_CONFIG.blockMode) {
-      return blockRequest(req, res, 'SQL_INJECTION', `Pattern: ${sqlResult.pattern}`);
+      return blockRequest(req, res, 'SQL_INJECTION', `Pattern: ${sqlResult.pattern}`, { field: sqlResult.field, sample: sqlResult.sample, pattern: sqlResult.pattern });
     }
     logWafEvent(req, 'SQL_INJECTION', `Pattern: ${sqlResult.pattern}`, false);
   }
@@ -977,7 +1056,7 @@ export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
   if (nosqlResult.matched) {
     ipState.violations++;
     if (WAF_CONFIG.blockMode) {
-      return blockRequest(req, res, 'NOSQL_INJECTION', `Pattern: ${nosqlResult.pattern}`);
+      return blockRequest(req, res, 'NOSQL_INJECTION', `Pattern: ${nosqlResult.pattern}`, { field: nosqlResult.field, sample: nosqlResult.sample, pattern: nosqlResult.pattern });
     }
     logWafEvent(req, 'NOSQL_INJECTION', `Pattern: ${nosqlResult.pattern}`, false);
   }
@@ -988,7 +1067,7 @@ export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
     ipState.violations++;
     wafStats.xssAttempts++;
     if (WAF_CONFIG.blockMode) {
-      return blockRequest(req, res, 'XSS', `Pattern: ${xssResult.pattern}`);
+      return blockRequest(req, res, 'XSS', `Pattern: ${xssResult.pattern}`, { field: xssResult.field, sample: xssResult.sample, pattern: xssResult.pattern });
     }
     logWafEvent(req, 'XSS', `Pattern: ${xssResult.pattern}`, false);
   }
@@ -998,7 +1077,7 @@ export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
   if (pathResult.matched) {
     ipState.violations++;
     if (WAF_CONFIG.blockMode) {
-      return blockRequest(req, res, 'PATH_TRAVERSAL', `Pattern: ${pathResult.pattern}`);
+      return blockRequest(req, res, 'PATH_TRAVERSAL', `Pattern: ${pathResult.pattern}`, { field: pathResult.field, sample: pathResult.sample, pattern: pathResult.pattern });
     }
     logWafEvent(req, 'PATH_TRAVERSAL', `Pattern: ${pathResult.pattern}`, false);
   }
@@ -1008,7 +1087,7 @@ export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
   if (cmdResult.matched) {
     ipState.violations++;
     if (WAF_CONFIG.blockMode) {
-      return blockRequest(req, res, 'CMD_INJECTION', `Pattern: ${cmdResult.pattern}`);
+      return blockRequest(req, res, 'CMD_INJECTION', `Pattern: ${cmdResult.pattern}`, { field: cmdResult.field, sample: cmdResult.sample, pattern: cmdResult.pattern });
     }
     logWafEvent(req, 'CMD_INJECTION', `Pattern: ${cmdResult.pattern}`, false);
   }
@@ -1018,7 +1097,7 @@ export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
   if (ssrfResult.matched) {
     ipState.violations++;
     if (WAF_CONFIG.blockMode) {
-      return blockRequest(req, res, 'SSRF', `Pattern: ${ssrfResult.pattern}`);
+      return blockRequest(req, res, 'SSRF', `Pattern: ${ssrfResult.pattern}`, { field: ssrfResult.field, sample: ssrfResult.sample, pattern: ssrfResult.pattern });
     }
     logWafEvent(req, 'SSRF', `Pattern: ${ssrfResult.pattern}`, false);
   }
@@ -1030,7 +1109,7 @@ export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
     if (xxeResult.matched) {
       ipState.violations++;
       if (WAF_CONFIG.blockMode) {
-        return blockRequest(req, res, 'XXE', `Pattern: ${xxeResult.pattern}`);
+        return blockRequest(req, res, 'XXE', `Pattern: ${xxeResult.pattern}`, { field: xxeResult.field, sample: xxeResult.sample, pattern: xxeResult.pattern });
       }
       logWafEvent(req, 'XXE', `Pattern: ${xxeResult.pattern}`, false);
     }
@@ -1042,7 +1121,7 @@ export function wafMiddleware(req: Request, res: Response, next: NextFunction) {
     if (ldapResult.matched) {
       ipState.violations++;
       if (WAF_CONFIG.blockMode) {
-        return blockRequest(req, res, 'LDAP_INJECTION', `Pattern: ${ldapResult.pattern}`);
+        return blockRequest(req, res, 'LDAP_INJECTION', `Pattern: ${ldapResult.pattern}`, { field: ldapResult.field, sample: ldapResult.sample, pattern: ldapResult.pattern });
       }
       logWafEvent(req, 'LDAP_INJECTION', `Pattern: ${ldapResult.pattern}`, false);
     }
@@ -1132,6 +1211,21 @@ export function getWafStats(): {
 /**
  * Obtener lista de IPs bloqueadas
  */
+/**
+ * Últimos bloqueos del WAF, del más reciente al más viejo.
+ * Se filtran por referencia o por ruta para ir directo al caso que se
+ * está investigando.
+ */
+export function getRecentWafEvents(
+  options: { reference?: string; path?: string; limit?: number } = {}
+): WafEvent[] {
+  const { reference, path, limit = 50 } = options;
+  return recentEvents
+    .filter(e => !reference || e.reference === reference.toUpperCase())
+    .filter(e => !path || e.path.includes(path))
+    .slice(0, Math.min(limit, MAX_RECENT_EVENTS));
+}
+
 export function getBlockedIPs(): string[] {
   // Sólo las vigentes: las vencidas se descartan al consultarlas
   return Array.from(blacklistedIPs.keys()).filter(isBlacklisted);
