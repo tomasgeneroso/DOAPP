@@ -16,22 +16,38 @@
  */
 
 /**
+ * Tarifas reales de la cuenta de DOAPP, confirmadas por Mercado Pago en agosto
+ * de 2026. Valen igual para tarjeta de credito y de debito -- el mix entre una
+ * y otra no cambia el costo.
+ *
+ * El plazo es el de liberacion del dinero: cuanto antes queda disponible, mas
+ * caro. Y no es solo una cuestion de costo: con plazos largos no se puede pagar
+ * al trabajador ni reembolsar al cliente hasta que el dinero se libere, porque
+ * ambas operaciones exigen saldo disponible.
+ */
+export const MP_FEE_BY_RELEASE_DAYS: Record<number, { base: number; withVat: number }> = {
+  0: { base: 0.0629, withVat: 0.0761 },
+  10: { base: 0.0439, withVat: 0.0531 },
+  18: { base: 0.0339, withVat: 0.041 },
+  35: { base: 0.0149, withVat: 0.018 },
+};
+
+/**
  * Lo que cobra la pasarela, como fraccion del total cobrado, IVA incluido.
  *
- * OJO: este numero tiene que coincidir con el panel de Mercado Pago, y depende
- * del plazo de liberacion configurado en la cuenta (mas rapido = mas caro). Se
- * lee del entorno para poder corregirlo sin recompilar cuando cambie la tarifa
- * o el plazo.
+ * Se lee del entorno para poder corregirlo sin recompilar: la tarifa cambia si
+ * se cambia el plazo de liberacion en el panel, o si se negocia por volumen.
+ * Tiene que coincidir con lo que dice el panel.
  *
- * El default corresponde a acreditacion inmediata, que es el tramo mas caro:
- * si el valor real es menor, se cobra de mas y se nota; si fuera al reves, se
- * pierde plata en silencio. Ante la duda, el error caro es el invisible.
+ * El default es acreditacion inmediata, el tramo mas caro. Es a proposito: si
+ * el valor real fuera menor se cobra de mas y alguien lo reclama enseguida; si
+ * fuera al reves se pierde plata en silencio, que es el error que no se detecta.
  */
 export function getProcessingFeeRate(): number {
   const raw = typeof process !== 'undefined' ? process.env?.PAYMENT_PROCESSING_FEE_RATE : undefined;
   const parsed = raw ? Number(raw) : NaN;
   if (Number.isFinite(parsed) && parsed >= 0 && parsed < 0.5) return parsed;
-  return 0.0773; // 6,39% + IVA 21%
+  return MP_FEE_BY_RELEASE_DAYS[0].withVat;
 }
 
 export interface ProcessingCostBreakdown {
