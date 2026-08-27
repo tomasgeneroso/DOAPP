@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import FinancialProjectionPanel from '@/components/admin/FinancialProjectionPanel';
+import type { ProjectionAssumptions } from '@/utils/financialProjection';
 import {
   Calculator,
   Lock,
@@ -54,6 +56,9 @@ interface Plan {
   timeline: TimelineRow[];
   ueCurrency: Currency;
   ue: UnitEconomics;
+  projectionCurrency: Currency;
+  /** Supuestos del modelo mes a mes; la caja inicial se calcula acá */
+  projection: Omit<ProjectionAssumptions, 'cajaInicial'>;
 }
 
 interface Actuals {
@@ -387,6 +392,17 @@ export default function BusinessPlan() {
 
   const base = plan.baseCurrency;
   const capitalNegativo = calc.restanteBase < 0;
+
+  // La proyección se carga en su propia moneda; el capital que la alimenta
+  // es el que queda después de constituir.
+  const projectionCurrency = plan.projectionCurrency || 'USD';
+  const fmtProjection = (n: number, decimals = 0) => fmt(n, projectionCurrency, decimals);
+  const cajaInicialProyeccion =
+    calc.restanteBase / (toBase(1, projectionCurrency, plan) || 1);
+  const projectionAssumptions: ProjectionAssumptions = {
+    ...plan.projection,
+    cajaInicial: cajaInicialProyeccion,
+  };
   const runwayCorto = calc.runway > 0 && calc.runway < 4;
 
   const saveLabel =
@@ -1053,6 +1069,16 @@ export default function BusinessPlan() {
             <Plus className="h-4 w-4" /> Agregar hito
           </button>
         </section>
+
+        <FinancialProjectionPanel
+          assumptions={projectionAssumptions}
+          actuals={actuals}
+          arsToCurrency={toBase(1, 'ARS', plan) / (toBase(1, projectionCurrency, plan) || 1)}
+          onEdit={mutate => edit(d => { mutate(d.projection as ProjectionAssumptions); })}
+          currency={projectionCurrency}
+          onCurrencyChange={c => edit(d => { d.projectionCurrency = c as Currency; })}
+          fmt={fmtProjection}
+        />
 
         <p className="pb-6 text-center text-xs text-slate-400">
           Los montos son orientativos y se guardan en la base de la plataforma. Confirmá los aranceles con un contador antes de pagar.
