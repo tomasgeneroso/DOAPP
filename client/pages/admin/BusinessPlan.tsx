@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import FinancialProjectionPanel from '@/components/admin/FinancialProjectionPanel';
+import LiveFinancialsPanel from '@/components/admin/LiveFinancialsPanel';
 import type { ProjectionAssumptions } from '@/utils/financialProjection';
 import {
   Calculator,
@@ -1079,6 +1080,13 @@ export default function BusinessPlan() {
           onCurrencyChange={c => edit(d => { d.projectionCurrency = c as Currency; })}
           fmt={fmtProjection}
         />
+
+        {/* La proyección de arriba es "si pasa X"; esto es lo que está pasando.
+            Van separadas a propósito: un número supuesto y uno medido se ven
+            igual en pantalla, y conviene que no se confundan. */}
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-800">
+          <LiveFinancialsPanel />
+        </section>
 
         <p className="pb-6 text-center text-xs text-slate-400">
           Los montos son orientativos y se guardan en la base de la plataforma. Confirmá los aranceles con un contador antes de pagar.

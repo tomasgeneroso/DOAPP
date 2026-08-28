@@ -7,6 +7,7 @@ import { User } from '../../models/sql/User.model.js';
 import { protect, requireAdminRole } from '../../middleware/auth.js';
 import { logAudit } from '../../utils/auditLog.js';
 import currencyExchange from '../../services/currencyExchange.js';
+import { getLiveFinancials } from '../../services/liveFinancials.js';
 import type { AuthRequest } from '../../types/index.js';
 
 const router = express.Router();
@@ -259,6 +260,28 @@ router.get('/', protect, ownerOnly, async (_req: AuthRequest, res: Response): Pr
     });
   } catch (error: any) {
     console.error('Error obteniendo el plan de negocio:', error);
+    res.status(500).json({ success: false, message: error.message || 'Error del servidor' });
+  }
+});
+
+/**
+ * @route   GET /api/admin/business-plan/live
+ * @desc    Estado financiero real, medido contra el plan guardado
+ * @access  Owner only
+ *
+ * Va aparte del GET del plan porque son dos preguntas distintas: el plan es
+ * "si pasa X, cuanto gano" y esto es "que esta pasando y cuanto me falta".
+ * Separarlas ademas permite refrescar los numeros reales sin recargar toda la
+ * hoja de supuestos.
+ */
+router.get('/live', protect, ownerOnly, async (_req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const plan = await BusinessPlan.findOne({ where: { slug: PLAN_SLUG } });
+    const data = mergeDeep(defaultPlan(), plan?.data || {});
+    const live = await getLiveFinancials(data);
+    res.json({ success: true, data: live });
+  } catch (error: any) {
+    console.error('Error calculando el estado financiero real:', error);
     res.status(500).json({ success: false, message: error.message || 'Error del servidor' });
   }
 });
