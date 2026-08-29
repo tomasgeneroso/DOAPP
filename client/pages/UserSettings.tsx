@@ -12,6 +12,7 @@ import DniUploader from "../components/DniUploader";
 import PhoneVerification from "../components/PhoneVerification";
 import EmailVerification from "../components/EmailVerification";
 import MembershipStatus from "../components/MembershipStatus";
+import ProfilePromotion from "../components/profile/ProfilePromotion";
 import { usePendingTasks } from "../hooks/usePendingTasks";
 import {
   User,
@@ -824,6 +825,16 @@ export default function UserSettings() {
                       Mi membresía
                     </h3>
                     <MembershipStatus />
+                  </div>
+
+                  {/* Promoción del perfil. Va justo debajo de la membresía
+                      porque son la misma pregunta desde dos lados: cómo
+                      consigo más trabajo. */}
+                  <div
+                    id="promocion"
+                    className="scroll-mt-24 pt-6 border-t border-slate-200 dark:border-slate-700"
+                  >
+                    <ProfilePromotion />
                   </div>
 
                   {/* Verification — destination of the attention trail.

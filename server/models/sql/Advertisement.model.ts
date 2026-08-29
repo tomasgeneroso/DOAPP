@@ -34,7 +34,20 @@ import { Payment } from './Payment.model.js';
 // TYPES
 // ============================================
 
-export type AdType = 'model1' | 'model2' | 'model3';
+/**
+ * model1..3 son los formatos de un anunciante externo, que trae su propia
+ * imagen y su link.
+ *
+ * 'profile' es distinto: es un trabajador de la plataforma promocionando su
+ * propio perfil. No trae imagen ni link -- se arman con sus datos (nombre,
+ * oficios, puntuacion, avatar), que ya estan y se mantienen solos. Por eso
+ * imageUrl y targetUrl quedan opcionales.
+ *
+ * Se modela como un Advertisement mas y no como una tabla aparte para no
+ * duplicar cobro, fechas, segmentacion, impresiones ni el lugar del muro
+ * donde se muestra.
+ */
+export type AdType = 'model1' | 'model2' | 'model3' | 'profile';
 
 export type AdStatus = 'pending' | 'active' | 'paused' | 'expired' | 'rejected';
 
@@ -122,11 +135,13 @@ export class Advertisement extends Model {
   })
   description!: string;
 
-  @AllowNull(false)
+  /** Opcional: un aviso de perfil usa el avatar del usuario. */
+  @AllowNull(true)
   @Column(DataType.TEXT)
-  imageUrl!: string;
+  imageUrl?: string;
 
-  @AllowNull(false)
+  /** Opcional: un aviso de perfil lleva al perfil del propio usuario. */
+  @AllowNull(true)
   @Column({
     type: DataType.TEXT,
     validate: {
@@ -135,7 +150,7 @@ export class Advertisement extends Model {
       },
     },
   })
-  targetUrl!: string;
+  targetUrl?: string;
 
   // ============================================
   // AD TYPE & STATUS
@@ -534,6 +549,11 @@ export class Advertisement extends Model {
       model1: 50, // 3x1 Banner
       model2: 35, // 1x2 Sidebar
       model3: 20, // 1x1 Card
+      // Un trabajador promocionando su propio perfil. Mucho mas barato que un
+      // anunciante externo a proposito: el objetivo no es sacarle plata al
+      // trabajador sino que le convenga probarlo. Ocupa el mismo lugar del muro
+      // pero no saca a nadie de la app.
+      profile: 5,
     };
     return prices[adType];
   }

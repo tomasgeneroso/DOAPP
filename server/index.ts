@@ -122,6 +122,7 @@ import webhooksRoutes from "./routes/webhooks.js";
 
 // Advertisement routes
 import advertisementsRoutes from "./routes/advertisements.js";
+import profilePromotionRoutes from "./routes/profilePromotion.js";
 import adminAdvertisementsRoutes from "./routes/admin/advertisements.js";
 
 // Contact routes
@@ -324,6 +325,7 @@ app.use("/api/quotes", quotesRoutes);
 if (features.referrals) app.use("/api/referrals", referralsRoutes);
 if (features.membership) app.use("/api/membership", membershipRoutes);
 if (features.advertisements) app.use("/api/advertisements", advertisementsRoutes);
+app.use("/api/profile-promotion", profilePromotionRoutes);
 if (features.blog) app.use("/api/blogs", blogsRoutes);
 if (features.balance) app.use("/api/balance", balanceRoutes);
 if (features.blog) app.use("/api/posts", postsRoutes);

@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '@/hooks/useAuth';
 
 interface AdPlaceholderProps {
   adType?: 'model1' | 'model2' | 'model3';
@@ -9,9 +10,20 @@ interface AdPlaceholderProps {
 const AdPlaceholder: React.FC<AdPlaceholderProps> = ({ adType = 'model3' }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { user } = useAuth() as any;
+
+  /**
+   * El hueco vacío vale más como invitación que como aviso.
+   *
+   * A un trabajador logueado le ofrece promocionarse — que es el producto que
+   * de verdad se vende en este espacio, y el único que no se lleva a la persona
+   * fuera de la app justo cuando está por contratar. A cualquier otro le queda
+   * el contacto comercial de siempre.
+   */
+  const esTrabajador = !!user && (user.role === 'doer' || user.role === 'both');
 
   const handleClick = () => {
-    navigate('/contact?subject=advertising');
+    navigate(esTrabajador ? '/settings#promocion' : '/contact?subject=advertising');
   };
 
   // Ad type specific classes - matching Advertisement component
@@ -47,10 +59,10 @@ const AdPlaceholder: React.FC<AdPlaceholderProps> = ({ adType = 'model3' }) => {
             />
           </svg>
           <h3 className="text-sm font-bold text-gray-900 dark:text-white text-center">
-            {t('advertisement.available')}
+            {esTrabajador ? 'Hacete más conocido' : t('advertisement.available')}
           </h3>
           <button className="px-4 py-2 text-xs bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl transition-all active:scale-95 shadow-sm hover:shadow shrink-0">
-            {t('footer.contact')}
+            {esTrabajador ? 'Promocionarme' : t('footer.contact')}
           </button>
         </div>
       ) : (
@@ -68,14 +80,14 @@ const AdPlaceholder: React.FC<AdPlaceholderProps> = ({ adType = 'model3' }) => {
           </svg>
           <div>
             <h3 className="text-base font-bold text-gray-900 dark:text-white">
-              {t('advertisement.available')}
+              {esTrabajador ? 'Hacete más conocido' : t('advertisement.available')}
             </h3>
             <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-              {t('advertisement.advertise')}
+              {esTrabajador ? 'Publicitá tu perfil acá' : t('advertisement.advertise')}
             </p>
           </div>
           <button className="px-5 py-2.5 text-sm bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-xl transition-all active:scale-95 shadow-sm hover:shadow">
-            {t('footer.contact')}
+            {esTrabajador ? 'Promocionarme' : t('footer.contact')}
           </button>
         </div>
       )}

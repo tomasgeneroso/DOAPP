@@ -201,6 +201,16 @@ const STATEMENTS: Array<{ label: string; sql: string }> = [
       WHERE action_type IN ('PAYOUT', 'REFUND_TOTAL', 'REFUND_PARTIAL')
         AND status <> 'FAILED'`,
   },
+  // Un aviso de perfil no trae imagen ni link propios: la tarjeta se arma con
+  // los datos del usuario. Sin esto, promocionarse falla con un NOT NULL.
+  {
+    label: 'advertisements.image_url nullable',
+    sql: `ALTER TABLE advertisements ALTER COLUMN image_url DROP NOT NULL`,
+  },
+  {
+    label: 'advertisements.target_url nullable',
+    sql: `ALTER TABLE advertisements ALTER COLUMN target_url DROP NOT NULL`,
+  },
 ];
 
 export async function ensureCriticalSchema(sequelize: Sequelize): Promise<void> {
