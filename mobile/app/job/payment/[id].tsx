@@ -7,10 +7,6 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useAuth } from '../../../context/AuthContext';
 import { get, post } from '../../../services/api';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../../constants/theme';
-import {
-  PROCESSING_COST_LABEL,
-  PROCESSING_COST_HELP,
-} from '../../../../shared/pricing/processingCost';
 
 export default function JobPaymentScreen() {
   const router = useRouter();
@@ -161,23 +157,12 @@ export default function JobPaymentScreen() {
                   <Text style={[styles.costValue, { color: themeColors.text.primary }]}>${Number(quote?.vat).toLocaleString('es-AR')}</Text>
                 </View>
               )}
-              {(quote?.processingCost ?? 0) > 0 && (
-                <View style={styles.costRow}>
-                  <View style={{ flex: 1, paddingRight: 12 }}>
-                    <Text style={[styles.costLabel, { color: themeColors.text.secondary }]}>
-                      {PROCESSING_COST_LABEL} ({quote?.processingRate}%)
-                    </Text>
-                    <Text style={[styles.costLabel, { color: themeColors.text.secondary, fontSize: 11, marginTop: 2 }]}>
-                      {PROCESSING_COST_HELP}
-                    </Text>
-                  </View>
-                  <Text style={[styles.costValue, { color: themeColors.text.primary }]}>${Number(quote?.processingCost).toLocaleString('es-AR')}</Text>
-                </View>
-              )}
+              {/* El costo de la pasarela lo paga el trabajador: no se le
+                  muestra al cliente como un cargo suyo. */}
               {quote?.isBeta && (
                 <Text style={[styles.costLabel, { color: themeColors.text.secondary, fontSize: 11, marginTop: 6 }]}>
-                  Estás en la beta: DOAPP no cobra comisión ni IVA. Sólo se traslada el costo que
-                  cobra la pasarela de pago, y el trabajador recibe el valor del trabajo completo.
+                  Estás en la beta: DOAPP no cobra comisión ni IVA. Pagás exactamente el valor
+                  del trabajo.
                 </Text>
               )}
               <View style={[styles.costRow, styles.totalRow]}>

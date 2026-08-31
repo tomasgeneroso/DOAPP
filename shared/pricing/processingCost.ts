@@ -1,18 +1,23 @@
 /**
  * Costo de procesamiento de la pasarela de pago.
  *
- * Por que existe como linea separada:
+ * Quien paga que, y por que:
  *
- * La plataforma cobra el trabajo completo y despues le paga al trabajador. El
- * dinero pasa por la cuenta de DOAPP, asi que Mercado Pago cobra su comision
- * sobre el BRUTO -- sobre los $100.000 del trabajo, no sobre los $8.000 que
- * gana la plataforma. Sin esta linea, esa diferencia la pone DOAPP de su
- * bolsillo en cada operacion, y durante la beta (comision 0%) cada trabajo es
- * una perdida directa.
+ *   Cliente     comision de DOAPP + su IVA
+ *   Trabajador  el costo de la pasarela
  *
- * Se cobra por separado y con nombre propio a proposito: no es una comision de
- * DOAPP, es un costo de terceros que se traslada. Mezclarlo con la comision
- * haria que la beta "sin comision" muestre un cargo llamado comision.
+ * Cada cargo tiene una explicacion que se entiende sola: DOAPP le cobra al
+ * cliente por conectarlo y garantizarle el trabajo; la pasarela le cobra al que
+ * recibe la plata, que es como funciona en todos lados (los comercios pagan la
+ * tarjeta, no el comprador).
+ *
+ * El IVA viaja con la comision y no se puede separar: es el impuesto sobre ESE
+ * servicio y sigue a la factura. Si se le factura la comision al cliente, el
+ * IVA lo paga el cliente. No es una preferencia, es como funciona el impuesto.
+ *
+ * Consecuencia practica: el cliente paga exactamente trabajo + comision + IVA,
+ * sin recargos escondidos, y el costo de la pasarela se descuenta de lo que
+ * recibe el trabajador. La plataforma se queda con la comision limpia.
  */
 
 /**
@@ -50,44 +55,70 @@ export function getProcessingFeeRate(): number {
   return MP_FEE_BY_RELEASE_DAYS[0].withVat;
 }
 
-export interface ProcessingCostBreakdown {
-  /** Lo que hay que recibir limpio: trabajo + comision + IVA. */
-  subtotal: number;
-  /** Lo que se le suma al cliente para cubrir a la pasarela. */
+export interface FeeSplit {
+  /** El precio del trabajo, lo que el trabajador cotizo. */
+  jobPrice: number;
+  /** Comision de DOAPP. */
+  commission: number;
+  /** IVA sobre la comision. Viaja con ella. */
+  vat: number;
+  /** Lo que paga el cliente: trabajo + comision + IVA. Sin recargos escondidos. */
+  clientPays: number;
+  /** Lo que cobra la pasarela, calculado sobre el total cobrado. */
   processingCost: number;
-  /** Lo que finalmente se cobra. */
-  total: number;
-  /** La tarifa usada, para poder mostrarla y auditarla. */
+  /** Lo que le queda al trabajador: el precio menos la pasarela. */
+  workerReceives: number;
+  /** Lo que le queda a la plataforma: comision + IVA, limpio. */
+  platformKeeps: number;
+  /** La tarifa usada, para mostrarla y auditarla. */
   rate: number;
 }
 
 /**
- * Cuanto sumarle al cliente para que, despues de que la pasarela cobre lo suyo,
- * queden exactamente `subtotal` pesos en la cuenta.
+ * Reparte una operacion entre las tres partes.
  *
- * No es `subtotal * tarifa`. La pasarela cobra sobre el TOTAL cobrado, no sobre
- * el subtotal, asi que sumar el porcentaje del subtotal deja siempre corto:
+ * La cuenta cierra sola y conviene verla escrita, porque es la que hay que
+ * poder defender ante un reclamo:
  *
- *   subtotal 100.000, tarifa 7,73%
- *   mal:  100.000 + 7.730  = 107.730  -> la pasarela cobra 8.327, quedan 99.403  (faltan 597)
- *   bien: 100.000 / 0,9227 = 108.378  -> la pasarela cobra 8.378, quedan 100.000
+ *   cliente paga        trabajo + comision + IVA
+ *   la pasarela cobra   tarifa x (lo que pago el cliente)
+ *   el trabajador cobra trabajo - lo de la pasarela
+ *   a DOAPP le queda    comision + IVA
  *
- * El error es chico por operacion y constante: con volumen, es una perdida
- * permanente que nunca aparece como tal en ningun lado.
+ * Con trabajo 40.000, comision 8% y tarifa 5,31%:
+ *   cliente     43.872
+ *   pasarela    -2.330
+ *   trabajador  37.670
+ *   DOAPP        3.872  = 3.200 de comision + 672 de IVA
+ *
+ * Ya no hace falta el "grossing up" que habia antes: como el costo de la
+ * pasarela sale del lado del trabajador y no se le suma al cliente, el total
+ * cobrado es exactamente trabajo + comision + IVA, sin despejar nada.
  */
-export function calculateProcessingCost(
-  subtotal: number,
+export function splitFees(
+  jobPrice: number,
+  commission: number,
+  vat: number,
   rate: number = getProcessingFeeRate(),
-): ProcessingCostBreakdown {
-  if (!(subtotal > 0) || rate <= 0) {
-    return { subtotal: round2(subtotal), processingCost: 0, total: round2(subtotal), rate };
-  }
+): FeeSplit {
+  const price = Math.max(0, Number(jobPrice) || 0);
+  const comm = Math.max(0, Number(commission) || 0);
+  const tax = Math.max(0, Number(vat) || 0);
 
-  const total = round2(subtotal / (1 - rate));
+  const clientPays = round2(price + comm + tax);
+  const processingCost = rate > 0 ? round2(clientPays * rate) : 0;
+
   return {
-    subtotal: round2(subtotal),
-    processingCost: round2(total - subtotal),
-    total,
+    jobPrice: round2(price),
+    commission: round2(comm),
+    vat: round2(tax),
+    clientPays,
+    processingCost,
+    // Nunca negativo: en un trabajo muy chico la tarifa podria comerse todo, y
+    // mostrar un numero negativo seria peor que mostrar cero. El minimo de
+    // contrato existe justamente para que este caso no llegue a pasar.
+    workerReceives: round2(Math.max(0, price - processingCost)),
+    platformKeeps: round2(comm + tax),
     rate,
   };
 }
