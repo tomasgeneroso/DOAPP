@@ -129,6 +129,11 @@ export const ACTION_SEVERITIES: Record<string, "low" | "medium" | "high" | "crit
   "content_agent_enabled": "medium",
   "content_agent_disabled": "low",
 
+  // Verificación fiscal contra ARCA. Encenderla expone datos de terceros a la
+  // app, así que queda registrado quién lo hizo.
+  "arca_enabled": "medium",
+  "arca_disabled": "low",
+
   // Contract actions
   "ban_contract": "medium",
   "unban_contract": "medium",
