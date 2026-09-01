@@ -44,8 +44,44 @@ export const TOP_COMMISSION_RATE = 0.08;
  * pesos entre soporte, disputas y contracargo esperado -- asi que lo que manda
  * acá no es el costo sino que el precio sea defendible frente al cliente.)
  */
+
+/**
+ * Dos reglas, y manda la mas exigente.
+ *
+ * Regla 1 -- que el piso de comision no distorsione el precio:
+ *   minimo = MINIMUM_COMMISSION / tasa
+ *
+ * Regla 2 -- que al trabajador le quede mas de lo que se llevan entre todos:
+ *   minimo > comision + IVA + pasarela
+ *
+ * La segunda existe porque sin ella se puede construir un caso absurdo: un
+ * trabajo tan chico que el trabajador termina cobrando menos de lo que costo
+ * moverle la plata. Hoy no manda -- la regla 1 da un numero mucho mas alto --
+ * pero si algun dia sube la comision o la tarifa de la pasarela, esta se
+ * vuelve la que corta, y conviene que el codigo se de cuenta solo en vez de
+ * que lo descubra un usuario.
+ *
+ * Tomar el maximo de las dos es lo que hace que el minimo siga siendo una
+ * consecuencia de las reglas y no un numero que alguien eligio.
+ */
+function minimumFromCommissionFloor(): number {
+  return MINIMUM_COMMISSION_ARS / TOP_COMMISSION_RATE;
+}
+
+function minimumFromFeeSum(): number {
+  // Punto donde el precio del trabajo iguala a todo lo que se le descuenta.
+  // Despejado: P = c*P + IVA(c*P) + tarifa*(P + c*P + IVA)
+  const vatRate = 0.21;
+  const feeRate = 0.0531; // liberacion a 10 dias, el plazo configurado
+  const comm = TOP_COMMISSION_RATE;
+  const share = comm * (1 + vatRate) + feeRate * (1 + comm * (1 + vatRate));
+  // Con la comision al piso, el peor caso es el trabajo mas chico posible.
+  const conPiso = (MINIMUM_COMMISSION_ARS * (1 + vatRate)) / (1 - feeRate);
+  return Math.max(conPiso, share > 0 ? MINIMUM_COMMISSION_ARS / share : 0);
+}
+
 export const MINIMUM_JOB_AMOUNT_ARS = Math.ceil(
-  MINIMUM_COMMISSION_ARS / TOP_COMMISSION_RATE / 1000,
+  Math.max(minimumFromCommissionFloor(), minimumFromFeeSum()) / 1000,
 ) * 1000;
 
 /** Retiro minimo a CBU, en ARS. */
