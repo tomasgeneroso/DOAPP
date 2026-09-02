@@ -74,6 +74,8 @@ export const termsEn: Record<string, string> = {
   "s10p2": "10.2. Opening a dispute freezes the funds until its resolution.",
   "s10p3": "10.3. The Administrator's decisions may consist of full release, full refund, partial refund, or closure without action. To reach the final resolution, the information voluntarily submitted by the parties about the hiring conditions will be used.",
   "s10p4": "10.4. The Platform commission is not refunded under any circumstances.",
+  "s10p5": "10.5. <b>Chargebacks:</b> If the Client disputes a payment with their bank or card issuer (chargeback) instead of using the Platform dispute system, they agree to notify DOAPP beforehand. The Client is liable for the amount claimed where the service was actually rendered, and DOAPP may claim it back, suspend the account and withhold available balances until resolution. DOAPP will present the contract evidence to the issuer: confirmations from both parties, pairing code, message history and dates.",
+  "s10p6": "10.6. The internal dispute system is the intended route for claims. Starting a chargeback without having tried it does not release the User from the obligations under these Terms.",
   "s11Title": "11. Liability",
   "s11p1": "11.1. DOAPP is not liable for:",
   "s11li1": "The quality, execution, or outcome of the services.",

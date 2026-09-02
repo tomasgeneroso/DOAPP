@@ -74,6 +74,8 @@ export const termsEs: Record<string, string> = {
   "s10p2": "10.2. La apertura de una disputa congela los fondos hasta su resolución.",
   "s10p3": "10.3. Las decisiones del Administrador podrán consistir en liberación total, reembolso total, parcial o cierre sin acción. Para la toma de la resolución definitiva, se utilizará la información que voluntariamente remitieron las partes sobre las condiciones de contratación.",
   "s10p4": "10.4. La comisión de la Plataforma no se devuelve en ningún supuesto.",
+  "s10p5": "10.5. <b>Contracargos:</b> Si el Cliente desconoce un pago ante su banco o emisor de tarjeta (contracargo) en lugar de utilizar el sistema de disputas de la Plataforma, se compromete a notificarlo previamente a DOAPP. El Cliente será responsable por el monto reclamado cuando el servicio haya sido efectivamente prestado, y DOAPP podrá reclamarle el importe, suspender su cuenta y retener saldos disponibles hasta la resolución. DOAPP presentará ante el emisor la evidencia del contrato: confirmaciones de ambas partes, código de emparejamiento, historial de mensajes y fechas.",
+  "s10p6": "10.6. El uso del sistema interno de disputas es la vía prevista para reclamar. Iniciar un contracargo sin haberlo intentado no exime al Usuario de las obligaciones asumidas en estos Términos.",
   "s11Title": "11. Responsabilidad",
   "s11p1": "11.1. DOAPP no responde por:",
   "s11li1": "La calidad, ejecución o resultado de los servicios.",
