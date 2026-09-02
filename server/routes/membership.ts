@@ -3,13 +3,16 @@ import { getEffectiveTier } from '../services/platformPhase.js';
 import { protect, AuthRequest } from "../middleware/auth.js";
 import membershipService from "../services/membershipService.js";
 import currencyExchange from "../services/currencyExchange.js";
-import { MEMBERSHIP_PRICES_EUR } from "../../shared/constants/membershipPricing.js";
+import { MEMBERSHIP_PRICES_EUR, COMMISSION_RATES } from "../../shared/constants/membershipPricing.js";
+import { areMembershipsAvailable } from "../services/platformPhase.js";
 import { body, validationResult } from "express-validator";
 
 // Membresías cotizadas en EUROS y cobradas en ARS al cambio del día.
 // El importe en pesos cambia entre meses; el precio en euros no.
 const PRO_PRICE_EUR = MEMBERSHIP_PRICES_EUR.pro;
-const SUPER_PRO_PRICE_EUR = MEMBERSHIP_PRICES_EUR.super_pro;
+// SUPER PRO ya no se vende. El precio queda para poder mostrarle el importe a
+// una cuenta que todavia lo tiene activo; nadie nuevo lo puede contratar.
+const SUPER_PRO_PRICE_EUR = 8;
 async function getProPriceARS(): Promise<number> {
   return Math.round(await currencyExchange.convertEURtoARS(PRO_PRICE_EUR));
 }
@@ -155,18 +158,26 @@ router.get("/pricing", async (req, res) => {
   try {
     const proPriceARS = await getProPriceARS();
     const superProPriceARS = await getSuperProPriceARS();
+    // Durante la beta los planes no se ofrecen: la comision es 0% y un plan
+    // que promete bajarla no le sirve a nadie. Se activan solos al pasar a
+    // la fase estable.
+    const disponibles = await areMembershipsAvailable();
 
     res.json({
       success: true,
+      available: disponibles,
+      unavailableReason: disponibles
+        ? null
+        : 'Durante la beta no cobramos comisión, así que los planes no están a la venta. Se habilitan cuando termine.',
       pricing: {
         free: {
           name: 'Free',
           price: 0,
           currency: 'ARS',
-          commissionRate: 8,
+          commissionRate: COMMISSION_RATES.free,
           benefits: [
             '3 publicaciones libres de comisión (primeros 1000 usuarios)',
-            'Comisión fija del 8%',
+            `Comisión fija del ${COMMISSION_RATES.free}%`,
             '3 códigos de invitación',
           ],
         },
@@ -176,20 +187,21 @@ router.get("/pricing", async (req, res) => {
           priceARS: proPriceARS,
           priceEUR: PRO_PRICE_EUR,
           currency: 'ARS',
-          commissionRate: 3,
+          commissionRate: COMMISSION_RATES.pro,
           benefits: [
-            '1 contrato mensual sin comisión (0%)',
-            '2 publicaciones iniciales libres de comisión',
-            'Contratos adicionales: 3% de comisión',
-            'Prioridad en búsquedas',
-            'KYC Premium - Verificación completa',
-            'Badge verificado PRO',
-            'Estadísticas avanzadas',
-            'Renovación automática mensual',
-            'Cancela en cualquier momento',
+            `Comisión del ${COMMISSION_RATES.pro}% en vez del ${COMMISSION_RATES.free}%`,
+            '2 semanas de promoción de tu perfil por mes',
+            'Insignia de socio y prioridad en las búsquedas',
+            '1 contrato mensual sin comisión',
+            'Estadísticas de tu perfil: visitas y contactos',
+            'Soporte prioritario',
+            'Cancelás cuando quieras',
           ],
         },
+        // Ya no se vende. Se sigue informando para las cuentas que lo tienen
+        // activo, marcado para que la pantalla no lo ofrezca.
         superPro: {
+          discontinued: true,
           name: 'SUPER PRO',
           price: superProPriceARS,
           priceARS: superProPriceARS,

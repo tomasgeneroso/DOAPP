@@ -53,6 +53,21 @@ export async function getPlatformPhase(): Promise<PlatformPhase> {
   }
 }
 
+/**
+ * Si se pueden contratar membresias.
+ *
+ * Durante la beta no. Nadie compraria un plan cuyo unico beneficio es bajar una
+ * comision que hoy es 0%, y ofrecerlo igual seria vender algo que no sirve. Se
+ * activan solas al pasar a la fase estable, que es cuando la comision empieza a
+ * existir y el descuento pasa a valer algo.
+ *
+ * Es una funcion y no una constante justamente para que nadie tenga que
+ * acordarse de encenderlas el dia del cambio de fase.
+ */
+export async function areMembershipsAvailable(): Promise<boolean> {
+  return !(await isBetaPhase());
+}
+
 export async function isBetaPhase(): Promise<boolean> {
   return (await getPlatformPhase()) === 'beta';
 }

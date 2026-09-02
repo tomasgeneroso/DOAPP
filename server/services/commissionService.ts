@@ -25,12 +25,15 @@ import { Contract } from '../models/sql/Contract.model.js';
 import { User } from '../models/sql/User.model.js';
 import { isBetaPhase } from './platformPhase.js';
 
-// Fixed commission rates
-const FREE_COMMISSION_RATE = 8;       // 8% for free users
-const PRO_COMMISSION_RATE = 3;        // 3% for PRO
-const SUPER_PRO_COMMISSION_RATE = 1;  // 1% for SUPER PRO
+// Las tasas viven en shared/constants/membershipPricing.ts junto con el
+// precio de los planes: cambiar una sin la otra rompe el calculo del punto
+// de equilibrio que se le muestra al trabajador.
+const FREE_COMMISSION_RATE = COMMISSION_RATES.free;
+const PRO_COMMISSION_RATE = COMMISSION_RATES.pro;
+const SUPER_PRO_COMMISSION_RATE = COMMISSION_RATES.super_pro;
 
 import { MINIMUM_COMMISSION_ARS } from '../../shared/pricing/minimums.js';
+import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from '../../shared/constants/membershipPricing.js';
 const MINIMUM_COMMISSION = MINIMUM_COMMISSION_ARS;
 
 /**
@@ -344,9 +347,9 @@ export async function getUserCommissionRate(userId: string): Promise<{
  */
 export function getCommissionTiers() {
   return [
-    { plan: 'free', rate: FREE_COMMISSION_RATE, priceUSD: 0, description: 'FREE - 8% fijo' },
-    { plan: 'pro', rate: PRO_COMMISSION_RATE, priceUSD: 6, description: 'PRO - 3% fijo (6 USD/mes al dólar blue)' },
-    { plan: 'super_pro', rate: SUPER_PRO_COMMISSION_RATE, priceUSD: 8, description: 'SUPER PRO - 1% fijo (8 USD/mes al dólar blue)' },
+    { plan: 'free', rate: FREE_COMMISSION_RATE, priceEUR: 0, description: `FREE - ${FREE_COMMISSION_RATE}% de comisión` },
+    { plan: 'pro', rate: PRO_COMMISSION_RATE, priceEUR: MEMBERSHIP_PRICES_EUR.pro, description: `PRO - ${PRO_COMMISSION_RATE}% de comisión (€${MEMBERSHIP_PRICES_EUR.pro}/mes)` },
+    // SUPER PRO no se ofrece mas; se lista aparte para las cuentas que ya lo tienen.
   ];
 }
 
