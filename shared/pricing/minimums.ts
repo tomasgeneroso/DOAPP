@@ -1,3 +1,5 @@
+import { COMMISSION_RATES } from '../constants/membershipPricing.js';
+
 /**
  * Montos minimos de la plataforma.
  *
@@ -22,28 +24,14 @@
 /** Piso de la comision de la plataforma, en ARS. */
 export const MINIMUM_COMMISSION_ARS = 1000;
 
-/** La comision mas alta que cobra la plataforma (plan FREE). */
-export const TOP_COMMISSION_RATE = 0.08;
-
 /**
- * Precio minimo de un trabajo y de un contrato, en ARS.
+ * La comision mas alta que cobra la plataforma (plan FREE).
  *
- * No es un numero elegido: sale de la regla. Es el punto exacto donde el piso
- * de comision deja de distorsionar el precio.
- *
- * Debajo de MINIMUM_COMMISSION / tasa, el piso deja de ser un 8% y pasa a ser
- * una proporcion arbitraria del trabajo. En uno de 3.000 pesos la comision es
- * el 33%, y con el costo de la pasarela el cliente termina pagando un 52% mas.
- * Arriba de ese punto el recargo es plano y explicable.
- *
- * Derivarlo en vez de fijarlo tiene una ventaja concreta: si algun dia cambia
- * la comision o su piso, el minimo se reacomoda solo en lugar de quedar
- * apuntando a un numero que ya no significa nada.
- *
- * (Ojo: el costo marginal real de un contrato es mucho mas bajo -- unos 350
- * pesos entre soporte, disputas y contracargo esperado -- asi que lo que manda
- * acá no es el costo sino que el precio sea defendible frente al cliente.)
+ * Se deriva de COMMISSION_RATES en vez de repetirse: estaba escrita al 8% aca
+ * mientras la comision real ya era 10%, asi que los minimos se calculaban con
+ * una tasa que no existia.
  */
+export const TOP_COMMISSION_RATE = COMMISSION_RATES.free / 100;
 
 /**
  * Dos reglas, y manda la mas exigente.
@@ -82,6 +70,34 @@ function minimumFromFeeSum(): number {
 
 export const MINIMUM_JOB_AMOUNT_ARS = Math.ceil(
   Math.max(minimumFromCommissionFloor(), minimumFromFeeSum()) / 1000,
+) * 1000;
+
+/**
+ * Lo que cuesta procesar un contrato mas: soporte esperado, disputas y
+ * contracargo esperado. No escala con el precio salvo el contracargo, que es
+ * el unico proporcional.
+ */
+export const MARGINAL_COST_PER_CONTRACT_ARS = 450;
+
+/**
+ * Monto minimo de una ampliacion de contrato, en ARS.
+ *
+ * A la ampliacion NO se le aplica el piso de comision, y la razon es que el
+ * piso existe para cubrir el costo fijo de un contrato -- verificar identidad,
+ * emparejar, abrir el expediente -- y ese costo ya lo pago el contrato
+ * original. Una ampliacion es marginal: el unico costo que agrega es la
+ * pasarela y un poco de soporte.
+ *
+ * Aplicarle el piso daria absurdos: en una ampliacion de 2.000 pesos la
+ * comision seria el 50%.
+ *
+ * Entonces la regla es otra: la ampliacion tiene que ser lo bastante grande
+ * como para que su propia comision cubra lo que cuesta procesarla (unos 450
+ * pesos entre soporte, disputas y contracargo esperado). Con comision del 10%,
+ * eso son 4.500; redondeado, 5.000.
+ */
+export const MINIMUM_EXTENSION_ARS = Math.ceil(
+  (MARGINAL_COST_PER_CONTRACT_ARS / TOP_COMMISSION_RATE) / 1000,
 ) * 1000;
 
 /** Retiro minimo a CBU, en ARS. */

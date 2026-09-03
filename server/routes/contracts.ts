@@ -1,6 +1,6 @@
 import express, { Request, Response } from "express";
 import { getEffectiveTier } from '../services/platformPhase.js';
-import { MINIMUM_JOB_AMOUNT_ARS, MINIMUM_COMMISSION_ARS } from '../../shared/pricing/minimums.js';
+import { MINIMUM_JOB_AMOUNT_ARS, MINIMUM_COMMISSION_ARS, MINIMUM_EXTENSION_ARS } from '../../shared/pricing/minimums.js';
 import { body, validationResult } from "express-validator";
 import { Contract } from "../models/sql/Contract.model.js";
 import { Job } from "../models/sql/Job.model.js";
@@ -1845,6 +1845,18 @@ router.post("/:id/request-extension", protect, async (req: AuthRequest, res: Res
     const { extensionDays, extensionAmount, extensionNotes } = req.body;
     const userId = req.user.id;
 
+    // La ampliación con monto tiene su propio mínimo, más bajo que el de un
+    // contrato: el costo fijo ya lo pagó el contrato original, así que sólo
+    // tiene que cubrir lo que cuesta procesarla.
+    const montoAmpliacion = Number(extensionAmount) || 0;
+    if (montoAmpliacion > 0 && montoAmpliacion < MINIMUM_EXTENSION_ARS) {
+      res.status(400).json({
+        success: false,
+        message: `El monto mínimo de una ampliación es de $${MINIMUM_EXTENSION_ARS.toLocaleString('es-AR')} ARS.`,
+      });
+      return;
+    }
+
     if (!extensionDays || extensionDays < 1) {
       res.status(400).json({ success: false, message: "Debes especificar los días de extensión (mínimo 1)" });
       return;
@@ -1885,20 +1897,23 @@ router.post("/:id/request-extension", protect, async (req: AuthRequest, res: Res
       return;
     }
 
-    // *** NUEVA RESTRICCIÓN: Verificar que estemos al menos 24h antes del inicio del trabajo ***
-    const job = contract.job as Job;
-    if (job && job.startDate) {
-      const now = new Date();
-      const jobStartDate = new Date(job.startDate);
-      const twentyFourHoursBeforeStart = new Date(jobStartDate.getTime() - 24 * 60 * 60 * 1000);
-
-      if (now > twentyFourHoursBeforeStart) {
-        res.status(400).json({
-          success: false,
-          message: "No puedes solicitar una extensión con menos de 24 horas antes del inicio del trabajo. La solicitud debe realizarse antes de ese plazo."
-        });
-        return;
-      }
+    // Se puede extender mientras el trabajo esté en curso.
+    //
+    // Antes se exigía estar 24 horas antes del INICIO, pero el estado permitido
+    // incluye 'in_progress' -- donde el inicio ya pasó -- así que la validación
+    // rechazaba siempre. En los hechos sólo se podía extender un contrato que
+    // todavía no había arrancado, que es justo el caso donde menos falta hace:
+    // la necesidad de más días aparece con la pared abierta, no antes.
+    //
+    // Lo que sí se exige es que el contrato no haya vencido: extender algo que
+    // ya terminó no es extender, es reabrir.
+    const now = new Date();
+    if (contract.endDate && now > new Date(contract.endDate)) {
+      res.status(400).json({
+        success: false,
+        message: "El contrato ya venció. Para seguir trabajando hay que publicar un trabajo nuevo.",
+      });
+      return;
     }
 
     // Verificar que no haya una solicitud de extensión pendiente
