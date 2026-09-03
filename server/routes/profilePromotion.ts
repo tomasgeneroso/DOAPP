@@ -20,11 +20,18 @@ const router = express.Router();
  * esta a punto de contratar; sacarla de ahi cuesta una conversion.
  */
 
-/** Precio por semana, en euros. Se cobra en pesos al cambio del dia. */
-const PRICE_PER_WEEK_EUR = 5;
+/**
+ * Precio por dia, en euros. Se cobra en pesos al cambio del dia.
+ *
+ * Se vende por dia suelto y no por semana cerrada porque la demanda de un
+ * oficio no es pareja: al que trabaja los fines de semana no le sirve pagar el
+ * lunes, y al que le factura a empresas no le sirve pagar el domingo. Obligarlo
+ * a comprar la semana entera es cobrarle dias que no va a usar.
+ */
+const PRICE_PER_DAY_EUR = 1;
 
-/** Cuantas semanas hacia adelante se pueden reservar. */
-const MAX_WEEKS_AHEAD = 12;
+/** Cuantos dias hacia adelante se pueden reservar. */
+const MAX_DAYS_AHEAD = 60;
 
 /**
  * Solo se promociona quien ya tiene con que.
@@ -36,36 +43,31 @@ const MAX_WEEKS_AHEAD = 12;
 const MIN_RATING = 3.5;
 const MIN_REVIEWS = 1;
 
-function mondayOf(date: Date): Date {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  const day = d.getDay();
-  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
-  return d;
-}
+const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 
-/** Las proximas semanas disponibles, empezando por la actual. */
-function upcomingWeeks(): Array<{ start: string; end: string; label: string }> {
-  const first = mondayOf(new Date());
-  const weeks = [];
-  for (let i = 0; i < MAX_WEEKS_AHEAD; i++) {
-    const start = new Date(first);
-    start.setDate(start.getDate() + i * 7);
+/** Los proximos dias disponibles, empezando por hoy. */
+function upcomingDays(): Array<{ start: string; end: string; label: string; weekday: string }> {
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  const dias = [];
+  for (let i = 0; i < MAX_DAYS_AHEAD; i++) {
+    const start = new Date(hoy);
+    start.setDate(start.getDate() + i);
     const end = new Date(start);
-    end.setDate(end.getDate() + 6);
     end.setHours(23, 59, 59, 999);
-    weeks.push({
+    dias.push({
       start: start.toISOString(),
       end: end.toISOString(),
-      label: `${start.getDate()}/${start.getMonth() + 1} al ${end.getDate()}/${end.getMonth() + 1}`,
+      label: `${start.getDate()}/${start.getMonth() + 1}`,
+      weekday: DIAS[start.getDay()],
     });
   }
-  return weeks;
+  return dias;
 }
 
 /**
  * @route   GET /api/profile-promotion/options
- * @desc    Semanas disponibles, precio y si el usuario puede promocionarse
+ * @desc    Dias disponibles, precio y si el usuario puede promocionarse
  */
 router.get('/options', protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
@@ -76,13 +78,13 @@ router.get('/options', protect, async (req: AuthRequest, res: Response): Promise
     }
 
     const eurArs = await currencyExchange.getEURtoARSRate().catch(() => 1800);
-    const priceArs = Math.round(PRICE_PER_WEEK_EUR * eurArs);
+    const priceArs = Math.round(PRICE_PER_DAY_EUR * eurArs);
 
     const rating = Number((user as any).rating) || 0;
     const reviews = Number((user as any).reviewsCount) || 0;
     const elegible = rating >= MIN_RATING && reviews >= MIN_REVIEWS;
 
-    // Semanas que este usuario ya tiene compradas, para no ofrecerlas de nuevo.
+    // Dias que este usuario ya tiene comprados, para no ofrecerlos de nuevo.
     const yaCompradas = await Advertisement.findAll({
       where: {
         advertiserId: user.id,
@@ -99,8 +101,8 @@ router.get('/options', protect, async (req: AuthRequest, res: Response): Promise
     res.json({
       success: true,
       data: {
-        precioSemanaEur: PRICE_PER_WEEK_EUR,
-        precioSemanaArs: priceArs,
+        precioDiaEur: PRICE_PER_DAY_EUR,
+        precioDiaArs: priceArs,
         eurArs: Math.round(eurArs * 100) / 100,
         elegible,
         // Se dice por que no, no solo que no: un "no podes" sin motivo no le
@@ -110,7 +112,7 @@ router.get('/options', protect, async (req: AuthRequest, res: Response): Promise
           : reviews < MIN_REVIEWS
             ? 'Necesitás al menos una opinión de un trabajo completado.'
             : `Necesitás una puntuación de ${MIN_RATING} o más. La tuya es ${rating.toFixed(1)}.`,
-        semanas: upcomingWeeks().map((w) => ({
+        dias: upcomingDays().map((w) => ({
           ...w,
           ocupada: ocupadas.has(new Date(w.start).toISOString().slice(0, 10)),
         })),
@@ -165,18 +167,18 @@ router.get('/mine', protect, async (req: AuthRequest, res: Response): Promise<vo
 
 /**
  * @route   POST /api/profile-promotion
- * @desc    Reservar semanas de promocion
+ * @desc    Reservar dias de promocion
  */
 router.post('/', protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { semanas } = req.body as { semanas?: string[] };
+    const { dias } = req.body as { dias?: string[] };
 
-    if (!Array.isArray(semanas) || semanas.length === 0) {
-      res.status(400).json({ success: false, message: 'Elegí al menos una semana' });
+    if (!Array.isArray(dias) || dias.length === 0) {
+      res.status(400).json({ success: false, message: 'Elegí al menos un día' });
       return;
     }
-    if (semanas.length > MAX_WEEKS_AHEAD) {
-      res.status(400).json({ success: false, message: 'Demasiadas semanas' });
+    if (dias.length > MAX_DAYS_AHEAD) {
+      res.status(400).json({ success: false, message: 'Demasiados días' });
       return;
     }
 
@@ -196,15 +198,15 @@ router.post('/', protect, async (req: AuthRequest, res: Response): Promise<void>
       return;
     }
 
-    // Las semanas validas las define el servidor, no el cliente: asi no se
-    // pueden reservar semanas viejas ni fuera del rango mandando otra fecha.
-    const validas = new Map(upcomingWeeks().map((w) => [w.start.slice(0, 10), w]));
-    const elegidas = semanas
+    // Los dias validos los define el servidor, no el cliente: asi no se pueden
+    // reservar dias pasados ni fuera del rango mandando otra fecha.
+    const validas = new Map(upcomingDays().map((w) => [w.start.slice(0, 10), w]));
+    const elegidas = dias
       .map((s) => validas.get(String(s).slice(0, 10)))
       .filter(Boolean) as Array<{ start: string; end: string }>;
 
-    if (elegidas.length !== semanas.length) {
-      res.status(400).json({ success: false, message: 'Alguna de las semanas no es válida' });
+    if (elegidas.length !== dias.length) {
+      res.status(400).json({ success: false, message: 'Alguno de los días no es válido' });
       return;
     }
 
@@ -220,14 +222,14 @@ router.post('/', protect, async (req: AuthRequest, res: Response): Promise<void>
     if (yaTiene.length > 0) {
       res.status(409).json({
         success: false,
-        message: 'Ya tenés reservada alguna de esas semanas.',
+        message: 'Ya tenés reservado alguno de esos días.',
       });
       return;
     }
 
     const eurArs = await currencyExchange.getEURtoARSRate().catch(() => 1800);
-    const precioSemana = Math.round(PRICE_PER_WEEK_EUR * eurArs);
-    const total = precioSemana * elegidas.length;
+    const precioDia = Math.round(PRICE_PER_DAY_EUR * eurArs);
+    const total = precioDia * elegidas.length;
 
     const creadas = await Promise.all(
       elegidas.map((w) =>
@@ -238,8 +240,8 @@ router.post('/', protect, async (req: AuthRequest, res: Response): Promise<void>
           description: ((user as any).bio || '').slice(0, 500) || `Perfil de ${user.name}`,
           status: 'pending',
           paymentStatus: 'pending',
-          pricePerDay: Math.round(precioSemana / 7),
-          totalPrice: precioSemana,
+          pricePerDay: precioDia,
+          totalPrice: precioDia,
           startDate: new Date(w.start),
           endDate: new Date(w.end),
           targetCategories: (user as any).profession ? [(user as any).profession] : [],
@@ -253,8 +255,8 @@ router.post('/', protect, async (req: AuthRequest, res: Response): Promise<void>
       message: 'Reservado. Falta el pago para que se active.',
       data: {
         ids: creadas.map((c) => c.id),
-        semanas: elegidas.length,
-        precioSemanaArs: precioSemana,
+        dias: elegidas.length,
+        precioDiaArs: precioDia,
         totalArs: total,
       },
     });
@@ -265,7 +267,7 @@ router.post('/', protect, async (req: AuthRequest, res: Response): Promise<void>
 
 /**
  * @route   DELETE /api/profile-promotion/:id
- * @desc    Cancelar una semana todavia no pagada
+ * @desc    Cancelar una dia todavia no pagada
  */
 router.delete('/:id', protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {

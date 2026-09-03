@@ -190,7 +190,7 @@ router.get("/pricing", async (req, res) => {
           commissionRate: COMMISSION_RATES.pro,
           benefits: [
             `Comisión del ${COMMISSION_RATES.pro}% en vez del ${COMMISSION_RATES.free}%`,
-            '2 semanas de promoción de tu perfil por mes',
+            '7 días de promoción de tu perfil por mes, los que elijas',
             'Insignia de socio y prioridad en las búsquedas',
             '1 contrato mensual sin comisión',
             'Estadísticas de tu perfil: visitas y contactos',

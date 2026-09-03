@@ -4,19 +4,19 @@ import { Megaphone, Star, MapPin, Loader2, Check, AlertCircle, TrendingUp } from
 /**
  * Promocioná tu perfil.
  *
- * El trabajador elige semanas sueltas, ve exactamente cómo va a quedar su
+ * El trabajador elige los días sueltos que quiera, ve exactamente cómo va a quedar su
  * tarjeta en el muro, y paga. La vista previa no es decoración: sin ella hay
  * que imaginarse qué se compra, y lo que se compra es precisamente cómo se ve.
  */
 
-interface Semana { start: string; end: string; label: string; ocupada: boolean }
+interface Dia { start: string; end: string; label: string; weekday: string; ocupada: boolean }
 interface Options {
-  precioSemanaEur: number;
-  precioSemanaArs: number;
+  precioDiaEur: number;
+  precioDiaArs: number;
   eurArs: number;
   elegible: boolean;
   motivoNoElegible: string | null;
-  semanas: Semana[];
+  dias: Dia[];
   preview: {
     name: string; avatar: string | null; rating: number;
     reviewsCount: number; skills: string[]; location: string | null;
@@ -110,7 +110,7 @@ export default function ProfilePromotion() {
       const res = await fetch('/api/profile-promotion', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ semanas: elegidas }),
+        body: JSON.stringify({ dias: elegidas }),
       });
       const data = await res.json();
       if (data.success) {
@@ -132,7 +132,7 @@ export default function ProfilePromotion() {
   }
   if (!opts) return null;
 
-  const total = elegidas.length * opts.precioSemanaArs;
+  const total = elegidas.length * opts.precioDiaArs;
 
   return (
     <div className="space-y-5">
@@ -141,8 +141,8 @@ export default function ProfilePromotion() {
         <div>
           <h3 className="font-semibold text-slate-900 dark:text-white">Hacete más conocido</h3>
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            Tu perfil aparece entre los trabajos del muro, en tu zona y tus oficios. Elegís qué
-            semanas y pagás sólo esas.
+            Tu perfil aparece entre los trabajos del muro, en tu zona y tus oficios. Elegís
+            qué días y pagás sólo esos.
           </p>
         </div>
       </div>
@@ -167,15 +167,15 @@ export default function ProfilePromotion() {
 
       <div>
         <div className="flex items-baseline justify-between mb-2">
-          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Elegí las semanas</p>
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Elegí los días</p>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            {ars(opts.precioSemanaArs)} por semana
-            <span className="text-slate-400"> · EUR {opts.precioSemanaEur} al cambio de hoy</span>
+            {ars(opts.precioDiaArs)} por día
+            <span className="text-slate-400"> · EUR {opts.precioDiaEur} al cambio de hoy</span>
           </p>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {opts.semanas.map((w) => {
+        <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
+          {opts.dias.map((w) => {
             const sel = elegidas.includes(w.start);
             return (
               <button
@@ -191,11 +191,12 @@ export default function ProfilePromotion() {
                       : 'border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-amber-400'
                 } disabled:opacity-60`}
               >
-                <span className="flex items-center gap-1.5">
-                  {sel && <Check className="h-3.5 w-3.5" />}
+                <span className="block text-[10px] uppercase tracking-wide opacity-70">{w.weekday}</span>
+                <span className="flex items-center gap-1">
+                  {sel && <Check className="h-3 w-3" />}
                   {w.label}
                 </span>
-                {w.ocupada && <span className="text-[10px]">ya la tenés</span>}
+                {w.ocupada && <span className="block text-[9px]">tomado</span>}
               </button>
             );
           })}
@@ -206,7 +207,7 @@ export default function ProfilePromotion() {
         <div className="rounded-lg border border-slate-200 dark:border-slate-700 p-4 space-y-2">
           <div className="flex justify-between text-sm">
             <span className="text-slate-600 dark:text-slate-400">
-              {elegidas.length} {elegidas.length === 1 ? 'semana' : 'semanas'} × {ars(opts.precioSemanaArs)}
+              {elegidas.length} {elegidas.length === 1 ? 'día' : 'días'} × {ars(opts.precioDiaArs)}
             </span>
             <span className="font-semibold text-slate-900 dark:text-white">{ars(total)}</span>
           </div>

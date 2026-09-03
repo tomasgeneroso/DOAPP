@@ -24,16 +24,20 @@ import { Op } from 'sequelize';
 import { Contract } from '../models/sql/Contract.model.js';
 import { User } from '../models/sql/User.model.js';
 import { isBetaPhase } from './platformPhase.js';
+import { MINIMUM_COMMISSION_ARS } from '../../shared/pricing/minimums.js';
+import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from '../../shared/constants/membershipPricing.js';
 
 // Las tasas viven en shared/constants/membershipPricing.ts junto con el
 // precio de los planes: cambiar una sin la otra rompe el calculo del punto
 // de equilibrio que se le muestra al trabajador.
+//
+// Los imports van todos arriba a proposito: bajo CommonJS se convierten en
+// require() en el lugar donde estan, asi que un import debajo de su uso revienta
+// aunque en ESM funcione por hoisting. Es el tipo de diferencia que aparece
+// recien al correr los tests.
 const FREE_COMMISSION_RATE = COMMISSION_RATES.free;
 const PRO_COMMISSION_RATE = COMMISSION_RATES.pro;
 const SUPER_PRO_COMMISSION_RATE = COMMISSION_RATES.super_pro;
-
-import { MINIMUM_COMMISSION_ARS } from '../../shared/pricing/minimums.js';
-import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from '../../shared/constants/membershipPricing.js';
 const MINIMUM_COMMISSION = MINIMUM_COMMISSION_ARS;
 
 /**
