@@ -815,6 +815,33 @@ router.post("/:paymentId/approve", protect, requireRole('admin', 'super_admin', 
       }
     }
 
+    // Ampliación de un contrato: el precio sube recién acá, con la plata ya
+    // acreditada. Se aplica antes que la rama de Job porque una ampliación de
+    // contrato no tiene un job con pendingNewPrice asociado.
+    if (payment.paymentType === 'budget_increase' && payment.contractId) {
+      const contrato = await Contract.findByPk(payment.contractId);
+
+      if (contrato && contrato.extensionPaymentId === paymentId) {
+        const extra = Number(contrato.extensionAmount) || 0;
+        contrato.price = Number(contrato.price) + extra;
+        contrato.commission = Number(contrato.commission) + Number(payment.platformFee || 0);
+        contrato.totalPrice = Number(contrato.price) + Number(contrato.commission);
+        // Se limpia para que el mismo pago no pueda aplicarse dos veces.
+        contrato.extensionAmount = 0;
+        await contrato.save();
+
+        await Notification.create({
+          recipientId: contrato.doerId,
+          title: 'Ampliación confirmada',
+          message: `El cliente pagó la ampliación del contrato. El monto acordado se sumó a lo que vas a cobrar.`,
+          type: 'success',
+          category: 'payment',
+          relatedId: contrato.id,
+          relatedModel: 'Contract',
+        });
+      }
+    }
+
     // Handle budget increase payment
     if (payment.paymentType === 'budget_increase') {
       const job = await Job.findOne({

@@ -211,6 +211,11 @@ const STATEMENTS: Array<{ label: string; sql: string }> = [
     label: 'advertisements.target_url nullable',
     sql: `ALTER TABLE advertisements ALTER COLUMN target_url DROP NOT NULL`,
   },
+  // La ampliacion de contrato ahora se cobra antes de aplicarse.
+  {
+    label: 'contracts.extension_payment_id',
+    sql: `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS extension_payment_id UUID`,
+  },
 ];
 
 export async function ensureCriticalSchema(sequelize: Sequelize): Promise<void> {

@@ -13,6 +13,8 @@ import type { AuthRequest } from "../types/index.js";
 import { socketService } from "../index.js";
 import { Op } from 'sequelize';
 import { calculateCommission } from "../services/commissionService.js";
+import { Payment } from "../models/sql/Payment.model.js";
+import { splitFees } from "../../shared/pricing/processingCost.js";
 import cacheService from "../services/cacheService.js";
 
 const router = express.Router();
@@ -2048,11 +2050,37 @@ router.post("/:id/approve-extension", protect, async (req: AuthRequest, res: Res
     contract.extensionHistory = extensionHistory;
     contract.extensionCount = (contract.extensionCount || 0) + 1;
 
-    // Si hay monto adicional, actualizar el precio
+    // Los días se aplican ahora; la plata, recién cuando el cliente la pague.
+    //
+    // Antes acá se hacía `contract.price += extensionAmount` y listo: el precio
+    // subía sin que nadie cobrara nada, así que la plataforma le quedaba
+    // debiendo al trabajador más de lo que tenía retenido en escrow y la
+    // diferencia salía de DOAPP. Además la comisión no se recalculaba, con lo
+    // cual la ampliación viajaba sin comisión.
+    let pagoAmpliacion: { id: string; total: number; comision: number } | null = null;
+
     if (contract.extensionAmount && contract.extensionAmount > 0) {
-      contract.price += contract.extensionAmount;
-      // Recalcular comisión y precio total
-      contract.totalPrice = contract.price + contract.commission;
+      const extra = Number(contract.extensionAmount);
+      const c = await calculateCommission(contract.clientId, extra);
+      const split = splitFees(extra, c.commission, c.vat);
+
+      const pago = await Payment.create({
+        contractId: contract.id,
+        payerId: contract.clientId,
+        recipientId: contract.doerId,
+        amount: split.clientPays,
+        currency: 'ARS',
+        status: 'pending_verification',
+        paymentType: 'budget_increase',
+        paymentMethod: 'mercadopago',
+        description: `Ampliación del contrato ${contract.id}`,
+        platformFee: c.commission,
+        platformFeePercentage: c.rate,
+        isEscrow: true,
+      } as any);
+
+      contract.extensionPaymentId = pago.id;
+      pagoAmpliacion = { id: pago.id, total: split.clientPays, comision: c.commission };
     }
 
     await contract.save();

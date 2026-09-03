@@ -490,6 +490,18 @@ export class Contract extends Model {
   @Column(DataType.TEXT)
   extensionNotes?: string;
 
+  /**
+   * El pago de la ampliacion, cuando la extension suma plata.
+   *
+   * Existe porque aprobar una extension con monto subia contract.price sin
+   * cobrarle nada al cliente: la plataforma quedaba debiendole al trabajador
+   * mas de lo que tenia retenido, y la diferencia la ponia DOAPP. Ahora los
+   * dias se aplican al aprobar y el precio recien sube cuando este pago se
+   * acredita.
+   */
+  @Column(DataType.UUID)
+  extensionPaymentId?: string;
+
   @Column(DataType.DATE)
   originalEndDate?: Date;
 
