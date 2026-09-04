@@ -59,7 +59,7 @@ export const termsEn: Record<string, string> = {
   "planSuperProMonth": "SUPER PRO ($8,999/month)",
   "s7p4": "7.4. Minimum commission: for contracts under $8,000 ARS, a fixed commission of $1,000 ARS will apply.",
   "s7p5": "7.5. DOAPP's commission is non-refundable, even in cases of cancellation or dispute.",
-  "s7p6": "7.6. <b>Automatic release due to Client absence:</b> If a job ends (due date reached) and the Client does not confirm receipt of the service within the following 2 (two) hours, the payment held in custody will be automatically released to the assigned Workers. The Platform commission corresponding to the Client's plan is retained in all cases. The Client will receive notifications before and during this process. This clause does not apply if there is an active dispute over the contract.",
+  "s7p6": "7.6. <b>Automatic release due to Client absence:</b> If a job ends (due date reached) and the Client does not confirm receipt of the service within the following 24 (twenty-four) hours, the payment held in custody will be automatically released to the assigned Workers. The Platform commission corresponding to the Client's plan is retained in all cases. The Client will receive notifications before and during this process. This clause does not apply if there is an active dispute over the contract.",
   "s7p7": "7.7. Workers will be notified before the start of the work, during its execution, and at the time of payment release. In the event of the Client's absence in accordance with point 7.6, Workers will receive immediate notice by email and notification on the Platform.",
   "s8Title": "8. Memberships and Subscriptions",
   "s8p1": "8.1. DOAPP offers FREE, PRO, and SUPER PRO plans, with automatic monthly renewal.",

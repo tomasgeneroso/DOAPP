@@ -22,14 +22,25 @@ export function startAutoConfirmContractsJob() {
       console.log('🔍 [CRON] Verificando contratos pendientes de confirmación...');
 
       const now = new Date();
-      const fiveHoursAgo = new Date(now.getTime() - 5 * 60 * 60 * 1000);
+      // 24 horas, no 5.
+      //
+      // Con 5 horas, un trabajo confirmado a las 22:00 se auto-confirmaba a las
+      // 3 de la manana: el cliente perdia su ventana por dormirse, y la
+      // auto-confirmacion libera el escrow. Ademas los terminos decian 2 horas,
+      // asi que ninguno de los dos numeros era el verdadero.
+      //
+      // 24 horas cubre un dia entero sin mirar el telefono sin dejar la plata
+      // del trabajador en el aire, y el reclamo sigue abierto 7 dias despues de
+      // terminado el contrato, asi que auto-confirmar ya no cierra la puerta.
+      const AUTO_CONFIRM_HOURS = 24;
+      const limite = new Date(now.getTime() - AUTO_CONFIRM_HOURS * 60 * 60 * 1000);
 
       // Buscar contratos en awaiting_confirmation que llevan más de 5 horas
       const contractsToAutoConfirm = await Contract.findAll({
         where: {
           status: 'awaiting_confirmation',
           awaitingConfirmationAt: {
-            [Op.lte]: fiveHoursAgo,
+            [Op.lte]: limite,
           },
           // Al menos uno no ha confirmado
           [Op.or]: [
