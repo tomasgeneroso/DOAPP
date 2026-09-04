@@ -171,8 +171,8 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
           paymentType: "job_publication",
           paymentMethod: "bank_transfer",
           description: `Publicación: ${job.title}`,
-          platformFee: 0,
-          platformFeePercentage: 0,
+          platformFee: publicationCost,
+          platformFeePercentage: commissionResult.rate,
           isEscrow: false,
         });
 
@@ -231,8 +231,8 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
           paymentMethod: "astropay",
           astropayDepositId: apPayment.providerPaymentId,
           description: `Publicación: ${job.title}`,
-          platformFee: 0,
-          platformFeePercentage: 0,
+          platformFee: publicationCost,
+          platformFeePercentage: commissionResult.rate,
           isEscrow: false,
         });
         job.publicationAmount = totalAmountARS;
@@ -274,8 +274,8 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
         paymentMethod: "mercadopago",
         mercadopagoPreferenceId: mpPayment.paymentId,
         description: `Publicación: ${job.title}`,
-        platformFee: 0,
-        platformFeePercentage: 0,
+        platformFee: publicationCost,
+        platformFeePercentage: commissionResult.rate,
         isEscrow: false,
       });
 
@@ -318,6 +318,11 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
       // Use the amount from the request or the job's pending payment
       const totalAmountARS = amount ? parseFloat(amount) : pendingAmount;
 
+      // Cuánto de ese total es comisión. Se guarda desglosado en el pago
+      // porque si no, el panel financiero suma platform_fee y da siempre 0:
+      // la comisión existe dentro del monto pero nadie la registra.
+      const aumentoComision = await calculateCommission(job.clientId, totalAmountARS);
+
       console.log(`💵 Budget increase payment: ${totalAmountARS.toFixed(2)} ARS for job ${jobId} - ${selectedPaymentMethod}`);
 
       // Handle different payment methods
@@ -333,8 +338,8 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
           paymentType: "budget_increase",
           paymentMethod: selectedPaymentMethod,
           description: `Aumento de presupuesto: ${job.title}`,
-          platformFee: 0,
-          platformFeePercentage: 0,
+          platformFee: aumentoComision.commission,
+          platformFeePercentage: aumentoComision.rate,
           isEscrow: false,
         });
 
@@ -393,8 +398,8 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
           paymentMethod: "astropay",
           astropayDepositId: apPayment.providerPaymentId,
           description: `Aumento de presupuesto: ${job.title}`,
-          platformFee: 0,
-          platformFeePercentage: 0,
+          platformFee: aumentoComision.commission,
+          platformFeePercentage: aumentoComision.rate,
           isEscrow: false,
         });
         job.publicationPaymentId = payment.id;
@@ -435,8 +440,8 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
         paymentMethod: "mercadopago",
         mercadopagoPreferenceId: mpPayment.paymentId,
         description: `Aumento de presupuesto: ${job.title}`,
-        platformFee: 0,
-        platformFeePercentage: 0,
+        platformFee: aumentoComision.commission,
+        platformFeePercentage: aumentoComision.rate,
         isEscrow: false,
       });
 

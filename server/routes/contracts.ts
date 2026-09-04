@@ -13,6 +13,7 @@ import type { AuthRequest } from "../types/index.js";
 import { socketService } from "../index.js";
 import { Op } from 'sequelize';
 import { calculateCommission } from "../services/commissionService.js";
+import { requireRole } from "../middleware/permissions.js";
 import { Payment } from "../models/sql/Payment.model.js";
 import { splitFees } from "../../shared/pricing/processingCost.js";
 import cacheService from "../services/cacheService.js";
@@ -316,7 +317,9 @@ router.get("/debug-job/:jobId", protect, async (req: AuthRequest, res: Response)
 // @route   POST /api/contracts/repair-job/:jobId
 // @desc    Crear contrato faltante para trabajo con doerId asignado (temporal)
 // @access  Private
-router.post("/repair-job/:jobId", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+// Sólo administración: crea contratos, y cualquier usuario autenticado podía
+// llamarlo. Es una herramienta de reparación, no una vía normal.
+router.post("/repair-job/:jobId", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const jobId = req.params.jobId;
     const userId = req.user.id.toString();
@@ -351,9 +354,13 @@ router.post("/repair-job/:jobId", protect, async (req: AuthRequest, res: Respons
     }
 
     // Create the missing contract
+    //
+    // La comisión sale del servicio, no de un 10% escrito a mano. El valor fijo
+    // ignoraba la fase beta (habría cobrado 10% con la plataforma en 0%), el
+    // plan del usuario, sus contratos gratis y el piso de comisión.
     const price = parseFloat(job.price?.toString() || '0');
-    const commissionRate = 0.10; // 10% default
-    const commission = price * commissionRate;
+    const c = await calculateCommission(job.clientId, price);
+    const commission = c.commission;
     const totalPrice = price + commission;
 
     const startDate = job.startDate ? new Date(job.startDate) : new Date();
