@@ -14,6 +14,8 @@ import { socketService } from "../index.js";
 import { Op } from 'sequelize';
 import { calculateCommission } from "../services/commissionService.js";
 import { requireRole } from "../middleware/permissions.js";
+import { buildContractEvidence, evidenceToHtml } from "../services/contractEvidence.js";
+import { logAudit, getSeverityForAction } from "../utils/auditLog.js";
 import { Payment } from "../models/sql/Payment.model.js";
 import { splitFees } from "../../shared/pricing/processingCost.js";
 import cacheService from "../services/cacheService.js";
@@ -311,6 +313,72 @@ router.get("/debug-job/:jobId", protect, async (req: AuthRequest, res: Response)
       success: false,
       message: error.message,
     });
+  }
+});
+
+/**
+ * @route   GET /api/contracts/:id/evidence
+ * @desc    El expediente completo del contrato, para disputas y contracargos
+ * @access  Las partes del contrato, o administración
+ *
+ * Devuelve HTML imprimible por defecto y JSON con ?format=json. El HTML es lo
+ * que se manda a un banco ante un contracargo: el navegador lo imprime a PDF,
+ * que es lo que aceptan los emisores.
+ */
+router.get("/:id/evidence", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user.id.toString();
+    const contrato = await Contract.findByPk(req.params.id);
+
+    if (!contrato) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    // El expediente contiene datos personales de las dos partes y la
+    // conversación entera: sólo lo ven los involucrados y administración.
+    const esParte =
+      String((contrato as any).clientId) === userId ||
+      String((contrato as any).doerId) === userId;
+    const esAdmin = ['admin', 'super_admin', 'owner', 'support'].includes(
+      String(req.user.adminRole || ''),
+    );
+
+    if (!esParte && !esAdmin) {
+      res.status(403).json({ success: false, message: "No sos parte de este contrato" });
+      return;
+    }
+
+    const evidencia = await buildContractEvidence(req.params.id);
+    if (!evidencia) {
+      res.status(404).json({ success: false, message: "No se pudo armar el expediente" });
+      return;
+    }
+
+    await logAudit({
+      req,
+      action: 'contract_evidence_exported',
+      category: 'contract',
+      severity: getSeverityForAction('contract_evidence_exported'),
+      description: `Se exportó el expediente del contrato ${contrato.id}`,
+      targetModel: 'Contract',
+      targetId: contrato.id,
+    }).catch(() => { /* auditar no puede impedir la descarga */ });
+
+    if (String(req.query.format) === 'json') {
+      res.json({ success: true, data: evidencia });
+      return;
+    }
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="expediente-${contrato.id.slice(0, 8)}.html"`,
+    );
+    res.send(evidenceToHtml(evidencia));
+  } catch (error: any) {
+    console.error('Error armando el expediente:', error);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

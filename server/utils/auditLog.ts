@@ -129,6 +129,14 @@ export const ACTION_SEVERITIES: Record<string, "low" | "medium" | "high" | "crit
   "content_agent_enabled": "medium",
   "content_agent_disabled": "low",
 
+  // Descargar el expediente de un contrato expone datos personales de las dos
+  // partes y la conversación entera.
+  //
+  // Ojo: logAudit sale sin registrar nada cuando quien actúa no tiene rol
+  // administrativo, así que esto sólo deja rastro cuando lo descarga
+  // administración. Las descargas de las propias partes no quedan auditadas.
+  "contract_evidence_exported": "medium",
+
   // Verificación fiscal contra ARCA. Encenderla expone datos de terceros a la
   // app, así que queda registrado quién lo hizo.
   "arca_enabled": "medium",
