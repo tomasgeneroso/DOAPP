@@ -1195,9 +1195,28 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
     const Payment = (await import('../models/sql/Payment.model.js')).default;
     const payment = await Payment.findOne({ where: { contractId: id } });
 
-    const paymentAmount = contract.allocatedAmount
+    // Lo que efectivamente cobra el trabajador: su parte menos el costo de la
+    // pasarela, que es el cargo que absorbe él.
+    //
+    // Sin este descuento la pantalla le prometía una cifra y se le liquidaba
+    // otra: la cotización ya mostraba "recibís precio menos pasarela", pero al
+    // liberar se pagaba el precio completo y la diferencia la ponía DOAPP en
+    // cada contrato.
+    const parteBruta = contract.allocatedAmount
       ? parseFloat(contract.allocatedAmount.toString())
-      : contract.price;
+      : Number(contract.price);
+
+    const cobradoAlCliente = Number(contract.price) + Number(contract.commission || 0);
+    const { processingCost } = splitFees(
+      Number(contract.price),
+      Number(contract.commission || 0),
+      Math.max(0, cobradoAlCliente - Number(contract.price) - Number(contract.commission || 0)),
+    );
+
+    // En un contrato con varios trabajadores el costo se reparte proporcional a
+    // lo que le toca a cada uno, no entero a cada uno.
+    const proporcion = Number(contract.price) > 0 ? parteBruta / Number(contract.price) : 1;
+    const paymentAmount = Math.max(0, Math.round((parteBruta - processingCost * proporcion) * 100) / 100);
 
     if (payment) {
       payment.status = 'completed';

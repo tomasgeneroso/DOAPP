@@ -21,8 +21,37 @@ import { COMMISSION_RATES } from '../constants/membershipPricing.js';
  * 1.000 y 8%, son 12.500 pesos. Por debajo de ahi el recargo crece rapido.
  */
 
-/** Piso de la comision de la plataforma, en ARS. */
-export const MINIMUM_COMMISSION_ARS = 1000;
+/**
+ * Piso de la comision de la plataforma, en EUROS.
+ *
+ * En euros y no en pesos porque los costos de la app son en euros -- VPS,
+ * dominio, publicidad, Didit -- y un piso fijado en pesos se licua solo:
+ * 1.000 pesos en 2026 no son 1.000 pesos en 2027, y nadie se acuerda de
+ * revisarlo. Es la misma decision que ya se tomo con las membresias.
+ *
+ * EUR 1 es unas cuatro veces el costo marginal de un contrato (unos 450
+ * pesos), con margen para que el piso siga cubriendolo aunque el costo suba.
+ */
+export const MINIMUM_COMMISSION_EUR = 1;
+
+/**
+ * El piso convertido a pesos.
+ *
+ * Se pasa la cotizacion desde afuera porque este modulo es compartido con el
+ * cliente y el mobile, que no pueden consultar la API de cambio. El valor de
+ * respaldo sirve para que una pantalla pueda mostrar algo si la cotizacion no
+ * llego; el cobro real siempre usa la del dia.
+ */
+export function minimumCommissionArs(eurArs = 1800): number {
+  return Math.round(MINIMUM_COMMISSION_EUR * eurArs);
+}
+
+/**
+ * Compatibilidad: hay codigo que todavia lee una constante en pesos.
+ * Usa la cotizacion de respaldo, asi que sirve para validar y mostrar, no
+ * para calcular un cobro.
+ */
+export const MINIMUM_COMMISSION_ARS = minimumCommissionArs();
 
 /**
  * La comision mas alta que cobra la plataforma (plan FREE).
