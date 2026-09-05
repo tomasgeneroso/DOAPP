@@ -23,30 +23,36 @@ export const MEMBERSHIP_PRICES_EUR = {
 
 export type MembershipPlanKey = keyof typeof MEMBERSHIP_PRICES_EUR;
 
-/** Comisiones por plan, en porcentaje. */
+/**
+ * La comision es 10%, siempre.
+ *
+ * La paga el cliente y el cliente no tiene membresia, asi que no hay plan
+ * que la modifique. Las tasas por plan siguen declaradas porque el calculo
+ * las lee, pero hoy todas valen lo mismo a proposito: si en algun momento
+ * la membresia pasa a descontar comision, se cambian aca y el resto del
+ * sistema se entera solo.
+ *
+ * El valor de la membresia es la visibilidad -- promocion del perfil,
+ * insignia, prioridad en las busquedas, estadisticas -- no un descuento.
+ * Es lo unico que se puede vender de forma coherente mientras quien paga la
+ * comision sea el otro lado.
+ */
 export const COMMISSION_RATES = {
   free: 10,
-  pro: 5,
-  /**
-   * SUPER PRO ya no se vende. Se deja la tasa porque hay cuentas que lo tienen
-   * asignado -- el owner, y cualquiera durante la beta -- y quitarlo del mapa
-   * las dejaria sin tasa. Un plan que no se ofrece no es lo mismo que un plan
-   * que no existe.
-   */
-  super_pro: 3,
+  pro: 10,
+  super_pro: 10,
 } as const;
 
 /**
- * A partir de cuantos trabajos por mes conviene el plan pago.
+ * A partir de cuantos trabajos por mes se amortizaria el plan por comision.
  *
- * Sale de la cuenta, no de una promesa de marketing: la cuota se amortiza
- * cuando el ahorro de comision la supera.
+ * Hoy devuelve 0 siempre, porque todas las tasas son iguales y no hay ahorro
+ * de comision que amortizar. Se deja escrita la cuenta para el dia que la
+ * membresia si descuente: entonces empieza a dar un numero real sin tener
+ * que reescribirla.
  *
- *   trabajos = precio / ((tasaFree - tasaPro) x ticket)
- *
- * Con PRO a 10 EUR, 5 puntos de ahorro y un ticket de ARS 40.000, son unos 7
- * trabajos mensuales. Sirve para poder decirselo al trabajador en la pantalla
- * en vez de que lo tenga que calcular.
+ * Mientras tanto, la pantalla no deberia prometer un punto de equilibrio que
+ * no existe: el plan se vende por visibilidad.
  */
 export function breakEvenJobsPerMonth(
   eurArs: number,

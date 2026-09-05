@@ -1,4 +1,5 @@
 import { Router, Response } from "express";
+import { findContactInfo, contactBlockedMessage } from "../../shared/chat/contactFilter.js";
 import { protect, AuthRequest } from "../middleware/auth";
 import { Conversation } from "../models/sql/Conversation.model.js";
 import { ChatMessage } from "../models/sql/ChatMessage.model.js";
@@ -667,6 +668,29 @@ router.post(
           message: "No tienes permiso para enviar mensajes en esta conversación",
         });
         return;
+      }
+
+      /**
+       * No se intercambian teléfonos ni correos por acá.
+       *
+       * Arreglar por fuera de la plataforma deja a las dos partes sin pago
+       * protegido, sin sistema de disputas y sin respaldo. El que más pierde
+       * es el usuario, y casi nunca se da cuenta hasta que algo sale mal.
+       *
+       * Es fricción, no un muro: quien escriba su número en letras pasa igual.
+       * Alcanza, porque la mayoría de los desvíos no son deliberados.
+       */
+      if (content) {
+        const contactos = findContactInfo(String(content));
+        if (contactos.length > 0) {
+          res.status(422).json({
+            success: false,
+            code: 'CONTACT_INFO_BLOCKED',
+            message: contactBlockedMessage(contactos),
+            detected: contactos.map((c) => c.kind),
+          });
+          return;
+        }
       }
 
       const createdMessages: any[] = [];

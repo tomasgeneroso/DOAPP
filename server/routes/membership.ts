@@ -189,7 +189,8 @@ router.get("/pricing", async (req, res) => {
           currency: 'ARS',
           commissionRate: COMMISSION_RATES.pro,
           benefits: [
-            `Comisión del ${COMMISSION_RATES.pro}% en vez del ${COMMISSION_RATES.free}%`,
+            // El plan no descuenta comision: se vende por visibilidad.
+            `Comisión del ${COMMISSION_RATES.free}%, igual que el plan gratuito`,
             '7 días de promoción de tu perfil por mes, los que elijas',
             'Insignia de socio y prioridad en las búsquedas',
             '1 contrato mensual sin comisión',
@@ -207,11 +208,10 @@ router.get("/pricing", async (req, res) => {
           priceARS: superProPriceARS,
           priceEUR: SUPER_PRO_PRICE_EUR,
           currency: 'ARS',
-          commissionRate: 1,
+          commissionRate: COMMISSION_RATES.super_pro,
           benefits: [
             'Todos los beneficios de PRO',
-            '2 publicaciones mensuales sin comisión (0%)',
-            'Contratos adicionales: 1% de comisión',
+            '2 publicaciones mensuales sin comisión',
             'Estadísticas avanzadas de perfil',
             'Analytics de visitas y conversaciones',
             'Insights de contratos completados',
