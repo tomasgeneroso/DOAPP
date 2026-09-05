@@ -216,6 +216,11 @@ const STATEMENTS: Array<{ label: string; sql: string }> = [
     label: 'contracts.extension_payment_id',
     sql: `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS extension_payment_id UUID`,
   },
+  // Control diario del contrato.
+  {
+    label: 'contracts.daily_log',
+    sql: `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS daily_log JSONB NOT NULL DEFAULT '[]'::jsonb`,
+  },
 ];
 
 export async function ensureCriticalSchema(sequelize: Sequelize): Promise<void> {

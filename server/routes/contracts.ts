@@ -15,6 +15,7 @@ import { Op } from 'sequelize';
 import { calculateCommission } from "../services/commissionService.js";
 import { requireRole } from "../middleware/permissions.js";
 import { buildContractEvidence, evidenceToHtml } from "../services/contractEvidence.js";
+import { buildDailyLog, diasDelContrato } from "../services/dailyLog.js";
 import { logAudit, getSeverityForAction } from "../utils/auditLog.js";
 import { Payment } from "../models/sql/Payment.model.js";
 import { splitFees } from "../../shared/pricing/processingCost.js";
@@ -313,6 +314,100 @@ router.get("/debug-job/:jobId", protect, async (req: AuthRequest, res: Response)
       success: false,
       message: error.message,
     });
+  }
+});
+
+/**
+ * @route   GET /api/contracts/:id/daily-log
+ * @desc    La línea de control día por día del contrato
+ * @access  Las partes del contrato
+ */
+router.get("/:id/daily-log", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user.id.toString();
+    const contrato = await Contract.findByPk(req.params.id);
+    if (!contrato) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    const esCliente = String((contrato as any).clientId) === userId;
+    const esTrabajador = String((contrato as any).doerId) === userId;
+    if (!esCliente && !esTrabajador) {
+      res.status(403).json({ success: false, message: "No sos parte de este contrato" });
+      return;
+    }
+
+    res.json({ success: true, data: buildDailyLog(contrato, esCliente ? 'client' : 'worker') });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
+ * @route   POST /api/contracts/:id/daily-log
+ * @desc    Marcar o desmarcar un día como trabajado
+ * @access  Las partes del contrato
+ *
+ * Es un control pasivo: no mueve plata, no cambia estados y no pesa en la
+ * reputación. Lo único que hace es reiniciar el contador de inactividad y
+ * quedar como evidencia en el expediente.
+ */
+router.post("/:id/daily-log", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const userId = req.user.id.toString();
+    const { date, marked } = req.body as { date?: string; marked?: boolean };
+
+    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      res.status(400).json({ success: false, message: "Fecha inválida. Se espera AAAA-MM-DD." });
+      return;
+    }
+
+    const contrato = await Contract.findByPk(req.params.id);
+    if (!contrato) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    const esCliente = String((contrato as any).clientId) === userId;
+    const esTrabajador = String((contrato as any).doerId) === userId;
+    if (!esCliente && !esTrabajador) {
+      res.status(403).json({ success: false, message: "No sos parte de este contrato" });
+      return;
+    }
+
+    // Sólo días que pertenecen al contrato: marcar fuera del rango no
+    // significa nada y ensuciaría la evidencia.
+    const dias = diasDelContrato(contrato);
+    if (!dias.includes(date)) {
+      res.status(400).json({
+        success: false,
+        message: "Ese día no pertenece al período del contrato.",
+      });
+      return;
+    }
+
+    const log = [...((contrato as any).dailyLog || [])];
+    const i = log.findIndex((d: any) => d.date === date);
+    const fila = i >= 0 ? { ...log[i] } : { date, markedByWorkerAt: null, markedByClientAt: null };
+
+    const ahora = new Date().toISOString();
+    const campo = esCliente ? 'markedByClientAt' : 'markedByWorkerAt';
+    fila[campo] = marked === false ? null : ahora;
+
+    if (i >= 0) log[i] = fila; else log.push(fila);
+    log.sort((a: any, b: any) => a.date.localeCompare(b.date));
+
+    (contrato as any).dailyLog = log;
+    contrato.changed('dailyLog', true);
+    await contrato.save();
+
+    res.json({
+      success: true,
+      data: buildDailyLog(contrato, esCliente ? 'client' : 'worker'),
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

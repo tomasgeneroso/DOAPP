@@ -7,6 +7,7 @@ import { Dispute } from '../models/sql/Dispute.model.js';
 import { ChatMessage } from '../models/sql/ChatMessage.model.js';
 import { Conversation } from '../models/sql/Conversation.model.js';
 import { Op } from 'sequelize';
+import { buildDailyLog } from './dailyLog.js';
 
 /**
  * El expediente completo de un contrato, en un solo lugar.
@@ -43,6 +44,10 @@ export interface ContractEvidence {
     confirmoCliente: boolean;
     confirmoTrabajador: boolean;
     ampliaciones: any[];
+    /** Dias que las partes marcaron como trabajados. */
+    diasConfirmados: number;
+    diasMarcadosPorTrabajador: number;
+    diasTotales: number;
   };
   trabajo: {
     id: string;
@@ -178,6 +183,7 @@ export async function buildContractEvidence(contractId: string): Promise<Contrac
     faltantes.push('No se pudo leer la conversación.');
   }
 
+  const control = buildDailyLog(contrato, 'client');
   const job = (contrato as any).job;
 
   return {
@@ -197,6 +203,11 @@ export async function buildContractEvidence(contractId: string): Promise<Contrac
       confirmoCliente: Boolean((contrato as any).clientConfirmed),
       confirmoTrabajador: Boolean((contrato as any).doerConfirmed),
       ampliaciones: (contrato as any).extensionHistory || [],
+      // El control diario. En un contracargo pesa: un contrato donde el
+      // cliente marco doce dias como trabajados es dificil de desconocer.
+      diasConfirmados: control.confirmados,
+      diasMarcadosPorTrabajador: control.dias.filter((d) => d.marcoTrabajador).length,
+      diasTotales: control.total,
     },
     trabajo: job
       ? {
@@ -330,6 +341,10 @@ ${partes(e.trabajador, 'Trabajador')}
   ${fila('El cliente confirmó', si(e.contrato.confirmoCliente))}
   ${fila('El trabajador confirmó', si(e.contrato.confirmoTrabajador))}
   ${fila('Ampliaciones', String(e.contrato.ampliaciones.length))}
+  ${fila(
+    'Días marcados como trabajados',
+    `${e.contrato.diasConfirmados} confirmados por el cliente, de ${e.contrato.diasTotales} · ${e.contrato.diasMarcadosPorTrabajador} marcados por el trabajador`,
+  )}
 </table>
 
 <h2>Movimientos de dinero</h2>

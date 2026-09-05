@@ -44,6 +44,20 @@ export type ContractStatus =
 export type PaymentStatus = 'pending' | 'held' | 'released' | 'refunded' | 'completed' | 'escrow' | 'pending_payout';
 export type DeliveryStatus = 'pending' | 'in_progress' | 'completed' | 'approved' | 'rejected';
 
+/**
+ * Una marca de control de un dia del contrato.
+ *
+ * Se guarda la fecha como AAAA-MM-DD y no como timestamp: lo que se marca es
+ * el dia, no un instante, y asi dos zonas horarias no crean dos filas para el
+ * mismo dia de trabajo.
+ */
+interface DailyMark {
+  /** AAAA-MM-DD */
+  date: string;
+  markedByWorkerAt?: string | null;
+  markedByClientAt?: string | null;
+}
+
 interface Delivery {
   id?: string;
   description: string;
@@ -251,6 +265,30 @@ export class Contract extends Model {
   @AllowNull(false)
   @Column(DataType.JSONB)
   deliveries!: Delivery[];
+
+  /**
+   * Control diario del trabajo, dia por dia.
+   *
+   * Es opcional a proposito: nadie esta obligado a marcar nada. Sirve para dos
+   * cosas y ninguna es burocratica.
+   *
+   * Primero, frena la alerta de ausencia: cualquier marca reinicia el contador
+   * de inactividad, asi que dos partes que se estan entendiendo bien no reciben
+   * avisos que no necesitan.
+   *
+   * Segundo, es evidencia. Un contracargo donde el cliente marco doce dias como
+   * trabajados es muy dificil de sostener ante el emisor de la tarjeta.
+   *
+   * Si marca el trabajador queda pendiente de confirmacion; si marca el
+   * cliente queda confirmado, marque o no el trabajador. El cliente es quien
+   * recibe el servicio: su palabra alcanza.
+   *
+   * No influye en pagos, ni en disputas, ni en la reputacion.
+   */
+  @Default([])
+  @AllowNull(false)
+  @Column(DataType.JSONB)
+  dailyLog!: DailyMark[];
 
   // ============================================
   // NOTES & CANCELLATION
