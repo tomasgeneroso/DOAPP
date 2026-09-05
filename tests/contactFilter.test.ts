@@ -89,10 +89,19 @@ describe('lo que pasa pero queda marcado para revisar', () => {
     'el trabajo sale $40.000',
     'te cobro 15.000 pesos por el arreglo',
     'mi presupuesto es de ARS 1.250.000',
-  ])('un precio con formato de miles no se marca: %s', (texto) => {
+  ])('un precio real no se marca: %s', (texto) => {
+    // Cinco o siete digitos: ningun telefono argentino tiene ese largo. Es
+    // lo que impide que la lista se llene con cada negociacion de precio.
     const r = analyzeMessage(texto);
     expect(r.bloquear).toHaveLength(0);
     expect(r.revisar).toHaveLength(0);
+  });
+
+  it('un numero largo con formato de miles se marca igual', () => {
+    // Escribir el telefono con puntos es la forma tipica de evadir.
+    const r = analyzeMessage('te cobro 1.123.456.789');
+    expect(r.bloquear).toHaveLength(0);
+    expect(r.revisar.length).toBeGreaterThan(0);
   });
 
   it('un mensaje bloqueado no se marca ademas para revisar', () => {

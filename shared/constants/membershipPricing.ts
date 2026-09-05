@@ -18,8 +18,23 @@
  */
 
 export const MEMBERSHIP_PRICES_EUR = {
-  pro: 10,
+  pro: 7,
 } as const;
+
+/**
+ * Dias de promocion que incluye el plan.
+ *
+ * Menos que la cuota, y a proposito. Si el plan incluyera tantos dias como
+ * cuesta -- EUR 10 con 10 dias, por ejemplo -- el ingreso nuevo seria cero:
+ * al trabajador que igual iba a comprar esos dias se le cobraria lo mismo y
+ * encima se le regalarian insignia, prioridad y estadisticas. La membresia se
+ * comeria su propio producto.
+ *
+ * Con 3 dias sobre una cuota de 7, lo que se paga de mas son EUR 4 por los
+ * beneficios que no son promocion, y el que quiere mas dias los sigue
+ * comprando sueltos.
+ */
+export const MEMBERSHIP_PROMO_DAYS = 3;
 
 export type MembershipPlanKey = keyof typeof MEMBERSHIP_PRICES_EUR;
 

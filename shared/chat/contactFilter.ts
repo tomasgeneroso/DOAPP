@@ -134,15 +134,38 @@ export function analyzeMessage(texto: string): MessageAnalysis {
     // vuelve a levantar.
     if (encontrados.some((e) => e.kind === 'email' && e.text.includes(frag.trim()))) continue;
 
-    if (esPrecioODireccion(original, frag, m.index)) {
-      // El formato de miles es inequivocamente un precio: ni se marca.
-      if (!FORMATO_MILES.test(frag.trim())) {
-        sospechosos.push({ kind: 'telefono', text: frag.trim() });
-      }
-      continue;
-    }
+    if (esPrecioODireccion(original, frag, m.index)) continue;
 
     encontrados.push({ kind: 'telefono', text: frag.trim() });
+  }
+
+  /**
+   * Para marcar se usa una regla distinta y mas generosa que para bloquear.
+   *
+   * Bloquear tiene que ser conservador: frenar un mensaje legitimo le arruina
+   * la conversacion a alguien. Marcar no le cuesta nada a nadie -- el mensaje
+   * se envia igual y despues alguien lo mira -- asi que puede ser amplio.
+   *
+   * Concretamente: cualquier tira de digitos con separadores que sume entre 8 y
+   * 13 digitos. Eso atrapa "1.123.456.789", que escrito con puntos parece un
+   * precio y es la forma tipica de evadir el filtro, y que la expresion de
+   * telefono no reconoce porque su ultimo grupo tiene tres digitos.
+   *
+   * Y deja afuera los precios de verdad: "15.000" tiene cinco digitos, "1.250.000"
+   * tiene siete, y ningun telefono argentino tiene ese largo. Ese corte es lo
+   * unico que impide que esta lista se llene con cada negociacion de la
+   * plataforma y deje de servir.
+   */
+  const TIRA_LARGA = /[\d][\d\s.\-()]{6,}[\d]/g;
+  TIRA_LARGA.lastIndex = 0;
+  let t: RegExpExecArray | null;
+  while ((t = TIRA_LARGA.exec(original)) !== null) {
+    const frag = t[0].trim();
+    const n = digitos(frag);
+    if (n < 8 || n > 13) continue;
+    if (encontrados.some((e) => e.text.includes(frag) || frag.includes(e.text))) continue;
+    if (sospechosos.some((e) => e.text === frag)) continue;
+    sospechosos.push({ kind: 'telefono', text: frag });
   }
 
   return { bloquear: encontrados, revisar: sospechosos };

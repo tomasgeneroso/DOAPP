@@ -3,7 +3,7 @@ import { getEffectiveTier } from '../services/platformPhase.js';
 import { protect, AuthRequest } from "../middleware/auth.js";
 import membershipService from "../services/membershipService.js";
 import currencyExchange from "../services/currencyExchange.js";
-import { MEMBERSHIP_PRICES_EUR, COMMISSION_RATES } from "../../shared/constants/membershipPricing.js";
+import { MEMBERSHIP_PRICES_EUR, COMMISSION_RATES, MEMBERSHIP_PROMO_DAYS } from "../../shared/constants/membershipPricing.js";
 import { areMembershipsAvailable } from "../services/platformPhase.js";
 import { body, validationResult } from "express-validator";
 
@@ -191,7 +191,7 @@ router.get("/pricing", async (req, res) => {
           benefits: [
             // El plan no descuenta comision: se vende por visibilidad.
             `Comisión del ${COMMISSION_RATES.free}%, igual que el plan gratuito`,
-            '7 días de promoción de tu perfil por mes, los que elijas',
+            `${MEMBERSHIP_PROMO_DAYS} días de promoción de tu perfil por mes, los que elijas`,
             'Insignia de socio y prioridad en las búsquedas',
             '1 contrato mensual sin comisión',
             'Estadísticas de tu perfil: visitas y contactos',
