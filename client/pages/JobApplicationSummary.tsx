@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import WorkerNetAmount from "@/components/jobs/WorkerNetAmount";
 import { useTranslation, Trans } from 'react-i18next';
 import { useParams, useNavigate, Link, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
@@ -282,6 +283,11 @@ export default function JobApplicationSummary() {
                   </div>
                 </div>
               </div>
+
+              {/* Lo que va a cobrar de verdad. El precio de arriba es lo que
+                  ofrece el cliente; sin esto el trabajador cotiza sobre un
+                  número que no recibe y reclama cuando le llega menos. */}
+              <WorkerNetAmount jobId={job.id} className="mb-6" />
 
               {/* Dates Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">

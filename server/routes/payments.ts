@@ -1806,14 +1806,38 @@ router.get("/:paymentId/proofs", protect, async (req: AuthRequest, res: Response
  */
 router.get("/quote", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const price = Number((req.query as any).price);
+    /**
+     * Se puede pedir por precio o por trabajo, y la diferencia importa.
+     *
+     * Con `price` la comisión se calcula para quien pregunta: sirve cuando el
+     * que mira es el cliente que va a pagar.
+     *
+     * Con `jobId` se calcula para el DUEÑO del trabajo. Es lo que necesita el
+     * trabajador antes de postularse: cuánto le va a quedar depende del plan
+     * del cliente, no del suyo, así que preguntarlo con su propio id daría un
+     * número que no es el que va a cobrar.
+     */
+    const jobId = String((req.query as any).jobId || '');
+    let price = Number((req.query as any).price);
+    let quienPaga = req.user!.id;
+
+    if (jobId) {
+      const job = await Job.findByPk(jobId, { attributes: ['id', 'price', 'clientId'] });
+      if (!job) {
+        res.status(404).json({ success: false, message: "Trabajo no encontrado" });
+        return;
+      }
+      price = Number(job.price);
+      quienPaga = (job as any).clientId;
+    }
+
     if (!Number.isFinite(price) || price <= 0) {
       res.status(400).json({ success: false, message: "Precio invalido" });
       return;
     }
 
     const isFreeContract = String((req.query as any).isFreeContract || '') === 'true';
-    const c = await calculateCommission(req.user!.id, price, { isFreeContract });
+    const c = await calculateCommission(quienPaga, price, { isFreeContract });
     const phase = await getPhaseInfo();
     const split = splitFees(price, c.commission, c.vat);
 
