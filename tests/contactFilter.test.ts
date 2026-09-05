@@ -1,4 +1,4 @@
-import { findContactInfo, contactBlockedMessage } from '../shared/chat/contactFilter.js';
+import { findContactInfo, contactBlockedMessage, analyzeMessage } from '../shared/chat/contactFilter.js';
 
 /**
  * El riesgo de este filtro no es que se le escape un telefono: es que bloquee
@@ -69,5 +69,35 @@ describe('devuelve lo encontrado, no solo un si o un no', () => {
   it('no cuenta dos veces los digitos de un correo', () => {
     const r = findContactInfo('escribime a usuario12345678@gmail.com');
     expect(r.filter((x) => x.kind === 'telefono')).toHaveLength(0);
+  });
+});
+
+describe('lo que pasa pero queda marcado para revisar', () => {
+  // La proteccion contra falsos positivos es tambien el hueco por donde se
+  // evade: "cobro" hace que el filtro lea el numero como plata. No se puede
+  // cerrar sin bloquear precios legitimos, asi que se deja pasar y se marca.
+  it.each([
+    'te cobro 1123456789',
+    'el precio es 1145678901',
+  ])('marca sin bloquear: %s', (texto) => {
+    const r = analyzeMessage(texto);
+    expect(r.bloquear).toHaveLength(0);
+    expect(r.revisar.length).toBeGreaterThan(0);
+  });
+
+  it.each([
+    'el trabajo sale $40.000',
+    'te cobro 15.000 pesos por el arreglo',
+    'mi presupuesto es de ARS 1.250.000',
+  ])('un precio con formato de miles no se marca: %s', (texto) => {
+    const r = analyzeMessage(texto);
+    expect(r.bloquear).toHaveLength(0);
+    expect(r.revisar).toHaveLength(0);
+  });
+
+  it('un mensaje bloqueado no se marca ademas para revisar', () => {
+    const r = analyzeMessage('mi numero es 11 2345 6789');
+    expect(r.bloquear.length).toBeGreaterThan(0);
+    expect(r.revisar).toHaveLength(0);
   });
 });

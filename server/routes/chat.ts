@@ -1,5 +1,5 @@
 import { Router, Response } from "express";
-import { findContactInfo, contactBlockedMessage } from "../../shared/chat/contactFilter.js";
+import { analyzeMessage, contactBlockedMessage } from "../../shared/chat/contactFilter.js";
 import { protect, AuthRequest } from "../middleware/auth";
 import { Conversation } from "../models/sql/Conversation.model.js";
 import { ChatMessage } from "../models/sql/ChatMessage.model.js";
@@ -680,17 +680,16 @@ router.post(
        * Es fricción, no un muro: quien escriba su número en letras pasa igual.
        * Alcanza, porque la mayoría de los desvíos no son deliberados.
        */
-      if (content) {
-        const contactos = findContactInfo(String(content));
-        if (contactos.length > 0) {
-          res.status(422).json({
-            success: false,
-            code: 'CONTACT_INFO_BLOCKED',
-            message: contactBlockedMessage(contactos),
-            detected: contactos.map((c) => c.kind),
-          });
-          return;
-        }
+      const analisis = content ? analyzeMessage(String(content)) : { bloquear: [], revisar: [] };
+
+      if (analisis.bloquear.length > 0) {
+        res.status(422).json({
+          success: false,
+          code: 'CONTACT_INFO_BLOCKED',
+          message: contactBlockedMessage(analisis.bloquear),
+          detected: analisis.bloquear.map((c) => c.kind),
+        });
+        return;
       }
 
       const createdMessages: any[] = [];
@@ -742,6 +741,17 @@ router.post(
           conversationId,
           senderId: userId,
           message: content,
+          // Un numero con forma de telefono que el filtro dejo pasar por el
+          // contexto ("te cobro 1123456789"). El mensaje se envia normal y
+          // quien escribe no se entera: queda para que administracion mire.
+          ...(analisis.revisar.length > 0
+            ? {
+                metadata: {
+                  posibleContacto: analisis.revisar.map((c) => c.text),
+                  marcadoEn: new Date().toISOString(),
+                },
+              }
+            : {}),
         });
         createdMessages.push(message);
       } else {

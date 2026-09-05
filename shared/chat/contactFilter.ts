@@ -87,9 +87,32 @@ function digitos(s: string): number {
  * decir por que es peor que no tener filtro.
  */
 export function findContactInfo(texto: string): ContactMatch[] {
+  return analyzeMessage(texto).bloquear;
+}
+
+export interface MessageAnalysis {
+  /** Datos de contacto claros: el mensaje no se envia. */
+  bloquear: ContactMatch[];
+  /**
+   * Numeros con forma de telefono que se dejaron pasar por el contexto.
+   *
+   * Es la contracara de la proteccion contra falsos positivos: el que quiere
+   * evadir escribe "te cobro 1123456789" y pasa, porque "cobro" hace que el
+   * filtro lo lea como plata. No se puede cerrar sin bloquear precios
+   * legitimos, que es peor.
+   *
+   * Entonces el mensaje se envia igual -- el usuario no se entera de nada --
+   * pero queda marcado para que administracion lo revise. Un falso positivo
+   * acá no le cuesta nada a nadie: sólo mirar.
+   */
+  revisar: ContactMatch[];
+}
+
+export function analyzeMessage(texto: string): MessageAnalysis {
   const encontrados: ContactMatch[] = [];
+  const sospechosos: ContactMatch[] = [];
   const original = String(texto || '');
-  if (!original.trim()) return encontrados;
+  if (!original.trim()) return { bloquear: encontrados, revisar: sospechosos };
 
   for (const re of [EMAIL, EMAIL_HABLADO]) {
     re.lastIndex = 0;
@@ -107,15 +130,22 @@ export function findContactInfo(texto: string): ContactMatch[] {
 
     // Menos de 8 digitos no es un telefono argentino; mas de 13 tampoco.
     if (n < 8 || n > 13) continue;
-    if (esPrecioODireccion(original, frag, m.index)) continue;
     // Un correo ya detectado puede contener digitos que el regex de telefono
     // vuelve a levantar.
     if (encontrados.some((e) => e.kind === 'email' && e.text.includes(frag.trim()))) continue;
 
+    if (esPrecioODireccion(original, frag, m.index)) {
+      // El formato de miles es inequivocamente un precio: ni se marca.
+      if (!FORMATO_MILES.test(frag.trim())) {
+        sospechosos.push({ kind: 'telefono', text: frag.trim() });
+      }
+      continue;
+    }
+
     encontrados.push({ kind: 'telefono', text: frag.trim() });
   }
 
-  return encontrados;
+  return { bloquear: encontrados, revisar: sospechosos };
 }
 
 /** El mensaje que se le muestra a quien intento mandar un contacto. */
