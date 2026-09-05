@@ -451,6 +451,43 @@ export class Job extends Model {
   // PUBLICATION PAYMENT
   // ============================================
 
+  /**
+   * Como se define el precio del trabajo.
+   *
+   *   'fixed'  el cliente pone un monto y lo paga al publicar. Es un techo:
+   *            si el trabajador cotiza mas, hay que pagar la diferencia para
+   *            contratarlo.
+   *   'quote'  "a cotizar". No se paga nada al publicar; se paga al aceptar
+   *            una cotizacion.
+   *
+   * La diferencia importa porque cambia cuando entra la plata. Un trabajo 'quote'
+   * ocupa lugar en el muro sin que nadie haya pagado, y por eso se pausa solo si
+   * no consigue cotizacion aceptada.
+   */
+  @Default('fixed')
+  @AllowNull(false)
+  @Column(DataType.STRING(10))
+  pricingMode!: 'fixed' | 'quote';
+
+  /**
+   * Cuando se pauso por no conseguir cotizacion aceptada.
+   *
+   * Se guarda la fecha y no un booleano porque el cliente puede renovarlo: sin
+   * la fecha no se sabe si la pausa es de hoy o de hace un mes.
+   */
+  @Column(DataType.DATE)
+  pausedForInactivityAt?: Date;
+
+  /**
+   * Cuando el cliente reanudo la publicacion.
+   *
+   * El contador de dias habiles se mide desde acá y no desde la publicacion:
+   * sin esto un trabajo reanudado se volveria a pausar al dia siguiente y el
+   * boton de reanudar no serviria para nada.
+   */
+  @Column(DataType.DATE)
+  resumedAt?: Date;
+
   @Column(DataType.UUID)
   publicationPaymentId?: string;
 

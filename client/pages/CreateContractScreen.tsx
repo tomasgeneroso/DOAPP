@@ -195,7 +195,10 @@ export default function CreateContractScreen() {
     submitData.append("title", formDataFromForm.get("title") as string);
     submitData.append("summary", formDataFromForm.get("summary") as string);
     submitData.append("description", formDataFromForm.get("description") as string);
-    submitData.append("price", formDataFromForm.get("budget") as string);
+    // El backend necesita saber el modo, no deducirlo de un precio vacío: de eso
+    // depende si se cobra al publicar o al aceptar la cotización.
+    submitData.append("pricingMode", isQuotable ? "quote" : "fixed");
+    submitData.append("price", isQuotable ? "0" : ((formDataFromForm.get("budget") as string) || "0"));
     submitData.append("category", selectedCategory);
     submitData.append("tags", JSON.stringify(selectedTags));
     submitData.append("allowCounterOffers", String(allowCounterOffers));

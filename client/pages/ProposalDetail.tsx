@@ -155,6 +155,19 @@ export default function ProposalDetail() {
       });
 
       const data = await response.json();
+
+      // 402: la cotización supera lo pagado (o se publicó "a cotizar" y no se
+      // pagó nada). Se manda a pagar la diferencia en vez de mostrar un error:
+      // no hay nada que corregir, sólo falta la plata.
+      if (response.status === 402 && data.requierePago) {
+        const l = data.liquidacion || {};
+        navigate(
+          `/payment/quote?jobId=${proposal.job?._id || proposal.job?.id || ''}` +
+            `&proposalId=${proposal._id}&amount=${l.totalACobrar ?? 0}`,
+        );
+        return;
+      }
+
       if (data.success) {
         if (data.contractId) {
           navigate(`/contracts/${data.contractId}/summary`);

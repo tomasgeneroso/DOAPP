@@ -32,6 +32,7 @@ import { startBlogDraftGenerationJob } from "./jobs/generateBlogDrafts.js";
 import { startAutoCancelExpiredJobsJob } from "./jobs/autoCancelExpiredJobs.js";
 import { startJobReminderJob } from "./jobs/jobReminders.js";
 import { startSuspendFlexibleEndDateJob } from "./jobs/suspendFlexibleEndDateJobs.js";
+import { startPauseStaleJobs } from "./jobs/pauseStaleJobs.js";
 import { startResetReferralDiscountsJob } from "./jobs/resetReferralDiscounts.js";
 import { startAutoConfirmContractsJob } from "./jobs/autoConfirmContracts.js";
 import { startConfirmationReminderJob } from "./jobs/sendConfirmationReminders.js";
@@ -445,6 +446,7 @@ startJobReminderJob();
 
 // Initialize suspend jobs with flexible end date (24h before start without end date)
 startSuspendFlexibleEndDateJob();
+startPauseStaleJobs();
 
 // Initialize reset referral discounts (daily at midnight)
 startResetReferralDiscountsJob();

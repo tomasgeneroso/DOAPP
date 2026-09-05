@@ -94,6 +94,11 @@ const STATEMENTS: Array<{ label: string; sql: string }> = [
   // --- jobs.allow_counter_offers ---
   { label: 'jobs.allow_counter_offers', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS allow_counter_offers BOOLEAN NOT NULL DEFAULT true` },
 
+  // --- publicacion a cotizar y pausa por inactividad ---
+  { label: 'jobs.pricing_mode', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS pricing_mode VARCHAR(10) NOT NULL DEFAULT 'fixed'` },
+  { label: 'jobs.paused_for_inactivity_at', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS paused_for_inactivity_at TIMESTAMPTZ` },
+  { label: 'jobs.resumed_at', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS resumed_at TIMESTAMPTZ` },
+
   // --- payment_proofs classification / provenance (notas de comprobante) ---
   { label: 'payment_proofs.kind', sql: `ALTER TABLE payment_proofs ADD COLUMN IF NOT EXISTS kind VARCHAR(32) NOT NULL DEFAULT 'client_receipt'` },
   { label: 'payment_proofs.sequence', sql: `ALTER TABLE payment_proofs ADD COLUMN IF NOT EXISTS sequence INTEGER` },

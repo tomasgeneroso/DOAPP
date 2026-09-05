@@ -11,6 +11,7 @@ import { Notification } from "../models/sql/Notification.model.js";
 import { protect, requireKyc } from "../middleware/auth.js";
 import { requirePostWorkRating } from "../middleware/postWorkRating.js";
 import { MINIMUM_JOB_AMOUNT_ARS } from "../../shared/pricing/minimums.js";
+
 import { uploadProposalAttachments, getFileUrl } from "../middleware/upload.js";
 import type { AuthRequest } from "../types/index.js";
 import emailService from "../services/email.js";
@@ -20,6 +21,8 @@ import { Op, Sequelize } from 'sequelize';
 import cacheService from "../services/cacheService.js";
 import { sequelize } from "../config/database.js";
 import { logger } from "../services/logger.js";
+import { settleQuote, acreditarSaldo } from "../services/quotePayment.js";
+
 
 const router = express.Router();
 
@@ -807,6 +810,56 @@ router.put("/:id/approve",
         message: "Este trabajador ya fue seleccionado para este trabajo",
       });
       return;
+    }
+
+    // ============================================
+    // LIQUIDACIÓN DE LA COTIZACIÓN
+    // ============================================
+    // El precio publicado es indicativo. Recién acá se sabe el precio real, y
+    // hay que emparejar lo que el cliente pagó con lo que se acordó.
+    //
+    // Esta verificación va ANTES de cualquier mutación a propósito: si falta
+    // plata, la aprobación no puede quedar a medias con el trabajador ya
+    // agregado a selectedWorkers y sin contrato.
+    const cotizado = Number((proposal as any).proposedPrice) || Number(job.price) || 0;
+
+    // El mínimo se controla acá y no al publicar, porque un trabajo "a cotizar"
+    // se publica sin precio: éste es el primer momento en que hay un monto real.
+    if (cotizado < MINIMUM_JOB_AMOUNT_ARS) {
+      res.status(400).json({
+        success: false,
+        message: `El monto mínimo de un trabajo es $${MINIMUM_JOB_AMOUNT_ARS.toLocaleString('es-AR')} ARS y la cotización es de $${cotizado.toLocaleString('es-AR')}.`,
+      });
+      return;
+    }
+
+    const liquidacion = await settleQuote(job, cotizado);
+
+    if (!liquidacion.listoParaContratar) {
+      res.status(402).json({
+        success: false,
+        message:
+          liquidacion.yaPagado > 0
+            ? `La cotización supera lo que pagaste. Falta abonar $${liquidacion.aPagar.toLocaleString('es-AR')} más comisión para poder contratar.`
+            : `Para contratar hay que abonar $${liquidacion.aPagar.toLocaleString('es-AR')} más comisión.`,
+        requierePago: true,
+        liquidacion,
+      });
+      return;
+    }
+
+    // Cotizó por menos de lo pagado: la diferencia va al saldo del cliente.
+    //
+    // No se devuelve a la tarjeta porque un reembolso parcial cuesta una
+    // operación en la pasarela y puede fallar según el medio de pago. El saldo
+    // es inmediato y el cliente lo retira cuando quiera.
+    if (liquidacion.aFavor > 0) {
+      await acreditarSaldo(
+        job.clientId,
+        liquidacion.aFavor,
+        `Diferencia a favor: publicaste por $${liquidacion.yaPagado.toLocaleString('es-AR')} y la cotización aceptada fue de $${liquidacion.acordado.toLocaleString('es-AR')}.`,
+        { relatedModel: 'Job', relatedId: job.id },
+      );
     }
 
     // Set proposal status (will save later after contract creation to avoid inconsistency)

@@ -848,7 +848,12 @@ router.post(
     body("title").trim().notEmpty().withMessage("El título es requerido"),
     body("summary").trim().notEmpty().withMessage("El resumen es requerido"),
     body("description").trim().notEmpty().withMessage("La descripción es requerida"),
-    body("price").isNumeric().withMessage("El precio debe ser un número")
+    // El precio es opcional cuando se publica "a cotizar": ahí no hay monto que
+    // validar todavía. El mínimo se controla igual, pero recién al aceptar la
+    // cotización, que es cuando existe un precio real.
+    body("price")
+      .if((_v: any, { req }: any) => req.body?.pricingMode !== 'quote')
+      .isNumeric().withMessage("El precio debe ser un número")
       .custom((value) => {
         const num = Number(value);
         if (num < MINIMUM_JOB_AMOUNT_ARS) throw new Error(`El precio mínimo es $${MINIMUM_JOB_AMOUNT_ARS.toLocaleString('es-AR')} ARS`);
@@ -896,7 +901,15 @@ router.post(
       // KYC gate: without a verified identity a job can be CREATED but not
       // PUBLISHED — it stays a draft, no free contract is consumed.
       const identityVerified = !!(req.user as any).dniVerified;
-      const willPublish = canPublishForFree && identityVerified;
+
+      // "A cotizar": el cliente no fija precio y no paga nada al publicar. El
+      // precio real aparece cuando un trabajador cotiza, y se cobra al aceptar
+      // esa cotizacion. Publica sin pasar por el pago, pero sigue necesitando
+      // identidad verificada como cualquier publicacion.
+      const pricingMode: 'fixed' | 'quote' =
+        req.body.pricingMode === 'quote' ? 'quote' : 'fixed';
+
+      const willPublish = (canPublishForFree || pricingMode === 'quote') && identityVerified;
 
       // Process uploaded images
       const uploadedFiles = req.files as Express.Multer.File[];
@@ -993,7 +1006,7 @@ router.post(
         title: req.body.title,
         summary: req.body.summary,
         description: req.body.description,
-        price: Number(req.body.price),
+        price: pricingMode === 'quote' ? 0 : Number(req.body.price),
         category: req.body.category,
         tags: tags || [],
         location: req.body.location,
@@ -1011,8 +1024,12 @@ router.post(
         remoteOk: req.body.remoteOk === 'true',
         images: imageUrls,
         clientId: req.user.id, // Sequelize uses camelCase foreign keys
+        pricingMode,
         status: willPublish ? "open" : "draft", // Publish only if free-eligible AND KYC-verified
-        publicationPaid: willPublish, // Free contracts don't need payment
+        // Un trabajo "a cotizar" publica sin pagar, pero no esta pagado: la
+        // liquidacion al aceptar la cotizacion se apoya en este campo para
+        // saber cuanto cobrar, y marcarlo en true le regalaria el trabajo.
+        publicationPaid: willPublish && pricingMode === 'fixed',
         publicationAmount: 0, // Will be calculated if payment needed
         maxWorkers, // New: support for multiple workers (1-5)
         selectedWorkers: [], // Initialize empty array
@@ -2404,6 +2421,10 @@ router.patch("/:id/resume", protect, async (req: AuthRequest, res: Response): Pr
     // Reanudar el trabajo
     job.status = "open";
     (job as any).pausedAt = null;
+    // Se limpia la marca de pausa por inactividad y arranca de nuevo el
+    // contador: si no, el cron la volveria a pausar en la proxima corrida.
+    (job as any).pausedForInactivityAt = null;
+    (job as any).resumedAt = new Date();
     await job.save();
 
     // Notificar actualizacion en tiempo real
