@@ -155,8 +155,17 @@ export default function TermsAndConditions() {
                 <p className="text-slate-600 dark:text-slate-300 mb-3">
                   {t('termsPage.s6p2', '6.2. La aceptación del Trabajador y del Cliente genera un contrato digital vinculante entre ambos.')}
                 </p>
-                <p className="text-slate-600 dark:text-slate-300">
+                <p className="text-slate-600 dark:text-slate-300 mb-3">
                   {t('termsPage.s6p3', '6.3. El sistema requiere confirmación bilateral de finalización para la liberación de fondos.')}
+                </p>
+                <p id="s6p4" className="text-slate-600 dark:text-slate-300 mb-3 scroll-mt-24">
+                  <Trans i18nKey="termsPage.s6p4" components={{ b: <strong /> }} defaults="6.4. <b>El precio publicado es el precio del trabajo.</b> Cuando el Cliente publica indicando un monto, ése es el precio acordado y es el que se cobra, salvo que un Trabajador presente una cotización por un importe distinto y el Cliente decida aceptarla. Cuando el Cliente publica &quot;a cotizar&quot;, no existe precio hasta que se acepta una cotización." />
+                </p>
+                <p id="s6p5" className="text-slate-600 dark:text-slate-300 mb-3 scroll-mt-24">
+                  <Trans i18nKey="termsPage.s6p5" components={{ b: <strong /> }} defaults="6.5. <b>La aceptación de una cotización requiere el pago previo.</b> El Trabajador queda seleccionado y el contrato se genera únicamente después de que el pago se acredite. Si la cotización aceptada supera lo ya abonado en la publicación, el Cliente debe abonar la diferencia junto con la comisión correspondiente antes de que la selección tenga efecto. Mientras el pago no se acredite, la cotización permanece disponible y el Trabajador no queda comprometido." />
+                </p>
+                <p id="s6p6" className="text-slate-600 dark:text-slate-300 scroll-mt-24">
+                  <Trans i18nKey="termsPage.s6p6" components={{ b: <strong /> }} defaults="6.6. <b>Publicaciones sin cotización aceptada.</b> Las publicaciones &quot;a cotizar&quot; que no obtengan una cotización aceptada dentro de los 10 (diez) días hábiles desde su publicación o desde su última reanudación serán pausadas automáticamente. La pausa no cancela la publicación ni elimina las cotizaciones recibidas: el Cliente puede reanudarla en cualquier momento y el plazo se computa nuevamente desde la reanudación. <b>Las publicaciones cuyo precio fue abonado al publicarse no se pausan por este motivo</b>, y permanecen disponibles mientras el Cliente no las cancele." />
                 </p>
               </section>
 
@@ -207,8 +216,14 @@ export default function TermsAndConditions() {
                 <p className="text-slate-600 dark:text-slate-300 mb-3">
                   <Trans i18nKey="termsPage.s7p6" components={{ b: <strong /> }} defaults="7.6. <b>Liberación automática por ausencia del Cliente:</b> Si un trabajo finaliza (fecha de vencimiento alcanzada) y el Cliente no confirma la recepción del servicio dentro de las 2 (dos) horas siguientes, el pago retenido en custodia será liberado automáticamente a los Trabajadores asignados. La comisión de la Plataforma correspondiente al plan del Cliente se retiene en todos los casos. El Cliente recibirá notificaciones previas y durante este proceso. Esta cláusula no aplica si existe una disputa activa sobre el contrato." />
                 </p>
-                <p className="text-slate-600 dark:text-slate-300">
+                <p className="text-slate-600 dark:text-slate-300 mb-3">
                   {t('termsPage.s7p7', '7.7. Los Trabajadores serán notificados antes del inicio del trabajo, durante su ejecución y al momento de la liberación del pago. En caso de ausencia del Cliente conforme al punto 7.6, los Trabajadores recibirán aviso inmediato por email y notificación en la Plataforma.')}
+                </p>
+                <p id="s7p8" className="text-slate-600 dark:text-slate-300 mb-3 scroll-mt-24">
+                  <Trans i18nKey="termsPage.s7p8" components={{ b: <strong /> }} defaults="7.8. <b>Monto mínimo de contratación.</b> El monto mínimo de un trabajo es de $18.000 ARS. Este mínimo no es una tarifa: surge de que cada contrato tiene un costo fijo para la Plataforma —procesamiento del pago, custodia de fondos, verificación de identidad y atención de disputas— que no disminuye cuando el importe del trabajo es menor. Por debajo de ese monto, la comisión no alcanza a cubrir ese costo y el contrato no puede sostenerse. El mínimo se verifica al aceptar una cotización, que es el momento en que existe un precio definitivo; una publicación &quot;a cotizar&quot; puede crearse sin precio." />
+                </p>
+                <p id="s7p9" className="text-slate-600 dark:text-slate-300 scroll-mt-24">
+                  <Trans i18nKey="termsPage.s7p9" components={{ b: <strong /> }} defaults="7.9. <b>Saldo a favor por cotización menor al precio publicado.</b> Si el Cliente abonó el precio publicado y luego acepta una cotización por un importe menor, la diferencia se acredita como saldo a favor dentro de la Plataforma. Ese saldo puede utilizarse sin costo alguno en cualquier publicación o contratación posterior. El Cliente también puede solicitar su transferencia a una cuenta bancaria propia; en ese caso, <b>el costo de procesamiento que cobra la pasarela de pago por la operación se descuenta del importe transferido</b>, dado que se trata de una devolución de dinero ya procesado y la Plataforma no percibe comisión alguna sobre esa diferencia. El importe del costo se informa antes de confirmar la solicitud. Si el Cliente no acepta ese descuento, el saldo permanece disponible en la Plataforma por tiempo indeterminado." />
                 </p>
               </section>
 

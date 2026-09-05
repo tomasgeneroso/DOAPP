@@ -206,6 +206,72 @@ async function handlePaymentWebhook(data: any, ip: string) {
 async function handleApprovedPayment(payment: any, metadata: any) {
   const { Job } = await import('../models/sql/Job.model.js');
 
+  // ============================================
+  // ACEPTACIÓN DE COTIZACIÓN
+  // ============================================
+  // Acá se selecciona al trabajador, y recién acá: la plata ya está acreditada.
+  // El contrato que se crea sigue pasando por la aprobación del administrador
+  // como cualquier otro, así que esto no saltea ningún control -- sólo asegura
+  // que nadie quede comprometido antes de que el pago exista.
+  const infoCotizacion = payment.metadata?.tipo === 'aceptacion_cotizacion' ? payment.metadata : null;
+
+  if (infoCotizacion) {
+    payment.status = 'pending_verification';
+    payment.mercadopagoVerifiedAt = new Date();
+    await payment.save();
+
+    const { confirmarPagoDeCotizacion } = await import('../services/quotePayment.js');
+    const r = await confirmarPagoDeCotizacion(
+      infoCotizacion.proposalId,
+      Number(infoCotizacion.montoAcordado) || 0,
+    );
+
+    if (!r.ok) {
+      // No se puede reintentar en silencio: la plata está cobrada y el
+      // trabajador no quedó seleccionado. Tiene que verlo un humano.
+      logger.payment('ERROR', `Pago de cotización acreditado pero la aprobación falló: ${r.motivo}`, {
+        paymentId: payment.id?.toString(),
+        data: { proposalId: infoCotizacion.proposalId, motivo: r.motivo },
+        userId: payment.payerId?.toString(),
+      });
+
+      const admins = await User.findAll({
+        where: { role: { [Op.in]: ['admin', 'super_admin', 'owner'] } },
+      });
+      for (const admin of admins) {
+        await Notification.create({
+          recipientId: admin.id,
+          type: 'error',
+          category: 'admin',
+          title: 'Cotización pagada sin contrato',
+          message: `Se acreditó un pago de $${payment.amount} ARS por una cotización pero no se pudo crear el contrato: ${r.motivo}`,
+          relatedModel: 'Payment',
+          relatedId: payment.id,
+          sentVia: ['in_app'],
+        });
+      }
+      return;
+    }
+
+    // El trabajador ve el desenlace en vivo, sin recargar.
+    if (payment.recipientId) {
+      const { socketService } = await import('../index.js');
+      socketService.notifyUser(payment.recipientId.toString(), 'quote:accepted', {
+        proposalId: infoCotizacion.proposalId,
+        jobId: infoCotizacion.jobId,
+        contractId: r.contractId,
+        estado: 'pagado_y_aceptado',
+      });
+    }
+
+    logger.payment('SUCCESS', `Cotización pagada y aceptada`, {
+      paymentId: payment.id?.toString(),
+      data: { proposalId: infoCotizacion.proposalId, contractId: r.contractId },
+      userId: payment.payerId?.toString(),
+    });
+    return;
+  }
+
   // Check if it's a job publication payment
   if (metadata?.type === 'job_publication' || payment.paymentType === 'job_publication') {
     // *** CAMBIO CRÍTICO: No auto-aprobar, esperar verificación del admin ***

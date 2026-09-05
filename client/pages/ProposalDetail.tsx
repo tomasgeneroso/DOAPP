@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { useAuth } from "../hooks/useAuth";
+import { useSocket } from "../hooks/useSocket";
 import {
   ArrowLeft,
   FileText,
@@ -67,9 +68,60 @@ export default function ProposalDetail() {
   // Replaces native confirm()/alert()/prompt()
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmAcceptOpen, setConfirmAcceptOpen] = useState(false);
+  /** Desglose de lo que falta pagar para poder aceptar. Null = no falta nada. */
+  const [liquidacion, setLiquidacion] = useState<any>(null);
+  /** Estado en vivo de la aceptación, tal como lo ve el trabajador. */
+  const [faseCotizacion, setFaseCotizacion] = useState<'pagando' | 'aceptada' | null>(null);
+
+  /**
+   * Manda a pagar la cotización.
+   *
+   * El trabajador queda seleccionado cuando el pago se acredita, no al volver
+   * de la pasarela: si el contrato se creara al regresar, un pago abandonado a
+   * mitad de camino dejaría al trabajador comprometido sin que nadie pagara.
+   */
+  const irAPagarCotizacion = async () => {
+    if (!proposal || !token) return;
+    setActionLoading(true);
+    try {
+      const pago = await fetch(`/api/payments/quote/${proposal._id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      });
+      const pagoData = await pago.json();
+      if (pagoData.success && pagoData.paymentUrl) {
+        window.location.href = pagoData.paymentUrl;
+        return;
+      }
+      setLiquidacion(null);
+      setNotice(pagoData.message || t('proposals.errorPayment', 'No se pudo iniciar el pago'));
+    } catch {
+      setLiquidacion(null);
+      setNotice(t('proposals.errorProcessing', 'Error al procesar la solicitud'));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const pesos = (n: number) => `$${Number(n || 0).toLocaleString('es-AR')}`;
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   const { token } = useAuth();
+  const { registerQuoteStatusHandler } = useSocket();
+
+  /**
+   * El trabajador ve el avance sin recargar.
+   *
+   * Se filtra por propuesta porque un trabajador puede tener varias abiertas y
+   * el evento llega a su usuario, no a esta pantalla.
+   */
+  useEffect(() => {
+    registerQuoteStatusHandler((data: any) => {
+      if (!id || data?.proposalId !== id) return;
+      setFaseCotizacion(data.fase);
+      if (data.fase === 'aceptada') loadProposal();
+    });
+  }, [id, registerQuoteStatusHandler]);
 
   useEffect(() => {
     if (id) {
@@ -157,14 +209,15 @@ export default function ProposalDetail() {
       const data = await response.json();
 
       // 402: la cotización supera lo pagado (o se publicó "a cotizar" y no se
-      // pagó nada). Se manda a pagar la diferencia en vez de mostrar un error:
-      // no hay nada que corregir, sólo falta la plata.
+      // pagó nada). Se manda a pagar en vez de mostrar un error: no hay nada
+      // que corregir, sólo falta la plata.
+      //
+      // El trabajador queda seleccionado cuando el pago se acredita, no acá.
+      // Es el webhook el que crea el contrato: si se creara al volver de la
+      // pasarela, un pago abandonado a mitad de camino dejaría al trabajador
+      // comprometido con un contrato que nadie pagó.
       if (response.status === 402 && data.requierePago) {
-        const l = data.liquidacion || {};
-        navigate(
-          `/payment/quote?jobId=${proposal.job?._id || proposal.job?.id || ''}` +
-            `&proposalId=${proposal._id}&amount=${l.totalACobrar ?? 0}`,
-        );
+        setLiquidacion(data.liquidacion || null);
         return;
       }
 
@@ -272,6 +325,30 @@ export default function ProposalDetail() {
             <ArrowLeft className="h-5 w-5" />
             Volver
           </button>
+
+          {/* Avance de la aceptación, en vivo. Sólo aparece cuando hay algo
+              que contar: el trabajador necesita saber que alguien está pagando
+              su cotización mientras ocurre, no cuando ya terminó. */}
+          {faseCotizacion === 'pagando' && (
+            <div className="mb-6 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-4 py-3">
+              <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
+                El cliente está abonando tu cotización
+              </p>
+              <p className="text-xs text-amber-800 dark:text-amber-300 mt-1">
+                Quedás seleccionado cuando el pago se acredite. Te avisamos acá mismo.
+              </p>
+            </div>
+          )}
+          {faseCotizacion === 'aceptada' && (
+            <div className="mb-6 rounded-lg border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 px-4 py-3">
+              <p className="text-sm font-medium text-emerald-900 dark:text-emerald-200">
+                Tu cotización fue pagada y aceptada
+              </p>
+              <p className="text-xs text-emerald-800 dark:text-emerald-300 mt-1">
+                El contrato ya está creado y queda a la espera de la aprobación administrativa.
+              </p>
+            </div>
+          )}
 
           {/* Header */}
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6 mb-6">
@@ -508,6 +585,48 @@ export default function ProposalDetail() {
         loading={actionLoading}
         onConfirm={doAccept}
         onClose={() => setConfirmAcceptOpen(false)}
+      />
+
+      <ConfirmModal
+        open={!!liquidacion}
+        tone="success"
+        title={t('proposals.payToAccept', 'Para aceptar la cotización, aboná el total')}
+        message={
+          <div className="space-y-3 text-sm">
+            <p className="text-slate-600 dark:text-slate-300">
+              El trabajador queda seleccionado cuando se acredite el pago. Hasta entonces
+              la cotización sigue disponible y nadie queda comprometido.
+            </p>
+            <div className="rounded-lg border border-slate-200 dark:border-slate-700 divide-y divide-slate-200 dark:divide-slate-700">
+              <div className="flex justify-between px-3 py-2">
+                <span className="text-slate-600 dark:text-slate-400">Cotización</span>
+                <span className="font-medium">{pesos(liquidacion?.acordado)}</span>
+              </div>
+              {liquidacion?.yaPagado > 0 && (
+                <div className="flex justify-between px-3 py-2">
+                  <span className="text-slate-600 dark:text-slate-400">Ya abonado</span>
+                  <span className="font-medium">−{pesos(liquidacion?.yaPagado)}</span>
+                </div>
+              )}
+              <div className="flex justify-between px-3 py-2">
+                <span className="text-slate-600 dark:text-slate-400">Comisión</span>
+                <span className="font-medium">{pesos(liquidacion?.comision)}</span>
+              </div>
+              <div className="flex justify-between px-3 py-2">
+                <span className="text-slate-600 dark:text-slate-400">IVA</span>
+                <span className="font-medium">{pesos(liquidacion?.iva)}</span>
+              </div>
+              <div className="flex justify-between px-3 py-2 bg-slate-50 dark:bg-slate-800">
+                <span className="font-semibold">Total a pagar</span>
+                <span className="font-semibold">{pesos(liquidacion?.totalACobrar)}</span>
+              </div>
+            </div>
+          </div>
+        }
+        confirmLabel={t('proposals.goToPay', 'Ir a pagar')}
+        loading={actionLoading}
+        onConfirm={irAPagarCotizacion}
+        onClose={() => setLiquidacion(null)}
       />
 
       <ConfirmModal

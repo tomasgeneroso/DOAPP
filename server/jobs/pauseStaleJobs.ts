@@ -18,9 +18,12 @@ import { logger } from '../services/logger.js';
  * cotizaciones recibidas y obliga a republicar desde cero. El cliente reanuda
  * con un boton y el trabajo vuelve al muro con todo lo que tenia.
  *
- * Los trabajos ya pagados se pausan igual. Puede sonar injusto -- pago y se lo
- * bajan -- pero la plata no se toca y el trabajo se reanuda cuando quiera. Lo
- * que no se puede es dejar publicado indefinidamente algo que nadie atiende.
+ * Los trabajos ya pagados NO se pausan. Es el beneficio concreto de pagar la
+ * publicacion por adelantado: el trabajo queda en el muro hasta que el cliente
+ * lo cancele. Quien ya puso la plata demostro que el trabajo es real, que es
+ * justamente lo que esta regla busca filtrar; el problema son las
+ * publicaciones "a cotizar" que nadie atiende y que le hacen perder tiempo a
+ * los trabajadores que cotizan sobre algo abandonado.
  */
 
 export async function pauseStaleJobs(): Promise<number> {
@@ -37,6 +40,10 @@ export async function pauseStaleJobs(): Promise<number> {
       // Un trabajo ya pausado por esto no se vuelve a pausar: si el cliente lo
       // reanudo, la cuenta arranca de nuevo desde la reanudacion.
       pausedForInactivityAt: { [Op.is]: null } as any,
+      // Pagar la publicacion compra permanencia. El filtro va en la consulta y
+      // no en el bucle para que un trabajo pagado no aparezca nunca entre los
+      // candidatos, ni siquiera para descartarlo despues.
+      publicationPaid: false,
     },
     limit: 500,
   });

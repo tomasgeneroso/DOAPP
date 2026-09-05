@@ -515,6 +515,21 @@ export default function CreateContractScreen() {
                         value=""
                       />
                     )}
+                    {!isQuotable && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        El monto mínimo de un trabajo es{' '}
+                        <span className="font-medium">$18.000</span>.{' '}
+                        <a
+                          href="/legal/terminos-y-condiciones#s7p8"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-sky-600 dark:text-sky-400 underline"
+                        >
+                          Por qué existe este mínimo
+                        </a>
+                        .
+                      </p>
+                    )}
                     <label className="flex items-center gap-2 text-sm cursor-pointer">
                       <input
                         type="checkbox"
@@ -526,6 +541,36 @@ export default function CreateContractScreen() {
                         {t('jobs.quotable', 'A cotizar (el postulante propone el precio)')}
                       </span>
                     </label>
+                    {/* La diferencia entre los dos modos no es sólo cuándo se
+                        paga: publicar con precio pago compra permanencia en el
+                        muro. Conviene decirlo acá y no en los términos. */}
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {isQuotable ? (
+                        <>
+                          No pagás nada ahora: el precio se define cuando aceptás una cotización.
+                          Las publicaciones a cotizar{' '}
+                          <span className="font-medium">se pausan a los 10 días hábiles</span> si no
+                          aceptás ninguna, y las podés reanudar cuando quieras sin perder las
+                          cotizaciones recibidas.{' '}
+                          <a
+                            href="/legal/terminos-y-condiciones#s6p6"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-sky-600 dark:text-sky-400 underline"
+                          >
+                            Ver condiciones
+                          </a>
+                          .
+                        </>
+                      ) : (
+                        <>
+                          Al abonar la publicación,{' '}
+                          <span className="font-medium">tu trabajo no se pausa por inactividad</span>{' '}
+                          y queda publicado hasta que vos lo canceles. Si un trabajador cotiza por
+                          menos, la diferencia te queda como saldo a favor.
+                        </>
+                      )}
+                    </p>
                     {!isQuotable && (
                       <label className="flex items-start gap-2 text-sm cursor-pointer">
                         <input

@@ -103,7 +103,7 @@ export async function acreditarSaldo(
   userId: string,
   monto: number,
   descripcion: string,
-  ref: { relatedModel?: string; relatedId?: string } = {},
+  ref: { relatedModel?: string; relatedId?: string; metadata?: Record<string, any> } = {},
 ): Promise<void> {
   if (!(monto > 0)) return;
 
@@ -129,6 +129,7 @@ export async function acreditarSaldo(
         status: 'completed',
         relatedModel: ref.relatedModel,
         relatedId: ref.relatedId,
+        metadata: ref.metadata,
       } as any,
       { transaction: t },
     );
@@ -136,6 +137,63 @@ export async function acreditarSaldo(
     (user as any).balanceArs = despues;
     await user.save({ transaction: t });
   });
+}
+
+/**
+ * Confirma el pago de una cotizacion y recien ahi selecciona al trabajador.
+ *
+ * El orden es deliberado y es lo unico que hace que el sistema sea honesto: el
+ * trabajador queda comprometido cuando la plata esta, no cuando el cliente dice
+ * que la va a poner. Antes de esto, aceptar era gratis y el trabajador podia
+ * quedar seleccionado en un contrato que nunca se pagaba.
+ *
+ * Es idempotente: la pasarela reintenta los webhooks, y aprobar dos veces la
+ * misma cotizacion crearia dos contratos. La aprobacion en si ya devuelve el
+ * contrato existente si la propuesta esta aprobada, y acá se corta antes.
+ */
+export async function confirmarPagoDeCotizacion(
+  proposalId: string,
+  montoAcordado: number,
+): Promise<{ ok: boolean; contractId?: string; motivo?: string }> {
+  const { Proposal } = await import('../models/sql/Proposal.model.js');
+  const { approveProposalHandler } = await import('../routes/proposals.js');
+
+  const proposal = await Proposal.findByPk(proposalId);
+  if (!proposal) return { ok: false, motivo: 'propuesta inexistente' };
+  if ((proposal as any).status === 'approved') {
+    return { ok: true, motivo: 'ya estaba aprobada' };
+  }
+
+  const job = await Job.findByPk((proposal as any).jobId);
+  if (!job) return { ok: false, motivo: 'trabajo inexistente' };
+
+  // El precio acordado pasa a ser el precio del trabajo y queda pagado. Sin
+  // esto, settleQuote volveria a pedir la misma diferencia que se acaba de
+  // cobrar y la aprobacion rebotaria con un 402 eterno.
+  job.price = montoAcordado;
+  (job as any).pricingMode = 'fixed';
+  (job as any).publicationPaid = true;
+  (job as any).publicationPaidAt = new Date();
+  await job.save();
+
+  // Se reusa el handler de la ruta en vez de repetir la creacion del contrato.
+  // El res falso captura la respuesta: el webhook no tiene a quien contestarle,
+  // pero si necesita saber si salio bien.
+  let captura: { status: number; body: any } = { status: 0, body: null };
+  const resFalso: any = {
+    status(n: number) { captura.status = n; return this; },
+    json(b: any) { captura.body = b; if (!captura.status) captura.status = 200; return this; },
+  };
+
+  await approveProposalHandler(
+    { params: { id: proposalId }, body: {}, user: { id: (job as any).clientId } } as any,
+    resFalso,
+  );
+
+  if (captura.status >= 400) {
+    return { ok: false, motivo: captura.body?.message || `error ${captura.status}` };
+  }
+  return { ok: true, contractId: captura.body?.contractId };
 }
 
 /**

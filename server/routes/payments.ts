@@ -1615,6 +1615,109 @@ router.post("/contract/:contractId", protect, async (req: AuthRequest, res: Resp
 });
 
 /**
+ * Cobrar una cotizacion antes de aceptarla.
+ * POST /api/payments/quote/:proposalId
+ *
+ * Primero se paga, despues se selecciona al trabajador. El contrato lo crea el
+ * webhook cuando la plata se acredita, no esta ruta: si se creara acá, un pago
+ * abandonado en la pantalla de MercadoPago dejaria al trabajador comprometido
+ * con un contrato que nadie pago.
+ */
+router.post("/quote/:proposalId", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { Proposal } = await import('../models/sql/Proposal.model.js');
+    const { settleQuote } = await import('../services/quotePayment.js');
+
+    const proposal = await Proposal.findByPk(req.params.proposalId);
+    if (!proposal) {
+      res.status(404).json({ success: false, message: "Cotización no encontrada" });
+      return;
+    }
+    if ((proposal as any).clientId !== req.user.id) {
+      res.status(403).json({ success: false, message: "Solo el cliente puede aceptar esta cotización" });
+      return;
+    }
+    if ((proposal as any).status !== 'pending') {
+      res.status(400).json({ success: false, message: "Esta cotización ya no está disponible" });
+      return;
+    }
+
+    const job = await Job.findByPk((proposal as any).jobId);
+    if (!job) {
+      res.status(404).json({ success: false, message: "Trabajo no encontrado" });
+      return;
+    }
+
+    const acordado = Number((proposal as any).proposedPrice) || Number(job.price) || 0;
+    const liquidacion = await settleQuote(job as any, acordado);
+
+    if (liquidacion.listoParaContratar) {
+      res.status(400).json({
+        success: false,
+        message: "Esta cotización no requiere pago adicional: aceptala directamente.",
+      });
+      return;
+    }
+
+    const mercadoPagoService = (await import('../services/mercadopago.js')).default;
+    const preference = await (mercadoPagoService as any).createPreference({
+      title: `Cotización: ${job.title}`,
+      description: `Aceptación de cotización para ${job.title}`,
+      price: liquidacion.totalACobrar,
+      contractId: (proposal as any).id.toString(),
+      clientId: req.user.id.toString(),
+      doerId: (proposal as any).freelancerId?.toString(),
+    });
+
+    const payment = await Payment.create({
+      contractId: null,
+      payerId: req.user.id,
+      recipientId: (proposal as any).freelancerId,
+      amount: liquidacion.totalACobrar,
+      currency: "ARS",
+      status: "pending",
+      paymentType: "contract_payment",
+      mercadoPagoPreferenceId: preference.id,
+      description: `Cotización aceptada: ${job.title}`,
+      platformFee: liquidacion.comision,
+      platformFeePercentage: liquidacion.aPagar > 0 ? (liquidacion.comision / liquidacion.aPagar) * 100 : 0,
+      isEscrow: true,
+      escrowStatus: "pending",
+      // El webhook necesita saber a que cotizacion corresponde este pago y por
+      // cuanto se acordo: el precio del trabajo todavia no lo refleja.
+      metadata: {
+        proposalId: (proposal as any).id,
+        jobId: job.id,
+        montoAcordado: liquidacion.acordado,
+        tipo: 'aceptacion_cotizacion',
+      },
+    } as any);
+
+    // El trabajador ve el proceso en vivo: saber que el cliente esta pagando
+    // cambia lo que hace mientras tanto -- deja de buscar otro trabajo para esa
+    // fecha. Que se entere recien con el contrato firmado llega tarde.
+    socketService.notifyUser((proposal as any).freelancerId, 'quote:payment_started', {
+      proposalId: (proposal as any).id,
+      jobId: job.id,
+      jobTitle: job.title,
+      monto: liquidacion.acordado,
+      estado: 'esperando_pago',
+    });
+
+    res.json({
+      success: true,
+      paymentUrl: preference.init_point,
+      paymentId: payment.id,
+      preferenceId: preference.id,
+      liquidacion,
+    });
+  } catch (error: any) {
+    console.error("Error creando el pago de la cotización:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
  * Upload payment proof (for bank transfer and Binance payments)
  * POST /api/payments/:paymentId/upload-proof
  */

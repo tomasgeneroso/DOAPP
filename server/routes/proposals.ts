@@ -699,10 +699,18 @@ router.post(
 // @route   PUT /api/proposals/:id/approve
 // @desc    Aprobar propuesta (por el cliente) - soporta múltiples trabajadores con asignación de pago personalizada
 // @access  Private
-router.put("/:id/approve",
-  protect,
-  [param("id").isUUID().withMessage("ID de propuesta inválido")],
-  async (req: AuthRequest, res: Response): Promise<void> => {
+/**
+ * Aprueba una cotizacion y genera el contrato.
+ *
+ * Vive como funcion con nombre y no inline en la ruta porque tiene dos puntos
+ * de entrada: el cliente que aprueba, y el webhook de la pasarela cuando se
+ * acredita el pago de una cotizacion. Duplicar esta logica en el webhook seria
+ * la peor decision posible -- es donde se crea el contrato y se reparte la
+ * plata, y dos copias divergen sin que nadie se entere.
+ *
+ * El cuerpo es exactamente el que estaba en la ruta, sin cambios.
+ */
+export const approveProposalHandler = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -858,7 +866,15 @@ router.put("/:id/approve",
         job.clientId,
         liquidacion.aFavor,
         `Diferencia a favor: publicaste por $${liquidacion.yaPagado.toLocaleString('es-AR')} y la cotización aceptada fue de $${liquidacion.acordado.toLocaleString('es-AR')}.`,
-        { relatedModel: 'Job', relatedId: job.id },
+        {
+          relatedModel: 'Job',
+          relatedId: job.id,
+          // Este saldo no se gano trabajando: es plata que el cliente ya pago y
+          // que vuelve. Si la quiere en el banco, la pasarela cobra por
+          // devolverla, y hay que poder distinguirla del saldo ganado para
+          // saber sobre que parte corre ese costo.
+          metadata: { origen: 'cotizacion_menor', jobId: job.id },
+        },
       );
     }
 
@@ -1146,7 +1162,13 @@ router.put("/:id/approve",
       message: error.message || "Error del servidor",
     });
   }
-});
+};
+
+router.put("/:id/approve",
+  protect,
+  [param("id").isUUID().withMessage("ID de propuesta inválido")],
+  approveProposalHandler,
+);
 
 // @route   PUT /api/proposals/:id/reject
 // @desc    Rechazar propuesta (por el cliente)

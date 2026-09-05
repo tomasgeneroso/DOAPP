@@ -8,6 +8,7 @@ import { Contract } from "../models/sql/Contract.model.js";
 import { Payment } from "../models/sql/Payment.model.js";
 import { Op } from 'sequelize';
 import { sequelize } from '../config/database.js';
+import { getProcessingFeeRate } from '../../shared/pricing/processingCost.js';
 
 const router = express.Router();
 
@@ -204,6 +205,62 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
       return;
     }
 
+    // ============================================
+    // COSTO DE PASARELA SOBRE EL SALDO DEVUELTO
+    // ============================================
+    // El saldo que viene de una cotización menor al precio publicado no se ganó
+    // trabajando: es plata que el cliente ya pagó y que vuelve. Sacarla de la
+    // Plataforma cuesta una operación en la pasarela, y ese costo no lo puede
+    // absorber DOAPP: no cobró comisión alguna sobre esa diferencia.
+    //
+    // Usarla dentro de la app es gratis. Retirarla tiene este costo, y el
+    // usuario decide.
+    //
+    // El retiro es todo o nada, así que vacía el saldo: los créditos posteriores
+    // al último retiro son exactamente la porción devuelta del saldo actual.
+    const ultimoRetiro = await WithdrawalRequest.findOne({
+      where: { userId, status: { [Op.in]: ['completed', 'processing', 'approved'] } },
+      order: [['createdAt', 'DESC']],
+    });
+
+    const creditosDevueltos = await BalanceTransaction.sum('amount', {
+      where: {
+        userId,
+        type: 'refund',
+        ...(ultimoRetiro ? { createdAt: { [Op.gt]: (ultimoRetiro as any).createdAt } } : {}),
+        [Op.and]: [{ 'metadata.origen': 'cotizacion_menor' } as any],
+      },
+    });
+
+    // No puede superar el saldo: si el usuario ya gastó parte del crédito dentro
+    // de la app, esa parte no se retira y no puede cobrar costo.
+    const porcionDevuelta = Math.min(Number(creditosDevueltos) || 0, amount);
+    const costoPasarela =
+      porcionDevuelta > 0
+        ? Math.round(porcionDevuelta * getProcessingFeeRate() * 100) / 100
+        : 0;
+
+    if (costoPasarela > 0 && req.body.aceptaCostoPasarela !== true) {
+      res.status(409).json({
+        success: false,
+        requiereConfirmacion: true,
+        message:
+          `De tu saldo, $${porcionDevuelta.toLocaleString('es-AR')} corresponden a una devolución por ` +
+          `una cotización menor al precio publicado. Transferirlos al banco tiene un costo de ` +
+          `$${costoPasarela.toLocaleString('es-AR')} que cobra la pasarela de pago. ` +
+          `Si preferís, ese saldo queda disponible en la app sin costo alguno.`,
+        detalle: {
+          saldoTotal: amount,
+          porcionDevuelta,
+          costoPasarela,
+          recibirias: Math.round((amount - costoPasarela) * 100) / 100,
+        },
+      });
+      return;
+    }
+
+    const montoATransferir = Math.round((amount - costoPasarela) * 100) / 100;
+
     // Check for pending withdrawals
     const pendingWithdrawals = await WithdrawalRequest.count({
       where: {
@@ -223,7 +280,9 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
     // Create withdrawal request
     const withdrawal = await WithdrawalRequest.create({
       userId,
-      amount,
+      // Se transfiere el saldo menos el costo de pasarela sobre la parte
+      // devuelta. El saldo se debita completo: el costo se pagó, no se perdió.
+      amount: montoATransferir,
       bankingInfo: {
         accountHolder: bankingInfo.accountHolder,
         bankName: bankingInfo.bankName,
@@ -237,6 +296,9 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
       metadata: {
         ipAddress: req.ip,
         userAgent: req.get('user-agent'),
+        saldoDebitado: amount,
+        porcionDevuelta,
+        costoPasarela,
       }
     });
 

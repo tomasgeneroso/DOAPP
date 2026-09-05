@@ -65,6 +65,7 @@ const eventHandlers = {
   onContractUpdate: null as ((data: any) => void) | null,
   onJobUpdate: null as ((data: any) => void) | null,
   onProposalUpdate: null as ((data: any) => void) | null,
+  onQuoteStatus: null as ((data: any) => void) | null,
   onDashboardRefresh: null as (() => void) | null,
   onJobsRefresh: null as ((data?: any) => void) | null,
   onUnreadUpdate: null as ((count: number) => void) | null,
@@ -402,6 +403,23 @@ export function useSocket() {
         eventHandlers.onNotification(data);
       }
     });
+
+    /**
+     * Aceptación de una cotización, en vivo del lado del trabajador.
+     *
+     * Son dos eventos y no uno porque el trabajador necesita ver los dos
+     * momentos: que el cliente arrancó el pago, y que se acreditó. Saber que
+     * alguien está pagando su cotización cambia lo que hace mientras tanto
+     * -- deja de buscar otro trabajo para esa fecha -- y enterarse recién con
+     * el contrato ya creado llega tarde.
+     */
+    socketInstance.on("quote:payment_started", (data: any) => {
+      if (eventHandlers.onQuoteStatus) eventHandlers.onQuoteStatus({ ...data, fase: 'pagando' });
+    });
+
+    socketInstance.on("quote:accepted", (data: any) => {
+      if (eventHandlers.onQuoteStatus) eventHandlers.onQuoteStatus({ ...data, fase: 'aceptada' });
+    });
   }, [getReconnectDelay]);
 
   // Main connection effect - only depends on user
@@ -584,6 +602,10 @@ export function useSocket() {
     eventHandlers.onProposalUpdate = handler;
   }, []);
 
+  const registerQuoteStatusHandler = useCallback((handler: (data: any) => void) => {
+    eventHandlers.onQuoteStatus = handler;
+  }, []);
+
   const registerDashboardRefreshHandler = useCallback((handler: () => void) => {
     eventHandlers.onDashboardRefresh = handler;
   }, []);
@@ -691,6 +713,7 @@ export function useSocket() {
     registerContractUpdateHandler,
     registerJobUpdateHandler,
     registerProposalUpdateHandler,
+    registerQuoteStatusHandler,
     registerDashboardRefreshHandler,
     registerJobsRefreshHandler,
     registerUnreadUpdateHandler,
