@@ -535,18 +535,8 @@ router.post('/:id/pay', protect, async (req: AuthRequest, res: Response): Promis
     const commission = Math.max(baseAmount * commissionRate, 1000); // min $1000 ARS
     const totalWithCommission = baseAmount + commission;
 
-    // Create MercadoPago preference
-    const mercadoPagoService = (await import('../services/mercadopago.js')).default;
-    const preference = await (mercadoPagoService as any).createPreference({
-      title: `Cotización: ${quote.title}`,
-      description: `Pago de cotización ${quote.quoteNumber} — incluye 8% comisión`,
-      price: totalWithCommission,
-      quoteId: quote.id,
-      clientId: userId.toString(),
-      doerId: quote.senderId.toString(),
-    });
-
-    // Create Payment record
+    // El registro va primero: su id viaja en la metadata de la preferencia y es
+    // lo que le permite al webhook encontrarlo.
     const { Payment } = await import('../models/sql/Payment.model.js');
     const payment = await Payment.create({
       payerId: userId,
@@ -556,12 +546,30 @@ router.post('/:id/pay', protect, async (req: AuthRequest, res: Response): Promis
       currency: 'ARS',
       status: 'pending',
       paymentType: 'quote_payment',
-      mercadoPagoPreferenceId: preference.id,
       description: `Cotización: ${quote.title}`,
       platformFee: commission,
       platformFeePercentage: commissionRate * 100,
       isEscrow: false,
     } as any);
+
+    const mercadoPagoService = (await import('../services/mercadopago.js')).default;
+    const { config } = await import('../config/env.js');
+    const orden = await mercadoPagoService.createPayment({
+      amount: totalWithCommission,
+      currency: 'ARS',
+      description: `Cotización ${quote.quoteNumber}: ${quote.title}`,
+      provider: 'mercadopago',
+      metadata: {
+        payment_id: payment.id,
+        type: 'quote_payment',
+        quote_id: quote.id,
+      },
+      successUrl: `${config.clientUrl}/quotes/${quote.id}?pago=ok`,
+      cancelUrl: `${config.clientUrl}/quotes/${quote.id}?pago=cancelado`,
+    });
+
+    (payment as any).mercadoPagoPreferenceId = orden.providerPaymentId || orden.paymentId;
+    await payment.save();
 
     // Mark quote as pending_payment
     await quote.update({ status: 'pending_payment' } as any);
@@ -571,9 +579,9 @@ router.post('/:id/pay', protect, async (req: AuthRequest, res: Response): Promis
 
     res.json({
       success: true,
-      paymentUrl: preference.init_point,
+      paymentUrl: orden.checkoutUrl,
       paymentId: payment.id,
-      preferenceId: preference.id,
+      preferenceId: orden.providerPaymentId,
       totalWithCommission,
       commission,
       baseAmount,

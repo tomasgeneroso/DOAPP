@@ -145,6 +145,130 @@ router.get(
 );
 
 /**
+ * GET /api/admin/jobs/board
+ * Panel de publicaciones vivas, con el estado real de cada una.
+ *
+ * El listado general de trabajos ordena por fecha y muestra el status de la
+ * base, que no alcanza para operar: "open" es lo mismo para una publicación de
+ * ayer con seis cotizaciones que para una de hace un mes que nadie miró. Lo que
+ * un administrador necesita saber es cuál está trabada y por qué.
+ *
+ * Los estados se calculan acá y no se guardan en una columna a propósito:
+ * dependen del tiempo, así que una columna estaría desactualizada apenas se
+ * escribe y habría que mantenerla con un cron que puede fallar en silencio.
+ */
+router.get(
+  '/board',
+  protect,
+  requireAdminRole,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { diasHabilesDesde, DIAS_HABILES_ANTES_DE_PAUSAR } = await import(
+        '../../services/quotePayment.js'
+      );
+      const { Proposal } = await import('../../models/sql/Proposal.model.js');
+
+      const filtro = String(req.query.estado || 'todos');
+      const limit = Math.min(Number(req.query.limit) || 100, 300);
+
+      const jobs = await Job.findAll({
+        where: { status: { [Op.in]: ['open', 'paused', 'pending_approval'] } },
+        include: [{ model: User, as: 'client', attributes: ['id', 'name', 'email'], required: false }],
+        order: [['createdAt', 'ASC']],
+        limit,
+      });
+
+      // Cotizaciones por trabajo en una sola consulta: una por trabajo serían
+      // cientos de idas a la base para pintar una tabla.
+      const ids = jobs.map((j) => j.id);
+      const propuestas = ids.length
+        ? await Proposal.findAll({
+            where: { jobId: { [Op.in]: ids } },
+            attributes: ['id', 'jobId', 'status'],
+          })
+        : [];
+
+      const porJob = new Map<string, { total: number; aceptadas: number }>();
+      for (const p of propuestas as any[]) {
+        const e = porJob.get(p.jobId) || { total: 0, aceptadas: 0 };
+        e.total++;
+        if (p.status === 'approved') e.aceptadas++;
+        porJob.set(p.jobId, e);
+      }
+
+      const filas = jobs.map((job: any) => {
+        const c = porJob.get(job.id) || { total: 0, aceptadas: 0 };
+        const desde = job.resumedAt || job.createdAt;
+        const dias = diasHabilesDesde(new Date(desde));
+        const vencida = dias >= DIAS_HABILES_ANTES_DE_PAUSAR && c.aceptadas === 0;
+
+        /**
+         * "Pagada fantasma": pagada, vencida y sin cotización aceptada.
+         *
+         * No se pausa porque pagar compra permanencia, y esa promesa se
+         * respeta. Pero sigue siendo una publicación que nadie atiende, y el
+         * que cotiza sobre ella pierde el tiempo igual. Que aparezca marcada
+         * acá permite que alguien llame al cliente antes de que el trabajador
+         * se lleve la mala experiencia.
+         */
+        let estado:
+          | 'pagada_fantasma'
+          | 'pausada_inactividad'
+          | 'por_vencer'
+          | 'sin_cotizaciones'
+          | 'esperando_aprobacion'
+          | 'normal';
+
+        if (job.status === 'pending_approval') estado = 'esperando_aprobacion';
+        else if (job.pausedForInactivityAt) estado = 'pausada_inactividad';
+        else if (vencida && job.publicationPaid) estado = 'pagada_fantasma';
+        else if (vencida) estado = 'por_vencer';
+        else if (c.total === 0 && dias >= 3) estado = 'sin_cotizaciones';
+        else estado = 'normal';
+
+        return {
+          id: job.id,
+          titulo: job.title,
+          estadoBase: job.status,
+          estado,
+          precio: Number(job.price) || 0,
+          modo: job.pricingMode || 'fixed',
+          pagada: !!job.publicationPaid,
+          diasHabiles: dias,
+          cotizaciones: c.total,
+          cotizacionesAceptadas: c.aceptadas,
+          publicadaEl: job.createdAt,
+          reanudadaEl: job.resumedAt || null,
+          cliente: job.client
+            ? { id: job.client.id, nombre: job.client.name, email: job.client.email }
+            : null,
+        };
+      });
+
+      const resultado = filtro === 'todos' ? filas : filas.filter((f) => f.estado === filtro);
+
+      // Los totales se cuentan sobre todo lo traído, no sobre lo filtrado: si
+      // no, el contador de "pagadas fantasma" mostraría 0 al filtrar por otra
+      // cosa y no se podría navegar entre estados.
+      const resumen = filas.reduce<Record<string, number>>((acc, f) => {
+        acc[f.estado] = (acc[f.estado] || 0) + 1;
+        return acc;
+      }, {});
+
+      res.json({
+        success: true,
+        data: resultado,
+        resumen,
+        umbralDiasHabiles: DIAS_HABILES_ANTES_DE_PAUSAR,
+      });
+    } catch (error: any) {
+      console.error('Error armando el panel de publicaciones:', error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+);
+
+/**
  * GET /api/admin/jobs/stats
  * Obtener estadísticas de publicaciones
  */

@@ -1,6 +1,7 @@
 import { Job } from '../models/sql/Job.model.js';
 import { calculateCommission } from './commissionService.js';
 import { splitFees } from '../../shared/pricing/processingCost.js';
+import { MINIMUM_JOB_AMOUNT_ARS } from '../../shared/pricing/minimums.js';
 
 /**
  * Cuanto falta pagar para aceptar una cotizacion.
@@ -210,9 +211,16 @@ export async function confirmarPagoDeCotizacion(
  *              monto sin que el cliente pague nada mas ni vuelva a pasar por la
  *              pasarela. Es la salida barata para los dos: la plata no se mueve.
  *
- *   'saldo'    la plata vuelve al saldo del cliente. Usarla dentro de la app no
- *              cuesta nada; si la quiere en el banco, paga el costo de pasarela
- *              como cualquier devolucion, porque DOAPP tampoco lo recupera.
+ *   'parcial'  igual que 'liberar' pero republicando por menos. El cliente
+ *              aprendio algo mientras cotizaba -- que el trabajo se consigue por
+ *              80.000 y no por 100.000 -- y no tiene por que dejar los 20.000
+ *              inmovilizados esperando a que aparezca alguien que cobre de mas.
+ *              La diferencia le queda a favor y el trabajo sigue publicado.
+ *
+ *   'saldo'    la plata vuelve entera al saldo del cliente. Usarla dentro de la
+ *              app no cuesta nada; si la quiere en el banco, paga el costo de
+ *              pasarela como cualquier devolucion, porque DOAPP tampoco lo
+ *              recupera.
  *
  * El trabajador que no pudo no se penaliza acá: eso lo decide la reputacion y,
  * si hubo mala fe, una disputa. Un sistema que castiga automaticamente al que
@@ -220,9 +228,10 @@ export async function confirmarPagoDeCotizacion(
  */
 export async function trabajadorNoDisponible(
   contractId: string,
-  opcion: 'liberar' | 'saldo',
+  opcion: 'liberar' | 'parcial' | 'saldo',
   motivo: string,
-): Promise<{ ok: boolean; motivo?: string }> {
+  nuevoPrecio?: number,
+): Promise<{ ok: boolean; motivo?: string; aFavor?: number; precioPublicado?: number }> {
   const { sequelize } = await import('../config/database.js');
   const { Contract } = await import('../models/sql/Contract.model.js');
   const { Proposal } = await import('../models/sql/Proposal.model.js');
@@ -246,6 +255,31 @@ export async function trabajadorNoDisponible(
   const doerId = String(contract.doerId);
   const montoPagado = Number(contract.price) || 0;
 
+  // Cuanto se republica y cuanto vuelve al cliente. Sólo 'parcial' los separa.
+  let precioNuevo = montoPagado;
+  let aFavor = 0;
+
+  if (opcion === 'parcial') {
+    precioNuevo = Number(nuevoPrecio) || 0;
+    if (precioNuevo <= 0 || precioNuevo >= montoPagado) {
+      return {
+        ok: false,
+        motivo: `El nuevo precio tiene que ser mayor a cero y menor a $${montoPagado.toLocaleString('es-AR')}. Si no querés bajarlo, elegí dejarlo publicado como está.`,
+      };
+    }
+    if (precioNuevo < MINIMUM_JOB_AMOUNT_ARS) {
+      // Republicar por debajo del minimo dejaria un trabajo que nadie puede
+      // aceptar: el minimo se vuelve a verificar al aceptar la cotizacion.
+      return {
+        ok: false,
+        motivo: `El nuevo precio no puede ser menor al mínimo de $${MINIMUM_JOB_AMOUNT_ARS.toLocaleString('es-AR')}. Si querés recuperar todo, elegí saldo a favor.`,
+      };
+    }
+    aFavor = Math.round((montoPagado - precioNuevo) * 100) / 100;
+  } else if (opcion === 'saldo') {
+    aFavor = montoPagado;
+  }
+
   // El contrato se cierra en los dos casos; lo que cambia es que pasa con la
   // publicacion y con la plata. Va en una transaccion porque dejar el contrato
   // cancelado y el trabajo sin reabrir seria perder el puesto y la plata a la vez.
@@ -268,27 +302,33 @@ export async function trabajadorNoDisponible(
     job.changed('selectedWorkers', true);
     if (String((job as any).doerId) === doerId) (job as any).doerId = seleccionados[0] || null;
 
-    if (opcion === 'liberar') {
+    if (opcion === 'saldo') {
+      job.status = 'cancelled';
+    } else {
       // El trabajo vuelve al muro con el precio ya pagado. publicationPaid queda
       // en true a proposito: eso es lo que hace que el proximo trabajador entre
       // sin que el cliente vuelva a pagar.
       job.status = 'open';
       (job as any).pausedForInactivityAt = null;
-    } else {
-      job.status = 'cancelled';
+      // En 'parcial' se republica por menos: el precio del trabajo baja y la
+      // diferencia sale del escrow hacia el saldo. Sigue estando pago, porque
+      // lo que queda retenido alcanza y sobra para el precio nuevo.
+      job.price = precioNuevo;
     }
     await job.save({ transaction: t });
   });
 
-  if (opcion === 'saldo') {
+  if (aFavor > 0) {
     // Fuera de la transaccion porque acreditarSaldo abre la suya con su propio
     // bloqueo de fila. Si fallara acá, el contrato ya quedo cancelado y el
     // saldo no se acredito: por eso se avisa a administracion y no se traga.
     try {
       await acreditarSaldo(
         String(contract.clientId),
-        montoPagado,
-        `Devolución por trabajador no disponible: ${job.title}`,
+        aFavor,
+        opcion === 'parcial'
+          ? `Diferencia por republicar "${job.title}" a $${precioNuevo.toLocaleString('es-AR')}`
+          : `Devolución por trabajador no disponible: ${job.title}`,
         {
           relatedModel: 'Contract',
           relatedId: contract.id,
@@ -300,21 +340,24 @@ export async function trabajadorNoDisponible(
     }
   }
 
+  const mensajePorOpcion = {
+    liberar: `"${job.title}" volvió a estar publicado con el precio que ya abonaste. Otro trabajador puede tomarlo por ese mismo monto sin que pagues nada más.`,
+    parcial: `"${job.title}" volvió a estar publicado a $${precioNuevo.toLocaleString('es-AR')} y se acreditaron $${aFavor.toLocaleString('es-AR')} a tu saldo.`,
+    saldo: `Se acreditaron $${aFavor.toLocaleString('es-AR')} a tu saldo. Podés usarlos sin costo en la app o pedir su transferencia al banco, en cuyo caso se descuenta el costo de la pasarela.`,
+  };
+
   await Notification.create({
     recipientId: contract.clientId,
-    type: opcion === 'liberar' ? 'warning' : 'info',
+    type: opcion === 'saldo' ? 'info' : 'warning',
     category: 'contracts',
     title: 'El trabajador no puede realizar el trabajo',
-    message:
-      opcion === 'liberar'
-        ? `"${job.title}" volvió a estar publicado con el precio que ya abonaste. Otro trabajador puede tomarlo por ese mismo monto sin que pagues nada más.`
-        : `Se acreditaron $${montoPagado.toLocaleString('es-AR')} a tu saldo. Podés usarlos sin costo en la app o pedir su transferencia al banco, en cuyo caso se descuenta el costo de la pasarela.`,
+    message: mensajePorOpcion[opcion],
     relatedModel: 'Job',
     relatedId: job.id,
     sentVia: ['in_app'],
   } as any);
 
-  return { ok: true };
+  return { ok: true, aFavor, precioPublicado: opcion === 'saldo' ? 0 : precioNuevo };
 }
 
 /**

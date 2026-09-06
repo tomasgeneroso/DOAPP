@@ -1570,18 +1570,8 @@ router.post("/contract/:contractId", protect, async (req: AuthRequest, res: Resp
 
     const jobTitle = (contract.job as any).title || 'Contrato';
 
-    // Create MercadoPago preference
-    const mercadoPagoService = (await import('../services/mercadopago.js')).default;
-    const preference = await (mercadoPagoService as any).createPreference({
-      title: `Contrato: ${jobTitle}`,
-      description: `Pago con escrow para ${jobTitle}`,
-      price: contract.totalPrice,
-      contractId: contract.id.toString(),
-      clientId: userId.toString(),
-      doerId: (contract.doer as any).id.toString(),
-    });
-
-    // Create payment record with escrow
+    // El registro va primero: su id viaja en la metadata de la preferencia y es
+    // lo que le permite al webhook encontrarlo.
     const payment = await Payment.create({
       contractId: contract.id,
       payerId: userId,
@@ -1590,7 +1580,6 @@ router.post("/contract/:contractId", protect, async (req: AuthRequest, res: Resp
       currency: "ARS",
       status: "pending",
       paymentType: "contract",
-      mercadoPagoPreferenceId: preference.id,
       description: `Contrato: ${jobTitle}`,
       platformFee: contract.commission,
       platformFeePercentage: contract.commission > 0 ? ((contract.commission / contract.price) * 100) : 0,
@@ -1598,15 +1587,33 @@ router.post("/contract/:contractId", protect, async (req: AuthRequest, res: Resp
       escrowStatus: "pending",
     });
 
+    const mercadoPagoService = (await import('../services/mercadopago.js')).default;
+    const orden = await mercadoPagoService.createPayment({
+      amount: Number(contract.totalPrice),
+      currency: "ARS",
+      description: `Contrato: ${jobTitle}`,
+      provider: 'mercadopago',
+      metadata: {
+        payment_id: payment.id,
+        type: 'contract',
+        contract_id: contract.id,
+      },
+      successUrl: `${config.clientUrl}/contracts/${contract.id}?pago=ok`,
+      cancelUrl: `${config.clientUrl}/contracts/${contract.id}?pago=cancelado`,
+    });
+
+    (payment as any).mercadoPagoPreferenceId = orden.providerPaymentId || orden.paymentId;
+    await payment.save();
+
     // Update contract with payment reference
     (contract as any).paymentId = payment.id;
     await contract.save();
 
     res.json({
       success: true,
-      paymentUrl: preference.init_point,
+      paymentUrl: orden.checkoutUrl,
       paymentId: payment.id,
-      preferenceId: preference.id,
+      preferenceId: orden.providerPaymentId,
     });
   } catch (error: any) {
     console.error("Create contract payment error:", error);

@@ -2083,28 +2083,40 @@ router.post("/:id/worker-unavailable", protect, async (req: AuthRequest, res: Re
       return;
     }
 
-    if (opcion !== 'liberar' && opcion !== 'saldo') {
+    if (!['liberar', 'parcial', 'saldo'].includes(opcion)) {
       res.status(400).json({
         success: false,
-        message: "Elegí qué hacer: 'liberar' para dejarlo publicado, o 'saldo' para recuperar el dinero.",
+        message:
+          "Elegí qué hacer: 'liberar' para dejarlo publicado igual, 'parcial' para republicarlo por menos " +
+          "y quedarte con la diferencia, o 'saldo' para recuperar todo el dinero.",
       });
       return;
     }
 
     const { trabajadorNoDisponible } = await import('../services/quotePayment.js');
-    const r = await trabajadorNoDisponible(contract.id, opcion, String(motivo).trim());
+    const r = await trabajadorNoDisponible(
+      contract.id,
+      opcion,
+      String(motivo).trim(),
+      req.body.nuevoPrecio,
+    );
 
     if (!r.ok) {
       res.status(400).json({ success: false, message: r.motivo });
       return;
     }
 
+    const mensajes: Record<string, string> = {
+      liberar: "El trabajo volvió a estar publicado con el precio que ya abonaste.",
+      parcial: `El trabajo volvió a estar publicado a $${(r.precioPublicado || 0).toLocaleString('es-AR')} y $${(r.aFavor || 0).toLocaleString('es-AR')} quedaron a tu favor.`,
+      saldo: "El dinero quedó como saldo a favor en tu cuenta.",
+    };
+
     res.json({
       success: true,
-      message:
-        opcion === 'liberar'
-          ? "El trabajo volvió a estar publicado con el precio que ya abonaste."
-          : "El dinero quedó como saldo a favor en tu cuenta.",
+      message: mensajes[opcion],
+      aFavor: r.aFavor,
+      precioPublicado: r.precioPublicado,
     });
   } catch (error: any) {
     console.error("Error resolviendo trabajador no disponible:", error);
