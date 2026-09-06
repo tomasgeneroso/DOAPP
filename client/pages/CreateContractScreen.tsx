@@ -25,6 +25,10 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { JOB_CATEGORIES, JOB_TAGS, canJobsOverlap, getCategoryById } from "../../shared/constants/categories";
+// El mínimo se muestra desde la constante que lo calcula, no escrito a mano:
+// se deriva del costo de pasarela, del costo fijo por contrato y del tipo de
+// cambio, así que cambia solo. Un número copiado acá quedaría mintiendo.
+import { MINIMUM_JOB_AMOUNT_ARS } from "../../shared/pricing/minimums";
 import { CustomDateInput } from "@/components/ui/CustomDatePicker";
 import LocationAutocomplete from "@/components/ui/LocationAutocomplete";
 import StreetAutocomplete from "@/components/ui/StreetAutocomplete";
@@ -518,7 +522,10 @@ export default function CreateContractScreen() {
                     {!isQuotable && (
                       <p className="text-xs text-gray-500 dark:text-gray-400">
                         El monto mínimo de un trabajo es{' '}
-                        <span className="font-medium">$18.000</span>.{' '}
+                        <span className="font-medium">
+                          ${MINIMUM_JOB_AMOUNT_ARS.toLocaleString('es-AR')}
+                        </span>
+                        .{' '}
                         <a
                           href="/legal/terminos-y-condiciones#s7p8"
                           target="_blank"

@@ -197,6 +197,127 @@ export async function confirmarPagoDeCotizacion(
 }
 
 /**
+ * El cliente pago pero el trabajador no puede hacerlo.
+ *
+ * Pasa, y no es culpa de nadie: se enfermo, le salio otra cosa, se le rompio la
+ * camioneta. Lo importante es que la plata ya esta cobrada, asi que no alcanza
+ * con cancelar y listo -- hay que decidir que se hace con ella.
+ *
+ * Dos salidas, y las elige el cliente porque es su plata:
+ *
+ *   'liberar'  se libera el puesto y el trabajo vuelve al muro con el precio ya
+ *              acordado y pagado. Otro trabajador puede tomarlo por ese mismo
+ *              monto sin que el cliente pague nada mas ni vuelva a pasar por la
+ *              pasarela. Es la salida barata para los dos: la plata no se mueve.
+ *
+ *   'saldo'    la plata vuelve al saldo del cliente. Usarla dentro de la app no
+ *              cuesta nada; si la quiere en el banco, paga el costo de pasarela
+ *              como cualquier devolucion, porque DOAPP tampoco lo recupera.
+ *
+ * El trabajador que no pudo no se penaliza acá: eso lo decide la reputacion y,
+ * si hubo mala fe, una disputa. Un sistema que castiga automaticamente al que
+ * avisa consigue que la proxima vez no avise.
+ */
+export async function trabajadorNoDisponible(
+  contractId: string,
+  opcion: 'liberar' | 'saldo',
+  motivo: string,
+): Promise<{ ok: boolean; motivo?: string }> {
+  const { sequelize } = await import('../config/database.js');
+  const { Contract } = await import('../models/sql/Contract.model.js');
+  const { Proposal } = await import('../models/sql/Proposal.model.js');
+  const { Notification } = await import('../models/sql/Notification.model.js');
+
+  const contract = await Contract.findByPk(contractId);
+  if (!contract) return { ok: false, motivo: 'contrato inexistente' };
+
+  const yaEmpezo = ['in_progress', 'awaiting_confirmation', 'completed'].includes(
+    String(contract.status),
+  );
+  if (yaEmpezo) {
+    // Un trabajo empezado no se resuelve por acá: hay trabajo hecho que valorar
+    // y eso es una disputa, no un tramite.
+    return { ok: false, motivo: 'el contrato ya esta en curso: corresponde una disputa' };
+  }
+
+  const job = await Job.findByPk(contract.jobId);
+  if (!job) return { ok: false, motivo: 'trabajo inexistente' };
+
+  const doerId = String(contract.doerId);
+  const montoPagado = Number(contract.price) || 0;
+
+  // El contrato se cierra en los dos casos; lo que cambia es que pasa con la
+  // publicacion y con la plata. Va en una transaccion porque dejar el contrato
+  // cancelado y el trabajo sin reabrir seria perder el puesto y la plata a la vez.
+  await sequelize.transaction(async (t) => {
+    contract.status = 'cancelled';
+    (contract as any).cancellationReason = `Trabajador no disponible: ${motivo}`;
+    await contract.save({ transaction: t });
+
+    // La propuesta vuelve a estar disponible o queda rechazada segun la salida.
+    await Proposal.update(
+      { status: opcion === 'liberar' ? 'pending' : 'rejected' } as any,
+      { where: { jobId: job.id, freelancerId: doerId }, transaction: t },
+    );
+
+    // El trabajador sale de la lista de seleccionados en ambos casos.
+    const seleccionados: string[] = ((job as any).selectedWorkers || []).filter(
+      (w: string) => String(w) !== doerId,
+    );
+    (job as any).selectedWorkers = seleccionados;
+    job.changed('selectedWorkers', true);
+    if (String((job as any).doerId) === doerId) (job as any).doerId = seleccionados[0] || null;
+
+    if (opcion === 'liberar') {
+      // El trabajo vuelve al muro con el precio ya pagado. publicationPaid queda
+      // en true a proposito: eso es lo que hace que el proximo trabajador entre
+      // sin que el cliente vuelva a pagar.
+      job.status = 'open';
+      (job as any).pausedForInactivityAt = null;
+    } else {
+      job.status = 'cancelled';
+    }
+    await job.save({ transaction: t });
+  });
+
+  if (opcion === 'saldo') {
+    // Fuera de la transaccion porque acreditarSaldo abre la suya con su propio
+    // bloqueo de fila. Si fallara acá, el contrato ya quedo cancelado y el
+    // saldo no se acredito: por eso se avisa a administracion y no se traga.
+    try {
+      await acreditarSaldo(
+        String(contract.clientId),
+        montoPagado,
+        `Devolución por trabajador no disponible: ${job.title}`,
+        {
+          relatedModel: 'Contract',
+          relatedId: contract.id,
+          metadata: { origen: 'cotizacion_menor', jobId: job.id, motivo: 'trabajador_no_disponible' },
+        },
+      );
+    } catch (e: any) {
+      return { ok: false, motivo: `contrato cancelado pero el saldo no se acredito: ${e.message}` };
+    }
+  }
+
+  await Notification.create({
+    recipientId: contract.clientId,
+    type: opcion === 'liberar' ? 'warning' : 'info',
+    category: 'contracts',
+    title: 'El trabajador no puede realizar el trabajo',
+    message:
+      opcion === 'liberar'
+        ? `"${job.title}" volvió a estar publicado con el precio que ya abonaste. Otro trabajador puede tomarlo por ese mismo monto sin que pagues nada más.`
+        : `Se acreditaron $${montoPagado.toLocaleString('es-AR')} a tu saldo. Podés usarlos sin costo en la app o pedir su transferencia al banco, en cuyo caso se descuenta el costo de la pasarela.`,
+    relatedModel: 'Job',
+    relatedId: job.id,
+    sentVia: ['in_app'],
+  } as any);
+
+  return { ok: true };
+}
+
+/**
  * Dias habiles entre dos fechas, sin contar feriados.
  *
  * No se contemplan los feriados argentinos a proposito: mantener ese calendario

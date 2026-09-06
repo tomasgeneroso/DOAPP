@@ -2022,6 +2022,97 @@ router.post("/:id/cancel", protect, async (req: AuthRequest, res: Response): Pro
 });
 
 /**
+ * El trabajador avisa que no puede hacer el trabajo ya pagado.
+ * POST /api/contracts/:id/worker-unavailable
+ *
+ * No pasa por la solicitud de cancelación con revisión administrativa porque no
+ * hay nada que revisar: el trabajo no empezó y la plata está intacta. Lo único
+ * que hay que decidir es qué se hace con ella, y eso lo decide el cliente.
+ *
+ * Cualquiera de las dos partes puede iniciarlo -- el trabajador avisando, o el
+ * cliente cuando el trabajador ya le dijo por chat -- pero la opción la elige
+ * siempre el cliente, porque es su plata.
+ */
+router.post("/:id/worker-unavailable", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { opcion, motivo } = req.body;
+    const contract = await Contract.findByPk(req.params.id);
+
+    if (!contract) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+
+    const esCliente = String(contract.clientId) === String(req.user.id);
+    const esTrabajador = String(contract.doerId) === String(req.user.id);
+    if (!esCliente && !esTrabajador) {
+      res.status(403).json({ success: false, message: "No sos parte de este contrato" });
+      return;
+    }
+
+    if (!motivo || String(motivo).trim().length < 5) {
+      res.status(400).json({ success: false, message: "Contá brevemente por qué no se puede hacer" });
+      return;
+    }
+
+    // El trabajador avisa; el cliente resuelve. Si el que avisa es el
+    // trabajador, se le notifica al cliente y ahí elige, pero no se decide por
+    // él: liberar el puesto y quedarse con saldo son cosas muy distintas.
+    if (!esCliente) {
+      const { Notification } = await import('../models/sql/Notification.model.js');
+      const job = await Job.findByPk(contract.jobId);
+      await Notification.create({
+        recipientId: contract.clientId,
+        type: 'warning',
+        category: 'contracts',
+        title: 'El trabajador no puede realizar el trabajo',
+        message:
+          `El trabajador avisó que no puede hacer "${job?.title || 'el trabajo'}": ${motivo}. ` +
+          'Podés dejarlo publicado con el precio ya abonado para que lo tome otro, o pedir el saldo a favor.',
+        relatedModel: 'Contract',
+        relatedId: contract.id,
+        actionText: 'Decidir',
+        sentVia: ['in_app'],
+      } as any);
+
+      res.json({
+        success: true,
+        message: "Le avisamos al cliente. Él decide si deja el trabajo publicado o pide el saldo.",
+        esperandoDecisionDelCliente: true,
+      });
+      return;
+    }
+
+    if (opcion !== 'liberar' && opcion !== 'saldo') {
+      res.status(400).json({
+        success: false,
+        message: "Elegí qué hacer: 'liberar' para dejarlo publicado, o 'saldo' para recuperar el dinero.",
+      });
+      return;
+    }
+
+    const { trabajadorNoDisponible } = await import('../services/quotePayment.js');
+    const r = await trabajadorNoDisponible(contract.id, opcion, String(motivo).trim());
+
+    if (!r.ok) {
+      res.status(400).json({ success: false, message: r.motivo });
+      return;
+    }
+
+    res.json({
+      success: true,
+      message:
+        opcion === 'liberar'
+          ? "El trabajo volvió a estar publicado con el precio que ya abonaste."
+          : "El dinero quedó como saldo a favor en tu cuenta.",
+    });
+  } catch (error: any) {
+    console.error("Error resolviendo trabajador no disponible:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
  * Request contract extension
  * - Maximum 1 extension per contract
  * - Must be requested at least 24h before job start date

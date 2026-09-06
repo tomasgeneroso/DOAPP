@@ -139,6 +139,14 @@ async function handlePaymentWebhook(data: any, ip: string) {
 
     // Si no se encuentra por contractId, buscar por metadata.job_id
     let foundPayment = dbPayment;
+
+    // Un pago de cotización todavía no tiene contrato, así que ni
+    // mercadopagoPaymentId ni contractId lo encuentran. Por eso su preferencia
+    // lleva el id del registro en la metadata: es el único puente disponible
+    // antes de que el contrato exista.
+    if (!foundPayment && metadata?.payment_id) {
+      foundPayment = await Payment.findByPk(metadata.payment_id);
+    }
     if (!foundPayment && metadata?.job_id) {
       const { Job } = await import('../models/sql/Job.model.js');
       const job = await Job.findByPk(metadata.job_id);
@@ -251,6 +259,25 @@ async function handleApprovedPayment(payment: any, metadata: any) {
         });
       }
       return;
+    }
+
+    // El aviso al trabajador va por dos vias y las dos hacen falta: el socket
+    // solo llega si esta con la pantalla abierta, y esto es justamente lo que no
+    // se puede perder por no estar mirando.
+    if (payment.recipientId) {
+      await Notification.create({
+        recipientId: payment.recipientId,
+        type: 'success',
+        category: 'contracts',
+        title: 'Te contrataron: el pago ya está acreditado',
+        message:
+          `El cliente abonó tu cotización de $${Number(payment.amount).toLocaleString('es-AR')} y el contrato ya está creado. ` +
+          'Queda a la espera de la aprobación administrativa.',
+        relatedModel: 'Contract',
+        relatedId: r.contractId,
+        actionText: 'Ver contrato',
+        sentVia: ['in_app'],
+      } as any);
     }
 
     // El trabajador ve el desenlace en vivo, sin recargar.

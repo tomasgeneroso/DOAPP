@@ -40,10 +40,16 @@ describe('terminos y condiciones', () => {
       expect(termsEs.s6p6).toMatch(/no se pausan/i);
     });
 
-    it('explica de donde sale el minimo, no solo cual es', () => {
-      expect(termsEs.s7p8).toContain('18.000');
-      // El pedido era que se entienda por que existe, no que se anuncie.
+    it('explica de donde salen los minimos sin fijar un numero', () => {
+      // El importe no va en los terminos: se deriva del costo de pasarela, del
+      // costo fijo por contrato y del tipo de cambio, asi que cambia solo. Un
+      // numero escrito en el documento legal quedaria mintiendo, y corregirlo
+      // implicaria reeditar los terminos cada vez que se mueve el dolar.
+      expect(termsEs.s7p8).not.toMatch(/\d{2}\.\d{3}/);
       expect(termsEs.s7p8).toMatch(/costo fijo/i);
+      expect(termsEs.s7p8).toMatch(/tipo de cambio/i);
+      // Pero si tiene que prometer que el importe vigente se informa.
+      expect(termsEs.s7p8).toMatch(/se informan/i);
     });
 
     it('dice que retirar el saldo devuelto tiene costo y usarlo no', () => {

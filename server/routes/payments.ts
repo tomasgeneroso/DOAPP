@@ -1659,16 +1659,10 @@ router.post("/quote/:proposalId", protect, async (req: AuthRequest, res: Respons
       return;
     }
 
-    const mercadoPagoService = (await import('../services/mercadopago.js')).default;
-    const preference = await (mercadoPagoService as any).createPreference({
-      title: `Cotización: ${job.title}`,
-      description: `Aceptación de cotización para ${job.title}`,
-      price: liquidacion.totalACobrar,
-      contractId: (proposal as any).id.toString(),
-      clientId: req.user.id.toString(),
-      doerId: (proposal as any).freelancerId?.toString(),
-    });
-
+    // El pago se crea primero y sin id de pasarela: hace falta su id para que la
+    // metadata que viaja a MercadoPago pueda apuntar de vuelta a este registro.
+    // Sin eso el webhook no lo encuentra -- busca por contractId, y una
+    // cotización todavía no tiene contrato.
     const payment = await Payment.create({
       contractId: null,
       payerId: req.user.id,
@@ -1677,7 +1671,6 @@ router.post("/quote/:proposalId", protect, async (req: AuthRequest, res: Respons
       currency: "ARS",
       status: "pending",
       paymentType: "contract_payment",
-      mercadoPagoPreferenceId: preference.id,
       description: `Cotización aceptada: ${job.title}`,
       platformFee: liquidacion.comision,
       platformFeePercentage: liquidacion.aPagar > 0 ? (liquidacion.comision / liquidacion.aPagar) * 100 : 0,
@@ -1693,6 +1686,27 @@ router.post("/quote/:proposalId", protect, async (req: AuthRequest, res: Respons
       },
     } as any);
 
+    const mercadoPagoService = (await import('../services/mercadopago.js')).default;
+    const orden = await mercadoPagoService.createPayment({
+      amount: liquidacion.totalACobrar,
+      currency: 'ARS',
+      description: `Cotización: ${job.title}`,
+      provider: 'mercadopago',
+      // payment_id es lo que hace que el webhook encuentre este registro. Va en
+      // la metadata de la preferencia y MercadoPago la devuelve con el pago.
+      metadata: {
+        payment_id: payment.id,
+        type: 'aceptacion_cotizacion',
+        proposal_id: (proposal as any).id,
+        job_id: job.id,
+      },
+      successUrl: `${config.clientUrl}/proposals/${(proposal as any).id}?pago=ok`,
+      cancelUrl: `${config.clientUrl}/proposals/${(proposal as any).id}?pago=cancelado`,
+    });
+
+    (payment as any).mercadoPagoPreferenceId = orden.providerPaymentId || orden.paymentId;
+    await payment.save();
+
     // El trabajador ve el proceso en vivo: saber que el cliente esta pagando
     // cambia lo que hace mientras tanto -- deja de buscar otro trabajo para esa
     // fecha. Que se entere recien con el contrato firmado llega tarde.
@@ -1706,9 +1720,9 @@ router.post("/quote/:proposalId", protect, async (req: AuthRequest, res: Respons
 
     res.json({
       success: true,
-      paymentUrl: preference.init_point,
+      paymentUrl: orden.checkoutUrl,
       paymentId: payment.id,
-      preferenceId: preference.id,
+      preferenceId: orden.providerPaymentId,
       liquidacion,
     });
   } catch (error: any) {
