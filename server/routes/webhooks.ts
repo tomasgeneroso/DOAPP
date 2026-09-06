@@ -175,6 +175,52 @@ async function handlePaymentWebhook(data: any, ip: string) {
     foundPayment.cardBrand = paymentMethodInfo.card_brand ?? undefined;
 
     if (status === 'succeeded' || status === 'approved') {
+      /**
+       * El monto que informa MercadoPago tiene que ser el que esperábamos.
+       *
+       * Hasta acá `transaction_amount` sólo se logueaba. Confiar en que
+       * coincide es confiar en que nada pudo alterar la preferencia entre que
+       * se creó y que se pagó: distinta moneda, un importe editado, un webhook
+       * que apunta al pago equivocado. Ninguna de esas es probable; todas
+       * terminan con un contrato creado por menos plata de la que dice.
+       *
+       * Se compara con un centavo de tolerancia, no exacto: los importes van y
+       * vuelven como decimales y un redondeo no puede frenar un pago legítimo.
+       */
+      const esperado = Number(foundPayment.amount) || 0;
+      const recibido = Number(transaction_amount) || 0;
+      const monedaOk = !currency_id || String(currency_id) === String(foundPayment.currency);
+
+      if (recibido > 0 && (Math.abs(recibido - esperado) > 0.01 || !monedaOk)) {
+        foundPayment.status = 'pending_verification';
+        await foundPayment.save();
+
+        logger.payment('ERROR', 'Monto o moneda del webhook no coinciden con el pago esperado', {
+          paymentId: foundPayment.id?.toString(),
+          data: { esperado, recibido, moneda: currency_id, monedaEsperada: foundPayment.currency },
+          userId: foundPayment.payerId?.toString(),
+        });
+
+        const admins = await User.findAll({
+          where: { role: { [Op.in]: ['admin', 'super_admin', 'owner'] } },
+        });
+        for (const admin of admins) {
+          await Notification.create({
+            recipientId: admin.id,
+            type: 'error',
+            category: 'admin',
+            title: 'Pago con monto inesperado',
+            message:
+              `Se esperaban ${foundPayment.currency} ${esperado} y MercadoPago informó ${currency_id} ${recibido}. ` +
+              'El pago quedó pendiente de verificación y no se ejecutó ninguna acción.',
+            relatedModel: 'Payment',
+            relatedId: foundPayment.id,
+            sentVia: ['in_app'],
+          } as any);
+        }
+        return;
+      }
+
       await handleApprovedPayment(foundPayment, metadata);
     } else if (status === 'rejected' || status === 'cancelled') {
       await handleRejectedPayment(foundPayment);
