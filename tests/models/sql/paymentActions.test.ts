@@ -201,6 +201,42 @@ describe('consulta del estado', () => {
   });
 });
 
+describe('contracargo: un contrato en disputa no paga', () => {
+  /**
+   * La guarda que mas plata salva. En un contracargo el banco le devuelve el
+   * dinero al cliente y despues nos lo debita; si entre medio se le paga al
+   * trabajador, la plata sale dos veces y la segunda no vuelve.
+   *
+   * La liberacion automatica del escrow corre sola cada hora, asi que esto no
+   * puede depender de que un administrador llegue a tiempo.
+   */
+  it('rechaza el pago al trabajador', async () => {
+    await Contract.update({ status: 'disputed' } as any, { where: { id: contractId } });
+
+    const res = await executeFinancialAction(payout(), ok);
+
+    expect(res.ok).toBe(false);
+    expect(res.reason).toBe('STATE_NOT_ALLOWED');
+    // Y no quedo ninguna operacion reservada: rechazar tiene que ser total.
+    expect(await PaymentAction.count({ where: { contractId } })).toBe(0);
+
+    await Contract.update({ status: 'completed' } as any, { where: { id: contractId } });
+  });
+
+  it('permite devolverle la plata al cliente', async () => {
+    // Un contracargo muchas veces se resuelve devolviendo antes de perderlo.
+    // Bloquear el reembolso junto con el pago dejaria sin salida el unico
+    // movimiento que corresponde hacer.
+    await Contract.update({ status: 'disputed' } as any, { where: { id: contractId } });
+
+    const res = await executeFinancialAction(refundTotal(), ok);
+
+    expect(res.ok).toBe(true);
+
+    await Contract.update({ status: 'completed' } as any, { where: { id: contractId } });
+  });
+});
+
 describe('la garantia esta en la base, no solo en el codigo', () => {
   it('Postgres rechaza una segunda operacion terminal aunque se saltee el servicio', async () => {
     await executeFinancialAction(payout(), ok);

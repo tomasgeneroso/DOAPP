@@ -80,6 +80,23 @@ router.post('/mercadopago', async (req, res) => {
       await handlePaymentWebhook(data, ip);
     } else if (type === 'subscription' || action?.startsWith('subscription')) {
       await handleSubscriptionWebhook(data, action, ip);
+    } else if (
+      type === 'chargebacks' ||
+      type === 'chargeback' ||
+      type === 'claim' ||
+      type === 'claims' ||
+      action?.startsWith('chargeback') ||
+      action?.startsWith('claim')
+    ) {
+      await handleChargebackWebhook(data, type || action, ip);
+    } else {
+      // Un evento que no sabemos atender se registra en vez de descartarse.
+      // Antes caian en silencio, que es lo mismo que no recibirlos: si alguna
+      // vez llega algo que importa, esto es lo unico que lo hace visible.
+      logger.webhook('mercadopago', type || action || 'desconocido', 'Evento no manejado', {
+        data: { type, action, dataId: data?.id },
+        ip,
+      });
     }
 
     // Log tiempo de procesamiento
@@ -95,6 +112,123 @@ router.post('/mercadopago', async (req, res) => {
     // Ya respondimos 200, solo loguear el error
   }
 });
+
+/**
+ * Contracargos y reclamos.
+ *
+ * Es la notificacion mas cara de ignorar de todas. En un contracargo el banco
+ * le devuelve el dinero al cliente y despues nos lo debita a nosotros: si entre
+ * medio le pagamos al trabajador, la plata sale dos veces y la segunda no
+ * vuelve. La liberacion automatica del escrow corre sola cada hora, asi que la
+ * ventana no depende de que alguien este mirando.
+ *
+ * Lo unico que hace falta hacer rapido es congelar. Resolverlo es trabajo
+ * humano y lleva dias; frenar el pago tiene que pasar en segundos.
+ *
+ * El expediente de evidencia se arma acá y no cuando el administrador entra a
+ * mirar, porque se arma con el estado del contrato AHORA. Dentro de tres dias
+ * los mensajes, las fotos y las marcas diarias pueden haber cambiado, y lo que
+ * hay que presentarle a MercadoPago es lo que era cierto cuando se reclamo.
+ */
+async function handleChargebackWebhook(data: any, tipo: string, ip: string) {
+  try {
+    const idExterno = data?.id;
+    logger.webhook('mercadopago', tipo, `Contracargo o reclamo recibido: ${idExterno}`, {
+      data: { id: idExterno },
+      ip,
+    });
+
+    // La notificacion trae el id del contracargo, no el del pago. Se busca por
+    // los dos campos posibles porque el formato cambia segun el tipo de evento.
+    const idPago = data?.payment_id || data?.payment?.id || data?.resource?.payment_id;
+
+    const pago = idPago
+      ? await Payment.findOne({ where: { mercadopagoPaymentId: String(idPago) } })
+      : null;
+
+    if (!pago) {
+      // Sin pago identificado no se puede congelar nada, pero tampoco se puede
+      // dejar pasar: alguien tiene que buscarlo a mano en el panel de MP.
+      logger.error('webhooks', 'Contracargo sin pago identificable', {
+        data: { id: idExterno, idPago, tipo },
+      });
+      await avisarAdmins(
+        'Contracargo sin pago identificado',
+        `Llegó un ${tipo} (id ${idExterno}) que no pudo asociarse a ningún pago. Hay que buscarlo manualmente en el panel de MercadoPago.`,
+        'Payment',
+        null,
+      );
+      return;
+    }
+
+    pago.status = 'disputed';
+    await pago.save();
+
+    let evidenciaLista = false;
+
+    if (pago.contractId) {
+      const contrato = await Contract.findByPk(pago.contractId);
+      if (contrato) {
+        // Congelar es lo urgente. Con el contrato en 'disputed', reserve() en
+        // paymentActions rechaza cualquier PAYOUT sobre él.
+        contrato.status = 'disputed';
+        (contrato as any).paymentStatus = 'disputed';
+        await contrato.save();
+
+        try {
+          const { buildContractEvidence } = await import('../services/contractEvidence.js');
+          evidenciaLista = !!(await buildContractEvidence(String(pago.contractId)));
+        } catch (e: any) {
+          // Que falle armar el expediente no puede impedir el congelamiento,
+          // que ya ocurrió arriba.
+          logger.error('webhooks', `No se pudo armar la evidencia del contracargo: ${e.message}`, {
+            data: { contractId: pago.contractId },
+          });
+        }
+      }
+    }
+
+    await avisarAdmins(
+      'Contracargo recibido: pago congelado',
+      `Se recibió un ${tipo} sobre un pago de $${Number(pago.amount).toLocaleString('es-AR')}. ` +
+        `El contrato quedó en disputa y no se puede liberar el pago al trabajador. ` +
+        (evidenciaLista
+          ? 'El expediente de evidencia se generó con el estado actual del contrato.'
+          : 'No se pudo generar el expediente automáticamente: revisalo a mano.') +
+        ' MercadoPago da un plazo acotado para responder.',
+      'Payment',
+      pago.id,
+    );
+  } catch (error: any) {
+    logger.error('webhooks', `Error manejando contracargo: ${error.message}`, {
+      data: { stack: error.stack },
+    });
+  }
+}
+
+/** Aviso a todos los administradores. Se repite lo suficiente como para existir. */
+async function avisarAdmins(
+  title: string,
+  message: string,
+  relatedModel: string,
+  relatedId: string | null,
+) {
+  const admins = await User.findAll({
+    where: { role: { [Op.in]: ['admin', 'super_admin', 'owner'] } },
+  });
+  for (const admin of admins) {
+    await Notification.create({
+      recipientId: admin.id,
+      type: 'error',
+      category: 'admin',
+      title,
+      message,
+      relatedModel,
+      relatedId,
+      sentVia: ['in_app'],
+    } as any);
+  }
+}
 
 /**
  * Manejar webhook de pago

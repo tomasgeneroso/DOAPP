@@ -93,6 +93,27 @@ async function reserve(
     return { reason: 'CONTRACT_NOT_FOUND', message: 'El contrato no existe' };
   }
 
+  /**
+   * Un contrato en disputa o con contracargo no paga.
+   *
+   * Es la guarda que mas plata salva del archivo. En un contracargo el banco le
+   * devuelve el dinero al cliente y despues nos lo debita a nosotros; si entre
+   * medio le pagamos al trabajador, la plata sale dos veces y la segunda no
+   * vuelve. La ventana entre que llega la notificacion y que alguien la mira
+   * puede ser de horas, y la liberacion automatica del escrow corre sola.
+   *
+   * Los reembolsos si se permiten: devolverle al cliente lo que reclama es
+   * exactamente lo que corresponde hacer, y muchas veces es como se resuelve
+   * el contracargo antes de perderlo.
+   */
+  if (String(contract.status) === 'disputed' && req.actionType === 'PAYOUT') {
+    return {
+      reason: 'STATE_NOT_ALLOWED',
+      message:
+        'Este contrato tiene una disputa o un contracargo abierto. No se puede liberar el pago hasta resolverlo.',
+    };
+  }
+
   // Lo que ya haya pasado con la plata de este contrato, bajo el lock.
   const existing = await PaymentAction.findAll({
     where: { contractId: req.contractId },
