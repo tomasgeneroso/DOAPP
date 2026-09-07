@@ -27,6 +27,15 @@ const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'audit_logs.performed_by nullable', sql: `ALTER TABLE audit_logs ALTER COLUMN performed_by DROP NOT NULL` },
   { label: 'audit_logs.admin_role nullable', sql: `ALTER TABLE audit_logs ALTER COLUMN admin_role DROP NOT NULL` },
   { label: 'audit_logs.actor', sql: `ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS actor VARCHAR(60)` },
+  // --- controles sobre el dinero ---
+  // Sin fraud_hold_*, una alerta de fraude no puede retener el pago y el escrow
+  // se libera solo a las dos horas. Sin banking_info_updated_at no hay
+  // enfriamiento y una cuenta tomada se vacía en segundos.
+  { label: 'contracts.fraud_hold_at', sql: `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS fraud_hold_at TIMESTAMPTZ` },
+  { label: 'contracts.fraud_hold_reason', sql: `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS fraud_hold_reason TEXT` },
+  { label: 'contracts.fraud_hold_cleared_at', sql: `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS fraud_hold_cleared_at TIMESTAMPTZ` },
+  { label: 'contracts.fraud_hold_cleared_by', sql: `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS fraud_hold_cleared_by UUID` },
+  { label: 'users.banking_info_updated_at', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS banking_info_updated_at TIMESTAMPTZ` },
   // --- blog: agent authorship, review gate and answer-engine blocks ---
   { label: 'blog_posts.generated_by', sql: `ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS generated_by VARCHAR(16) NOT NULL DEFAULT 'human'` },
   { label: 'blog_posts.reviewed_by', sql: `ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS reviewed_by UUID` },

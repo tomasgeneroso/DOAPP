@@ -888,6 +888,36 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
       if (!bankingInfo.cbu && oldUser.bankingInfo?.cbu) {
         updateData.bankingInfo.cbu = oldUser.bankingInfo.cbu;
       }
+
+      /**
+       * Se sella el cambio de cuenta de destino para el enfriamiento.
+       *
+       * Sólo cuando el CBU cambia de verdad: corregir el nombre del titular o
+       * el alias no habilita a nadie a sacar plata a otro lado, y bloquear
+       * retiros por eso sería castigar a quien está ordenando sus datos.
+       */
+      const cbuAnterior = oldUser.bankingInfo?.cbu;
+      const cbuNuevo = updateData.bankingInfo.cbu;
+      if (cbuNuevo && cbuNuevo !== cbuAnterior) {
+        updateData.bankingInfoUpdatedAt = new Date();
+
+        const { logMoneyEvent } = await import('../utils/auditLog.js');
+        await logMoneyEvent({
+          action: 'BANKING_INFO_CHANGED',
+          actor: `user:${oldUser.id}`,
+          severity: 'high',
+          description:
+            'El usuario cambió su cuenta bancaria de destino. Los retiros quedan en enfriamiento.',
+          userId: String(oldUser.id),
+          cuentas: {
+            // Sólo los últimos cuatro dígitos: alcanzan para reconocer la cuenta
+            // en una discusión y no convierten al registro en una lista de CBUs.
+            cbuAnteriorUlt4: cbuAnterior ? String(cbuAnterior).slice(-4) : null,
+            cbuNuevoUlt4: String(cbuNuevo).slice(-4),
+          },
+          metadata: { ip: req.ip, userAgent: req.get('user-agent') },
+        });
+      }
     }
     if (dontAskBankingInfo !== undefined) updateData.dontAskBankingInfo = dontAskBankingInfo;
     if (legalInfo) updateData.legalInfo = legalInfo;

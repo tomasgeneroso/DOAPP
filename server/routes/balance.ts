@@ -195,6 +195,24 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
       return;
     }
 
+    /**
+     * Enfriamiento posterior a un cambio de cuenta bancaria.
+     *
+     * Va antes que cualquier otra validación porque es la única que protege
+     * contra una cuenta tomada, y las demás no tienen sentido si la cuenta de
+     * destino no es del dueño real.
+     */
+    const { verificarEnfriamientoCbu } = await import('../services/paymentSafeguards.js');
+    const enfriamiento = verificarEnfriamientoCbu((user as any).bankingInfoUpdatedAt);
+    if (!enfriamiento.permitido) {
+      res.status(403).json({
+        success: false,
+        message: enfriamiento.motivo,
+        enfriamiento: enfriamiento.detalle,
+      });
+      return;
+    }
+
     // Retiro "todo o nada": se retira SIEMPRE el saldo completo disponible (mín $1,000 ARS).
     const amount = Number(user.balanceArs) || 0;
     if (amount < MINIMUM_WITHDRAWAL_ARS) {

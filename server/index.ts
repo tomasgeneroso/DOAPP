@@ -33,6 +33,7 @@ import { startAutoCancelExpiredJobsJob } from "./jobs/autoCancelExpiredJobs.js";
 import { startJobReminderJob } from "./jobs/jobReminders.js";
 import { startSuspendFlexibleEndDateJob } from "./jobs/suspendFlexibleEndDateJobs.js";
 import { startPauseStaleJobs } from "./jobs/pauseStaleJobs.js";
+import { startReconciliation } from "./services/reconciliation.js";
 import { startResetReferralDiscountsJob } from "./jobs/resetReferralDiscounts.js";
 import { startAutoConfirmContractsJob } from "./jobs/autoConfirmContracts.js";
 import { startConfirmationReminderJob } from "./jobs/sendConfirmationReminders.js";
@@ -447,6 +448,8 @@ startJobReminderJob();
 // Initialize suspend jobs with flexible end date (24h before start without end date)
 startSuspendFlexibleEndDateJob();
 startPauseStaleJobs();
+// Conciliación diaria: el único control que encuentra lo que los demás no vieron.
+startReconciliation();
 
 // Initialize reset referral discounts (daily at midnight)
 startResetReferralDiscountsJob();

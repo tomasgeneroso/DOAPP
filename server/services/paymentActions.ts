@@ -106,6 +106,40 @@ async function reserve(
    * exactamente lo que corresponde hacer, y muchas veces es como se resuelve
    * el contracargo antes de perderlo.
    */
+  /**
+   * Retencion por alerta de fraude.
+   *
+   * Va antes que la de disputa porque el mensaje es distinto y el trabajador
+   * merece saber cual de las dos cosas le esta pasando: nadie lo denuncio.
+   *
+   * Solo frena el pago al trabajador. Devolverle al cliente sigue permitido: si
+   * el fraude se confirma, devolver es lo que corresponde.
+   */
+  const retencionFraudeActiva =
+    !!(contract as any).fraudHoldAt && !(contract as any).fraudHoldClearedAt;
+
+  if (retencionFraudeActiva && req.actionType === 'PAYOUT') {
+    const { logMoneyEvent } = await import('../utils/auditLog.js');
+    await logMoneyEvent({
+      action: 'PAYOUT_BLOCKED_FRAUD_HOLD',
+      actor: req.executedById ? `admin:${req.executedById}` : 'system',
+      severity: 'high',
+      description: 'Se intentó liberar el pago de un contrato con retención por alerta de fraude.',
+      contractId: req.contractId,
+      monto: req.amount,
+      moneda: req.currency || 'ARS',
+      cuentas: { clienteId: contract.clientId, trabajadorId: contract.doerId },
+      metadata: { motivo: (contract as any).fraudHoldReason },
+    });
+
+    return {
+      reason: 'STATE_NOT_ALLOWED',
+      message:
+        'Este contrato tiene una retención por alerta de fraude. Un administrador tiene que revisarlo ' +
+        'y levantarla antes de que se pueda liberar el pago.',
+    };
+  }
+
   if (String(contract.status) === 'disputed' && req.actionType === 'PAYOUT') {
     // Queda asentado. Un intento de pagar sobre un contrato en disputa importa
     // aunque se haya frenado: puede ser la liberacion automatica haciendo su

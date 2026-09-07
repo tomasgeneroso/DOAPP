@@ -619,6 +619,17 @@ export class User extends Model {
   @Column(DataType.DECIMAL(12, 2))
   balanceArs!: number;
 
+  /**
+   * Cuando se cambio el CBU por ultima vez.
+   *
+   * Habilita el enfriamiento previo a un retiro. El ataque contra el que
+   * defiende es siempre igual: alguien entra con la contraseña robada, cambia
+   * la cuenta de destino y retira. Sin demora, entre esas dos cosas pasan
+   * segundos.
+   */
+  @Column(DataType.DATE)
+  bankingInfoUpdatedAt?: Date;
+
   // ============================================
   // REFERRALS
   // ============================================

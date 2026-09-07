@@ -246,6 +246,46 @@ router.post("/:id/complete", protect, requireRole('admin', 'super_admin', 'owner
       return;
     }
 
+    /**
+     * Controles antes de que salga la plata.
+     *
+     * Van acá y no en el frontend porque acá es donde el dinero efectivamente
+     * se va: un control que sólo vive en la pantalla lo saltea cualquiera que
+     * llame a la API.
+     */
+    const {
+      verificarTopeDiario,
+      requiereDobleConfirmacion,
+      MONTO_DOBLE_CONFIRMACION_ARS,
+    } = await import('../../services/paymentSafeguards.js');
+
+    const monto = Number(withdrawal.amount) || 0;
+    const rol = String((req.user as any).adminRole || req.user.role || '');
+
+    // Los montos grandes piden contraseña y 2FA otra vez. La sesión abierta
+    // prueba que alguien entró alguna vez; no prueba quién está tecleando ahora.
+    if (requiereDobleConfirmacion(monto) && !(req as any).passwordVerified) {
+      res.status(403).json({
+        success: false,
+        requiereVerificacion: true,
+        message:
+          `Los egresos de $${MONTO_DOBLE_CONFIRMACION_ARS.toLocaleString('es-AR')} o más piden ` +
+          'confirmar tu contraseña y tu código de 2FA antes de ejecutarse.',
+        monto,
+      });
+      return;
+    }
+
+    const tope = await verificarTopeDiario(adminId, rol, monto);
+    if (!tope.permitido) {
+      res.status(403).json({
+        success: false,
+        message: tope.motivo,
+        topeDiario: tope.detalle,
+      });
+      return;
+    }
+
     const userId = typeof withdrawal.user === 'object' ? withdrawal.user.id : withdrawal.user;
     const user = await User.findByPk(userId);
     if (!user) {
@@ -291,6 +331,33 @@ router.post("/:id/complete", protect, requireRole('admin', 'super_admin', 'owner
       transactionId: transaction.id,
       ...(proofOfTransfer && { proofOfTransfer }),
       ...(adminNotes && { adminNotes })
+    });
+
+    // Además del audit log de admin, queda el asiento de dinero con las
+    // cuentas: es el que sirve cuando hay que reconstruir a dónde fue la plata.
+    const { logMoneyEvent } = await import('../../utils/auditLog.js');
+    void logMoneyEvent({
+      action: 'WITHDRAWAL_COMPLETED',
+      actor: `admin:${adminId}`,
+      severity: 'critical',
+      description: `Se transfirió $${monto.toLocaleString('es-AR')} a la cuenta del usuario.`,
+      userId: String(user.id),
+      monto,
+      cuentas: {
+        banco: withdrawal.bankingInfo?.bankName,
+        titular: withdrawal.bankingInfo?.accountHolder,
+        cbuUlt4: withdrawal.bankingInfo?.cbu ? String(withdrawal.bankingInfo.cbu).slice(-4) : null,
+        alias: withdrawal.bankingInfo?.alias,
+      },
+      metadata: {
+        withdrawalId: withdrawal.id,
+        transactionId: transaction.id,
+        saldoAntes: balanceBefore,
+        saldoDespues: newBalance,
+        comprobante: proofOfTransfer || null,
+        topeDiario: tope.detalle,
+        rol,
+      },
     });
 
     void logAudit({

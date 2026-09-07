@@ -138,6 +138,81 @@ router.get(
 // @route   POST /api/admin/contracts/create
 // @desc    Crear contrato (Admin)
 // @access  Admin+
+/**
+ * Levantar la retención por alerta de fraude.
+ * POST /api/admin/contracts/:id/clear-fraud-hold
+ *
+ * Se pide una justificación escrita. No es burocracia: la retención la puso una
+ * máquina y la levanta una persona, así que lo único que queda para entender
+ * después por qué se liberó ese pago es lo que esa persona escribió.
+ *
+ * No se puede "volver a poner" desde acá a propósito. Si aparece una razón
+ * nueva, corresponde una disputa, que tiene su propio proceso y su propia
+ * evidencia.
+ */
+router.post(
+  "/:id/clear-fraud-hold",
+  requirePermission("contract:update"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const { justificacion } = req.body;
+
+      if (!justificacion || String(justificacion).trim().length < 15) {
+        res.status(400).json({
+          success: false,
+          message:
+            "Contá en una o dos frases por qué considerás que el pago puede liberarse. " +
+            "Es lo único que va a quedar para entender esta decisión más adelante.",
+        });
+        return;
+      }
+
+      const contract = await Contract.findByPk(req.params.id);
+      if (!contract) {
+        res.status(404).json({ success: false, message: "Contrato no encontrado" });
+        return;
+      }
+
+      if (!(contract as any).fraudHoldAt || (contract as any).fraudHoldClearedAt) {
+        res.status(400).json({
+          success: false,
+          message: "Este contrato no tiene una retención por fraude activa.",
+        });
+        return;
+      }
+
+      (contract as any).fraudHoldClearedAt = new Date();
+      (contract as any).fraudHoldClearedBy = req.user.id;
+      await contract.save();
+
+      const { logMoneyEvent } = await import("../../utils/auditLog.js");
+      await logMoneyEvent({
+        action: "FRAUD_HOLD_CLEARED",
+        actor: `admin:${req.user.id}`,
+        severity: "critical",
+        description: `Se levantó la retención por fraude. Justificación: ${String(justificacion).trim()}`,
+        contractId: contract.id,
+        monto: Number(contract.price),
+        cuentas: { clienteId: contract.clientId, trabajadorId: contract.doerId },
+        metadata: {
+          retenidoDesde: (contract as any).fraudHoldAt,
+          motivoRetencion: (contract as any).fraudHoldReason,
+          justificacion: String(justificacion).trim(),
+          adminId: req.user.id,
+        },
+      });
+
+      res.json({
+        success: true,
+        message: "Retención levantada. El pago puede liberarse normalmente.",
+      });
+    } catch (error: any) {
+      console.error("Error levantando la retención por fraude:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+);
+
 router.post(
   "/create",
   requirePermission("contract:create"),

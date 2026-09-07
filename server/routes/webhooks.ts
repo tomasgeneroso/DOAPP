@@ -221,6 +221,12 @@ async function handleChargebackWebhook(data: any, tipo: string, ip: string) {
       metadata: { idExterno, tipo, evidenciaGenerada: evidenciaLista },
     });
 
+    // Un contracargo es exactamente el momento donde MercadoPago y la
+    // plataforma se pueden desincronizar, así que se concilia en el acto en vez
+    // de esperar a la corrida de la madrugada.
+    const { conciliarPorEvento } = await import('../services/reconciliation.js');
+    void conciliarPorEvento('contracargo');
+
     await avisarAdmins(
       'Contracargo recibido: pago congelado',
       `Se recibió un ${tipo} sobre un pago de $${Number(pago.amount).toLocaleString('es-AR')}. ` +
@@ -266,14 +272,22 @@ async function handleClaimWebhook(data: any, ip: string) {
 /**
  * Alertas de fraude.
  *
- * MercadoPago avisa que un pago tiene señales de fraude. No congela el
- * contrato, porque una alerta no es una acusacion y bloquear a alguien por una
- * sospecha automatica es peor que el fraude que evita: el falso positivo le
- * arruina el trabajo a una persona honesta.
+ * MercadoPago avisa que un pago tiene señales de fraude. Se retiene el pago al
+ * trabajador hasta que un administrador mire el caso.
  *
- * Lo que si hace es marcarlo y avisar, para que alguien lo mire antes de que se
- * libere la plata. La liberacion automatica corre a las dos horas, asi que el
- * aviso tiene que llegar ahora y no en el resumen del dia.
+ * La retencion es distinta de una disputa y por eso vive en su propio campo. En
+ * una disputa hay alguien reclamando; acá hay una sospecha automatica y nadie
+ * acuso a nadie. Marcar el contrato como 'disputed' le diria al trabajador que
+ * el cliente lo denuncio, que es falso.
+ *
+ * Se retiene y no solo se avisa porque la liberacion automatica del escrow corre
+ * a las dos horas: un aviso que llega a las tres de la mañana y se lee a las
+ * nueve llega despues de que la plata salio. Levantar la retencion es barato --
+ * un clic de un administrador -- y perder la plata no tiene vuelta.
+ *
+ * Lo que NO se hace es penalizar a nadie ni contarle al cliente que hay una
+ * sospecha. Una alerta no es una acusacion, y el falso positivo le arruina el
+ * trabajo a una persona honesta.
  */
 async function handleFraudAlertWebhook(data: any, ip: string) {
   try {
@@ -287,24 +301,51 @@ async function handleFraudAlertWebhook(data: any, ip: string) {
       ? await Payment.findOne({ where: { mercadopagoPaymentId: String(idPago) } })
       : null;
 
+    // Se retiene el pago. El contrato NO pasa a 'disputed': nadie reclamó.
+    let retenido = false;
+    if (pago?.contractId) {
+      const contrato = await Contract.findByPk(pago.contractId);
+      if (contrato && !(contrato as any).fraudHoldAt) {
+        (contrato as any).fraudHoldAt = new Date();
+        (contrato as any).fraudHoldReason =
+          `Alerta de fraude de MercadoPago (id ${data?.id || 'sin id'})`;
+        (contrato as any).fraudHoldClearedAt = null;
+        await contrato.save();
+        retenido = true;
+      }
+    }
+
     const { logMoneyEvent } = await import('../utils/auditLog.js');
     await logMoneyEvent({
       action: 'FRAUD_ALERT_RECEIVED',
       actor: 'webhook:mercadopago',
       severity: 'critical',
-      description: `MercadoPago reportó una señal de fraude sobre el pago ${idPago || '(sin identificar)'}.`,
+      description:
+        `MercadoPago reportó una señal de fraude sobre el pago ${idPago || '(sin identificar)'}. ` +
+        (retenido ? 'Se retuvo el pago al trabajador.' : 'No se pudo retener: sin contrato asociado.'),
       contractId: pago?.contractId ? String(pago.contractId) : undefined,
       paymentId: pago ? String(pago.id) : undefined,
       userId: pago?.payerId ? String(pago.payerId) : undefined,
       monto: pago ? Number(pago.amount) : undefined,
-      metadata: { alertaId: data?.id, idPagoMp: idPago, datos: data },
+      cuentas: pago
+        ? {
+            pagadorId: pago.payerId,
+            destinatarioId: pago.recipientId,
+            idPagoMercadoPago: pago.mercadopagoPaymentId,
+            medioDePago: pago.paymentMethodId,
+            ultimos4: pago.cardLastFourDigits,
+          }
+        : undefined,
+      metadata: { alertaId: data?.id, idPagoMp: idPago, retenido, datos: data },
     });
 
     await avisarAdmins(
-      'Alerta de fraude de MercadoPago',
+      'Alerta de fraude: pago retenido',
       pago
         ? `MercadoPago reportó una señal de fraude sobre un pago de $${Number(pago.amount).toLocaleString('es-AR')}. ` +
-            'El contrato NO se congeló: una alerta no es una acusación. Revisalo antes de que se libere el pago.'
+            (retenido
+              ? 'El pago al trabajador quedó retenido hasta que alguien revise el caso. Si es un falso positivo, levantá la retención desde el contrato.'
+              : 'No se pudo retener automáticamente porque no hay contrato asociado: revisalo a mano.')
         : `Llegó una alerta de fraude (id ${data?.id}) que no pudo asociarse a ningún pago. Buscala en el panel de MercadoPago.`,
       pago ? 'Payment' : 'System',
       pago ? String(pago.id) : null,

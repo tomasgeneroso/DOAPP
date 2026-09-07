@@ -345,6 +345,29 @@ export class Contract extends Model {
   @Column(DataType.STRING(20))
   escrowStatus!: 'pending' | 'held_escrow' | 'released' | 'refunded';
 
+  /**
+   * Retencion por alerta de fraude.
+   *
+   * Es distinta de una disputa y por eso vive aparte. En una disputa hay alguien
+   * reclamando; acá hay una sospecha automatica de la pasarela y nadie acusó a
+   * nadie. Marcar el contrato como 'disputed' seria decirle al trabajador que
+   * el cliente lo denuncio, que es falso y ademas injusto.
+   *
+   * Frena el pago igual, hasta que un administrador mire el caso y la levante.
+   */
+  @Column(DataType.DATE)
+  fraudHoldAt?: Date;
+
+  @Column(DataType.TEXT)
+  fraudHoldReason?: string;
+
+  /** Cuando se levanto. Con fraudHoldAt presente, distingue activa de resuelta. */
+  @Column(DataType.DATE)
+  fraudHoldClearedAt?: Date;
+
+  @Column(DataType.UUID)
+  fraudHoldClearedBy?: string;
+
   @Column(DataType.STRING)
   escrowPaymentId?: string;
 
