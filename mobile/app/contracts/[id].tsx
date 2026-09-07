@@ -31,6 +31,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { getContract, confirmContract, rejectConfirmation } from '../../services/contracts';
+import { post } from '../../services/api';
 import { Contract, Job, User as UserType } from '../../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 
@@ -274,6 +275,95 @@ export default function ContractDetailScreen() {
   const isClient = client?._id === userId || client?.id === userId;
   const isDoer = doer?._id === userId || doer?.id === userId;
   // Can this party propose hours? (first to confirm)
+  /**
+   * Avisar que el trabajador no puede sólo tiene sentido antes de empezar.
+   * Después hay trabajo hecho que valorar, y eso se resuelve por disputa.
+   */
+  const puedeAvisarNoDisponible =
+    ['pending', 'ready', 'accepted'].includes(contract.status) && (isClient || isDoer);
+
+  /** El trabajador avisa; el cliente decide, porque es su plata. */
+  const avisarNoDisponible = () => {
+    Alert.prompt(
+      'No puedo hacer este trabajo',
+      'Contale al cliente qué pasó. Avisar a tiempo no te penaliza; desaparecer sí.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Avisar',
+          onPress: async (motivo?: string) => {
+            if (!motivo || motivo.trim().length < 5) {
+              Alert.alert('Falta el motivo', 'Contá brevemente por qué no podés.');
+              return;
+            }
+            const res = await post<any>(`/contracts/${contract._id || contract.id}/worker-unavailable`, {
+              motivo: motivo.trim(),
+            });
+            Alert.alert(
+              res.success ? 'Listo' : 'Error',
+              (res as any).message || 'No se pudo enviar el aviso',
+            );
+            if (res.success) fetchContract();
+          },
+        },
+      ],
+      'plain-text',
+    );
+  };
+
+  /**
+   * El cliente elige qué hacer con la plata.
+   *
+   * Las tres opciones se le muestran juntas y no escondidas en un menú: son
+   * decisiones distintas sobre su dinero y tiene que verlas al mismo tiempo
+   * para poder compararlas.
+   */
+  const resolverNoDisponible = () => {
+    Alert.alert(
+      'El trabajador no puede',
+      'Ya pagaste este trabajo. ¿Qué preferís hacer con ese dinero?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Dejarlo publicado igual',
+          onPress: () => enviarResolucion('liberar'),
+        },
+        {
+          text: 'Republicar por menos',
+          onPress: () =>
+            Alert.prompt(
+              'Republicar por menos',
+              '¿Por cuánto lo republicamos? La diferencia te queda como saldo a favor.',
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                {
+                  text: 'Republicar',
+                  onPress: (monto?: string) => enviarResolucion('parcial', Number(monto)),
+                },
+              ],
+              'plain-text',
+              '',
+              'numeric',
+            ),
+        },
+        {
+          text: 'Recuperar todo el dinero',
+          onPress: () => enviarResolucion('saldo'),
+        },
+      ],
+    );
+  };
+
+  const enviarResolucion = async (opcion: string, nuevoPrecio?: number) => {
+    const res = await post<any>(`/contracts/${contract._id || contract.id}/worker-unavailable`, {
+      opcion,
+      nuevoPrecio,
+      motivo: 'El trabajador informó que no puede realizar el trabajo',
+    });
+    Alert.alert(res.success ? 'Listo' : 'No se pudo', (res as any).message || '');
+    if (res.success) fetchContract();
+  };
+
   const canProposeHours = contract.status === 'in_progress' && !contract.clientConfirmed && !contract.doerConfirmed;
   // Can this party review the other's proposal?
   const canReview = contract.status === 'awaiting_confirmation' && contract.confirmationProposedBy !== userId && (isClient || isDoer);
@@ -518,6 +608,21 @@ export default function ContractDetailScreen() {
                   Ambas partes han confirmado. Contrato completado.
                 </Text>
               </View>
+            )}
+
+            {/* El trabajo todavía no arrancó y el trabajador no puede hacerlo.
+                Sólo aparece antes de empezar: una vez en curso hay trabajo
+                hecho que valorar, y eso es una disputa, no un trámite. */}
+            {puedeAvisarNoDisponible && (
+              <TouchableOpacity
+                style={[styles.cancelFormButton, { borderColor: colors.warning[400], marginTop: spacing.sm }]}
+                onPress={isDoer ? avisarNoDisponible : resolverNoDisponible}
+              >
+                <AlertTriangle size={18} color={colors.warning[600]} />
+                <Text style={{ color: colors.warning[600], fontWeight: "600" }}>
+                  {isDoer ? 'No puedo hacer este trabajo' : 'El trabajador no puede'}
+                </Text>
+              </TouchableOpacity>
             )}
 
             {/* in_progress: nadie confirmó — boton para proponer horas */}

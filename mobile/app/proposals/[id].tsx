@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Image, Linking } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,6 +6,7 @@ import { ArrowLeft, CheckCircle, XCircle, Clock, DollarSign, Calendar, MapPin, M
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { get, put, post } from '../../services/api';
+import { useQuoteStatus } from '../../hooks/useSocket';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 
 const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
@@ -25,8 +26,24 @@ export default function ProposalDetailScreen() {
   const [proposal, setProposal] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [faseCotizacion, setFaseCotizacion] = useState<'pagando' | 'aceptada' | null>(null);
 
   useEffect(() => { if (id) loadProposal(); }, [id]);
+
+  /**
+   * Se filtra por propuesta porque el evento llega al usuario, no a esta
+   * pantalla: un trabajador puede tener varias cotizaciones abiertas.
+   */
+  useQuoteStatus(
+    useCallback(
+      (data: any) => {
+        if (!id || data?.proposalId !== id) return;
+        setFaseCotizacion(data.fase);
+        if (data.fase === 'aceptada') loadProposal();
+      },
+      [id],
+    ),
+  );
 
   const loadProposal = async () => {
     try {
@@ -191,6 +208,30 @@ export default function ProposalDetailScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {/* Avance en vivo. Sólo aparece cuando hay algo que contar: el
+            trabajador necesita saber que están pagando su cotización mientras
+            ocurre, no cuando ya terminó. */}
+        {faseCotizacion === 'pagando' && (
+          <View style={[styles.aviso, { backgroundColor: '#fef3c7', borderColor: '#fcd34d' }]}>
+            <Text style={[styles.avisoTitulo, { color: '#92400e' }]}>
+              El cliente está abonando tu cotización
+            </Text>
+            <Text style={[styles.avisoTexto, { color: '#78350f' }]}>
+              Quedás seleccionado cuando el pago se acredite. Te avisamos acá mismo.
+            </Text>
+          </View>
+        )}
+        {faseCotizacion === 'aceptada' && (
+          <View style={[styles.aviso, { backgroundColor: '#d1fae5', borderColor: '#6ee7b7' }]}>
+            <Text style={[styles.avisoTitulo, { color: '#065f46' }]}>
+              Tu cotización fue pagada y aceptada
+            </Text>
+            <Text style={[styles.avisoTexto, { color: '#064e3b' }]}>
+              El contrato ya está creado y queda a la espera de la aprobación administrativa.
+            </Text>
+          </View>
+        )}
+
         {/* Status Badge */}
         <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
           {proposal.status === 'approved' ? <CheckCircle size={18} color={status.color} /> :
@@ -325,6 +366,9 @@ const styles = StyleSheet.create({
   scrollContent: { padding: 16, paddingBottom: 40 },
   statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 8, alignSelf: 'flex-start', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, marginBottom: 16 },
   statusText: { fontWeight: '600', fontSize: 14 },
+  aviso: { borderRadius: 12, borderWidth: 1, padding: 14, marginBottom: 16 },
+  avisoTitulo: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
+  avisoTexto: { fontSize: 13, lineHeight: 18 },
   card: { borderRadius: 16, padding: 16, borderWidth: 1, marginBottom: 12 },
   cardTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10, opacity: 0.6 },
   jobTitle: { fontSize: 17, fontWeight: '700', marginBottom: 8 },

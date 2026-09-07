@@ -124,6 +124,35 @@ export function useProposalUpdates(onUpdate: (data: any) => void) {
 }
 
 /**
+ * Avance de la aceptación de una cotización, en vivo del lado del trabajador.
+ *
+ * Son dos eventos y no uno porque hacen falta los dos momentos: que el cliente
+ * arrancó el pago, y que se acreditó. Saber que alguien está pagando tu
+ * cotización cambia lo que hacés mientras tanto -- dejás de buscar otro trabajo
+ * para esa fecha -- y enterarte recién con el contrato firmado llega tarde.
+ *
+ * La fase se agrega acá y no en el servidor para que la pantalla reciba un solo
+ * tipo de dato en vez de tener que distinguir de qué evento vino.
+ */
+export function useQuoteStatus(onChange: (data: any) => void) {
+  const { subscribe } = useSocket();
+
+  useEffect(() => {
+    const unsubPagando = subscribe('quote:payment_started', (d: any) =>
+      onChange({ ...d, fase: 'pagando' }),
+    );
+    const unsubAceptada = subscribe('quote:accepted', (d: any) =>
+      onChange({ ...d, fase: 'aceptada' }),
+    );
+
+    return () => {
+      unsubPagando();
+      unsubAceptada();
+    };
+  }, [subscribe, onChange]);
+}
+
+/**
  * Hook for subscribing to real-time notifications
  */
 export function useNotifications(onNotification: (data: any) => void) {
