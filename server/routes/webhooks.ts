@@ -80,15 +80,23 @@ router.post('/mercadopago', async (req, res) => {
       await handlePaymentWebhook(data, ip);
     } else if (type === 'subscription' || action?.startsWith('subscription')) {
       await handleSubscriptionWebhook(data, action, ip);
-    } else if (
-      type === 'chargebacks' ||
-      type === 'chargeback' ||
-      type === 'claim' ||
-      type === 'claims' ||
-      action?.startsWith('chargeback') ||
-      action?.startsWith('claim')
-    ) {
+    } else if (type === 'chargebacks' || type === 'chargeback' || action?.startsWith('chargeback')) {
       await handleChargebackWebhook(data, type || action, ip);
+    } else if (type === 'claim' || type === 'claims' || action?.startsWith('claim')) {
+      await handleClaimWebhook(data, ip);
+    } else if (
+      type === 'fraud_alert' ||
+      type === 'fraud_alerts' ||
+      action?.startsWith('fraud')
+    ) {
+      await handleFraudAlertWebhook(data, ip);
+    } else if (
+      type === 'order' ||
+      type === 'merchant_order' ||
+      action?.startsWith('order') ||
+      action?.startsWith('merchant_order')
+    ) {
+      await handleOrderWebhook(data, type || action, ip);
     } else {
       // Un evento que no sabemos atender se registra en vez de descartarse.
       // Antes caian en silencio, que es lo mismo que no recibirlos: si alguna
@@ -188,6 +196,31 @@ async function handleChargebackWebhook(data: any, tipo: string, ip: string) {
       }
     }
 
+    // Queda asentado con fecha, monto y cuentas. Cuando esto se discuta -- y un
+    // contracargo se discute -- lo que hay que poder mostrar es qué se hizo,
+    // cuándo y sobre qué plata.
+    const { logMoneyEvent } = await import('../utils/auditLog.js');
+    await logMoneyEvent({
+      action: 'CHARGEBACK_RECEIVED',
+      actor: 'webhook:mercadopago',
+      severity: 'critical',
+      description: `Se recibió un ${tipo} y se congeló el pago. El contrato quedó en disputa.`,
+      contractId: pago.contractId ? String(pago.contractId) : undefined,
+      paymentId: String(pago.id),
+      userId: pago.payerId ? String(pago.payerId) : undefined,
+      monto: Number(pago.amount),
+      moneda: String(pago.currency || 'ARS'),
+      cuentas: {
+        pagadorId: pago.payerId,
+        destinatarioId: pago.recipientId,
+        idPagoMercadoPago: pago.mercadopagoPaymentId,
+        medioDePago: pago.paymentMethodId,
+        ultimos4: pago.cardLastFourDigits,
+        marca: pago.cardBrand,
+      },
+      metadata: { idExterno, tipo, evidenciaGenerada: evidenciaLista },
+    });
+
     await avisarAdmins(
       'Contracargo recibido: pago congelado',
       `Se recibió un ${tipo} sobre un pago de $${Number(pago.amount).toLocaleString('es-AR')}. ` +
@@ -201,6 +234,142 @@ async function handleChargebackWebhook(data: any, tipo: string, ip: string) {
     );
   } catch (error: any) {
     logger.error('webhooks', `Error manejando contracargo: ${error.message}`, {
+      data: { stack: error.stack },
+    });
+  }
+}
+
+/**
+ * Reclamos.
+ *
+ * Un reclamo es el paso previo al contracargo: el cliente se queja ante
+ * MercadoPago pero todavia no fue al banco. Es la ventana en la que todavia se
+ * puede resolver hablando, y por eso llega separado del contracargo.
+ *
+ * Congela igual. La diferencia con un contracargo no es la urgencia -- si el
+ * cliente esta reclamando, liberarle el pago al trabajador en el medio es
+ * exactamente lo que no hay que hacer -- sino que acá todavia hay margen para
+ * responder antes de perder la plata.
+ */
+async function handleClaimWebhook(data: any, ip: string) {
+  const idPago = data?.payment_id || data?.payment?.id || data?.resource?.payment_id;
+  logger.webhook('mercadopago', 'claim', `Reclamo recibido: ${data?.id}`, {
+    data: { id: data?.id, idPago },
+    ip,
+  });
+
+  // Se reusa la ruta del contracargo: congelar, armar evidencia y avisar es lo
+  // mismo. Duplicarlo haria que un arreglo en uno no llegue al otro.
+  await handleChargebackWebhook(data, 'reclamo', ip);
+}
+
+/**
+ * Alertas de fraude.
+ *
+ * MercadoPago avisa que un pago tiene señales de fraude. No congela el
+ * contrato, porque una alerta no es una acusacion y bloquear a alguien por una
+ * sospecha automatica es peor que el fraude que evita: el falso positivo le
+ * arruina el trabajo a una persona honesta.
+ *
+ * Lo que si hace es marcarlo y avisar, para que alguien lo mire antes de que se
+ * libere la plata. La liberacion automatica corre a las dos horas, asi que el
+ * aviso tiene que llegar ahora y no en el resumen del dia.
+ */
+async function handleFraudAlertWebhook(data: any, ip: string) {
+  try {
+    const idPago = data?.payment_id || data?.payment?.id || data?.resource?.payment_id;
+    logger.webhook('mercadopago', 'fraud_alert', `Alerta de fraude: ${data?.id}`, {
+      data: { id: data?.id, idPago },
+      ip,
+    });
+
+    const pago = idPago
+      ? await Payment.findOne({ where: { mercadopagoPaymentId: String(idPago) } })
+      : null;
+
+    const { logMoneyEvent } = await import('../utils/auditLog.js');
+    await logMoneyEvent({
+      action: 'FRAUD_ALERT_RECEIVED',
+      actor: 'webhook:mercadopago',
+      severity: 'critical',
+      description: `MercadoPago reportó una señal de fraude sobre el pago ${idPago || '(sin identificar)'}.`,
+      contractId: pago?.contractId ? String(pago.contractId) : undefined,
+      paymentId: pago ? String(pago.id) : undefined,
+      userId: pago?.payerId ? String(pago.payerId) : undefined,
+      monto: pago ? Number(pago.amount) : undefined,
+      metadata: { alertaId: data?.id, idPagoMp: idPago, datos: data },
+    });
+
+    await avisarAdmins(
+      'Alerta de fraude de MercadoPago',
+      pago
+        ? `MercadoPago reportó una señal de fraude sobre un pago de $${Number(pago.amount).toLocaleString('es-AR')}. ` +
+            'El contrato NO se congeló: una alerta no es una acusación. Revisalo antes de que se libere el pago.'
+        : `Llegó una alerta de fraude (id ${data?.id}) que no pudo asociarse a ningún pago. Buscala en el panel de MercadoPago.`,
+      pago ? 'Payment' : 'System',
+      pago ? String(pago.id) : null,
+    );
+  } catch (error: any) {
+    logger.error('webhooks', `Error manejando alerta de fraude: ${error.message}`, {
+      data: { stack: error.stack },
+    });
+  }
+}
+
+/**
+ * Ordenes (Order API y merchant_order).
+ *
+ * Una orden agrupa uno o varios pagos de la misma compra. Hoy DOAPP cobra de a
+ * un pago por vez, asi que la orden no agrega informacion nueva: el pago que
+ * contiene ya llega por su propio evento y es el que crea el contrato.
+ *
+ * Se atiende igual, y no por completitud. Cuando una orden cierra pero su pago
+ * no llego -- porque el webhook de pago se perdio, que pasa -- esto es lo unico
+ * que lo hace visible. Reprocesar el pago desde acá cierra ese agujero sin
+ * duplicar nada: handlePaymentWebhook es idempotente sobre un pago ya aprobado.
+ */
+async function handleOrderWebhook(data: any, tipo: string, ip: string) {
+  try {
+    const idOrden = data?.id;
+    logger.webhook('mercadopago', tipo, `Orden recibida: ${idOrden}`, {
+      data: { id: idOrden },
+      ip,
+    });
+
+    // Los pagos de la orden vienen embebidos o hay que ir a buscarlos. Se
+    // toman los que ya vengan: pedir la orden completa a la API es una llamada
+    // mas que casi nunca aporta.
+    const pagos: any[] = data?.payments || data?.transactions?.payments || [];
+
+    if (pagos.length === 0) {
+      logger.webhook('mercadopago', tipo, 'Orden sin pagos: nada que hacer', {
+        data: { id: idOrden },
+      });
+      return;
+    }
+
+    for (const p of pagos) {
+      const estado = p?.status;
+      if (estado !== 'approved' && estado !== 'accredited') continue;
+
+      const yaRegistrado = await Payment.findOne({
+        where: { mercadopagoPaymentId: String(p.id) },
+      });
+
+      // Si ya lo tenemos con el pago acreditado, el evento de pago hizo su
+      // trabajo y no hay nada que rehacer.
+      if (yaRegistrado && yaRegistrado.status !== 'pending') continue;
+
+      logger.payment('WEBHOOK_PROCESS', `Pago recuperado desde la orden ${idOrden}`, {
+        paymentId: String(p.id),
+      });
+
+      // Se procesa por el camino normal: es idempotente y evita tener dos
+      // implementaciones de lo mismo que puedan divergir.
+      await handlePaymentWebhook({ id: p.id }, ip);
+    }
+  } catch (error: any) {
+    logger.error('webhooks', `Error manejando la orden: ${error.message}`, {
       data: { stack: error.stack },
     });
   }

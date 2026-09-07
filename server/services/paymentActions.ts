@@ -107,6 +107,28 @@ async function reserve(
    * el contracargo antes de perderlo.
    */
   if (String(contract.status) === 'disputed' && req.actionType === 'PAYOUT') {
+    // Queda asentado. Un intento de pagar sobre un contrato en disputa importa
+    // aunque se haya frenado: puede ser la liberacion automatica haciendo su
+    // trabajo, o alguien empujando un pago que no corresponde. La diferencia
+    // solo se ve si los dos casos dejan rastro.
+    const { logMoneyEvent } = await import('../utils/auditLog.js');
+    await logMoneyEvent({
+      action: 'PAYOUT_BLOCKED_DISPUTED',
+      actor: req.executedById ? `admin:${req.executedById}` : 'system',
+      severity: 'high',
+      description: 'Se intentó liberar el pago de un contrato en disputa. Se rechazó.',
+      contractId: req.contractId,
+      paymentId: req.paymentId ?? undefined,
+      monto: req.amount,
+      moneda: req.currency || 'ARS',
+      cuentas: {
+        clienteId: contract.clientId,
+        trabajadorId: contract.doerId,
+        referenciaExterna: req.externalReference ?? null,
+      },
+      metadata: { provider: req.provider, estadoContrato: contract.status },
+    });
+
     return {
       reason: 'STATE_NOT_ALLOWED',
       message:

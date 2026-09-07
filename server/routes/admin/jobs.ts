@@ -211,10 +211,24 @@ router.get(
          * acá permite que alguien llame al cliente antes de que el trabajador
          * se lleve la mala experiencia.
          */
+        /**
+         * Los estados distinguen DOS cosas distintas, y confundirlas fue el
+         * error de la primera version:
+         *
+         *   el plazo    ¿superó los días hábiles de control?
+         *   el cuello   ¿nadie cotizó, o cotizaron y el cliente no eligió?
+         *
+         * La segunda es la que dice qué hacer. Si nadie cotizó, el problema
+         * está en la publicación: precio fuera de mercado, descripción pobre,
+         * categoría sin trabajadores. Si cotizaron y el cliente no eligió, el
+         * problema es el cliente y hay que llamarlo. Son dos llamados
+         * distintos a dos personas distintas.
+         */
         let estado:
           | 'pagada_fantasma'
           | 'pausada_inactividad'
-          | 'por_vencer'
+          | 'vencida_nadie_cotizo'
+          | 'vencida_sin_elegir'
           | 'sin_cotizaciones'
           | 'esperando_aprobacion'
           | 'normal';
@@ -222,7 +236,9 @@ router.get(
         if (job.status === 'pending_approval') estado = 'esperando_aprobacion';
         else if (job.pausedForInactivityAt) estado = 'pausada_inactividad';
         else if (vencida && job.publicationPaid) estado = 'pagada_fantasma';
-        else if (vencida) estado = 'por_vencer';
+        else if (vencida) estado = c.total === 0 ? 'vencida_nadie_cotizo' : 'vencida_sin_elegir';
+        // Dentro del plazo pero ya lleva días sin que nadie cotice: es el aviso
+        // temprano, cuando todavía se puede corregir el precio o el texto.
         else if (c.total === 0 && dias >= 3) estado = 'sin_cotizaciones';
         else estado = 'normal';
 
@@ -245,7 +261,34 @@ router.get(
         };
       });
 
-      const resultado = filtro === 'todos' ? filas : filas.filter((f) => f.estado === filtro);
+      let resultado = filtro === 'todos' ? filas : filas.filter((f) => f.estado === filtro);
+
+      /**
+       * El orden se aplica acá y no en la consulta.
+       *
+       * Dos de las columnas por las que uno quiere ordenar -- días hábiles y
+       * cantidad de cotizaciones -- no existen como campo: se calculan después
+       * de traer los datos. Ordenar en SQL sólo algunas y en memoria las otras
+       * daría dos comportamientos distintos según la columna, que es peor que
+       * ordenar todo igual.
+       */
+      const ordenarPor = String(req.query.ordenarPor || 'diasHabiles');
+      const direccion = String(req.query.direccion || 'desc') === 'asc' ? 1 : -1;
+
+      const ORDENABLES = new Set([
+        'diasHabiles', 'cotizaciones', 'precio', 'titulo', 'publicadaEl', 'estado',
+      ]);
+
+      if (ORDENABLES.has(ordenarPor)) {
+        resultado = [...resultado].sort((a: any, b: any) => {
+          const x = a[ordenarPor];
+          const y = b[ordenarPor];
+          if (typeof x === 'string' && typeof y === 'string') {
+            return x.localeCompare(y, 'es') * direccion;
+          }
+          return ((x ?? 0) - (y ?? 0)) * direccion;
+        });
+      }
 
       // Los totales se cuentan sobre todo lo traído, no sobre lo filtrado: si
       // no, el contador de "pagadas fantasma" mostraría 0 al filtrar por otra
@@ -260,6 +303,7 @@ router.get(
         data: resultado,
         resumen,
         umbralDiasHabiles: DIAS_HABILES_ANTES_DE_PAUSAR,
+        orden: { ordenarPor, direccion: direccion === 1 ? 'asc' : 'desc' },
       });
     } catch (error: any) {
       console.error('Error armando el panel de publicaciones:', error);

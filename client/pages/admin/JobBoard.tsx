@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../../hooks/useAuth';
-import { Loader2, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Loader2, RefreshCw, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 
 /**
  * Panel operativo de publicaciones.
@@ -49,16 +49,23 @@ const ESTADOS: Record<string, { rotulo: string; ayuda: string; clase: string }> 
     ayuda: 'Se pausó sola por superar el plazo sin cotización aceptada. El cliente puede reanudarla.',
     clase: 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200',
   },
-  por_vencer: {
-    rotulo: 'Vencida sin pagar',
-    ayuda: 'Superó el plazo y no está paga: se va a pausar en la próxima corrida del control.',
+  vencida_sin_elegir: {
+    rotulo: 'Vencida: el cliente no eligió',
+    ayuda:
+      'Superó el plazo y SÍ recibió cotizaciones, pero el cliente no aceptó ninguna. El cuello de botella es el cliente: hay que llamarlo a él. Se va a pausar en la próxima corrida.',
     clase: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
   },
-  sin_cotizaciones: {
-    rotulo: 'Sin cotizaciones',
+  vencida_nadie_cotizo: {
+    rotulo: 'Vencida: nadie cotizó',
     ayuda:
-      'Lleva días publicada y nadie cotizó. Suele ser precio fuera de mercado, descripción incompleta o una categoría con pocos trabajadores.',
+      'Superó el plazo y nunca recibió una sola cotización. El problema está en la publicación, no en el cliente: precio fuera de mercado, descripción incompleta o una categoría sin trabajadores. Se va a pausar en la próxima corrida.',
     clase: 'bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-200',
+  },
+  sin_cotizaciones: {
+    rotulo: 'Sin cotizaciones (a tiempo)',
+    ayuda:
+      'Todavía está dentro del plazo, pero lleva varios días sin una sola cotización. Es el aviso temprano: se puede corregir el precio o el texto antes de que venza.',
+    clase: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-200',
   },
   esperando_aprobacion: {
     rotulo: 'Esperando aprobación',
@@ -74,11 +81,22 @@ const ESTADOS: Record<string, { rotulo: string; ayuda: string; clase: string }> 
 
 const ORDEN = [
   'pagada_fantasma',
-  'por_vencer',
+  'vencida_sin_elegir',
+  'vencida_nadie_cotizo',
   'sin_cotizaciones',
   'esperando_aprobacion',
   'pausada_inactividad',
   'normal',
+];
+
+/** Columnas por las que se puede ordenar. La clave es la del dato en la fila. */
+const COLUMNAS: Array<{ clave: string; rotulo: string; ordenable: boolean }> = [
+  { clave: 'estado', rotulo: 'Estado', ordenable: true },
+  { clave: 'titulo', rotulo: 'Publicación', ordenable: true },
+  { clave: 'cliente', rotulo: 'Cliente', ordenable: false },
+  { clave: 'precio', rotulo: 'Precio', ordenable: true },
+  { clave: 'diasHabiles', rotulo: 'Días háb.', ordenable: true },
+  { clave: 'cotizaciones', rotulo: 'Cotiz.', ordenable: true },
 ];
 
 export default function JobBoard() {
@@ -89,14 +107,35 @@ export default function JobBoard() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [umbral, setUmbral] = useState(10);
+  // Arranca por días hábiles descendente: lo más viejo sin resolver, primero.
+  const [ordenarPor, setOrdenarPor] = useState('diasHabiles');
+  const [direccion, setDireccion] = useState<'asc' | 'desc'>('desc');
+
+  /**
+   * Un clic ordena por esa columna; el segundo invierte.
+   *
+   * Cambiar de columna arranca siempre en descendente y no conserva la
+   * dirección anterior: en este panel lo interesante es el extremo alto de
+   * cualquier columna -- lo más viejo, lo más caro, lo que más cotizaciones
+   * tiene -- así que ése es el primer clic.
+   */
+  const ordenar = (clave: string) => {
+    if (ordenarPor === clave) {
+      setDireccion((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setOrdenarPor(clave);
+      setDireccion('desc');
+    }
+  };
 
   const cargar = async (estado: string) => {
     setCargando(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/jobs/board?estado=${estado}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(
+        `/api/admin/jobs/board?estado=${estado}&ordenarPor=${ordenarPor}&direccion=${direccion}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
       const data = await res.json();
       if (!data.success) throw new Error(data.message || 'No se pudo cargar el panel');
       setFilas(data.data || []);
@@ -111,7 +150,7 @@ export default function JobBoard() {
 
   useEffect(() => {
     if (token) cargar(filtro);
-  }, [token, filtro]);
+  }, [token, filtro, ordenarPor, direccion]);
 
   const pesos = (n: number) => `$${Number(n || 0).toLocaleString('es-AR')}`;
 
@@ -202,12 +241,33 @@ export default function JobBoard() {
             <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
               <thead className="bg-slate-50 dark:bg-slate-800">
                 <tr>
-                  {['Estado', 'Publicación', 'Cliente', 'Precio', 'Días háb.', 'Cotiz.'].map((h) => (
+                  {COLUMNAS.map((c) => (
                     <th
-                      key={h}
+                      key={c.clave}
                       className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400"
                     >
-                      {h}
+                      {c.ordenable ? (
+                        <button
+                          onClick={() => ordenar(c.clave)}
+                          className="inline-flex items-center gap-1 hover:text-slate-900 dark:hover:text-white transition-colors"
+                          // El estado del orden va en aria-sort además del ícono:
+                          // un lector de pantalla no ve la flechita.
+                          aria-label={`Ordenar por ${c.rotulo}`}
+                        >
+                          {c.rotulo}
+                          {ordenarPor === c.clave ? (
+                            direccion === 'asc' ? (
+                              <ArrowUp className="h-3 w-3" />
+                            ) : (
+                              <ArrowDown className="h-3 w-3" />
+                            )
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 opacity-30" />
+                          )}
+                        </button>
+                      ) : (
+                        c.rotulo
+                      )}
                     </th>
                   ))}
                 </tr>

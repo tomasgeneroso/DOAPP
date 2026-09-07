@@ -20,6 +20,13 @@ import type { Sequelize } from 'sequelize-typescript';
 const STATEMENTS: Array<{ label: string; sql: string }> = [
   // --- memberships: precio de lista en euros ---
   { label: 'memberships.price_eur', sql: `ALTER TABLE memberships ADD COLUMN IF NOT EXISTS price_eur NUMERIC(10,2)` },
+  // --- auditoría: eventos de dinero que no dispara una persona ---
+  // Sin esto, logMoneyEvent falla contra la restricción NOT NULL y los
+  // movimientos automáticos (contracargos, pagos bloqueados) no se registran.
+  // Es justo lo que hay que poder reconstruir cuando se discute plata.
+  { label: 'audit_logs.performed_by nullable', sql: `ALTER TABLE audit_logs ALTER COLUMN performed_by DROP NOT NULL` },
+  { label: 'audit_logs.admin_role nullable', sql: `ALTER TABLE audit_logs ALTER COLUMN admin_role DROP NOT NULL` },
+  { label: 'audit_logs.actor', sql: `ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS actor VARCHAR(60)` },
   // --- blog: agent authorship, review gate and answer-engine blocks ---
   { label: 'blog_posts.generated_by', sql: `ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS generated_by VARCHAR(16) NOT NULL DEFAULT 'human'` },
   { label: 'blog_posts.reviewed_by', sql: `ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS reviewed_by UUID` },

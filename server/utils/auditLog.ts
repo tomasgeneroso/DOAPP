@@ -70,6 +70,88 @@ export const logAudit = async (params: LogAuditParams): Promise<void> => {
   }
 };
 
+export interface MoneyEventParams {
+  /** Que paso: 'PAYOUT_BLOCKED', 'CHARGEBACK_RECEIVED', 'BALANCE_CREDITED'... */
+  action: string;
+  /** Quien lo disparo: 'webhook:mercadopago', 'cron:autoConfirm', 'admin:<id>'. */
+  actor: string;
+  description: string;
+  severity?: 'low' | 'medium' | 'high' | 'critical';
+  contractId?: string;
+  disputeId?: string;
+  paymentId?: string;
+  userId?: string;
+  monto?: number;
+  moneda?: string;
+  /** CBU, alias, cuenta de la pasarela: lo que haga falta para rastrear la plata. */
+  cuentas?: Record<string, any>;
+  metadata?: Record<string, any>;
+}
+
+/**
+ * Asienta un movimiento de dinero en el registro de auditoria.
+ *
+ * Existe aparte de logAudit porque logAudit exige un administrador y se sale en
+ * silencio si no lo hay. Los movimientos que corren solos -- el escrow que se
+ * libera a las dos horas, un contracargo que llega de madrugada, un pago que se
+ * rechaza por estar el contrato en disputa -- no tienen administrador, y son
+ * exactamente los que despues hay que poder reconstruir.
+ *
+ * Que se guarda y por que:
+ *
+ *   fecha       la pone la base al insertar. Reconstruir una discusion de plata
+ *               sin poder ordenar los hechos es imposible.
+ *   actor       quien lo disparo. "El sistema" no alcanza: hay que saber si fue
+ *               un webhook, un cron o una persona.
+ *   cuentas     de donde salio y a donde fue. Cuando alguien reclama seis meses
+ *               despues, el CBU es lo unico que cierra la discusion.
+ *   monto       con su moneda. Un numero sin moneda no significa nada.
+ *
+ * Nunca lanza: un fallo al registrar no puede tumbar el movimiento que estaba
+ * registrando. Pero se loguea a consola, porque un registro que falla en
+ * silencio es peor que no tenerlo -- da la impresion de que esta.
+ */
+export const logMoneyEvent = async (params: MoneyEventParams): Promise<void> => {
+  try {
+    const {
+      action, actor, description, severity = 'high',
+      contractId, disputeId, paymentId, userId, monto, moneda = 'ARS', cuentas, metadata,
+    } = params;
+
+    // El objetivo principal es el contrato si lo hay: es la unidad sobre la que
+    // se discute. La disputa y el pago quedan en metadata, que se puede
+    // consultar igual.
+    const targetModel = contractId ? 'Contract' : disputeId ? 'Dispute' : paymentId ? 'Payment' : 'System';
+    const targetId = contractId || disputeId || paymentId || undefined;
+
+    await AuditLog.create({
+      performedBy: undefined,
+      adminRole: undefined,
+      actor,
+      action,
+      category: 'payment',
+      severity,
+      description,
+      targetModel,
+      targetId,
+      changes: undefined,
+      metadata: {
+        ...metadata,
+        contractId, disputeId, paymentId, userId,
+        monto, moneda,
+        cuentas,
+        registradoEl: new Date().toISOString(),
+      },
+      ip: 'system',
+      userAgent: actor,
+      passwordVerified: false,
+      twoFactorVerified: false,
+    } as any);
+  } catch (error) {
+    console.error('No se pudo registrar el movimiento de dinero:', error, params);
+  }
+};
+
 /**
  * Helper para crear objeto de cambio para el audit log
  */

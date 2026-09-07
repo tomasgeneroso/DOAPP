@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Image, Linking } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, CheckCircle, XCircle, Clock, DollarSign, Calendar, MapPin, MessageCircle, User } from 'lucide-react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
-import { get, put } from '../../services/api';
+import { get, put, post } from '../../services/api';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 
 const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
@@ -39,6 +39,32 @@ export default function ProposalDetailScreen() {
     }
   };
 
+  const pesos = (n: number) => `$${Number(n || 0).toLocaleString('es-AR')}`;
+
+  /**
+   * Manda a pagar la cotización y abre el checkout de MercadoPago.
+   *
+   * El trabajador queda seleccionado cuando el pago se acredita, no al volver
+   * de la pasarela: el contrato lo crea el webhook. Si se creara al regresar,
+   * un pago abandonado a mitad de camino dejaría al trabajador comprometido
+   * con un contrato que nadie pagó.
+   */
+  const irAPagar = async () => {
+    setActionLoading(true);
+    try {
+      const pago = await post<any>(`/payments/quote/${proposal._id || id}`, {});
+      if (pago.success && (pago as any).paymentUrl) {
+        await Linking.openURL((pago as any).paymentUrl);
+      } else {
+        Alert.alert('Error', (pago as any).message || 'No se pudo iniciar el pago');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Error de conexión');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleApprove = () => {
     Alert.alert('Aceptar propuesta', '¿Aceptás esta propuesta? Se creará el contrato automáticamente.', [
       { text: 'Cancelar', style: 'cancel' },
@@ -46,6 +72,29 @@ export default function ProposalDetailScreen() {
         setActionLoading(true);
         try {
           const res = await put<any>(`/proposals/${proposal._id || id}/approve`, {});
+
+          // 402: falta pagar. No es un error que el usuario pueda corregir,
+          // así que se le muestra el desglose y se lo manda a pagar en vez de
+          // dejarlo con un mensaje rojo y ninguna salida.
+          if (!res.success && (res as any).requierePago) {
+            const l = (res as any).liquidacion || {};
+            setActionLoading(false);
+            Alert.alert(
+              'Para aceptar la cotización, aboná el total',
+              `Cotización: ${pesos(l.acordado)}\n` +
+                (l.yaPagado > 0 ? `Ya abonado: −${pesos(l.yaPagado)}\n` : '') +
+                `Comisión: ${pesos(l.comision)}\n` +
+                `IVA: ${pesos(l.iva)}\n\n` +
+                `Total a pagar: ${pesos(l.totalACobrar)}\n\n` +
+                'El trabajador queda seleccionado cuando se acredite el pago.',
+              [
+                { text: 'Cancelar', style: 'cancel' },
+                { text: 'Ir a pagar', onPress: irAPagar },
+              ],
+            );
+            return;
+          }
+
           if (res.success) {
             Alert.alert('¡Aprobada!', 'La propuesta fue aprobada y el contrato creado.', [
               { text: 'OK', onPress: () => router.back() },

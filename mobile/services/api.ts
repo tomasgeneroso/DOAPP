@@ -193,7 +193,13 @@ async function request<T>(
 
     if (!response.ok) {
       return {
+        // El cuerpo se conserva entero. Antes se descartaba todo menos el
+        // mensaje, y hay respuestas de error que traen datos que el llamador
+        // necesita para reaccionar -- un 402 que dice cuánto falta pagar, por
+        // ejemplo. Perderlos convertía una acción posible en un error seco.
+        ...data,
         success: false,
+        status: response.status,
         message: data.message || 'Error en la petición',
         error: data.error,
       };

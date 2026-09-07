@@ -50,21 +50,36 @@ export class AuditLog extends Model {
   })
   declare id: string;
 
+  /**
+   * Quien lo hizo, cuando fue una persona.
+   *
+   * Es nulo en los eventos que corren solos: la liberacion automatica del
+   * escrow, un contracargo que llega por webhook, un reembolso disparado por un
+   * cron. Esos son justamente los que mas importa poder reconstruir despues, y
+   * antes no se podian registrar porque la columna era obligatoria.
+   */
   @ForeignKey(() => User)
   @Column({
     type: DataType.UUID,
-    allowNull: false,
+    allowNull: true,
   })
-  performedBy!: string;
+  performedBy?: string;
 
   @BelongsTo(() => User, 'performedBy')
   performer?: User;
 
   @Column({
     type: DataType.STRING(50),
-    allowNull: false,
+    allowNull: true,
   })
-  adminRole!: string;
+  adminRole?: string;
+
+  /** Quien fue cuando no hay usuario: 'system', 'webhook:mercadopago', 'cron:x'. */
+  @Column({
+    type: DataType.STRING(60),
+    allowNull: true,
+  })
+  actor?: string;
 
   @Column({
     type: DataType.STRING(100),
