@@ -127,6 +127,63 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+export interface DesgloseCancelacion {
+  /** Lo que el cliente pagó en total. */
+  pagado: number;
+  /** Precio del trabajo, sin comisión ni IVA. */
+  precioTrabajo: number;
+  comision: number;
+  iva: number;
+  /** Lo que se llevó la pasarela y no vuelve. */
+  costoPasarela: number;
+  /** Lo que se le devuelve al cliente. */
+  devolver: number;
+  /** Lo que no vuelve al cliente. */
+  retiene: number;
+}
+
+/**
+ * Qué se devuelve cuando un trabajo se cancela antes de contratar a nadie.
+ *
+ * El costo de la pasarela no vuelve. Es la parte que la gente no espera y la
+ * que hay que decir de frente: MercadoPago cobra por procesar el pago y ese
+ * cobro ya ocurrió; devolver el dinero es una segunda operación, no un
+ * "deshacer". Si la plataforma lo absorbiera, publicar-y-cancelar sería gratis
+ * para el cliente y una pérdida directa para DOAPP en cada vuelta.
+ *
+ * La comisión y el IVA sí vuelven cuando no se contrató a nadie. La comisión se
+ * cobra por intermediar una contratación, y no hubo ninguna: quedársela sería
+ * cobrar por un servicio que no se prestó.
+ *
+ * Si YA se contrató, esta cuenta no aplica: ahí hay un trabajador que reservó
+ * su tiempo, y eso lo resuelven las reglas de cancelación del contrato.
+ */
+export function desgloseCancelacionSinContratar(
+  pagado: number,
+  comision: number,
+  iva: number,
+  rate = getProcessingFeeRate(),
+): DesgloseCancelacion {
+  const total = round2(Math.max(0, pagado));
+  const comm = round2(Math.max(0, comision));
+  const tax = round2(Math.max(0, iva));
+
+  // Se calcula sobre lo que efectivamente pasó por la pasarela -- el total
+  // cobrado -- y no sobre el precio del trabajo.
+  const costoPasarela = rate > 0 ? round2(total * rate) : 0;
+  const devolver = round2(Math.max(0, total - costoPasarela));
+
+  return {
+    pagado: total,
+    precioTrabajo: round2(Math.max(0, total - comm - tax)),
+    comision: comm,
+    iva: tax,
+    costoPasarela,
+    devolver,
+    retiene: round2(total - devolver),
+  };
+}
+
 /** Texto unico para las dos apps, asi no se explica distinto en cada pantalla. */
 export const PROCESSING_COST_LABEL = 'Costo de procesamiento';
 

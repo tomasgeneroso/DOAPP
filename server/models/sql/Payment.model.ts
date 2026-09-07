@@ -333,6 +333,24 @@ export class Payment extends Model {
   @Column(DataType.DATE)
   refundedAt?: Date;
 
+  /**
+   * Cuanto se devolvio en total de este pago.
+   *
+   * Es el techo contra el que se verifica cada devolucion nueva. El libro mayor
+   * ya impide una segunda operacion terminal sobre el mismo contrato, pero eso
+   * no alcanza para una devolucion hecha desde el panel de MercadoPago: esa
+   * ocurre sin pasar por nuestro codigo. Con el acumulado, la conciliacion puede
+   * comparar contra lo que dice MercadoPago y avisar.
+   *
+   * Se lee y escribe SIEMPRE con la fila bloqueada. Leerlo, sumarle y guardarlo
+   * sin bloqueo es exactamente como se devuelve dos veces cuando dos pedidos
+   * llegan juntos.
+   */
+  @Default(0)
+  @AllowNull(false)
+  @Column(DataType.DECIMAL(12, 2))
+  refundedAmount!: number;
+
   @ForeignKey(() => User)
   @Column(DataType.UUID)
   refundedBy?: string;

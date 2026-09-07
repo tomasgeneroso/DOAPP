@@ -146,3 +146,36 @@ describe('sub-tope de devoluciones', () => {
     expect(techo).toBeGreaterThanOrEqual(400_000);
   });
 });
+
+describe('cancelacion antes de contratar', () => {
+  const { desgloseCancelacionSinContratar } = require('../shared/pricing/processingCost.js');
+
+  it('el costo de pasarela no vuelve', () => {
+    // Es lo que la gente no espera: MercadoPago ya cobro por procesar, y
+    // devolver es una segunda operacion, no un "deshacer".
+    const d = desgloseCancelacionSinContratar(110000, 10000, 2100, 0.0531);
+    expect(d.costoPasarela).toBeCloseTo(5841, 0);
+    expect(d.devolver).toBeCloseTo(110000 - 5841, 0);
+    expect(d.retiene).toBeCloseTo(d.costoPasarela, 2);
+  });
+
+  it('la comision y el IVA vuelven porque no hubo contratacion', () => {
+    // La comision se cobra por intermediar una contratacion. Si no hubo
+    // ninguna, quedarsela seria cobrar por un servicio que no se presto.
+    const d = desgloseCancelacionSinContratar(110000, 10000, 2100, 0);
+    expect(d.devolver).toBe(110000);
+    expect(d.retiene).toBe(0);
+  });
+
+  it('nunca devuelve mas de lo que entro', () => {
+    const d = desgloseCancelacionSinContratar(50000, 5000, 1050, 0.0531);
+    expect(d.devolver).toBeLessThanOrEqual(d.pagado);
+    expect(d.devolver + d.retiene).toBeCloseTo(d.pagado, 2);
+  });
+
+  it('un pago en cero no genera devoluciones negativas', () => {
+    const d = desgloseCancelacionSinContratar(0, 0, 0, 0.0531);
+    expect(d.devolver).toBe(0);
+    expect(d.retiene).toBe(0);
+  });
+});

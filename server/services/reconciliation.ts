@@ -27,6 +27,7 @@ export interface Discrepancia {
     | 'monto_distinto'
     | 'rechazado_en_mp_activo_en_base'
     | 'reembolsado_en_mp_activo_en_base'
+    | 'devuelto_distinto'
     | 'sin_respuesta_de_mp';
   nuestro: { estado: string; monto: number };
   deMp: { estado?: string; monto?: number };
@@ -145,6 +146,37 @@ export async function conciliarPagos(horas = 48): Promise<ResultadoConciliacion>
         nuestro,
         deMp: { estado: estadoMp, monto: montoMp },
         detalle: 'MercadoPago devolvió el dinero pero la plataforma no lo registró.',
+      });
+      continue;
+    }
+
+    /**
+     * Devoluciones hechas por fuera de la app.
+     *
+     * Es el agujero que ningun control previo puede tapar: alguien entra al
+     * panel de MercadoPago y devuelve plata sin pasar por este codigo. Nuestro
+     * acumulado queda corto, y la app sigue creyendo que hay saldo para
+     * devolver cuando ya no queda.
+     *
+     * Compararlo con lo que informa MercadoPago es la unica forma de verlo, y
+     * hay que verlo pronto: cuanto mas tarde, mas dificil es reconstruir quien
+     * lo hizo y por que.
+     */
+    const devueltoMp = Number(datosMp?.transaction_amount_refunded) || 0;
+    const devueltoNuestro = Number((pago as any).refundedAmount) || 0;
+
+    if (Math.abs(devueltoMp - devueltoNuestro) > 0.01) {
+      discrepancias.push({
+        paymentId: String(pago.id),
+        idMercadoPago: idMp,
+        tipo: 'devuelto_distinto',
+        nuestro: { ...nuestro, devuelto: devueltoNuestro } as any,
+        deMp: { estado: estadoMp, monto: montoMp, devuelto: devueltoMp } as any,
+        detalle:
+          `MercadoPago informa $${devueltoMp} devueltos y la plataforma registró $${devueltoNuestro}. ` +
+          (devueltoMp > devueltoNuestro
+            ? 'Alguien devolvió desde el panel de MercadoPago sin pasar por la app.'
+            : 'La app registró una devolución que MercadoPago no confirma.'),
       });
     }
   }

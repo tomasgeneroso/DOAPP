@@ -93,14 +93,56 @@ router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', '
       return;
     }
 
-    const total = Number(payment.amount) || 0;
-    const parcial = monto !== undefined && monto !== null;
-    const importe = parcial ? Number(monto) : total;
+    /**
+     * Cuánto queda por devolver, leído bajo bloqueo de fila.
+     *
+     * Es la defensa contra la doble devolución. El libro mayor ya impide una
+     * segunda operación terminal sobre el mismo contrato, pero no ve las
+     * devoluciones hechas desde el panel de MercadoPago: ésas ocurren sin pasar
+     * por este código. El acumulado sí las ve, porque la conciliación lo
+     * actualiza.
+     *
+     * El bloqueo importa tanto como la cuenta. Leer el acumulado, sumarle y
+     * guardarlo sin bloquear es exactamente cómo se devuelve dos veces cuando
+     * dos pedidos llegan con milisegundos de diferencia: los dos leen el mismo
+     * valor viejo y los dos se creen dentro del límite.
+     */
+    const { sequelize } = await import("../../config/database.js");
+    const disponibleParaDevolver = await sequelize.transaction(async (t) => {
+      const bloqueado = await Payment.findByPk(payment.id, {
+        lock: t.LOCK.UPDATE,
+        transaction: t,
+      });
+      const totalPago = Number(bloqueado?.amount) || 0;
+      const yaDevuelto = Number((bloqueado as any)?.refundedAmount) || 0;
+      return Math.round((totalPago - yaDevuelto) * 100) / 100;
+    });
 
-    if (parcial && (!(importe > 0) || importe > total)) {
+    const total = Number(payment.amount) || 0;
+    const yaDevuelto = Math.round((total - disponibleParaDevolver) * 100) / 100;
+    const parcial = monto !== undefined && monto !== null;
+    const importe = parcial ? Number(monto) : disponibleParaDevolver;
+
+    if (disponibleParaDevolver <= 0) {
       res.status(400).json({
         success: false,
-        message: `El monto a devolver tiene que estar entre $1 y $${total.toLocaleString('es-AR')}.`,
+        message:
+          `Este pago ya fue devuelto por completo ($${yaDevuelto.toLocaleString('es-AR')} de ` +
+          `$${total.toLocaleString('es-AR')}). No queda nada por devolver.`,
+      });
+      return;
+    }
+
+    if (!(importe > 0) || importe > disponibleParaDevolver) {
+      res.status(400).json({
+        success: false,
+        message:
+          yaDevuelto > 0
+            ? `De este pago ya se devolvieron $${yaDevuelto.toLocaleString('es-AR')}. ` +
+              `Podés devolver hasta $${disponibleParaDevolver.toLocaleString('es-AR')} más.`
+            : `El monto a devolver tiene que estar entre $1 y $${total.toLocaleString('es-AR')}.`,
+        yaDevuelto,
+        disponible: disponibleParaDevolver,
       });
       return;
     }
@@ -177,9 +219,24 @@ router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', '
       return;
     }
 
-    payment.status = parcial && importe < total ? payment.status : 'refunded';
-    (payment as any).refundedAt = new Date();
-    await payment.save();
+    // El acumulado se actualiza bajo bloqueo, igual que se leyó. Entre la
+    // lectura de arriba y esto pasó la llamada a MercadoPago, así que el valor
+    // pudo cambiar: se relee dentro de la transacción en vez de confiar en el
+    // que teníamos.
+    await sequelize.transaction(async (t) => {
+      const bloqueado: any = await Payment.findByPk(payment.id, {
+        lock: t.LOCK.UPDATE,
+        transaction: t,
+      });
+      const acumulado = Math.round(((Number(bloqueado.refundedAmount) || 0) + importe) * 100) / 100;
+      bloqueado.refundedAmount = acumulado;
+      bloqueado.refundedAt = new Date();
+      bloqueado.refundedBy = adminId;
+      // Sólo se marca 'refunded' cuando ya no queda nada: un pago con una
+      // devolución parcial encima sigue vivo y puede recibir otra.
+      if (acumulado >= Number(bloqueado.amount) - 0.01) bloqueado.status = 'refunded';
+      await bloqueado.save({ transaction: t });
+    });
 
     const { logMoneyEvent } = await import("../../utils/auditLog.js");
     await logMoneyEvent({
