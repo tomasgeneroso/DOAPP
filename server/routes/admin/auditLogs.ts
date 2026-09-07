@@ -3,6 +3,7 @@ import { protect, AuthRequest } from "../../middleware/auth.js";
 import { requirePermission } from "../../middleware/permissions.js";
 import { AuditLog } from "../../models/sql/AuditLog.model.js";
 import { User } from "../../models/sql/User.model.js";
+import { leerMetadata } from "../../utils/auditLog.js";
 import { Op } from "sequelize";
 
 const router = Router();
@@ -70,9 +71,13 @@ router.get("/", protect, requirePermission("audit:read"), async (req: AuthReques
       targetId: r.targetId,
       targetIdentifier: r.targetIdentifier,
       changes: r.changes,
-      metadata: r.metadata,
+      // Se descomprime al leer. Acceder a r.metadata directo devolvería sólo el
+      // resumen en los asientos grandes, y quien lo lea creería que no había nada.
+      metadata: leerMetadata(r),
       ip: r.ip,
       adminRole: r.adminRole,
+      // Los eventos automáticos no tienen usuario: actor dice quién fue.
+      actor: r.actor || null,
       performedBy: r.performedBy,
       admin: r.performer ? { id: r.performer.id, name: r.performer.name, email: r.performer.email } : null,
       createdAt: r.createdAt,

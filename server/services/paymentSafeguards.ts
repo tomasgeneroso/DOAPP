@@ -57,9 +57,47 @@ export const MONTO_DOBLE_CONFIRMACION_ARS = 200_000;
 export const TOPE_DIARIO_POR_ROL_ARS: Record<string, number> = {
   support: 0,
   admin: 1_500_000,
-  super_admin: 6_000_000,
+  // El doble del de admin. Es una relacion y no un numero suelto: un super_admin
+  // cubre lo de un admin mas su propio margen para autorizar lo que el otro no
+  // pudo. Si el tope de admin sube, este lo sigue.
+  super_admin: 3_000_000,
   owner: Number.POSITIVE_INFINITY,
 };
+
+/** Clave donde el dueño guarda los topes editados desde el panel. */
+export const CLAVE_TOPES = 'payment.daily_caps';
+
+/**
+ * Topes vigentes: los del panel si existen, los de arriba si no.
+ *
+ * Se leen en cada verificacion y no se cachean. Un tope es justamente lo que hay
+ * que poder cambiar en medio de un problema -- un dia de volumen inesperado, una
+ * cuenta que hay que frenar ya -- y un cache de cinco minutos convierte ese
+ * cambio en cinco minutos de espera con el dueño mirando la pantalla.
+ *
+ * Si la consulta falla se usan los valores del codigo. Quedarse sin topes
+ * porque la base no respondio seria fallar abierto en el peor momento posible.
+ */
+export async function topesVigentes(): Promise<Record<string, number>> {
+  try {
+    const { AppSetting } = await import('../models/sql/AppSetting.model.js');
+    const fila = await AppSetting.findOne({ where: { key: CLAVE_TOPES } });
+    if (!fila?.value) return TOPE_DIARIO_POR_ROL_ARS;
+
+    const guardados = fila.value as Record<string, any>;
+    const topes: Record<string, number> = { ...TOPE_DIARIO_POR_ROL_ARS };
+
+    for (const [rol, valor] of Object.entries(guardados)) {
+      // null significa "sin tope". JSON no tiene Infinity, asi que se guarda
+      // asi y se traduce acá en vez de perderse en la serializacion.
+      if (valor === null) topes[rol] = Number.POSITIVE_INFINITY;
+      else if (typeof valor === 'number' && valor >= 0) topes[rol] = valor;
+    }
+    return topes;
+  } catch {
+    return TOPE_DIARIO_POR_ROL_ARS;
+  }
+}
 
 /**
  * Cuantas horas hay que esperar para retirar despues de cambiar el CBU.
@@ -119,7 +157,8 @@ export async function verificarTopeDiario(
   rol: string,
   monto: number,
 ): Promise<ResultadoControl> {
-  const tope = TOPE_DIARIO_POR_ROL_ARS[rol];
+  const topes = await topesVigentes();
+  const tope = topes[rol];
 
   if (tope === undefined) {
     return {

@@ -1,5 +1,104 @@
+import { gzipSync, gunzipSync } from "node:zlib";
 import { AuditLog } from "../models/sql/AuditLog.model.js";
 import type { AuthRequest } from "../types/index.js";
+
+/**
+ * QUÉ VA ACÁ Y QUÉ VA AL LOGGER
+ * =============================
+ *
+ * Son dos cosas distintas y mezclarlas arruina las dos:
+ *
+ *   AuditLog (esta tabla)   es el registro histórico. Se consulta, se reporta,
+ *                           y sirve para defenderse. Dura para siempre.
+ *   logger (a archivo)      es para diagnosticar. Se rota, se borra, y nadie lo
+ *                           lee salvo cuando algo falla.
+ *
+ * A la base va lo que:
+ *   - mueve plata (pagos, retiros, reembolsos, contracargos, saldos),
+ *   - cambia permisos o roles,
+ *   - toca datos personales (verificación de identidad, exportaciones, bajas),
+ *   - decide sobre una persona (baneos, resoluciones de disputa, retenciones).
+ *
+ * Todo lo demás va al logger: peticiones, tiempos, errores de red, caché.
+ *
+ * La razón no es de estilo. Si todo va a la base, en seis meses la tabla tiene
+ * millones de filas de ruido y encontrar el asiento que te defiende se vuelve
+ * lento -- justo el día que lo necesitás rápido.
+ */
+
+/**
+ * Desde qué tamaño conviene comprimir la metadata.
+ *
+ * Dos kilobytes. Debajo de eso gzip no gana: su encabezado son ~20 bytes y los
+ * objetos chicos comprimen poco, así que comprimir un asiento común lo dejaría
+ * más grande. Encima de eso -- los datos crudos de un webhook, la lista de
+ * discrepancias de una conciliación -- la ganancia es de entre 5 y 10 veces,
+ * porque el JSON repite las mismas claves una y otra vez.
+ */
+const UMBRAL_COMPRESION_BYTES = 2048;
+
+/**
+ * Prepara la metadata para guardar, comprimiéndola si conviene.
+ *
+ * Cuando comprime, deja en `metadata` un resumen con las claves y el tamaño
+ * original. Sin eso, una fila comprimida sería opaca en una consulta SQL y
+ * habría que descomprimir cada una sólo para saber si es la que se busca.
+ */
+function prepararMetadata(metadata?: Record<string, any>): {
+  metadata?: Record<string, any>;
+  metadataGz?: Buffer;
+} {
+  if (!metadata) return {};
+
+  let json: string;
+  try {
+    json = JSON.stringify(metadata);
+  } catch {
+    // Un objeto con referencias circulares no puede guardarse. Perder el
+    // asiento entero por eso sería peor que perder su contexto.
+    return { metadata: { error: 'metadata no serializable' } };
+  }
+
+  if (Buffer.byteLength(json, 'utf8') <= UMBRAL_COMPRESION_BYTES) {
+    return { metadata };
+  }
+
+  try {
+    return {
+      metadata: {
+        _comprimida: true,
+        _bytesOriginales: Buffer.byteLength(json, 'utf8'),
+        _claves: Object.keys(metadata),
+      },
+      metadataGz: gzipSync(Buffer.from(json, 'utf8')),
+    };
+  } catch {
+    return { metadata };
+  }
+}
+
+/**
+ * Devuelve la metadata de un asiento, venga comprimida o no.
+ *
+ * Usar siempre esto para leer, nunca `fila.metadata` directo: de lo contrario
+ * un asiento grande devuelve el resumen en vez del contenido, y el que lo lea
+ * va a creer que ahí no había nada.
+ */
+export function leerMetadata(fila: {
+  metadata?: Record<string, any> | null;
+  metadataGz?: Buffer | null;
+}): Record<string, any> | null {
+  if (fila.metadataGz) {
+    try {
+      return JSON.parse(gunzipSync(fila.metadataGz).toString('utf8'));
+    } catch (e: any) {
+      // Devolver el resumen es mejor que devolver nada: al menos dice qué
+      // claves había y cuánto pesaba.
+      return { ...(fila.metadata || {}), _errorAlDescomprimir: e.message };
+    }
+  }
+  return fila.metadata || null;
+}
 
 interface LogAuditParams {
   req: AuthRequest;
@@ -58,7 +157,7 @@ export const logAudit = async (params: LogAuditParams): Promise<void> => {
       targetId,
       targetIdentifier,
       changes,
-      metadata,
+      ...prepararMetadata(metadata),
       ip,
       userAgent,
       passwordVerified: req.passwordVerified || false,
@@ -135,13 +234,13 @@ export const logMoneyEvent = async (params: MoneyEventParams): Promise<void> => 
       targetModel,
       targetId,
       changes: undefined,
-      metadata: {
+      ...prepararMetadata({
         ...metadata,
         contractId, disputeId, paymentId, userId,
         monto, moneda,
         cuentas,
         registradoEl: new Date().toISOString(),
-      },
+      }),
       ip: 'system',
       userAgent: actor,
       passwordVerified: false,

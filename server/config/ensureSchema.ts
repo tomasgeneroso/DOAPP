@@ -27,6 +27,7 @@ const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'audit_logs.performed_by nullable', sql: `ALTER TABLE audit_logs ALTER COLUMN performed_by DROP NOT NULL` },
   { label: 'audit_logs.admin_role nullable', sql: `ALTER TABLE audit_logs ALTER COLUMN admin_role DROP NOT NULL` },
   { label: 'audit_logs.actor', sql: `ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS actor VARCHAR(60)` },
+  { label: 'audit_logs.metadata_gz', sql: `ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS metadata_gz BYTEA` },
   // --- controles sobre el dinero ---
   // Sin fraud_hold_*, una alerta de fraude no puede retener el pago y el escrow
   // se libera solo a las dos horas. Sin banking_info_updated_at no hay

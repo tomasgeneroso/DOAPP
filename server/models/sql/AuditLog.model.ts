@@ -140,6 +140,23 @@ export class AuditLog extends Model {
   })
   metadata?: Record<string, any>;
 
+  /**
+   * La misma metadata, comprimida, cuando es grande.
+   *
+   * Se usa solo por encima de un umbral: gzip agrega unos veinte bytes de
+   * encabezado, asi que comprimir un objeto chico lo deja mas grande. Debajo del
+   * umbral se guarda en `metadata`, que ademas se puede consultar con los
+   * operadores JSONB de Postgres -- algo que se pierde al comprimir.
+   *
+   * Nunca se leen las dos: si esta esta, `metadata` guarda solo un resumen.
+   * Usar `leerMetadata()` en vez de acceder a los campos directamente.
+   */
+  @Column({
+    type: DataType.BLOB,
+    allowNull: true,
+  })
+  metadataGz?: Buffer;
+
   @Column({
     type: DataType.STRING(45),
     allowNull: false,

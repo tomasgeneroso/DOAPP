@@ -30,6 +30,101 @@ const router = Router();
 router.use(protect, authorize('owner'));
 
 // @route GET /api/admin/platform/phase
+/**
+ * Topes diarios de egreso por rol.
+ * GET  /api/admin/platform/daily-caps
+ * PUT  /api/admin/platform/daily-caps
+ *
+ * Solo el dueño. Un tope que puede subirse a sí mismo el que está limitado por
+ * él no es un tope, es una sugerencia.
+ */
+router.get('/daily-caps', async (_req: AuthRequest, res: Response) => {
+  try {
+    const { topesVigentes, TOPE_DIARIO_POR_ROL_ARS, egresoDelDia } = await import(
+      '../../services/paymentSafeguards.js'
+    );
+    const vigentes = await topesVigentes();
+
+    // Infinity no sobrevive a JSON.stringify: se convierte en null, que es
+    // justamente como se guarda "sin tope".
+    const serializable = Object.fromEntries(
+      Object.entries(vigentes).map(([r, v]) => [r, Number.isFinite(v) ? v : null]),
+    );
+
+    res.json({
+      success: true,
+      topes: serializable,
+      porDefecto: Object.fromEntries(
+        Object.entries(TOPE_DIARIO_POR_ROL_ARS).map(([r, v]) => [r, Number.isFinite(v) ? v : null]),
+      ),
+      // Cuánto lleva usado hoy quien consulta, para que el número tenga contexto.
+      usadoHoy: await egresoDelDia(_req.user.id),
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+router.put('/daily-caps', async (req: AuthRequest, res: Response) => {
+  try {
+    const { topes } = req.body;
+    if (!topes || typeof topes !== 'object') {
+      res.status(400).json({ success: false, message: 'Mandá los topes por rol.' });
+      return;
+    }
+
+    const { AppSetting } = await import('../../models/sql/AppSetting.model.js');
+    const { CLAVE_TOPES, topesVigentes } = await import('../../services/paymentSafeguards.js');
+    const { logMoneyEvent } = await import('../../utils/auditLog.js');
+
+    const previos = await topesVigentes();
+    const limpios: Record<string, number | null> = {};
+
+    for (const [rol, valor] of Object.entries(topes)) {
+      if (valor === null) {
+        limpios[rol] = null; // sin tope
+        continue;
+      }
+      const n = Number(valor);
+      if (!Number.isFinite(n) || n < 0) {
+        res.status(400).json({
+          success: false,
+          message: `El tope de "${rol}" tiene que ser un número mayor o igual a cero, o null para sin tope.`,
+        });
+        return;
+      }
+      limpios[rol] = n;
+    }
+
+    await AppSetting.upsert({
+      key: CLAVE_TOPES,
+      value: limpios,
+      updatedBy: req.user.id,
+    } as any);
+
+    // Cambiar un tope es cambiar cuánta plata puede salir sin que nadie más
+    // intervenga. Queda asentado con los valores viejos y los nuevos: es el
+    // registro que explica por qué un día salió más de lo habitual.
+    await logMoneyEvent({
+      action: 'DAILY_CAPS_UPDATED',
+      actor: `owner:${req.user.id}`,
+      severity: 'critical',
+      description: 'El dueño cambió los topes diarios de egreso por rol.',
+      metadata: {
+        anteriores: Object.fromEntries(
+          Object.entries(previos).map(([r, v]) => [r, Number.isFinite(v) ? v : null]),
+        ),
+        nuevos: limpios,
+        ownerId: req.user.id,
+      },
+    });
+
+    res.json({ success: true, message: 'Topes actualizados.', topes: limpios });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 router.get('/phase', async (_req: AuthRequest, res: Response) => {
   try {
     const info = await getPhaseInfo();

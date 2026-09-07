@@ -85,3 +85,43 @@ describe('topes diarios por rol', () => {
     expect(TOPE_DIARIO_POR_ROL_ARS['dpo']).toBeUndefined();
   });
 });
+
+describe('compresion de la metadata de auditoria', () => {
+  const { leerMetadata } = require('../server/utils/auditLog.js');
+  const { gzipSync } = require('node:zlib');
+
+  it('lee una metadata comprimida', () => {
+    const original = { discrepancias: Array.from({ length: 50 }, (_, i) => ({ id: i, detalle: 'x'.repeat(60) })) };
+    const fila = {
+      metadata: { _comprimida: true, _claves: ['discrepancias'] },
+      metadataGz: gzipSync(Buffer.from(JSON.stringify(original), 'utf8')),
+    };
+    expect(leerMetadata(fila)).toEqual(original);
+  });
+
+  it('lee una metadata sin comprimir', () => {
+    expect(leerMetadata({ metadata: { monto: 1000 } })).toEqual({ monto: 1000 });
+  });
+
+  it('no rompe cuando la metadata comprimida esta corrupta', () => {
+    // Devolver el resumen es mejor que devolver nada: al menos dice que claves
+    // habia. Y tirar una excepcion acá dejaria sin ver TODO el listado de
+    // auditoria por una sola fila mal escrita.
+    const r = leerMetadata({
+      metadata: { _claves: ['a'] },
+      metadataGz: Buffer.from('esto no es gzip'),
+    });
+    expect(r?._errorAlDescomprimir).toBeDefined();
+    expect(r?._claves).toEqual(['a']);
+  });
+
+  it('comprimir vale la pena solo por encima del umbral', () => {
+    // El caso contraintuitivo: gzip agrega ~20 bytes de encabezado, asi que un
+    // objeto chico comprimido pesa MAS que el original. Por eso hay umbral.
+    const chico = JSON.stringify({ monto: 1000, moneda: 'ARS' });
+    expect(gzipSync(Buffer.from(chico)).length).toBeGreaterThan(Buffer.byteLength(chico));
+
+    const grande = JSON.stringify(Array.from({ length: 200 }, (_, i) => ({ id: i, campo: 'valor repetido' })));
+    expect(gzipSync(Buffer.from(grande)).length).toBeLessThan(Buffer.byteLength(grande) / 5);
+  });
+});
