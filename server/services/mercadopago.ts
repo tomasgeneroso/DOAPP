@@ -30,6 +30,8 @@ interface CreatePaymentResult {
 class MercadoPagoPaymentService {
   private client: Preference | null = null;
   private paymentClient: Payment | null = null;
+  /** Se guarda para poder construir otros clientes del SDK (devoluciones). */
+  private mpConfig: MercadoPagoConfig | null = null;
   private isInitialized: boolean = false;
 
   constructor() {
@@ -56,6 +58,7 @@ class MercadoPagoPaymentService {
         },
       });
 
+      this.mpConfig = mpConfig;
       this.client = new Preference(mpConfig);
       this.paymentClient = new Payment(mpConfig);
       this.isInitialized = true;
@@ -294,24 +297,71 @@ class MercadoPagoPaymentService {
    * Note: Refunds require the actual payment ID, not the preference ID
    * This should be called with the payment_id from the webhook
    */
+  /**
+   * Devuelve el dinero de un pago, total o parcialmente.
+   *
+   * `paymentId` es el id de MercadoPago, no el nuestro: son cosas distintas y
+   * confundirlos devuelve "payment not found" sin explicar por que.
+   *
+   * `amount` ausente significa devolucion total. No se pasa el monto completo
+   * como si fuera parcial a proposito: MercadoPago trata las dos operaciones
+   * distinto, y una "parcial" por el total puede dejar centavos de diferencia
+   * por redondeo que despues nadie entiende.
+   *
+   * La clave de idempotencia evita que un reintento devuelva la plata dos
+   * veces. Se deriva del pago y el monto, asi que dos procesos que reintentan
+   * lo mismo mandan la misma clave sin coordinarse; una devolucion distinta
+   * sobre el mismo pago -- que es legitima, se puede devolver de a partes --
+   * genera una clave distinta y si se ejecuta.
+   */
   async refundPayment(paymentId: string, provider: PaymentProvider, amount?: number) {
-    if (!this.isInitialized) {
-      throw new Error('MercadoPago is not initialized');
+    if (!this.isInitialized || !this.client) {
+      throw new Error('MercadoPago no está inicializado. Revisá MERCADOPAGO_ACCESS_TOKEN.');
     }
 
+    if (provider !== 'mercadopago') {
+      throw new Error(`No se pueden hacer devoluciones con el proveedor: ${provider}`);
+    }
+
+    const { PaymentRefund } = await import('mercadopago');
+    const refunds = new PaymentRefund(this.mpConfig!);
+
+    const esParcial = typeof amount === 'number' && amount > 0;
+    const clave = `refund:${paymentId}:${esParcial ? amount!.toFixed(2) : 'total'}`;
+
     try {
-      if (provider !== 'mercadopago') {
-        throw new Error(`Refunds not supported for provider: ${provider}`);
-      }
+      const respuesta = esParcial
+        ? await refunds.create({
+            payment_id: paymentId,
+            body: { amount: Number(amount!.toFixed(2)) },
+            requestOptions: { idempotencyKey: clave },
+          })
+        : await refunds.total({
+            payment_id: paymentId,
+            requestOptions: { idempotencyKey: clave },
+          });
 
-      // MercadoPago refunds require using the Refund API with actual payment ID
-      // This is a placeholder - we need to use the Payment API for refunds
-      console.warn('⚠️  Refund functionality requires MercadoPago Payment API integration');
+      console.log(
+        `✅ Devolución ${esParcial ? 'parcial' : 'total'} sobre el pago ${paymentId}: ` +
+          `id ${respuesta.id}, estado ${respuesta.status}`,
+      );
 
-      throw new Error('Refund functionality requires payment ID from webhook. Use MercadoPago dashboard for manual refunds.');
+      return {
+        refundId: String(respuesta.id),
+        status: respuesta.status,
+        amount: Number(respuesta.amount) || (esParcial ? amount! : undefined),
+        raw: respuesta,
+      };
     } catch (error: any) {
-      console.error(`Error refunding payment ${paymentId}:`, error);
-      throw error;
+      // El mensaje de MercadoPago viene anidado y sin sacarlo el error dice
+      // solo "Bad Request", que no le sirve a nadie para entender que paso.
+      const detalle =
+        error?.cause?.[0]?.description ||
+        error?.cause?.error?.message ||
+        error?.message ||
+        'error desconocido';
+      console.error(`❌ Falló la devolución del pago ${paymentId}: ${detalle}`);
+      throw new Error(`No se pudo procesar la devolución: ${detalle}`);
     }
   }
 

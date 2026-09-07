@@ -47,6 +47,197 @@ const clientProofUpload = multer({
 });
 
 /**
+ * Devolver dinero de un pago de MercadoPago, total o parcialmente.
+ * POST /api/admin/payments/:paymentId/refund
+ *
+ * Hasta ahora las devoluciones se hacían desde el panel de MercadoPago, y eso
+ * tenía un problema mayor que la incomodidad: la plata se movía sin que
+ * quedara asentado de este lado. Después nadie podía reconstruir quién
+ * devolvió qué ni por qué.
+ *
+ * Pasa por executeFinancialAction, que es lo que garantiza que un contrato no
+ * pueda cerrarse dos veces -- ni devolver después de haber pagado, ni pagar
+ * después de haber devuelto. Esa garantía la sostiene un índice parcial en
+ * Postgres, así que aguanta incluso si dos administradores aprietan el botón
+ * al mismo tiempo.
+ */
+router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { monto, motivo } = req.body;
+    const adminId = req.user.id;
+
+    if (!motivo || String(motivo).trim().length < 10) {
+      res.status(400).json({
+        success: false,
+        message: "Contá en una frase por qué se devuelve. Es lo que va a explicar este movimiento dentro de seis meses.",
+      });
+      return;
+    }
+
+    const payment = await Payment.findByPk(req.params.paymentId);
+    if (!payment) {
+      res.status(404).json({ success: false, message: "Pago no encontrado" });
+      return;
+    }
+
+    if (!payment.mercadopagoPaymentId) {
+      res.status(400).json({
+        success: false,
+        message: "Este pago no tiene un identificador de MercadoPago, así que no se puede devolver por acá.",
+      });
+      return;
+    }
+
+    if (payment.status === 'refunded') {
+      res.status(400).json({ success: false, message: "Este pago ya fue devuelto." });
+      return;
+    }
+
+    const total = Number(payment.amount) || 0;
+    const parcial = monto !== undefined && monto !== null;
+    const importe = parcial ? Number(monto) : total;
+
+    if (parcial && (!(importe > 0) || importe > total)) {
+      res.status(400).json({
+        success: false,
+        message: `El monto a devolver tiene que estar entre $1 y $${total.toLocaleString('es-AR')}.`,
+      });
+      return;
+    }
+
+    // Los mismos controles que cualquier otra salida de dinero. Una devolución
+    // mueve plata hacia afuera igual que un pago: si no contara para el tope,
+    // el tope sería trivial de esquivar.
+    const {
+      verificarTopeDiario,
+      requiereDobleConfirmacion,
+      MONTO_DOBLE_CONFIRMACION_ARS,
+    } = await import("../../services/paymentSafeguards.js");
+
+    const rol = String((req.user as any).adminRole || req.user.role || '');
+
+    if (requiereDobleConfirmacion(importe) && !(req as any).passwordVerified) {
+      res.status(403).json({
+        success: false,
+        requiereVerificacion: true,
+        message:
+          `Las devoluciones de $${MONTO_DOBLE_CONFIRMACION_ARS.toLocaleString('es-AR')} o más piden ` +
+          "confirmar tu contraseña y tu código de 2FA.",
+        monto: importe,
+      });
+      return;
+    }
+
+    const tope = await verificarTopeDiario(adminId, rol, importe);
+    if (!tope.permitido) {
+      res.status(403).json({ success: false, message: tope.motivo, topeDiario: tope.detalle });
+      return;
+    }
+
+    const { executeFinancialAction } = await import("../../services/paymentActions.js");
+    const mercadoPagoService = (await import("../../services/mercadopago.js")).default;
+
+    const resultado = await executeFinancialAction(
+      {
+        contractId: String(payment.contractId || payment.id),
+        paymentId: String(payment.id),
+        provider: 'mercadopago',
+        actionType: parcial && importe < total ? 'REFUND_PARTIAL' : 'REFUND_TOTAL',
+        amount: importe,
+        currency: String(payment.currency || 'ARS'),
+        executedById: adminId,
+        requestPayload: { motivo: String(motivo).trim(), montoSolicitado: importe },
+      },
+      // La llamada al proveedor va fuera de la transacción: la reserva ya
+      // ocupó el lugar, así que si esto falla nadie más pudo colarse.
+      async () => {
+        try {
+          const r = await mercadoPagoService.refundPayment(
+            payment.mercadopagoPaymentId!,
+            'mercadopago',
+            parcial && importe < total ? importe : undefined,
+          );
+          return { ok: true, resourceId: r.refundId };
+        } catch (e: any) {
+          // Se devuelve el fallo en vez de lanzarlo: así la reserva queda
+          // marcada como FAILED y el contrato vuelve a estar disponible para
+          // otro intento. Una excepción dejaría la reserva colgada en CREATED
+          // y bloquearía cualquier movimiento futuro sobre ese contrato.
+          return { ok: false, error: e.message };
+        }
+      },
+    );
+
+    if (!resultado.ok) {
+      res.status(409).json({
+        success: false,
+        message: resultado.message,
+        motivo: resultado.reason,
+      });
+      return;
+    }
+
+    payment.status = parcial && importe < total ? payment.status : 'refunded';
+    (payment as any).refundedAt = new Date();
+    await payment.save();
+
+    const { logMoneyEvent } = await import("../../utils/auditLog.js");
+    await logMoneyEvent({
+      action: parcial && importe < total ? 'REFUND_PARTIAL' : 'REFUND_TOTAL',
+      actor: `admin:${adminId}`,
+      severity: 'critical',
+      description: `Se devolvieron $${importe.toLocaleString('es-AR')} al cliente. Motivo: ${String(motivo).trim()}`,
+      contractId: payment.contractId ? String(payment.contractId) : undefined,
+      paymentId: String(payment.id),
+      userId: payment.payerId ? String(payment.payerId) : undefined,
+      monto: importe,
+      moneda: String(payment.currency || 'ARS'),
+      cuentas: {
+        pagadorId: payment.payerId,
+        idPagoMercadoPago: payment.mercadopagoPaymentId,
+        medioDePago: payment.paymentMethodId,
+        ultimos4: payment.cardLastFourDigits,
+        marca: payment.cardBrand,
+      },
+      metadata: {
+        montoOriginal: total,
+        parcial: parcial && importe < total,
+        motivo: String(motivo).trim(),
+        idDevolucion: (resultado.action as any)?.externalReference,
+        topeDiario: tope.detalle,
+      },
+    });
+
+    // Devolver dinero es un momento donde MercadoPago y la plataforma se
+    // pueden desincronizar, así que se concilia en el acto.
+    const { conciliarPorEvento } = await import("../../services/reconciliation.js");
+    void conciliarPorEvento('reembolso');
+
+    await Notification.create({
+      recipientId: payment.payerId,
+      type: 'info',
+      category: 'payment',
+      title: 'Te devolvimos tu dinero',
+      message:
+        `Se devolvieron $${importe.toLocaleString('es-AR')} a tu medio de pago original. ` +
+        'Según el banco, puede tardar unos días en aparecer en tu resumen.',
+      relatedModel: 'Payment',
+      relatedId: payment.id,
+      sentVia: ['in_app'],
+    } as any);
+
+    res.json({
+      success: true,
+      message: `Se devolvieron $${importe.toLocaleString('es-AR')}.`,
+      devolucion: { monto: importe, parcial: parcial && importe < total },
+    });
+  } catch (error: any) {
+    console.error("Error procesando la devolución:", error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
  * Upload admin payment proof for client payments
  * POST /api/admin/payments/upload-proof
  * MUST be before parameterized routes like /:paymentId
