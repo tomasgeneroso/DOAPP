@@ -18,6 +18,27 @@ if (typeof jest !== 'undefined') {
 
 // Register all models (sequelize.addModels) before model tests run.
 beforeAll(async () => {
+  /**
+   * Comprobación antes de destruir nada.
+   *
+   * Esta línea de abajo borra un esquema entero, y durante mucho tiempo lo hizo
+   * sobre doapp_dev sin que nadie se enterara: database.ts carga .env al
+   * importarse y su rama para .env.test nunca se disparaba, así que `sequelize`
+   * apuntaba a la base de desarrollo. Tener dos bases separadas no alcanzaba —
+   * el orden de carga anulaba la separación.
+   *
+   * El preloader tests/env.first.ts lo arregla. Esta comprobación existe para
+   * el día que alguien lo saque sin darse cuenta: cuesta una línea y convierte
+   * una pérdida de datos silenciosa en un error que se lee.
+   */
+  const nombre = String((sequelize.config as any).database || '');
+  if (!/test/i.test(nombre)) {
+    throw new Error(
+      `Los tests de modelos iban a borrar el esquema de "${nombre}", que no parece una base de tests. ` +
+        'Revisá que tests/env.first.ts siga en setupFiles y que .env.test apunte a doapp_test.',
+    );
+  }
+
   // doapp_test is a dedicated test DB. Wipe the schema first so we rebuild every
   // table from the models — initDatabase's { alter: false } sync never reconciles
   // drift (payments.astropay_*, contract extension fields, etc.) and chokes on any

@@ -128,7 +128,7 @@ router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', '
       return;
     }
 
-    const tope = await verificarTopeDiario(adminId, rol, importe);
+    const tope = await verificarTopeDiario(adminId, rol, importe, 'devolucion');
     if (!tope.permitido) {
       res.status(403).json({ success: false, message: tope.motivo, topeDiario: tope.detalle });
       return;

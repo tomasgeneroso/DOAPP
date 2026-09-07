@@ -1,11 +1,21 @@
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const STORE_PATH = path.join(__dirname, '../../.role-passwords.json');
+/**
+ * La ruta se arma desde el directorio de trabajo, no desde `import.meta.url`.
+ *
+ * `import.meta` no existe en CommonJS, y este modulo lo importan rutas que los
+ * tests de integracion cargan transpiladas a CommonJS -- porque bajo ESM los
+ * modelos de Sequelize no se pueden registrar por sus importaciones circulares.
+ * Con `import.meta` adentro, el modulo ni siquiera parsea y se lleva puesta
+ * toda ruta que lo importe.
+ *
+ * El archivo siempre vivio en la raiz del proyecto, y tanto `npm run dev` como
+ * pm2 arrancan desde ahi.
+ */
+const STORE_PATH = path.join(process.cwd(), '.role-passwords.json');
 
 interface RolePasswords {
   ownerPasswordHash?: string;

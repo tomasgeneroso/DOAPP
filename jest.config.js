@@ -24,7 +24,40 @@ export default {
       },
       setupFilesAfterEnv: ['<rootDir>/tests/setup.ts'],
       testMatch: ['**/tests/**/*.test.ts', '**/server/**/*.test.ts'],
-      testPathIgnorePatterns: ['/node_modules/', '<rootDir>/tests/models/sql/'],
+      // Los de modelos y los de integracion tienen su propio proyecto: los dos
+      // necesitan el juego completo de modelos registrado, que bajo ESM no se
+      // puede por las importaciones circulares.
+      testPathIgnorePatterns: [
+        '/node_modules/',
+        '<rootDir>/tests/models/sql/',
+        '<rootDir>/tests/integration/',
+        '<rootDir>/tests/routes/',
+      ],
+    },
+    {
+      ...base,
+      /**
+       * Tests que llaman rutas de Express contra una base real.
+       *
+       * Estaban en el proyecto "esm", donde nadie registra los modelos, asi que
+       * fallaban todos con "Model not initialized" desde el primer User.create().
+       * No era un bug del codigo ni de los tests: estaban corriendo en el lugar
+       * equivocado.
+       *
+       * Corre en serie: comparten la misma base y se pisan entre si si van en
+       * paralelo.
+       */
+      displayName: 'integration',
+      transform: {
+        '^.+\\.ts$': ['ts-jest', { useESM: false, isolatedModules: true }],
+      },
+      setupFiles: ['<rootDir>/tests/env.first.ts'],
+      setupFilesAfterEnv: ['<rootDir>/tests/setup.integration.ts'],
+      testMatch: [
+        '<rootDir>/tests/integration/*.test.ts',
+        '<rootDir>/tests/routes/*.test.ts',
+      ],
+      maxWorkers: 1,
     },
     {
       ...base,
@@ -32,6 +65,7 @@ export default {
       transform: {
         '^.+\\.ts$': ['ts-jest', { useESM: false, isolatedModules: true }],
       },
+      setupFiles: ['<rootDir>/tests/env.first.ts'],
       setupFilesAfterEnv: ['<rootDir>/tests/setup.models.ts'],
       testMatch: ['<rootDir>/tests/models/sql/*.test.ts'],
     },

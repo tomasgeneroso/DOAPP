@@ -125,3 +125,24 @@ describe('compresion de la metadata de auditoria', () => {
     expect(gzipSync(Buffer.from(grande)).length).toBeLessThan(Buffer.byteLength(grande) / 5);
   });
 });
+
+describe('sub-tope de devoluciones', () => {
+  const { PROPORCION_MAXIMA_DEVOLUCIONES, TOPE_DIARIO_POR_ROL_ARS } = require('../server/services/paymentSafeguards.js');
+
+  it('las devoluciones no pueden ocupar todo el tope', () => {
+    // Un pago va a la cuenta de un trabajador que se registro, verifico su
+    // identidad y completo un contrato. Una devolucion vuelve al medio de pago
+    // del cliente, que es mucho mas facil de controlar por quien esta
+    // cometiendo el fraude. Por eso no pueden pesar lo mismo.
+    expect(PROPORCION_MAXIMA_DEVOLUCIONES).toBeGreaterThan(0);
+    expect(PROPORCION_MAXIMA_DEVOLUCIONES).toBeLessThan(1);
+  });
+
+  it('deja margen suficiente para operar un dia normal', () => {
+    // Un dia normal casi no tiene devoluciones, asi que el 30% de $1.500.000
+    // alcanza de sobra. Si se llega a ese techo, o paso algo grave o algo raro:
+    // en los dos casos conviene que lo autorice alguien mas.
+    const techo = TOPE_DIARIO_POR_ROL_ARS.admin * PROPORCION_MAXIMA_DEVOLUCIONES;
+    expect(techo).toBeGreaterThanOrEqual(400_000);
+  });
+});

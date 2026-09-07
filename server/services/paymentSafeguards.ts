@@ -127,7 +127,15 @@ export interface ResultadoControl {
  * vuelo puede terminar bien, y no contarla dejaria pasar dos pagos grandes
  * lanzados con segundos de diferencia -- que es como se evade un tope.
  */
-export async function egresoDelDia(adminId: string): Promise<number> {
+export interface EgresoDelDia {
+  /** Pagos a trabajadores. */
+  pagos: number;
+  /** Devoluciones a clientes. */
+  devoluciones: number;
+  total: number;
+}
+
+export async function egresoDelDia(adminId: string): Promise<EgresoDelDia> {
   const desde = new Date();
   desde.setHours(0, 0, 0, 0);
 
@@ -138,11 +146,36 @@ export async function egresoDelDia(adminId: string): Promise<number> {
       status: { [Op.ne]: 'FAILED' },
       createdAt: { [Op.gte]: desde },
     },
-    attributes: ['amount'],
+    attributes: ['amount', 'actionType'],
   });
 
-  return acciones.reduce((t, a) => t + (Number(a.amount) || 0), 0);
+  let pagos = 0;
+  let devoluciones = 0;
+  for (const a of acciones) {
+    const monto = Number(a.amount) || 0;
+    if (a.actionType === 'PAYOUT') pagos += monto;
+    else devoluciones += monto;
+  }
+
+  return { pagos, devoluciones, total: pagos + devoluciones };
 }
+
+/**
+ * Que parte del tope diario puede usarse en devoluciones.
+ *
+ * El tope total no cambia: lo que cambia es que las devoluciones no pueden
+ * ocuparlo entero. La razon es que un pago y una devolucion se ven distinto
+ * desde afuera. Un pago va a la cuenta de un trabajador que se registro,
+ * verifico su identidad y completo un contrato; una devolucion vuelve al medio
+ * de pago del cliente, y ese medio de pago es mucho mas facil de controlar por
+ * quien esta cometiendo el fraude.
+ *
+ * Un dia normal casi no tiene devoluciones. Si un administrador esta usando
+ * mas del 30% de su tope en devolver plata, o paso algo grave que hay que
+ * mirar, o algo raro esta pasando. En los dos casos conviene que se corte y lo
+ * autorice alguien mas.
+ */
+export const PROPORCION_MAXIMA_DEVOLUCIONES = 0.30;
 
 /**
  * Verifica el tope diario antes de dejar salir plata.
@@ -156,6 +189,7 @@ export async function verificarTopeDiario(
   adminId: string,
   rol: string,
   monto: number,
+  tipo: 'pago' | 'devolucion' = 'pago',
 ): Promise<ResultadoControl> {
   const topes = await topesVigentes();
   const tope = topes[rol];
@@ -169,32 +203,61 @@ export async function verificarTopeDiario(
 
   if (tope === Number.POSITIVE_INFINITY) return { permitido: true };
 
-  const yaHoy = await egresoDelDia(adminId);
-  const disponible = Math.max(0, tope - yaHoy);
+  const usado = await egresoDelDia(adminId);
+  const disponible = Math.max(0, tope - usado.total);
 
-  if (monto > disponible) {
+  // El desglose viaja en todos los casos: quien mira el panel tiene que poder
+  // ver de qué está hecho su consumo, no sólo cuánto le queda.
+  const detalleBase = {
+    tope,
+    usado,
+    disponible,
+    topeDevoluciones: Math.round(tope * PROPORCION_MAXIMA_DEVOLUCIONES),
+    disponibleDevoluciones: Math.max(
+      0,
+      Math.round(tope * PROPORCION_MAXIMA_DEVOLUCIONES) - usado.devoluciones,
+    ),
+  };
+
+  const rechazar = async (motivo: string, extra: Record<string, any>) => {
     await logMoneyEvent({
       action: 'DAILY_CAP_EXCEEDED',
       actor: `admin:${adminId}`,
       severity: 'high',
       description:
-        `Se intentó un egreso de $${monto.toLocaleString('es-AR')} con $${disponible.toLocaleString('es-AR')} ` +
-        `disponibles del tope diario del rol ${rol}. Se rechazó.`,
+        `Se intentó ${tipo === 'devolucion' ? 'devolver' : 'pagar'} $${monto.toLocaleString('es-AR')} ` +
+        `y se rechazó por tope diario del rol ${rol}.`,
       monto,
-      metadata: { adminId, rol, tope, yaHoy, disponible },
+      metadata: { adminId, rol, tipo, ...detalleBase, ...extra },
     });
+    return { permitido: false, motivo, detalle: detalleBase };
+  };
 
-    return {
-      permitido: false,
-      motivo:
-        `Este movimiento supera tu tope diario. Llevás $${yaHoy.toLocaleString('es-AR')} de ` +
-        `$${tope.toLocaleString('es-AR')} y te quedan $${disponible.toLocaleString('es-AR')}. ` +
+  // El sub-tope de devoluciones se mira primero: es el más chico, así que si lo
+  // pasa, decirle que le sobra tope general lo confundiría.
+  if (tipo === 'devolucion' && monto > detalleBase.disponibleDevoluciones) {
+    return rechazar(
+      `Las devoluciones pueden usar hasta el ${Math.round(PROPORCION_MAXIMA_DEVOLUCIONES * 100)}% ` +
+        `de tu tope diario, o sea $${detalleBase.topeDevoluciones.toLocaleString('es-AR')}. ` +
+        `Ya devolviste $${usado.devoluciones.toLocaleString('es-AR')} y te quedan ` +
+        `$${detalleBase.disponibleDevoluciones.toLocaleString('es-AR')} para devoluciones. ` +
         'Pedile a alguien con más permisos que lo autorice.',
-      detalle: { tope, yaHoy, disponible, monto },
-    };
+      { subTope: true },
+    );
   }
 
-  return { permitido: true, detalle: { tope, yaHoy, disponible: disponible - monto } };
+  if (monto > disponible) {
+    return rechazar(
+      `Este movimiento supera tu tope diario. Llevás $${usado.total.toLocaleString('es-AR')} de ` +
+        `$${tope.toLocaleString('es-AR')} ` +
+        `($${usado.pagos.toLocaleString('es-AR')} en pagos y $${usado.devoluciones.toLocaleString('es-AR')} ` +
+        `en devoluciones) y te quedan $${disponible.toLocaleString('es-AR')}. ` +
+        'Pedile a alguien con más permisos que lo autorice.',
+      { subTope: false },
+    );
+  }
+
+  return { permitido: true, detalle: detalleBase };
 }
 
 /** Si el pago necesita contraseña y 2FA por su monto. */
