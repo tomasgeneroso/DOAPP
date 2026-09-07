@@ -63,7 +63,14 @@ const clientProofUpload = multer({
  */
 router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', 'owner'), async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const { monto, motivo } = req.body;
+    /**
+     * `esFinal` cierra el pago aunque quede un resto sin devolver.
+     *
+     * Es el caso de una cancelación: se devuelve todo menos el costo de
+     * pasarela, y ese resto se retiene a propósito. Para MercadoPago es una
+     * devolución parcial; para el negocio, el caso está terminado.
+     */
+    const { monto, motivo, esFinal } = req.body;
     const adminId = req.user.id;
 
     if (!motivo || String(motivo).trim().length < 10) {
@@ -88,8 +95,14 @@ router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', '
       return;
     }
 
+    // 'refunded' significa caso cerrado, no necesariamente saldo cero: una
+    // cancelación cierra reteniendo el costo de pasarela. En los dos casos no
+    // se devuelve nada más.
     if (payment.status === 'refunded') {
-      res.status(400).json({ success: false, message: "Este pago ya fue devuelto." });
+      res.status(400).json({
+        success: false,
+        message: "Este pago ya está cerrado: no admite más devoluciones.",
+      });
       return;
     }
 
@@ -232,9 +245,26 @@ router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', '
       bloqueado.refundedAmount = acumulado;
       bloqueado.refundedAt = new Date();
       bloqueado.refundedBy = adminId;
-      // Sólo se marca 'refunded' cuando ya no queda nada: un pago con una
-      // devolución parcial encima sigue vivo y puede recibir otra.
-      if (acumulado >= Number(bloqueado.amount) - 0.01) bloqueado.status = 'refunded';
+
+      /**
+       * Cuándo el pago queda cerrado.
+       *
+       * Hay dos formas y las dos son válidas:
+       *
+       *   se devolvió todo    no queda saldo, no hay nada más que hacer.
+       *   se cerró el caso    queda un resto retenido a propósito -- el costo
+       *                       de pasarela en una cancelación, o la parte que
+       *                       corresponde al trabajador en una disputa
+       *                       resuelta a medias -- y no va a haber otra
+       *                       devolución.
+       *
+       * Sin la segunda, una cancelación quedaría abierta para siempre: para
+       * MercadoPago es una devolución parcial (no se devolvió el 100%), pero
+       * para el negocio está terminada. Dejarla abierta significa que alguien
+       * puede devolver el resto por error meses después.
+       */
+      const seDevolvioTodo = acumulado >= Number(bloqueado.amount) - 0.01;
+      if (seDevolvioTodo || esFinal) bloqueado.status = 'refunded';
       await bloqueado.save({ transaction: t });
     });
 
