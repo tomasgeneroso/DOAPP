@@ -189,6 +189,23 @@ router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', '
       return;
     }
 
+    /**
+     * Cuándo se usa el endpoint "total" de MercadoPago.
+     *
+     * Sólo cuando NO se devolvió nada antes y se está devolviendo todo. Si ya
+     * hubo una devolución parcial, se pide el remanente como otra parcial, con
+     * el monto explícito.
+     *
+     * La razón es que MercadoPago no documenta qué hace una devolución total
+     * sobre un pago que ya tiene una parcial encima: podría devolver sólo el
+     * resto, o podría intentar el total y fallar. Su propia recomendación es
+     * calcular el remanente y pedirlo como parcial. Ante una ambigüedad sobre
+     * plata, se toma el camino cuyo resultado es único.
+     */
+    const nadaDevueltoAun = yaDevuelto <= 0.01;
+    const usarTotal = nadaDevueltoAun && importe >= total - 0.01;
+    const tipoAccion = usarTotal ? 'REFUND_TOTAL' : 'REFUND_PARTIAL';
+
     const { executeFinancialAction } = await import("../../services/paymentActions.js");
     const mercadoPagoService = (await import("../../services/mercadopago.js")).default;
 
@@ -197,7 +214,7 @@ router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', '
         contractId: String(payment.contractId || payment.id),
         paymentId: String(payment.id),
         provider: 'mercadopago',
-        actionType: parcial && importe < total ? 'REFUND_PARTIAL' : 'REFUND_TOTAL',
+        actionType: tipoAccion,
         amount: importe,
         currency: String(payment.currency || 'ARS'),
         executedById: adminId,
@@ -210,7 +227,7 @@ router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', '
           const r = await mercadoPagoService.refundPayment(
             payment.mercadopagoPaymentId!,
             'mercadopago',
-            parcial && importe < total ? importe : undefined,
+            usarTotal ? undefined : importe,
           );
           return { ok: true, resourceId: r.refundId };
         } catch (e: any) {
@@ -270,7 +287,7 @@ router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', '
 
     const { logMoneyEvent } = await import("../../utils/auditLog.js");
     await logMoneyEvent({
-      action: parcial && importe < total ? 'REFUND_PARTIAL' : 'REFUND_TOTAL',
+      action: tipoAccion,
       actor: `admin:${adminId}`,
       severity: 'critical',
       description: `Se devolvieron $${importe.toLocaleString('es-AR')} al cliente. Motivo: ${String(motivo).trim()}`,
@@ -288,7 +305,7 @@ router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', '
       },
       metadata: {
         montoOriginal: total,
-        parcial: parcial && importe < total,
+        parcial: !usarTotal,
         motivo: String(motivo).trim(),
         idDevolucion: (resultado.action as any)?.externalReference,
         topeDiario: tope.detalle,
@@ -316,7 +333,7 @@ router.post("/:paymentId/refund", protect, requireRole('admin', 'super_admin', '
     res.json({
       success: true,
       message: `Se devolvieron $${importe.toLocaleString('es-AR')}.`,
-      devolucion: { monto: importe, parcial: parcial && importe < total },
+      devolucion: { monto: importe, parcial: !usarTotal },
     });
   } catch (error: any) {
     console.error("Error procesando la devolución:", error);

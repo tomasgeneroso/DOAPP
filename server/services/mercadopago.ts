@@ -140,6 +140,31 @@ class MercadoPagoPaymentService {
         },
 
         metadata: metadata,
+
+        /**
+         * Lo que el comprador va a leer en el resumen de su tarjeta.
+         *
+         * Es la defensa mas barata que existe contra los contracargos, y hasta
+         * ahora no la mandabamos: sin esto, en el resumen aparece lo que
+         * MercadoPago decida -- habitualmente el nombre de la cuenta, que el
+         * cliente no reconoce.
+         *
+         * La causa numero uno de contracargo no es el fraude, es "no reconozco
+         * este cargo". Alguien mira el resumen un mes despues, ve un nombre que
+         * no le dice nada, llama al banco y desconoce la operacion. Ese
+         * contracargo se pierde aunque el trabajo se haya hecho, porque discutir
+         * "el cliente no se acordo" no es una defensa.
+         *
+         * MercadoPago acepta 13 caracteres. Se recorta acá y no se confia en que
+         * lo haga el proveedor: un descriptor rechazado por largo tiraria toda
+         * la preferencia, y el cliente no podria pagar por un detalle cosmetico.
+         *
+         * Va en mayusculas porque muchos resumenes bancarios no muestran
+         * minusculas y "Doapp" terminaria como "DOAPP" igual.
+         */
+        statement_descriptor: (process.env.MERCADOPAGO_STATEMENT_DESCRIPTOR || 'DOAPP')
+          .toUpperCase()
+          .slice(0, 13),
       };
 
       // Only add back_urls if successUrl is provided

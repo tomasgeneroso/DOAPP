@@ -146,9 +146,43 @@ async function handleChargebackWebhook(data: any, tipo: string, ip: string) {
       ip,
     });
 
+    /**
+     * Se consulta el caso para saber hasta cuando se puede presentar descargo.
+     *
+     * MercadoPago no da un plazo fijo de X dias: devuelve una FECHA LIMITE en
+     * el detalle del caso, distinta segun la marca de la tarjeta. Sin
+     * consultarla no sabemos cuanto tiempo hay, y un contracargo puede tardar
+     * hasta seis meses en resolverse con la plata retenida mientras tanto.
+     *
+     * Se consulta acá y no cuando el administrador abre el caso porque la
+     * notificacion es el unico momento garantizado: si nadie entra a mirar en
+     * tres dias, el plazo corre igual.
+     */
+    let detalleCaso: any = null;
+    let fechaLimite: string | null = null;
+
+    if (idExterno) {
+      try {
+        const token = process.env.MERCADOPAGO_ACCESS_TOKEN;
+        const r = await fetch(`https://api.mercadopago.com/v1/chargebacks/${idExterno}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (r.ok) {
+          detalleCaso = await r.json();
+          fechaLimite = detalleCaso?.documentation_required_deadline || detalleCaso?.date_documentation_deadline || null;
+        }
+      } catch (e: any) {
+        // Que falle la consulta no puede impedir el congelamiento, que es lo
+        // urgente. Se sigue sin el plazo y se avisa igual.
+        logger.error('webhooks', `No se pudo consultar el contracargo ${idExterno}: ${e.message}`);
+      }
+    }
+
     // La notificacion trae el id del contracargo, no el del pago. Se busca por
-    // los dos campos posibles porque el formato cambia segun el tipo de evento.
-    const idPago = data?.payment_id || data?.payment?.id || data?.resource?.payment_id;
+    // los tres campos posibles porque el formato cambia segun el tipo de evento,
+    // y el detalle del caso lo trae cuando la notificacion no.
+    const idPago =
+      data?.payment_id || data?.payment?.id || data?.resource?.payment_id || detalleCaso?.payment_id;
 
     const pago = idPago
       ? await Payment.findOne({ where: { mercadopagoPaymentId: String(idPago) } })
@@ -218,7 +252,7 @@ async function handleChargebackWebhook(data: any, tipo: string, ip: string) {
         ultimos4: pago.cardLastFourDigits,
         marca: pago.cardBrand,
       },
-      metadata: { idExterno, tipo, evidenciaGenerada: evidenciaLista },
+      metadata: { idExterno, tipo, evidenciaGenerada: evidenciaLista, fechaLimite, detalleCaso },
     });
 
     // Un contracargo es exactamente el momento donde MercadoPago y la
@@ -234,7 +268,11 @@ async function handleChargebackWebhook(data: any, tipo: string, ip: string) {
         (evidenciaLista
           ? 'El expediente de evidencia se generó con el estado actual del contrato.'
           : 'No se pudo generar el expediente automáticamente: revisalo a mano.') +
-        ' MercadoPago da un plazo acotado para responder.',
+        // El plazo va en el aviso y no sólo en el registro: es el dato que
+        // decide si hay que dejar todo y responder hoy, o si se puede mañana.
+        (fechaLimite
+          ? ` Tenés tiempo hasta el ${new Date(fechaLimite).toLocaleString('es-AR')} para presentar la documentación.`
+          : ' MercadoPago no informó una fecha límite en el caso: entrá al panel para verla.'),
       'Payment',
       pago.id,
     );
