@@ -179,3 +179,65 @@ describe('cancelacion antes de contratar', () => {
     expect(d.retiene).toBe(0);
   });
 });
+
+describe('marcas diarias del contrato', () => {
+  const { marcarDiasAlFinalizar, umbralAusencia } = require('../server/services/dailyLog.js');
+
+  /** Contrato falso con lo justo que usa el servicio. */
+  const contrato = (desde: string, hasta: string, log: any[] = []) => {
+    const c: any = {
+      startDate: new Date(desde + 'T12:00:00'),
+      endDate: new Date(hasta + 'T12:00:00'),
+      dailyLog: log,
+      changed: () => {},
+    };
+    return c;
+  };
+
+  const ayer = () => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10); };
+  const anteayer = () => { const d = new Date(); d.setDate(d.getDate() - 2); return d.toISOString().slice(0, 10); };
+  const manana = () => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); };
+
+  it('completa los dias transcurridos al confirmar el final', () => {
+    const c = contrato(anteayer(), ayer());
+    expect(marcarDiasAlFinalizar(c, 'client')).toBe(true);
+    expect(c.dailyLog.length).toBe(2);
+    expect(c.dailyLog.every((d: any) => d.markedByClientAt)).toBe(true);
+  });
+
+  it('NO marca dias que todavia no llegaron', () => {
+    // Marcar el futuro seria afirmar que se trabajo un dia que no paso. Como
+    // evidencia no vale nada y le quita credibilidad al resto de las marcas.
+    const c = contrato(ayer(), manana());
+    marcarDiasAlFinalizar(c, 'worker');
+    expect(c.dailyLog.some((d: any) => d.date === manana())).toBe(false);
+  });
+
+  it('no pisa lo que ya se habia marcado dia por dia', () => {
+    // Una marca puesta mientras el trabajo pasaba es mas creible que una puesta
+    // en bloque al cerrar. No se sobrescribe.
+    const original = '2020-01-01T10:00:00.000Z';
+    const c = contrato(anteayer(), ayer(), [
+      { date: anteayer(), markedByClientAt: original, markedByWorkerAt: null },
+    ]);
+    marcarDiasAlFinalizar(c, 'client');
+    const fila = c.dailyLog.find((d: any) => d.date === anteayer());
+    expect(fila.markedByClientAt).toBe(original);
+    expect(fila.markedByClientAtAuto).toBeUndefined();
+  });
+
+  it('deja registrado que la marca fue automatica', () => {
+    // Quien lea el expediente tiene que poder distinguir una marca del dia de
+    // una puesta en bloque al cerrar: no valen lo mismo.
+    const c = contrato(ayer(), ayer());
+    marcarDiasAlFinalizar(c, 'worker');
+    expect(c.dailyLog[0].markedByWorkerAtAuto).toBe(true);
+  });
+
+  it('el umbral de ausencia se adapta a la duracion', () => {
+    // Dos dias de silencio en un contrato de un mes es normal; en uno de dos
+    // dias es abandono total.
+    expect(umbralAusencia(2)).toBe(1);
+    expect(umbralAusencia(30)).toBe(4);
+  });
+});

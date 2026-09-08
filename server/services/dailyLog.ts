@@ -73,6 +73,63 @@ export function umbralAusencia(totalDias: number): number {
   return Math.min(4, Math.max(1, Math.round(totalDias * 0.2)));
 }
 
+/**
+ * Marca como asistidos todos los dias transcurridos, al confirmar el final.
+ *
+ * Quien confirma que el trabajo se termino esta afirmando, implicitamente, que
+ * se trabajo. Pedirle ademas que marque cinco dias uno por uno es pedirle que
+ * repita lo que acaba de decir, y el resultado previsible es que no lo haga:
+ * el registro queda vacio justo en los contratos que terminaron bien.
+ *
+ * Es exactamente donde mas hace falta. Un contracargo llega semanas despues de
+ * un trabajo que salio bien, y sin marcas no hay con que responder.
+ *
+ * No pisa lo ya marcado. Si alguien fue marcando dia por dia, esas fechas
+ * quedan como estaban -- son mas creibles que un marcado en bloque, porque se
+ * hicieron mientras pasaba.
+ */
+export function marcarDiasAlFinalizar(
+  contrato: Contract,
+  quien: 'client' | 'worker',
+): boolean {
+  const dias = diasDelContrato(contrato);
+  const hoy = new Date().toISOString().slice(0, 10);
+  const transcurridos = dias.filter((d) => d <= hoy);
+  if (transcurridos.length === 0) return false;
+
+  const log = [...((contrato as any).dailyLog || [])];
+  const campo = quien === 'client' ? 'markedByClientAt' : 'markedByWorkerAt';
+  const ahora = new Date().toISOString();
+  let cambio = false;
+
+  for (const d of transcurridos) {
+    const i = log.findIndex((f: any) => f.date === d);
+    if (i >= 0) {
+      if (log[i][campo]) continue; // ya marcado por esta parte
+      log[i] = { ...log[i], [campo]: ahora, [`${campo}Auto`]: true };
+    } else {
+      log.push({
+        date: d,
+        markedByWorkerAt: null,
+        markedByClientAt: null,
+        [campo]: ahora,
+        // Queda registrado que fue automatico. Una marca puesta en bloque al
+        // cerrar vale menos que una puesta el mismo dia, y quien lea el
+        // expediente tiene que poder distinguirlas.
+        [`${campo}Auto`]: true,
+      });
+    }
+    cambio = true;
+  }
+
+  if (!cambio) return false;
+
+  log.sort((a: any, b: any) => a.date.localeCompare(b.date));
+  (contrato as any).dailyLog = log;
+  contrato.changed('dailyLog', true);
+  return true;
+}
+
 export function buildDailyLog(contrato: Contract, quienMira: 'client' | 'worker'): DailyLogView {
   const dias = diasDelContrato(contrato);
   const log: any[] = (contrato as any).dailyLog || [];

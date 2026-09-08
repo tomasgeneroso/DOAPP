@@ -15,7 +15,7 @@ import { Op } from 'sequelize';
 import { calculateCommission } from "../services/commissionService.js";
 import { requireRole } from "../middleware/permissions.js";
 import { buildContractEvidence, evidenceToHtml } from "../services/contractEvidence.js";
-import { buildDailyLog, diasDelContrato } from "../services/dailyLog.js";
+import { buildDailyLog, diasDelContrato, marcarDiasAlFinalizar } from "../services/dailyLog.js";
 import { logAudit, getSeverityForAction } from "../utils/auditLog.js";
 import { Payment } from "../models/sql/Payment.model.js";
 import { splitFees } from "../../shared/pricing/processingCost.js";
@@ -356,10 +356,43 @@ router.get("/:id/daily-log", protect, async (req: AuthRequest, res: Response): P
 router.post("/:id/daily-log", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user.id.toString();
-    const { date, marked } = req.body as { date?: string; marked?: boolean };
+    const { date, dates, marked, todos } = req.body as {
+      date?: string;
+      dates?: string[];
+      marked?: boolean;
+      todos?: boolean;
+    };
 
-    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      res.status(400).json({ success: false, message: "Fecha inválida. Se espera AAAA-MM-DD." });
+    /**
+     * Se puede marcar un día, varios, o todos de una vez.
+     *
+     * Marcar día por día tiene sentido mientras el trabajo pasa, pero obligar a
+     * eso al que se acordó el viernes de toda la semana es pedirle cinco clics
+     * para decir una sola cosa. El que quiere el detalle lo tiene; el que no,
+     * marca todo junto.
+     */
+    const fechasPedidas: string[] = todos
+      ? []
+      : dates && Array.isArray(dates)
+        ? dates
+        : date
+          ? [date]
+          : [];
+
+    if (!todos && fechasPedidas.length === 0) {
+      res.status(400).json({
+        success: false,
+        message: "Decime qué día marcar: `date`, una lista en `dates`, o `todos: true`.",
+      });
+      return;
+    }
+
+    const formatoMalo = fechasPedidas.find((d) => !/^\d{4}-\d{2}-\d{2}$/.test(String(d)));
+    if (formatoMalo) {
+      res.status(400).json({
+        success: false,
+        message: `Fecha inválida: "${formatoMalo}". Se espera AAAA-MM-DD.`,
+      });
       return;
     }
 
@@ -379,23 +412,49 @@ router.post("/:id/daily-log", protect, async (req: AuthRequest, res: Response): 
     // Sólo días que pertenecen al contrato: marcar fuera del rango no
     // significa nada y ensuciaría la evidencia.
     const dias = diasDelContrato(contrato);
-    if (!dias.includes(date)) {
+
+    /**
+     * "Todos" son los días transcurridos, no todos los del contrato.
+     *
+     * Marcar un día que todavía no llegó sería afirmar que se trabajó en el
+     * futuro. Como evidencia eso no vale nada, y peor: le quita credibilidad al
+     * resto de las marcas, que es justamente para lo que sirven.
+     */
+    const hoy = new Date().toISOString().slice(0, 10);
+    const objetivo = todos ? dias.filter((d) => d <= hoy) : fechasPedidas;
+
+    const fueraDeRango = objetivo.find((d) => !dias.includes(d));
+    if (fueraDeRango) {
       res.status(400).json({
         success: false,
-        message: "Ese día no pertenece al período del contrato.",
+        message: `El ${fueraDeRango} no pertenece al período del contrato.`,
+      });
+      return;
+    }
+
+    if (objetivo.length === 0) {
+      res.status(400).json({
+        success: false,
+        message: "Todavía no hay días transcurridos para marcar.",
       });
       return;
     }
 
     const log = [...((contrato as any).dailyLog || [])];
-    const i = log.findIndex((d: any) => d.date === date);
-    const fila = i >= 0 ? { ...log[i] } : { date, markedByWorkerAt: null, markedByClientAt: null };
-
     const ahora = new Date().toISOString();
     const campo = esCliente ? 'markedByClientAt' : 'markedByWorkerAt';
-    fila[campo] = marked === false ? null : ahora;
 
-    if (i >= 0) log[i] = fila; else log.push(fila);
+    for (const d of objetivo) {
+      const i = log.findIndex((f: any) => f.date === d);
+      const fila = i >= 0
+        ? { ...log[i] }
+        : { date: d, markedByWorkerAt: null, markedByClientAt: null };
+
+      fila[campo] = marked === false ? null : ahora;
+
+      if (i >= 0) log[i] = fila; else log.push(fila);
+    }
+
     log.sort((a: any, b: any) => a.date.localeCompare(b.date));
 
     (contrato as any).dailyLog = log;
@@ -1248,6 +1307,12 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
         contract.doerConfirmedAt = new Date();
       }
 
+      // Confirmar el final afirma, implícitamente, que se trabajó. Las marcas
+      // diarias que falten se completan solas: pedirle a alguien que repita día
+      // por día lo que acaba de decir termina en un registro vacío justo en los
+      // contratos que salieron bien, que es donde más hace falta.
+      marcarDiasAlFinalizar(contract, isClient ? 'client' : 'worker');
+
       contract.status = 'awaiting_confirmation';
       contract.awaitingConfirmationAt = new Date();
 
@@ -1310,6 +1375,10 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
       contract.doerConfirmed = true;
       contract.doerConfirmedAt = new Date();
     }
+
+    // Con las dos partes confirmando, el registro diario queda completo por
+    // ambos lados: es la evidencia más fuerte que puede tener un contrato.
+    marcarDiasAlFinalizar(contract, isClient ? 'client' : 'worker');
 
     // Agregar al historial
     const history = contract.confirmationHistory || [];
