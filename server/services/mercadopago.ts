@@ -155,16 +155,17 @@ class MercadoPagoPaymentService {
          * contracargo se pierde aunque el trabajo se haya hecho, porque discutir
          * "el cliente no se acordo" no es una defensa.
          *
-         * MercadoPago acepta 13 caracteres. Se recorta acá y no se confia en que
-         * lo haga el proveedor: un descriptor rechazado por largo tiraria toda
-         * la preferencia, y el cliente no podria pagar por un detalle cosmetico.
+         * Es "DOAPP" y punto. MercadoPago acepta hasta 13 caracteres, pero los
+         * resumenes viejos truncan y algunos bancos muestran menos: corto llega
+         * entero. Y coincide exactamente con lo que el cliente vio al pagar,
+         * que es lo unico que importa para que lo reconozca.
          *
-         * Va en mayusculas porque muchos resumenes bancarios no muestran
-         * minusculas y "Doapp" terminaria como "DOAPP" igual.
+         * No se hace configurable a proposito. Un descriptor que cambia entre
+         * despliegues hace que dos cobros del mismo comercio se vean distintos
+         * en el resumen, que es exactamente el problema que esto viene a
+         * resolver.
          */
-        statement_descriptor: (process.env.MERCADOPAGO_STATEMENT_DESCRIPTOR || 'DOAPP')
-          .toUpperCase()
-          .slice(0, 13),
+        statement_descriptor: 'DOAPP',
       };
 
       // Only add back_urls if successUrl is provided

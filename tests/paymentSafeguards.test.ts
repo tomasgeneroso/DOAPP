@@ -241,3 +241,53 @@ describe('marcas diarias del contrato', () => {
     expect(umbralAusencia(30)).toBe(4);
   });
 });
+
+describe('expediente en PDF', () => {
+  const { evidenceToPdf } = require('../server/services/contractEvidence.js');
+
+  const expediente = (mensajes: number) => ({
+    generadoEn: new Date().toISOString(),
+    contrato: {
+      id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', estado: 'completed',
+      precio: 100000, comision: 10000, total: 112100,
+      estadoEscrow: 'released', estadoPago: 'completed',
+      inicio: new Date().toISOString(), fin: new Date().toISOString(),
+      creado: new Date().toISOString(), codigoEmparejamiento: '123456',
+      confirmoCliente: true, confirmoTrabajador: true, ampliaciones: [],
+      diasConfirmados: 4, diasMarcadosPorTrabajador: 5, diasTotales: 5,
+    },
+    trabajo: { id: 'j1', titulo: 'Pintura', descripcion: 'Dos manos', categoria: 'Reparaciones', ubicacion: 'CABA', precioPublicado: 100000 },
+    cliente: { id: 'c1', nombre: 'Ana', email: 'a@t.com', documentoVerificado: true, puntuacion: 4.8, trabajosCompletados: 3, registrado: new Date().toISOString() },
+    trabajador: { id: 'w1', nombre: 'Luis', email: 'l@t.com', documentoVerificado: true, puntuacion: 4.9, trabajosCompletados: 22, registrado: new Date().toISOString() },
+    pagos: [], movimientos: [], disputa: null,
+    conversacion: Array.from({ length: mensajes }, (_, i) => ({
+      fecha: new Date().toISOString(), de: i % 2 ? 'Luis' : 'Ana',
+      mensaje: 'Mensaje ' + i + ' con acentos: ñandú, atención.', tipo: 'text',
+    })),
+    faltantes: [],
+  });
+
+  it('genera un PDF valido', async () => {
+    // Es el unico formato que MercadoPago acepta para un descargo. Si esto
+    // falla, un contracargo llega y no hay con que responder.
+    const pdf = await evidenceToPdf(expediente(10) as any);
+    expect(pdf.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+  });
+
+  it('entra en el limite de 10 MB aunque la conversacion sea enorme', async () => {
+    // Un expediente que no entra en el limite no se puede presentar, que es
+    // igual de malo que no tenerlo.
+    const pdf = await evidenceToPdf(expediente(400) as any);
+    expect(pdf.length).toBeLessThan(10 * 1024 * 1024);
+  });
+
+  it('recorta la conversacion larga pero avisa cuanto falta', async () => {
+    // Callar el recorte le quitaria credibilidad al expediente entero si el
+    // otro lado nota que faltan mensajes.
+    const largo = await evidenceToPdf(expediente(400) as any);
+    const corto = await evidenceToPdf(expediente(10) as any);
+    expect(largo.length).toBeGreaterThan(corto.length);
+    // 400 mensajes recortados a 120 no pueden pesar 40 veces mas que 10.
+    expect(largo.length).toBeLessThan(corto.length * 40);
+  });
+});

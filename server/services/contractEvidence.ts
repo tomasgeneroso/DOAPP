@@ -408,3 +408,198 @@ ${
 
 </body></html>`;
 }
+
+/**
+ * El expediente como PDF, que es el unico formato que sirve para presentarlo.
+ *
+ * MercadoPago acepta .jpg, .png o .pdf, hasta 10 MB. El HTML que genera esta
+ * misma clase sirve para leerlo en pantalla, pero no se puede subir: si llega
+ * un contracargo y lo unico que hay es un HTML, no hay descargo.
+ *
+ * Se arma con pdfkit y no imprimiendo el HTML con un navegador headless a
+ * proposito. Puppeteer trae un Chromium entero -- unos 300 MB -- y un proceso
+ * que hay que mantener vivo, todo para producir un documento de texto con
+ * tablas. Ademas fallaria justo cuando mas importa: en un servidor chico, sin
+ * las bibliotecas del sistema que Chromium necesita.
+ *
+ * La conversacion se recorta si es larguisima. Un expediente de 10 MB no lo lee
+ * nadie y no entra en el limite; lo que decide un contracargo son los primeros
+ * y los ultimos intercambios, no los doscientos del medio.
+ */
+export async function evidenceToPdf(e: ContractEvidence): Promise<Buffer> {
+  const { default: PDFDocument } = await import('pdfkit');
+
+  return new Promise<Buffer>((resolve, reject) => {
+    const doc = new PDFDocument({ size: 'A4', margin: 46, bufferPages: true });
+    const trozos: Buffer[] = [];
+
+    doc.on('data', (c: Buffer) => trozos.push(c));
+    doc.on('end', () => resolve(Buffer.concat(trozos)));
+    doc.on('error', reject);
+
+    const TINTA = '#1a1a1a';
+    const SUAVE = '#666666';
+    const LINEA = '#cccccc';
+    const ANCHO = doc.page.width - 92;
+
+    const pesos = (n: number) => '$' + Number(n || 0).toLocaleString('es-AR');
+    const fecha = (s: string | null) => (s ? new Date(s).toLocaleString('es-AR') : '—');
+
+    const titulo = (t: string) => {
+      if (doc.y > doc.page.height - 130) doc.addPage();
+      doc.moveDown(0.9);
+      doc.fillColor(TINTA).font('Helvetica-Bold').fontSize(12)
+        .text(t.toUpperCase(), { characterSpacing: 0.6 });
+      doc.moveTo(46, doc.y + 3).lineTo(46 + ANCHO, doc.y + 3)
+        .strokeColor(LINEA).lineWidth(0.7).stroke();
+      doc.moveDown(0.55);
+    };
+
+    const fila = (etiqueta: string, valor: string) => {
+      if (doc.y > doc.page.height - 70) doc.addPage();
+      const y = doc.y;
+      doc.font('Helvetica').fontSize(9).fillColor(SUAVE).text(etiqueta, 46, y, { width: 155 });
+      doc.font('Helvetica').fontSize(9).fillColor(TINTA)
+        .text(valor || '—', 205, y, { width: ANCHO - 159 });
+      doc.moveDown(0.28);
+    };
+
+    // ---------- Carátula ----------
+    doc.font('Helvetica-Bold').fontSize(19).fillColor(TINTA).text('Expediente de contrato');
+    doc.font('Helvetica').fontSize(9.5).fillColor(SUAVE)
+      .text('DOAPP · Documento generado automáticamente para su presentación ante entidades de pago');
+    doc.moveDown(0.5);
+    doc.font('Helvetica').fontSize(9).fillColor(SUAVE)
+      .text('Contrato ' + e.contrato.id)
+      .text('Generado el ' + fecha(e.generadoEn));
+
+    titulo('Contrato');
+    fila('Estado', e.contrato.estado);
+    fila('Precio acordado', pesos(e.contrato.precio));
+    fila('Comisión de la plataforma', pesos(e.contrato.comision));
+    fila('Total abonado por el cliente', pesos(e.contrato.total));
+    fila('Estado de la custodia', e.contrato.estadoEscrow);
+    fila('Inicio', fecha(e.contrato.inicio));
+    fila('Fin', fecha(e.contrato.fin));
+    fila('Confirmado por el cliente', e.contrato.confirmoCliente ? 'Sí' : 'No');
+    fila('Confirmado por el trabajador', e.contrato.confirmoTrabajador ? 'Sí' : 'No');
+    // Las marcas diarias son la prueba mas fuerte de que el trabajo ocurrio:
+    // son muchos registros fechados, no una sola declaracion al final.
+    fila(
+      'Días registrados como trabajados',
+      e.contrato.diasConfirmados + ' confirmados por el cliente y ' +
+        e.contrato.diasMarcadosPorTrabajador + ' marcados por el trabajador, sobre ' +
+        e.contrato.diasTotales + ' días',
+    );
+
+    if (e.trabajo) {
+      titulo('Trabajo contratado');
+      fila('Título', e.trabajo.titulo);
+      fila('Categoría', e.trabajo.categoria);
+      fila('Ubicación', e.trabajo.ubicacion || '—');
+      doc.moveDown(0.2);
+      doc.font('Helvetica').fontSize(9).fillColor(TINTA)
+        .text(String(e.trabajo.descripcion || '').slice(0, 1200), 46, doc.y, {
+          width: ANCHO,
+          align: 'justify',
+        });
+    }
+
+    const parte = (rotulo: string, p: PartyInfo | null) => {
+      if (!p) return;
+      titulo(rotulo);
+      fila('Nombre', p.nombre);
+      fila('Correo', p.email);
+      fila('Identidad verificada', p.documentoVerificado ? 'Sí' : 'No');
+      fila('Trabajos completados', String(p.trabajosCompletados));
+      fila('Registrado desde', fecha(p.registrado));
+    };
+    parte('Cliente', e.cliente);
+    parte('Trabajador', e.trabajador);
+
+    if (e.pagos.length) {
+      titulo('Pagos');
+      for (const p of e.pagos) {
+        fila(
+          fecha(p.fecha),
+          pesos(p.monto) + ' · ' + p.tipo + ' · ' + p.estado +
+            (p.idExterno ? ' · ref ' + p.idExterno : ''),
+        );
+      }
+    }
+
+    if (e.movimientos.length) {
+      titulo('Movimientos de dinero');
+      for (const m of e.movimientos) {
+        fila(
+          fecha(m.fecha),
+          m.tipo + ' · ' + pesos(m.monto) + ' · ' + m.estado +
+            (m.referencia ? ' · ' + m.referencia : ''),
+        );
+      }
+    }
+
+    if (e.disputa) {
+      titulo('Disputa');
+      fila('Estado', e.disputa.estado);
+      fila('Categoría', e.disputa.categoria);
+      fila('Iniciada por', e.disputa.iniciadaPor);
+      fila('Abierta el', fecha(e.disputa.abierta));
+      fila('Resolución', e.disputa.resolucion || 'Sin resolver');
+    }
+
+    if (e.conversacion.length) {
+      // Se conservan los primeros y los ultimos: el principio muestra que se
+      // acordo y el final muestra como termino. El medio es relleno.
+      const MAX = 120;
+      const recortada =
+        e.conversacion.length > MAX
+          ? [...e.conversacion.slice(0, 60), ...e.conversacion.slice(-60)]
+          : e.conversacion;
+
+      titulo('Conversación (' + e.conversacion.length + ' mensajes)');
+
+      if (e.conversacion.length > MAX) {
+        doc.font('Helvetica-Oblique').fontSize(8.5).fillColor(SUAVE).text(
+          'Se muestran los primeros 60 y los últimos 60 mensajes. Los ' +
+            (e.conversacion.length - MAX) + ' intermedios están disponibles a pedido.',
+          { width: ANCHO },
+        );
+        doc.moveDown(0.4);
+      }
+
+      for (const m of recortada) {
+        if (doc.y > doc.page.height - 82) doc.addPage();
+        doc.font('Helvetica-Bold').fontSize(8).fillColor(SUAVE)
+          .text(fecha(m.fecha) + ' · ' + m.de, 46, doc.y, { width: ANCHO });
+        doc.font('Helvetica').fontSize(9).fillColor(TINTA)
+          .text(String(m.mensaje || '').slice(0, 700), 46, doc.y, { width: ANCHO });
+        doc.moveDown(0.42);
+      }
+    }
+
+    if (e.faltantes.length) {
+      // Se dice lo que falta en vez de callarlo. Un expediente que omite en
+      // silencio pierde credibilidad entera si el otro lado lo nota.
+      titulo('Información no incluida');
+      for (const f of e.faltantes) {
+        doc.font('Helvetica').fontSize(9).fillColor(SUAVE).text('· ' + f, { width: ANCHO });
+      }
+    }
+
+    // Numeracion en todas las paginas: un expediente sin numerar es imposible
+    // de citar cuando alguien discute un punto concreto.
+    const rango = doc.bufferedPageRange();
+    for (let i = 0; i < rango.count; i++) {
+      doc.switchToPage(rango.start + i);
+      doc.font('Helvetica').fontSize(7.5).fillColor(SUAVE).text(
+        'DOAPP · Contrato ' + e.contrato.id + ' · Página ' + (i + 1) + ' de ' + rango.count,
+        46,
+        doc.page.height - 34,
+        { width: ANCHO, align: 'center' },
+      );
+    }
+
+    doc.end();
+  });
+}

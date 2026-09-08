@@ -524,6 +524,22 @@ router.get("/:id/evidence", protect, async (req: AuthRequest, res: Response): Pr
       return;
     }
 
+    // PDF: es el único formato que MercadoPago acepta para un descargo, junto
+    // con .jpg y .png. El HTML sirve para leerlo en pantalla y nada más.
+    if (String(req.query.format) === 'pdf') {
+      const { evidenceToPdf } = await import('../services/contractEvidence.js');
+      const pdf = await evidenceToPdf(evidencia);
+
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="expediente-${contrato.id.slice(0, 8)}.pdf"`,
+      );
+      res.setHeader('Content-Length', String(pdf.length));
+      res.send(pdf);
+      return;
+    }
+
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.setHeader(
       'Content-Disposition',
