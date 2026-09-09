@@ -186,6 +186,17 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: 22
+          # Sin esto rige el default de 10 minutos, y este script no entra:
+          # npm install, vite build, migraciones, reinicio de pm2 y hasta 3
+          # minutos esperando que levante. En un VPS chico se pasa.
+          #
+          # Al cortar por timeout, la accion mata la sesion y se pierde la
+          # salida que no alcanzo a volcarse: el paso falla sin una sola linea
+          # que diga por que, que es lo peor que puede pasar en un deploy.
+          command_timeout: 25m
+          # Muestra la salida a medida que ocurre en vez de al final. Si el
+          # proximo deploy vuelve a fallar, esto deja ver hasta donde llego.
+          debug: true
           script: |
             set -e
             cd /var/www/doapp
