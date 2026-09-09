@@ -218,6 +218,34 @@ router.get('/chargebacks', async (_req: AuthRequest, res: Response): Promise<voi
 
     const ahora = Date.now();
 
+    /**
+     * Cuantos contracargos generó cada cliente, contando los ya cerrados.
+     *
+     * Un contracargo aislado no dice nada: puede ser un cargo que no reconoció,
+     * una tarjeta robada de verdad, un familiar que compró con su tarjeta.
+     * Banear a alguien por uno solo sería castigar a víctimas de fraude.
+     *
+     * Dos o más ya es un patrón, y ahí hay que mirar a la persona y no sólo el
+     * caso. El "amigo del contracargo" existe: contrata, recibe el servicio y
+     * después desconoce el cargo. Cada vuelta le sale gratis y a la plataforma
+     * le cuesta el importe completo más la pasarela.
+     *
+     * Se cuenta desde el registro de auditoría y no desde los pagos en disputa,
+     * porque el pago vuelve a 'completed' cuando se gana el caso: los cerrados
+     * desaparecerían justo cuando son la mitad de la historia.
+     */
+    const asientosContracargo = await AuditLog.findAll({
+      where: { action: 'CHARGEBACK_RECEIVED' } as any,
+      limit: 2000,
+    });
+
+    const historial = new Map<string, number>();
+    for (const a of asientosContracargo as any[]) {
+      const m = leerMetadata(a) || {};
+      const idUsuario = m.userId ? String(m.userId) : null;
+      if (idUsuario) historial.set(idUsuario, (historial.get(idUsuario) || 0) + 1);
+    }
+
     const filas = pagos.map((p: any) => {
       const info = infoPorPago.get(String(p.id)) || {};
       const limite = info.fechaLimite ? new Date(info.fechaLimite) : null;
@@ -241,6 +269,11 @@ router.get('/chargebacks', async (_req: AuthRequest, res: Response): Promise<voi
         vencido: horasRestantes !== null && horasRestantes <= 0,
         urgente: horasRestantes === null || horasRestantes <= 48,
         evidencia: p.contractId ? `/api/contracts/${p.contractId}/evidence?format=pdf` : null,
+        // Quién lo generó y cuántos lleva. Uno solo no dice nada; dos o más es
+        // un patrón que hay que mirar antes de que siga.
+        clienteId: p.payerId || null,
+        contracargosDelCliente: p.payerId ? historial.get(String(p.payerId)) || 1 : 1,
+        reincidente: p.payerId ? (historial.get(String(p.payerId)) || 1) >= 2 : false,
       };
     });
 
@@ -272,6 +305,7 @@ router.get('/chargebacks', async (_req: AuthRequest, res: Response): Promise<voi
         urgentes: filas.filter((f) => f.urgente && !f.vencido).length,
         vencidos: filas.filter((f) => f.vencido).length,
         montoTotal: filas.reduce((t, f) => t + f.monto, 0),
+        reincidentes: filas.filter((f) => f.reincidente).length,
       },
     });
   } catch (error: any) {

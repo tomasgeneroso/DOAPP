@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../../hooks/useAuth';
-import { Loader2, RefreshCw, AlertTriangle, FileText, ShieldOff, Clock } from 'lucide-react';
+import { Loader2, RefreshCw, AlertTriangle, FileText, ShieldOff, Clock, UserX } from 'lucide-react';
 
 /**
  * Contracargos y retenciones por fraude.
@@ -28,6 +28,9 @@ interface Contracargo {
   vencido: boolean;
   urgente: boolean;
   evidencia: string | null;
+  clienteId: string | null;
+  contracargosDelCliente: number;
+  reincidente: boolean;
 }
 
 interface Retencion {
@@ -330,6 +333,31 @@ export default function Chargebacks() {
                     className="w-full max-w-sm rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-white"
                   />
                 </div>
+
+                {/* Reincidencia: un contracargo aislado no dice nada — puede
+                    ser una tarjeta robada de verdad. Dos o más es un patrón, y
+                    ahí hay que mirar a la persona, no sólo el caso. */}
+                {c.reincidente && (
+                  <div className="mt-3 rounded-lg border border-rose-300 dark:border-rose-700 bg-rose-50 dark:bg-rose-900/20 p-3">
+                    <p className="flex gap-2 text-sm font-medium text-rose-800 dark:text-rose-200">
+                      <UserX className="h-4 w-4 shrink-0 mt-0.5" />
+                      Este cliente generó {c.contracargosDelCliente} contracargos
+                    </p>
+                    <p className="text-xs text-rose-700 dark:text-rose-300 mt-1 ml-6">
+                      Uno solo puede ser una tarjeta robada o un cargo que no reconoció. Dos o más
+                      es un patrón: conviene revisar su historial y evaluar si corresponde
+                      suspenderlo antes de que siga.
+                    </p>
+                    {c.clienteId && (
+                      <Link
+                        to={`/admin/users/${c.clienteId}`}
+                        className="inline-block mt-2 ml-6 text-xs font-medium text-rose-800 dark:text-rose-200 underline"
+                      >
+                        Ver al cliente y decidir
+                      </Link>
+                    )}
+                  </div>
+                )}
 
                 {c.vencido && (
                   <p className="mt-3 flex gap-2 text-xs text-rose-700 dark:text-rose-300">
