@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams } from "react-router-dom";
 import ExcelJS from "exceljs";
+import RefundModal from '../../components/admin/RefundModal';
 import { getImageUrl } from "@/utils/imageUrl";
 import IdBadge from "@/components/admin/IdBadge";
 import PaymentProcessTimeline from "@/components/admin/PaymentProcessTimeline";
@@ -20,6 +21,7 @@ import {
   CreditCard,
   User,
   RefreshCw,
+  Undo2,
   Upload,
   Receipt,
   Copy,
@@ -234,6 +236,8 @@ export default function PendingPayments() {
   const [verificationPayments, setVerificationPayments] = useState<any[]>([]);
   const [verificationLoading, setVerificationLoading] = useState(false);
   const [approvingPaymentId, setApprovingPaymentId] = useState<string | null>(null);
+  /** Pago abierto en el modal de devolución. Null = cerrado. */
+  const [pagoADevolver, setPagoADevolver] = useState<any>(null);
   const [rejectingPaymentId, setRejectingPaymentId] = useState<string | null>(null);
 
   // Reject modal state
@@ -1913,6 +1917,22 @@ export default function PendingPayments() {
                                   )}
                                 </button>
                               )}
+                              {/* Devolver dinero. Aparece en cualquier pago que
+                                  ya se cobró y no está cerrado: una devolución
+                                  puede hacer falta en cualquier momento del
+                                  ciclo, no sólo al final. */}
+                              {payment.mercadopagoPaymentId &&
+                                payment.status !== 'refunded' &&
+                                payment.status !== 'pending' && (
+                                  <button
+                                    onClick={() => setPagoADevolver(payment)}
+                                    className="px-3 py-1.5 text-sm border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg flex items-center gap-1"
+                                    title="Devolver dinero al cliente"
+                                  >
+                                    <Undo2 className="h-4 w-4" />
+                                    Devolver
+                                  </button>
+                                )}
                               {/* Show cancel reject button for rejected payments */}
                               {appSubFilter === "rejected" && (
                                 <button
@@ -3594,6 +3614,27 @@ export default function PendingPayments() {
           </div>
         </div>
       )}
+
+      <RefundModal
+        abierto={!!pagoADevolver}
+        pago={
+          pagoADevolver && {
+            id: pagoADevolver.id,
+            amount: pagoADevolver.amount,
+            currency: pagoADevolver.currency,
+            refundedAmount: pagoADevolver.refundedAmount,
+            payerName: pagoADevolver.payer?.name || pagoADevolver.payerName,
+            description: pagoADevolver.description,
+          }
+        }
+        onCerrar={() => setPagoADevolver(null)}
+        // Se recargan las dos listas: el pago cambió de estado y de monto
+        // devuelto, y dejarlo con los datos viejos invita a devolver dos veces.
+        onListo={() => {
+          loadVerificationPayments();
+          loadPayments();
+        }}
+      />
     </div>
   );
 }
