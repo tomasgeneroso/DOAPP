@@ -24,10 +24,14 @@ const STATEMENTS: Array<{ label: string; sql: string }> = [
   // Sin esto, logMoneyEvent falla contra la restricción NOT NULL y los
   // movimientos automáticos (contracargos, pagos bloqueados) no se registran.
   // Es justo lo que hay que poder reconstruir cuando se discute plata.
-  { label: 'audit_logs.performed_by nullable', sql: `ALTER TABLE audit_logs ALTER COLUMN performed_by DROP NOT NULL` },
-  { label: 'audit_logs.admin_role nullable', sql: `ALTER TABLE audit_logs ALTER COLUMN admin_role DROP NOT NULL` },
+  // OJO: audit_logs es de las pocas tablas SIN `underscored: true`, así que sus
+  // columnas son camelCase y en Postgres necesitan comillas dobles. Sin ellas,
+  // "performedBy" se lee como performedby y el ALTER no encuentra nada — falla
+  // en silencio, que es cómo esto estuvo roto en producción sin que se notara.
+  { label: 'audit_logs.performedBy nullable', sql: `ALTER TABLE audit_logs ALTER COLUMN "performedBy" DROP NOT NULL` },
+  { label: 'audit_logs.adminRole nullable', sql: `ALTER TABLE audit_logs ALTER COLUMN "adminRole" DROP NOT NULL` },
   { label: 'audit_logs.actor', sql: `ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS actor VARCHAR(60)` },
-  { label: 'audit_logs.metadata_gz', sql: `ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS metadata_gz BYTEA` },
+  { label: 'audit_logs.metadataGz', sql: `ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS "metadataGz" BYTEA` },
   // --- controles sobre el dinero ---
   // Sin fraud_hold_*, una alerta de fraude no puede retener el pago y el escrow
   // se libera solo a las dos horas. Sin banking_info_updated_at no hay
