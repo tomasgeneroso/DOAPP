@@ -384,7 +384,7 @@ async function handleFraudAlertWebhook(data: any, ip: string) {
             (retenido
               ? 'El pago al trabajador quedó retenido hasta que alguien revise el caso. Si es un falso positivo, levantá la retención desde el contrato.'
               : 'No se pudo retener automáticamente porque no hay contrato asociado: revisalo a mano.')
-        : `Llegó una alerta de fraude (id ${data?.id}) que no pudo asociarse a ningún pago. Buscala en el panel de MercadoPago.`,
+        : `Llegó una alerta de fraude${data?.id ? ` (id ${data.id})` : ''} que no pudo asociarse a ningún pago. Buscala en el panel de MercadoPago.`,
       pago ? 'Payment' : 'System',
       pago ? String(pago.id) : null,
     );

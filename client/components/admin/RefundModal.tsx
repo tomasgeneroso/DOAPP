@@ -85,10 +85,14 @@ export default function RefundModal({ abierto, onCerrar, onListo, pago }: Props)
       if (!data.success) {
         // El 403 de doble confirmación no es un error del usuario: es el
         // control pidiendo 2FA. Se dice así y no como "falló".
+        // Todo mensaje que se muestra pasa por un respaldo. Un `undefined`
+        // interpolado en un cartel de error es peor que un mensaje genérico:
+        // le dice al usuario que algo se rompió sin decirle qué.
+        const detalle = data.message || 'No se pudo procesar la devolución';
         setError(
           data.requiereVerificacion
-            ? `${data.message} Confirmá tu identidad y volvé a intentar.`
-            : data.message || 'No se pudo procesar la devolución',
+            ? `${detalle} Confirmá tu identidad y volvé a intentar.`
+            : detalle,
         );
         return;
       }

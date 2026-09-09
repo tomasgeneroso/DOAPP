@@ -156,7 +156,14 @@ export default function Chargebacks() {
         body: JSON.stringify({ justificacion: justificacion.trim() }),
       });
       const data = await res.json();
-      setAviso({ tipo: data.success ? 'ok' : 'mal', texto: data.message });
+      // Sin respaldo, una respuesta sin `message` deja el cartel vacío: el
+      // usuario ve un recuadro de color y ninguna palabra.
+      setAviso({
+        tipo: data.success ? 'ok' : 'mal',
+        texto:
+          data.message ||
+          (data.success ? 'Retención levantada.' : 'No se pudo levantar la retención.'),
+      });
       if (data.success) cargar();
     } catch (e: any) {
       setAviso({ tipo: 'mal', texto: e.message });
