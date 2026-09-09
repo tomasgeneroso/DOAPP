@@ -38,7 +38,7 @@ import {
   Sparkles,
   Calculator,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 interface NavGroup {
   label: string;
@@ -63,6 +63,48 @@ export default function AdminLayout() {
   const { isDark, toggleTheme } = useTheme();
   const { isConnected, reconnect } = useSocket();
   const [expandedGroups, setExpandedGroups] = useState<string[]>(['hubs', 'general', 'operations', 'padrones', 'finance', 'support']);
+
+  /**
+   * Contracargos que vencen pronto, para el contador de la barra lateral.
+   *
+   * Está en el menú y no sólo dentro del panel porque un contracargo tiene
+   * fecha de vencimiento: si hay que acordarse de entrar a mirarlo, el día que
+   * nadie se acuerde se pierde la plata. El número tiene que estar a la vista
+   * desde cualquier pantalla del administrador.
+   *
+   * Se refresca cada cinco minutos. Si la consulta falla, el contador queda en
+   * cero y el panel sigue estando: nunca bloquea el menú.
+   */
+  const [urgentes, setUrgentes] = useState(0);
+
+  useEffect(() => {
+    if (!user?.adminRole) return;
+    let vivo = true;
+
+    const traer = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('/api/admin/hubs/financial/overview', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (vivo && data?.urgente) {
+          setUrgentes(
+            (data.urgente.contracargosAbiertos || 0) + (data.urgente.retencionesPorFraude || 0),
+          );
+        }
+      } catch {
+        /* el contador es informativo: que falle no puede romper el menú */
+      }
+    };
+
+    traer();
+    const id = setInterval(traer, 5 * 60 * 1000);
+    return () => {
+      vivo = false;
+      clearInterval(id);
+    };
+  }, [user?.adminRole]);
 
   // Redirect if not admin
   if (!user?.adminRole) {
@@ -143,6 +185,9 @@ export default function AdminLayout() {
       icon: DollarSign,
       roles: ["owner", "super_admin", "admin"],
       items: [
+        // Va primero en Finanzas y con contador: es lo único de esta sección
+        // que vence. Un pago por verificar espera; un contracargo, no.
+        { path: "/admin/chargebacks", icon: AlertTriangle, label: t('admin.sidebar.chargebacks', 'Contracargos'), roles: ["owner", "super_admin", "admin"], badge: urgentes > 0 ? String(urgentes) : undefined },
         { path: "/admin/pending-payments", icon: CreditCard, label: t('admin.sidebar.pendingPayments', 'Pending Payments'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/withdrawals", icon: ArrowDownLeft, label: t('admin.sidebar.withdrawals', 'Withdrawals'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/financial-transactions", icon: TrendingUp, label: t('admin.sidebar.transactions', 'Transactions'), roles: ["owner", "super_admin", "admin"] },
