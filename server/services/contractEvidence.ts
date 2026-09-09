@@ -426,7 +426,68 @@ ${
  * nadie y no entra en el limite; lo que decide un contracargo son los primeros
  * y los ultimos intercambios, no los doscientos del medio.
  */
-export async function evidenceToPdf(e: ContractEvidence): Promise<Buffer> {
+export interface OpcionesPdf {
+  /**
+   * Mensajes a incluir ademas de los primeros y ultimos.
+   *
+   * Se aceptan numeros sueltos y rangos: [3, '40-52', 118]. La numeracion es la
+   * que muestra el propio PDF, empezando en 1, para que quien lo lee pueda
+   * pedir "incluime del 40 al 52" sin tener que traducir nada.
+   */
+  mensajesAdicionales?: Array<number | string>;
+}
+
+/**
+ * Resuelve que indices de mensajes incluir.
+ *
+ * El recorte por los extremos sirve para el caso comun, pero se come justo lo
+ * que a veces decide un contracargo: el mensaje del medio donde el cliente dijo
+ * "listo, quedamos asi" o donde aceptó un cambio. Por eso se puede pedir que se
+ * agreguen indices o rangos concretos.
+ *
+ * Devuelve indices base 0 aunque la entrada sea base 1, porque asi los numera
+ * el PDF y asi los va a pedir quien lo lea.
+ */
+export function indicesAIncluir(
+  total: number,
+  extremos: number,
+  adicionales: Array<number | string> = [],
+): number[] {
+  const set = new Set<number>();
+
+  if (total <= extremos * 2) {
+    for (let i = 0; i < total; i++) set.add(i);
+  } else {
+    for (let i = 0; i < extremos; i++) set.add(i);
+    for (let i = total - extremos; i < total; i++) set.add(i);
+  }
+
+  for (const pedido of adicionales) {
+    const txt = String(pedido).trim();
+    const rango = txt.match(/^(\d+)\s*-\s*(\d+)$/);
+
+    if (rango) {
+      const desde = Math.max(1, Number(rango[1]));
+      const hasta = Math.min(total, Number(rango[2]));
+      // Un rango al reves se lee igual en vez de descartarse: quien escribio
+      // "52-40" queria los mismos mensajes.
+      const a = Math.min(desde, hasta);
+      const b = Math.max(desde, hasta);
+      for (let i = a; i <= b; i++) set.add(i - 1);
+      continue;
+    }
+
+    const n = Number(txt);
+    if (Number.isInteger(n) && n >= 1 && n <= total) set.add(n - 1);
+  }
+
+  return [...set].sort((a, b) => a - b);
+}
+
+export async function evidenceToPdf(
+  e: ContractEvidence,
+  opciones: OpcionesPdf = {},
+): Promise<Buffer> {
   const { default: PDFDocument } = await import('pdfkit');
 
   return new Promise<Buffer>((resolve, reject) => {
@@ -549,29 +610,46 @@ export async function evidenceToPdf(e: ContractEvidence): Promise<Buffer> {
     }
 
     if (e.conversacion.length) {
-      // Se conservan los primeros y los ultimos: el principio muestra que se
-      // acordo y el final muestra como termino. El medio es relleno.
-      const MAX = 120;
-      const recortada =
-        e.conversacion.length > MAX
-          ? [...e.conversacion.slice(0, 60), ...e.conversacion.slice(-60)]
-          : e.conversacion;
+      // Se conservan los primeros y los ultimos, mas los que se hayan pedido
+      // expresamente: el principio muestra que se acordo, el final como
+      // termino, y en el medio puede estar el mensaje que decide el caso.
+      const EXTREMOS = 60;
+      const total = e.conversacion.length;
+      const indices = indicesAIncluir(total, EXTREMOS, opciones.mensajesAdicionales);
+      const omitidos = total - indices.length;
 
-      titulo('Conversación (' + e.conversacion.length + ' mensajes)');
+      titulo('Conversación (' + total + ' mensajes)');
 
-      if (e.conversacion.length > MAX) {
+      if (omitidos > 0) {
         doc.font('Helvetica-Oblique').fontSize(8.5).fillColor(SUAVE).text(
-          'Se muestran los primeros 60 y los últimos 60 mensajes. Los ' +
-            (e.conversacion.length - MAX) + ' intermedios están disponibles a pedido.',
+          'Se incluyen ' + indices.length + ' de ' + total + ' mensajes: los primeros y ' +
+            'últimos ' + EXTREMOS +
+            (opciones.mensajesAdicionales?.length ? ', más los seleccionados expresamente' : '') +
+            '. Los ' + omitidos + ' restantes están disponibles a pedido.',
           { width: ANCHO },
         );
         doc.moveDown(0.4);
       }
 
-      for (const m of recortada) {
+      let anterior = -1;
+      for (const i of indices) {
+        const m = e.conversacion[i];
         if (doc.y > doc.page.height - 82) doc.addPage();
+
+        // Se marca donde hay un salto. Una conversacion que pasa del mensaje 60
+        // al 118 sin decirlo parece manipulada; decirlo la vuelve creible.
+        if (anterior >= 0 && i > anterior + 1) {
+          doc.font('Helvetica-Oblique').fontSize(8).fillColor(SUAVE)
+            .text('· · · ' + (i - anterior - 1) + ' mensajes no incluidos · · ·', 46, doc.y, {
+              width: ANCHO,
+              align: 'center',
+            });
+          doc.moveDown(0.35);
+        }
+        anterior = i;
+
         doc.font('Helvetica-Bold').fontSize(8).fillColor(SUAVE)
-          .text(fecha(m.fecha) + ' · ' + m.de, 46, doc.y, { width: ANCHO });
+          .text('#' + (i + 1) + ' · ' + fecha(m.fecha) + ' · ' + m.de, 46, doc.y, { width: ANCHO });
         doc.font('Helvetica').fontSize(9).fillColor(TINTA)
           .text(String(m.mensaje || '').slice(0, 700), 46, doc.y, { width: ANCHO });
         doc.moveDown(0.42);

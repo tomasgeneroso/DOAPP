@@ -528,7 +528,22 @@ router.get("/:id/evidence", protect, async (req: AuthRequest, res: Response): Pr
     // con .jpg y .png. El HTML sirve para leerlo en pantalla y nada más.
     if (String(req.query.format) === 'pdf') {
       const { evidenceToPdf } = await import('../services/contractEvidence.js');
-      const pdf = await evidenceToPdf(evidencia);
+
+      /**
+       * `?mensajes=40-52,118` agrega mensajes del medio al expediente.
+       *
+       * El recorte por extremos sirve para el caso común, pero se come justo lo
+       * que a veces decide un contracargo: el mensaje donde el cliente aceptó
+       * un cambio o dijo que estaba conforme. Los números son los que el propio
+       * PDF muestra al lado de cada mensaje, así que quien lo lee puede pedir
+       * exactamente lo que vio.
+       */
+      const mensajesAdicionales = String(req.query.mensajes || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      const pdf = await evidenceToPdf(evidencia, { mensajesAdicionales });
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader(

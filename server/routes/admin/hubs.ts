@@ -279,6 +279,147 @@ router.get('/chargebacks', async (_req: AuthRequest, res: Response): Promise<voi
   }
 });
 
+/**
+ * POST /api/admin/hubs/chargebacks/:paymentId/submit
+ * Arma el expediente y lo presenta ante MercadoPago.
+ *
+ * Todo lo mecánico está automatizado: armar el PDF, encontrar el caso, subir el
+ * archivo, dejar el asiento. Lo único que no se automatiza es la decisión de
+ * presentarlo, y eso es deliberado.
+ *
+ * Presentar un descargo es una afirmación ante un banco de que el servicio se
+ * prestó. Si el expediente está flojo o el cliente tiene razón, mandarlo igual
+ * no sólo pierde el caso: deja registrado que sostuviste algo que no podías
+ * sostener. Un humano tiene que mirarlo antes, y por eso se pide que confirme
+ * el número de mensajes revisados; sin ese dato es un clic reflejo.
+ */
+router.post('/chargebacks/:paymentId/submit', async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { idContracargo, mensajes, revisado } = req.body as {
+      idContracargo?: string;
+      mensajes?: string[];
+      revisado?: boolean;
+    };
+
+    if (revisado !== true) {
+      res.status(400).json({
+        success: false,
+        message:
+          'Revisá el expediente antes de presentarlo y mandá `revisado: true`. ' +
+          'Un descargo es una afirmación ante un banco de que el servicio se prestó.',
+      });
+      return;
+    }
+
+    if (!idContracargo) {
+      res.status(400).json({
+        success: false,
+        message: 'Falta el id del contracargo en MercadoPago.',
+      });
+      return;
+    }
+
+    const { Payment } = await import('../../models/sql/Payment.model.js');
+    const { buildContractEvidence, evidenceToPdf } = await import(
+      '../../services/contractEvidence.js'
+    );
+    const { logMoneyEvent } = await import('../../utils/auditLog.js');
+
+    const pago = await Payment.findByPk(req.params.paymentId);
+    if (!pago) {
+      res.status(404).json({ success: false, message: 'Pago no encontrado' });
+      return;
+    }
+    if (!pago.contractId) {
+      res.status(400).json({
+        success: false,
+        message: 'Este pago no tiene contrato asociado, así que no hay expediente que presentar.',
+      });
+      return;
+    }
+
+    const evidencia = await buildContractEvidence(String(pago.contractId));
+    if (!evidencia) {
+      res.status(404).json({ success: false, message: 'No se pudo armar el expediente' });
+      return;
+    }
+
+    const pdf = await evidenceToPdf(evidencia, { mensajesAdicionales: mensajes || [] });
+
+    // El límite es de MercadoPago, no nuestro. Enterarse acá es mucho mejor que
+    // que lo rechacen después de haber dado el caso por presentado.
+    const LIMITE = 10 * 1024 * 1024;
+    if (pdf.length > LIMITE) {
+      res.status(400).json({
+        success: false,
+        message:
+          `El expediente pesa ${(pdf.length / 1048576).toFixed(1)} MB y MercadoPago acepta hasta 10 MB. ` +
+          'Reducí los mensajes adicionales que pediste.',
+      });
+      return;
+    }
+
+    const formulario = new FormData();
+    formulario.append(
+      'files[]',
+      new Blob([new Uint8Array(pdf)], { type: 'application/pdf' }),
+      `expediente-${String(pago.contractId).slice(0, 8)}.pdf`,
+    );
+
+    const r = await fetch(
+      `https://api.mercadopago.com/v1/chargebacks/${idContracargo}/documentation`,
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${process.env.MERCADOPAGO_ACCESS_TOKEN}` },
+        body: formulario,
+      },
+    );
+
+    const respuesta = await r.text();
+
+    // El resultado se asienta salga bien o mal. Un envío fallido que no queda
+    // registrado es peor que no haberlo intentado: alguien va a creer que el
+    // descargo está presentado y va a dejar correr el plazo.
+    await logMoneyEvent({
+      action: r.ok ? 'CHARGEBACK_DEFENSE_SUBMITTED' : 'CHARGEBACK_DEFENSE_FAILED',
+      actor: `admin:${req.user.id}`,
+      severity: 'critical',
+      description: r.ok
+        ? `Se presentó el descargo del contracargo ${idContracargo} ante MercadoPago.`
+        : `Falló la presentación del descargo ${idContracargo}: ${respuesta.slice(0, 300)}`,
+      contractId: String(pago.contractId),
+      paymentId: String(pago.id),
+      monto: Number(pago.amount),
+      metadata: {
+        idContracargo,
+        bytesPdf: pdf.length,
+        mensajesAdicionales: mensajes || [],
+        estadoHttp: r.status,
+        respuesta: respuesta.slice(0, 2000),
+        adminId: req.user.id,
+      },
+    });
+
+    if (!r.ok) {
+      res.status(502).json({
+        success: false,
+        message: `MercadoPago rechazó la presentación (${r.status}). Quedó registrado el intento.`,
+        detalle: respuesta.slice(0, 500),
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      message: 'Descargo presentado. Quedó asentado con fecha y contenido.',
+      bytesPdf: pdf.length,
+    });
+  } catch (error: any) {
+    console.error('Error presentando el descargo:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 router.get('/growth/overview', async (_req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { User } = await import('../../models/sql/User.model.js');

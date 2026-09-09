@@ -291,3 +291,58 @@ describe('expediente en PDF', () => {
     expect(largo.length).toBeLessThan(corto.length * 40);
   });
 });
+
+describe('seleccion de mensajes del expediente', () => {
+  const { indicesAIncluir } = require('../server/services/contractEvidence.js');
+
+  it('con pocos mensajes los incluye todos', () => {
+    expect(indicesAIncluir(8, 60)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it('con muchos toma los extremos', () => {
+    const r = indicesAIncluir(300, 60);
+    expect(r.length).toBe(120);
+    expect(r[0]).toBe(0);
+    expect(r[r.length - 1]).toBe(299);
+    // El del medio no entra: es lo que hay que poder pedir aparte.
+    expect(r.includes(150)).toBe(false);
+  });
+
+  it('agrega un mensaje suelto del medio', () => {
+    // El numero es el que muestra el PDF, empezando en 1: quien lo lee pide
+    // "el 151" y recibe ese, no el 150.
+    const r = indicesAIncluir(300, 60, [151]);
+    expect(r.includes(150)).toBe(true);
+  });
+
+  it('agrega un rango', () => {
+    const r = indicesAIncluir(300, 60, ['140-145']);
+    for (let i = 139; i <= 144; i++) expect(r.includes(i)).toBe(true);
+    expect(r.includes(145)).toBe(false);
+  });
+
+  it('un rango al reves se lee igual', () => {
+    // Quien escribio "145-140" queria los mismos mensajes. Descartarlo seria
+    // castigar un tipeo en el momento en que menos hay que estorbar.
+    expect(indicesAIncluir(300, 60, ['145-140'])).toEqual(indicesAIncluir(300, 60, ['140-145']));
+  });
+
+  it('ignora lo que no tiene sentido en vez de romper', () => {
+    // Un pedido invalido no puede dejar sin expediente a nadie el dia que hay
+    // que presentar un descargo.
+    const r = indicesAIncluir(300, 60, ['abc', -5, 0, 9999, '']);
+    expect(r.length).toBe(120);
+  });
+
+  it('no duplica un mensaje que ya estaba en los extremos', () => {
+    const r = indicesAIncluir(300, 60, [1, '295-300']);
+    expect(new Set(r).size).toBe(r.length);
+  });
+
+  it('devuelve los indices ordenados', () => {
+    // El PDF los recorre en orden: desordenados mostraria la conversacion
+    // salteada y perderia todo sentido como evidencia.
+    const r = indicesAIncluir(300, 60, ['200-205', 150]);
+    expect([...r]).toEqual([...r].sort((a: number, b: number) => a - b));
+  });
+});
