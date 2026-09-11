@@ -5,7 +5,7 @@
 
 set -e
 
-echo "🔐 Instalando certificado SSL para doapparg.site..."
+echo "🔐 Instalando certificado SSL para doapparg.com..."
 
 # Colores para output
 GREEN='\033[0;32m'
@@ -26,7 +26,15 @@ apt install -y certbot python3-certbot-nginx
 
 # 2. Obtener certificado SSL
 echo -e "${YELLOW}🔒 Obteniendo certificado SSL de Let's Encrypt...${NC}"
-certbot --nginx -d doapparg.site -d www.doapparg.site --non-interactive --agree-tos --email admin@doapparg.site --redirect
+# El dominio viejo va en el mismo certificado. Sigue recibiendo tráfico -- de
+# enlaces que ya circulan y de buscadores que todavía lo tienen indexado -- y
+# sin certificado válido el navegador muestra una advertencia ANTES de llegar a
+# redirigir. Una advertencia de seguridad en la puerta espanta más gente que un
+# dominio viejo.
+certbot --nginx \
+  -d doapparg.com -d www.doapparg.com \
+  -d doapparg.site -d www.doapparg.site \
+  --non-interactive --agree-tos --email admin@doapparg.com --redirect
 
 # 3. Verificar la configuración
 echo -e "${YELLOW}✅ Verificando configuración de Nginx...${NC}"
@@ -38,12 +46,12 @@ if [ $? -eq 0 ]; then
     systemctl reload nginx
 
     echo -e "${GREEN}✅ SSL instalado correctamente!${NC}"
-    echo -e "${GREEN}🌐 Tu sitio ahora está disponible en https://doapparg.site${NC}"
+    echo -e "${GREEN}🌐 Tu sitio ahora está disponible en https://doapparg.com${NC}"
     echo ""
     echo -e "${YELLOW}📋 Próximos pasos:${NC}"
     echo "1. Actualizar cookies a secure: true en auth.ts"
     echo "2. Configurar renovación automática (ya configurada por Certbot)"
-    echo "3. Verificar que HTTPS funciona: curl -I https://doapparg.site"
+    echo "3. Verificar que HTTPS funciona: curl -I https://doapparg.com"
 else
     echo -e "${RED}❌ Error en la configuración de Nginx${NC}"
     exit 1

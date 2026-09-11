@@ -309,9 +309,9 @@ export default function Index() {
           name="description"
           content="DoApp es la plataforma de trabajos argentina donde publicás trabajos o encontrás oportunidades. Pagos asegurados, tu dinero protegido hasta confirmar el trabajo. Comisiones desde 1%. Registrate gratis."
         />
-        <meta property="og:url" content="https://doapparg.site/" />
-        <meta property="og:image" content="https://doapparg.site/og-image.png" />
-        <meta name="twitter:image" content="https://doapparg.site/og-image.png" />
+        <meta property="og:url" content="https://doapparg.com/" />
+        <meta property="og:image" content="https://doapparg.com/og-image.png" />
+        <meta name="twitter:image" content="https://doapparg.com/og-image.png" />
       </Helmet>
       {/* ── VISITOR LANDING (always dark, full-width) ── */}
       <div style={showVisitor ? { background: '#070d1a' } : undefined}>

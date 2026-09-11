@@ -15,7 +15,7 @@ const getApiUrl = () => {
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL;
   }
-  return 'https://doapparg.site/api';
+  return 'https://doapparg.com/api';
 };
 
 const API_URL = getApiUrl();

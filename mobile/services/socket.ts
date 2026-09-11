@@ -11,7 +11,7 @@ const getSocketUrl = () => {
   if (Platform.OS === 'web' && __DEV__) {
     return 'http://localhost:3001';
   }
-  return 'https://doapparg.site';
+  return 'https://doapparg.com';
 };
 
 const SOCKET_URL = getSocketUrl();

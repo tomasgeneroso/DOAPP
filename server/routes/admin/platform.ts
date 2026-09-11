@@ -162,7 +162,7 @@ router.post('/phase-password/forgot', async (req: AuthRequest, res: Response) =>
     if (!token) { res.status(400).json({ success: false, message: 'Todavia no hay una contrasena para recuperar' }); return; }
 
     const owner = await User.findByPk(req.user!.id);
-    const url = `${config.clientUrl || 'https://doapparg.site'}/admin/platform/reset?token=${token}`;
+    const url = `${config.clientUrl || 'https://doapparg.com'}/admin/platform/reset?token=${token}`;
     await emailService.sendEmail({
       to: owner!.email,
       subject: 'DOAPP — recuperar la contrasena de cambio de fase',

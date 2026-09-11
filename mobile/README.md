@@ -82,7 +82,7 @@ mobile/
 La app se conecta al mismo backend que la web:
 
 ```
-API: https://doapparg.site/api
+API: https://doapparg.com/api
 ```
 
 Para desarrollo local:

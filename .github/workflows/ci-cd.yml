@@ -151,7 +151,7 @@ jobs:
       - name: Build frontend
         run: npm run build:client
         env:
-          VITE_API_URL: https://doapparg.site/api
+          VITE_API_URL: https://doapparg.com/api
           VITE_GOOGLE_ANALYTICS_ID: ${{ secrets.VITE_GOOGLE_ANALYTICS_ID || '' }}
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY || '' }}
           VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN || '' }}
@@ -281,8 +281,8 @@ jobs:
           echo "⚠️  Cloudflare Tunnel takes ~10-20min to re-establish after restart."
           sleep 30
           for i in $(seq 1 6); do
-            http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 https://doapparg.site/api/health 2>/dev/null || echo "ERR")
-            body=$(curl -s --max-time 15 https://doapparg.site/api/health 2>/dev/null || echo "no response")
+            http_code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 https://doapparg.com/api/health 2>/dev/null || echo "ERR")
+            body=$(curl -s --max-time 15 https://doapparg.com/api/health 2>/dev/null || echo "no response")
             echo "Attempt $i/6: HTTP $http_code | $body"
             if [ "$http_code" = "200" ]; then
               echo "✅ External health check passed on attempt $i"

@@ -21,7 +21,7 @@ export const config = {
   clientUrl: process.env.CLIENT_URL || "http://localhost:5173",
 
   // Server URL (para logs y callbacks)
-  serverUrl: process.env.SERVER_URL || (process.env.NODE_ENV === "production" ? "https://doapparg.site" : "http://localhost:5000"),
+  serverUrl: process.env.SERVER_URL || (process.env.NODE_ENV === "production" ? "https://doapparg.com" : "http://localhost:5000"),
 
   // OAuth - Google (use TEST credentials in development)
   googleClientId: process.env.NODE_ENV === "development"

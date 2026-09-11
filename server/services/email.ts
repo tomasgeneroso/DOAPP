@@ -317,7 +317,7 @@ class EmailService {
     };
     const a = ACCENTS[opts.accent || 'sky'];
     const year = new Date().getFullYear();
-    const base = config.clientUrl || 'https://doapparg.site';
+    const base = config.clientUrl || 'https://doapparg.com';
     const logo = `${base}/doapp-logo-email.png`;
     const preheader = opts.preheader || String(opts.title).replace(/<[^>]+>/g, '').trim();
     const footerNote = opts.footerNote || '¿No reconocés este email? Podés ignorarlo, no haremos nada con tu cuenta.';
@@ -395,7 +395,7 @@ ${ctaBlock}
 <tr><td style="height:12px;line-height:12px;font-size:0;">&nbsp;</td></tr>
 <tr><td class="pad footer-border" style="padding:28px 40px 32px;border-top:1px solid #e2e8f0;text-align:center;">
 <p class="fg2" style="margin:0 0 8px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#94a3b8;">${footerNote}</p>
-<p class="fg2" style="margin:0 0 8px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#94a3b8;"><a href="${base}" style="color:${a.c1};text-decoration:none;">doapparg.site</a><span style="color:#cbd5e1;">&nbsp;·&nbsp;</span><a href="${base}/help" style="color:${a.c1};text-decoration:none;">Centro de ayuda</a></p>
+<p class="fg2" style="margin:0 0 8px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#94a3b8;"><a href="${base}" style="color:${a.c1};text-decoration:none;">doapparg.com</a><span style="color:#cbd5e1;">&nbsp;·&nbsp;</span><a href="${base}/help" style="color:${a.c1};text-decoration:none;">Centro de ayuda</a></p>
 <p class="fg2" style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#94a3b8;">© ${year} DoApp · Buenos Aires, Argentina</p>
 </td></tr>
 </table>

@@ -2487,7 +2487,7 @@ router.post("/kyc/start", protect, async (req: AuthRequest, res: Response): Prom
     const user = await User.findByPk(req.user!.id);
     if (!user) { res.status(404).json({ success: false, message: "Usuario no encontrado" }); return; }
 
-    const callback = `${config.clientUrl || 'https://doapparg.site'}/kyc/callback`;
+    const callback = `${config.clientUrl || 'https://doapparg.com'}/kyc/callback`;
     const session = await createDiditSession(String(user.id), callback);
 
     await user.update({ diditSessionId: session.session_id, kycStatus: session.status || 'In Progress' });

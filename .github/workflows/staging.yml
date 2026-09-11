@@ -8,7 +8,7 @@
 #   - a staging dir on the VPS: /var/www/doapp-staging (git clone of the repo)
 #   - a staging database (e.g. doapp_staging) + STAGING_DATABASE_URL in its .env
 #   - a PM2 app "doapp-staging" on port 3002 (ecosystem.staging.config.cjs)
-#   - an nginx vhost for staging.doapparg.site -> /var/www/doapp-staging/dist/spa
+#   - an nginx vhost for staging.doapparg.com -> /var/www/doapp-staging/dist/spa
 #
 # Until then this workflow simply won't be triggered (it's manual-only).
 # ============================================
@@ -89,7 +89,7 @@ jobs:
             fi
 
             echo "🌐 Frontend smoke test..."
-            if curl -sf http://localhost/ -H 'Host: staging.doapparg.site' 2>/dev/null | grep -q 'id="root"'; then
+            if curl -sf http://localhost/ -H 'Host: staging.doapparg.com' 2>/dev/null | grep -q 'id="root"'; then
               echo "✅ Staging frontend served OK"
             else
               echo "⚠️  Staging frontend check inconclusive — verify the nginx vhost"

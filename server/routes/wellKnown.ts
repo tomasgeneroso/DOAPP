@@ -19,7 +19,7 @@ import { wantsMarkdown, sendMarkdown } from '../middleware/agentDiscovery.js';
  */
 const router = Router();
 
-const ORIGIN = process.env.CLIENT_URL || 'https://doapparg.site';
+const ORIGIN = process.env.CLIENT_URL || 'https://doapparg.com';
 
 // ── RFC 9727: API catalog ───────────────────────────────────────────────────
 router.get('/api-catalog', (_req: Request, res: Response) => {
@@ -49,7 +49,7 @@ router.get('/ai-catalog.json', async (_req: Request, res: Response) => {
     specVersion: '0.1',
     host: {
       name: 'DoApp',
-      domain: 'doapparg.site',
+      domain: 'doapparg.com',
       description:
         'Plataforma argentina que conecta clientes con trabajadores independientes (plomeros, electricistas, gasistas, limpieza, jardinería, técnicos). Los pagos quedan en custodia y se liberan cuando ambas partes confirman.',
       // Stated up front because it changes what a quote means: during the beta
@@ -58,7 +58,7 @@ router.get('/ai-catalog.json', async (_req: Request, res: Response) => {
     },
     entries: [
       {
-        id: 'urn:air:doapparg.site:content:llms-txt',
+        id: 'urn:air:doapparg.com:content:llms-txt',
         displayName: 'Resumen de la plataforma',
         type: 'text/plain',
         url: `${ORIGIN}/llms.txt`,
@@ -69,7 +69,7 @@ router.get('/ai-catalog.json', async (_req: Request, res: Response) => {
         ],
       },
       {
-        id: 'urn:air:doapparg.site:content:blog',
+        id: 'urn:air:doapparg.com:content:blog',
         displayName: 'Blog: guías sobre oficios y contratación',
         type: 'application/json',
         url: `${ORIGIN}/api/blogs`,
@@ -80,7 +80,7 @@ router.get('/ai-catalog.json', async (_req: Request, res: Response) => {
         ],
       },
       {
-        id: 'urn:air:doapparg.site:data:jobs',
+        id: 'urn:air:doapparg.com:data:jobs',
         displayName: 'Trabajos publicados',
         type: 'application/json',
         url: `${ORIGIN}/api/jobs`,
@@ -90,7 +90,7 @@ router.get('/ai-catalog.json', async (_req: Request, res: Response) => {
         ],
       },
       {
-        id: 'urn:air:doapparg.site:legal:terms',
+        id: 'urn:air:doapparg.com:legal:terms',
         displayName: 'Términos y condiciones',
         type: 'text/markdown',
         url: `${ORIGIN}/.well-known/md/terminos`,
@@ -100,7 +100,7 @@ router.get('/ai-catalog.json', async (_req: Request, res: Response) => {
         ],
       },
       {
-        id: 'urn:air:doapparg.site:legal:privacy',
+        id: 'urn:air:doapparg.com:legal:privacy',
         displayName: 'Política de privacidad',
         type: 'text/markdown',
         url: `${ORIGIN}/.well-known/md/privacidad`,

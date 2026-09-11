@@ -52,4 +52,4 @@ Allow: /
 User-agent: facebookexternalhit
 Allow: /
 
-Sitemap: https://doapparg.site/sitemap.xml
+Sitemap: https://doapparg.com/sitemap.xml

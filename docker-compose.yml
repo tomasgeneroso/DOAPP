@@ -85,8 +85,8 @@ services:
       ENCRYPTION_KEY: ${ENCRYPTION_KEY}
 
       # URLs
-      CLIENT_URL: ${CLIENT_URL:-https://doapparg.site}
-      SERVER_URL: ${SERVER_URL:-https://doapparg.site}
+      CLIENT_URL: ${CLIENT_URL:-https://doapparg.com}
+      SERVER_URL: ${SERVER_URL:-https://doapparg.com}
 
       # MercadoPago
       MERCADOPAGO_ACCESS_TOKEN: ${MERCADOPAGO_ACCESS_TOKEN}

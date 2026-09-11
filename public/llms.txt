@@ -10,17 +10,17 @@ DoApp verifica la identidad de los usuarios a través de un proveedor externo. *
 
 ## Principales
 
-- [Inicio](https://doapparg.site/): Publicar trabajos o encontrar oportunidades freelance en Argentina
-- [Registro](https://doapparg.site/register): Crear una cuenta gratis
-- [Iniciar sesión](https://doapparg.site/login): Acceder a tu cuenta
-- [Blog](https://doapparg.site/blog): Artículos, tips y novedades sobre trabajo freelance
-- [Centro de Ayuda](https://doapparg.site/help): Soporte, tickets y resolución de disputas
-- [Planes y comisiones](https://doapparg.site/membership/pricing): FREE, PRO y SUPER PRO
-- [Contacto](https://doapparg.site/contact): Escribir al equipo de DoApp
+- [Inicio](https://doapparg.com/): Publicar trabajos o encontrar oportunidades freelance en Argentina
+- [Registro](https://doapparg.com/register): Crear una cuenta gratis
+- [Iniciar sesión](https://doapparg.com/login): Acceder a tu cuenta
+- [Blog](https://doapparg.com/blog): Artículos, tips y novedades sobre trabajo freelance
+- [Centro de Ayuda](https://doapparg.com/help): Soporte, tickets y resolución de disputas
+- [Planes y comisiones](https://doapparg.com/membership/pricing): FREE, PRO y SUPER PRO
+- [Contacto](https://doapparg.com/contact): Escribir al equipo de DoApp
 
 ## Legal
 
-- [Términos y Condiciones](https://doapparg.site/legal/terminos-y-condiciones)
-- [Política de Privacidad](https://doapparg.site/legal/privacidad)
-- [Política de Cookies](https://doapparg.site/legal/cookies)
-- [Política de Disputas](https://doapparg.site/legal/disputas)
+- [Términos y Condiciones](https://doapparg.com/legal/terminos-y-condiciones)
+- [Política de Privacidad](https://doapparg.com/legal/privacidad)
+- [Política de Cookies](https://doapparg.com/legal/cookies)
+- [Política de Disputas](https://doapparg.com/legal/disputas)
