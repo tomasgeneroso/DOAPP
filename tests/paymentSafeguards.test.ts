@@ -346,3 +346,26 @@ describe('seleccion de mensajes del expediente', () => {
     expect([...r]).toEqual([...r].sort((a: number, b: number) => a - b));
   });
 });
+
+describe('quien puede promocionar su perfil', () => {
+  const { puedePromocionarse } = require('../server/routes/profilePromotion.js');
+
+  it('un trabajador sin opiniones puede', () => {
+    // Es quien mas lo necesita: no tiene historial que lo recomiende y la
+    // promocion es su unica forma de que lo vean. Exigirle una opinion era
+    // pedirle que consiga trabajo antes de poder buscarlo.
+    expect(puedePromocionarse(0, 0)).toBe(true);
+  });
+
+  it('con opiniones buenas puede', () => {
+    expect(puedePromocionarse(4.5, 3)).toBe(true);
+    expect(puedePromocionarse(3.5, 1)).toBe(true);
+  });
+
+  it('con opiniones malas no', () => {
+    // La plataforma ya sabe algo de esa persona, y vender visibilidad a quien
+    // los clientes calificaron mal es cobrarle a los clientes el problema.
+    expect(puedePromocionarse(2.0, 5)).toBe(false);
+    expect(puedePromocionarse(3.4, 1)).toBe(false);
+  });
+});

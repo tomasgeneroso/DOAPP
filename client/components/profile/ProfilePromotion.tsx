@@ -168,9 +168,11 @@ export default function ProfilePromotion() {
       <div>
         <div className="flex items-baseline justify-between mb-2">
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Elegí los días</p>
+          {/* Sólo el precio en pesos. Que se cotice en euros es una decisión
+              interna y está explicada en las políticas; ponerlo acá hace que
+              el usuario sienta que paga en moneda extranjera, y no es así. */}
           <p className="text-xs text-slate-500 dark:text-slate-400">
             {ars(opts.precioDiaArs)} por día
-            <span className="text-slate-400"> · EUR {opts.precioDiaEur} al cambio de hoy</span>
           </p>
         </div>
 

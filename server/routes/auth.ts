@@ -2425,6 +2425,26 @@ router.post("/phone/send-code", protect, async (req: AuthRequest, res: Response)
       result = { sent: false, dev: true };
     }
 
+    /**
+     * En producción, un canal no configurado es un error y se dice como tal.
+     *
+     * Antes respondía success:true con "Código generado (modo prueba)" y no
+     * mandaba nada: el usuario veía un éxito y se quedaba esperando un mensaje
+     * que no iba a llegar. Un error honesto -- "esto todavía no funciona" --
+     * es mucho mejor que un éxito falso: al menos no le hace revisar el
+     * teléfono cinco veces.
+     */
+    if (isProduction && !result.sent) {
+      const { reason } = getWhatsAppStatus();
+      console.error(`[phone/send-code] canal de WhatsApp no operativo en producción: ${reason}`);
+      res.status(503).json({
+        success: false,
+        message:
+          "La verificación por WhatsApp todavía no está habilitada. Podés seguir usando la plataforma sin verificar el teléfono por ahora.",
+      });
+      return;
+    }
+
     res.json({
       success: true,
       message: result.sent ? "Te enviamos un código por WhatsApp." : "Código generado (modo prueba).",

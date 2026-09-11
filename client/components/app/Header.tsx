@@ -118,6 +118,13 @@ export default function Header() {
   const contractsBadge = useMemo(() => {
     if (!user) return null;
 
+    // Durante la beta no hay comisión en ningún contrato, así que contar
+    // "publicaciones sin cargo" es mentir por omisión: sugiere que las demás
+    // sí tienen cargo. Se muestra lo que es cierto, y nada más.
+    if ((user as any).platform?.isBeta) {
+      return { type: "beta" as const };
+    }
+
     const freeContractsRemaining = user.freeContractsRemaining || 0;
     const proContractsUsed = user.monthlyContractsUsed || 0;
     let monthlyFreeLimit = 0;
@@ -187,6 +194,16 @@ export default function Header() {
         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
           {user ? (
             <>
+              {/* En beta: un solo mensaje, sin contadores que no aplican. */}
+              {contractsBadge?.type === "beta" && (
+                <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">
+                  <FileText className="h-4 w-4 text-green-600 dark:text-green-400" />
+                  <span className="text-xs font-semibold text-green-700 dark:text-green-300">
+                    {t('nav.betaNoFee', 'Sin comisión durante la beta')}
+                  </span>
+                </div>
+              )}
+
               {/* Free Contracts Counter - memoized calculation */}
               {contractsBadge?.type === "free" && (
                 <div className="hidden lg:flex items-center gap-2 px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800">

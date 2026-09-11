@@ -41,7 +41,23 @@ const MAX_DAYS_AHEAD = 60;
  * pantalla. Es la unica restriccion que importa de verdad en este producto.
  */
 const MIN_RATING = 3.5;
-const MIN_REVIEWS = 1;
+
+/**
+ * Quien puede comprar visibilidad.
+ *
+ * Un trabajador sin opiniones puede. Es justamente quien mas la necesita: no
+ * tiene historial que lo recomiende y la promocion es su unica forma de que lo
+ * vean. Exigir una opinion para promocionarse era pedirle que consiga trabajo
+ * antes de poder buscarlo.
+ *
+ * Lo que no puede es alguien con opiniones y puntuacion baja. Ahi la
+ * plataforma ya sabe algo de esa persona, y vender visibilidad a quien los
+ * clientes calificaron mal es cobrarle a los clientes el problema.
+ */
+export function puedePromocionarse(rating: number, reviews: number): boolean {
+  if (reviews === 0) return true;
+  return rating >= MIN_RATING;
+}
 
 const DIAS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 
@@ -82,7 +98,7 @@ router.get('/options', protect, async (req: AuthRequest, res: Response): Promise
 
     const rating = Number((user as any).rating) || 0;
     const reviews = Number((user as any).reviewsCount) || 0;
-    const elegible = rating >= MIN_RATING && reviews >= MIN_REVIEWS;
+    const elegible = puedePromocionarse(rating, reviews);
 
     // Dias que este usuario ya tiene comprados, para no ofrecerlos de nuevo.
     const yaCompradas = await Advertisement.findAll({
@@ -109,9 +125,7 @@ router.get('/options', protect, async (req: AuthRequest, res: Response): Promise
         // sirve a nadie para poder hacerlo despues.
         motivoNoElegible: elegible
           ? null
-          : reviews < MIN_REVIEWS
-            ? 'Necesitás al menos una opinión de un trabajo completado.'
-            : `Necesitás una puntuación de ${MIN_RATING} o más. La tuya es ${rating.toFixed(1)}.`,
+          : `Tu puntuación es ${rating.toFixed(1)} y hace falta ${MIN_RATING} o más para promocionarte. Los clientes que te calificaron son quienes deciden si te conviene más visibilidad.`,
         dias: upcomingDays().map((w) => ({
           ...w,
           ocupada: ocupadas.has(new Date(w.start).toISOString().slice(0, 10)),
@@ -190,7 +204,7 @@ router.post('/', protect, async (req: AuthRequest, res: Response): Promise<void>
 
     const rating = Number((user as any).rating) || 0;
     const reviews = Number((user as any).reviewsCount) || 0;
-    if (rating < MIN_RATING || reviews < MIN_REVIEWS) {
+    if (!puedePromocionarse(rating, reviews)) {
       res.status(403).json({
         success: false,
         message: 'Todavía no cumplís los requisitos para promocionar tu perfil.',
