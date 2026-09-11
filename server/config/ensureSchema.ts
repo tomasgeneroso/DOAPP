@@ -17,7 +17,15 @@ import type { Sequelize } from 'sequelize-typescript';
  * When you add a migration for a NEW table/column that prod must have, mirror it
  * here as an idempotent statement.
  */
-const STATEMENTS: Array<{ label: string; sql: string }> = [
+/**
+ * Se exporta para que un test pueda comprobar que cada sentencia nombra
+ * columnas que los modelos realmente esperan.
+ *
+ * Hace falta porque estas sentencias corren envueltas en try/catch: una que
+ * nombra mal una columna no rompe el arranque, sólo imprime un aviso que nadie
+ * mira. Así estuvo roto el registro de movimientos de dinero durante días.
+ */
+export const STATEMENTS: Array<{ label: string; sql: string }> = [
   // --- memberships: precio de lista en euros ---
   { label: 'memberships.price_eur', sql: `ALTER TABLE memberships ADD COLUMN IF NOT EXISTS price_eur NUMERIC(10,2)` },
   // --- auditoría: eventos de dinero que no dispara una persona ---
@@ -41,6 +49,10 @@ const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'contracts.fraud_hold_cleared_at', sql: `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS fraud_hold_cleared_at TIMESTAMPTZ` },
   { label: 'contracts.fraud_hold_cleared_by', sql: `ALTER TABLE contracts ADD COLUMN IF NOT EXISTS fraud_hold_cleared_by UUID` },
   { label: 'users.banking_info_updated_at', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS banking_info_updated_at TIMESTAMPTZ` },
+  // Sin esta columna no hay techo contra el que verificar una devolución, y la
+  // protección contra devoluciones dobles deja de existir. Se me había pasado
+  // espejarla acá cuando escribí su migración.
+  { label: 'payments.refunded_amount', sql: `ALTER TABLE payments ADD COLUMN IF NOT EXISTS refunded_amount NUMERIC(12,2) NOT NULL DEFAULT 0` },
   // --- blog: agent authorship, review gate and answer-engine blocks ---
   { label: 'blog_posts.generated_by', sql: `ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS generated_by VARCHAR(16) NOT NULL DEFAULT 'human'` },
   { label: 'blog_posts.reviewed_by', sql: `ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS reviewed_by UUID` },

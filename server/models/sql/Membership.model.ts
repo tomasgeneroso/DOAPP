@@ -131,7 +131,12 @@ export class Membership extends Model {
   // Precio de lista en euros al momento del cobro. La membresía se cotiza en
   // euros y se cobra en pesos: priceARS y exchangeRateAtPurchase guardan lo que
   // efectivamente se cobró, de modo que un pago pasado nunca se recalcula.
-  @Column({ type: DataType.DECIMAL(10, 2), allowNull: true })
+  // El `field` va fijado igual que en priceUSD y priceARS, y no es opcional:
+  // con `underscored: true`, Sequelize convierte cada mayúscula en su propio
+  // tramo y priceEUR terminaría en "price_e_u_r". Sin esta línea el modelo
+  // escribe en una columna y todo lo demás -- ensureSchema, migraciones,
+  // informes -- lee de otra.
+  @Column({ type: DataType.DECIMAL(10, 2), allowNull: true, field: 'price_eur' })
   priceEUR?: number;
 
   @AllowNull(false)
