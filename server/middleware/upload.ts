@@ -337,6 +337,42 @@ export const uploadDisputeAttachments = multer({
 }).array("attachments", 10);
 
 /**
+ * Adjuntos de las marcas diarias del contrato.
+ *
+ * Usa el mismo filtro que las disputas -- imagenes, videos y documentos --
+ * porque son la misma clase de evidencia y van a terminar en el mismo
+ * expediente. Una foto del avance sacada el dia 3 vale mas en una disputa que
+ * cualquier descripcion escrita el dia 10: tiene fecha, y la fecha no se
+ * discute.
+ *
+ * Se guardan en su propia carpeta y no junto a las disputas: cuando alguien
+ * las busca para armar un descargo, tiene que poder encontrar las de un
+ * contrato sin revisar las de todos.
+ */
+const DAILY_LOG_DIR = path.join(UPLOAD_DIR, "daily-log");
+
+const dailyLogStorage = multer.diskStorage({
+  destination: (req, file, callback) => {
+    if (!fs.existsSync(DAILY_LOG_DIR)) fs.mkdirSync(DAILY_LOG_DIR, { recursive: true });
+    callback(null, DAILY_LOG_DIR);
+  },
+  filename: (req, file, callback) => {
+    callback(null, generateUniqueFilename(sanitizeFilename(file.originalname)));
+  },
+});
+
+export const uploadDailyLogAttachments = multer({
+  storage: dailyLogStorage,
+  fileFilter: disputeFileFilter,
+  limits: {
+    fileSize: MAX_VIDEO_SIZE,
+    // Cinco por marca alcanza para documentar un dia de trabajo. Mas que eso es
+    // una galeria, y una galeria no la revisa nadie en una disputa.
+    files: 5,
+  },
+}).array("archivos", 5);
+
+/**
  * Upload middleware for post gallery (images and videos)
  */
 export const uploadPostGallery = multer({

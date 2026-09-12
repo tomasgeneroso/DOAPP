@@ -16,6 +16,7 @@ import { calculateCommission } from "../services/commissionService.js";
 import { requireRole } from "../middleware/permissions.js";
 import { buildContractEvidence, evidenceToHtml } from "../services/contractEvidence.js";
 import { buildDailyLog, diasDelContrato, marcarDiasAlFinalizar } from "../services/dailyLog.js";
+import { uploadDailyLogAttachments } from "../middleware/upload.js";
 import { logAudit, getSeverityForAction } from "../utils/auditLog.js";
 import { Payment } from "../models/sql/Payment.model.js";
 import { splitFees } from "../../shared/pricing/processingCost.js";
@@ -469,6 +470,114 @@ router.post("/:id/daily-log", protect, async (req: AuthRequest, res: Response): 
     res.status(500).json({ success: false, message: error.message });
   }
 });
+
+/**
+ * @route   POST /api/contracts/:id/daily-log/:date/attachments
+ * @desc    Adjuntar fotos, videos o archivos del avance de un día
+ * @access  Las partes del contrato
+ *
+ * Es evidencia para la disputa, y sobre todo para el trabajador: es quien
+ * tiene que probar que el trabajo se hizo, y una foto del avance sacada el día
+ * 3 vale más que cualquier descripción escrita el día 10. Tiene fecha, y la
+ * fecha no se discute.
+ *
+ * Cada archivo queda con quién lo subió y cuándo. Un adjunto sin autor no
+ * sirve como prueba: la primera pregunta de cualquier mediador es "¿quién sacó
+ * esta foto?".
+ */
+router.post(
+  "/:id/daily-log/:date/attachments",
+  protect,
+  uploadDailyLogAttachments,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user.id.toString();
+      const { date } = req.params;
+      const archivos = (req.files as Express.Multer.File[]) || [];
+
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        res.status(400).json({ success: false, message: "Fecha inválida. Se espera AAAA-MM-DD." });
+        return;
+      }
+      if (archivos.length === 0) {
+        res.status(400).json({ success: false, message: "No llegó ningún archivo." });
+        return;
+      }
+
+      const contrato = await Contract.findByPk(req.params.id);
+      if (!contrato) {
+        res.status(404).json({ success: false, message: "Contrato no encontrado" });
+        return;
+      }
+
+      const esCliente = String((contrato as any).clientId) === userId;
+      const esTrabajador = String((contrato as any).doerId) === userId;
+      if (!esCliente && !esTrabajador) {
+        res.status(403).json({ success: false, message: "No sos parte de este contrato" });
+        return;
+      }
+
+      // Sólo días del contrato, y sólo transcurridos: adjuntar una foto a un
+      // día que no llegó sería afirmar avance sobre trabajo que no pasó.
+      const dias = diasDelContrato(contrato);
+      const hoy = new Date().toISOString().slice(0, 10);
+      if (!dias.includes(date) || date > hoy) {
+        res.status(400).json({
+          success: false,
+          message: "Ese día no pertenece al período del contrato o todavía no llegó.",
+        });
+        return;
+      }
+
+      const log = [...((contrato as any).dailyLog || [])];
+      const i = log.findIndex((f: any) => f.date === date);
+      const fila = i >= 0
+        ? { ...log[i] }
+        : { date, markedByWorkerAt: null, markedByClientAt: null };
+
+      const nuevos = archivos.map((a) => ({
+        url: `/uploads/daily-log/${a.filename}`,
+        nombre: a.originalname,
+        tipo: a.mimetype,
+        bytes: a.size,
+        subidoPor: esCliente ? 'client' : 'worker',
+        subidoPorId: userId,
+        subidoEl: new Date().toISOString(),
+      }));
+
+      fila.adjuntos = [...(fila.adjuntos || []), ...nuevos];
+
+      // Subir una foto del avance es afirmar que ese día se trabajó. Se marca
+      // el día por la parte que subió, si no lo había hecho ya.
+      const campo = esCliente ? 'markedByClientAt' : 'markedByWorkerAt';
+      if (!fila[campo]) fila[campo] = new Date().toISOString();
+
+      if (i >= 0) log[i] = fila; else log.push(fila);
+      log.sort((a: any, b: any) => a.date.localeCompare(b.date));
+
+      (contrato as any).dailyLog = log;
+      contrato.changed('dailyLog', true);
+      await contrato.save();
+
+      // La otra parte se entera. Un adjunto que nadie ve no ordena nada.
+      const otraParte = esCliente ? (contrato as any).doerId : (contrato as any).clientId;
+      socketService.notifyUser(String(otraParte), 'contract:daily-log-attachment', {
+        contractId: contrato.id,
+        date,
+        cantidad: nuevos.length,
+        por: esCliente ? 'client' : 'worker',
+      });
+
+      res.json({
+        success: true,
+        adjuntos: fila.adjuntos,
+        data: buildDailyLog(contrato, esCliente ? 'client' : 'worker'),
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+);
 
 /**
  * @route   GET /api/contracts/:id/evidence

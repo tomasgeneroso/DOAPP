@@ -48,6 +48,17 @@ export interface ContractEvidence {
     diasConfirmados: number;
     diasMarcadosPorTrabajador: number;
     diasTotales: number;
+    /** Fotos, videos y archivos que las partes subieron por dia. */
+    adjuntosPorDia: Array<{
+      fecha: string;
+      archivos: Array<{
+        nombre: string;
+        tipo: string;
+        subidoPor: 'client' | 'worker';
+        subidoEl: string;
+        url: string;
+      }>;
+    }>;
   };
   trabajo: {
     id: string;
@@ -208,6 +219,22 @@ export async function buildContractEvidence(contractId: string): Promise<Contrac
       diasConfirmados: control.confirmados,
       diasMarcadosPorTrabajador: control.dias.filter((d) => d.marcoTrabajador).length,
       diasTotales: control.total,
+      // Los adjuntos por dia, con quien los subio y cuando. Es la evidencia mas
+      // fuerte del expediente: una foto del avance con fecha no se discute. Se
+      // listan con nombre y fecha; el archivo en si se entrega aparte porque el
+      // PDF tiene un limite de 10 MB y un video lo supera solo.
+      adjuntosPorDia: ((contrato as any).dailyLog || [])
+        .filter((d: any) => Array.isArray(d.adjuntos) && d.adjuntos.length > 0)
+        .map((d: any) => ({
+          fecha: d.date,
+          archivos: d.adjuntos.map((a: any) => ({
+            nombre: a.nombre,
+            tipo: a.tipo,
+            subidoPor: a.subidoPor,
+            subidoEl: a.subidoEl,
+            url: a.url,
+          })),
+        })),
     },
     trabajo: job
       ? {
@@ -552,6 +579,27 @@ export async function evidenceToPdf(
         e.contrato.diasMarcadosPorTrabajador + ' marcados por el trabajador, sobre ' +
         e.contrato.diasTotales + ' días',
     );
+
+    if (e.contrato.adjuntosPorDia?.length) {
+      // Va antes que la conversacion a proposito: es lo primero que un mediador
+      // quiere ver. Una lista de fotos fechadas, con autor, pesa mas que cien
+      // mensajes.
+      titulo('Evidencia del avance, por día');
+      const quien = { client: 'el cliente', worker: 'el trabajador' } as const;
+      for (const dia of e.contrato.adjuntosPorDia) {
+        for (const a of dia.archivos) {
+          fila(
+            fecha(dia.fecha).slice(0, 10) + ' · ' + (quien[a.subidoPor] || a.subidoPor),
+            a.nombre + ' (' + a.tipo + ') · subido el ' + fecha(a.subidoEl),
+          );
+        }
+      }
+      doc.moveDown(0.2);
+      doc.font('Helvetica-Oblique').fontSize(8.5).fillColor(SUAVE).text(
+        'Los archivos se adjuntan por separado a este expediente. Este listado acredita su existencia, autor y fecha de carga.',
+        { width: ANCHO },
+      );
+    }
 
     if (e.trabajo) {
       titulo('Trabajo contratado');
