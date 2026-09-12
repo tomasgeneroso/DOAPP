@@ -286,6 +286,9 @@ export async function trabajadorNoDisponible(
   await sequelize.transaction(async (t) => {
     contract.status = 'cancelled';
     (contract as any).cancellationReason = `Trabajador no disponible: ${motivo}`;
+    // Quien cancela queda registrado: es lo que alimenta la escalera de
+    // penalidades. Sin esto la cancelacion no le cuenta a nadie.
+    (contract as any).cancelledBy = doerId;
     await contract.save({ transaction: t });
 
     // La propuesta vuelve a estar disponible o queda rechazada segun la salida.
@@ -356,6 +359,17 @@ export async function trabajadorNoDisponible(
     relatedId: job.id,
     sentVia: ['in_app'],
   } as any);
+
+  // La escalera de penalidades corre despues de que todo lo demas quedo
+  // resuelto: si fallara, el cliente ya tiene su trabajo republicado o su
+  // saldo, que es lo que importa. Un error en la penalidad no puede dejar al
+  // cliente sin salida.
+  try {
+    const { aplicarEscalera } = await import('./cancellationLadder.js');
+    await aplicarEscalera(doerId, String(contract.id));
+  } catch (e: any) {
+    console.error('No se pudo aplicar la escalera de cancelaciones:', e.message);
+  }
 
   return { ok: true, aFavor, precioPublicado: opcion === 'saldo' ? 0 : precioNuevo };
 }

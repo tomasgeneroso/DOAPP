@@ -630,6 +630,24 @@ export class User extends Model {
   @Column(DataType.DATE)
   bankingInfoUpdatedAt?: Date;
 
+  /**
+   * Escalera de cancelaciones del trabajador.
+   *
+   * cancellationMarkUntil: hasta cuando el perfil muestra la marca de "cancelo
+   * trabajos aceptados". Es visible para los clientes: es la segunda
+   * consecuencia de la escalera, y la que mas disuade porque afecta el trabajo
+   * futuro sin cobrar un peso.
+   *
+   * suspendedFromApplyingUntil: hasta cuando no puede postularse. Tercer
+   * escalon. Los contratos en curso no se tocan: suspender lo que ya esta
+   * andando castigaria al cliente de ese contrato, que no hizo nada.
+   */
+  @Column(DataType.DATE)
+  cancellationMarkUntil?: Date;
+
+  @Column(DataType.DATE)
+  suspendedFromApplyingUntil?: Date;
+
   // ============================================
   // REFERRALS
   // ============================================

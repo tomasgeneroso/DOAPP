@@ -1334,6 +1334,17 @@ router.put("/:id/cancel", protect, async (req: AuthRequest, res: Response): Prom
     contract.paymentStatus = "refunded";
     await contract.save();
 
+    // Si cancela el trabajador, corre la escalera. Si cancela el cliente, no:
+    // el cliente es quien paga y tiene sus propias reglas de reembolso.
+    if (String(contract.doerId) === String(req.user.id)) {
+      try {
+        const { aplicarEscalera } = await import('../services/cancellationLadder.js');
+        await aplicarEscalera(String(req.user.id), String(contract.id));
+      } catch (e: any) {
+        console.error('No se pudo aplicar la escalera de cancelaciones:', e.message);
+      }
+    }
+
     // Actualizar el trabajo
     const job = await Job.findByPk(contract.jobId);
     if (job) {

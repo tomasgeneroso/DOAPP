@@ -9,7 +9,7 @@ import { ChatMessage } from "../models/sql/ChatMessage.model.js";
 import { User } from "../models/sql/User.model.js";
 import { Notification } from "../models/sql/Notification.model.js";
 import { protect, requireKyc } from "../middleware/auth.js";
-import { requirePostWorkRating } from "../middleware/postWorkRating.js";
+import { requirePostWorkRating, requireNotSuspended } from "../middleware/postWorkRating.js";
 import { MINIMUM_JOB_AMOUNT_ARS } from "../../shared/pricing/minimums.js";
 
 import { uploadProposalAttachments, getFileUrl } from "../middleware/upload.js";
@@ -384,6 +384,7 @@ router.post(
   protect,
   requireKyc,
   requirePostWorkRating, // No se puede postular con una puntuación pendiente
+  requireNotSuspended,   // Ni suspendido por cancelar trabajos aceptados
   [
     body("job").notEmpty().withMessage("El trabajo es requerido"),
     body("coverLetter")

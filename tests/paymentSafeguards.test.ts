@@ -369,3 +369,71 @@ describe('quien puede promocionar su perfil', () => {
     expect(puedePromocionarse(3.4, 1)).toBe(false);
   });
 });
+
+describe('el silencio pierde en disputas', () => {
+  const { estadoDeSilencio, DIAS_PARA_RESPONDER } = require('../server/jobs/disputeSilence.js');
+  const C = 'cliente-1', T = 'trabajador-1', A = 'admin-1';
+  const hace = (d: number) => new Date(Date.now() - d * 86_400_000);
+
+  it('abrir la disputa cuenta como hablar: el otro tiene que responder', () => {
+    const s = estadoDeSilencio({ initiatedBy: C, createdAt: hace(3), messages: [] }, C, T);
+    expect(s.ultimoEnHablar).toBe(C);
+    expect(s.enSilencio).toBe(T);
+    expect(s.dias).toBe(3);
+  });
+
+  it('el reloj pasa al que no respondio ultimo', () => {
+    const s = estadoDeSilencio({
+      initiatedBy: C, createdAt: hace(10),
+      messages: [{ from: T, message: 'respondo', createdAt: hace(4) }],
+    }, C, T);
+    // El trabajador respondio hace 4 dias; ahora el silencio es del cliente.
+    expect(s.ultimoEnHablar).toBe(T);
+    expect(s.enSilencio).toBe(C);
+    expect(s.dias).toBe(4);
+  });
+
+  it('los mensajes de administracion no cuentan para el reloj', () => {
+    // Un admin que pide informacion no esta hablando en nombre de nadie. Si
+    // contara, un admin activo le daria la razon al ultimo usuario que hablo
+    // sin que el otro se enterara.
+    const s = estadoDeSilencio({
+      initiatedBy: C, createdAt: hace(8),
+      messages: [{ from: A, isAdmin: true, message: 'necesito mas datos', createdAt: hace(1) }],
+    }, C, T);
+    expect(s.ultimoEnHablar).toBe(C);
+    expect(s.enSilencio).toBe(T);
+    expect(s.dias).toBe(8);
+  });
+
+  it('a los 7 dias corresponde resolver', () => {
+    const s = estadoDeSilencio({ initiatedBy: T, createdAt: hace(7), messages: [] }, C, T);
+    expect(s.dias).toBeGreaterThanOrEqual(DIAS_PARA_RESPONDER);
+    // El trabajador abrio y el cliente callo: gana el trabajador.
+    expect(s.ultimoEnHablar).toBe(T);
+  });
+
+  it('ante la duda no resuelve', () => {
+    // Sin las dos partes identificadas, o con un iniciador que no es parte, es
+    // mejor que un administrador mire que resolver mal a favor de alguien.
+    expect(estadoDeSilencio({ initiatedBy: C, createdAt: hace(9), messages: [] }, C, '')).toBeNull();
+    expect(estadoDeSilencio({ initiatedBy: 'otro', createdAt: hace(9), messages: [] }, C, T)).toBeNull();
+  });
+});
+
+describe('escalera de cancelaciones', () => {
+  const { VENTANA_DIAS, MARCA_VISIBLE_DIAS, SUSPENSION_DIAS } = require('../server/services/cancellationLadder.js');
+
+  it('la ventana es movil, no de por vida', () => {
+    // Un trabajador que cancelo dos veces hace un año y desde entonces cumplio
+    // no es el mismo que uno que cancelo dos veces este mes.
+    expect(VENTANA_DIAS).toBeLessThanOrEqual(90);
+    expect(VENTANA_DIAS).toBeGreaterThanOrEqual(30);
+  });
+
+  it('la suspension es corta y la marca larga', () => {
+    // La suspension castiga; la marca informa. Informar tiene que durar mas
+    // que castigar: es lo que le sirve al proximo cliente.
+    expect(SUSPENSION_DIAS).toBeLessThan(MARCA_VISIBLE_DIAS);
+  });
+});
