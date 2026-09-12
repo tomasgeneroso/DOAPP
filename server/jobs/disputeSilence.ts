@@ -4,6 +4,7 @@ import { Contract } from '../models/sql/Contract.model.js';
 import { Notification } from '../models/sql/Notification.model.js';
 import { resolverDisputa } from '../services/disputeResolution.js';
 import { logger } from '../services/logger.js';
+import { POLITICAS } from '../../shared/constants/policies.js';
 
 /**
  * El silencio pierde.
@@ -28,8 +29,10 @@ import { logger } from '../services/logger.js';
  * informacion no esta "hablando" en nombre de ninguna de las partes.
  */
 
-export const DIAS_PARA_RESPONDER = 7;
-export const DIAS_PARA_AVISAR = 5;
+// Los numeros viven en shared/constants/policies.ts, junto con los terminos
+// que los nombran. Aca solo se les da el nombre corto que usa este archivo.
+export const DIAS_PARA_RESPONDER = POLITICAS.DISPUTA_DIAS_PARA_RESPONDER;
+export const DIAS_PARA_AVISAR = POLITICAS.DISPUTA_DIAS_PARA_AVISAR;
 
 interface EstadoSilencio {
   /** Quien hablo ultimo. Gana si el otro se calla. */

@@ -13,6 +13,7 @@ import disputeAnalytics from "../services/disputeAnalytics.js";
 import { checkPermission } from "../middleware/checkPermission.js";
 import { PERMISSIONS } from "../config/permissions.js";
 import { Op } from 'sequelize';
+import { POLITICAS } from '../../shared/constants/policies.js';
 
 const router = Router();
 
@@ -100,17 +101,19 @@ router.post(
         return;
       }
 
-      // Check if contract is completed and within 1 month dispute window
+      // Terminado el contrato, la ventana para disputar es la de los terminos
+      // (10.7). Aca decia un mes mientras los terminos decian 7 dias: el
+      // usuario firmo 7, y es lo que se aplica.
       if (contract.status === 'completed') {
-        // Use updatedAt as the completion date (when status changed to completed)
+        // updatedAt es la fecha en que paso a completed.
         const completedDate = new Date(contract.updatedAt);
-        const oneMonthLater = new Date(completedDate);
-        oneMonthLater.setMonth(oneMonthLater.getMonth() + 1);
+        const limite = new Date(completedDate);
+        limite.setDate(limite.getDate() + POLITICAS.DIAS_PARA_DISPUTAR);
 
-        if (new Date() > oneMonthLater) {
+        if (new Date() > limite) {
           res.status(400).json({
             success: false,
-            message: "El período para abrir disputas ha expirado. Las disputas solo pueden abrirse dentro de 1 mes desde la finalización del contrato.",
+            message: `El período para abrir disputas ha expirado. Las disputas solo pueden abrirse hasta ${POLITICAS.DIAS_PARA_DISPUTAR} días después de la finalización del contrato.`,
           });
           return;
         }

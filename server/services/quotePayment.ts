@@ -2,6 +2,7 @@ import { Job } from '../models/sql/Job.model.js';
 import { calculateCommission } from './commissionService.js';
 import { splitFees } from '../../shared/pricing/processingCost.js';
 import { MINIMUM_JOB_AMOUNT_ARS } from '../../shared/pricing/minimums.js';
+import { POLITICAS } from '../../shared/constants/policies.js';
 
 /**
  * Cuanto falta pagar para aceptar una cotizacion.
@@ -399,5 +400,8 @@ export function diasHabilesDesde(desde: Date, hasta: Date = new Date()): number 
   return dias;
 }
 
-/** A los cuantos dias habiles sin cotizacion aceptada se pausa una publicacion. */
-export const DIAS_HABILES_ANTES_DE_PAUSAR = 10;
+/**
+ * A los cuantos dias habiles sin cotizacion aceptada se pausa una publicacion.
+ * El numero vive en shared/constants/policies.ts, junto con los terminos (6.6).
+ */
+export const DIAS_HABILES_ANTES_DE_PAUSAR = POLITICAS.COTIZAR_DIAS_HABILES_ANTES_DE_PAUSAR;

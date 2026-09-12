@@ -3,6 +3,7 @@ import { Contract } from '../models/sql/Contract.model.js';
 import { User } from '../models/sql/User.model.js';
 import { Notification } from '../models/sql/Notification.model.js';
 import { logMoneyEvent } from '../utils/auditLog.js';
+import { POLITICAS } from '../../shared/constants/policies.js';
 
 /**
  * Penalidad en escalera al trabajador que cancela.
@@ -34,9 +35,11 @@ import { logMoneyEvent } from '../utils/auditLog.js';
  * la forma mas rapida de que alguien se vaya para siempre.
  */
 
-export const VENTANA_DIAS = 90;
-export const MARCA_VISIBLE_DIAS = 90;
-export const SUSPENSION_DIAS = 14;
+// Los numeros viven en shared/constants/policies.ts, junto con los terminos
+// que los nombran (9.4). Aca solo se les da el nombre corto de este archivo.
+export const VENTANA_DIAS = POLITICAS.CANCELACION_VENTANA_DIAS;
+export const MARCA_VISIBLE_DIAS = POLITICAS.CANCELACION_MARCA_VISIBLE_DIAS;
+export const SUSPENSION_DIAS = POLITICAS.CANCELACION_SUSPENSION_DIAS;
 
 export interface ResultadoEscalera {
   cancelacionesEnVentana: number;

@@ -13,6 +13,7 @@ import { ChatMessage } from "../models/sql/ChatMessage.model.js";
 import { protect, requireKyc } from "../middleware/auth.js";
 import { requirePostWorkRating } from "../middleware/postWorkRating.js";
 import { MINIMUM_JOB_AMOUNT_ARS } from "../../shared/pricing/minimums.js";
+import { POLITICAS } from "../../shared/constants/policies.js";
 import type { AuthRequest } from "../types/index.js";
 import { socketService } from "../index.js";
 import { Op, Sequelize } from 'sequelize';
@@ -2511,19 +2512,17 @@ router.patch("/:id/cancel", protect, async (req: AuthRequest, res: Response): Pr
     });
 
     // ============================================
-    // LÓGICA DE REEMBOLSO
-    // Reglas (configuradas 2026-07):
+    // LÓGICA DE REEMBOLSO — T&C 9.1 a 9.3
     //  - pending_approval (aún no aprobado): reembolso TOTAL (precio + comisión).
     //  - Una vez aprobado (publicado): la comisión de publicación NO se reembolsa.
-    //  - Cancelación con menos de 2h de anticipación y con trabajador seleccionado:
-    //      se reembolsa la MITAD del precio al cliente y la otra MITAD se paga al
-    //      trabajador cuyo trabajo fue cancelado (la comisión ya extraída no se
-    //      devuelve).
-    //  - Cancelación con menos de 2h SIN trabajador seleccionado: se devuelve la
-    //      totalidad del precio al dueño (comisión no incluida — nunca se
-    //      reembolsa si la publicación está aprobada).
-    //  - Cancelación con más de 2h: se reembolsa el precio del trabajo al cliente
+    //  - Cancelación tardía (menos de CANCELACION_CLIENTE_HORAS_ANTES antes del
+    //      inicio) con trabajador seleccionado: una parte del precio va al
+    //      trabajador al que le cancelaron y el resto vuelve al cliente.
+    //  - Cancelación tardía SIN trabajador seleccionado: el precio vuelve entero
+    //      al cliente (la comisión no, la publicación ya fue aprobada).
+    //  - Cancelación con tiempo: se reembolsa el precio del trabajo al cliente
     //      (comisión no incluida).
+    // Los números viven en shared/constants/policies.ts junto con los términos.
     // Fuente de verdad del balance: user.balanceArs (BalanceTransaction = historial).
     // ============================================
     const { BalanceTransaction } = await import('../models/sql/BalanceTransaction.model.js');
@@ -2533,8 +2532,9 @@ router.patch("/:id/cancel", protect, async (req: AuthRequest, res: Response): Pr
     const jobPrice = Number(job.price) || 0;
     const selectedWorkers: string[] = Array.isArray(job.selectedWorkers) ? job.selectedWorkers : [];
     const hasWorker = selectedWorkers.length > 0;
-    const isLateCancellation = hasWorker && hoursUntilStart <= 2;      // ≤2h con trabajador
-    const isLateNoWorker = !hasWorker && hoursUntilStart <= 2;         // ≤2h sin trabajador
+    const esTardia = hoursUntilStart <= POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES;
+    const isLateCancellation = hasWorker && esTardia;
+    const isLateNoWorker = !hasWorker && esTardia;
 
     // Comisión de publicación pagada (no reembolsable una vez aprobado)
     let commissionPaid = 0;
@@ -2554,8 +2554,8 @@ router.patch("/:id/cancel", protect, async (req: AuthRequest, res: Response): Pr
       // ya aprobada).
       clientRefund = jobPrice;
     } else if (isLateCancellation) {
-      clientRefund = jobPrice / 2;               // mitad al cliente
-      workerPayout = jobPrice / 2;               // mitad al trabajador
+      workerPayout = jobPrice * POLITICAS.CANCELACION_TARDIA_PARTE_TRABAJADOR;
+      clientRefund = jobPrice - workerPayout;
     } else {
       clientRefund = jobPrice;                   // precio, sin comisión
     }

@@ -10,6 +10,8 @@
  * Keys not listed are page chrome (title, back, meta…) and are not body copy.
  */
 
+import { COMMISSION_RATES } from '../constants/membershipPricing.js';
+
 export type TermsBlockKind = 'title' | 'paragraph' | 'listItem' | 'note';
 
 export interface TermsBlock {
@@ -54,9 +56,11 @@ export const TERMS_BODY: TermsBlock[] = TERMS_BODY_KEYS.map((key) => ({
 }));
 
 /**
- * Commission table of clause 7.3. The percentages are part of the legal text,
- * so they live here rather than being hardcoded per platform — the web page
- * used to hold them in its JSX and mobile had its own copy.
+ * Commission table of clause 7.3.
+ *
+ * Derived from COMMISSION_RATES, not written here: the table used to say
+ * 8% / 3% / 1% while the code charged 10% to everyone, and a SUPER PRO plan
+ * that no longer exists. Whatever the pricing module says, the legal text says.
  *
  * `planKey` resolves through the copy module; `plan` is a literal (FREE is not
  * translated). Rendered right after 's7p3', which introduces the table.
@@ -66,7 +70,6 @@ export const TERMS_COMMISSION_AFTER = 's7p3';
 export const TERMS_COMMISSION_HEADERS = ['thPlan', 'thCommission'] as const;
 
 export const TERMS_COMMISSION_ROWS: Array<{ plan?: string; planKey?: string; commission: string }> = [
-  { plan: 'FREE', commission: '8%' },
-  { planKey: 'planProMonth', commission: '3%' },
-  { planKey: 'planSuperProMonth', commission: '1%' },
+  { plan: 'FREE', commission: `${COMMISSION_RATES.free}%` },
+  { planKey: 'planProMonth', commission: `${COMMISSION_RATES.pro}%` },
 ];

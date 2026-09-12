@@ -1,7 +1,161 @@
+import { Fragment, ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation, Trans } from 'react-i18next';
 import { Helmet } from "react-helmet-async";
 import { ArrowLeft, Home, FileText } from "lucide-react";
+import {
+  TERMS_BODY,
+  TERMS_COMMISSION_AFTER,
+  TERMS_COMMISSION_HEADERS,
+  TERMS_COMMISSION_ROWS,
+  type TermsBlock,
+} from "../../../shared/legal/terms.structure";
+import { termsEs } from "../../../shared/legal/terms.es";
+
+/**
+ * Términos y Condiciones.
+ *
+ * El cuerpo se dibuja recorriendo TERMS_BODY, igual que en mobile. Antes era
+ * JSX escrito a mano, clausula por clausula, y se quedo atras: las clausulas
+ * 9.4 y 10.5 a 10.10 (escalera de cancelaciones, silencio en disputas, plazo
+ * para reclamar, contracargos) existian en el texto compartido y en mobile pero
+ * en la web no aparecian. Un documento legal que se muestra distinto segun el
+ * dispositivo no es un documento.
+ *
+ * Los textos llegan por i18n (namespace `termsPage`, que client/i18n/index.ts
+ * arma desde shared/legal/terms.*.ts); el fallback es el español compartido,
+ * asi que nunca hay una copia a mano en este archivo.
+ */
+
+const P_CLASS = "text-slate-600 dark:text-slate-300 mb-3 scroll-mt-24";
+
+function Clause({ k }: { k: string }) {
+  return (
+    <p id={k} className={P_CLASS}>
+      <Trans i18nKey={`termsPage.${k}`} components={{ b: <strong /> }} defaults={termsEs[k]} />
+    </p>
+  );
+}
+
+function CommissionTable() {
+  const { t } = useTranslation();
+  return (
+    <div className="overflow-x-auto mb-4">
+      <table className="min-w-full border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
+        <thead className="bg-slate-100 dark:bg-slate-700">
+          <tr>
+            {TERMS_COMMISSION_HEADERS.map((h) => (
+              <th key={h} className="px-4 py-2 text-left text-sm font-semibold text-slate-700 dark:text-slate-200">
+                {t(`termsPage.${h}`, termsEs[h])}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {TERMS_COMMISSION_ROWS.map((r, i) => (
+            <tr key={i} className="border-t border-slate-200 dark:border-slate-700">
+              <td className="px-4 py-2 text-sm text-slate-600 dark:text-slate-300">
+                {r.planKey ? t(`termsPage.${r.planKey}`, termsEs[r.planKey]) : r.plan}
+              </td>
+              <td className="px-4 py-2 text-sm text-slate-600 dark:text-slate-300">{r.commission}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/**
+ * Agrupa los bloques en secciones (un titulo abre una) y, dentro de cada una,
+ * junta los items de lista consecutivos en un solo <ul>.
+ */
+function renderBody(t: (k: string, d: string) => string): ReactNode[] {
+  const out: ReactNode[] = [];
+  let seccion: ReactNode[] | null = null;
+  let lista: string[] = [];
+
+  const cerrarLista = (destino: ReactNode[]) => {
+    if (lista.length === 0) return;
+    destino.push(
+      <ul key={`ul-${lista[0]}`} className="list-disc list-inside text-slate-600 dark:text-slate-300 mb-4 space-y-2">
+        {lista.map((k) => (
+          <li key={k}>
+            <Trans i18nKey={`termsPage.${k}`} components={{ b: <strong /> }} defaults={termsEs[k]} />
+          </li>
+        ))}
+      </ul>,
+    );
+    lista = [];
+  };
+
+  const cerrarSeccion = () => {
+    if (!seccion) return;
+    cerrarLista(seccion);
+    out.push(<section key={`sec-${out.length}`} className="mb-8">{seccion}</section>);
+    seccion = null;
+  };
+
+  const emitir = (nodo: ReactNode) => {
+    if (seccion) seccion.push(nodo);
+    else out.push(nodo);
+  };
+
+  for (const bloque of TERMS_BODY as TermsBlock[]) {
+    const { key, kind } = bloque;
+
+    if (kind === 'title') {
+      cerrarSeccion();
+      seccion = [
+        <h2 key={key} className="text-2xl font-semibold text-slate-900 dark:text-white mb-4">
+          {t(`termsPage.${key}`, termsEs[key])}
+        </h2>,
+      ];
+      continue;
+    }
+
+    if (kind === 'listItem') {
+      lista.push(key);
+      continue;
+    }
+
+    // Cualquier otra cosa corta la lista en curso.
+    cerrarLista(seccion ?? out);
+
+    if (key === 'importantNote') {
+      cerrarSeccion();
+      out.push(
+        <div key={key} className="mt-12 p-6 bg-sky-50 dark:bg-sky-900/20 border-l-4 border-sky-500 rounded-r-lg">
+          <p className="text-sm text-sky-900 dark:text-sky-100">
+            <Trans i18nKey={`termsPage.${key}`} components={{ b: <strong /> }} defaults={termsEs[key]} />
+          </p>
+        </div>,
+      );
+      continue;
+    }
+
+    if (kind === 'note') {
+      emitir(
+        <div key={key} className="bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-500 p-4 rounded-r-lg mb-4">
+          <p className="text-amber-800 dark:text-amber-200 text-sm">
+            <Trans i18nKey={`termsPage.${key}`} components={{ b: <strong /> }} defaults={termsEs[key]} />
+          </p>
+        </div>,
+      );
+      continue;
+    }
+
+    emitir(
+      <Fragment key={key}>
+        <Clause k={key} />
+        {key === TERMS_COMMISSION_AFTER && <CommissionTable />}
+      </Fragment>,
+    );
+  }
+
+  cerrarSeccion();
+  return out;
+}
 
 export default function TermsAndConditions() {
   const navigate = useNavigate();
@@ -9,11 +163,8 @@ export default function TermsAndConditions() {
   return (
     <>
       <Helmet>
-        <title>{t('termsPage.metaTitle', 'Términos y Condiciones - DOAPP')}</title>
-        <meta
-          name="description"
-          content={t('termsPage.metaDescription', 'Términos y condiciones generales de uso de la plataforma DOAPP')}
-        />
+        <title>{t('termsPage.metaTitle', termsEs.metaTitle)}</title>
+        <meta name="description" content={t('termsPage.metaDescription', termsEs.metaDescription)} />
       </Helmet>
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900">
         <div className="container mx-auto px-4 py-8 max-w-4xl">
@@ -24,14 +175,14 @@ export default function TermsAndConditions() {
               className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
             >
               <ArrowLeft className="h-4 w-4" />
-              {t('termsPage.back', 'Volver')}
+              {t('termsPage.back', termsEs.back)}
             </button>
             <Link
               to="/"
               className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
             >
               <Home className="h-4 w-4" />
-              {t('termsPage.home', 'Inicio')}
+              {t('termsPage.home', termsEs.home)}
             </Link>
           </div>
 
@@ -40,345 +191,16 @@ export default function TermsAndConditions() {
             <div className="flex items-center gap-3 mb-6">
               <FileText className="h-8 w-8 text-sky-600" />
               <h1 className="text-3xl md:text-4xl font-bold text-slate-900 dark:text-white">
-                {t('termsPage.title', 'Términos y Condiciones Generales de Uso')}
+                {t('termsPage.title', termsEs.title)}
               </h1>
             </div>
 
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-8">
-              {t('termsPage.lastUpdated', 'Última actualización: 17 de Marzo de 2026')}
+              {t('termsPage.lastUpdated', termsEs.lastUpdated)}
             </p>
 
             <div className="prose prose-slate dark:prose-invert max-w-none">
-              <p className="text-slate-600 dark:text-slate-300 mb-6">
-                {t('termsPage.intro1', 'Los presentes Términos y Condiciones (en adelante, los "Términos") regulan el acceso y uso de la plataforma digital denominada DOAPP (en adelante, la "Plataforma"), por parte de cualquier persona humana o jurídica que se registre y/o utilice sus servicios (en adelante, el "Usuario").')}
-              </p>
-              <p className="text-slate-600 dark:text-slate-300 mb-8">
-                {t('termsPage.intro2', 'La utilización de la Plataforma implica la aceptación plena y sin reservas de los presentes Términos, los cuales constituyen un contrato válido y vinculante conforme a los artículos 958 y concordantes del Código Civil y Comercial de la Nación.')}
-              </p>
-
-              {/* 1. Identificación */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-4">
-                  {t('termsPage.s1Title', '1. Identificación del Titular de la Plataforma')}
-                </h2>
-                <p className="text-slate-600 dark:text-slate-300 mb-4">
-                  {t('termsPage.s1p', 'La Plataforma es operada por DOAPP, con domicilio legal en la República Argentina (en adelante, "DOAPP").')}
-                </p>
-              </section>
-
-              {/* 2. Descripción del servicio */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-4">
-                  {t('termsPage.s2Title', '2. Descripción del Servicio')}
-                </h2>
-                <p className="text-slate-600 dark:text-slate-300 mb-4">
-                  {t('termsPage.s2p', 'DOAPP es una plataforma digital de intermediación tecnológica, bajo el modelo de marketplace y red social, que permite vincular:')}
-                </p>
-                <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 mb-4 space-y-2">
-                  <li><Trans i18nKey="termsPage.s2li1" components={{ b: <strong /> }} defaults="<b>Clientes:</b> personas humanas o jurídicas que demandan servicios." /></li>
-                  <li><Trans i18nKey="termsPage.s2li2" components={{ b: <strong /> }} defaults="<b>Trabajadores / Doers:</b> personas humanas que ofrecen servicios profesionales u oficios de manera independiente." /></li>
-                </ul>
-                <div className="bg-amber-50 dark:bg-amber-900/20 border-l-4 border-amber-500 p-4 rounded-r-lg">
-                  <p className="text-amber-800 dark:text-amber-200 text-sm">
-                    {t('termsPage.s2note', 'DOAPP NO presta los servicios publicados, NO es empleador, NO actúa como parte del contrato de prestación de servicios, limitándose su rol a facilitar herramientas tecnológicas de contacto, gestión de pagos, custodia de fondos y mediación en disputas.')}
-                  </p>
-                </div>
-              </section>
-
-              {/* 3. Naturaleza jurídica */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-4">
-                  {t('termsPage.s3Title', '3. Naturaleza Jurídica de la Relación')}
-                </h2>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s3p1', '3.1. Los Trabajadores se registran y actúan como prestadores independientes y autónomos, sin que exista relación laboral, societaria, de dependencia, mandato, agencia o franquicia con DOAPP.')}
-                </p>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s3p2', '3.2. Cada contrato celebrado a través de la Plataforma se perfecciona exclusivamente entre Cliente y Trabajador, quienes asumen íntegramente los derechos y obligaciones emergentes del mismo.')}
-                </p>
-                <p className="text-slate-600 dark:text-slate-300">
-                  {t('termsPage.s3p3', '3.3. DOAPP no ejerce control técnico, disciplinario ni organizativo sobre los Trabajadores, limitándose a reglas de uso de la Plataforma.')}
-                </p>
-              </section>
-
-              {/* 4. Registro */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-4">
-                  {t('termsPage.s4Title', '4. Registro de Usuarios')}
-                </h2>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s4p1', '4.1. El acceso a la Plataforma requiere registro previo y creación de una cuenta personal.')}
-                </p>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s4p2', '4.2. El Usuario garantiza la veracidad, exactitud y actualización de los datos suministrados.')}
-                </p>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s4p3', '4.3. DOAPP podrá requerir procesos de verificación de identidad (KYC), incluyendo validación de correo electrónico, teléfono, documento de identidad y datos fiscales, especialmente para membresías PRO y SUPER PRO.')}
-                </p>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s4p4', '4.4. Alcance de la verificación. Al día de hoy DOAPP verifica únicamente la identidad de los Usuarios. Dicha verificación se realiza a través de un proveedor externo especializado en verificación de identidad, que analiza el documento presentado y realiza una prueba de vida mediante reconocimiento facial. DOAPP NO verifica matrículas profesionales, habilitaciones, títulos ni pólizas de seguro. Un Usuario puede declarar que posee una matrícula o un seguro y acompañar documentación respaldatoria: dicha documentación se conserva a título informativo y su exhibición en la Plataforma NO implica que DOAPP haya comprobado su autenticidad, vigencia ni validez ante el organismo o la aseguradora correspondiente.')}
-                </p>
-                <p className="text-slate-600 dark:text-slate-300">
-                  {t('termsPage.s4p5', '4.5. Es responsabilidad exclusiva del Usuario contratante verificar, por sus propios medios y ante los registros oficiales pertinentes, que el profesional cuente con la matrícula, habilitación o seguro que declara, especialmente en actividades reguladas. DOAPP informará oportunamente si en el futuro incorpora la verificación de estos datos contra fuentes oficiales.')}
-                </p>
-              </section>
-
-              {/* 5. Categorías */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-4">
-                  {t('termsPage.s5Title', '5. Categorías de Servicios')}
-                </h2>
-                <p className="text-slate-600 dark:text-slate-300 mb-4">
-                  {t('termsPage.s5p', 'La Plataforma permite la publicación y contratación de servicios, entre otros:')}
-                </p>
-                <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 mb-4 space-y-1">
-                  <li>{t('termsPage.s5li1', 'Limpieza')}</li>
-                  <li>{t('termsPage.s5li2', 'Mudanzas')}</li>
-                  <li>{t('termsPage.s5li3', 'Jardinería')}</li>
-                  <li>{t('termsPage.s5li4', 'Construcción')}</li>
-                  <li>{t('termsPage.s5li5', 'Tecnología')}</li>
-                  <li>{t('termsPage.s5li6', 'Servicios profesionales varios')}</li>
-                </ul>
-                <p className="text-slate-600 dark:text-slate-300">
-                  {t('termsPage.s5note', 'DOAPP no garantiza la idoneidad, calidad, resultado ni legalidad de los servicios ofrecidos.')}
-                </p>
-              </section>
-
-              {/* 6. Sistema de contratación */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-4">
-                  {t('termsPage.s6Title', '6. Sistema de Contratación')}
-                </h2>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s6p1', '6.1. El ciclo de contratación incluye: publicación, postulación, aceptación, pago, ejecución, confirmación por parte de un administrador de la plataforma y completado.')}
-                </p>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s6p2', '6.2. La aceptación del Trabajador y del Cliente genera un contrato digital vinculante entre ambos.')}
-                </p>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s6p3', '6.3. El sistema requiere confirmación bilateral de finalización para la liberación de fondos.')}
-                </p>
-                <p id="s6p4" className="text-slate-600 dark:text-slate-300 mb-3 scroll-mt-24">
-                  <Trans i18nKey="termsPage.s6p4" components={{ b: <strong /> }} defaults="6.4. <b>El precio publicado es el precio del trabajo.</b> Cuando el Cliente publica indicando un monto, ése es el precio acordado y es el que se cobra, salvo que un Trabajador presente una cotización por un importe distinto y el Cliente decida aceptarla. Cuando el Cliente publica &quot;a cotizar&quot;, no existe precio hasta que se acepta una cotización." />
-                </p>
-                <p id="s6p5" className="text-slate-600 dark:text-slate-300 mb-3 scroll-mt-24">
-                  <Trans i18nKey="termsPage.s6p5" components={{ b: <strong /> }} defaults="6.5. <b>La aceptación de una cotización requiere el pago previo.</b> El Trabajador queda seleccionado y el contrato se genera únicamente después de que el pago se acredite. Si la cotización aceptada supera lo ya abonado en la publicación, el Cliente debe abonar la diferencia junto con la comisión correspondiente antes de que la selección tenga efecto. Mientras el pago no se acredite, la cotización permanece disponible y el Trabajador no queda comprometido." />
-                </p>
-                <p id="s6p6" className="text-slate-600 dark:text-slate-300 scroll-mt-24">
-                  <Trans i18nKey="termsPage.s6p6" components={{ b: <strong /> }} defaults="6.6. <b>Publicaciones sin cotización aceptada.</b> Las publicaciones &quot;a cotizar&quot; que no obtengan una cotización aceptada dentro de los 10 (diez) días hábiles desde su publicación o desde su última reanudación serán pausadas automáticamente. La pausa no cancela la publicación ni elimina las cotizaciones recibidas: el Cliente puede reanudarla en cualquier momento y el plazo se computa nuevamente desde la reanudación. <b>Las publicaciones cuyo precio fue abonado al publicarse no se pausan por este motivo</b>, y permanecen disponibles mientras el Cliente no las cancele." />
-                </p>
-              </section>
-
-              {/* 7. Pagos */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-4">
-                  {t('termsPage.s7Title', '7. Pagos, Comisiones y Escrow')}
-                </h2>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s7p1', '7.1. Los pagos se procesan a través de MercadoPago, aceptándose los medios habilitados por dicho proveedor.')}
-                </p>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s7p2', '7.2. DOAPP actúa como custodio de fondos (escrow), reteniendo el dinero hasta la confirmación del servicio.')}
-                </p>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s7p3', '7.3. DOAPP percibe una comisión por el uso de la Plataforma, conforme al plan del Usuario:')}
-                </p>
-                <div className="overflow-x-auto mb-4">
-                  <table className="min-w-full border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden">
-                    <thead className="bg-slate-100 dark:bg-slate-700">
-                      <tr>
-                        <th className="px-4 py-2 text-left text-sm font-semibold text-slate-700 dark:text-slate-200">{t('termsPage.thPlan', 'Plan')}</th>
-                        <th className="px-4 py-2 text-left text-sm font-semibold text-slate-700 dark:text-slate-200">{t('termsPage.thCommission', 'Comisión')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr className="border-t border-slate-200 dark:border-slate-700">
-                        <td className="px-4 py-2 text-sm text-slate-600 dark:text-slate-300">FREE</td>
-                        <td className="px-4 py-2 text-sm text-slate-600 dark:text-slate-300">8%</td>
-                      </tr>
-                      <tr className="border-t border-slate-200 dark:border-slate-700">
-                        <td className="px-4 py-2 text-sm text-slate-600 dark:text-slate-300">{t('termsPage.planProMonth', 'PRO ($4.999/mes)')}</td>
-                        <td className="px-4 py-2 text-sm text-slate-600 dark:text-slate-300">3%</td>
-                      </tr>
-                      <tr className="border-t border-slate-200 dark:border-slate-700">
-                        <td className="px-4 py-2 text-sm text-slate-600 dark:text-slate-300">{t('termsPage.planSuperProMonth', 'SUPER PRO ($8.999/mes)')}</td>
-                        <td className="px-4 py-2 text-sm text-slate-600 dark:text-slate-300">1%</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s7p4', '7.4. Comisión mínima: para contratos inferiores a $8.000 ARS se aplicará una comisión fija de $1.000 ARS.')}
-                </p>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s7p5', '7.5. La comisión de DOAPP no es reembolsable, incluso en casos de cancelación o disputa.')}
-                </p>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  <Trans i18nKey="termsPage.s7p6" components={{ b: <strong /> }} defaults="7.6. <b>Liberación automática por ausencia del Cliente:</b> Si un trabajo finaliza (fecha de vencimiento alcanzada) y el Cliente no confirma la recepción del servicio dentro de las 24 (veinticuatro) horas siguientes, con recordatorios previos, el pago retenido en custodia será liberado automáticamente a los Trabajadores asignados. La comisión de la Plataforma correspondiente al plan del Cliente se retiene en todos los casos. El Cliente recibirá notificaciones previas y durante este proceso. Esta cláusula no aplica si existe una disputa activa sobre el contrato." />
-                </p>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s7p7', '7.7. Los Trabajadores serán notificados antes del inicio del trabajo, durante su ejecución y al momento de la liberación del pago. En caso de ausencia del Cliente conforme al punto 7.6, los Trabajadores recibirán aviso inmediato por email y notificación en la Plataforma.')}
-                </p>
-                <p id="s7p8" className="text-slate-600 dark:text-slate-300 mb-3 scroll-mt-24">
-                  <Trans i18nKey="termsPage.s7p8" components={{ b: <strong /> }} defaults="7.8. <b>Montos mínimos.</b> La Plataforma establece un monto mínimo de contratación y un monto mínimo de ampliación. Estos mínimos no son tarifas ni importes fijados discrecionalmente: la Plataforma los determina a partir del costo de procesamiento que cobra la pasarela de pago, del costo fijo que tiene cada contrato para la Plataforma —custodia de fondos, verificación de identidad y atención de disputas—, del tipo de cambio y de la comisión aplicable. Cuando alguno de esos valores cambia, los mínimos se recalculan en consecuencia. Los importes vigentes se informan siempre antes de publicar y antes de aceptar una cotización. El mínimo de contratación se verifica al aceptar una cotización, que es el momento en que existe un precio definitivo; una publicación &quot;a cotizar&quot; puede crearse sin precio." />
-                </p>
-                <p id="s7p9" className="text-slate-600 dark:text-slate-300 scroll-mt-24">
-                  <Trans i18nKey="termsPage.s7p9" components={{ b: <strong /> }} defaults="7.9. <b>Saldo a favor por cotización menor al precio publicado.</b> Si el Cliente abonó el precio publicado y luego acepta una cotización por un importe menor, la diferencia se acredita como saldo a favor dentro de la Plataforma. Ese saldo puede utilizarse sin costo alguno en cualquier publicación o contratación posterior. El Cliente también puede solicitar su transferencia a una cuenta bancaria propia; en ese caso, <b>el costo de procesamiento que cobra la pasarela de pago por la operación se descuenta del importe transferido</b>, dado que se trata de una devolución de dinero ya procesado y la Plataforma no percibe comisión alguna sobre esa diferencia. El importe del costo se informa antes de confirmar la solicitud. Si el Cliente no acepta ese descuento, el saldo permanece disponible en la Plataforma por tiempo indeterminado." />
-                </p>
-              </section>
-
-              {/* 8. Membresías */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-4">
-                  {t('termsPage.s8Title', '8. Membresías y Suscripciones')}
-                </h2>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s8p1', '8.1. DOAPP ofrece planes FREE, PRO y SUPER PRO, con renovación automática mensual.')}
-                </p>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s8p2', '8.2. La cancelación no genera reintegro y los beneficios subsisten hasta el vencimiento del período abonado.')}
-                </p>
-                <p className="text-slate-600 dark:text-slate-300">
-                  {t('termsPage.s8p3', '8.3. DOAPP podrá modificar precios, notificando previamente al Usuario.')}
-                </p>
-              </section>
-
-              {/* 9. Cancelaciones */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-4">
-                  {t('termsPage.s9Title', '9. Cancelaciones')}
-                </h2>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s9p1', '9.1. Cancelaciones previas a la aceptación por parte de un Administrador de la plataforma: devolución total.')}
-                </p>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s9p2', '9.2. Cancelaciones hasta 24 horas antes del inicio: devolución del monto menos comisión, siempre y cuando la publicación no haya sido aceptada por un administrador de la plataforma.')}
-                </p>
-                <p className="text-slate-600 dark:text-slate-300">
-                  {t('termsPage.s9p3', '9.3. Cancelaciones tardías o durante la ejecución: distribución proporcional conforme lo establecido en la Plataforma, con retención de comisiones.')}
-                </p>
-              </section>
-
-              {/* 10. Disputas */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-4">
-                  {t('termsPage.s10Title', '10. Disputas y Mediación')}
-                </h2>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s10p1', '10.1. DOAPP actúa como mediador interno, sin carácter jurisdiccional.')}
-                </p>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s10p2', '10.2. La apertura de una disputa congela los fondos hasta su resolución.')}
-                </p>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s10p3', '10.3. Las decisiones del Administrador podrán consistir en liberación total, reembolso total, parcial o cierre sin acción. Para la toma de la resolución definitiva, se utilizará la información que voluntariamente remitieron las partes sobre las condiciones de contratación.')}
-                </p>
-                <p className="text-slate-600 dark:text-slate-300">
-                  {t('termsPage.s10p4', '10.4. La comisión de la Plataforma no se devuelve en ningún supuesto.')}
-                </p>
-              </section>
-
-              {/* 11. Responsabilidad */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-4">
-                  {t('termsPage.s11Title', '11. Responsabilidad')}
-                </h2>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s11p1', '11.1. DOAPP no responde por:')}
-                </p>
-                <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 mb-4 space-y-2">
-                  <li>{t('termsPage.s11li1', 'La calidad, ejecución o resultado de los servicios.')}</li>
-                  <li>{t('termsPage.s11li2', 'Daños personales, materiales o patrimoniales derivados de la prestación.')}</li>
-                </ul>
-                <p className="text-slate-600 dark:text-slate-300">
-                  {t('termsPage.s11p2', '11.2. El Usuario exonera a DOAPP de cualquier reclamo derivado de su relación contractual con otros Usuarios.')}
-                </p>
-              </section>
-
-              {/* 12. Impuestos */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-4">
-                  {t('termsPage.s12Title', '12. Impuestos y Facturación')}
-                </h2>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s12p1', '12.1. Los Trabajadores son responsables de emitir las facturas correspondientes y cumplir con sus obligaciones fiscales ante AFIP.')}
-                </p>
-                <p className="text-slate-600 dark:text-slate-300">
-                  {t('termsPage.s12p2', '12.2. DOAPP podrá emitir factura por el cobro de sus comisiones.')}
-                </p>
-              </section>
-
-              {/* 13. Datos personales */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-4">
-                  {t('termsPage.s13Title', '13. Protección de Datos Personales')}
-                </h2>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s13p1', '13.1. DOAPP cumple con la Ley 25.326 de Protección de Datos Personales.')}
-                </p>
-                <p className="text-slate-600 dark:text-slate-300 mb-3">
-                  {t('termsPage.s13p2', '13.2. Los datos bancarios y de identidad se almacenan de forma encriptada.')}
-                </p>
-                <p className="text-slate-600 dark:text-slate-300">
-                  {t('termsPage.s13p3', '13.3. El Usuario podrá ejercer los derechos de acceso, rectificación, supresión y oposición.')}
-                </p>
-              </section>
-
-              {/* 14. Publicidad */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-4">
-                  {t('termsPage.s14Title', '14. Publicidad')}
-                </h2>
-                <p className="text-slate-600 dark:text-slate-300">
-                  {t('termsPage.s14p', 'DOAPP podrá ofrecer espacios publicitarios sujetos a disponibilidad, aprobación previa y pago anticipado.')}
-                </p>
-              </section>
-
-              {/* 15. Sanciones */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-4">
-                  {t('termsPage.s15Title', '15. Sanciones')}
-                </h2>
-                <p className="text-slate-600 dark:text-slate-300">
-                  {t('termsPage.s15p', 'DOAPP podrá aplicar advertencias, suspensiones o cancelación definitiva de cuentas ante incumplimientos, fraude o uso indebido de la Plataforma.')}
-                </p>
-              </section>
-
-              {/* 16. Modificaciones */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-4">
-                  {t('termsPage.s16Title', '16. Modificaciones')}
-                </h2>
-                <p className="text-slate-600 dark:text-slate-300">
-                  {t('termsPage.s16p', 'DOAPP podrá modificar estos Términos, los cuales entrarán en vigencia desde su publicación.')}
-                </p>
-              </section>
-
-              {/* 17. Ley aplicable */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-4">
-                  {t('termsPage.s17Title', '17. Ley Aplicable y Jurisdicción')}
-                </h2>
-                <p className="text-slate-600 dark:text-slate-300">
-                  {t('termsPage.s17p', 'Los presentes Términos se rigen por las leyes de la República Argentina. Para los consumidores, será competente el tribunal del domicilio del Usuario conforme Ley 24.240.')}
-                </p>
-              </section>
-
-              {/* 18. Aceptación */}
-              <section className="mb-8">
-                <h2 className="text-2xl font-semibold text-slate-900 dark:text-white mb-4">
-                  {t('termsPage.s18Title', '18. Aceptación')}
-                </h2>
-                <p className="text-slate-600 dark:text-slate-300">
-                  {t('termsPage.s18p', 'El Usuario declara haber leído, comprendido y aceptado íntegramente los presentes Términos y Condiciones.')}
-                </p>
-              </section>
-
-              <div className="mt-12 p-6 bg-sky-50 dark:bg-sky-900/20 border-l-4 border-sky-500 rounded-r-lg">
-                <p className="text-sm text-sky-900 dark:text-sky-100">
-                  <Trans i18nKey="termsPage.importantNote" components={{ b: <strong /> }} defaults="<b>Nota importante:</b> Al registrarte y utilizar DOAPP, confirmas que has leído, entendido y aceptado estos Términos y Condiciones en su totalidad." />
-                </p>
-              </div>
+              {renderBody(t)}
             </div>
           </div>
 

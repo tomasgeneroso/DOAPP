@@ -6,12 +6,27 @@ import { Notification } from '../models/sql/Notification.model.js';
 import { BalanceTransaction } from '../models/sql/BalanceTransaction.model.js';
 import emailService from '../services/email.js';
 import { Op } from 'sequelize';
+import { POLITICAS } from '../../shared/constants/policies.js';
 
 /**
- * Cron job para auto-confirmar contratos después de 5 horas en estado awaiting_confirmation
+ * Horas en awaiting_confirmation antes de confirmar solo y liberar el escrow.
  *
- * Si la otra parte no responde dentro de 5 horas, el contrato se confirma automáticamente
- * y el pago se libera al trabajador.
+ * 24 y no menos: con 5 horas, un trabajo confirmado a las 22:00 se
+ * auto-confirmaba a las 3 de la manana y el cliente perdia su ventana por
+ * dormirse. 24 cubre un dia entero sin mirar el telefono sin dejar la plata
+ * del trabajador en el aire, y el reclamo sigue abierto unos dias despues de
+ * terminado el contrato (T&C 10.7), asi que auto-confirmar no cierra la puerta.
+ *
+ * El numero vive en shared/constants/policies.ts junto con los terminos (7.6).
+ */
+export const AUTO_CONFIRM_HOURS = POLITICAS.AUTO_CONFIRMACION_HORAS;
+
+/**
+ * Cron job para auto-confirmar contratos después de AUTO_CONFIRM_HOURS en
+ * estado awaiting_confirmation.
+ *
+ * Si la otra parte no responde en ese plazo, el contrato se confirma
+ * automáticamente y el pago se libera al trabajador.
  *
  * Se ejecuta cada 5 minutos.
  */
@@ -22,20 +37,9 @@ export function startAutoConfirmContractsJob() {
       console.log('🔍 [CRON] Verificando contratos pendientes de confirmación...');
 
       const now = new Date();
-      // 24 horas, no 5.
-      //
-      // Con 5 horas, un trabajo confirmado a las 22:00 se auto-confirmaba a las
-      // 3 de la manana: el cliente perdia su ventana por dormirse, y la
-      // auto-confirmacion libera el escrow. Ademas los terminos decian 2 horas,
-      // asi que ninguno de los dos numeros era el verdadero.
-      //
-      // 24 horas cubre un dia entero sin mirar el telefono sin dejar la plata
-      // del trabajador en el aire, y el reclamo sigue abierto 7 dias despues de
-      // terminado el contrato, asi que auto-confirmar ya no cierra la puerta.
-      const AUTO_CONFIRM_HOURS = 24;
       const limite = new Date(now.getTime() - AUTO_CONFIRM_HOURS * 60 * 60 * 1000);
 
-      // Buscar contratos en awaiting_confirmation que llevan más de 5 horas
+      // Buscar contratos en awaiting_confirmation que llevan más del plazo
       const contractsToAutoConfirm = await Contract.findAll({
         where: {
           status: 'awaiting_confirmation',
