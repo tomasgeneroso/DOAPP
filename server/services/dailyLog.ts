@@ -44,6 +44,17 @@ export function diasDelContrato(contrato: Contract): string[] {
 
 export type DayState = 'sin_marcar' | 'pendiente' | 'confirmado';
 
+/** Un archivo del avance de un dia, con quien lo subio y cuando. */
+export interface DailyLogAttachment {
+  url: string;
+  nombre: string;
+  tipo: string;
+  bytes: number;
+  subidoPor: 'client' | 'worker';
+  subidoPorId: string;
+  subidoEl: string;
+}
+
 export interface DailyLogView {
   dias: Array<{
     date: string;
@@ -52,6 +63,8 @@ export interface DailyLogView {
     marcoCliente: boolean;
     /** Si quien mira puede marcar este dia: sólo hasta hoy. */
     editable: boolean;
+    /** Fotos, videos y archivos del avance de ese dia. */
+    adjuntos: DailyLogAttachment[];
   }>;
   confirmados: number;
   total: number;
@@ -157,6 +170,7 @@ export function buildDailyLog(contrato: Contract, quienMira: 'client' | 'worker'
       marcoCliente,
       // No se marcan dias que todavia no ocurrieron.
       editable: date <= hoy,
+      adjuntos: Array.isArray(m?.adjuntos) ? (m.adjuntos as DailyLogAttachment[]) : [],
     };
   });
 

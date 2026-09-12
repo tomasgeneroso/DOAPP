@@ -13,6 +13,7 @@ import ContractExtensionApproval from "@/components/contracts/ContractExtensionA
 import TaskClaimModal from "@/components/contracts/TaskClaimModal";
 import TaskClaimResponse from "@/components/contracts/TaskClaimResponse";
 import TaskEvidenceUploadModal from "@/components/contracts/TaskEvidenceUploadModal";
+import DailyLogPanel from "@/components/contracts/DailyLogPanel";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import { requestPostWorkRatingCheck } from "@/utils/postWorkRating";
 import {
@@ -1313,6 +1314,18 @@ export default function ContractDetail() {
                   )}
                 </>
               )}
+            </div>
+          )}
+
+          {/* Control diario: marcas por día + fotos del avance. Evidencia, no dinero. */}
+          {(isClient || isDoer) &&
+            ['accepted', 'in_progress', 'awaiting_confirmation', 'completed', 'disputed'].includes(contract.status) && (
+            <div className="mb-6">
+              <DailyLogPanel
+                contractId={contract.id || contract._id}
+                rol={isClient ? 'client' : 'worker'}
+                soloLectura={!['accepted', 'in_progress', 'awaiting_confirmation'].includes(contract.status)}
+              />
             </div>
           )}
 

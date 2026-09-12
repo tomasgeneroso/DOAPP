@@ -181,7 +181,7 @@ describe('cancelacion antes de contratar', () => {
 });
 
 describe('marcas diarias del contrato', () => {
-  const { marcarDiasAlFinalizar, umbralAusencia } = require('../server/services/dailyLog.js');
+  const { marcarDiasAlFinalizar, umbralAusencia, buildDailyLog } = require('../server/services/dailyLog.js');
 
   /** Contrato falso con lo justo que usa el servicio. */
   const contrato = (desde: string, hasta: string, log: any[] = []) => {
@@ -239,6 +239,23 @@ describe('marcas diarias del contrato', () => {
     // dias es abandono total.
     expect(umbralAusencia(2)).toBe(1);
     expect(umbralAusencia(30)).toBe(4);
+  });
+
+  it('la vista expone los adjuntos de cada dia, y una lista vacia si no hay', () => {
+    // Las pantallas web y mobile dibujan la galeria desde aca. Si el campo
+    // faltara en un dia sin fotos, el `.length` rompe la pantalla entera.
+    const foto = {
+      url: '/uploads/daily-log/a.jpg', nombre: 'a.jpg', tipo: 'image/jpeg', bytes: 10,
+      subidoPor: 'worker', subidoPorId: 'w1', subidoEl: '2026-09-10T10:00:00.000Z',
+    };
+    const c = contrato(anteayer(), ayer(), [
+      { date: anteayer(), markedByClientAt: null, markedByWorkerAt: '2026-09-10T10:00:00.000Z', adjuntos: [foto] },
+    ]);
+    const vista = buildDailyLog(c, 'client');
+    const conFoto = vista.dias.find((d: any) => d.date === anteayer());
+    const sinFoto = vista.dias.find((d: any) => d.date === ayer());
+    expect(conFoto.adjuntos).toEqual([foto]);
+    expect(sinFoto.adjuntos).toEqual([]);
   });
 });
 

@@ -32,6 +32,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { getContract, confirmContract, rejectConfirmation } from '../../services/contracts';
 import { post } from '../../services/api';
+import DailyLogPanel from '../../components/DailyLogPanel';
 import { Contract, Job, User as UserType } from '../../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 
@@ -564,6 +565,16 @@ export default function ContractDetailScreen() {
               <Text style={styles.openMapBtnText}>Abrir en mapa</Text>
             </TouchableOpacity>
           </View>
+        )}
+
+        {/* Control diario: marcas por día + fotos del avance. Evidencia, no dinero. */}
+        {(isClient || isDoer) &&
+          ['accepted', 'in_progress', 'awaiting_confirmation', 'completed', 'disputed'].includes(contract.status) && (
+          <DailyLogPanel
+            contractId={contract._id || contract.id || ''}
+            rol={isClient ? 'client' : 'worker'}
+            soloLectura={!['accepted', 'in_progress', 'awaiting_confirmation'].includes(contract.status)}
+          />
         )}
 
         {/* Verificación de Trabajo */}
