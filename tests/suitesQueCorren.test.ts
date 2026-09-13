@@ -20,6 +20,22 @@ const RAIZ = join(process.cwd(), 'tests');
 /** Los proyectos CJS de jest si pueden usar require y __dirname. */
 const PROYECTOS_CJS = /^(integration|routes|models)[\\/]/;
 
+/**
+ * Saca comentarios y literales de texto antes de buscar.
+ *
+ * Sin esto el chequeo se marca a si mismo: el mensaje de error contiene la
+ * palabra que busca. Y cualquier comentario que explique el problema haria
+ * fallar al archivo que lo explica, que es el peor incentivo posible.
+ */
+function soloCodigo(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/\/\/[^\n]*/g, ' ')
+    .replace(/'(?:[^'\\\n]|\\.)*'/g, "''")
+    .replace(/"(?:[^"\\\n]|\\.)*"/g, '""')
+    .replace(/`(?:[^`\\]|\\.)*`/g, '``');
+}
+
 function testsDelProyectoEsm(dir: string, acc: string[] = []): string[] {
   for (const nombre of readdirSync(dir)) {
     if (nombre === 'node_modules') continue;
@@ -27,6 +43,10 @@ function testsDelProyectoEsm(dir: string, acc: string[] = []): string[] {
     if (statSync(ruta).isDirectory()) {
       testsDelProyectoEsm(ruta, acc);
     } else if (nombre.endsWith('.test.ts')) {
+      // Este archivo se excluye de su propio escaneo: nombra en regex literales
+      // justo las dos cosas que busca, y `soloCodigo` no puede distinguir un
+      // regex de codigo real sin parsear TypeScript.
+      if (nombre === 'suitesQueCorren.test.ts') continue;
       if (!PROYECTOS_CJS.test(relative(RAIZ, ruta))) acc.push(ruta);
     }
   }
@@ -42,7 +62,7 @@ describe('las suites del proyecto esm pueden cargarse', () => {
 
   it('ninguna usa require()', () => {
     const malas = archivos.filter((f) =>
-      /(^|[^.\w])require\s*\(/.test(readFileSync(f, 'utf8')),
+      /(^|[^.\w])require\s*\(/.test(soloCodigo(readFileSync(f, 'utf8'))),
     );
     if (malas.length > 0) {
       throw new Error(
@@ -57,7 +77,7 @@ describe('las suites del proyecto esm pueden cargarse', () => {
 
   it('ninguna usa __dirname', () => {
     const malas = archivos.filter((f) =>
-      /__dirname/.test(readFileSync(f, 'utf8')),
+      /__dirname/.test(soloCodigo(readFileSync(f, 'utf8'))),
     );
     if (malas.length > 0) {
       throw new Error(
