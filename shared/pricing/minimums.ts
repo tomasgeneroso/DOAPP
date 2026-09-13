@@ -29,10 +29,15 @@ import { COMMISSION_RATES } from '../constants/membershipPricing.js';
  * 1.000 pesos en 2026 no son 1.000 pesos en 2027, y nadie se acuerda de
  * revisarlo. Es la misma decision que ya se tomo con las membresias.
  *
- * EUR 1 es unas cuatro veces el costo marginal de un contrato (unos 450
- * pesos), con margen para que el piso siga cubriendolo aunque el costo suba.
+ * EUR 2 es unas ocho veces el costo marginal de un contrato (unos 450 pesos),
+ * con margen para que el piso siga cubriendolo aunque el costo suba.
+ *
+ * OJO, este numero arrastra el minimo de contratacion: MINIMUM_JOB_AMOUNT_ARS
+ * se deriva de piso / comision, asi que duplicar el piso duplica el minimo
+ * (EUR 1 -> $18.000; EUR 2 -> $36.000 con el euro a 1.800). No es un cambio
+ * de margen: es un cambio de que trabajos entran a la plataforma.
  */
-export const MINIMUM_COMMISSION_EUR = 1;
+export const MINIMUM_COMMISSION_EUR = 2;
 
 /**
  * El piso convertido a pesos.

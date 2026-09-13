@@ -7,6 +7,7 @@ import { useFacebookLogin } from "../hooks/useFacebookLogin";
 import { Helmet } from "react-helmet-async";
 import { AnimatedButton } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input"; // Asegúrate que este componente se esté usando
+import { FormField } from "@/components/ui/FormField";
 import { Chrome, Facebook, Twitter, Eye, EyeOff, Home, BadgeCheck } from "lucide-react";
 import TokenExpiredNotice from "../components/TokenExpiredNotice";
 import { FacebookSDK } from "../components/FacebookSDK";
@@ -51,7 +52,16 @@ export default function LoginScreen() {
   const [emailStatus, setEmailStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const [emailDebounce, setEmailDebounce] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [errorField, setErrorField] = useState<'email' | 'password' | null>(null);
+  /**
+   * Campo al que apunta el error que devolvió el servidor.
+   *
+   * Estaba tipado solo como email|password, asi que un error de validación de
+   * teléfono, DNI o CBU se guardaba pero no se mostraba en ningún lado: el
+   * usuario veía el formulario rechazado sin saber cuál campo estaba mal.
+   */
+  const [errorField, setErrorField] = useState<
+    'email' | 'password' | 'phone' | 'dni' | 'cbu' | 'username' | null
+  >(null);
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showMembershipOffer, setShowMembershipOffer] = useState(false);
@@ -616,16 +626,24 @@ export default function LoginScreen() {
 
             {isRegister && (
               <>
-                <div>
-                  <label
-                    htmlFor="phone"
-                    className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
-                  >
-                    {t('auth.phone')} <span className="text-red-500">*</span>
-                  </label>
-                  <div className="mt-2">
+                <FormField
+                  id="phone"
+                  label={t('auth.phone')}
+                  required={isRegister}
+                  error={errorField === 'phone' ? error : undefined}
+                  help={t(
+                    'auth.phoneHelp',
+                    'Con característica y sin el 15. Por ejemplo: +54 11 1234-5678. Lo verificamos con un código por WhatsApp.'
+                  )}
+                  privado
+                  note={t(
+                    'auth.phonePrivacy',
+                    'Solo lo usamos para avisarte de tus contratos y para que podamos contactarte si hay un problema con un trabajo. No aparece en tu perfil, no se lo damos a otros usuarios y no lo usamos para publicidad.'
+                  )}
+                >
+                  {(field) => (
                     <input
-                      id="phone"
+                      {...field}
                       name="phone"
                       type="tel"
                       autoComplete="tel"
@@ -635,20 +653,26 @@ export default function LoginScreen() {
                       placeholder="+54 11 1234-5678"
                       className="block w-full h-12 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                     />
-                  </div>
-                </div>
-                <div>
-                  <label
-                    htmlFor="dni"
-                    className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
-                  >
-                    {t('auth.dni')} <span className="text-red-500">*</span>
-                  </label>
-                  <div className="mt-2">
+                  )}
+                </FormField>
+                <FormField
+                  id="dni"
+                  label={t('auth.dni')}
+                  required={isRegister}
+                  error={errorField === 'dni' ? error : undefined}
+                  help={t('auth.dniHelper')}
+                  privado
+                  note={t(
+                    'auth.dniPrivacy',
+                    'Se usa únicamente para verificar tu identidad y cumplir con la normativa de pagos. Nunca se muestra a otros usuarios.'
+                  )}
+                >
+                  {(field) => (
                     <input
-                      id="dni"
+                      {...field}
                       name="dni"
                       type="text"
+                      inputMode="numeric"
                       autoComplete="off"
                       required={isRegister}
                       onChange={handleInputChange}
@@ -657,11 +681,8 @@ export default function LoginScreen() {
                       maxLength={9}
                       className="block w-full h-12 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                     />
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    {t('auth.dniHelper')}
-                  </p>
-                </div>
+                  )}
+                </FormField>
 
                 {/* Identity is verified after registration, through Didit only.
                     The manual upload that used to live here is now a fallback
@@ -697,29 +718,34 @@ export default function LoginScreen() {
                     {t('auth.referralHelper')}
                   </p>
                 </div>
-                <div>
-                  <label
-                    htmlFor="cbu"
-                    className="block text-sm font-medium leading-6 text-slate-600 dark:text-slate-300"
-                  >
-                    {t('auth.cbu')} <span className="text-slate-400">(opcional)</span>
-                  </label>
-                  <div className="mt-2">
+                <FormField
+                  id="cbu"
+                  label={`${t('auth.cbu')} ${t('form.optional', '(opcional)')}`}
+                  error={errorField === 'cbu' ? error : undefined}
+                  help={t(
+                    'auth.cbuHelp',
+                    'Son 22 dígitos, sin espacios ni guiones. Lo encontrás en tu app del banco o de la billetera, en los datos de tu cuenta. También sirve un CVU de Mercado Pago o Ualá.'
+                  )}
+                  privado
+                  note={t(
+                    'auth.cbuPrivacy',
+                    'Es la cuenta donde vas a cobrar tus trabajos. Tiene que estar a tu nombre. Nadie más la ve, y podés cargarla más tarde: la vas a necesitar recién al cobrar el primer trabajo.'
+                  )}
+                >
+                  {(field) => (
                     <input
-                      id="cbu"
+                      {...field}
                       name="cbu"
                       type="text"
+                      inputMode="numeric"
                       onChange={handleInputChange}
                       value={formData.cbu}
                       placeholder="0000000000000000000000"
                       className="block w-full h-12 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 px-3 py-2 text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent"
                       maxLength={22}
                     />
-                  </div>
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    Tu CBU/CVU para recibir pagos por trabajos. Si no lo completás ahora, lo necesitarás cuando completes tu primer trabajo.
-                  </p>
-                </div>
+                  )}
+                </FormField>
                 <div className="flex items-center">
                   <input
                     id="termsAccepted"

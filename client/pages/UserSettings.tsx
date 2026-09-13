@@ -33,6 +33,7 @@ import {
   X,
 } from "lucide-react";
 import { JOB_CATEGORIES } from "../../shared/constants/categories";
+import { FormField } from "../components/ui/FormField";
 import { useOnboarding } from "../hooks/useOnboarding";
 
 type TabType = "basic" | "profession" | "address" | "banking" | "legal" | "interests" | "notifications" | "help";
@@ -788,18 +789,31 @@ export default function UserSettings() {
                       className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
                     />
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
-                      {t('settings.basic.phone')}
-                    </label>
-                    <input
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      placeholder="+54 9 11 1234-5678"
-                      className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
-                    />
-                  </div>
+                  <FormField
+                    id="settings-phone"
+                    label={t('settings.basic.phone')}
+                    help={t(
+                      'auth.phoneHelp',
+                      'Con característica y sin el 15. Por ejemplo: +54 11 1234-5678. Lo verificamos con un código por WhatsApp.'
+                    )}
+                    privado
+                    note={t(
+                      'auth.phonePrivacy',
+                      'Solo lo usamos para avisarte de tus contratos y para que podamos contactarte si hay un problema con un trabajo. No aparece en tu perfil, no se lo damos a otros usuarios y no lo usamos para publicidad.'
+                    )}
+                  >
+                    {(field) => (
+                      <input
+                        {...field}
+                        type="tel"
+                        autoComplete="tel"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="+54 9 11 1234-5678"
+                        className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-sky-500"
+                      />
+                    )}
+                  </FormField>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
                       {t('settings.basic.bio')}
