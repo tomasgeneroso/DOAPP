@@ -5,6 +5,15 @@ import {
   ENFRIAMIENTO_CBU_HORAS,
   TOPE_DIARIO_POR_ROL_ARS,
 } from '../server/services/paymentSafeguards.js';
+import { leerMetadata } from '../server/utils/auditLog.js';
+import { gzipSync } from 'node:zlib';
+import { PROPORCION_MAXIMA_DEVOLUCIONES } from '../server/services/paymentSafeguards.js';
+import { desgloseCancelacionSinContratar } from '../shared/pricing/processingCost.js';
+import { marcarDiasAlFinalizar, umbralAusencia, buildDailyLog } from '../server/services/dailyLog.js';
+import { evidenceToPdf, indicesAIncluir } from '../server/services/contractEvidence.js';
+import { puedePromocionarse } from '../server/routes/profilePromotion.js';
+import { estadoDeSilencio, DIAS_PARA_RESPONDER } from '../server/jobs/disputeSilence.js';
+import { VENTANA_DIAS, MARCA_VISIBLE_DIAS, SUSPENSION_DIAS } from '../server/services/cancellationLadder.js';
 
 /**
  * Estos controles solo sirven si fallan cerrados: ante la duda, no dejan pasar
@@ -87,8 +96,6 @@ describe('topes diarios por rol', () => {
 });
 
 describe('compresion de la metadata de auditoria', () => {
-  const { leerMetadata } = require('../server/utils/auditLog.js');
-  const { gzipSync } = require('node:zlib');
 
   it('lee una metadata comprimida', () => {
     const original = { discrepancias: Array.from({ length: 50 }, (_, i) => ({ id: i, detalle: 'x'.repeat(60) })) };
@@ -127,7 +134,6 @@ describe('compresion de la metadata de auditoria', () => {
 });
 
 describe('sub-tope de devoluciones', () => {
-  const { PROPORCION_MAXIMA_DEVOLUCIONES, TOPE_DIARIO_POR_ROL_ARS } = require('../server/services/paymentSafeguards.js');
 
   it('las devoluciones no pueden ocupar todo el tope', () => {
     // Un pago va a la cuenta de un trabajador que se registro, verifico su
@@ -148,7 +154,6 @@ describe('sub-tope de devoluciones', () => {
 });
 
 describe('cancelacion antes de contratar', () => {
-  const { desgloseCancelacionSinContratar } = require('../shared/pricing/processingCost.js');
 
   it('el costo de pasarela no vuelve', () => {
     // Es lo que la gente no espera: MercadoPago ya cobro por procesar, y
@@ -181,7 +186,6 @@ describe('cancelacion antes de contratar', () => {
 });
 
 describe('marcas diarias del contrato', () => {
-  const { marcarDiasAlFinalizar, umbralAusencia, buildDailyLog } = require('../server/services/dailyLog.js');
 
   /** Contrato falso con lo justo que usa el servicio. */
   const contrato = (desde: string, hasta: string, log: any[] = []) => {
@@ -260,7 +264,6 @@ describe('marcas diarias del contrato', () => {
 });
 
 describe('expediente en PDF', () => {
-  const { evidenceToPdf } = require('../server/services/contractEvidence.js');
 
   const expediente = (mensajes: number) => ({
     generadoEn: new Date().toISOString(),
@@ -310,7 +313,6 @@ describe('expediente en PDF', () => {
 });
 
 describe('seleccion de mensajes del expediente', () => {
-  const { indicesAIncluir } = require('../server/services/contractEvidence.js');
 
   it('con pocos mensajes los incluye todos', () => {
     expect(indicesAIncluir(8, 60)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
@@ -365,7 +367,6 @@ describe('seleccion de mensajes del expediente', () => {
 });
 
 describe('quien puede promocionar su perfil', () => {
-  const { puedePromocionarse } = require('../server/routes/profilePromotion.js');
 
   it('un trabajador sin opiniones puede', () => {
     // Es quien mas lo necesita: no tiene historial que lo recomiende y la
@@ -388,7 +389,6 @@ describe('quien puede promocionar su perfil', () => {
 });
 
 describe('el silencio pierde en disputas', () => {
-  const { estadoDeSilencio, DIAS_PARA_RESPONDER } = require('../server/jobs/disputeSilence.js');
   const C = 'cliente-1', T = 'trabajador-1', A = 'admin-1';
   const hace = (d: number) => new Date(Date.now() - d * 86_400_000);
 
@@ -439,7 +439,6 @@ describe('el silencio pierde en disputas', () => {
 });
 
 describe('escalera de cancelaciones', () => {
-  const { VENTANA_DIAS, MARCA_VISIBLE_DIAS, SUSPENSION_DIAS } = require('../server/services/cancellationLadder.js');
 
   it('la ventana es movil, no de por vida', () => {
     // Un trabajador que cancelo dos veces hace un año y desde entonces cumplio

@@ -14,7 +14,10 @@ import { join } from 'path';
  *    solo "lo usamos para contactarte" deja abierta la duda de si se muestra.
  */
 
-const RAIZ = join(__dirname, '..', 'client');
+// process.cwd() y no __dirname: bajo ESM __dirname no existe, y este archivo
+// corre en el proyecto "esm". Es el mismo motivo por el que i18n.ts y
+// rolePasswordStore.ts tuvieron que dejar de usarlo.
+const RAIZ = join(process.cwd(), 'client');
 
 function archivosTsx(dir: string, acc: string[] = []): string[] {
   for (const nombre of readdirSync(dir)) {
