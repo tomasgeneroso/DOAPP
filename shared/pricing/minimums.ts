@@ -1,4 +1,5 @@
 import { COMMISSION_RATES } from '../constants/membershipPricing.js';
+import { MP_FEE_BY_RELEASE_DAYS } from './processingCost.js';
 
 /**
  * Montos minimos de la plataforma.
@@ -68,43 +69,63 @@ export const MINIMUM_COMMISSION_ARS = minimumCommissionArs();
 export const TOP_COMMISSION_RATE = COMMISSION_RATES.free / 100;
 
 /**
- * Dos reglas, y manda la mas exigente.
+ * Lo obligatorio es el piso de comision, no un precio minimo de trabajo.
  *
- * Regla 1 -- que el piso de comision no distorsione el precio:
- *   minimo = MINIMUM_COMMISSION / tasa
+ * Antes el minimo se derivaba del piso: `piso / tasa`, que es el precio a
+ * partir del cual el piso deja de morder. Con el piso en EUR 2 eso daba
+ * $36.000, y dejaba afuera casi toda la demanda real de oficios -- la visita
+ * del plomero, el arreglo electrico, el service de la estufa.
  *
- * Regla 2 -- que al trabajador le quede mas de lo que se llevan entre todos:
- *   minimo > comision + IVA + pasarela
+ * La regla es otra y es mas simple: **un trabajo puede valer lo que valga; lo
+ * que no puede es generar menos comision que el piso.** Si el trabajo es chico,
+ * la comision es el piso y se cobra el piso. La consecuencia es que en trabajos
+ * chicos la comision efectiva es mayor al 10%, y eso **hay que mostrarlo**, no
+ * esconderlo: es exactamente lo que hace Mercado Libre con su cargo fijo en
+ * ventas de bajo monto.
  *
- * La segunda existe porque sin ella se puede construir un caso absurdo: un
- * trabajo tan chico que el trabajador termina cobrando menos de lo que costo
- * moverle la plata. Hoy no manda -- la regla 1 da un numero mucho mas alto --
- * pero si algun dia sube la comision o la tarifa de la pasarela, esta se
- * vuelve la que corta, y conviene que el codigo se de cuenta solo en vez de
- * que lo descubra un usuario.
+ * Queda un solo minimo, y es tecnico: el trabajo no puede valer menos que la
+ * comision que genera. Por debajo de ahi el cliente pagaria mas de comision que
+ * de trabajo, el trabajador cobraria una fraccion del precio, y no hay forma de
+ * explicarlo. Ese punto es exactamente el piso.
  *
- * Tomar el maximo de las dos es lo que hace que el minimo siga siendo una
- * consecuencia de las reglas y no un numero que alguien eligio.
+ * Sigue existiendo la regla de sanidad: que al trabajador le quede algo despues
+ * de la pasarela. Hoy no manda -- da un numero mucho mas chico que el piso --
+ * pero si algun dia sube la tarifa, corta sola en vez de que lo descubra un
+ * usuario.
  */
-function minimumFromCommissionFloor(): number {
-  return MINIMUM_COMMISSION_ARS / TOP_COMMISSION_RATE;
-}
-
-function minimumFromFeeSum(): number {
-  // Punto donde el precio del trabajo iguala a todo lo que se le descuenta.
-  // Despejado: P = c*P + IVA(c*P) + tarifa*(P + c*P + IVA)
+function minimumFromWorkerTakeaway(): number {
+  // Punto donde al trabajador le queda cero: P*(1-tarifa) = tarifa*(comision+IVA).
+  // Con la comision al piso, que es el peor caso para un trabajo chico.
   const vatRate = 0.21;
-  const feeRate = 0.0531; // liberacion a 10 dias, el plazo configurado
-  const comm = TOP_COMMISSION_RATE;
-  const share = comm * (1 + vatRate) + feeRate * (1 + comm * (1 + vatRate));
-  // Con la comision al piso, el peor caso es el trabajo mas chico posible.
-  const conPiso = (MINIMUM_COMMISSION_ARS * (1 + vatRate)) / (1 - feeRate);
-  return Math.max(conPiso, share > 0 ? MINIMUM_COMMISSION_ARS / share : 0);
+  const feeRate = MP_FEE_BY_RELEASE_DAYS[0].withVat; // el tramo mas caro
+  const comisionConIva = MINIMUM_COMMISSION_ARS * (1 + vatRate);
+  return (feeRate * comisionConIva) / (1 - feeRate);
 }
 
 export const MINIMUM_JOB_AMOUNT_ARS = Math.ceil(
-  Math.max(minimumFromCommissionFloor(), minimumFromFeeSum()) / 1000,
-) * 1000;
+  Math.max(MINIMUM_COMMISSION_ARS, minimumFromWorkerTakeaway()) / 100,
+) * 100;
+
+/**
+ * La comision efectiva de un trabajo, como fraccion del precio.
+ *
+ * En trabajos por encima de `piso / tasa` es la tasa nominal (10%). Por debajo,
+ * el piso manda y la proporcion sube. Las pantallas tienen que mostrar ESTE
+ * numero, no el 10%, cuando el piso esta mordiendo: un cliente que ve "10%" y
+ * le cobran 36% tiene razon en sentirse enganado.
+ */
+export function comisionEfectiva(precio: number, eurArs?: number): number {
+  const p = Math.max(0, Number(precio) || 0);
+  if (p <= 0) return 0;
+  const piso = eurArs ? minimumCommissionArs(eurArs) : MINIMUM_COMMISSION_ARS;
+  return Math.max(p * TOP_COMMISSION_RATE, piso) / p;
+}
+
+/** A partir de que precio la comision deja de ser el piso y pasa a ser la tasa. */
+export function precioDondeElPisoDejaDeMorder(eurArs?: number): number {
+  const piso = eurArs ? minimumCommissionArs(eurArs) : MINIMUM_COMMISSION_ARS;
+  return piso / TOP_COMMISSION_RATE;
+}
 
 /**
  * Lo que cuesta procesar un contrato mas: soporte esperado, disputas y

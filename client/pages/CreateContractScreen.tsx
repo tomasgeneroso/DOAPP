@@ -28,7 +28,13 @@ import { JOB_CATEGORIES, JOB_TAGS, canJobsOverlap, getCategoryById } from "../..
 // El mínimo se muestra desde la constante que lo calcula, no escrito a mano:
 // se deriva del costo de pasarela, del costo fijo por contrato y del tipo de
 // cambio, así que cambia solo. Un número copiado acá quedaría mintiendo.
-import { MINIMUM_JOB_AMOUNT_ARS } from "../../shared/pricing/minimums";
+import {
+  MINIMUM_JOB_AMOUNT_ARS,
+  MINIMUM_COMMISSION_ARS,
+  comisionEfectiva,
+  precioDondeElPisoDejaDeMorder,
+} from "../../shared/pricing/minimums";
+import { COMMISSION_RATES } from "../../shared/constants/membershipPricing";
 import { CustomDateInput } from "@/components/ui/CustomDatePicker";
 import LocationAutocomplete from "@/components/ui/LocationAutocomplete";
 import StreetAutocomplete from "@/components/ui/StreetAutocomplete";
@@ -89,6 +95,17 @@ export default function CreateContractScreen() {
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [isQuotable, setIsQuotable] = useState(false); // "A cotizar" option
+
+  /**
+   * El precio tipeado, solo para mostrar la comisión efectiva mientras escribe.
+   *
+   * El input sigue siendo no controlado (el submit lo lee del form): esto no es
+   * la fuente de verdad, es lo que hace falta para que el cliente vea cuánto va
+   * a pagar ANTES de mandar. En trabajos chicos la comisión es el piso, no el
+   * 10%, y enterarse en la pantalla de pago es la forma más rápida de perder a
+   * alguien.
+   */
+  const [precioTipeado, setPrecioTipeado] = useState<number>(0);
 
   // Banking prompt modal state
   const [showBankingModal, setShowBankingModal] = useState(false);
@@ -509,6 +526,7 @@ export default function CreateContractScreen() {
                             e.preventDefault();
                           }
                         }}
+                        onChange={(e) => setPrecioTipeado(Number(e.target.value) || 0)}
                         className="block w-full rounded-md border-0 py-1.5 px-3 text-gray-900 dark:text-white dark:bg-slate-700 shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-slate-600 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-sky-600 sm:text-sm sm:leading-6"
                       />
                     )}
@@ -519,24 +537,54 @@ export default function CreateContractScreen() {
                         value=""
                       />
                     )}
-                    {!isQuotable && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        El monto mínimo de un trabajo es{' '}
-                        <span className="font-medium">
-                          ${MINIMUM_JOB_AMOUNT_ARS.toLocaleString('es-AR')}
-                        </span>
-                        .{' '}
-                        <a
-                          href="/legal/terminos-y-condiciones#s7p8"
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-sky-600 dark:text-sky-400 underline"
-                        >
-                          Por qué existe este mínimo
-                        </a>
-                        .
-                      </p>
-                    )}
+                    {!isQuotable && (() => {
+                      // La comisión tiene un piso. Por encima de cierto precio es
+                      // el 10%; por debajo, el piso manda y la proporción sube.
+                      // Mostrarlo mientras tipea es la diferencia entre una regla
+                      // y una sorpresa en la pantalla de pago.
+                      const pisoMuerde =
+                        precioTipeado > 0 &&
+                        precioTipeado < precioDondeElPisoDejaDeMorder();
+                      const comision = Math.max(
+                        precioTipeado * (COMMISSION_RATES.free / 100),
+                        MINIMUM_COMMISSION_ARS,
+                      );
+                      return (
+                        <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+                          <p>
+                            El monto mínimo de un trabajo es{' '}
+                            <span className="font-medium">
+                              ${MINIMUM_JOB_AMOUNT_ARS.toLocaleString('es-AR')}
+                            </span>
+                            .{' '}
+                            <a
+                              href="/legal/terminos-y-condiciones#s7p8"
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-sky-600 dark:text-sky-400 underline"
+                            >
+                              Por qué existe este mínimo
+                            </a>
+                            .
+                          </p>
+                          {pisoMuerde && (
+                            <p className="text-amber-700 dark:text-amber-400">
+                              En trabajos de este monto la comisión es la mínima de{' '}
+                              <span className="font-medium">
+                                ${Math.round(comision).toLocaleString('es-AR')}
+                              </span>
+                              , que equivale al{' '}
+                              <span className="font-medium">
+                                {(comisionEfectiva(precioTipeado) * 100).toFixed(0)}%
+                              </span>
+                              . A partir de{' '}
+                              ${precioDondeElPisoDejaDeMorder().toLocaleString('es-AR')}{' '}
+                              pasa a ser el {COMMISSION_RATES.free}% de siempre.
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
                     <label className="flex items-center gap-2 text-sm cursor-pointer">
                       <input
                         type="checkbox"
