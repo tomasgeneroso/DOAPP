@@ -14,8 +14,23 @@ import { Notification } from "../../models/sql/Notification.model.js";
 import { Op } from 'sequelize';
 import { isValidUUID } from "../../utils/sanitizer.js";
 import { generateWorkerPaymentInvoice } from "../../services/invoiceService.js";
+import { executeFinancialAction } from "../../services/paymentActions.js";
+import { logMoneyEvent } from "../../utils/auditLog.js";
+import { PAGO_TRABAJADOR_RETENCION_DIAS } from "../../../shared/constants/policies.js";
 
 const router = express.Router();
+
+/**
+ * Desde cuando se puede transferir el pago de un contrato al trabajador.
+ *
+ * Terminado + los dias del plazo para disputar. Antes de esa fecha la plata
+ * se queda: es lo que hace que "podes reclamar hasta 7 dias despues" sea una
+ * promesa y no una frase. Una transferencia bancaria no se cancela.
+ */
+export function pagableDesde(contract: { completedAt?: Date | null; clientConfirmedAt?: Date | null; updatedAt?: Date | null }): Date {
+  const fin = (contract as any).completedAt || contract.clientConfirmedAt || contract.updatedAt || new Date();
+  return new Date(new Date(fin).getTime() + PAGO_TRABAJADOR_RETENCION_DIAS * 86_400_000);
+}
 
 // Configure multer for worker payment proof uploads (admin uploads proof of bank transfer to worker)
 const workerPaymentProofStorage = multer.diskStorage({
@@ -89,6 +104,10 @@ interface ContractPaymentRow {
   totalContractAmount: number;
   totalCommission: number;
   completedAt: Date;
+  /** Desde cuando se puede transferir (fin del trabajo + plazo para disputar). */
+  pagableDesde: string;
+  /** Si todavia no se puede: el cliente puede reclamar. */
+  enRetencion: boolean;
   paymentStatus: string;
   escrowStatus: string;
   contractStatus: string;
@@ -339,6 +358,10 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
         totalContractAmount,
         totalCommission,
         completedAt: firstContract.clientConfirmedAt || firstContract.updatedAt,
+        // Retencion: desde cuando se puede transferir, y si ya se puede. El
+        // panel lo muestra para que el admin no intente antes y se coma el 409.
+        pagableDesde: pagableDesde(firstContract as any).toISOString(),
+        enRetencion: new Date() < pagableDesde(firstContract as any),
         paymentStatus: firstContract.paymentStatus || 'pending',
         escrowStatus: firstContract.escrowStatus || 'pending',
         contractStatus: firstContract.status,
@@ -856,6 +879,72 @@ router.post("/:contractId/mark-paid", protect, requireRole('admin', 'super_admin
 
     // Use the final amount with all deductions for the worker's balance
     const netAmount = finalAmountPaid;
+
+    /**
+     * Retencion: no se transfiere antes de que venza el plazo para disputar.
+     *
+     * Sin esto, un admin podia pagar el dia 1 y una disputa del dia 5 no tenia
+     * nada que retener. Se puede forzar con justificacion, y queda asentado con
+     * severidad alta: cada excepcion tiene que poder reconstruirse.
+     */
+    const desde = pagableDesde(contract as any);
+    const { forzar, justificacion } = req.body as { forzar?: boolean; justificacion?: string };
+    if (new Date() < desde) {
+      if (!forzar || !justificacion || String(justificacion).trim().length < 15) {
+        res.status(409).json({
+          success: false,
+          code: 'PAYOUT_EN_RETENCION',
+          message:
+            `Este pago se puede transferir a partir del ${desde.toLocaleDateString('es-AR')}: ` +
+            `el cliente todavia puede reclamar (${PAGO_TRABAJADOR_RETENCION_DIAS} dias desde el fin del trabajo). ` +
+            `Para adelantarlo, mandá forzar: true con una justificación de al menos 15 caracteres.`,
+          pagableDesde: desde.toISOString(),
+        });
+        return;
+      }
+      await logMoneyEvent({
+        action: 'PAYOUT_HOLD_OVERRIDDEN',
+        actor: `admin:${adminId}`,
+        severity: 'high',
+        description: `Pago al trabajador adelantado antes del fin de la retención (pagable desde ${desde.toISOString()}).`,
+        contractId,
+        userId: doer?.id,
+        monto: netAmount,
+        moneda: 'ARS',
+        metadata: { justificacion: String(justificacion).trim(), pagableDesde: desde.toISOString() },
+      });
+    }
+
+    /**
+     * Pasa por el libro, como toda accion terminal con plata.
+     *
+     * Esta ruta escribia directo en el contrato y en el saldo del trabajador,
+     * sin pasar por executeFinancialAction. O sea: pagaba contratos en
+     * disputa, con retencion por fraude, o ya pagados, y el indice que impide
+     * dos acciones terminales sobre el mismo contrato no la veia. El
+     * "proveedor" aca es la transferencia manual que el admin ya hizo y prueba
+     * con el comprobante; el libro registra que paso, y una sola vez.
+     */
+    const libro = await executeFinancialAction(
+      {
+        contractId,
+        actionType: 'PAYOUT',
+        provider: 'transferencia_manual',
+        amount: Number(netAmount),
+        currency: 'ARS',
+        executedById: adminId,
+        requestPayload: { proofOfPayment: proofOfPayment || null, paymentMethod: paymentMethod || null, deductions: deductions || null },
+      },
+      async () => ({ ok: true, resourceId: proofOfPayment || undefined }),
+    );
+    if (!libro.ok) {
+      res.status(409).json({
+        success: false,
+        code: libro.reason,
+        message: libro.message || 'No se pudo registrar el pago.',
+      });
+      return;
+    }
 
     // Update contract payment status with proof and admin info
     contract.paymentStatus = 'completed';

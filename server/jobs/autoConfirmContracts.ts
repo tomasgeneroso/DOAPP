@@ -11,7 +11,7 @@ import { POLITICAS } from '../../shared/constants/policies.js';
 /**
  * Horas en awaiting_confirmation antes de confirmar solo y liberar el escrow.
  *
- * 24 y no menos: con 5 horas, un trabajo confirmado a las 22:00 se
+ * 24 y no menos: con el plazo anterior (5 h), un trabajo confirmado a las 22:00 se
  * auto-confirmaba a las 3 de la manana y el cliente perdia su ventana por
  * dormirse. 24 cubre un dia entero sin mirar el telefono sin dejar la plata
  * del trabajador en el aire, y el reclamo sigue abierto unos dias despues de
@@ -122,7 +122,7 @@ export function startAutoConfirmContractsJob() {
               type: 'info',
               category: 'contracts',
               title: 'Contrato confirmado automáticamente',
-              message: `El contrato para "${job?.title || 'trabajo'}" ha sido confirmado automáticamente después de 5 horas. El pago está siendo procesado.`,
+              message: `El contrato para "${job?.title || 'trabajo'}" se confirmó automáticamente después de ${AUTO_CONFIRM_HOURS} horas sin respuesta. Si algo no salió bien, podés abrir un reclamo hasta ${POLITICAS.DIAS_PARA_DISPUTAR} días después de terminado el trabajo; el pago al trabajador se retiene hasta entonces.`,
               relatedModel: 'Contract',
               relatedId: contract.id,
               actionText: 'Ver contrato',
@@ -138,8 +138,11 @@ export function startAutoConfirmContractsJob() {
               recipientId: contract.doerId,
               type: 'info',
               category: 'contracts',
-              title: 'Pago en proceso',
-              message: `El contrato para "${job?.title || 'trabajo'}" ha sido confirmado automáticamente. Tu pago de $${workerPaymentAmount?.toLocaleString('es-AR')} está siendo procesado y se acreditará pronto.`,
+              title: 'Trabajo confirmado, pago en retención',
+              // Decirle "se acredita pronto" y transferirle a los 7 días es la
+              // forma más rápida de que escriba a soporte enojado. Se le dice
+              // la fecha.
+              message: `El contrato para "${job?.title || 'trabajo'}" se confirmó automáticamente. Tu pago de $${workerPaymentAmount?.toLocaleString('es-AR')} se transfiere a partir del ${new Date(now.getTime() + POLITICAS.DIAS_PARA_DISPUTAR * 86_400_000).toLocaleDateString('es-AR')}, cuando vence el plazo del cliente para reclamar.`,
               relatedModel: 'Contract',
               relatedId: contract.id,
               actionText: 'Ver contrato',
@@ -158,10 +161,10 @@ export function startAutoConfirmContractsJob() {
                 subject: `✅ Contrato confirmado automáticamente: ${job?.title || 'Trabajo'}`,
                 html: `
                   <h2>Contrato confirmado automáticamente</h2>
-                  <p>El contrato para <strong>"${job?.title || 'trabajo'}"</strong> ha sido confirmado automáticamente después de 5 horas sin respuesta.</p>
-                  <p>El pago de <strong>$${workerPaymentAmount?.toLocaleString('es-AR')} ARS</strong> está siendo procesado y será transferido al trabajador.</p>
+                  <p>El contrato para <strong>"${job?.title || 'trabajo'}"</strong> se confirmó automáticamente después de ${AUTO_CONFIRM_HOURS} horas sin respuesta.</p>
+                  <p>El pago de <strong>$${workerPaymentAmount?.toLocaleString('es-AR')} ARS</strong> queda retenido y se transfiere al trabajador cuando vence el plazo para reclamar.</p>
                   <p style="color: #666; font-size: 12px;">
-                    Si tienes algún problema con el trabajo realizado, puedes abrir una disputa dentro de las próximas 24 horas.
+                    Si algo no salió bien con el trabajo, podés abrir un reclamo hasta ${POLITICAS.DIAS_PARA_DISPUTAR} días después de terminado. Mientras el reclamo esté abierto, el pago no se transfiere.
                   </p>
                 `,
               });

@@ -1377,7 +1377,7 @@
     "actualEnd": "Fin real",
     "additionalNotesOptional": "Notas adicionales (opcional)",
     "confirmHours": "Confirmar horas",
-    "waitingOtherPartyConfirm": "Confirmaste tus horas. Esperando que la otra parte revise y confirme. (Autoconfirmación en 5 horas)",
+    "waitingOtherPartyConfirm": "Confirmaste tus horas. Esperando que la otra parte revise y confirme. Si no responde en 24 horas, se confirma solo.",
     "confirmAndRelease": "Confirmar y liberar el pago",
     "rejectAndOpenDispute": "Rechazar y abrir disputa",
     "rejectConfirmation": "Rechazar confirmación",

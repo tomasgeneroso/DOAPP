@@ -94,3 +94,13 @@ export type PoliticaClave = keyof typeof POLITICAS;
  */
 export const DISPUTA_AVISO_DIAS_ANTES =
   POLITICAS.DISPUTA_DIAS_PARA_RESPONDER - POLITICAS.DISPUTA_DIAS_PARA_AVISAR;
+
+/**
+ * Dias que se retiene el pago al trabajador despues de terminado el contrato,
+ * antes de transferirlo. Igual al plazo para disputar, y derivado a proposito:
+ * la promesa de "podes reclamar hasta 7 dias despues" solo es verdad si la
+ * plata todavia esta aca el dia 7. Una transferencia bancaria no se cancela.
+ *
+ * Es el "periodo de seguridad" de Upwork (5 dias), con el numero nuestro.
+ */
+export const PAGO_TRABAJADOR_RETENCION_DIAS = POLITICAS.DIAS_PARA_DISPUTAR;

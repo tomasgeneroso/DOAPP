@@ -1620,7 +1620,7 @@
     "actualEnd": "Actual end",
     "additionalNotesOptional": "Additional notes (optional)",
     "confirmHours": "Confirm hours",
-    "waitingOtherPartyConfirm": "You confirmed your hours. Waiting for the other party to review and confirm. (Auto-confirmation in 5 hours)",
+    "waitingOtherPartyConfirm": "You confirmed your hours. Waiting for the other party to review and confirm. If they do not respond within 24 hours, it confirms automatically.",
     "confirmAndRelease": "Confirm and release the payment",
     "rejectAndOpenDispute": "Reject and open dispute",
     "rejectConfirmation": "Reject confirmation",

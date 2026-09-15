@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { POLITICAS, DISPUTA_AVISO_DIAS_ANTES } from '../../shared/constants/policies.js';
+import { POLITICAS, DISPUTA_AVISO_DIAS_ANTES, PAGO_TRABAJADOR_RETENCION_DIAS } from '../../shared/constants/policies.js';
 import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from '../../shared/constants/membershipPricing.js';
 import { MINIMUM_COMMISSION_EUR } from '../../shared/pricing/minimums.js';
 import { termsEs } from '../../shared/legal/terms.es.js';
@@ -142,12 +142,25 @@ describe('los textos de la app dicen lo mismo que los terminos', () => {
     'client/pages/JobPayment.tsx',
     'client/components/jobDetail/CancelJobModal.tsx',
     'server/services/email.ts',
+    'server/jobs/autoConfirmContracts.ts',
   ];
 
-  it('ninguno menciona el plazo viejo de dos horas', () => {
-    const viejo = /\b(2|dos|two) (horas|hours)\b/i;
+  it('ninguno menciona los plazos viejos de auto-confirmacion', () => {
+    // 2 horas (los terminos viejos) y 5 horas (el cron viejo). Los dos
+    // sobrevivieron meses en textos que el usuario leia.
+    const viejo = /\b(2|dos|two|5|cinco|five) (horas|hours)\b/i;
     const culpables = ARCHIVOS_DE_COPY.filter((p) => viejo.test(leer(p)));
     expect(culpables).toEqual([]);
+  });
+
+  it('la retencion del pago al trabajador es el plazo para disputar, y los terminos lo dicen', () => {
+    // Si se separaran, la promesa "podes reclamar hasta X dias" dejaria de
+    // tener plata detras. 7.6 y 10.7 tienen que hablar de la transferencia.
+    expect(PAGO_TRABAJADOR_RETENCION_DIAS).toBe(POLITICAS.DIAS_PARA_DISPUTAR);
+    expect(termsEs.s7p6).toMatch(/transferencia efectiva al Trabajador/i);
+    expect(termsEs.s10p7).toMatch(/retiene la transferencia/i);
+    expect(termsEn.s7p6).toMatch(/actual transfer to the Worker/i);
+    expect(termsEn.s10p7).toMatch(/holds the transfer/i);
   });
 
   it('el aviso de cancelacion nombra el plazo vigente', () => {
