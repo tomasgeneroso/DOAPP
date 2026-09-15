@@ -48,12 +48,18 @@ export const POLITICAS = {
 
   /**
    * Escalera de cancelaciones del trabajador. T&C 9.4.
-   * Las cancelaciones se cuentan dentro de VENTANA_DIAS; la 2a deja una marca
-   * visible MARCA_VISIBLE_DIAS; la 3a suspende de postularse SUSPENSION_DIAS.
+   * Las cancelaciones se cuentan dentro de VENTANA_DIAS:
+   *   1a  aviso
+   *   2a  marca visible en el perfil por MARCA_VISIBLE_DIAS
+   *   3a  suspension de postularse por SUSPENSION_3RA_DIAS (+ marca)
+   *   4a+ suspension por SUSPENSION_4TA_DIAS (+ marca)
+   * Dos escalones de suspension y no uno: la tercera todavia puede ser mala
+   * suerte; la cuarta en tres meses es un patron.
    */
   CANCELACION_VENTANA_DIAS: 90,
   CANCELACION_MARCA_VISIBLE_DIAS: 90,
-  CANCELACION_SUSPENSION_DIAS: 14,
+  CANCELACION_SUSPENSION_3RA_DIAS: 7,
+  CANCELACION_SUSPENSION_4TA_DIAS: 14,
 
   /**
    * Horas antes del inicio hasta las cuales el cliente cancela con devolucion

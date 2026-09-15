@@ -543,6 +543,11 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
           alias: user.bankingInfo.alias,
         } : undefined,
         dontAskBankingInfo: user?.dontAskBankingInfo,
+        // Escalera de cancelaciones (T&C 9.4). Al propio usuario se le muestra
+        // siempre: tiene que saber que esta suspendido ANTES de intentar
+        // postularse, no descubrirlo con un 403.
+        cancellationMarkUntil: (user as any)?.cancellationMarkUntil ?? null,
+        suspendedFromApplyingUntil: (user as any)?.suspendedFromApplyingUntil ?? null,
         // Owner's own data → return the DNI/CUIT decrypted (it's stored encrypted)
         legalInfo: user?.legalInfo
           ? { ...user.legalInfo, idNumber: user.getDecryptedIdNumber?.() ?? user.legalInfo.idNumber }

@@ -43,6 +43,7 @@ import { getClientInfo } from "@/lib/utils";
 import MultipleRatings from "../components/user/MultipleRatings";
 import { getCategoryById } from "../../shared/constants/categories";
 import { POLITICAS } from "../../shared/constants/policies";
+import { SuspendedNotice, CancellationMark } from "../components/CancellationLadder";
 import LocationCircleMap from "../components/map/LocationCircleMap";
 import JobTasks from "../components/jobs/JobTasks";
 import { getImageUrl } from "../utils/imageUrl";
@@ -2689,6 +2690,11 @@ export default function JobDetail() {
                         </button>
                       )}
                     </div>
+                  ) : (user as any)?.suspendedFromApplyingUntil &&
+                    new Date((user as any).suspendedFromApplyingUntil) > new Date() ? (
+                    // Suspendido por la escalera de cancelaciones: se entera acá,
+                    // no con un 403 después de escribir la propuesta.
+                    <SuspendedNotice until={(user as any).suspendedFromApplyingUntil} />
                   ) : (
                     <button
                       onClick={handleApply}
@@ -3612,6 +3618,8 @@ export default function JobDetail() {
                                     <Key className="h-3 w-3" />#
                                     {getJobCode(job.id || job._id)}
                                   </span>
+                                  {/* Marca de cancelaciones (T&C 9.4): justo donde el cliente elige */}
+                                  <CancellationMark until={(proposal.freelancer as any)?.cancellationMarkUntil} compact />
                                 </div>
                                 <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400 mt-1">
                                   <span className="flex items-center gap-1">

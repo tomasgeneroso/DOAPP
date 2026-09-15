@@ -11,6 +11,19 @@ import type { AuthRequest } from "../middleware/auth.js";
 
 const router = express.Router();
 
+/**
+ * La marca de cancelaciones (T&C 9.4), solo si sigue vigente.
+ *
+ * Se devuelve en los perfiles publicos a proposito: la escalera funciona
+ * porque el cliente la ve al elegir. Una marca que nadie ve no disuade nada.
+ * Vencida, no se devuelve: el trabajador ya pago.
+ */
+function marcaVigente(hasta: Date | string | null | undefined): string | null {
+  if (!hasta) return null;
+  const d = new Date(hasta);
+  return d > new Date() ? d.toISOString() : null;
+}
+
 // @route   GET /api/users/check-username/:username
 // @desc    Check if username is available
 // @access  Public
@@ -140,7 +153,7 @@ router.get("/u/:username", async (req: Request, res: Response): Promise<void> =>
         id: user.id,
         name: user.name,
         username: user.username,
-        email: user.email,
+        // Sin email ni phone: perfil publico, sin login. Ver nota en GET /:id.
         avatar: user.avatar,
         coverImage: (user as any).coverImage,
         bio: user.bio,
@@ -170,8 +183,8 @@ router.get("/u/:username", async (req: Request, res: Response): Promise<void> =>
         hasMembership: user.hasMembership,
         isPremiumVerified: user.isPremiumVerified,
         hasFamilyPlan: user.hasFamilyPlan,
-        phone: user.phone,
         createdAt: user.createdAt,
+        cancellationMarkUntil: marcaVigente((user as any).cancellationMarkUntil),
         profession: user.profession,
         licenseNumber: user.licenseNumber,
         licenseCategory: user.licenseCategory,
@@ -216,11 +229,14 @@ router.get("/:id/profile", dataMinimizationMiddleware, async (req: Request, res:
         id: user.id,
         name: user.name,
         username: user.username,
+        // email y phone se quedan SOLO para el dueño y admins: este endpoint
+        // pasa por dataMinimizationMiddleware, que los saca para el resto.
         email: user.email,
         avatar: user.avatar,
         coverImage: (user as any).coverImage,
         bio: user.bio,
         location: user.address,
+        cancellationMarkUntil: marcaVigente((user as any).cancellationMarkUntil),
         rating: user.rating,
         workQualityRating: user.workQualityRating,
         workerRating: user.workerRating,
@@ -512,7 +528,6 @@ router.get("/:id", async (req: Request, res: Response): Promise<void> => {
         id: user.id,
         name: user.name,
         username: user.username,
-        email: user.email,
         avatar: user.avatar,
         coverImage: (user as any).coverImage,
         bio: user.bio,
@@ -542,8 +557,14 @@ router.get("/:id", async (req: Request, res: Response): Promise<void> => {
         hasMembership: user.hasMembership,
         isPremiumVerified: user.isPremiumVerified,
         hasFamilyPlan: user.hasFamilyPlan,
-        phone: user.phone,
+        // Ni phone ni email: es el perfil PUBLICO y esta ruta no pide login.
+        // Los dos se devolvian, mientras el formulario de registro promete que
+        // el telefono "no aparece en tu perfil". Lo que se le promete al
+        // usuario en el formulario tiene que ser verdad en la API.
         createdAt: user.createdAt,
+        // Marca de cancelaciones (T&C 9.4): solo mientras esta vigente. Es
+        // publica a proposito: es lo que hace que la escalera funcione.
+        cancellationMarkUntil: marcaVigente((user as any).cancellationMarkUntil),
       },
     });
   } catch (error: any) {

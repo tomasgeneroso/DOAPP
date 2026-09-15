@@ -23,7 +23,8 @@ import { POLITICAS } from '../../shared/constants/policies.js';
  *   1ª cancelacion en 90 dias   aviso. Se le explica la escalera.
  *   2ª                          marca visible en el perfil por 90 dias, y se le
  *                               avisa que la proxima lo suspende.
- *   3ª o mas                    suspendido de postularse por 14 dias.
+ *   3ª                          suspendido de postularse por 7 dias.
+ *   4ª o mas                    suspendido por 14 dias.
  *
  * La ventana es de 90 dias y no de toda la vida: un trabajador que cancelo dos
  * veces hace un año y desde entonces cumplio todo no es el mismo que uno que
@@ -39,7 +40,13 @@ import { POLITICAS } from '../../shared/constants/policies.js';
 // que los nombran (9.4). Aca solo se les da el nombre corto de este archivo.
 export const VENTANA_DIAS = POLITICAS.CANCELACION_VENTANA_DIAS;
 export const MARCA_VISIBLE_DIAS = POLITICAS.CANCELACION_MARCA_VISIBLE_DIAS;
-export const SUSPENSION_DIAS = POLITICAS.CANCELACION_SUSPENSION_DIAS;
+export const SUSPENSION_3RA_DIAS = POLITICAS.CANCELACION_SUSPENSION_3RA_DIAS;
+export const SUSPENSION_4TA_DIAS = POLITICAS.CANCELACION_SUSPENSION_4TA_DIAS;
+
+/** Dias de suspension segun cuantas cancelaciones lleva en la ventana. */
+export function diasDeSuspension(cancelaciones: number): number {
+  return cancelaciones >= 4 ? SUSPENSION_4TA_DIAS : SUSPENSION_3RA_DIAS;
+}
 
 export interface ResultadoEscalera {
   cancelacionesEnVentana: number;
@@ -85,8 +92,8 @@ export async function aplicarEscalera(trabajadorId: string, contractId: string):
       message:
         'Entendemos que pasan cosas. Pero tené presente cómo funciona: si cancelás otro trabajo ' +
         `aceptado en los próximos ${VENTANA_DIAS} días, tu perfil va a mostrar una marca de cancelación ` +
-        `durante ${MARCA_VISIBLE_DIAS} días. A la tercera, no vas a poder postularte por ${SUSPENSION_DIAS} días. ` +
-        'Avisar a tiempo siempre es mejor que cancelar.',
+        `durante ${MARCA_VISIBLE_DIAS} días. A la tercera, no vas a poder postularte por ${SUSPENSION_3RA_DIAS} días; ` +
+        `a la cuarta, por ${SUSPENSION_4TA_DIAS}. Avisar a tiempo siempre es mejor que cancelar.`,
       relatedModel: 'Contract',
       relatedId: contractId,
       sentVia: ['in_app'],
@@ -103,13 +110,14 @@ export async function aplicarEscalera(trabajadorId: string, contractId: string):
       message:
         `Cancelaste dos trabajos aceptados en ${VENTANA_DIAS} días. Durante los próximos ${MARCA_VISIBLE_DIAS} días ` +
         'los clientes van a ver una marca de cancelación en tu perfil. ' +
-        `Si cancelás otro, no vas a poder postularte durante ${SUSPENSION_DIAS} días.`,
+        `Si cancelás otro, no vas a poder postularte durante ${SUSPENSION_3RA_DIAS} días.`,
       relatedModel: 'Contract',
       relatedId: contractId,
       sentVia: ['in_app'],
     } as any);
   } else {
-    const suspendidoHasta = new Date(ahora.getTime() + SUSPENSION_DIAS * 86_400_000);
+    const dias = diasDeSuspension(n);
+    const suspendidoHasta = new Date(ahora.getTime() + dias * 86_400_000);
     const marcaHasta = new Date(ahora.getTime() + MARCA_VISIBLE_DIAS * 86_400_000);
     resultado = { cancelacionesEnVentana: n, escalon: 'suspension', suspendidoHasta, marcaHasta };
     await user.update({
@@ -123,7 +131,8 @@ export async function aplicarEscalera(trabajadorId: string, contractId: string):
       title: `No vas a poder postularte hasta el ${suspendidoHasta.toLocaleDateString('es-AR')}`,
       message:
         `Cancelaste ${n} trabajos aceptados en ${VENTANA_DIAS} días. Tus postulaciones quedan suspendidas ` +
-        `por ${SUSPENSION_DIAS} días. Los contratos que ya tenés en curso siguen igual. ` +
+        `por ${dias} días. Los contratos que ya tenés en curso siguen igual. ` +
+        (n === 3 ? `Si volvés a cancelar, la próxima suspensión es de ${SUSPENSION_4TA_DIAS} días. ` : '') +
         'Si hubo un motivo de fuerza mayor, escribile a soporte con el detalle.',
       relatedModel: 'Contract',
       relatedId: contractId,

@@ -13,7 +13,7 @@ import { marcarDiasAlFinalizar, umbralAusencia, buildDailyLog } from '../server/
 import { evidenceToPdf, indicesAIncluir } from '../server/services/contractEvidence.js';
 import { puedePromocionarse } from '../server/routes/profilePromotion.js';
 import { estadoDeSilencio, DIAS_PARA_RESPONDER } from '../server/jobs/disputeSilence.js';
-import { VENTANA_DIAS, MARCA_VISIBLE_DIAS, SUSPENSION_DIAS } from '../server/services/cancellationLadder.js';
+import { VENTANA_DIAS, MARCA_VISIBLE_DIAS, SUSPENSION_3RA_DIAS, SUSPENSION_4TA_DIAS, diasDeSuspension } from '../server/services/cancellationLadder.js';
 
 /**
  * Estos controles solo sirven si fallan cerrados: ante la duda, no dejan pasar
@@ -450,6 +450,17 @@ describe('escalera de cancelaciones', () => {
   it('la suspension es corta y la marca larga', () => {
     // La suspension castiga; la marca informa. Informar tiene que durar mas
     // que castigar: es lo que le sirve al proximo cliente.
-    expect(SUSPENSION_DIAS).toBeLessThan(MARCA_VISIBLE_DIAS);
+    expect(SUSPENSION_4TA_DIAS).toBeLessThan(MARCA_VISIBLE_DIAS);
+  });
+
+  it('la cuarta cancelacion suspende mas que la tercera', () => {
+    // La tercera todavia puede ser mala suerte; la cuarta en tres meses es un
+    // patron. Cada escalon tiene que ser mas caro que el anterior, si no la
+    // escalera deja de ser escalera.
+    expect(SUSPENSION_3RA_DIAS).toBeGreaterThan(0);
+    expect(SUSPENSION_4TA_DIAS).toBeGreaterThan(SUSPENSION_3RA_DIAS);
+    expect(diasDeSuspension(3)).toBe(SUSPENSION_3RA_DIAS);
+    expect(diasDeSuspension(4)).toBe(SUSPENSION_4TA_DIAS);
+    expect(diasDeSuspension(9)).toBe(SUSPENSION_4TA_DIAS);
   });
 });

@@ -358,4 +358,8 @@ export const PUBLIC_STRIP_FIELDS = [
   'verificationToken', 'verificationTokenExpiry',
   'bankingInfo', 'legalInfo',
   'fcmTokens', 'bannedBy',
+  // Datos de contacto e identidad. No estaban en la lista, asi que el
+  // middleware de "minimizacion" dejaba pasar email y telefono a cualquiera
+  // que pidiera un perfil publico, mientras el registro promete lo contrario.
+  'email', 'phone', 'dni', 'address',
 ];

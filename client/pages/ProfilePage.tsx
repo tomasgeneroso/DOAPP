@@ -14,6 +14,7 @@ import KycButton from '../components/KycButton';
 import AttentionDot from '../components/AttentionDot';
 import { usePendingTasks } from '../hooks/usePendingTasks';
 import VerifiedBadge from '../components/VerifiedBadge';
+import { CancellationMark } from '../components/CancellationLadder';
 import PostCard from '../components/user/PostCard';
 import CreatePost from '../components/user/CreatePost';
 import PostComments from '../components/user/PostComments';
@@ -685,6 +686,12 @@ export default function ProfilePage() {
                           <CredibilityBadge credibility={(user as any).credibility} variant="compact" />
                         </div>
                       )}
+                      {/* Marca de cancelaciones (T&C 9.4). Es pública a propósito. */}
+                      {(user as any).cancellationMarkUntil && (
+                        <div className="mb-3 max-w-md">
+                          <CancellationMark until={(user as any).cancellationMarkUntil} />
+                        </div>
+                      )}
                       {user.bio && (
                         <p className="text-slate-600 dark:text-slate-400 max-w-2xl">
                           {user.bio}
@@ -849,7 +856,9 @@ export default function ProfilePage() {
                 <div>
                   <h3 className="text-sm font-semibold text-slate-900 dark:text-white mb-2">Verificá tu teléfono</h3>
                   <PhoneVerification
-                    phone={(user as any).phone}
+                    // Del usuario logueado, no del perfil cargado: el endpoint
+                    // publico ya no devuelve el telefono de nadie.
+                    phone={(currentUser as any)?.phone}
                     verified={(user as any).phoneVerified}
                     onVerified={() => setUser({ ...(user as any), phoneVerified: true })}
                   />

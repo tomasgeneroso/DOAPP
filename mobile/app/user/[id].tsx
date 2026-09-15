@@ -15,6 +15,7 @@ import { ArrowLeft, Star, MapPin, Calendar, Briefcase, CheckCircle, Award, Messa
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import { useTheme } from '../../context/ThemeContext';
 import { get, getImageUrl } from '../../services/api';
+import { CancellationMark } from '../../components/CancellationLadder';
 import { getCategoryById } from '../../services/jobs';
 
 const DAY_NAMES_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -254,6 +255,9 @@ export default function UserProfileScreen() {
               ({user.reviewsCount || 0} opiniones)
             </Text>
           </View>
+
+          {/* Marca de cancelaciones (T&C 9.4). Es pública a propósito. */}
+          <CancellationMark until={(user as any).cancellationMarkUntil} />
 
           {/* Bio */}
           {user.bio && (

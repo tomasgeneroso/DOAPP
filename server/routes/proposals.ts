@@ -252,7 +252,9 @@ router.get("/job/:jobId",
           model: User,
           as: 'freelancer',
           attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount', 'completedJobs',
-            'profession', 'licenseNumber', 'licenseCategory', 'licenseCertNumber', 'licenseVerified']
+            'profession', 'licenseNumber', 'licenseCategory', 'licenseCertNumber', 'licenseVerified',
+            // La marca de cancelaciones va donde el cliente elige (T&C 9.4).
+            'cancellationMarkUntil']
         }
       ],
       order: [['createdAt', 'DESC']]
@@ -315,12 +317,15 @@ router.get("/:id",
         {
           model: User,
           as: 'freelancer',
-          attributes: ['id', 'name', 'email', 'avatar', 'rating', 'reviewsCount', 'completedJobs']
+          // Sin email: la otra parte no recibe datos de contacto antes de
+          // contratar (es la misma regla que el filtro del chat). La marca de
+          // cancelaciones si, porque es lo que el cliente necesita para elegir.
+          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount', 'completedJobs', 'cancellationMarkUntil']
         },
         {
           model: User,
           as: 'client',
-          attributes: ['id', 'name', 'email', 'avatar']
+          attributes: ['id', 'name', 'avatar']
         }
       ]
     });

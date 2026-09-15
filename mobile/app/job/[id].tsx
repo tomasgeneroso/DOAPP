@@ -43,6 +43,7 @@ import {
 import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
+import { SuspendedNotice } from '../../components/CancellationLadder';
 import { getJob, pauseJob, resumeJob, cancelJob } from '../../services/jobs';
 import { createProposal, getProposalsByJob } from '../../services/proposals';
 import { getContractsByJob, confirmContract } from '../../services/contracts';
@@ -844,6 +845,10 @@ export default function JobDetailScreen() {
                   </TouchableOpacity>
                 </View>
               </View>
+            ) : (user as any)?.suspendedFromApplyingUntil &&
+              new Date((user as any).suspendedFromApplyingUntil) > new Date() ? (
+              // Suspendido por la escalera: se entera acá, no con un 403.
+              <SuspendedNotice until={(user as any).suspendedFromApplyingUntil} />
             ) : (
               <TouchableOpacity
                 style={styles.applyButton}

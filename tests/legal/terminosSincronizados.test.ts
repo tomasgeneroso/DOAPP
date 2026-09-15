@@ -41,7 +41,8 @@ const CLAUSULAS: Array<{ key: string; valores: Array<number | string>; que: stri
     valores: [
       POLITICAS.CANCELACION_VENTANA_DIAS,
       POLITICAS.CANCELACION_MARCA_VISIBLE_DIAS,
-      POLITICAS.CANCELACION_SUSPENSION_DIAS,
+      POLITICAS.CANCELACION_SUSPENSION_3RA_DIAS,
+      POLITICAS.CANCELACION_SUSPENSION_4TA_DIAS,
     ],
     que: 'escalera de cancelaciones',
   },

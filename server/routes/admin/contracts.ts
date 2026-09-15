@@ -1238,6 +1238,19 @@ router.post(
         cancelledBy: request.requestedBy,
       });
 
+      // Si el que pidió cancelar fue el trabajador, corre la escalera (T&C 9.4).
+      // Este era el único camino de cancelación con trabajador que no la
+      // aplicaba: la penalidad existía solo si avisaba por /worker-unavailable,
+      // y desaparecía si lo pedía por acá.
+      if (String(request.requestedBy) === String(contract.doerId)) {
+        try {
+          const { aplicarEscalera } = await import('../../services/cancellationLadder.js');
+          await aplicarEscalera(String(contract.doerId), String(contract.id));
+        } catch (e: any) {
+          console.error('[cancelación aprobada] no se pudo aplicar la escalera:', e.message);
+        }
+      }
+
       // Handle refund if approved
       if (refundApproved && (contract.paymentStatus === 'escrow' || contract.paymentStatus === 'held')) {
         contract.paymentStatus = 'refunded';
