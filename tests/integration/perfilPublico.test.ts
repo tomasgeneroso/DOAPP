@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, beforeEach } from '@jest/globals';
+import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import request from 'supertest';
 import express, { Express } from 'express';
 import { User } from '../../server/models/sql/User.model.js';
@@ -27,9 +27,9 @@ describe('perfil publico', () => {
     app.use(express.json());
     const usersRoutes = await import('../../server/routes/users.js');
     app.use('/api/users', usersRoutes.default);
-  });
 
-  beforeEach(async () => {
+    // Una sola vez: email y username son unicos, y el setup de integracion
+    // limpia por suite, no por test.
     usuario = await User.create({
       email: 'privado@perfil.test',
       name: 'Persona Privada',
@@ -48,6 +48,10 @@ describe('perfil publico', () => {
       role: 'doer',
       cancellationMarkUntil: new Date(Date.now() + 30 * 86_400_000),
     } as any);
+  });
+
+  afterAll(async () => {
+    await User.destroy({ where: { email: ['privado@perfil.test', 'marcado@perfil.test'] } });
   });
 
   const SENSIBLES = ['email', 'phone', 'dni', 'password', 'bankingInfo'];
