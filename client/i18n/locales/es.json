@@ -785,13 +785,13 @@
       "resume": "Reanudar trabajo",
       "cancel": "Cancelar trabajo",
       "contactSupport": "Contactar soporte",
-      "cantCancel": "Ya no puedes cancelar este trabajo (menos de 24h antes de inicio). Contacta a soporte si necesitas ayuda",
-      "timeToCancel": "Tiempo restante para cancelar:",
+      "cantCancel": "Cancelación tardía: faltan menos de 24 h para el inicio. Si ya hay un trabajador seleccionado, la mitad del precio se le paga a él por el día que reservó y el resto vuelve a tu saldo. Si no hay trabajador, se te devuelve el precio completo. La comisión de publicación no se devuelve.",
+      "timeToCancel": "Tiempo restante para cancelar con devolución completa:",
       "publishedReceiving": "Este trabajo está publicado y recibiendo propuestas",
       "cancelAndRefund": "Cancelar y obtener reembolso",
-      "daysToCancel": "días para cancelar",
+      "daysToCancel": "días",
       "timeRemaining": "Tiempo restante:",
-      "toCancel": "para cancelar"
+      "toCancel": ""
     },
     "locationPlaceholder": "ej. Palermo, Buenos Aires",
     "streetPlaceholder": "ej. Calle 123",
@@ -906,7 +906,7 @@
     "cancelledOrRejectedNote": "Este trabajo fue {{status}}. Cuando guardes los cambios, se enviará automáticamente a revisión y aprobación antes de publicarse.",
     "cancelListing": "Cancelar publicación",
     "cancelWarningCommission": "Al cancelar la publicación",
-    "cantCancel24h": "No se puede cancelar con menos de 24h antes del inicio",
+    "cantCancel24h": "Cancelación tardía: si hay trabajador, la mitad del precio va para él",
     "categoryDescription": "Seleccioná la categoría que mejor describe tu trabajo",
     "categoryLabel": "Categoría",
     "changeBudget": "Cambiar presupuesto",
@@ -1050,7 +1050,7 @@
     "publishing": "Publicando...",
     "reasonMinLength": "El motivo debe tener al menos 10 caracteres",
     "redirectToContract": "Redirigir al contrato",
-    "remember24hCancel": "Recordá: solo podés cancelar hasta 24 horas antes de que empiece el trabajo.",
+    "remember24hCancel": "Podés cancelar hasta que empiece el trabajo. Con más de 24 horas de anticipación se te devuelve el precio; con menos, la mitad va al trabajador que reservó el día.",
     "reportProblem": "Reportar problema",
     "reschedule": "Reprogramar",
     "reschedulingNoApplicants": "Reprogramando trabajo sin postulantes",
@@ -1998,7 +1998,7 @@
       "problemWithJob": "¿Qué hago si hay un problema con un trabajo?",
       "problemWithJobAnswer": "Puedes abrir una disputa desde el detalle del contrato. Un administrador revisará el caso y tomará una decisión justa basada en pruebas de ambas partes. Mientras tanto, el dinero permanece bloqueado",
       "confirmationSystem": "¿Cómo funciona el sistema de confirmación?",
-      "confirmationSystemAnswer": "Cuando se completa el trabajo, ambas partes deben confirmar. Si una parte no confirma dentro de 2 horas, el sistema confirma automáticamente y libera el pago"
+      "confirmationSystemAnswer": "Cuando se completa el trabajo, ambas partes deben confirmar. Si el cliente no confirma dentro de 24 horas, el sistema confirma automáticamente y libera el pago. El reclamo sigue abierto 7 días después."
     }
   },
   "footer": {

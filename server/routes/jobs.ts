@@ -2444,10 +2444,13 @@ router.patch("/:id/resume", protect, async (req: AuthRequest, res: Response): Pr
   }
 });
 
-// @route   PATCH /api/jobs/:id/cancel
+// @route   PATCH /api/jobs/:id/cancel  (también POST: mobile lo llama así)
 // @desc    Cancelar una publicación de trabajo
 // @access  Private (only job owner)
-router.patch("/:id/cancel", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+//
+// Mobile llamaba POST y acá solo existía PATCH: cancelar desde el celular
+// devolvía 404 y nadie lo había probado. Se aceptan los dos.
+const cancelarPublicacion = async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const job = await Job.findByPk(req.params.id);
 
@@ -2658,7 +2661,10 @@ router.patch("/:id/cancel", protect, async (req: AuthRequest, res: Response): Pr
       message: error.message || "Error del servidor",
     });
   }
-});
+};
+
+router.patch("/:id/cancel", protect, cancelarPublicacion);
+router.post("/:id/cancel", protect, cancelarPublicacion);
 
 // Error handler for multer
 router.use((error: any, req: Request, res: Response, next: any) => {

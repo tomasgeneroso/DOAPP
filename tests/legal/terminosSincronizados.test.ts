@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { POLITICAS, DISPUTA_AVISO_DIAS_ANTES } from '../../shared/constants/policies.js';
 import { COMMISSION_RATES, MEMBERSHIP_PRICES_EUR } from '../../shared/constants/membershipPricing.js';
 import { MINIMUM_COMMISSION_EUR } from '../../shared/pricing/minimums.js';
@@ -119,6 +121,50 @@ describe('la tabla de comisiones sale de las tasas reales', () => {
       expect(termsEs[r.planKey]).toBeTruthy();
       expect(termsEn[r.planKey]).toBeTruthy();
     }
+  });
+});
+
+describe('los textos de la app dicen lo mismo que los terminos', () => {
+  /**
+   * Los terminos interpolan los numeros, pero los JSON de i18n, los emails y
+   * los `defaults` de los componentes son texto plano. Ahi es donde quedo
+   * escrito "2 horas" durante meses despues de que la regla pasara a 24, y
+   * "solo podes cancelar hasta 24 horas antes" cuando la cancelacion tardia
+   * existe y tiene su propia regla. Este test lee esos archivos.
+   */
+  const raiz = process.cwd();
+  const leer = (p: string) => readFileSync(join(raiz, p), 'utf8');
+
+  const ARCHIVOS_DE_COPY = [
+    'client/i18n/locales/es.json',
+    'client/i18n/locales/en.json',
+    'client/pages/JobPayment.tsx',
+    'client/components/jobDetail/CancelJobModal.tsx',
+    'server/services/email.ts',
+  ];
+
+  it('ninguno menciona el plazo viejo de dos horas', () => {
+    const viejo = /\b(2|dos|two) (horas|hours)\b/i;
+    const culpables = ARCHIVOS_DE_COPY.filter((p) => viejo.test(leer(p)));
+    expect(culpables).toEqual([]);
+  });
+
+  it('el aviso de cancelacion nombra el plazo vigente', () => {
+    const h = String(POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES);
+    for (const p of ['client/i18n/locales/es.json', 'client/i18n/locales/en.json']) {
+      const src = leer(p);
+      const m = src.match(/"cantCancel":\s*"([^"]+)"/);
+      expect(m?.[1]).toBeTruthy();
+      expect(m![1]).toContain(h);
+      // Y dice que hay consecuencia, no que esta prohibido: la cancelacion
+      // tardia existe. "no podes" fue el texto viejo.
+      expect(m![1]).not.toMatch(/ya no pued|can no longer/i);
+    }
+  });
+
+  it('el email de confirmacion pendiente usa la constante, no un literal', () => {
+    const src = leer('server/services/email.ts');
+    expect(src).toMatch(/POLITICAS\.AUTO_CONFIRMACION_HORAS/);
   });
 });
 

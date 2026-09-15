@@ -42,6 +42,7 @@ import type { Job } from "@/types";
 import { getClientInfo } from "@/lib/utils";
 import MultipleRatings from "../components/user/MultipleRatings";
 import { getCategoryById } from "../../shared/constants/categories";
+import { POLITICAS } from "../../shared/constants/policies";
 import LocationCircleMap from "../components/map/LocationCircleMap";
 import JobTasks from "../components/jobs/JobTasks";
 import { getImageUrl } from "../utils/imageUrl";
@@ -1196,17 +1197,30 @@ export default function JobDetail() {
     });
   };
 
-  // Check if cancellation is allowed (more than 24h before start, or pending_approval)
+  const horasHastaInicio = () => {
+    if (!job?.startDate) return null;
+    return (new Date(job.startDate).getTime() - Date.now()) / (1000 * 60 * 60);
+  };
+
+  /**
+   * Se puede cancelar hasta que el trabajo empieza. Antes esta función devolvía
+   * false a menos de 24 h del inicio y la pantalla escondía el botón, mientras
+   * el servidor y los términos (9.3) permiten la cancelación tardía con la
+   * mitad para el trabajador. La web decía "no podés", el resto de la app decía
+   * "podés pero te cuesta". Ahora dice lo mismo que los términos.
+   */
   const canCancelJob = () => {
     if (!job) return false;
-    // Siempre se puede cancelar durante pending_approval (reembolso total)
     if (job.status === "pending_approval") return true;
-    if (!job.startDate) return false;
-    const startDate = new Date(job.startDate);
-    const now = new Date();
-    const hoursUntilStart =
-      (startDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-    return hoursUntilStart > 24;
+    const h = horasHastaInicio();
+    return h !== null && h > 0;
+  };
+
+  /** Menos de CANCELACION_CLIENTE_HORAS_ANTES: la cancelación es tardía. */
+  const esCancelacionTardia = () => {
+    if (!job || job.status === "pending_approval") return false;
+    const h = horasHastaInicio();
+    return h !== null && h > 0 && h <= POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES;
   };
 
   // Check if pause is allowed (more than 24h before start)
@@ -1219,11 +1233,13 @@ export default function JobDetail() {
     return hoursUntilStart > 24;
   };
 
-  // Get time remaining for cancellation
+  // Cuánto falta para que la cancelación pase a ser tardía (mitad al trabajador).
   const getTimeUntilCancelDeadline = () => {
     if (!job?.startDate) return null;
     const startDate = new Date(job.startDate);
-    const cancelDeadline = new Date(startDate.getTime() - 24 * 60 * 60 * 1000); // 24h before start
+    const cancelDeadline = new Date(
+      startDate.getTime() - POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES * 60 * 60 * 1000,
+    );
     const now = new Date();
     const diff = cancelDeadline.getTime() - now.getTime();
 
@@ -3783,10 +3799,10 @@ export default function JobDetail() {
                       onClose={() => setShowActionsMenu(false)}
                     />
 
-                    {/* Cancellation deadline warning */}
-                    {!canCancelJob() ? (
-                      <div className="mt-3 rounded-xl border border-red-300 dark:border-red-600/50 bg-red-50 dark:bg-red-900/20 p-3">
-                        <p className="text-xs text-red-700 dark:text-red-300">
+                    {/* Aviso de cancelación: tardía (mitad al trabajador) o cuánto falta para que lo sea */}
+                    {esCancelacionTardia() ? (
+                      <div className="mt-3 rounded-xl border border-amber-300 dark:border-amber-600/50 bg-amber-50 dark:bg-amber-900/20 p-3">
+                        <p className="text-xs text-amber-800 dark:text-amber-200">
                           <AlertTriangle className="inline h-3 w-3 mr-1" />
                           {t("jobs.actions.cantCancel")}
                         </p>
@@ -3899,10 +3915,10 @@ export default function JobDetail() {
                         onClick={() => setShowCancelModal(true)}
                         disabled={actionLoading || !canCancelJob()}
                         title={
-                          !canCancelJob()
+                          esCancelacionTardia()
                             ? t(
                                 "jobs.cantCancel24h",
-                                "Cannot cancel less than 24h before start",
+                                "Cancelación tardía: si hay trabajador, la mitad del precio va para él",
                               )
                             : ""
                         }
@@ -4646,6 +4662,7 @@ export default function JobDetail() {
         <CancelJobModal
           open={showCancelModal}
           timeRemaining={getTimeUntilCancelDeadline()}
+          tardia={esCancelacionTardia()}
           reason={cancellationReason}
           onReasonChange={setCancellationReason}
           publicationAmount={job.publicationAmount}

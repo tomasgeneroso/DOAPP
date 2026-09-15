@@ -1020,13 +1020,13 @@
       "resume": "Resume job",
       "cancel": "Cancel job",
       "contactSupport": "Contact support",
-      "cantCancel": "You can no longer cancel this job (less than 24h before start). Contact support if you need help.",
-      "timeToCancel": "Time remaining to cancel:",
+      "cantCancel": "Late cancellation: less than 24 h to the start. If a worker is already selected, half the price goes to them for the day they reserved and the rest returns to your credit. If there is no worker, you get the full price back. The publication commission is not refunded.",
+      "timeToCancel": "Time left to cancel with a full refund:",
       "publishedReceiving": "This job is published and receiving proposals",
       "cancelAndRefund": "Cancel and get a refund",
-      "daysToCancel": "days to cancel",
+      "daysToCancel": "days",
       "timeRemaining": "Time remaining:",
-      "toCancel": "to cancel"
+      "toCancel": ""
     },
     "locationPlaceholder": "e.g. Palermo, Buenos Aires",
     "streetPlaceholder": "e.g. 123 Main St",
@@ -1144,7 +1144,7 @@
     "cancelledOrRejectedNote": "This job was {{status}}. When you save the changes, it will automatically be sent for review and approval before being published.",
     "cancelListing": "Cancel listing",
     "cancelWarningCommission": "By cancelling the listing",
-    "cantCancel24h": "Cannot cancel less than 24h before the start",
+    "cantCancel24h": "Late cancellation: if there is a worker, half the price goes to them",
     "categoryDescription": "Select the category that best describes your job",
     "categoryLabel": "Category",
     "changeBudget": "Change budget",
@@ -1288,7 +1288,7 @@
     "publishing": "Publishing...",
     "reasonMinLength": "The reason must be at least 10 characters",
     "redirectToContract": "Redirect to the contract",
-    "remember24hCancel": "Remember: you can only cancel up to 24 hours before the job starts.",
+    "remember24hCancel": "You can cancel until the job starts. With more than 24 hours' notice you get the price back; with less, half goes to the worker who reserved the day.",
     "reportProblem": "Report problem",
     "reschedule": "Reschedule",
     "reschedulingNoApplicants": "Rescheduling job with no applicants",
@@ -2263,7 +2263,7 @@
       "problemWithJob": "What do I do if there's a problem with a job?",
       "problemWithJobAnswer": "You can open a dispute from the contract detail. An administrator will review the case and make a fair decision based on evidence from both parties. Meanwhile, the money remains held.",
       "confirmationSystem": "How does the confirmation system work?",
-      "confirmationSystemAnswer": "When the work is done, both parties must confirm. If one party doesn't confirm within 2 hours, the system automatically confirms and releases the payment."
+      "confirmationSystemAnswer": "When the work is done, both parties must confirm. If the client doesn't confirm within 24 hours, the system automatically confirms and releases the payment. A claim can still be opened for 7 days after."
     }
   },
   "footer": {
@@ -3100,7 +3100,7 @@
     "tipsTitle": "Tips before publishing",
     "tip1": "Ask the worker to show you their <b>verification code</b> when starting the job to confirm their identity.",
     "tip2": "The publication commission is <b>non-refundable</b> once the listing has been <b>approved</b>.",
-    "tip3": "You can cancel until the job starts. With <b>more than 2 hours</b> notice you're refunded the job price; with <b>2 hours or less</b>, <b>half the price is refunded to you and the other half to the worker</b>. If there's still <b>no worker selected</b>, you're refunded the <b>full price</b> (the commission is not refunded).",
+    "tip3": "You can cancel until the job starts. With <b>more than 24 hours</b> notice you're refunded the job price; with <b>24 hours or less</b>, <b>half the price is refunded to you and the other half to the worker</b>. If there's still <b>no worker selected</b>, you're refunded the <b>full price</b> (the commission is not refunded).",
     "tip4": "Describe the job in <b>as much detail as possible</b>: needed materials, access to the location, exact schedule. Avoid misunderstandings.",
     "tip5": "All communication and price negotiation must happen <b>within the platform</b> to stay protected.",
     "tip6": "If the job isn't completed correctly, you can open a <b>dispute</b> and the money stays held in escrow until resolved.",

@@ -1299,86 +1299,29 @@ router.put("/:id/complete", protect, async (req: AuthRequest, res: Response): Pr
   }
 });
 
-// @route   PUT /api/contracts/:id/cancel
-// @desc    Cancelar contrato
-// @access  Private
+/**
+ * PUT /api/contracts/:id/cancel — deshabilitada.
+ *
+ * Cancelaba cualquier contrato, en cualquier estado, a pedido de cualquiera de
+ * las dos partes, y marcaba el pago como "refunded" sin mover un peso: ni
+ * saldo a favor, ni asiento en el libro, ni registro de auditoría. Un contrato
+ * terminado se podía cancelar por acá. Ninguna pantalla la usaba, pero estaba
+ * expuesta con un token.
+ *
+ * Los caminos reales son dos, y los dos tienen reglas:
+ *   - el trabajador no puede hacer el trabajo → /worker-unavailable
+ *     (antes de empezar; el cliente elige qué hacer con su plata)
+ *   - cualquier otra cancelación → /request-cancellation
+ *     (revisión de un administrador, que aplica los términos 9.2/9.3)
+ */
 router.put("/:id/cancel", protect, async (req: AuthRequest, res: Response): Promise<void> => {
-  try {
-    const { cancellationReason } = req.body;
-
-    const contract = await Contract.findByPk(req.params.id);
-
-    if (!contract) {
-      res.status(404).json({
-        success: false,
-        message: "Contrato no encontrado",
-      });
-      return;
-    }
-
-    // Verificar que el usuario sea parte del contrato
-    const isClient = contract.clientId.toString() === req.user.id.toString();
-    const isDoer = contract.doerId.toString() === req.user.id.toString();
-
-    if (!isClient && !isDoer) {
-      res.status(403).json({
-        success: false,
-        message: "No tienes permiso para cancelar este contrato",
-      });
-      return;
-    }
-
-    contract.status = "cancelled";
-    contract.cancellationReason = cancellationReason;
-    contract.cancelledBy = req.user.id;
-    contract.paymentStatus = "refunded";
-    await contract.save();
-
-    // Si cancela el trabajador, corre la escalera. Si cancela el cliente, no:
-    // el cliente es quien paga y tiene sus propias reglas de reembolso.
-    if (String(contract.doerId) === String(req.user.id)) {
-      try {
-        const { aplicarEscalera } = await import('../services/cancellationLadder.js');
-        await aplicarEscalera(String(req.user.id), String(contract.id));
-      } catch (e: any) {
-        console.error('No se pudo aplicar la escalera de cancelaciones:', e.message);
-      }
-    }
-
-    // Actualizar el trabajo
-    const job = await Job.findByPk(contract.jobId);
-    if (job) {
-      job.status = "cancelled";
-      await job.save();
-    }
-
-    // Send real-time notifications via Socket.io
-    const otherPartyId = isClient ? contract.doerId.toString() : contract.clientId.toString();
-    socketService.notifyContractUpdate(
-      contract.id.toString(),
-      contract.clientId.toString(),
-      contract.doerId.toString(),
-      {
-        action: 'cancelled',
-        contract,
-        cancelledBy: req.user.id.toString()
-      }
-    );
-
-    // Notify dashboard refresh
-    socketService.notifyDashboardRefresh(contract.clientId.toString());
-    socketService.notifyDashboardRefresh(contract.doerId.toString());
-
-    res.json({
-      success: true,
-      contract,
-    });
-  } catch (error: any) {
-    res.status(500).json({
-      success: false,
-      message: error.message || "Error del servidor",
-    });
-  }
+  res.status(410).json({
+    success: false,
+    message:
+      "Esta operación ya no existe. Si el trabajador no puede hacer el trabajo, usá " +
+      "/worker-unavailable; para cualquier otra cancelación, /request-cancellation.",
+    redirectTo: `/api/contracts/${req.params.id}/request-cancellation`,
+  });
 });
 
 /**

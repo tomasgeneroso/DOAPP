@@ -4,6 +4,7 @@ import Mailgun from "mailgun.js";
 import nodemailer from "nodemailer";
 import { config } from "../config/env";
 import { User } from "../models/sql/User.model.js";
+import { POLITICAS } from "../../shared/constants/policies.js";
 
 interface EmailOptions {
   to: string;
@@ -712,8 +713,8 @@ ${ctaBlock}
           ? `el Doer marcó como completado el trabajo "<strong>${jobTitle}</strong>". Revisá que todo esté en orden y confirmá para liberar el pago — o abrí un reclamo si algo no salió bien.`
           : `marcaste como completado el trabajo "<strong>${jobTitle}</strong>". Ahora esperamos que el cliente confirme para liberar tu pago.`}</p>
         ${isClient
-          ? this.callout('warning', 'Se libera automáticamente en 2 horas', 'Si no confirmás ni abrís un reclamo, el pago se libera solo a favor del Doer.')
-          : this.callout('info', 'En espera', 'Si el cliente no responde en 2 horas, el pago se libera automáticamente a tu favor.')}
+          ? this.callout('warning', `Se libera automáticamente en ${POLITICAS.AUTO_CONFIRMACION_HORAS} horas`, 'Si no confirmás ni abrís un reclamo, el pago se libera solo a favor del Doer.')
+          : this.callout('info', 'En espera', `Si el cliente no responde en ${POLITICAS.AUTO_CONFIRMACION_HORAS} horas, el pago se libera automáticamente a tu favor.`)}
       `,
       cta: { label: isClient ? 'Confirmar trabajo' : 'Ver el contrato', url: `${config.clientUrl}/contracts/${contractId}` },
     });

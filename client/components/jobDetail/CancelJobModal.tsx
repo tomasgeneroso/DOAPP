@@ -4,6 +4,8 @@ import { XCircle, Clock, Loader2 } from "lucide-react";
 interface CancelJobModalProps {
   open: boolean;
   timeRemaining: string | null;
+  /** Menos de 24 h para el inicio: si hay trabajador, la mitad va para él. */
+  tardia?: boolean;
   reason: string;
   onReasonChange: (value: string) => void;
   publicationAmount?: number;
@@ -16,6 +18,7 @@ interface CancelJobModalProps {
 export default function CancelJobModal({
   open,
   timeRemaining,
+  tardia = false,
   reason,
   onReasonChange,
   publicationAmount,
@@ -43,23 +46,32 @@ export default function CancelJobModal({
             {t("jobs.confirmCancelListing", "Are you sure you want to cancel this listing?")}
           </p>
 
-          {/* Time remaining info */}
-          {timeRemaining && (
+          {/*
+            Qué pasa con la plata. Es lo único que el cliente quiere saber antes
+            de confirmar, y antes esta caja solo aparecía cuando faltaba mucho:
+            justo en la cancelación tardía, la que tiene consecuencia, no decía
+            nada.
+          */}
+          {tardia ? (
             <div className="rounded-xl border border-amber-600/50 bg-amber-900/20 p-3">
               <p className="text-sm text-amber-300">
                 <Clock className="inline h-4 w-4 mr-1" />
-                {t(
-                  "jobs.remember24hCancel",
-                  "Remember: You can only cancel up to 24 hours before the job starts.",
-                )}
+                {t("jobs.actions.cantCancel")}
+              </p>
+            </div>
+          ) : timeRemaining ? (
+            <div className="rounded-xl border border-amber-600/50 bg-amber-900/20 p-3">
+              <p className="text-sm text-amber-300">
+                <Clock className="inline h-4 w-4 mr-1" />
+                {t("jobs.remember24hCancel")}
                 <br />
                 <span className="text-xs text-amber-400 mt-1 block">
-                  {t("jobs.actions.timeRemaining", "Time remaining:")}{" "}
+                  {t("jobs.actions.timeToCancel")}{" "}
                   <strong>{timeRemaining}</strong>
                 </span>
               </p>
             </div>
-          )}
+          ) : null}
 
           {/* Reason textarea */}
           <div>
