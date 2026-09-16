@@ -1251,10 +1251,120 @@ router.post(
         }
       }
 
-      // Handle refund if approved
-      if (refundApproved && (contract.paymentStatus === 'escrow' || contract.paymentStatus === 'held')) {
+      /**
+       * La plata. Antes esta ruta ponía paymentStatus = 'refunded' y mandaba un
+       * email que decía "Reembolso aprobado: $X" sin acreditar un peso a nadie.
+       *
+       * Ahora aplica la misma regla que la cancelación de una publicación
+       * (liquidarCancelacion, T&C 9.1–9.3): comisión retenida, pasarela a cargo
+       * de quien recibe, y si el cliente canceló tarde, la mitad al trabajador.
+       * Si el que pidió cancelar fue el trabajador, el cliente recupera todo
+       * menos la pasarela, y el trabajador entra en la escalera (arriba).
+       *
+       * El admin puede apartarse de la regla mandando montos propios, pero solo
+       * con justificación, y queda asentado con severidad alta.
+       */
+      const { liquidarCancelacion } = await import('../../../shared/pricing/processingCost.js');
+      const { POLITICAS } = await import('../../../shared/constants/policies.js');
+      const { BalanceTransaction } = await import('../../models/sql/BalanceTransaction.model.js');
+      const { logMoneyEvent } = await import('../../utils/auditLog.js');
+      const { Payment } = await import('../../models/sql/Payment.model.js');
+
+      const yaLiquidado = ['refunded', 'completed', 'cancelled_settled'].includes(String(contract.paymentStatus));
+      let liquidacion: { aCliente: number; aTrabajador: number; costoPasarela: number; retieneApp: number; regla: string } | null = null;
+
+      if (!yaLiquidado && Number(contract.price) > 0) {
+        const precio = Number(contract.allocatedAmount || contract.price) || 0;
+        let comision = 0;
+        let iva = 0;
+        if (job?.publicationPaymentId) {
+          const pub = await Payment.findByPk(job.publicationPaymentId).catch(() => null);
+          if (pub) {
+            comision = Number((pub as any).platformFee) || 0;
+            iva = Math.max(0, (Number((pub as any).amount) || 0) - (Number(job.price) || 0) - comision);
+          }
+        }
+
+        const pidioElTrabajador = String(request.requestedBy) === String(contract.doerId);
+        const horasHastaInicio = (new Date(contract.startDate).getTime() - Date.now()) / 3_600_000;
+        const tardia = contract.status === 'in_progress' || horasHastaInicio <= POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES;
+
+        const regla = liquidarCancelacion({
+          precio,
+          comision,
+          iva,
+          aprobada: true,
+          // Si canceló el trabajador, no se le paga nada: hayTrabajador=false
+          // hace que la bolsa entera vuelva al cliente.
+          hayTrabajador: !pidioElTrabajador,
+          tardia,
+          parteTrabajador: POLITICAS.CANCELACION_TARDIA_PARTE_TRABAJADOR,
+        });
+
+        const { montoCliente, montoTrabajador, justificacion } = req.body as {
+          montoCliente?: number; montoTrabajador?: number; justificacion?: string;
+        };
+        const seAparta = montoCliente !== undefined || montoTrabajador !== undefined;
+        if (seAparta) {
+          if (!justificacion || String(justificacion).trim().length < 15) {
+            res.status(400).json({
+              success: false,
+              message: 'Para apartarte de la regla de los términos tenés que justificarlo (mínimo 15 caracteres).',
+              reglaSugerida: regla,
+            });
+            return;
+          }
+          const totalPropuesto = Number(montoCliente || 0) + Number(montoTrabajador || 0);
+          const totalRegla = regla.aCliente + regla.aTrabajador;
+          if (totalPropuesto > totalRegla + 0.01) {
+            res.status(400).json({
+              success: false,
+              message: `No se puede repartir más de lo que hay (${totalRegla.toLocaleString('es-AR')}). La comisión y la pasarela no se devuelven.`,
+              reglaSugerida: regla,
+            });
+            return;
+          }
+        }
+
+        liquidacion = seAparta
+          ? { ...regla, aCliente: Number(montoCliente || 0), aTrabajador: Number(montoTrabajador || 0), regla: `manual (${regla.regla})` }
+          : regla;
+
+        const acreditar = async (userId: string, monto: number, tipo: 'refund' | 'payment', descripcion: string) => {
+          if (monto <= 0) return;
+          const u = await User.findByPk(userId);
+          if (!u) return;
+          const before = parseFloat((u as any).balanceArs as any) || 0;
+          await (u as any).addBalance(monto);
+          await BalanceTransaction.create({
+            userId, type: tipo, amount: monto, balanceBefore: before, balanceAfter: before + monto,
+            description: descripcion, status: 'completed',
+            relatedContractId: contract.id,
+            metadata: { reason: 'contract_cancellation_approved', cancellationRequestId: request.id, ...liquidacion },
+          } as any);
+        };
+
+        await acreditar(String(contract.clientId), liquidacion.aCliente, 'refund', `Saldo a favor por cancelación de "${job?.title || 'contrato'}"`);
+        await acreditar(String(contract.doerId), liquidacion.aTrabajador, 'payment', `Compensación por cancelación tardía de "${job?.title || 'contrato'}"`);
+
         contract.paymentStatus = 'refunded';
+        contract.escrowStatus = 'refunded';
         await contract.save();
+
+        await logMoneyEvent({
+          action: seAparta ? 'CONTRACT_CANCELLATION_SETTLED_MANUAL' : 'CONTRACT_CANCELLATION_SETTLED',
+          actor: `admin:${req.user.id}`,
+          severity: seAparta ? 'high' : 'medium',
+          description: seAparta
+            ? `Cancelación aprobada con reparto manual. Justificación: ${String(justificacion).trim()}`
+            : `Cancelación aprobada, liquidada por regla ${regla.regla}.`,
+          contractId: contract.id,
+          userId: String(request.requestedBy),
+          monto: precio,
+          moneda: 'ARS',
+          cuentas: { clienteId: contract.clientId, trabajadorId: contract.doerId },
+          metadata: { liquidacion, reglaSugerida: regla, pidioElTrabajador, tardia, horasHastaInicio: Math.round(horasHastaInicio * 100) / 100 },
+        });
       }
 
       // Update job status - return to previous status or cancel if appropriate
@@ -1269,35 +1379,47 @@ router.post(
         await job.save();
       }
 
-      // Notify both parties
+      // Notify both parties, each with THEIR number. Antes decía "Reembolso
+      // aprobado: $X" a los dos, con un X que nadie había acreditado.
+      const $ = (n: number) => `$${Number(n || 0).toLocaleString('es-AR')}`;
       for (const user of [requester, otherParty]) {
-        if (user) {
-          await Notification.create({
-            recipientId: user.id,
-            type: 'info',
-            category: 'contract',
-            title: 'Solicitud de cancelación aprobada',
-            message: `La solicitud de cancelación para "${job?.title || 'Contrato'}" ha sido aprobada. El contrato ha sido cancelado.`,
-            relatedModel: 'Contract',
-            relatedId: contract.id,
-            actionText: 'Ver detalles',
-            data: { contractId: contract.id, cancellationRequestId: request.id },
-            read: false,
-          });
+        if (!user) continue;
+        const esCliente = String(user.id) === String(contract.clientId);
+        const suMonto = liquidacion ? (esCliente ? liquidacion.aCliente : liquidacion.aTrabajador) : 0;
+        const suTexto = !liquidacion
+          ? ''
+          : suMonto > 0
+            ? esCliente
+              ? ` Se acreditaron ${$(suMonto)} a tu saldo a favor (el costo de la pasarela, ${$(liquidacion.costoPasarela)}, no vuelve; la comisión de publicación tampoco). Podés usarlo en tu próxima publicación o pedir la transferencia.`
+              : ` Por el día que reservaste se acreditaron ${$(suMonto)} a tu saldo. Podés pedir la transferencia desde Balance.`
+            : esCliente
+              ? ' No hay saldo a devolver en este caso.'
+              : ' No corresponde compensación en este caso.';
 
-          if (user.email) {
-            await emailService.sendEmail({
-              to: user.email,
-              subject: `Cancelación aprobada - ${job?.title || 'Contrato'}`,
-              html: `
-                <h2>Solicitud de cancelación aprobada</h2>
-                <p>La solicitud de cancelación para <strong>"${job?.title || 'Contrato'}"</strong> ha sido aprobada.</p>
-                <p>El contrato ha sido cancelado.</p>
-                ${resolutionNote ? `<p><strong>Nota del administrador:</strong> ${resolutionNote}</p>` : ''}
-                ${refundApproved ? `<p><strong>Reembolso aprobado:</strong> ${refundAmount ? `$${refundAmount}` : 'Total'}</p>` : ''}
-              `,
-            });
-          }
+        await Notification.create({
+          recipientId: user.id,
+          type: 'info',
+          category: 'contract',
+          title: 'Cancelación aprobada',
+          message: `La cancelación de "${job?.title || 'Contrato'}" fue aprobada y el contrato quedó cancelado.${suTexto}`,
+          relatedModel: 'Contract',
+          relatedId: contract.id,
+          actionText: 'Ver detalles',
+          data: { contractId: contract.id, cancellationRequestId: request.id, monto: suMonto },
+          read: false,
+        });
+
+        if (user.email) {
+          await emailService.sendEmail({
+            to: user.email,
+            subject: `Cancelación aprobada - ${job?.title || 'Contrato'}`,
+            html: `
+              <h2>Cancelación aprobada</h2>
+              <p>La cancelación de <strong>"${job?.title || 'Contrato'}"</strong> fue aprobada y el contrato quedó cancelado.</p>
+              ${suTexto ? `<p>${suTexto.trim()}</p>` : ''}
+              ${resolutionNote ? `<p><strong>Nota del administrador:</strong> ${resolutionNote}</p>` : ''}
+            `,
+          });
         }
       }
 

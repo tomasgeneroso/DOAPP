@@ -143,7 +143,8 @@ export interface DesgloseCancelacion {
 }
 
 /**
- * Qué se devuelve cuando un trabajo se cancela antes de contratar a nadie.
+ * Qué se devuelve cuando un trabajo se cancela ANTES de que un admin apruebe la
+ * publicación (T&C 9.1): todo menos la pasarela.
  *
  * El costo de la pasarela no vuelve. Es la parte que la gente no espera y la
  * que hay que decir de frente: MercadoPago cobra por procesar el pago y ese
@@ -151,12 +152,10 @@ export interface DesgloseCancelacion {
  * "deshacer". Si la plataforma lo absorbiera, publicar-y-cancelar sería gratis
  * para el cliente y una pérdida directa para DOAPP en cada vuelta.
  *
- * La comisión y el IVA sí vuelven cuando no se contrató a nadie. La comisión se
- * cobra por intermediar una contratación, y no hubo ninguna: quedársela sería
- * cobrar por un servicio que no se prestó.
- *
- * Si YA se contrató, esta cuenta no aplica: ahí hay un trabajador que reservó
- * su tiempo, y eso lo resuelven las reglas de cancelación del contrato.
+ * La comisión y el IVA vuelven solo en este caso: la publicación no llegó a
+ * aprobarse, así que la plataforma no gastó nada en ella. Una vez aprobada, la
+ * comisión se retiene siempre (T&C 7.5) — eso lo resuelve liquidarCancelacion,
+ * que es la función general; esta queda como el caso particular.
  */
 export function desgloseCancelacionSinContratar(
   pagado: number,
@@ -181,6 +180,95 @@ export function desgloseCancelacionSinContratar(
     costoPasarela,
     devolver,
     retiene: round2(total - devolver),
+  };
+}
+
+export interface LiquidacionCancelacion {
+  /** Lo que la pasarela ya se llevo y no vuelve: tarifa x total cobrado. */
+  costoPasarela: number;
+  /** Comision + IVA que retiene la plataforma. Cero solo antes de la aprobacion. */
+  retieneApp: number;
+  /** Lo que vuelve al cliente, como saldo a favor. */
+  aCliente: number;
+  /** Lo que se le paga al trabajador por el dia que reservo. */
+  aTrabajador: number;
+  /** Por que salio asi, para mostrarlo y para el expediente. */
+  regla: 'antes_de_aprobar' | 'sin_trabajador' | 'con_tiempo' | 'tardia_con_trabajador';
+}
+
+/**
+ * Como se reparte la plata cuando se cancela. Una sola funcion para los dos
+ * caminos que la mueven (el cliente cancela la publicacion; un admin aprueba la
+ * cancelacion de un contrato), asi no vuelven a decir cosas distintas.
+ *
+ * Tres reglas, en este orden:
+ *
+ *   1. La pasarela no la paga la plataforma. Mercado Pago ya cobro por
+ *      procesar el pago y eso no vuelve; lo absorbe quien recibe el dinero.
+ *      Si el dinero queda como saldo dentro de la app no hay un segundo costo;
+ *      si despues se retira a un CBU, ese costo lo paga quien retira (T&C 7.9).
+ *
+ *   2. La comision no se devuelve, salvo que la publicacion no haya sido
+ *      aprobada todavia (T&C 7.5 y 9.1). Aprobar y publicar tiene un costo
+ *      para la plataforma que ya se gasto.
+ *
+ *   3. Con menos de CANCELACION_CLIENTE_HORAS_ANTES y un trabajador
+ *      seleccionado, la mitad del precio (ya sin la pasarela) es para el
+ *      trabajador: reservo el dia y lo perdio (T&C 9.3).
+ *
+ * Todo lo que va al cliente va como saldo a favor. Es lo que permite que no
+ * haya un segundo costo de pasarela: la plata no sale de la plataforma.
+ */
+export function liquidarCancelacion(args: {
+  precio: number;
+  comision: number;
+  iva: number;
+  /** Si un admin ya aprobo la publicacion. */
+  aprobada: boolean;
+  /** Si habia un trabajador seleccionado. */
+  hayTrabajador: boolean;
+  /** Si faltan menos de las horas de la politica, o el trabajo ya empezo. */
+  tardia: boolean;
+  parteTrabajador?: number;
+  rate?: number;
+}): LiquidacionCancelacion {
+  const precio = round2(Math.max(0, Number(args.precio) || 0));
+  const comision = round2(Math.max(0, Number(args.comision) || 0));
+  const iva = round2(Math.max(0, Number(args.iva) || 0));
+  const rate = args.rate ?? getProcessingFeeRate();
+  const parte = args.parteTrabajador ?? 0.5;
+
+  const totalCobrado = round2(precio + comision + iva);
+  const costoPasarela = rate > 0 ? round2(totalCobrado * rate) : 0;
+
+  if (!args.aprobada) {
+    // Nadie aprobo, nadie trabajo: vuelve todo menos lo que se llevo la pasarela.
+    return {
+      costoPasarela,
+      retieneApp: 0,
+      aCliente: round2(Math.max(0, totalCobrado - costoPasarela)),
+      aTrabajador: 0,
+      regla: 'antes_de_aprobar',
+    };
+  }
+
+  const retieneApp = round2(comision + iva);
+  const bolsa = round2(Math.max(0, precio - costoPasarela));
+
+  if (!args.hayTrabajador) {
+    return { costoPasarela, retieneApp, aCliente: bolsa, aTrabajador: 0, regla: 'sin_trabajador' };
+  }
+  if (!args.tardia) {
+    return { costoPasarela, retieneApp, aCliente: bolsa, aTrabajador: 0, regla: 'con_tiempo' };
+  }
+
+  const aTrabajador = round2(bolsa * parte);
+  return {
+    costoPasarela,
+    retieneApp,
+    aCliente: round2(bolsa - aTrabajador),
+    aTrabajador,
+    regla: 'tardia_con_trabajador',
   };
 }
 

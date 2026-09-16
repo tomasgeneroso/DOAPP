@@ -2524,74 +2524,68 @@ const cancelarPublicacion = async (req: AuthRequest, res: Response): Promise<voi
     });
 
     // ============================================
-    // LÓGICA DE REEMBOLSO — T&C 9.1 a 9.3
-    //  - pending_approval (aún no aprobado): reembolso TOTAL (precio + comisión).
-    //  - Una vez aprobado (publicado): la comisión de publicación NO se reembolsa.
-    //  - Cancelación tardía (menos de CANCELACION_CLIENTE_HORAS_ANTES antes del
-    //      inicio) con trabajador seleccionado: una parte del precio va al
-    //      trabajador al que le cancelaron y el resto vuelve al cliente.
-    //  - Cancelación tardía SIN trabajador seleccionado: el precio vuelve entero
-    //      al cliente (la comisión no, la publicación ya fue aprobada).
-    //  - Cancelación con tiempo: se reembolsa el precio del trabajo al cliente
-    //      (comisión no incluida).
-    // Los números viven en shared/constants/policies.ts junto con los términos.
-    // Fuente de verdad del balance: user.balanceArs (BalanceTransaction = historial).
+    // LIQUIDACIÓN — T&C 7.5, 9.1, 9.2, 9.3
+    // La regla vive en shared/pricing/processingCost.ts (liquidarCancelacion),
+    // compartida con la aprobación de cancelación de contrato del admin, para
+    // que los dos caminos digan lo mismo. Acá solo se lee el pago, se llama, y
+    // se acredita. Todo lo que va al cliente es saldo a favor: la plata no sale
+    // de la plataforma y por eso no paga una segunda pasarela.
     // ============================================
     const { BalanceTransaction } = await import('../models/sql/BalanceTransaction.model.js');
     const { Notification } = await import('../models/sql/Notification.model.js');
     const { Payment } = await import('../models/sql/Payment.model.js');
+    const { liquidarCancelacion } = await import('../../shared/pricing/processingCost.js');
+    const { logMoneyEvent } = await import('../utils/auditLog.js');
 
     const jobPrice = Number(job.price) || 0;
     const selectedWorkers: string[] = Array.isArray(job.selectedWorkers) ? job.selectedWorkers : [];
     const hasWorker = selectedWorkers.length > 0;
     const esTardia = hoursUntilStart <= POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES;
-    const isLateCancellation = hasWorker && esTardia;
-    const isLateNoWorker = !hasWorker && esTardia;
 
-    // Comisión de publicación pagada (no reembolsable una vez aprobado)
-    let commissionPaid = 0;
+    // Comisión e IVA tal como se cobraron: platformFee es la comisión sin IVA,
+    // amount es el total (precio + comisión + IVA).
+    let comision = 0;
+    let iva = 0;
     if (job.publicationPaymentId) {
       const pubPayment = await Payment.findByPk(job.publicationPaymentId).catch(() => null);
-      if (pubPayment) commissionPaid = Number((pubPayment as any).platformFee) || 0;
+      if (pubPayment) {
+        comision = Number((pubPayment as any).platformFee) || 0;
+        const total = Number((pubPayment as any).amount) || 0;
+        iva = Math.max(0, total - jobPrice - comision);
+      }
     }
 
-    // Determinar montos
-    let clientRefund = 0;
-    let workerPayout = 0;
-    if (isPendingApproval) {
-      clientRefund = jobPrice + commissionPaid; // total (aún no aprobado)
-    } else if (isLateNoWorker) {
-      // ≤2h sin trabajador seleccionado: nadie fue asignado, se devuelve la
-      // totalidad del PRECIO al dueño. La comisión no se reembolsa (publicación
-      // ya aprobada).
-      clientRefund = jobPrice;
-    } else if (isLateCancellation) {
-      workerPayout = jobPrice * POLITICAS.CANCELACION_TARDIA_PARTE_TRABAJADOR;
-      clientRefund = jobPrice - workerPayout;
-    } else {
-      clientRefund = jobPrice;                   // precio, sin comisión
-    }
+    const liq = liquidarCancelacion({
+      precio: jobPrice,
+      comision,
+      iva,
+      aprobada: !isPendingApproval,
+      hayTrabajador: hasWorker,
+      tardia: esTardia,
+      parteTrabajador: POLITICAS.CANCELACION_TARDIA_PARTE_TRABAJADOR,
+    });
 
-    // Acreditar reembolso al cliente
-    if (clientRefund > 0) {
+    // Al cliente, como saldo a favor
+    if (liq.aCliente > 0) {
       const client = await User.findByPk(job.clientId);
       if (client) {
         const before = parseFloat(client.balanceArs as any) || 0;
-        await client.addBalance(clientRefund);
+        await client.addBalance(liq.aCliente);
         await BalanceTransaction.create({
           userId: job.clientId,
           type: 'refund',
-          amount: clientRefund,
+          amount: liq.aCliente,
           balanceBefore: before,
-          balanceAfter: before + clientRefund,
-          description: `Reembolso por cancelación del trabajo "${job.title}"`,
+          balanceAfter: before + liq.aCliente,
+          description: `Saldo a favor por cancelación de "${job.title}"`,
           status: 'completed',
           metadata: {
-            reason: isPendingApproval ? 'job_cancelled_pending_approval' : isLateNoWorker ? 'job_cancelled_late_no_worker' : isLateCancellation ? 'job_cancelled_late' : 'job_cancelled',
+            reason: `job_cancelled_${liq.regla}`,
             jobId: job.id,
             jobPrice,
-            commissionRefunded: isPendingApproval ? commissionPaid : 0,
-            commissionWithheld: isPendingApproval ? 0 : commissionPaid,
+            costoPasarela: liq.costoPasarela,
+            retieneApp: liq.retieneApp,
+            aTrabajador: liq.aTrabajador,
             hoursUntilStart: Math.round(hoursUntilStart * 100) / 100,
           },
         } as any);
@@ -2599,8 +2593,8 @@ const cancelarPublicacion = async (req: AuthRequest, res: Response): Promise<voi
           recipientId: job.clientId,
           type: 'success',
           category: 'payment',
-          title: 'Reembolso acreditado',
-          message: `Se acreditaron $${clientRefund.toLocaleString('es-AR')} ARS a tu balance por la cancelación de "${job.title}".`,
+          title: 'Saldo a favor acreditado',
+          message: `Se acreditaron $${liq.aCliente.toLocaleString('es-AR')} a tu saldo por la cancelación de "${job.title}". Podés usarlo en tu próxima publicación sin costo, o pedir la transferencia a tu cuenta.`,
           relatedModel: 'Job',
           relatedId: job.id,
           read: false,
@@ -2608,9 +2602,11 @@ const cancelarPublicacion = async (req: AuthRequest, res: Response): Promise<voi
       }
     }
 
-    // Pagar la mitad al/los trabajador(es) cuyo trabajo fue cancelado (< 2h)
-    if (workerPayout > 0 && hasWorker) {
-      const perWorker = workerPayout / selectedWorkers.length;
+    // Al trabajador: la mitad de la bolsa por el día que reservó y perdió.
+    // Se le avisa por la app y por email: se enteró de que no trabaja mañana,
+    // tiene que enterarse a la vez de que cobra algo.
+    if (liq.aTrabajador > 0 && hasWorker) {
+      const perWorker = Math.round((liq.aTrabajador / selectedWorkers.length) * 100) / 100;
       for (const workerId of selectedWorkers) {
         const worker = await User.findByPk(workerId).catch(() => null);
         if (worker) {
@@ -2622,45 +2618,69 @@ const cancelarPublicacion = async (req: AuthRequest, res: Response): Promise<voi
             amount: perWorker,
             balanceBefore: before,
             balanceAfter: before + perWorker,
-            description: `Compensación por cancelación tardía del trabajo "${job.title}"`,
+            description: `Compensación por cancelación tardía de "${job.title}"`,
             status: 'completed',
-            metadata: { reason: 'job_cancelled_late_compensation', jobId: job.id, jobPrice },
+            metadata: { reason: 'job_cancelled_late_compensation', jobId: job.id, jobPrice, costoPasarela: liq.costoPasarela },
           } as any);
           await Notification.create({
             recipientId: workerId,
-            type: 'info',
+            type: 'warning',
             category: 'payment',
-            title: 'Compensación por cancelación',
-            message: `El cliente canceló "${job.title}" con menos de 2 horas de anticipación. Se te acreditaron $${perWorker.toLocaleString('es-AR')} ARS como compensación.`,
+            title: 'El cliente canceló el trabajo',
+            message: `"${job.title}" fue cancelado con menos de ${POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES} horas de anticipación. Por el día que reservaste se te acreditaron $${perWorker.toLocaleString('es-AR')} a tu saldo. Podés pedir la transferencia desde tu balance.`,
             relatedModel: 'Job',
             relatedId: job.id,
             read: false,
           } as any);
           socketService.notifyUser(workerId, 'job_cancelled_compensation', { jobId: job.id, amount: perWorker });
+          if ((worker as any).email) {
+            const { default: emailService } = await import('../services/email.js');
+            emailService.sendEmail({
+              to: (worker as any).email,
+              subject: `Cancelaron "${job.title}" — tenés una compensación`,
+              html: `
+                <h2>El cliente canceló el trabajo</h2>
+                <p>Hola <strong>${(worker as any).name || ''}</strong>, el cliente canceló <strong>"${job.title}"</strong> con menos de ${POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES} horas de anticipación.</p>
+                <p>Por el día que reservaste te corresponde la mitad del precio, descontado el costo de la pasarela: <strong>$${perWorker.toLocaleString('es-AR')}</strong>. Ya está en tu saldo de DOAPP y podés pedir la transferencia a tu cuenta desde la sección Balance.</p>
+                <p style="color:#666;font-size:12px">Esto es lo que dicen los términos (punto 9.3). Si algo no te cierra, escribinos desde el centro de ayuda.</p>
+              `,
+            }).catch((e: any) => console.error('[cancelación] email al trabajador:', e?.message));
+          }
         }
       }
     }
 
-    // Mensaje de resultado
-    let refundMessage: string;
-    if (isPendingApproval) {
-      refundMessage = `Publicación cancelada. Se reembolsaron $${clientRefund.toLocaleString('es-AR')} ARS (precio + comisión) a tu balance.`;
-    } else if (isLateNoWorker) {
-      refundMessage = `Publicación cancelada. Como no había ningún trabajador seleccionado, se te reembolsó la totalidad del precio ($${clientRefund.toLocaleString('es-AR')} ARS) a tu balance. La comisión de publicación no se reembolsa.`;
-    } else if (isLateCancellation) {
-      refundMessage = `Publicación cancelada con menos de 2 horas de anticipación. Se reembolsó $${clientRefund.toLocaleString('es-AR')} ARS a tu balance (la mitad del precio); la otra mitad se pagó al trabajador. La comisión de publicación no se reembolsa.`;
-    } else {
-      refundMessage = `Publicación cancelada. Se reembolsaron $${clientRefund.toLocaleString('es-AR')} ARS a tu balance. La comisión de publicación no se reembolsa.`;
-    }
+    // Queda asentado en el libro de dinero, con el desglose entero.
+    await logMoneyEvent({
+      action: 'JOB_CANCELLED_SETTLED',
+      actor: `user:${req.user.id}`,
+      severity: liq.aTrabajador > 0 ? 'medium' : 'low',
+      description: `Publicación cancelada por el cliente. Regla: ${liq.regla}.`,
+      userId: job.clientId,
+      monto: jobPrice,
+      moneda: 'ARS',
+      metadata: { jobId: job.id, ...liq, hoursUntilStart: Math.round(hoursUntilStart * 100) / 100, trabajadores: selectedWorkers },
+    }).catch(() => {});
+
+    // Mensaje de resultado: el desglose, sin eufemismos
+    const $ = (n: number) => `$${n.toLocaleString('es-AR')}`;
+    const refundMessage: Record<typeof liq.regla, string> = {
+      antes_de_aprobar: `Publicación cancelada. Se acreditaron ${$(liq.aCliente)} a tu saldo: todo lo que pagaste (precio y comisión), menos ${$(liq.costoPasarela)} que ya cobró la pasarela y no vuelve.`,
+      sin_trabajador: `Publicación cancelada. Se acreditaron ${$(liq.aCliente)} a tu saldo: el precio menos ${$(liq.costoPasarela)} de pasarela. La comisión de publicación no se devuelve.`,
+      con_tiempo: `Publicación cancelada. Se acreditaron ${$(liq.aCliente)} a tu saldo: el precio menos ${$(liq.costoPasarela)} de pasarela. La comisión de publicación no se devuelve.`,
+      tardia_con_trabajador: `Publicación cancelada con menos de ${POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES} horas. Del precio, menos ${$(liq.costoPasarela)} de pasarela, la mitad (${$(liq.aTrabajador)}) es para el trabajador por el día que reservó y ${$(liq.aCliente)} vuelven a tu saldo. La comisión de publicación no se devuelve.`,
+    };
 
     res.json({
       success: true,
-      message: refundMessage,
-      refundTotal: isPendingApproval,
+      message: refundMessage[liq.regla],
+      refundTotal: liq.regla === 'antes_de_aprobar',
       refund: {
-        toClient: clientRefund,
-        toWorker: workerPayout,
-        commissionWithheld: isPendingApproval ? 0 : commissionPaid,
+        toClient: liq.aCliente,
+        toWorker: liq.aTrabajador,
+        commissionWithheld: liq.retieneApp,
+        processingCostWithheld: liq.costoPasarela,
+        rule: liq.regla,
       },
       job,
     });

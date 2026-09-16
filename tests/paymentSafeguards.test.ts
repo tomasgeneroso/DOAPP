@@ -8,7 +8,7 @@ import {
 import { leerMetadata } from '../server/utils/auditLog.js';
 import { gzipSync } from 'node:zlib';
 import { PROPORCION_MAXIMA_DEVOLUCIONES } from '../server/services/paymentSafeguards.js';
-import { desgloseCancelacionSinContratar } from '../shared/pricing/processingCost.js';
+import { desgloseCancelacionSinContratar, liquidarCancelacion } from '../shared/pricing/processingCost.js';
 import { marcarDiasAlFinalizar, umbralAusencia, buildDailyLog } from '../server/services/dailyLog.js';
 import { evidenceToPdf, indicesAIncluir } from '../server/services/contractEvidence.js';
 import { puedePromocionarse } from '../server/routes/profilePromotion.js';
@@ -435,6 +435,77 @@ describe('el silencio pierde en disputas', () => {
     // mejor que un administrador mire que resolver mal a favor de alguien.
     expect(estadoDeSilencio({ initiatedBy: C, createdAt: hace(9), messages: [] }, C, '')).toBeNull();
     expect(estadoDeSilencio({ initiatedBy: 'otro', createdAt: hace(9), messages: [] }, C, T)).toBeNull();
+  });
+});
+
+describe('liquidacion de una cancelacion (T&C 7.5, 9.1-9.3)', () => {
+  // Trabajo de 36.000 con comision 3.600 e IVA 756: total cobrado 40.356.
+  // Tarifa 4,10% (18 dias): pasarela 1.654,60.
+  const base = { precio: 36000, comision: 3600, iva: 756, rate: 0.041 };
+  const PASARELA = 1654.6;
+
+  it('la pasarela nunca la paga la plataforma: sale de lo que se devuelve', () => {
+    for (const caso of [
+      { aprobada: false, hayTrabajador: false, tardia: false },
+      { aprobada: true, hayTrabajador: false, tardia: false },
+      { aprobada: true, hayTrabajador: true, tardia: false },
+      { aprobada: true, hayTrabajador: true, tardia: true },
+    ]) {
+      const l = liquidarCancelacion({ ...base, ...caso });
+      expect(l.costoPasarela).toBeCloseTo(PASARELA, 1);
+      // Lo que sale (cliente + trabajador) + lo que retiene la app + pasarela = total cobrado
+      expect(l.aCliente + l.aTrabajador + l.retieneApp + l.costoPasarela).toBeCloseTo(40356, 1);
+    }
+  });
+
+  it('antes de aprobar vuelve todo, comision incluida, menos la pasarela', () => {
+    const l = liquidarCancelacion({ ...base, aprobada: false, hayTrabajador: false, tardia: false });
+    expect(l.regla).toBe('antes_de_aprobar');
+    expect(l.retieneApp).toBe(0);
+    expect(l.aCliente).toBeCloseTo(40356 - PASARELA, 1);
+    expect(l.aTrabajador).toBe(0);
+  });
+
+  it('aprobada y sin trabajador: precio menos pasarela; la comision queda', () => {
+    const l = liquidarCancelacion({ ...base, aprobada: true, hayTrabajador: false, tardia: true });
+    expect(l.regla).toBe('sin_trabajador');
+    expect(l.retieneApp).toBeCloseTo(4356, 1);
+    expect(l.aCliente).toBeCloseTo(36000 - PASARELA, 1);
+    expect(l.aTrabajador).toBe(0);
+  });
+
+  it('con trabajador pero con tiempo: igual que sin trabajador', () => {
+    // El trabajador todavia no perdio el dia. No se le compensa.
+    const l = liquidarCancelacion({ ...base, aprobada: true, hayTrabajador: true, tardia: false });
+    expect(l.regla).toBe('con_tiempo');
+    expect(l.aTrabajador).toBe(0);
+    expect(l.aCliente).toBeCloseTo(36000 - PASARELA, 1);
+  });
+
+  it('tardia con trabajador: la bolsa (precio - pasarela) se parte a la mitad', () => {
+    const l = liquidarCancelacion({ ...base, aprobada: true, hayTrabajador: true, tardia: true });
+    expect(l.regla).toBe('tardia_con_trabajador');
+    const bolsa = 36000 - PASARELA;
+    expect(l.aTrabajador).toBeCloseTo(bolsa / 2, 1);
+    expect(l.aCliente).toBeCloseTo(bolsa / 2, 1);
+    expect(l.retieneApp).toBeCloseTo(4356, 1);
+  });
+
+  it('la parte del trabajador es la de la politica, no un 50% escrito a mano', () => {
+    const l = liquidarCancelacion({ ...base, aprobada: true, hayTrabajador: true, tardia: true, parteTrabajador: 0.3 });
+    expect(l.aTrabajador).toBeCloseTo((36000 - PASARELA) * 0.3, 1);
+  });
+
+  it('con tarifa cero (saldo interno) no hay pasarela que descontar', () => {
+    const l = liquidarCancelacion({ ...base, rate: 0, aprobada: true, hayTrabajador: false, tardia: false });
+    expect(l.costoPasarela).toBe(0);
+    expect(l.aCliente).toBe(36000);
+  });
+
+  it('nunca devuelve negativos aunque el trabajo sea absurdamente chico', () => {
+    const l = liquidarCancelacion({ precio: 100, comision: 3600, iva: 756, rate: 0.0761, aprobada: true, hayTrabajador: true, tardia: true });
+    expect(l.aCliente).toBeGreaterThanOrEqual(0);
+    expect(l.aTrabajador).toBeGreaterThanOrEqual(0);
   });
 });
 
