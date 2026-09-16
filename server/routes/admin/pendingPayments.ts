@@ -334,7 +334,7 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
       // Get the Payment record for this contract to check commission verification
       const paymentRecord = await Payment.findOne({
         where: { contractId: firstContract.id },
-        attributes: ['id', 'status', 'amount', 'platformFee'],
+        attributes: ['id', 'status', 'amount', 'platformFee', 'approvedAt', 'createdAt'],
         include: [
           {
             model: PaymentProof,
@@ -379,8 +379,8 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
         completedAt: firstContract.clientConfirmedAt || firstContract.updatedAt,
         // Retencion: desde cuando se puede transferir, y si ya se puede. El
         // panel lo muestra para que el admin no intente antes y se coma el 409.
-        pagableDesde: pagableDesde(firstContract as any).toISOString(),
-        enRetencion: new Date() < pagableDesde(firstContract as any),
+        pagableDesde: pagableDesde(firstContract as any, (paymentRecord as any)?.approvedAt || (paymentRecord as any)?.createdAt).toISOString(),
+        enRetencion: new Date() < pagableDesde(firstContract as any, (paymentRecord as any)?.approvedAt || (paymentRecord as any)?.createdAt),
         paymentStatus: firstContract.paymentStatus || 'pending',
         escrowStatus: firstContract.escrowStatus || 'pending',
         contractStatus: firstContract.status,
