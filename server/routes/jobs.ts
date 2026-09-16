@@ -14,6 +14,8 @@ import { protect, requireKyc } from "../middleware/auth.js";
 import { requirePostWorkRating } from "../middleware/postWorkRating.js";
 import { MINIMUM_JOB_AMOUNT_ARS } from "../../shared/pricing/minimums.js";
 import { POLITICAS } from "../../shared/constants/policies.js";
+import { optionalAuth } from "../middleware/auth.js";
+import { paraQuienMira, ocultarDireccion, ocultarContacto } from "../services/privacidadTrabajo.js";
 import type { AuthRequest } from "../types/index.js";
 import { socketService } from "../index.js";
 import { Op, Sequelize } from 'sequelize';
@@ -255,7 +257,9 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
 
     // Convert to plain objects (like .lean() in MongoDB)
     const plainJobs = jobs.map(job => {
-      const jobData = job.toJSON();
+      // Listado publico y cacheado por consulta, no por usuario: nadie necesita
+      // la direccion exacta en una lista. Se saca siempre.
+      const jobData = ocultarDireccion(ocultarContacto(job.toJSON() as any));
       // Ensure clientId is included at root level for filtering
       if (!jobData.clientId && job.clientId) {
         jobData.clientId = job.clientId;
@@ -764,10 +768,11 @@ router.get("/calendar/feed/:token.ics", async (req: Request, res: Response): Pro
 
 // @route   GET /api/jobs/:id
 // @desc    Obtener trabajo por ID
-// @access  Public
+// @access  Public (con más datos para el dueño y el trabajador contratado)
 router.get("/:id",
+  optionalAuth,
   [param("id").isUUID().withMessage("ID de trabajo inválido")],
-  async (req: Request, res: Response): Promise<void> => {
+  async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
@@ -783,14 +788,16 @@ router.get("/:id",
       include: [
         {
           model: User,
+          // Sin phone ni email: ruta publica. Para hablar esta el chat.
           as: 'client',
-          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount', 'phone', 'email']
+          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount']
         },
         {
           model: User,
           as: 'doer',
-          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount', 'phone',
-            'profession', 'licenseNumber', 'licenseCategory', 'licenseCertNumber', 'licenseDocumentUrl', 'licenseVerified'],
+          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount',
+            'profession', 'licenseNumber', 'licenseCategory', 'licenseCertNumber', 'licenseDocumentUrl', 'licenseVerified',
+            'cancellationMarkUntil'],
           required: false
         }
       ]
@@ -804,7 +811,9 @@ router.get("/:id",
       return;
     }
 
-    const jobData = job.toJSON();
+    // La direccion exacta solo para el dueño, un admin, o el trabajador
+    // contratado desde 48 h antes del inicio. El resto ve barrio y zona.
+    const jobData = paraQuienMira(job.toJSON() as any, req.user as any);
     // Convert numeric strings to numbers for frontend compatibility
     if (jobData.price) jobData.price = parseFloat(jobData.price);
     if (jobData.publicationAmount) jobData.publicationAmount = parseFloat(jobData.publicationAmount);

@@ -15,6 +15,7 @@ import AttentionDot from '../components/AttentionDot';
 import { usePendingTasks } from '../hooks/usePendingTasks';
 import VerifiedBadge from '../components/VerifiedBadge';
 import { CancellationMark } from '../components/CancellationLadder';
+import { mostrarRating } from '../../shared/rating/display';
 import PostCard from '../components/user/PostCard';
 import CreatePost from '../components/user/CreatePost';
 import PostComments from '../components/user/PostComments';
@@ -805,11 +806,13 @@ export default function ProfilePage() {
                     <div className="flex items-center gap-2">
                       <Star className="w-4 h-4 text-amber-500 fill-current" />
                       <span className="font-semibold text-slate-900 dark:text-white">
-                        {user.rating ? Number(user.rating).toFixed(1) : '0.0'}
+                        {mostrarRating(user.rating, user.reviewsCount).texto}
                       </span>
-                      <span className="text-slate-600 dark:text-slate-400">
-                        ({user.reviewsCount || 0} {t('profile.reviews')})
-                      </span>
+                      {mostrarRating(user.rating, user.reviewsCount).tieneCalificacion && (
+                        <span className="text-slate-600 dark:text-slate-400">
+                          ({user.reviewsCount || 0} {t('profile.reviews')})
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-slate-400" />

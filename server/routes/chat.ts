@@ -362,7 +362,9 @@ router.post(
             jobId: job.id,
             jobTitle: job.title,
             jobPrice: Number(job.price),
-            jobLocation: [job.addressStreet, job.neighborhood, job.postalCode ? `CP ${job.postalCode}` : null, job.location, 'Argentina'].filter(Boolean).join(', ') || null,
+            // Sin la calle: el chat es previo a la contratacion y la direccion exacta
+            // se muestra recien 48 h antes del inicio, en el contrato.
+            jobLocation: [job.neighborhood, job.postalCode ? `CP ${job.postalCode}` : null, job.location, 'Argentina'].filter(Boolean).join(', ') || null,
             jobCategory: job.category || null,
             jobStatus: job.status,
             jobClientId: job.clientId,
@@ -723,7 +725,9 @@ router.post(
               jobId: job.id,
               jobTitle: job.title,
               jobPrice: Number(job.price),
-              jobLocation: [job.addressStreet, job.neighborhood, job.postalCode ? `CP ${job.postalCode}` : null, job.location, 'Argentina'].filter(Boolean).join(', ') || null,
+              // Sin la calle: el chat es previo a la contratacion y la direccion exacta
+            // se muestra recien 48 h antes del inicio, en el contrato.
+            jobLocation: [job.neighborhood, job.postalCode ? `CP ${job.postalCode}` : null, job.location, 'Argentina'].filter(Boolean).join(', ') || null,
               jobCategory: job.category || null,
               jobStatus: job.status,
               jobClientId: job.clientId,

@@ -44,6 +44,7 @@ import MultipleRatings from "../components/user/MultipleRatings";
 import { getCategoryById } from "../../shared/constants/categories";
 import { POLITICAS } from "../../shared/constants/policies";
 import { SuspendedNotice, CancellationMark } from "../components/CancellationLadder";
+import { mostrarRating } from "../../shared/rating/display";
 import LocationCircleMap from "../components/map/LocationCircleMap";
 import JobTasks from "../components/jobs/JobTasks";
 import { getImageUrl } from "../utils/imageUrl";
@@ -1412,7 +1413,7 @@ export default function JobDetail() {
                     </div>
                     <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-700 px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-300">
                       <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-                      {(clientInfo?.rating || 0).toFixed(1)}
+                      {mostrarRating(clientInfo?.rating, clientInfo?.reviewsCount).texto}
                     </span>
                   </div>
                 </div>
@@ -3624,9 +3625,7 @@ export default function JobDetail() {
                                 <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400 mt-1">
                                   <span className="flex items-center gap-1">
                                     <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
-                                    {Number(
-                                      proposal.freelancer?.rating || 0,
-                                    ).toFixed(1)}
+                                    {mostrarRating(proposal.freelancer?.rating, proposal.freelancer?.reviewsCount).texto}
                                   </span>
                                   <span>•</span>
                                   <span>

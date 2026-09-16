@@ -17,6 +17,7 @@ import { PlusCircle, MessageCircle, Lock, CheckCircle, MapPin, Calendar, Star, P
 import { Job } from '../../types';
 import { getJobs, getCategories } from '../../services/jobs';
 import { useAuth } from '../../context/AuthContext';
+import { mostrarRating } from '../../../shared/rating/display';
 import { useTheme } from '../../context/ThemeContext';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import Svg, { Path, Rect, G, Defs, ClipPath } from 'react-native-svg';
@@ -476,7 +477,7 @@ export default function HomeScreen() {
           <View style={styles.ratingContainer}>
             <Star size={14} color={colors.warning[500]} fill={colors.warning[500]} strokeWidth={2} />
             <Text style={[styles.ratingText, { color: themeColors.text.secondary }]}>
-              {Number(client.rating || 5).toFixed(1)} ({client.reviewsCount || 0})
+              {mostrarRating(client.rating, client.reviewsCount).texto}{mostrarRating(client.rating, client.reviewsCount).tieneCalificacion ? ` (${client.reviewsCount || 0})` : ""}
             </Text>
           </View>
         )}

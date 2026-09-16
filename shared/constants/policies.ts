@@ -84,6 +84,18 @@ export const POLITICAS = {
    * "a cotizar". T&C 6.6.
    */
   COTIZAR_DIAS_HABILES_ANTES_DE_PAUSAR: 10,
+
+  /**
+   * Horas antes del inicio a partir de las cuales el trabajador CONTRATADO ve
+   * la direccion exacta del trabajo. Antes de eso, y para todos los demas,
+   * solo barrio y zona.
+   *
+   * Es lo que necesita para planificar el viaje, y ni una hora mas: la
+   * direccion de una casa donde va a entrar un desconocido es el dato mas
+   * sensible de toda la plataforma. Los datos de contacto (telefono, email)
+   * no se muestran nunca entre usuarios; para eso esta el chat.
+   */
+  DIRECCION_VISIBLE_HORAS_ANTES: 48,
 } as const;
 
 export type PoliticaClave = keyof typeof POLITICAS;

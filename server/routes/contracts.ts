@@ -1,6 +1,8 @@
 import express, { Request, Response } from "express";
 import { getEffectiveTier } from '../services/platformPhase.js';
 import { MINIMUM_JOB_AMOUNT_ARS, MINIMUM_COMMISSION_ARS, MINIMUM_EXTENSION_ARS } from '../../shared/pricing/minimums.js';
+import { POLITICAS } from '../../shared/constants/policies.js';
+import { paraQuienMira, puedeVerDireccion } from '../services/privacidadTrabajo.js';
 import { body, validationResult } from "express-validator";
 import { Contract } from "../models/sql/Contract.model.js";
 import { Job } from "../models/sql/Job.model.js";
@@ -856,13 +858,15 @@ router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
         },
         {
           model: User,
+          // Sin email ni phone, ni siquiera entre las partes: para hablar esta
+          // el chat. El dato de contacto es de DOAPP para emergencias.
           as: 'client',
-          attributes: ['name', 'email', 'phone', 'avatar', 'rating', 'reviewsCount']
+          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount']
         },
         {
           model: User,
           as: 'doer',
-          attributes: ['name', 'email', 'phone', 'avatar', 'rating', 'reviewsCount']
+          attributes: ['id', 'name', 'avatar', 'rating', 'reviewsCount', 'cancellationMarkUntil']
         }
       ]
     });
@@ -888,9 +892,25 @@ router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
+    // La direccion exacta del trabajo la ve el trabajador recien 48 h antes
+    // del inicio (o si ya empezo). Hasta entonces, barrio y zona. El cliente
+    // y los admins la ven siempre.
+    const plano = contract.toJSON() as any;
+    if (plano.job) {
+      plano.job = paraQuienMira(
+        { ...plano.job, clientId: plano.clientId, doerId: plano.doerId, status: plano.status === 'in_progress' ? 'in_progress' : plano.job.status },
+        req.user as any,
+      );
+      if (!puedeVerDireccion({ ...plano.job, clientId: plano.clientId, doerId: plano.doerId }, req.user as any)) {
+        plano.direccionVisibleDesde = new Date(
+          new Date(plano.startDate).getTime() - POLITICAS.DIRECCION_VISIBLE_HORAS_ANTES * 3_600_000,
+        ).toISOString();
+      }
+    }
+
     res.json({
       success: true,
-      contract,
+      contract: plano,
     });
   } catch (error: any) {
     res.status(500).json({

@@ -230,7 +230,10 @@ export default function ContractSummary() {
                       {contract.client.name}
                     </p>
                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                      {contract.client.email}
+                      {/* Sin email: no se comparten datos de contacto entre las partes. */}
+                      {Number((contract.client as any).rating || 0) > 0
+                        ? `★ ${Number((contract.client as any).rating).toFixed(1)}`
+                        : t('common.newOnDoapp', 'Nuevo en DOAPP')}
                     </p>
                   </div>
                 </div>
@@ -259,7 +262,9 @@ export default function ContractSummary() {
                       {contract.doer.name}
                     </p>
                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                      {contract.doer.email}
+                      {Number((contract.doer as any).rating || 0) > 0
+                        ? `★ ${Number((contract.doer as any).rating).toFixed(1)}`
+                        : t('common.newOnDoapp', 'Nuevo en DOAPP')}
                     </p>
                   </div>
                 </div>

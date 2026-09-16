@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
+import { mostrarRating } from '../../../shared/rating/display';
 import { useTheme } from '../../context/ThemeContext';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 import { LogoIcon } from '../../components/ui/Logo';
@@ -210,7 +211,7 @@ export default function ProfileScreen() {
             <View style={styles.ratingRow}>
               <Text style={styles.starIcon}>⭐</Text>
               <Text style={[styles.ratingText, { color: themeColors.text.secondary }]}>
-                {Number(user?.rating || 5).toFixed(1)} · {user?.reviewsCount || 0} opiniones
+                {mostrarRating(user?.rating, user?.reviewsCount).texto}{mostrarRating(user?.rating, user?.reviewsCount).tieneCalificacion ? ` · ${user?.reviewsCount || 0} opiniones` : ""}
               </Text>
             </View>
             {(user as any)?.credibility && (

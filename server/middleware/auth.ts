@@ -72,6 +72,36 @@ export const protect = async (
   }
 };
 
+/**
+ * Autenticación opcional: si hay token válido, carga req.user; si no, sigue
+ * sin usuario y sin error.
+ *
+ * Para rutas públicas que devuelven MÁS a quien tiene derecho: el detalle de
+ * un trabajo lo ve cualquiera, pero la dirección exacta de la casa la ve solo
+ * el dueño y el trabajador contratado, y este último recién cerca del inicio.
+ * Sin esto la ruta no puede distinguir a nadie y termina mostrando todo a
+ * todos, que es lo que pasaba.
+ */
+export const optionalAuth = async (
+  req: AuthRequest,
+  _res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    let token: string | undefined;
+    if (req.cookies?.token) token = req.cookies.token;
+    else if (req.headers.authorization?.startsWith("Bearer")) token = req.headers.authorization.split(" ")[1];
+    if (!token) return next();
+
+    const decoded = jwt.verify(token, config.jwtSecret) as DecodedToken;
+    req.user = await User.findByPk(decoded.id, { attributes: { exclude: ['password'] } });
+  } catch {
+    // Token vencido o inválido: se trata como visitante. No es un error.
+    req.user = undefined as any;
+  }
+  next();
+};
+
 // Middleware para verificar roles
 /**
  * Gate an action behind identity verification (KYC). A user without a verified

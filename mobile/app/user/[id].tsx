@@ -16,6 +16,7 @@ import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../const
 import { useTheme } from '../../context/ThemeContext';
 import { get, getImageUrl } from '../../services/api';
 import { CancellationMark } from '../../components/CancellationLadder';
+import { mostrarRating } from '../../../shared/rating/display';
 import { getCategoryById } from '../../services/jobs';
 
 const DAY_NAMES_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -249,7 +250,7 @@ export default function UserProfileScreen() {
           <View style={styles.ratingContainer}>
             <Star size={18} color={colors.warning[500]} fill={colors.warning[500]} />
             <Text style={[styles.ratingText, { color: themeColors.text.primary }]}>
-              {Number(user.rating || 5).toFixed(1)}
+              {mostrarRating(user.rating, user.reviewsCount).texto}
             </Text>
             <Text style={[styles.reviewsText, { color: themeColors.text.secondary }]}>
               ({user.reviewsCount || 0} opiniones)
@@ -306,7 +307,7 @@ export default function UserProfileScreen() {
           </View>
           <View style={[styles.statCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
             <Star size={24} color={colors.warning[500]} />
-            <Text style={[styles.statValue, { color: themeColors.text.primary }]}>{Number(user.rating || 5).toFixed(1)}</Text>
+            <Text style={[styles.statValue, { color: themeColors.text.primary }]}>{mostrarRating(user.rating, user.reviewsCount).texto}</Text>
             <Text style={[styles.statLabel, { color: themeColors.text.secondary }]}>Calificación</Text>
           </View>
         </View>

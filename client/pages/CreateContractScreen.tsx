@@ -29,9 +29,7 @@ import { JOB_CATEGORIES, JOB_TAGS, canJobsOverlap, getCategoryById } from "../..
 // se deriva del costo de pasarela, del costo fijo por contrato y del tipo de
 // cambio, así que cambia solo. Un número copiado acá quedaría mintiendo.
 import {
-  MINIMUM_JOB_AMOUNT_ARS,
   MINIMUM_COMMISSION_ARS,
-  comisionEfectiva,
   precioDondeElPisoDejaDeMorder,
 } from "../../shared/pricing/minimums";
 import { COMMISSION_RATES } from "../../shared/constants/membershipPricing";
@@ -551,37 +549,42 @@ export default function CreateContractScreen() {
                       );
                       return (
                         <div className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+                          {/*
+                            No hay mínimo de trabajo: hay una comisión mínima. Se
+                            dice el monto y nada más — ni "equivale al X%" ni
+                            "a partir de tanto": un número que el cliente puede
+                            ver y decidir. El detalle está en los términos.
+                          */}
                           <p>
-                            El monto mínimo de un trabajo es{' '}
-                            <span className="font-medium">
-                              ${MINIMUM_JOB_AMOUNT_ARS.toLocaleString('es-AR')}
-                            </span>
-                            .{' '}
+                            {pisoMuerde ? (
+                              <>
+                                La comisión de esta publicación es{' '}
+                                <span className="font-medium text-slate-700 dark:text-slate-200">
+                                  ${Math.round(comision).toLocaleString('es-AR')}
+                                </span>
+                                {' '}(la mínima).
+                              </>
+                            ) : precioTipeado > 0 ? (
+                              <>
+                                La comisión de esta publicación es{' '}
+                                <span className="font-medium text-slate-700 dark:text-slate-200">
+                                  ${Math.round(comision).toLocaleString('es-AR')}
+                                </span>
+                                .
+                              </>
+                            ) : (
+                              <>La comisión se calcula sobre el precio, con un mínimo.</>
+                            )}{' '}
                             <a
-                              href="/legal/terminos-y-condiciones#s7p8"
+                              href="/legal/terminos-y-condiciones#s7p4"
                               target="_blank"
                               rel="noreferrer"
                               className="text-sky-600 dark:text-sky-400 underline"
                             >
-                              Por qué existe este mínimo
+                              Cómo se calcula
                             </a>
                             .
                           </p>
-                          {pisoMuerde && (
-                            <p className="text-amber-700 dark:text-amber-400">
-                              En trabajos de este monto la comisión es la mínima de{' '}
-                              <span className="font-medium">
-                                ${Math.round(comision).toLocaleString('es-AR')}
-                              </span>
-                              , que equivale al{' '}
-                              <span className="font-medium">
-                                {(comisionEfectiva(precioTipeado) * 100).toFixed(0)}%
-                              </span>
-                              . A partir de{' '}
-                              ${precioDondeElPisoDejaDeMorder().toLocaleString('es-AR')}{' '}
-                              pasa a ser el {COMMISSION_RATES.free}% de siempre.
-                            </p>
-                          )}
                         </div>
                       );
                     })()}
