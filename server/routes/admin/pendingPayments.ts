@@ -27,9 +27,28 @@ const router = express.Router();
  * se queda: es lo que hace que "podes reclamar hasta 7 dias despues" sea una
  * promesa y no una frase. Una transferencia bancaria no se cancela.
  */
-export function pagableDesde(contract: { completedAt?: Date | null; clientConfirmedAt?: Date | null; updatedAt?: Date | null }): Date {
+export function pagableDesde(
+  contract: { completedAt?: Date | null; clientConfirmedAt?: Date | null; updatedAt?: Date | null },
+  /** Cuando pago el cliente, si se conoce: la plata queda "a liberar" en MP. */
+  pagadoEl?: Date | string | null,
+): Date {
   const fin = (contract as any).completedAt || contract.clientConfirmedAt || contract.updatedAt || new Date();
-  return new Date(new Date(fin).getTime() + PAGO_TRABAJADOR_RETENCION_DIAS * 86_400_000);
+  const porRetencion = new Date(fin).getTime() + PAGO_TRABAJADOR_RETENCION_DIAS * 86_400_000;
+
+  /**
+   * Y el otro reloj: el de Mercado Pago. La plata del cliente queda "a
+   * liberar" PAYMENT_RELEASE_DAYS desde que pago, y hasta entonces no hay
+   * saldo disponible para transferir. Los dos relojes corren en paralelo y
+   * manda el que termina despues. En un trabajo corto es el de MP; en uno
+   * largo, el de la retencion.
+   */
+  const diasMp = Number(process.env.PAYMENT_RELEASE_DAYS);
+  const porLiberacionMp =
+    pagadoEl && Number.isFinite(diasMp) && diasMp > 0
+      ? new Date(pagadoEl).getTime() + diasMp * 86_400_000
+      : 0;
+
+  return new Date(Math.max(porRetencion, porLiberacionMp));
 }
 
 // Configure multer for worker payment proof uploads (admin uploads proof of bank transfer to worker)
@@ -887,7 +906,8 @@ router.post("/:contractId/mark-paid", protect, requireRole('admin', 'super_admin
      * nada que retener. Se puede forzar con justificacion, y queda asentado con
      * severidad alta: cada excepcion tiene que poder reconstruirse.
      */
-    const desde = pagableDesde(contract as any);
+    const pagoDelCliente = await Payment.findOne({ where: { contractId }, attributes: ['approvedAt', 'createdAt'], order: [['createdAt', 'ASC']] }).catch(() => null);
+    const desde = pagableDesde(contract as any, (pagoDelCliente as any)?.approvedAt || (pagoDelCliente as any)?.createdAt);
     const { forzar, justificacion } = req.body as { forzar?: boolean; justificacion?: string };
     if (new Date() < desde) {
       if (!forzar || !justificacion || String(justificacion).trim().length < 15) {
