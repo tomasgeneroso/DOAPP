@@ -2479,7 +2479,6 @@ const cancelarPublicacion = async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
-    // Determinar si es cancelacion durante pending_approval (reembolso total)
     const isPendingApproval = job.status === "pending_approval";
 
     // Verificar que el job esté en un estado cancelable
@@ -2491,13 +2490,54 @@ const cancelarPublicacion = async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
+    const { reason } = req.body;
+    const { Notification } = await import('../models/sql/Notification.model.js');
+
+    /**
+     * Todavía esperando aprobación: NO se cancela sola. Sale de la cola de
+     * "aprobar" y entra a la de "cancelar", que revisa un admin. Es el único
+     * caso donde la comisión se devuelve (T&C 9.1), y por eso pasa por una
+     * persona: automático, publicar-y-cancelar sería probar tarjetas gratis.
+     */
+    if (isPendingApproval) {
+      if ((job as any).cancellationRequestedAt) {
+        res.status(400).json({ success: false, message: "Ya pediste cancelar esta publicación. Un administrador la está revisando." });
+        return;
+      }
+      (job as any).cancellationRequestedAt = new Date();
+      job.cancellationReason = reason || null;
+      await job.save();
+      cacheService.delPattern('jobs:*');
+
+      const admins = await User.findAll({ where: { role: { [Op.in]: ['admin', 'super_admin', 'owner'] } }, attributes: ['id'] });
+      for (const a of admins) {
+        await Notification.create({
+          recipientId: a.id,
+          type: 'info',
+          category: 'admin',
+          title: 'Pedido de cancelación antes de aprobar',
+          message: `El cliente pidió cancelar "${job.title}" mientras esperaba aprobación. Si se aprueba la cancelación, se devuelve todo menos la pasarela.`,
+          relatedModel: 'Job',
+          relatedId: job.id,
+          actionText: 'Revisar',
+          sentVia: ['in_app'],
+        } as any);
+      }
+      socketService.notifyJobStatusChanged(job.toJSON(), job.status);
+
+      res.json({
+        success: true,
+        message: "Tu pedido de cancelación quedó en revisión. Cuando un administrador lo apruebe, se acredita a tu saldo todo lo que pagaste menos el costo de la pasarela, que ya fue cobrado y no vuelve.",
+        pendingReview: true,
+        job,
+      });
+      return;
+    }
+
     // Tiempo restante hasta el inicio del trabajo (define el reembolso aplicable)
     const now = new Date();
     const startDate = new Date(job.startDate);
     const hoursUntilStart = (startDate.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-    // Obtener razon de cancelacion del body
-    const { reason } = req.body;
     const previousStatus = job.status;
 
     // Cancelar el trabajo
@@ -2508,13 +2548,8 @@ const cancelarPublicacion = async (req: AuthRequest, res: Response): Promise<voi
     job.cancelledByRole = 'owner'; // Cancelled by job owner
     await job.save();
 
-    // Invalidar cache
     cacheService.delPattern('jobs:*');
-
-    // Notificar actualizacion en tiempo real
     socketService.notifyJobStatusChanged(job.toJSON(), previousStatus);
-
-    // Emitir evento de actualización para la vista de mis publicaciones
     socketService.getIO().emit("jobs:refresh", {
       action: "cancelled",
       jobId: job.id,
@@ -2522,158 +2557,20 @@ const cancelarPublicacion = async (req: AuthRequest, res: Response): Promise<voi
       cancelledBy: 'owner'
     });
 
-    // ============================================
-    // LIQUIDACIÓN — T&C 7.5, 9.1, 9.2, 9.3
-    // La regla vive en shared/pricing/processingCost.ts (liquidarCancelacion),
-    // compartida con la aprobación de cancelación de contrato del admin, para
-    // que los dos caminos digan lo mismo. Acá solo se lee el pago, se llama, y
-    // se acredita. Todo lo que va al cliente es saldo a favor: la plata no sale
-    // de la plataforma y por eso no paga una segunda pasarela.
-    // ============================================
-    const { BalanceTransaction } = await import('../models/sql/BalanceTransaction.model.js');
-    const { Notification } = await import('../models/sql/Notification.model.js');
-    const { Payment } = await import('../models/sql/Payment.model.js');
-    const { liquidarCancelacion } = await import('../../shared/pricing/processingCost.js');
-    const { logMoneyEvent } = await import('../utils/auditLog.js');
-
-    const jobPrice = Number(job.price) || 0;
-    const selectedWorkers: string[] = Array.isArray(job.selectedWorkers) ? job.selectedWorkers : [];
-    const hasWorker = selectedWorkers.length > 0;
-    const esTardia = hoursUntilStart <= POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES;
-
-    // Comisión e IVA tal como se cobraron: platformFee es la comisión sin IVA,
-    // amount es el total (precio + comisión + IVA).
-    let comision = 0;
-    let iva = 0;
-    if (job.publicationPaymentId) {
-      const pubPayment = await Payment.findByPk(job.publicationPaymentId).catch(() => null);
-      if (pubPayment) {
-        comision = Number((pubPayment as any).platformFee) || 0;
-        const total = Number((pubPayment as any).amount) || 0;
-        iva = Math.max(0, total - jobPrice - comision);
-      }
-    }
-
-    const liq = liquidarCancelacion({
-      precio: jobPrice,
-      comision,
-      iva,
-      aprobada: !isPendingApproval,
-      hayTrabajador: hasWorker,
-      tardia: esTardia,
-      parteTrabajador: POLITICAS.CANCELACION_TARDIA_PARTE_TRABAJADOR,
+    // La liquidación (T&C 9.2 / 9.3) vive en services/jobCancellation.ts,
+    // compartida con el rechazo y la cancelación aprobada por admin.
+    const { liquidarCancelacionDePublicacion, mensajeDeCancelacion } = await import('../services/jobCancellation.js');
+    const { liq } = await liquidarCancelacionDePublicacion(job, {
+      aprobada: true,
+      horasHastaInicio: hoursUntilStart,
+      actor: { id: String(req.user.id), tipo: 'cliente' },
+      motivo: reason || null,
     });
-
-    // Al cliente, como saldo a favor
-    if (liq.aCliente > 0) {
-      const client = await User.findByPk(job.clientId);
-      if (client) {
-        const before = parseFloat(client.balanceArs as any) || 0;
-        await client.addBalance(liq.aCliente);
-        await BalanceTransaction.create({
-          userId: job.clientId,
-          type: 'refund',
-          amount: liq.aCliente,
-          balanceBefore: before,
-          balanceAfter: before + liq.aCliente,
-          description: `Saldo a favor por cancelación de "${job.title}"`,
-          status: 'completed',
-          metadata: {
-            reason: `job_cancelled_${liq.regla}`,
-            jobId: job.id,
-            jobPrice,
-            costoPasarela: liq.costoPasarela,
-            retieneApp: liq.retieneApp,
-            aTrabajador: liq.aTrabajador,
-            hoursUntilStart: Math.round(hoursUntilStart * 100) / 100,
-          },
-        } as any);
-        await Notification.create({
-          recipientId: job.clientId,
-          type: 'success',
-          category: 'payment',
-          title: 'Saldo a favor acreditado',
-          message: `Se acreditaron $${liq.aCliente.toLocaleString('es-AR')} a tu saldo por la cancelación de "${job.title}". Podés usarlo en tu próxima publicación sin costo, o pedir la transferencia a tu cuenta.`,
-          relatedModel: 'Job',
-          relatedId: job.id,
-          read: false,
-        } as any);
-      }
-    }
-
-    // Al trabajador: la mitad de la bolsa por el día que reservó y perdió.
-    // Se le avisa por la app y por email: se enteró de que no trabaja mañana,
-    // tiene que enterarse a la vez de que cobra algo.
-    if (liq.aTrabajador > 0 && hasWorker) {
-      const perWorker = Math.round((liq.aTrabajador / selectedWorkers.length) * 100) / 100;
-      for (const workerId of selectedWorkers) {
-        const worker = await User.findByPk(workerId).catch(() => null);
-        if (worker) {
-          const before = parseFloat(worker.balanceArs as any) || 0;
-          await worker.addBalance(perWorker);
-          await BalanceTransaction.create({
-            userId: workerId,
-            type: 'payment',
-            amount: perWorker,
-            balanceBefore: before,
-            balanceAfter: before + perWorker,
-            description: `Compensación por cancelación tardía de "${job.title}"`,
-            status: 'completed',
-            metadata: { reason: 'job_cancelled_late_compensation', jobId: job.id, jobPrice, costoPasarela: liq.costoPasarela },
-          } as any);
-          await Notification.create({
-            recipientId: workerId,
-            type: 'warning',
-            category: 'payment',
-            title: 'El cliente canceló el trabajo',
-            message: `"${job.title}" fue cancelado con menos de ${POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES} horas de anticipación. Por el día que reservaste se te acreditaron $${perWorker.toLocaleString('es-AR')} a tu saldo. Podés pedir la transferencia desde tu balance.`,
-            relatedModel: 'Job',
-            relatedId: job.id,
-            read: false,
-          } as any);
-          socketService.notifyUser(workerId, 'job_cancelled_compensation', { jobId: job.id, amount: perWorker });
-          if ((worker as any).email) {
-            const { default: emailService } = await import('../services/email.js');
-            emailService.sendEmail({
-              to: (worker as any).email,
-              subject: `Cancelaron "${job.title}" — tenés una compensación`,
-              html: `
-                <h2>El cliente canceló el trabajo</h2>
-                <p>Hola <strong>${(worker as any).name || ''}</strong>, el cliente canceló <strong>"${job.title}"</strong> con menos de ${POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES} horas de anticipación.</p>
-                <p>Por el día que reservaste te corresponde la mitad del precio, descontado el costo de la pasarela: <strong>$${perWorker.toLocaleString('es-AR')}</strong>. Ya está en tu saldo de DOAPP y podés pedir la transferencia a tu cuenta desde la sección Balance.</p>
-                <p style="color:#666;font-size:12px">Esto es lo que dicen los términos (punto 9.3). Si algo no te cierra, escribinos desde el centro de ayuda.</p>
-              `,
-            }).catch((e: any) => console.error('[cancelación] email al trabajador:', e?.message));
-          }
-        }
-      }
-    }
-
-    // Queda asentado en el libro de dinero, con el desglose entero.
-    await logMoneyEvent({
-      action: 'JOB_CANCELLED_SETTLED',
-      actor: `user:${req.user.id}`,
-      severity: liq.aTrabajador > 0 ? 'medium' : 'low',
-      description: `Publicación cancelada por el cliente. Regla: ${liq.regla}.`,
-      userId: job.clientId,
-      monto: jobPrice,
-      moneda: 'ARS',
-      metadata: { jobId: job.id, ...liq, hoursUntilStart: Math.round(hoursUntilStart * 100) / 100, trabajadores: selectedWorkers },
-    }).catch(() => {});
-
-    // Mensaje de resultado: el desglose, sin eufemismos
-    const $ = (n: number) => `$${n.toLocaleString('es-AR')}`;
-    const refundMessage: Record<typeof liq.regla, string> = {
-      antes_de_aprobar: `Publicación cancelada. Se acreditaron ${$(liq.aCliente)} a tu saldo: todo lo que pagaste (precio y comisión), menos ${$(liq.costoPasarela)} que ya cobró la pasarela y no vuelve.`,
-      sin_trabajador: `Publicación cancelada. Se acreditaron ${$(liq.aCliente)} a tu saldo: el precio menos ${$(liq.costoPasarela)} de pasarela. La comisión de publicación no se devuelve.`,
-      con_tiempo: `Publicación cancelada. Se acreditaron ${$(liq.aCliente)} a tu saldo: el precio menos ${$(liq.costoPasarela)} de pasarela. La comisión de publicación no se devuelve.`,
-      tardia_con_trabajador: `Publicación cancelada con menos de ${POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES} horas. Del precio, menos ${$(liq.costoPasarela)} de pasarela, la mitad (${$(liq.aTrabajador)}) es para el trabajador por el día que reservó y ${$(liq.aCliente)} vuelven a tu saldo. La comisión de publicación no se devuelve.`,
-    };
 
     res.json({
       success: true,
-      message: refundMessage[liq.regla],
-      refundTotal: liq.regla === 'antes_de_aprobar',
+      message: mensajeDeCancelacion(liq),
+      refundTotal: false,
       refund: {
         toClient: liq.aCliente,
         toWorker: liq.aTrabajador,

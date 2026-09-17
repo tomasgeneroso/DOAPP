@@ -265,6 +265,17 @@ export class Job extends Model {
   @Column(DataType.STRING)
   cancelledByRole?: string; // 'owner' (job owner) or 'admin' (admin user)
 
+  /**
+   * El cliente pidio cancelar mientras la publicacion esperaba aprobacion.
+   *
+   * No se cancela sola: sale de la cola de "aprobar" y entra a la de
+   * "cancelar", que revisa un admin. Es el unico caso en que la comision se
+   * devuelve (T&C 9.1), y por eso pasa por una persona: si fuera automatico,
+   * publicar-y-cancelar seria una forma de probar tarjetas gratis.
+   */
+  @Column(DataType.DATE)
+  cancellationRequestedAt?: Date | null;
+
   @Default(false)
   @AllowNull(false)
   @Column(DataType.BOOLEAN)

@@ -56,6 +56,8 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'payments.processing_fee', sql: `ALTER TABLE payments ADD COLUMN IF NOT EXISTS processing_fee NUMERIC(12,2)` },
   { label: 'payments.net_received_amount', sql: `ALTER TABLE payments ADD COLUMN IF NOT EXISTS net_received_amount NUMERIC(12,2)` },
   { label: 'payments.money_release_date', sql: `ALTER TABLE payments ADD COLUMN IF NOT EXISTS money_release_date TIMESTAMPTZ` },
+  // El cliente pidio cancelar mientras esperaba aprobacion: sale de una cola y entra a otra.
+  { label: 'jobs.cancellation_requested_at', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS cancellation_requested_at TIMESTAMPTZ` },
   // Escalera de cancelaciones del trabajador.
   { label: 'users.cancellation_mark_until', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS cancellation_mark_until TIMESTAMPTZ` },
   { label: 'users.suspended_from_applying_until', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_from_applying_until TIMESTAMPTZ` },

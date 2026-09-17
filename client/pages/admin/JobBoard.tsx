@@ -27,6 +27,8 @@ interface Fila {
   cotizaciones: number;
   cotizacionesAceptadas: number;
   publicadaEl: string;
+  cancelacionPedidaEl?: string | null;
+  motivoCancelacion?: string | null;
   cliente: { id: string; nombre: string; email: string } | null;
 }
 
@@ -38,6 +40,12 @@ interface Fila {
  * confió lo suficiente como para pagar por adelantado.
  */
 const ESTADOS: Record<string, { rotulo: string; ayuda: string; clase: string }> = {
+  cancelacion_pendiente: {
+    rotulo: 'Pidió cancelar',
+    ayuda:
+      'El cliente pidió cancelar mientras la publicación esperaba aprobación. Salió de la cola de aprobar. Si aprobás la cancelación se le acredita a su saldo todo lo que pagó menos la pasarela (T&C 9.1). Es el único caso donde la comisión se devuelve, por eso pasa por una persona.',
+    clase: 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200',
+  },
   pagada_fantasma: {
     rotulo: 'Pagada fantasma',
     ayuda:
@@ -80,6 +88,7 @@ const ESTADOS: Record<string, { rotulo: string; ayuda: string; clase: string }> 
 };
 
 const ORDEN = [
+  'cancelacion_pendiente',
   'pagada_fantasma',
   'vencida_sin_elegir',
   'vencida_nadie_cotizo',
@@ -110,6 +119,34 @@ export default function JobBoard() {
   // Arranca por días hábiles descendente: lo más viejo sin resolver, primero.
   const [ordenarPor, setOrdenarPor] = useState('diasHabiles');
   const [direccion, setDireccion] = useState<'asc' | 'desc'>('desc');
+  const [accionando, setAccionando] = useState<string | null>(null);
+
+  /**
+   * Aprobar el pedido de cancelación del cliente. El servidor liquida
+   * (todo menos pasarela, T&C 9.1) y le avisa al cliente con su número.
+   */
+  const aprobarCancelacion = async (f: Fila) => {
+    if (!window.confirm(`Aprobar la cancelación de "${f.titulo}" y devolverle al cliente todo lo que pagó menos la pasarela?`)) return;
+    setAccionando(f.id);
+    try {
+      const res = await fetch(`/api/admin/jobs/${f.id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: 'cancelled' }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || 'No se pudo aprobar la cancelación');
+      const liq = data.liquidacion;
+      if (liq) {
+        window.alert(`Cancelación aprobada. Al cliente se le acreditaron $${Number(liq.aCliente).toLocaleString('es-AR')}; la pasarela se quedó $${Number(liq.costoPasarela).toLocaleString('es-AR')}.`);
+      }
+      setFilas((prev) => prev.filter((x) => x.id !== f.id));
+    } catch (e: any) {
+      setError(e?.message || 'Error');
+    } finally {
+      setAccionando(null);
+    }
+  };
 
   /**
    * Un clic ordena por esa columna; el segundo invierte.
@@ -296,6 +333,21 @@ export default function JobBoard() {
                         {f.modo === 'quote' ? 'A cotizar' : 'Precio fijo'}
                         {f.pagada && ' · pagada'}
                       </p>
+                      {f.estado === 'cancelacion_pendiente' && (
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          {f.motivoCancelacion && (
+                            <p className="text-xs text-slate-600 dark:text-slate-300 italic">"{f.motivoCancelacion}"</p>
+                          )}
+                          <button
+                            type="button"
+                            disabled={accionando === f.id}
+                            onClick={() => aprobarCancelacion(f)}
+                            className="text-xs px-2.5 py-1 rounded-md bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"
+                          >
+                            {accionando === f.id ? 'Devolviendo…' : 'Aprobar cancelación y devolver saldo'}
+                          </button>
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
                       {f.cliente?.nombre || '—'}

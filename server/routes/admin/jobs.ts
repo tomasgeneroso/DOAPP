@@ -231,9 +231,14 @@ router.get(
           | 'vencida_sin_elegir'
           | 'sin_cotizaciones'
           | 'esperando_aprobacion'
+          | 'cancelacion_pendiente'
           | 'normal';
 
-        if (job.status === 'pending_approval') estado = 'esperando_aprobacion';
+        // El cliente pidió cancelar mientras esperaba aprobación: sale de la
+        // cola de aprobar y entra a esta. Va primero porque decide sobre las
+        // demás: no se aprueba lo que el dueño ya no quiere.
+        if (job.cancellationRequestedAt) estado = 'cancelacion_pendiente';
+        else if (job.status === 'pending_approval') estado = 'esperando_aprobacion';
         else if (job.pausedForInactivityAt) estado = 'pausada_inactividad';
         else if (vencida && job.publicationPaid) estado = 'pagada_fantasma';
         else if (vencida) estado = c.total === 0 ? 'vencida_nadie_cotizo' : 'vencida_sin_elegir';
@@ -255,6 +260,8 @@ router.get(
           cotizacionesAceptadas: c.aceptadas,
           publicadaEl: job.createdAt,
           reanudadaEl: job.resumedAt || null,
+          cancelacionPedidaEl: job.cancellationRequestedAt || null,
+          motivoCancelacion: job.cancellationReason || null,
           cliente: job.client
             ? { id: job.client.id, nombre: job.client.name, email: job.client.email }
             : null,
@@ -361,10 +368,10 @@ router.put(
       const { id } = req.params;
       const { status, rejectedReason } = req.body;
 
-      if (!status || !['approved', 'rejected'].includes(status)) {
+      if (!status || !['approved', 'rejected', 'cancelled'].includes(status)) {
         res.status(400).json({
           success: false,
-          message: "Estado inválido. Debe ser 'approved' o 'rejected'",
+          message: "Estado inválido. Debe ser 'approved', 'rejected' o 'cancelled' (aprobar el pedido de cancelación del cliente)",
         });
         return;
       }
@@ -387,30 +394,66 @@ router.put(
         return;
       }
 
-      // Mapear status de admin a status de Job
-      let newStatus: any;
-      if (status === 'approved') {
-        newStatus = 'open'; // Publicación aprobada y abierta
-      } else {
-        newStatus = 'cancelled'; // Publicación rechazada
+      /**
+       * No se aprueba lo que el dueño ya pidió cancelar. Si el admin quiere
+       * publicarlo igual, primero tiene que hablar con el cliente; acá no hay
+       * atajo.
+       */
+      if (status === 'approved' && (job as any).cancellationRequestedAt) {
+        res.status(409).json({
+          success: false,
+          message: 'El cliente pidió cancelar esta publicación antes de que se apruebe. Aprobá la cancelación (status: "cancelled") en vez de publicarla.',
+        });
+        return;
+      }
+      if (status === 'cancelled' && !(job as any).cancellationRequestedAt) {
+        res.status(400).json({
+          success: false,
+          message: 'Este trabajo no tiene un pedido de cancelación del cliente. Para darlo de baja usá "rejected".',
+        });
+        return;
       }
 
+      const newStatus: any = status === 'approved' ? 'open' : 'cancelled';
       const previousStatus = job.status;
+      const estabaAprobada = previousStatus !== 'pending_approval';
 
-      // Actualizar job
       await job.update({
         status: newStatus,
         rejectedReason: status === 'rejected' ? rejectedReason : null,
         reviewedBy: req.user.id,
         reviewedAt: new Date(),
+        ...(status !== 'approved'
+          ? { cancelledAt: new Date(), cancelledById: status === 'cancelled' ? job.clientId : req.user.id, cancelledByRole: status === 'cancelled' ? 'owner' : 'admin' }
+          : {}),
       });
+
+      /**
+       * La plata. Rechazar una publicación pagada la dejaba en "cancelled" con
+       * el dinero en escrow para siempre; aprobar la cancelación del cliente
+       * no existía. Los dos casos son T&C 9.1 si nunca se aprobó: vuelve todo
+       * menos la pasarela. Si ya estaba aprobada y el admin la da de baja,
+       * rige 9.2/9.3.
+       */
+      let liquidacion: any = null;
+      if (status !== 'approved' && (job as any).publicationPaid) {
+        const { liquidarCancelacionDePublicacion } = await import('../../services/jobCancellation.js');
+        const horas = (new Date(job.startDate).getTime() - Date.now()) / 3_600_000;
+        const r = await liquidarCancelacionDePublicacion(job, {
+          aprobada: estabaAprobada,
+          horasHastaInicio: horas,
+          actor: { id: String(req.user.id), tipo: 'admin' },
+          motivo: status === 'rejected' ? (rejectedReason || 'rechazada por admin') : (job.cancellationReason || 'cancelación pedida por el cliente'),
+        });
+        liquidacion = r.liq;
+      }
 
       void logAudit({
         req, action: `job.${status}`, category: 'contract',
-        severity: status === 'rejected' ? 'medium' : 'low',
-        description: `${status === 'approved' ? 'Aprobó' : 'Rechazó'} la publicación "${job.title}"${status === 'rejected' && rejectedReason ? ` (motivo: ${rejectedReason})` : ''}`,
+        severity: status === 'approved' ? 'low' : 'medium',
+        description: `${status === 'approved' ? 'Aprobó' : status === 'rejected' ? 'Rechazó' : 'Aprobó la cancelación pedida por el cliente de'} la publicación "${job.title}"${status === 'rejected' && rejectedReason ? ` (motivo: ${rejectedReason})` : ''}`,
         targetModel: 'Job', targetId: job.id, targetIdentifier: job.title,
-        metadata: { previousStatus, newStatus, rejectedReason: rejectedReason || null },
+        metadata: { previousStatus, newStatus, rejectedReason: rejectedReason || null, liquidacion },
       });
 
       // Refetch job with associations for socket notification
@@ -437,10 +480,12 @@ router.put(
       const { Notification } = await import('../../models/sql/Notification.model.js');
       const notification = await Notification.create({
         recipientId: job.clientId,
-        title: status === 'approved' ? 'Publicación aprobada' : 'Publicación rechazada',
+        title: status === 'approved' ? 'Publicación aprobada' : status === 'rejected' ? 'Publicación rechazada' : 'Cancelación aprobada',
         message: status === 'approved'
           ? `Tu publicación "${job.title}" ha sido aprobada y ya está visible.`
-          : `Tu publicación "${job.title}" ha sido rechazada.${rejectedReason ? ` Razón: ${rejectedReason}` : ''}`,
+          : status === 'rejected'
+            ? `Tu publicación "${job.title}" fue rechazada.${rejectedReason ? ` Razón: ${rejectedReason}.` : ''}${liquidacion ? ` Se acreditaron $${Number(liquidacion.aCliente).toLocaleString('es-AR')} a tu saldo (todo lo que pagaste menos $${Number(liquidacion.costoPasarela).toLocaleString('es-AR')} de pasarela, que no vuelve).` : ''}`
+            : `Se aprobó tu pedido de cancelar "${job.title}".${liquidacion ? ` Se acreditaron $${Number(liquidacion.aCliente).toLocaleString('es-AR')} a tu saldo (todo lo que pagaste menos $${Number(liquidacion.costoPasarela).toLocaleString('es-AR')} de pasarela, que no vuelve).` : ''}`,
         type: status === 'approved' ? 'success' : 'warning',
         category: 'jobs',
         relatedId: job.id,
@@ -454,8 +499,9 @@ router.put(
 
       res.json({
         success: true,
-        message: `Publicación ${status === 'approved' ? 'aprobada' : 'rechazada'} exitosamente`,
+        message: status === 'approved' ? 'Publicación aprobada' : status === 'rejected' ? 'Publicación rechazada y saldo devuelto al cliente' : 'Cancelación aprobada y saldo devuelto al cliente',
         data: updatedJob,
+        liquidacion,
       });
     } catch (error: any) {
       console.error('Error updating job status:', error);
