@@ -2190,6 +2190,112 @@ router.post("/:id/cancel", protect, async (req: AuthRequest, res: Response): Pro
 });
 
 /**
+ * Botón de emergencia.
+ * POST /api/contracts/:id/emergencia  { lat?, lng?, nota? }
+ *
+ * Para cualquiera de las dos partes, mientras el contrato está en curso. Es una
+ * herramienta de AYUDA, no un servicio de seguridad (T&C 11.3): lo que hace es
+ * dejar registro con hora y ubicación, avisar a los administradores con la
+ * máxima prioridad, y devolverle a la app el número al que llamar. La llamada
+ * al 911 la hace la persona; la app le acerca el marcador.
+ *
+ * El registro queda aunque después se cancele: un botón de pánico que se puede
+ * borrar no sirve como evidencia, y es exactamente cuando más hace falta.
+ */
+router.post("/:id/emergencia", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const contract = await Contract.findByPk(req.params.id, {
+      include: [{ model: Job, as: 'job', attributes: ['id', 'title', 'neighborhood', 'location', 'addressStreet', 'addressNumber', 'addressDetails'] }],
+    });
+    if (!contract) {
+      res.status(404).json({ success: false, message: "Contrato no encontrado" });
+      return;
+    }
+    const userId = String(req.user.id);
+    const esCliente = String(contract.clientId) === userId;
+    const esTrabajador = String(contract.doerId) === userId;
+    if (!esCliente && !esTrabajador) {
+      res.status(403).json({ success: false, message: "No sos parte de este contrato" });
+      return;
+    }
+    if (!['accepted', 'in_progress', 'awaiting_confirmation'].includes(String(contract.status))) {
+      res.status(400).json({ success: false, message: "El botón de emergencia está disponible mientras el trabajo está en curso." });
+      return;
+    }
+
+    const { lat, lng, nota } = (req.body || {}) as { lat?: number; lng?: number; nota?: string };
+    const ubicacion = Number.isFinite(Number(lat)) && Number.isFinite(Number(lng))
+      ? { lat: Number(lat), lng: Number(lng), mapa: `https://www.google.com/maps?q=${Number(lat)},${Number(lng)}` }
+      : null;
+    const job: any = (contract as any).job;
+    const direccion = [job?.addressStreet, job?.addressNumber, job?.addressDetails, job?.neighborhood, job?.location].filter(Boolean).join(', ');
+    const quien = esCliente ? 'cliente' : 'trabajador';
+    const ahora = new Date();
+
+    // 1. Registro. Primero, antes de avisar a nadie: si lo de abajo falla, esto queda.
+    const { logAudit } = await import('../utils/auditLog.js');
+    await logAudit({
+      req,
+      action: 'EMERGENCY_BUTTON',
+      category: 'security',
+      severity: 'critical',
+      description: `Botón de emergencia presionado por el ${quien} en el contrato ${contract.id}${nota ? `: ${String(nota).slice(0, 300)}` : ''}`,
+      targetModel: 'Contract',
+      targetId: String(contract.id),
+      metadata: { quien, userId, ubicacion, direccion, jobTitle: job?.title, hora: ahora.toISOString(), nota: nota ? String(nota).slice(0, 500) : null },
+    } as any);
+
+    // 2. Admins, con todo lo que necesitan para actuar sin abrir nada.
+    const { Notification } = await import('../models/sql/Notification.model.js');
+    const otraParte = await User.findByPk(esCliente ? contract.doerId : contract.clientId, { attributes: ['id', 'name', 'phone'] });
+    const quienUser = await User.findByPk(userId, { attributes: ['id', 'name', 'phone'] });
+    const admins = await User.findAll({ where: { role: { [Op.in]: ['admin', 'super_admin', 'owner'] } }, attributes: ['id', 'email'] });
+
+    const resumen =
+      `🚨 EMERGENCIA — ${quienUser?.name || quien} (${quien}) en "${job?.title || 'contrato'}". ` +
+      `Otra parte: ${otraParte?.name || '?'}. ` +
+      `Dirección del trabajo: ${direccion || 'sin dirección cargada'}. ` +
+      (ubicacion ? `Ubicación GPS: ${ubicacion.mapa}. ` : 'Sin GPS. ') +
+      `Tel. de quien apretó: ${quienUser?.phone || 'no cargado'}. ` +
+      (nota ? `Nota: ${String(nota).slice(0, 300)}` : '');
+
+    for (const a of admins) {
+      await Notification.create({
+        recipientId: a.id,
+        type: 'error',
+        category: 'admin',
+        title: '🚨 Botón de emergencia',
+        message: resumen,
+        relatedModel: 'Contract',
+        relatedId: contract.id,
+        actionText: 'Ver contrato',
+        sentVia: ['in_app', 'email'],
+        data: { contractId: contract.id, userId, ubicacion },
+      } as any);
+      socketService.notifyUser(String(a.id), 'emergency:pressed', { contractId: contract.id, userId, quien, ubicacion, hora: ahora.toISOString() });
+      if ((a as any).email) {
+        const { default: emailService } = await import('../services/email.js');
+        emailService.sendEmail({
+          to: (a as any).email,
+          subject: `🚨 EMERGENCIA en contrato ${String(contract.id).slice(0, 8)} — ${job?.title || ''}`,
+          html: `<h2 style="color:#b91c1c">Botón de emergencia</h2><p>${resumen}</p><p><a href="${process.env.CLIENT_URL || ''}/admin/contracts/${contract.id}">Abrir el contrato en el panel</a></p><p style="color:#666;font-size:12px">${ahora.toLocaleString('es-AR')}</p>`,
+        }).catch((e: any) => console.error('[emergencia] email admin:', e?.message));
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Avisamos al equipo de DOAPP. Si estás en peligro, llamá ya al 911.',
+      telefonoEmergencias: '911',
+      registradoEl: ahora.toISOString(),
+    });
+  } catch (error: any) {
+    console.error('[emergencia]', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/**
  * El trabajador avisa que no puede hacer el trabajo ya pagado.
  * POST /api/contracts/:id/worker-unavailable
  *

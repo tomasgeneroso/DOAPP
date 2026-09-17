@@ -14,6 +14,7 @@ import TaskClaimModal from "@/components/contracts/TaskClaimModal";
 import TaskClaimResponse from "@/components/contracts/TaskClaimResponse";
 import TaskEvidenceUploadModal from "@/components/contracts/TaskEvidenceUploadModal";
 import DailyLogPanel from "@/components/contracts/DailyLogPanel";
+import EmergencyButton from "@/components/contracts/EmergencyButton";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import { requestPostWorkRatingCheck } from "@/utils/postWorkRating";
 import {
@@ -1314,6 +1315,13 @@ export default function ContractDetail() {
                   )}
                 </>
               )}
+            </div>
+          )}
+
+          {/* Botón de emergencia: para las dos partes, mientras el trabajo está en curso */}
+          {(isClient || isDoer) && ['accepted', 'in_progress', 'awaiting_confirmation'].includes(contract.status) && (
+            <div className="mb-6">
+              <EmergencyButton contractId={contract.id || contract._id} />
             </div>
           )}
 

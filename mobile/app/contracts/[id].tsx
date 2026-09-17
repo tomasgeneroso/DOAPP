@@ -33,6 +33,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getContract, confirmContract, rejectConfirmation } from '../../services/contracts';
 import { post } from '../../services/api';
 import DailyLogPanel from '../../components/DailyLogPanel';
+import EmergencyButton from '../../components/EmergencyButton';
 import { Contract, Job, User as UserType } from '../../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 
@@ -565,6 +566,11 @@ export default function ContractDetailScreen() {
               <Text style={styles.openMapBtnText}>Abrir en mapa</Text>
             </TouchableOpacity>
           </View>
+        )}
+
+        {/* Botón de emergencia: para las dos partes, mientras el trabajo está en curso */}
+        {(isClient || isDoer) && ['accepted', 'in_progress', 'awaiting_confirmation'].includes(contract.status) && (
+          <EmergencyButton contractId={contract._id || contract.id || ''} />
         )}
 
         {/* Control diario: marcas por día + fotos del avance. Evidencia, no dinero. */}
