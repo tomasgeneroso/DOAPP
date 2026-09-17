@@ -14,6 +14,16 @@ import { checkPermission } from "../middleware/checkPermission.js";
 import { PERMISSIONS } from "../config/permissions.js";
 import { Op } from 'sequelize';
 import { POLITICAS } from '../../shared/constants/policies.js';
+import { estadoDelReclamo, TIPOS_DE_ACUERDO } from '../../shared/disputes/reclamo.js';
+import {
+  camposDeReclamoNuevo,
+  mensajeDeApertura,
+  proponerAcuerdo,
+  rechazarAcuerdo,
+  aceptarAcuerdo,
+  retirarReclamo,
+  escalarReclamo,
+} from '../services/reclamoDirecto.js';
 
 const router = Router();
 
@@ -90,13 +100,25 @@ router.post(
         return;
       }
 
-      // Check if dispute already exists
-      const existingDispute = await Dispute.findOne({ where: { contractId } });
-
-      if (existingDispute) {
+      // Un reclamo a la vez. Y si hubo uno antes, solo se puede abrir otro si
+      // aquel se cerro sin que nadie decidiera nada (retirado, o acuerdo de
+      // rehacer): lo que resolvio un admin o un acuerdo con plata es final.
+      const anteriores = await Dispute.findAll({ where: { contractId }, attributes: ['id', 'status', 'resolutionType'] });
+      const abierta = anteriores.find((d) => d.isOpen());
+      if (abierta) {
         res.status(400).json({
           success: false,
-          message: "Ya existe una disputa para este contrato",
+          message: "Ya hay un reclamo abierto para este contrato",
+          disputeId: abierta.id,
+        });
+        return;
+      }
+      const decidida = anteriores.find((d) => d.resolutionType && d.resolutionType !== 'no_action');
+      if (decidida) {
+        res.status(400).json({
+          success: false,
+          message: "Este contrato ya tuvo una disputa resuelta. La decisión es final.",
+          disputeId: decidida.id,
         });
         return;
       }
@@ -148,7 +170,9 @@ router.post(
       else if (autoPriority === 'high') importanceLevel = 'high';
       else if (autoPriority === 'low') importanceLevel = 'low';
 
-      // Create dispute
+      // Arranca como reclamo directo (T&C 10.11): las partes tienen
+      // RECLAMO_DIRECTO_HORAS para arreglarlo; despues interviene un admin.
+      const reclamo = camposDeReclamoNuevo(contract);
       const dispute = await Dispute.create({
         contractId,
         paymentId: payment?.id || null,
@@ -158,16 +182,16 @@ router.post(
         detailedDescription: description,
         category: disputeCategory,
         evidence,
-        status: 'open',
+        ...reclamo,
         priority: autoPriority,
         autoPriorityReason,
         responseDeadline,
         importanceLevel,
         logs: [{
-          action: 'Disputa creada',
+          action: 'Reclamo abierto',
           performedBy: userId,
           timestamp: new Date(),
-          details: `Categoría: ${disputeCategory}. Prioridad automática: ${autoPriority} (${autoPriorityReason})${evidence.length > 0 ? `. ${evidence.length} archivo(s) adjunto(s)` : ''}`,
+          details: `Categoría: ${disputeCategory}. Las partes tienen ${POLITICAS.RECLAMO_DIRECTO_HORAS} h para arreglarlo (hasta ${reclamo.negotiationDeadline.toISOString()}). Prioridad si escala: ${autoPriority} (${autoPriorityReason})${evidence.length > 0 ? `. ${evidence.length} archivo(s) adjunto(s)` : ''}`,
         }],
       });
 
@@ -186,21 +210,35 @@ router.post(
         await payment.save();
       }
 
-      // Notify respondent
+      const Job = (await import('../models/sql/Job.model.js')).Job;
+      const job = await Job.findByPk(contract.jobId);
+
+      // Notify respondent: que tiene 72 h y que puede hacer.
+      const aviso = mensajeDeApertura(job?.title || 'el contrato');
       await fcmService.sendToUser({
         userId: againstUserId.toString(),
-        title: "Nueva disputa",
-        body: `Se ha abierto una disputa para un contrato`,
+        title: aviso.title,
+        body: `Tenés ${POLITICAS.RECLAMO_DIRECTO_HORAS} h para responder y arreglarlo entre ustedes; si no, interviene un administrador.`,
         data: {
           type: "dispute",
           disputeId: dispute.id.toString(),
           contractId: contractId,
         },
       });
+      const { Notification } = await import('../models/sql/Notification.model.js');
+      await Notification.create({
+        recipientId: againstUserId,
+        type: 'warning',
+        category: 'disputes',
+        title: aviso.title,
+        message: aviso.message,
+        relatedModel: 'Dispute',
+        relatedId: dispute.id,
+        actionText: 'Responder',
+        sentVia: ['in_app'],
+      } as any);
 
       // Send email notifications
-      const Job = (await import('../models/sql/Job.model.js')).Job;
-      const job = await Job.findByPk(contract.jobId);
       await emailService.sendDisputeCreatedEmail(
         userId.toString(),
         againstUserId.toString(),
@@ -455,15 +493,108 @@ router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
       return;
     }
 
+    // El reloj y los permisos del reclamo directo, calculados para quien mira.
+    // El servidor es la fuente: las pantallas muestran esto, no recalculan.
+    const reclamo = estadoDelReclamo(dispute as any, userId);
+
     res.json({
       success: true,
-      data: dispute,
+      data: {
+        ...dispute.toJSON(),
+        reclamo: {
+          ...reclamo,
+          horasTotales: POLITICAS.RECLAMO_DIRECTO_HORAS,
+          tiposDeAcuerdo: TIPOS_DE_ACUERDO,
+        },
+      },
     });
   } catch (error: any) {
     res.status(500).json({
       success: false,
       message: error.message || "Error del servidor",
     });
+  }
+});
+
+/**
+ * Reclamo directo: proponer, rechazar, aceptar un acuerdo; retirar; escalar.
+ * Todas devuelven la disputa recargada con el estado del reclamo.
+ */
+async function cargarParaParte(id: string, userId: string): Promise<{ dispute?: Dispute; error?: { status: number; message: string } }> {
+  const dispute = await Dispute.findByPk(id);
+  if (!dispute) return { error: { status: 404, message: 'Reclamo no encontrado' } };
+  if (String(dispute.initiatedBy) !== String(userId) && String(dispute.against) !== String(userId)) {
+    return { error: { status: 403, message: 'Solo las partes pueden hacer esto' } };
+  }
+  return { dispute };
+}
+
+async function responderConEstado(res: Response, dispute: Dispute, userId: string, message?: string) {
+  await dispute.reload();
+  res.json({
+    success: true,
+    message,
+    data: { ...dispute.toJSON(), reclamo: { ...estadoDelReclamo(dispute as any, userId), horasTotales: POLITICAS.RECLAMO_DIRECTO_HORAS, tiposDeAcuerdo: TIPOS_DE_ACUERDO } },
+  });
+}
+
+router.post("/:id/acuerdo", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { dispute, error } = await cargarParaParte(req.params.id, req.user.id);
+    if (error || !dispute) { res.status(error!.status).json({ success: false, message: error!.message }); return; }
+    const r = await proponerAcuerdo(dispute, req.user.id, { tipo: req.body.tipo, monto: req.body.monto, nota: req.body.nota });
+    if (!r.ok) { res.status(400).json({ success: false, message: r.motivo }); return; }
+    await responderConEstado(res, dispute, req.user.id, 'Propuesta enviada. Si la otra parte acepta, se aplica en el momento.');
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || 'Error del servidor' });
+  }
+});
+
+router.post("/:id/acuerdo/rechazar", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { dispute, error } = await cargarParaParte(req.params.id, req.user.id);
+    if (error || !dispute) { res.status(error!.status).json({ success: false, message: error!.message }); return; }
+    const r = await rechazarAcuerdo(dispute, req.user.id, req.body.nota);
+    if (!r.ok) { res.status(400).json({ success: false, message: r.motivo }); return; }
+    await responderConEstado(res, dispute, req.user.id, 'Propuesta rechazada. Pueden seguir conversando o pedir que intervenga un administrador.');
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || 'Error del servidor' });
+  }
+});
+
+router.post("/:id/acuerdo/aceptar", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { dispute, error } = await cargarParaParte(req.params.id, req.user.id);
+    if (error || !dispute) { res.status(error!.status).json({ success: false, message: error!.message }); return; }
+    const r = await aceptarAcuerdo(dispute, req.user.id);
+    if (!r.ok) { res.status(400).json({ success: false, message: r.motivo }); return; }
+    await responderConEstado(res, dispute, req.user.id, 'Acuerdo aplicado. El reclamo quedó cerrado.');
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || 'Error del servidor' });
+  }
+});
+
+router.post("/:id/retirar", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { dispute, error } = await cargarParaParte(req.params.id, req.user.id);
+    if (error || !dispute) { res.status(error!.status).json({ success: false, message: error!.message }); return; }
+    const r = await retirarReclamo(dispute, req.user.id, req.body.nota);
+    if (!r.ok) { res.status(400).json({ success: false, message: r.motivo }); return; }
+    await responderConEstado(res, dispute, req.user.id, 'Reclamo retirado. El contrato sigue como estaba.');
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || 'Error del servidor' });
+  }
+});
+
+router.post("/:id/escalar", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { dispute, error } = await cargarParaParte(req.params.id, req.user.id);
+    if (error || !dispute) { res.status(error!.status).json({ success: false, message: error!.message }); return; }
+    const r = await escalarReclamo(dispute, { userId: req.user.id });
+    if (!r.ok) { res.status(400).json({ success: false, message: r.motivo }); return; }
+    await responderConEstado(res, dispute, req.user.id, 'Un administrador va a revisar el reclamo.');
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || 'Error del servidor' });
   }
 });
 

@@ -58,6 +58,11 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'payments.money_release_date', sql: `ALTER TABLE payments ADD COLUMN IF NOT EXISTS money_release_date TIMESTAMPTZ` },
   // El cliente pidio cancelar mientras esperaba aprobacion: sale de una cola y entra a otra.
   { label: 'jobs.cancellation_requested_at', sql: `ALTER TABLE jobs ADD COLUMN IF NOT EXISTS cancellation_requested_at TIMESTAMPTZ` },
+  // Reclamo directo antes de la disputa: plazo, propuesta de acuerdo, por que escalo, y a que estado vuelve el contrato.
+  { label: 'disputes.negotiation_deadline', sql: `ALTER TABLE disputes ADD COLUMN IF NOT EXISTS negotiation_deadline TIMESTAMPTZ` },
+  { label: 'disputes.agreement_proposal', sql: `ALTER TABLE disputes ADD COLUMN IF NOT EXISTS agreement_proposal JSONB` },
+  { label: 'disputes.escalation_reason', sql: `ALTER TABLE disputes ADD COLUMN IF NOT EXISTS escalation_reason VARCHAR(40)` },
+  { label: 'disputes.contract_status_before', sql: `ALTER TABLE disputes ADD COLUMN IF NOT EXISTS contract_status_before VARCHAR(40)` },
   // Escalera de cancelaciones del trabajador.
   { label: 'users.cancellation_mark_until', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS cancellation_mark_until TIMESTAMPTZ` },
   { label: 'users.suspended_from_applying_until', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_from_applying_until TIMESTAMPTZ` },

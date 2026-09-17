@@ -5,6 +5,7 @@ import { useDropzone } from 'react-dropzone';
 import axios from 'axios';
 import { usePermissions } from '../hooks/usePermissions';
 import { api } from '@/lib/api';
+import { POLITICAS } from '../../shared/constants/policies';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
@@ -413,7 +414,7 @@ const CreateDispute: React.FC = () => {
                 <div className="text-sm">
                   <p className="font-medium text-yellow-800 dark:text-yellow-200">{t('disputes.important', 'Important')}</p>
                   <p className="mt-1 text-yellow-700 dark:text-yellow-300">
-                    {t('disputes.escrowWarning', 'By opening a dispute, the payment will be held in escrow until an administrator resolves the case. The process may take 3 to 5 business days.')}
+                    {t('disputes.escrowWarning', 'Al abrir el reclamo, el pago queda congelado. La otra parte tiene {{horas}} horas para responder y pueden arreglarlo entre ustedes (devolver una parte, rehacer el trabajo, retirar el reclamo). Si en ese plazo no hay acuerdo, interviene un administrador, que se propone decidir en {{dias}} días.', { horas: POLITICAS.RECLAMO_DIRECTO_HORAS, dias: POLITICAS.DISPUTA_OBJETIVO_RESOLUCION_DIAS })}
                   </p>
                 </div>
               </div>

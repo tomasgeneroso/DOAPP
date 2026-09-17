@@ -60,6 +60,7 @@ const getPriorityLabels = (t: TFn): Record<string, { label: string; color: strin
 });
 
 const getStatusLabels = (t: TFn): Record<string, { label: string; color: string; icon: any }> => ({
+  negotiation: { label: t('myDisputes.statusNegotiation', 'Reclamo directo'), color: 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300', icon: MessageSquare },
   open: { label: t('myDisputes.statusOpen', 'Abierta'), color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', icon: AlertCircle },
   in_review: { label: t('myDisputes.statusInReview', 'En revisión'), color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300', icon: Clock },
   awaiting_info: { label: t('myDisputes.statusAwaitingInfo', 'Esperando info'), color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', icon: MessageSquare },

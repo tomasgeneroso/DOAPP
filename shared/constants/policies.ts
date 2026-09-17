@@ -38,6 +38,24 @@ export const POLITICAS = {
   DIAS_PARA_DISPUTAR: 7,
 
   /**
+   * Reclamo directo. Cuando una parte abre un reclamo, la otra tiene estas
+   * horas para responder y las dos para arreglarlo entre ellas (retirar,
+   * devolver una parte, rehacer). Si se vence sin acuerdo, o si una parte lo
+   * pide despues de que la otra ya respondio, interviene un administrador y
+   * pasa a ser una disputa. El dinero queda congelado desde el primer minuto.
+   * T&C 10.11.
+   *
+   * 72 y no menos: la mayoria de los problemas entre dos personas razonables se
+   * arreglan con una conversacion, y la conversacion necesita que las dos
+   * esten despiertas y disponibles. Un plazo de un dia obliga a escalar a
+   * gente que se hubiera arreglado sola.
+   */
+  RECLAMO_DIRECTO_HORAS: 72,
+
+  /** Horas antes del vencimiento del reclamo en que se avisa a las dos partes. */
+  RECLAMO_DIRECTO_AVISO_HORAS_ANTES: 24,
+
+  /**
    * En una disputa, dias que tiene cada parte para responder al ultimo mensaje
    * de la otra. Si no responde, pierde. T&C 10.10.
    */

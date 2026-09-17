@@ -6,13 +6,15 @@
  * Legal text must never differ between platforms, so it lives in one file.
  */
 
+import { POLITICAS } from '../constants/policies.js';
+
 export const disputesEn: Record<string, string> = {
   "metaTitle": "Dispute Resolution - DOAPP",
   "metaDescription": "DOAPP dispute resolution and mediation process",
   "back": "Back",
   "home": "Home",
   "title": "Dispute Resolution",
-  "lastUpdated": "Last updated: November 7, 2025",
+  "lastUpdated": "Last updated: September 17, 2026",
   "s1Title": "1. Introduction",
   "s1p1": "At DOAPP, we strive to provide a safe and fair environment for all transactions. However, we understand that disagreements can arise between people within the app. This document sets out the formal dispute resolution process.",
   "s1p2": "Our goal is to resolve all conflicts fairly, transparently, and efficiently, protecting the interests of both parties.",
@@ -37,18 +39,18 @@ export const disputesEn: Record<string, string> = {
   "step1li2": "Relevant evidence (screenshots, messages, files)",
   "step1li3": "Desired outcome",
   "step1note": "⏱️ The contract funds are automatically frozen until the dispute is resolved",
-  "step2Title": "Step 2: Notification and Response",
-  "step2p": "The other party is notified and has <b>48 hours</b> to respond with:",
-  "step2li1": "Their version of the facts",
-  "step2li2": "Evidence supporting their position",
-  "step2li3": "Proposed solution (optional)",
+  "step2Title": `Step 2: Direct claim (${POLITICAS.RECLAMO_DIRECTO_HORAS} hours between the parties)`,
+  "step2p": `The other party is notified and has <b>${POLITICAS.RECLAMO_DIRECTO_HORAS} hours</b> to respond. During that time the claim is in the hands of both parties, with the clock in view, and they can:`,
+  "step2li1": "Tell their side and attach evidence",
+  "step2li2": "Propose an agreement: return all or part of the price, or redo the work. If the other party accepts, it is applied immediately and the claim closes without an administrator",
+  "step2li3": `Ask for an administrator before the ${POLITICAS.RECLAMO_DIRECTO_HORAS} hours are up, if the other party has already responded and there is no agreement. If they never respond, an administrator steps in automatically when the period ends`,
   "step3Title": "Step 3: DOAPP Team Review",
   "step3p": "Our mediation team reviews all the evidence presented:",
   "step3li1": "Messages exchanged on the platform",
   "step3li2": "Files and deliverables",
   "step3li3": "Terms agreed in the contract",
   "step3li4": "Behavior history of both parties",
-  "step3note": "⏱️ Review time: 3-5 business days",
+  "step3note": `⏱️ The team aims to resolve within ${POLITICAS.DISPUTA_OBJETIVO_RESOLUCION_DIAS} days of stepping in. If a party stops responding, the ${POLITICAS.DISPUTA_DIAS_PARA_RESPONDER}-day rule applies (T&C 10.10)`,
   "step4Title": "Step 4: Resolution",
   "step4p": "The DOAPP team issues a decision that may include:",
   "step4li1": "<b>Full release:</b> The full payment is released to the Doer",

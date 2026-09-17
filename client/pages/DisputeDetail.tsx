@@ -6,6 +6,7 @@ import { useDropzone } from 'react-dropzone';
 import { useAuth } from '../hooks/useAuth';
 import { getImageUrl } from '../utils/imageUrl';
 import ConfirmModal from '../components/ui/ConfirmModal';
+import ReclamoDirectoPanel from '../components/disputes/ReclamoDirectoPanel';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -177,6 +178,7 @@ const DisputeDetail: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
     const styles = {
+      negotiation: 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300',
       open: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
       in_review: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
       awaiting_info: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
@@ -187,6 +189,7 @@ const DisputeDetail: React.FC = () => {
     };
 
     const labels = {
+      negotiation: t('disputes.status.negotiation', 'Reclamo directo'),
       open: t('disputes.status.open', 'Open'),
       in_review: t('disputes.status.inReview', 'In Review'),
       awaiting_info: t('disputes.status.awaitingInfo', 'Awaiting Information'),
@@ -296,6 +299,16 @@ const DisputeDetail: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
+            {/* Reclamo directo: reloj y acuerdo entre las partes, antes del admin */}
+            {user && (
+              <ReclamoDirectoPanel
+                dispute={dispute as any}
+                userId={String((user as any).id || (user as any)._id)}
+                token={token}
+                onChanged={(d) => setDispute(d)}
+              />
+            )}
+
             {/* Description */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('disputes.description', 'Description')}</h2>

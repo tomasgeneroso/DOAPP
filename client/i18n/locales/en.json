@@ -1724,7 +1724,7 @@
     "bankingNotConfigured": "Banking details not configured",
     "bankingNotConfiguredDesc": "To receive payments for your jobs",
     "bankingExplanation": "You don't have your banking details configured. When you complete jobs as a professional, you'll need these details to receive your payments.",
-    "bankingTip": "If you use Mercado Pago, payments are credited within 48 hours. Other banks may take until the end of the month.",
+    "bankingTip": "The worker gets paid once the {{dias}}-day claim period after the job ends has passed and Mercado Pago releases your payment. The exact date is shown in the contract.",
     "addBankingNow": "Do you want to add your banking details now?",
     "addBankingDetails": "Add banking details",
     "continueWithout": "Continue without adding",
@@ -1862,8 +1862,8 @@
     "balanceLabel": "Balance",
     "whatIsBalance": "What is account credit?",
     "whatIsBalanceDesc": "Your account credit is generated when you reduce a contract's price or when you receive refunds. You can use this credit to increase the price of future contracts without making a new payment.",
-    "fastPayments": "Fast payments with MercadoPago",
-    "fastPaymentsDesc": "By using Mercado Pago, job payments are credited within 48 hours after the job is completed, with no bank fees. Your money arrives quickly and securely."
+    "fastPayments": "When you get paid for a job",
+    "fastPaymentsDesc": "A job payment is transferred to your account once the {{dias}}-day claim period after completion has passed and Mercado Pago releases the client's money. Each contract shows the exact date. You receive the price minus the gateway cost, which is shown when you apply."
   },
   "profile": {
     "title": "Profile",
@@ -2563,7 +2563,7 @@
     "dragOrClick": "Drag the files here or click to select",
     "fileTypes": "Photos, videos (max 50MB) or PDFs",
     "important": "Important",
-    "escrowWarning": "When you open a dispute, the payment will be held in escrow until an administrator resolves the case. The process may take 3 to 5 business days.",
+    "escrowWarning": "When you open a claim, the payment is frozen. The other party has {{horas}} hours to respond and you can settle it between you (return part of the price, redo the work, withdraw the claim). If there is no agreement within that time, an administrator steps in and aims to decide within {{dias}} days.",
     "creating": "Creating dispute...",
     "errorSendingMessage": "Error sending the message",
     "status": {

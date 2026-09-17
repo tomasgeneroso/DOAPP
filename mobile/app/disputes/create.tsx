@@ -19,6 +19,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { get, post } from '../../services/api';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
+import { POLITICAS } from '../../../shared/constants/policies';
 
 interface Contract {
   id: string;
@@ -337,8 +338,7 @@ export default function CreateDisputeScreen() {
           <View style={styles.warningContent}>
             <Text style={[styles.warningTitle, { color: colors.warning[800] }]}>Importante</Text>
             <Text style={[styles.warningText, { color: colors.warning[700] }]}>
-              Al abrir una disputa, el pago quedará retenido en escrow hasta que un administrador resuelva el caso.
-              El proceso puede tomar de 3 a 5 días hábiles.
+              Al abrir el reclamo, el pago queda congelado. La otra parte tiene {POLITICAS.RECLAMO_DIRECTO_HORAS} horas para responder y pueden arreglarlo entre ustedes (devolver una parte, rehacer el trabajo, retirar el reclamo). Si en ese plazo no hay acuerdo, interviene un administrador, que se propone decidir en {POLITICAS.DISPUTA_OBJETIVO_RESOLUCION_DIAS} días.
             </Text>
           </View>
         </View>

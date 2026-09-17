@@ -75,6 +75,7 @@ const categoryLabels: Record<string, { label: string; icon: any; color: string }
 };
 
 const statusLabels: Record<string, { label: string; color: string }> = {
+  negotiation: { label: 'Reclamo directo', color: colors.primary[500] },
   open: { label: 'Abierto', color: colors.primary[500] },
   in_progress: { label: 'En progreso', color: colors.warning[500] },
   in_review: { label: 'En revisión', color: colors.warning[500] },

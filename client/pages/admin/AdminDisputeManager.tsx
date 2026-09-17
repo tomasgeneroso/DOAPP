@@ -171,15 +171,19 @@ const AdminDisputeManager: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
     const styles = {
+      negotiation: 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300',
       open: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
       in_review: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
       awaiting_info: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
       resolved_released: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
       resolved_refunded: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
       resolved_partial: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+      cancelled: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
     };
 
     const labels = {
+      negotiation: 'Reclamo directo (entre las partes)',
+      cancelled: 'Cerrada sin decisión',
       open: t('common.status.open', 'Open'),
       in_review: t('common.status.inReview', 'In Review'),
       awaiting_info: t('common.status.awaitingInfo', 'Awaiting Info'),

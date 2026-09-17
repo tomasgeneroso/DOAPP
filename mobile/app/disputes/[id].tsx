@@ -34,6 +34,7 @@ import {
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { get, post } from '../../services/api';
+import ReclamoDirectoPanel from '../../components/ReclamoDirectoPanel';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 
 interface Attachment {
@@ -97,6 +98,7 @@ const categoryLabels: Record<string, { label: string; icon: any; color: string }
 };
 
 const statusLabels: Record<string, { label: string; color: string; icon: any }> = {
+  negotiation: { label: 'Reclamo directo', color: colors.primary[500], icon: MessageSquare },
   open: { label: 'Abierta', color: colors.primary[500], icon: AlertCircle },
   in_review: { label: 'En revisión', color: colors.warning[500], icon: Clock },
   awaiting_info: { label: 'Esperando info', color: colors.warning[500], icon: MessageSquare },
@@ -267,6 +269,15 @@ export default function DisputeDetailScreen() {
             />
           }
         >
+          {/* Reclamo directo: reloj y acuerdo entre las partes, antes del admin */}
+          {user && (
+            <ReclamoDirectoPanel
+              dispute={dispute as any}
+              userId={String((user as any).id || (user as any)._id)}
+              onChanged={(d) => setDispute(d)}
+            />
+          )}
+
           {/* Dispute Info */}
           <View style={[styles.infoCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
             <View style={styles.infoHeader}>

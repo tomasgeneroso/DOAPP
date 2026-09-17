@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import { useAuth } from '../../hooks/useAuth';
 import DisputeSlaBadge from '@/components/admin/DisputeSlaBadge';
+import { POLITICAS } from '../../../shared/constants/policies';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -130,11 +131,28 @@ const AdminDisputeDetail: React.FC = () => {
       });
       await fetchDispute();
       setShowResolveForm(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error resolving dispute:', error);
-      alert(t('admin.disputes.errorResolving', 'Error resolving dispute'));
+      alert(error?.response?.data?.message || t('admin.disputes.errorResolving', 'Error resolving dispute'));
     } finally {
       setResolving(false);
+    }
+  };
+
+  /**
+   * Intervenir antes de que venza el plazo de las partes. Pide la justificación
+   * acá mismo: sin ella el servidor rechaza, y con ella queda en el registro.
+   */
+  const intervenir = async () => {
+    const justificacion = window.prompt(
+      `El reclamo está en manos de las partes por ${POLITICAS.RECLAMO_DIRECTO_HORAS} h. ¿Por qué intervenir antes? (15 caracteres o más; lo ven las dos partes en el registro)`,
+    );
+    if (justificacion === null) return;
+    try {
+      await axios.post(`${API_URL}/admin/disputes/${id}/intervenir`, { justificacion }, { headers: { Authorization: `Bearer ${token}` } });
+      await fetchDispute();
+    } catch (error: any) {
+      alert(error?.response?.data?.message || 'No se pudo intervenir');
     }
   };
 
@@ -194,6 +212,7 @@ const AdminDisputeDetail: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
     const styles: Record<string, string> = {
+      negotiation: 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300',
       open: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
       in_review: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
       awaiting_info: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
@@ -204,6 +223,7 @@ const AdminDisputeDetail: React.FC = () => {
     };
 
     const labels: Record<string, string> = {
+      negotiation: 'Reclamo directo (entre las partes)',
       open: t('admin.disputes.status.open', 'Open'),
       in_review: t('admin.disputes.status.inReview', 'In Review'),
       awaiting_info: t('admin.disputes.status.awaitingInfo', 'Awaiting Info'),
@@ -333,12 +353,21 @@ const AdminDisputeDetail: React.FC = () => {
                 </svg>
                 {t('admin.disputes.viewAsUser', 'View as user')}
               </button>
-              {!isResolved && (
+              {!isResolved && dispute.status !== 'negotiation' && (
                 <button
                   onClick={() => setShowResolveForm(true)}
                   className="px-4 py-2 bg-sky-600 text-white rounded-lg hover:bg-sky-700 transition-colors"
                 >
                   {t('admin.disputes.resolveDispute', 'Resolve Dispute')}
+                </button>
+              )}
+              {dispute.status === 'negotiation' && (
+                <button
+                  onClick={intervenir}
+                  className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors"
+                  title="El plazo es de las partes. Intervenir antes exige una justificación que queda en el registro."
+                >
+                  Intervenir antes del plazo
                 </button>
               )}
             </div>
@@ -348,6 +377,34 @@ const AdminDisputeDetail: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
+            {/* En reclamo directo: el equipo mira, no decide */}
+            {dispute.status === 'negotiation' && (
+              <div className="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-100">
+                <div className="font-semibold">Reclamo directo: en manos de las partes</div>
+                <p className="mt-1">
+                  Tienen {POLITICAS.RECLAMO_DIRECTO_HORAS} h desde la apertura para arreglarlo (hasta el{' '}
+                  {(dispute as any).negotiationDeadline ? new Date((dispute as any).negotiationDeadline).toLocaleString('es-AR') : '—'}). Si vence sin acuerdo pasa a disputa solo. No se puede resolver desde acá mientras tanto; si hace falta meterse antes (abuso evidente, emergencia), usá "Intervenir" y dejá por qué.
+                </p>
+                {(dispute as any).agreementProposal && (
+                  <p className="mt-2">
+                    <span className="font-semibold">Propuesta vigente:</span> {(dispute as any).agreementProposal.tipo}
+                    {(dispute as any).agreementProposal.monto ? ` · $${Math.round((dispute as any).agreementProposal.monto).toLocaleString('es-AR')}` : ''}
+                    {(dispute as any).agreementProposal.nota ? ` · "${(dispute as any).agreementProposal.nota}"` : ''}
+                  </p>
+                )}
+              </div>
+            )}
+            {(dispute as any).escalationReason && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
+                <span className="font-semibold">Cómo llegó acá:</span>{' '}
+                {(dispute as any).escalationReason === 'plazo_vencido'
+                  ? `vencieron las ${POLITICAS.RECLAMO_DIRECTO_HORAS} h del reclamo directo sin acuerdo`
+                  : (dispute as any).escalationReason === 'intervencion_admin'
+                    ? 'un administrador intervino antes del plazo (ver justificación en el registro)'
+                    : 'una de las partes pidió que intervenga un administrador'}
+                {(dispute as any).escalatedAt ? ` · ${new Date((dispute as any).escalatedAt).toLocaleString('es-AR')}` : ''}
+              </div>
+            )}
             {/* Description */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('admin.disputes.description', 'Description')}</h2>

@@ -6,13 +6,15 @@
  * Legal text must never differ between platforms, so it lives in one file.
  */
 
+import { POLITICAS } from '../constants/policies.js';
+
 export const disputesEs: Record<string, string> = {
   "metaTitle": "Resolución de Disputas - DOAPP",
   "metaDescription": "Proceso de resolución de disputas y mediación de DOAPP",
   "back": "Volver",
   "home": "Inicio",
   "title": "Resolución de Disputas",
-  "lastUpdated": "Última actualización: 7 de Noviembre de 2025",
+  "lastUpdated": "Última actualización: 17 de Septiembre de 2026",
   "s1Title": "1. Introducción",
   "s1p1": "En DOAPP, nos esforzamos por proporcionar un ambiente seguro y justo para todas las transacciones. Sin embargo, entendemos que pueden surgir desacuerdos entre las personas dentro de la app. Este documento establece el proceso formal de resolución de disputas.",
   "s1p2": "Nuestro objetivo es resolver todos los conflictos de manera justa, transparente y eficiente, protegiendo los intereses de ambas partes.",
@@ -37,18 +39,18 @@ export const disputesEs: Record<string, string> = {
   "step1li2": "Evidencia relevante (capturas de pantalla, mensajes, archivos)",
   "step1li3": "Resultado deseado",
   "step1note": "⏱️ Los fondos del contrato se congelan automáticamente hasta resolver la disputa",
-  "step2Title": "Paso 2: Notificación y Respuesta",
-  "step2p": "La otra parte es notificada y tiene <b>48 horas</b> para responder con:",
-  "step2li1": "Su versión de los hechos",
-  "step2li2": "Evidencia que respalde su posición",
-  "step2li3": "Propuesta de solución (opcional)",
+  "step2Title": `Paso 2: Reclamo directo (${POLITICAS.RECLAMO_DIRECTO_HORAS} horas entre las partes)`,
+  "step2p": `La otra parte es notificada y tiene <b>${POLITICAS.RECLAMO_DIRECTO_HORAS} horas</b> para responder. Durante ese tiempo el reclamo está en manos de las dos partes, con el reloj a la vista, y pueden:`,
+  "step2li1": "Contar su versión y adjuntar pruebas",
+  "step2li2": "Proponer un acuerdo: devolver todo o parte del precio, o rehacer el trabajo. Si la otra parte acepta, se aplica en el momento y el reclamo se cierra sin administrador",
+  "step2li3": `Pedir que intervenga un administrador antes de las ${POLITICAS.RECLAMO_DIRECTO_HORAS} horas, si la otra parte ya respondió y no hay acuerdo. Si nunca responde, interviene solo al vencer el plazo`,
   "step3Title": "Paso 3: Revisión del Equipo de DOAPP",
   "step3p": "Nuestro equipo de mediación revisa toda la evidencia presentada:",
   "step3li1": "Mensajes intercambiados en la plataforma",
   "step3li2": "Archivos y entregables",
   "step3li3": "Términos acordados en el contrato",
   "step3li4": "Historial de comportamiento de ambas partes",
-  "step3note": "⏱️ Tiempo de revisión: 3-5 días hábiles",
+  "step3note": `⏱️ El equipo se propone resolver en ${POLITICAS.DISPUTA_OBJETIVO_RESOLUCION_DIAS} días desde que interviene. Si una parte deja de responder, aplica la regla de los ${POLITICAS.DISPUTA_DIAS_PARA_RESPONDER} días (T&C 10.10)`,
   "step4Title": "Paso 4: Resolución",
   "step4p": "El equipo de DOAPP emite una decisión que puede incluir:",
   "step4li1": "<b>Liberación total:</b> El pago completo se libera al Doer",

@@ -31,6 +31,8 @@ import { Payment } from './Payment.model.js';
 // ============================================
 
 export type DisputeStatus =
+  /** Reclamo directo: las partes tienen RECLAMO_DIRECTO_HORAS para arreglarlo sin admin. */
+  | 'negotiation'
   | 'open'
   | 'in_review'
   | 'awaiting_info'
@@ -78,6 +80,18 @@ export interface IAuditLog {
   performedBy: string; // User UUID
   timestamp: Date;
   details?: string;
+}
+
+/** Que propone una parte para cerrar el reclamo sin admin. */
+export type TipoAcuerdo = 'reembolso_total' | 'reembolso_parcial' | 'rehacer';
+
+export interface IPropuestaAcuerdo {
+  tipo: TipoAcuerdo;
+  /** Solo reembolso_parcial: cuanto vuelve al cliente. */
+  monto?: number;
+  nota: string;
+  propuestoPor: string;
+  propuestaEl: Date;
 }
 
 // ============================================
@@ -292,6 +306,29 @@ export class Dispute extends Model {
   @Column(DataType.DATE)
   escalatedAt?: Date;
 
+  // ============================================
+  // RECLAMO DIRECTO (antes de que intervenga un admin)
+  // ============================================
+
+  /** Hasta cuando pueden arreglarlo entre ellas. Despues interviene un admin. */
+  @Column(DataType.DATE)
+  negotiationDeadline?: Date;
+
+  /** La propuesta de acuerdo vigente, si hay una. Una a la vez. */
+  @Column(DataType.JSONB)
+  agreementProposal?: IPropuestaAcuerdo | null;
+
+  /** Por que paso a manos de un admin: plazo_vencido | pedido_de_parte. */
+  @Column(DataType.STRING(40))
+  escalationReason?: string | null;
+
+  /**
+   * Estado del contrato antes del reclamo, para volver a el si el reclamo se
+   * retira o se cierra con un acuerdo de rehacer.
+   */
+  @Column(DataType.STRING(40))
+  contractStatusBefore?: string | null;
+
   // Reason for automatic priority assignment
   @Column(DataType.STRING(255))
   autoPriorityReason?: string;
@@ -318,7 +355,12 @@ export class Dispute extends Model {
    * Check if dispute is open (not resolved)
    */
   isOpen(): boolean {
-    return this.status === 'open' || this.status === 'in_review' || this.status === 'awaiting_info';
+    return this.status === 'negotiation' || this.status === 'open' || this.status === 'in_review' || this.status === 'awaiting_info';
+  }
+
+  /** En reclamo directo: sin admin todavia. */
+  isNegotiating(): boolean {
+    return this.status === 'negotiation';
   }
 
   /**

@@ -35,6 +35,7 @@ import { startSuspendFlexibleEndDateJob } from "./jobs/suspendFlexibleEndDateJob
 import { startPauseStaleJobs } from "./jobs/pauseStaleJobs.js";
 import { startReconciliation } from "./services/reconciliation.js";
 import { startDisputeSilenceJob } from "./jobs/disputeSilence.js";
+import { startReclamoDirectoJob } from "./services/reclamoDirecto.js";
 import { startResetReferralDiscountsJob } from "./jobs/resetReferralDiscounts.js";
 import { startAutoConfirmContractsJob } from "./jobs/autoConfirmContracts.js";
 import { startConfirmationReminderJob } from "./jobs/sendConfirmationReminders.js";
@@ -453,6 +454,7 @@ startPauseStaleJobs();
 startReconciliation();
 // El silencio pierde: quien no responde una disputa en 7 dias, la pierde.
 startDisputeSilenceJob();
+startReclamoDirectoJob();
 
 // Initialize reset referral discounts (daily at midnight)
 startResetReferralDiscountsJob();

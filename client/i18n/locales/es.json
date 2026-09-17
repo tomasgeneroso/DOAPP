@@ -1482,7 +1482,7 @@
     "bankingNotConfigured": "Datos bancarios no configurados",
     "bankingNotConfiguredDesc": "Para recibir pagos por tus trabajos",
     "bankingExplanation": "No tenés tus datos bancarios configurados. Cuando completes trabajos como profesional, vas a necesitar estos datos para recibir tus pagos.",
-    "bankingTip": "Si usás Mercado Pago, los pagos se acreditan en 48 horas. Otros bancos pueden tardar hasta fin de mes.",
+    "bankingTip": "El trabajador cobra cuando pasan los {{dias}} días de reclamo desde que termina el trabajo y Mercado Pago libera tu pago. La fecha exacta se ve en el contrato.",
     "addBankingNow": "¿Querés agregar tus datos bancarios ahora?",
     "addBankingDetails": "Agregar datos bancarios",
     "continueWithout": "Continuar sin agregar",
@@ -1609,8 +1609,8 @@
     "balanceLabel": "Saldo",
     "whatIsBalance": "¿Qué es el saldo a favor?",
     "whatIsBalanceDesc": "Tu saldo a favor se genera cuando reducís el precio de un contrato o cuando recibís reembolsos. Podés usar este saldo para aumentar el precio de contratos futuros sin necesidad de realizar un nuevo pago.",
-    "fastPayments": "Pagos rápidos con MercadoPago",
-    "fastPaymentsDesc": "Al usar Mercado Pago, los pagos de los trabajos se acreditarán dentro de las 48 horas posteriores a la finalización del trabajo, sin comisiones bancarias. Tu dinero llega de forma rápida y segura."
+    "fastPayments": "Cuándo cobrás un trabajo",
+    "fastPaymentsDesc": "El pago de un trabajo se transfiere a tu cuenta una vez que pasan los {{dias}} días de reclamo desde que terminó y Mercado Pago libera el dinero del cliente. En cada contrato ves la fecha exacta. Lo que recibís es el precio menos el costo de la pasarela, que se te informa al postularte."
   },
   "profile": {
     "title": "Perfil",
@@ -3262,7 +3262,7 @@
     "dragOrClick": "Arrastrá los archivos acá o hacé clic para seleccionar",
     "fileTypes": "Fotos, videos (máx 50MB) o PDFs",
     "important": "Importante",
-    "escrowWarning": "Al abrir una disputa, el pago quedará retenido en escrow hasta que un administrador resuelva el caso. El proceso puede tardar de 3 a 5 días hábiles.",
+    "escrowWarning": "Al abrir el reclamo, el pago queda congelado. La otra parte tiene {{horas}} horas para responder y pueden arreglarlo entre ustedes (devolver una parte, rehacer el trabajo, retirar el reclamo). Si en ese plazo no hay acuerdo, interviene un administrador, que se propone decidir en {{dias}} días.",
     "creating": "Creando disputa...",
     "errorSendingMessage": "Error al enviar el mensaje",
     "status": {

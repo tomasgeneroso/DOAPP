@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "../hooks/useAuth";
+import { POLITICAS } from "../../shared/constants/policies";
 import {
   Wallet,
   TrendingUp,
@@ -415,10 +416,10 @@ export default function BalancePage() {
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-6">
               <h3 className="font-semibold text-green-900 dark:text-green-100 mb-2 flex items-center gap-2">
                 <Banknote className="h-5 w-5" />
-                {t('balance.fastPayments', 'Pagos rápidos con MercadoPago')}
+                {t('balance.fastPayments', 'Cuándo cobrás un trabajo')}
               </h3>
               <p className="text-sm text-green-800 dark:text-green-300">
-                {t('balance.fastPaymentsDesc', 'Al usar Mercado Pago, los pagos de los trabajos se acreditarán dentro de las 48 horas posteriores a la finalización del trabajo, sin comisiones bancarias. Tu dinero llega de forma rápida y segura.')}
+                {t('balance.fastPaymentsDesc', 'El pago de un trabajo se transfiere a tu cuenta una vez que pasan los {{dias}} días de reclamo desde que terminó y Mercado Pago libera el dinero del cliente. En cada contrato ves la fecha exacta. Lo que recibís es el precio menos el costo de la pasarela, que se te informa al postularte.', { dias: POLITICAS.DIAS_PARA_DISPUTAR })}
               </p>
             </div>
           </div>

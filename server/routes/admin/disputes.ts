@@ -240,6 +240,41 @@ router.put(
 );
 
 /**
+ * Intervenir en un reclamo directo antes de que venza el plazo de las partes.
+ * POST /api/admin/disputes/:id/intervenir  { justificacion }
+ *
+ * Pasa el reclamo a disputa (status open) con la justificacion en el log. Sin
+ * esto, el equipo no puede resolver: el plazo de 72 h es de las partes.
+ */
+router.post(
+  "/:id/intervenir",
+  protect,
+  authorize("owner", "super_admin", "moderator", "support"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const dispute = await Dispute.findByPk(req.params.id);
+      if (!dispute) { res.status(404).json({ success: false, message: 'Disputa no encontrada' }); return; }
+      const { escalarReclamo } = await import('../../services/reclamoDirecto.js');
+      const r = await escalarReclamo(dispute, { adminId: req.user.id, justificacion: String(req.body.justificacion || '') });
+      if (!r.ok) { res.status(400).json({ success: false, message: r.motivo }); return; }
+      await logAudit({
+        req,
+        action: 'DISPUTE_ADMIN_INTERVENED_EARLY',
+        category: 'disputes',
+        severity: 'high',
+        description: `Admin intervino en el reclamo ${dispute.id} antes del plazo: ${String(req.body.justificacion).slice(0, 300)}`,
+        targetModel: 'Dispute',
+        targetId: String(dispute.id),
+      } as any);
+      await dispute.reload();
+      res.json({ success: true, data: dispute });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message || 'Error del servidor' });
+    }
+  },
+);
+
+/**
  * Resolve dispute (Admin only)
  * POST /api/admin/disputes/:id/resolve
  */
@@ -278,6 +313,17 @@ router.post(
         res.status(404).json({
           success: false,
           message: "Disputa no encontrada",
+        });
+        return;
+      }
+
+      // Mientras esta en reclamo directo el plazo es de las partes (T&C 10.11).
+      // Si hace falta meterse antes, primero "intervenir" con justificacion.
+      if (dispute.isNegotiating()) {
+        res.status(409).json({
+          success: false,
+          code: 'EN_RECLAMO_DIRECTO',
+          message: `El reclamo está en manos de las partes hasta ${dispute.negotiationDeadline ? new Date(dispute.negotiationDeadline).toLocaleString('es-AR') : 'que venza el plazo'}. Para decidir antes, usá "Intervenir" e indicá por qué.`,
         });
         return;
       }
@@ -609,6 +655,8 @@ router.get(
       const total = await Dispute.count();
       const open = await Dispute.count({ where: { status: "open" } });
       const inReview = await Dispute.count({ where: { status: "in_review" } });
+      // En manos de las partes: no es trabajo del equipo todavia, pero se ve.
+      const negotiation = await Dispute.count({ where: { status: "negotiation" } });
       const resolved = await Dispute.count({
         where: {
           status: { [Op.in]: ["resolved_released", "resolved_refunded", "resolved_partial"] },
@@ -644,6 +692,7 @@ router.get(
           total,
           open,
           inReview,
+          negotiation,
           resolved,
           byPriority: priorityStats.reduce((acc: any, curr: any) => {
             acc[curr.priority] = parseInt(curr.count);

@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { useTranslation, Trans } from 'react-i18next';
 import { Helmet } from "react-helmet-async";
 import { ArrowLeft, Home, Scale, AlertCircle } from "lucide-react";
+import { disputesEs } from "../../../shared/legal/disputes.es";
 
 export default function DisputeResolution() {
   const { t } = useTranslation();
@@ -121,15 +122,15 @@ export default function DisputeResolution() {
 
                   <div className="border-l-4 border-purple-500 pl-4">
                     <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-2">
-                      {t('disputeRes.step2Title', 'Paso 2: Notificación y Respuesta')}
+                      {t('disputeRes.step2Title', disputesEs.step2Title)}
                     </h3>
                     <p className="text-slate-600 dark:text-slate-300 mb-2">
-                      <Trans i18nKey="disputeRes.step2p" components={{ b: <strong /> }} defaults="La otra parte es notificada y tiene <b>48 horas</b> para responder con:" />
+                      <Trans i18nKey="disputeRes.step2p" components={{ b: <strong /> }} defaults={disputesEs.step2p} />
                     </p>
                     <ul className="list-disc list-inside text-slate-600 dark:text-slate-300 space-y-1">
-                      <li>{t('disputeRes.step2li1', 'Su versión de los hechos')}</li>
-                      <li>{t('disputeRes.step2li2', 'Evidencia que respalde su posición')}</li>
-                      <li>{t('disputeRes.step2li3', 'Propuesta de solución (opcional)')}</li>
+                      <li>{t('disputeRes.step2li1', disputesEs.step2li1)}</li>
+                      <li>{t('disputeRes.step2li2', disputesEs.step2li2)}</li>
+                      <li>{t('disputeRes.step2li3', disputesEs.step2li3)}</li>
                     </ul>
                   </div>
 
@@ -147,7 +148,7 @@ export default function DisputeResolution() {
                       <li>{t('disputeRes.step3li4', 'Historial de comportamiento de ambas partes')}</li>
                     </ul>
                     <p className="text-slate-600 dark:text-slate-300 mt-2 text-sm italic">
-                      {t('disputeRes.step3note', '⏱️ Tiempo de revisión: 3-5 días hábiles')}
+                      {t('disputeRes.step3note', disputesEs.step3note)}
                     </p>
                   </div>
 

@@ -27,6 +27,7 @@ import {
 import { JOB_CATEGORIES, JOB_TAGS, canJobsOverlap, getCategoryById } from "../../shared/constants/categories";
 // La comisión mínima se muestra desde la constante, no escrita a mano.
 import { MINIMUM_COMMISSION_ARS } from "../../shared/pricing/minimums";
+import { POLITICAS } from "../../shared/constants/policies";
 import { CustomDateInput } from "@/components/ui/CustomDatePicker";
 import LocationAutocomplete from "@/components/ui/LocationAutocomplete";
 import StreetAutocomplete from "@/components/ui/StreetAutocomplete";
@@ -1063,7 +1064,7 @@ export default function CreateContractScreen() {
                 <p className="text-sm text-amber-800 dark:text-amber-300 flex items-start gap-2">
                   <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
                   <span>
-                    <strong>{t('common.tip', 'Tip')}:</strong> {t('contracts.bankingTip', 'If you use Mercado Pago, payments are credited within 48 hours. Other banks may take until the end of the month.')}
+                    <strong>{t('common.tip', 'Tip')}:</strong> {t('contracts.bankingTip', 'El trabajador cobra cuando pasan los {{dias}} días de reclamo desde que termina el trabajo y Mercado Pago libera tu pago. La fecha exacta se ve en el contrato.', { dias: POLITICAS.DIAS_PARA_DISPUTAR })}
                   </span>
                 </p>
               </div>
