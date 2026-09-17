@@ -178,6 +178,36 @@ router.get('/financial/overview', async (_req: AuthRequest, res: Response): Prom
  * que entró antes pero vence la semana que viene: lo que importa no es hace
  * cuánto llegó, es cuánto queda.
  */
+/**
+ * GET /admin/hubs/usuarios-marcados
+ * Usuarios con proporción alta de disputas, contracargos o cancelaciones sobre
+ * sus contratos. No bloquea nada: es la lista que una persona mira antes de
+ * resolver la próxima disputa o devolución de ese usuario.
+ */
+router.get('/usuarios-marcados', async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { usuariosMarcados, UMBRALES } = await import('../../services/abuseDetector.js');
+    const ventana = Math.min(Math.max(Number(req.query.dias) || 90, 30), 365);
+    const perfiles = await usuariosMarcados(ventana);
+    res.json({ success: true, data: perfiles, umbrales: UMBRALES, ventanaDias: ventana });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+/** GET /admin/hubs/usuarios-marcados/:userId — el perfil de uno, marcado o no. */
+router.get('/usuarios-marcados/:userId', async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { perfilDeAbuso, UMBRALES } = await import('../../services/abuseDetector.js');
+    const ventana = Math.min(Math.max(Number(req.query.dias) || 90, 30), 365);
+    const perfil = await perfilDeAbuso(String(req.params.userId), ventana);
+    if (!perfil) { res.status(404).json({ success: false, message: 'Usuario no encontrado' }); return; }
+    res.json({ success: true, data: perfil, umbrales: UMBRALES });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 router.get('/chargebacks', async (_req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { Payment } = await import('../../models/sql/Payment.model.js');

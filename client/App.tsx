@@ -106,6 +106,7 @@ const PendingPayments = lazy(() => import("./pages/admin/PendingPayments"));
 const AdminJobManager = lazy(() => import("./pages/admin/JobManager"));
 const AdminJobBoard = lazy(() => import("./pages/admin/JobBoard"));
 const AdminChargebacks = lazy(() => import("./pages/admin/Chargebacks"));
+const AdminUsuariosMarcados = lazy(() => import("./pages/admin/UsuariosMarcados"));
 const AdminBlogManager = lazy(() => import("./pages/admin/BlogManager"));
 const AdminFamilyCodes = lazy(() => import("./pages/admin/FamilyCodes"));
 const AdminBusinessPlan = lazy(() => import("./pages/admin/BusinessPlan"));
@@ -672,6 +673,7 @@ export default function App() {
               <Route path="jobs" element={<AdminJobManager />} />
               <Route path="jobs/board" element={<AdminJobBoard />} />
               <Route path="chargebacks" element={<AdminChargebacks />} />
+              <Route path="usuarios-marcados" element={<AdminUsuariosMarcados />} />
               <Route path="family-codes" element={<AdminFamilyCodes />} />
               <Route path="business-plan" element={<AdminBusinessPlan />} />
               <Route path="performance" element={<AdminPerformanceMonitor />} />

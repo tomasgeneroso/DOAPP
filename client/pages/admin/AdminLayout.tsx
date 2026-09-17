@@ -22,6 +22,7 @@ import {
   Wifi,
   WifiOff,
   AlertTriangle,
+  ShieldAlert,
   CreditCard,
   Sliders,
   ArrowDownLeft,
@@ -188,6 +189,7 @@ export default function AdminLayout() {
         // Va primero en Finanzas y con contador: es lo único de esta sección
         // que vence. Un pago por verificar espera; un contracargo, no.
         { path: "/admin/chargebacks", icon: AlertTriangle, label: t('admin.sidebar.chargebacks', 'Contracargos'), roles: ["owner", "super_admin", "admin"], badge: urgentes > 0 ? String(urgentes) : undefined },
+        { path: "/admin/usuarios-marcados", icon: ShieldAlert, label: t('admin.sidebar.flaggedUsers', 'Usuarios con advertencia'), roles: ["owner", "super_admin", "admin", "support"] },
         { path: "/admin/pending-payments", icon: CreditCard, label: t('admin.sidebar.pendingPayments', 'Pending Payments'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/withdrawals", icon: ArrowDownLeft, label: t('admin.sidebar.withdrawals', 'Withdrawals'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/financial-transactions", icon: TrendingUp, label: t('admin.sidebar.transactions', 'Transactions'), roles: ["owner", "super_admin", "admin"] },
