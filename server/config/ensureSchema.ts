@@ -53,6 +53,9 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   // protección contra devoluciones dobles deja de existir. Se me había pasado
   // espejarla acá cuando escribí su migración.
   { label: 'payments.refunded_amount', sql: `ALTER TABLE payments ADD COLUMN IF NOT EXISTS refunded_amount NUMERIC(12,2) NOT NULL DEFAULT 0` },
+  { label: 'payments.processing_fee', sql: `ALTER TABLE payments ADD COLUMN IF NOT EXISTS processing_fee NUMERIC(12,2)` },
+  { label: 'payments.net_received_amount', sql: `ALTER TABLE payments ADD COLUMN IF NOT EXISTS net_received_amount NUMERIC(12,2)` },
+  { label: 'payments.money_release_date', sql: `ALTER TABLE payments ADD COLUMN IF NOT EXISTS money_release_date TIMESTAMPTZ` },
   // Escalera de cancelaciones del trabajador.
   { label: 'users.cancellation_mark_until', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS cancellation_mark_until TIMESTAMPTZ` },
   { label: 'users.suspended_from_applying_until', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_from_applying_until TIMESTAMPTZ` },

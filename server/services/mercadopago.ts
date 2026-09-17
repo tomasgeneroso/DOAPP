@@ -278,6 +278,11 @@ class MercadoPagoPaymentService {
         card_expiration_month: cardData.expiration_month,
         card_expiration_year: cardData.expiration_year,
         cardholder_name: cardData.cardholder?.name,
+        // Lo que MP cobro de verdad en esta operacion y lo que nos acredita
+        // neto. Es la tarifa que se le descuenta al trabajador.
+        fee_details: (payment as any).fee_details as Array<{ type?: string; amount?: number; fee_payer?: string }> | undefined,
+        transaction_details: (payment as any).transaction_details as { net_received_amount?: number; total_paid_amount?: number } | undefined,
+        money_release_date: (payment as any).money_release_date as string | undefined,
       };
     } catch (error: any) {
       console.error(`Error fetching payment ${paymentId}:`, error);

@@ -556,6 +556,26 @@ async function handlePaymentWebhook(data: any, ip: string) {
     foundPayment.cardLastFourDigits = paymentMethodInfo.card_last_four_digits ?? undefined;
     foundPayment.cardBrand = paymentMethodInfo.card_brand ?? undefined;
 
+    /**
+     * La tarifa REAL de esta operacion. MP la informa en `fee_details` (una
+     * entrada por concepto, con quien la paga) y el neto en
+     * `transaction_details.net_received_amount`. Es lo que se descuenta al
+     * trabajador: la tarifa fija del .env queda de respaldo para cuando esto
+     * no llego.
+     */
+    const feeDetails: Array<{ amount?: number; fee_payer?: string; type?: string }> =
+      Array.isArray(mpPaymentData.fee_details) ? mpPaymentData.fee_details : [];
+    const comisionMp = feeDetails
+      .filter((f) => !f.fee_payer || f.fee_payer === 'collector')
+      .reduce((acc, f) => acc + (Number(f.amount) || 0), 0);
+    if (comisionMp > 0) foundPayment.processingFee = Math.round(comisionMp * 100) / 100;
+    const neto = Number(mpPaymentData.transaction_details?.net_received_amount);
+    if (Number.isFinite(neto) && neto > 0) foundPayment.netReceivedAmount = Math.round(neto * 100) / 100;
+    if (mpPaymentData.money_release_date) {
+      const d = new Date(mpPaymentData.money_release_date);
+      if (!isNaN(d.getTime())) foundPayment.moneyReleaseDate = d;
+    }
+
     if (status === 'succeeded' || status === 'approved') {
       /**
        * El monto que informa MercadoPago tiene que ser el que esperábamos.

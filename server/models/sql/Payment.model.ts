@@ -276,6 +276,29 @@ export class Payment extends Model {
   @Column(DataType.DECIMAL(12, 2))
   workerPaymentAmount?: number;
 
+  /**
+   * Lo que la pasarela cobro DE VERDAD en esta operacion, IVA incluido, leido
+   * de `fee_details` del pago aprobado. El cliente elige el medio en el
+   * checkout (tarjeta, dinero en cuenta, cuotas) y la tarifa cambia con el
+   * medio; asumir una tarifa fija le descontaba al trabajador un numero que
+   * no era el real. Si es null, todavia no llego el webhook o el proveedor no
+   * lo informa, y se usa la tarifa configurada como respaldo.
+   */
+  @Column(DataType.DECIMAL(12, 2))
+  processingFee?: number | null;
+
+  /** Lo que MP dice que nos acredita neto: transaction_details.net_received_amount. */
+  @Column(DataType.DECIMAL(12, 2))
+  netReceivedAmount?: number | null;
+
+  /**
+   * Cuando MP libera la plata de este pago (money_release_date). Es la fecha
+   * real, no la calculada con PAYMENT_RELEASE_DAYS: hasta entonces no hay
+   * saldo para transferirle al trabajador.
+   */
+  @Column(DataType.DATE)
+  moneyReleaseDate?: Date | null;
+
   @ForeignKey(() => User)
   @Column(DataType.UUID)
   escrowReleasedBy?: string;

@@ -15,6 +15,7 @@ import { Op } from 'sequelize';
 import { isValidUUID } from "../../utils/sanitizer.js";
 import { generateWorkerPaymentInvoice } from "../../services/invoiceService.js";
 import { executeFinancialAction } from "../../services/paymentActions.js";
+import { montoParaElTrabajador } from "../../services/payoutAmount.js";
 import { logMoneyEvent } from "../../utils/auditLog.js";
 import { PAGO_TRABAJADOR_RETENCION_DIAS } from "../../../shared/constants/policies.js";
 
@@ -31,20 +32,23 @@ export function pagableDesde(
   contract: { completedAt?: Date | null; clientConfirmedAt?: Date | null; updatedAt?: Date | null },
   /** Cuando pago el cliente, si se conoce: la plata queda "a liberar" en MP. */
   pagadoEl?: Date | string | null,
+  /** La fecha REAL en que MP libera (money_release_date). Si viene, manda sobre el calculo. */
+  liberaMpEl?: Date | string | null,
 ): Date {
   const fin = (contract as any).completedAt || contract.clientConfirmedAt || contract.updatedAt || new Date();
   const porRetencion = new Date(fin).getTime() + PAGO_TRABAJADOR_RETENCION_DIAS * 86_400_000;
 
   /**
    * Y el otro reloj: el de Mercado Pago. La plata del cliente queda "a
-   * liberar" PAYMENT_RELEASE_DAYS desde que pago, y hasta entonces no hay
-   * saldo disponible para transferir. Los dos relojes corren en paralelo y
-   * manda el que termina despues. En un trabajo corto es el de MP; en uno
-   * largo, el de la retencion.
+   * liberar" hasta money_release_date (o PAYMENT_RELEASE_DAYS desde el pago,
+   * si el webhook no trajo la fecha), y hasta entonces no hay saldo disponible
+   * para transferir. Los dos relojes corren en paralelo y manda el que termina
+   * despues. En un trabajo corto es el de MP; en uno largo, el de la retencion.
    */
   const diasMp = Number(process.env.PAYMENT_RELEASE_DAYS);
-  const porLiberacionMp =
-    pagadoEl && Number.isFinite(diasMp) && diasMp > 0
+  const porLiberacionMp = liberaMpEl
+    ? new Date(liberaMpEl).getTime()
+    : pagadoEl && Number.isFinite(diasMp) && diasMp > 0
       ? new Date(pagadoEl).getTime() + diasMp * 86_400_000
       : 0;
 
@@ -334,7 +338,7 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
       // Get the Payment record for this contract to check commission verification
       const paymentRecord = await Payment.findOne({
         where: { contractId: firstContract.id },
-        attributes: ['id', 'status', 'amount', 'platformFee', 'approvedAt', 'createdAt'],
+        attributes: ['id', 'status', 'amount', 'platformFee', 'approvedAt', 'createdAt', 'moneyReleaseDate'],
         include: [
           {
             model: PaymentProof,
@@ -379,8 +383,8 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
         completedAt: firstContract.clientConfirmedAt || firstContract.updatedAt,
         // Retencion: desde cuando se puede transferir, y si ya se puede. El
         // panel lo muestra para que el admin no intente antes y se coma el 409.
-        pagableDesde: pagableDesde(firstContract as any, (paymentRecord as any)?.approvedAt || (paymentRecord as any)?.createdAt).toISOString(),
-        enRetencion: new Date() < pagableDesde(firstContract as any, (paymentRecord as any)?.approvedAt || (paymentRecord as any)?.createdAt),
+        pagableDesde: pagableDesde(firstContract as any, (paymentRecord as any)?.approvedAt || (paymentRecord as any)?.createdAt, (paymentRecord as any)?.moneyReleaseDate).toISOString(),
+        enRetencion: new Date() < pagableDesde(firstContract as any, (paymentRecord as any)?.approvedAt || (paymentRecord as any)?.createdAt, (paymentRecord as any)?.moneyReleaseDate),
         paymentStatus: firstContract.paymentStatus || 'pending',
         escrowStatus: firstContract.escrowStatus || 'pending',
         contractStatus: firstContract.status,
@@ -885,12 +889,20 @@ router.post("/:contractId/mark-paid", protect, requireRole('admin', 'super_admin
     const doer = contract.doer as any;
     const job = contract.job as any;
 
-    // Calculate amount after fees (for reference)
-    const workerAmount = contract.allocatedAmount || contract.price;
-    const commission = contract.commission || 0;
-    const netBeforeDeductions = parseFloat(workerAmount.toString()) - parseFloat(commission.toString());
+    /**
+     * Lo que corresponde pagarle: su parte menos la pasarela real del pago.
+     *
+     * Esto restaba la COMISION al trabajador (`workerAmount - commission`). La
+     * comision la paga el cliente; restarsela al trabajador tambien era
+     * cobrarla dos veces. Ahora es la misma cuenta que al completar y al
+     * auto-confirmar (payoutAmount.ts), con la tarifa real de fee_details.
+     */
+    const pagoDelClienteParaMonto = await Payment.findOne({ where: { contractId }, order: [['createdAt', 'ASC']] }).catch(() => null);
+    const calc = montoParaElTrabajador(contract as any, pagoDelClienteParaMonto as any);
+    const workerAmount = calc.bruto;
+    const netBeforeDeductions = calc.neto;
 
-    // Apply deductions if provided
+    // Apply deductions if provided (retenciones impositivas, etc.)
     const bankFee = deductions?.bankFee || 0;
     const taxAmount = deductions?.taxAmount || 0;
     const otherDeductions = deductions?.otherDeductions || 0;

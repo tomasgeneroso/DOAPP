@@ -3,6 +3,7 @@ import { getEffectiveTier } from '../services/platformPhase.js';
 import { MINIMUM_COMMISSION_ARS, MINIMUM_EXTENSION_ARS } from '../../shared/pricing/minimums.js';
 import { POLITICAS } from '../../shared/constants/policies.js';
 import { paraQuienMira, puedeVerDireccion } from '../services/privacidadTrabajo.js';
+import { montoParaElTrabajador } from '../services/payoutAmount.js';
 import { body, validationResult } from "express-validator";
 import { Contract } from "../models/sql/Contract.model.js";
 import { Job } from "../models/sql/Job.model.js";
@@ -1549,28 +1550,11 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
     const Payment = (await import('../models/sql/Payment.model.js')).default;
     const payment = await Payment.findOne({ where: { contractId: id } });
 
-    // Lo que efectivamente cobra el trabajador: su parte menos el costo de la
-    // pasarela, que es el cargo que absorbe él.
-    //
-    // Sin este descuento la pantalla le prometía una cifra y se le liquidaba
-    // otra: la cotización ya mostraba "recibís precio menos pasarela", pero al
-    // liberar se pagaba el precio completo y la diferencia la ponía DOAPP en
-    // cada contrato.
-    const parteBruta = contract.allocatedAmount
-      ? parseFloat(contract.allocatedAmount.toString())
-      : Number(contract.price);
-
-    const cobradoAlCliente = Number(contract.price) + Number(contract.commission || 0);
-    const { processingCost } = splitFees(
-      Number(contract.price),
-      Number(contract.commission || 0),
-      Math.max(0, cobradoAlCliente - Number(contract.price) - Number(contract.commission || 0)),
-    );
-
-    // En un contrato con varios trabajadores el costo se reparte proporcional a
-    // lo que le toca a cada uno, no entero a cada uno.
-    const proporcion = Number(contract.price) > 0 ? parteBruta / Number(contract.price) : 1;
-    const paymentAmount = Math.max(0, Math.round((parteBruta - processingCost * proporcion) * 100) / 100);
+    // Lo que efectivamente cobra el trabajador: su parte menos la pasarela
+    // REAL de este pago (o la configurada, si el webhook no la trajo). Una sola
+    // cuenta para completar, auto-confirmar y marcar pagado: payoutAmount.ts.
+    const monto = montoParaElTrabajador(contract as any, payment as any);
+    const paymentAmount = monto.neto;
 
     if (payment) {
       payment.status = 'completed';

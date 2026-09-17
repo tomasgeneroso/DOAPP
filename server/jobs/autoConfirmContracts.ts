@@ -4,7 +4,9 @@ import { Job } from '../models/sql/Job.model.js';
 import { User } from '../models/sql/User.model.js';
 import { Notification } from '../models/sql/Notification.model.js';
 import { BalanceTransaction } from '../models/sql/BalanceTransaction.model.js';
+import { Payment } from '../models/sql/Payment.model.js';
 import emailService from '../services/email.js';
+import { montoParaElTrabajador } from '../services/payoutAmount.js';
 import { Op } from 'sequelize';
 import { POLITICAS } from '../../shared/constants/policies.js';
 
@@ -80,8 +82,16 @@ export function startAutoConfirmContractsJob() {
             const client = contract.client as any;
             const doer = contract.doer as any;
 
-            // Calcular el monto a pagar al trabajador
-            const workerPaymentAmount = (contract as any).workerPaymentAmount || contract.allocatedAmount || contract.price;
+            // Lo que cobra el trabajador: su parte menos la pasarela real. Antes
+            // se usaba el precio entero y la pasarela la absorbia DOAPP en cada
+            // contrato auto-confirmado.
+            const pagoDelCliente = await Payment.findOne({ where: { contractId: contract.id } }).catch(() => null);
+            const montoCalc = montoParaElTrabajador(contract as any, pagoDelCliente as any);
+            const workerPaymentAmount = montoCalc.neto;
+            if (pagoDelCliente) {
+              (pagoDelCliente as any).workerPaymentAmount = workerPaymentAmount;
+              await pagoDelCliente.save().catch(() => {});
+            }
 
             // Marcar como confirmado por ambos
             contract.clientConfirmed = true;

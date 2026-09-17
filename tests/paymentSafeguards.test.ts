@@ -14,6 +14,7 @@ import { evidenceToPdf, indicesAIncluir } from '../server/services/contractEvide
 import { puedePromocionarse } from '../server/routes/profilePromotion.js';
 import { estadoDeSilencio, DIAS_PARA_RESPONDER } from '../server/jobs/disputeSilence.js';
 import { VENTANA_DIAS, MARCA_VISIBLE_DIAS, SUSPENSION_3RA_DIAS, SUSPENSION_4TA_DIAS, diasDeSuspension } from '../server/services/cancellationLadder.js';
+import { montoParaElTrabajador } from '../server/services/payoutAmount.js';
 
 /**
  * Estos controles solo sirven si fallan cerrados: ante la duda, no dejan pasar
@@ -506,6 +507,48 @@ describe('liquidacion de una cancelacion (T&C 7.5, 9.1-9.3)', () => {
     const l = liquidarCancelacion({ precio: 100, comision: 3600, iva: 756, rate: 0.0761, aprobada: true, hayTrabajador: true, tardia: true });
     expect(l.aCliente).toBeGreaterThanOrEqual(0);
     expect(l.aTrabajador).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe('lo que cobra el trabajador (una sola cuenta)', () => {
+  const contrato = { price: 36000, commission: 3600 };
+
+  it('usa la tarifa REAL del pago cuando el webhook la trajo', () => {
+    // MP cobro 1.500 en esta operacion (el cliente pago con dinero en cuenta,
+    // mas barato que tarjeta). Eso es lo que se descuenta, no la tarifa fija.
+    const m = montoParaElTrabajador(contrato, { processingFee: 1500, amount: 40356 });
+    expect(m.origenTarifa).toBe('pago_real');
+    expect(m.pasarela).toBe(1500);
+    expect(m.neto).toBe(34500);
+  });
+
+  it('cae a la tarifa configurada si el pago no la trae', () => {
+    const m = montoParaElTrabajador(contrato, { amount: 40356 });
+    expect(m.origenTarifa).toBe('tarifa_configurada');
+    expect(m.pasarela).toBeGreaterThan(0);
+    expect(m.neto).toBeLessThan(36000);
+  });
+
+  it('NUNCA le descuenta la comision al trabajador', () => {
+    // La comision la paga el cliente. mark-paid hacia precio - comision: se la
+    // cobraba dos veces.
+    const m = montoParaElTrabajador(contrato, { processingFee: 1000 });
+    expect(m.neto).toBe(35000);
+    expect(m.bruto).toBe(36000);
+  });
+
+  it('en un contrato con varios trabajadores prorratea la pasarela', () => {
+    // Dos trabajadores a 18.000 cada uno de un trabajo de 36.000: cada uno
+    // absorbe la mitad de la pasarela, no la pasarela entera.
+    const m = montoParaElTrabajador({ price: 36000, allocatedAmount: 18000, commission: 3600 }, { processingFee: 2000 });
+    expect(m.bruto).toBe(18000);
+    expect(m.pasarela).toBe(1000);
+    expect(m.neto).toBe(17000);
+  });
+
+  it('nunca devuelve negativo', () => {
+    const m = montoParaElTrabajador({ price: 500, commission: 3600 }, { processingFee: 900 });
+    expect(m.neto).toBe(0);
   });
 });
 
