@@ -29,6 +29,7 @@ router.post(
     body("contractId").notEmpty().withMessage("Contract ID es requerido"),
     body("rating").isInt({ min: 1, max: 5 }).withMessage("Rating debe ser entre 1 y 5"),
     body("comment").isString().isLength({ min: 10, max: 1000 }),
+    body("privateComment").optional({ nullable: true }).isString().isLength({ max: 1000 }),
     body("timeliness").optional().isInt({ min: 1, max: 5 }),
     body("attendance").optional().isInt({ min: 1, max: 5 }),
     body("communication").optional().isInt({ min: 1, max: 5 }),
@@ -47,7 +48,7 @@ router.post(
         return;
       }
 
-      const { contractId, rating, comment, timeliness, attendance, communication, fairPrice, quality, professionalism } = req.body;
+      const { contractId, rating, comment, privateComment, timeliness, attendance, communication, fairPrice, quality, professionalism } = req.body;
       const reviewerId = req.user.id;
 
       // Get contract
@@ -111,6 +112,7 @@ router.post(
         reviewedRole,
         rating,
         comment,
+        privateComment: typeof privateComment === "string" && privateComment.trim() ? privateComment.trim() : null,
         timeliness,
         attendance,
         communication,
@@ -129,7 +131,7 @@ router.post(
           type: "success",
           category: "user",
           title: "Nueva reseña recibida",
-          message: `Recibiste una reseña de ${rating} estrellas`,
+          message: `Recibiste una reseña de ${rating} estrellas${review.privateComment ? ". También te dejaron una nota privada, que solo ves vos" : ""}`,
           data: { reviewId: review.id, contractId },
           read: false,
         });
@@ -184,13 +186,24 @@ const postWorkValidators = [
     .isString()
     .isLength({ max: 1000 })
     .withMessage("La nota no puede superar los 1000 caracteres"),
+  body("privateNote")
+    .optional({ nullable: true })
+    .isString()
+    .isLength({ max: 1000 })
+    .withMessage("La nota privada no puede superar los 1000 caracteres"),
   ...dimensionValidators,
 ];
+
+/** La reseña publica es obligatoria y tiene que decir algo: 10 caracteres. */
+const NOTA_PUBLICA_MIN = 10;
 
 interface PostWorkPayload {
   rating?: number;
   recommendsApp?: boolean;
+  /** Reseña publica: se ve en el perfil. Obligatoria al terminar. */
   note?: string;
+  /** Nota privada: la lee solo el reseñado. Opcional. */
+  privateNote?: string;
   dimensions: Record<string, number>;
 }
 
@@ -215,6 +228,10 @@ const readPostWorkPayload = (body: any): PostWorkPayload => {
     note:
       typeof body.note === "string" && body.note.trim().length > 0
         ? body.note.trim()
+        : undefined,
+    privateNote:
+      typeof body.privateNote === "string" && body.privateNote.trim().length > 0
+        ? body.privateNote.trim()
         : undefined,
     dimensions,
   };
@@ -300,7 +317,7 @@ router.post(
       if (!resolved) return;
 
       const { contract, reviewedId, reviewedRole, existing } = resolved;
-      const { rating, recommendsApp, note, dimensions } = readPostWorkPayload(req.body);
+      const { rating, recommendsApp, note, privateNote, dimensions } = readPostWorkPayload(req.body);
 
       if (rating !== undefined && (rating < 1 || rating > 5)) {
         res.status(400).json({
@@ -317,6 +334,7 @@ router.post(
       if (rating !== undefined) values.rating = rating;
       if (recommendsApp !== undefined) values.recommendsApp = recommendsApp;
       if (note !== undefined) values.comment = note;
+      if (privateNote !== undefined) values.privateComment = privateNote;
 
       let review: Review;
       if (existing) {
@@ -372,7 +390,7 @@ router.post(
       if (!resolved) return;
 
       const { contract, reviewedId, reviewedRole, existing } = resolved;
-      const { rating, recommendsApp, note, dimensions } = readPostWorkPayload(req.body);
+      const { rating, recommendsApp, note, privateNote, dimensions } = readPostWorkPayload(req.body);
 
       if (rating === undefined || recommendsApp === undefined) {
         res.status(400).json({
@@ -382,11 +400,23 @@ router.post(
         return;
       }
 
+      // La reseña publica es obligatoria: una estrella sola no le dice nada al
+      // proximo que contrate. La privada es opcional.
+      if (!note || note.length < NOTA_PUBLICA_MIN) {
+        res.status(400).json({
+          success: false,
+          code: "PUBLIC_NOTE_REQUIRED",
+          message: `Escribí una reseña pública de al menos ${NOTA_PUBLICA_MIN} caracteres. Es lo que va a leer el próximo que contrate.`,
+        });
+        return;
+      }
+
       const values: Record<string, any> = {
         ...dimensions,
         rating,
         recommendsApp,
-        comment: note ?? null,
+        comment: note,
+        privateComment: privateNote ?? null,
         source: POST_WORK_DONE,
       };
 
@@ -414,7 +444,7 @@ router.post(
           type: "success",
           category: "user",
           title: "Nueva puntuación recibida",
-          message: `Recibiste una puntuación de ${rating} estrellas`,
+          message: `Recibiste una puntuación de ${rating} estrellas${privateNote ? ". También te dejaron una nota privada, que solo ves vos" : ""}`,
           data: { reviewId: review.id, contractId: contract.id },
           read: false,
         });
@@ -488,6 +518,8 @@ router.get("/user/:userId", async (req, res): Promise<void> => {
 
     const reviews = await Review.findAll({
       where: publicReviewsWhere,
+      // La nota privada no sale del servidor por este camino: es del reseñado.
+      attributes: { exclude: ["privateComment"] },
       include: [
         {
           model: User,
@@ -579,6 +611,41 @@ router.get("/user/:userId", async (req, res): Promise<void> => {
       success: false,
       message: error.message || "Error del servidor",
     });
+  }
+});
+
+/**
+ * Las reseñas de un contrato, para sus partes. La nota privada viaja solo a
+ * la persona reseñada (o a administracion); el que la escribio ve la suya.
+ * GET /api/reviews/contract/:contractId
+ */
+router.get("/contract/:contractId", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { contractId } = req.params;
+    const userId = String(req.user.id);
+    const contract = await Contract.findByPk(contractId, { attributes: ["id", "clientId", "doerId"] });
+    if (!contract) { res.status(404).json({ success: false, message: "Contrato no encontrado" }); return; }
+
+    const esParte = String(contract.clientId) === userId || String(contract.doerId) === userId;
+    const esAdmin = !!req.user.adminRole && ["owner", "super_admin", "admin", "moderator", "support"].includes(req.user.adminRole);
+    if (!esParte && !esAdmin) { res.status(403).json({ success: false, message: "No sos parte de este contrato" }); return; }
+
+    const reviews = await Review.findAll({
+      where: { contractId, source: { [Op.ne]: POST_WORK_DRAFT } },
+      include: [{ model: User, as: "reviewer", attributes: ["id", "name", "avatar"] }],
+      order: [["createdAt", "ASC"]],
+    });
+
+    const data = reviews.map((r) => {
+      const j: any = r.toJSON();
+      const puedeVerPrivada = esAdmin || String(r.reviewedId) === userId || String(r.reviewerId) === userId;
+      if (!puedeVerPrivada) delete j.privateComment;
+      return j;
+    });
+
+    res.json({ success: true, data });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || "Error del servidor" });
   }
 });
 

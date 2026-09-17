@@ -15,6 +15,7 @@ import TaskClaimResponse from "@/components/contracts/TaskClaimResponse";
 import TaskEvidenceUploadModal from "@/components/contracts/TaskEvidenceUploadModal";
 import DailyLogPanel from "@/components/contracts/DailyLogPanel";
 import EmergencyButton from "@/components/contracts/EmergencyButton";
+import ContractReviewsPanel from "@/components/contracts/ContractReviewsPanel";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import { requestPostWorkRatingCheck } from "@/utils/postWorkRating";
 import {
@@ -1323,6 +1324,11 @@ export default function ContractDetail() {
             <div className="mb-6">
               <EmergencyButton contractId={contract.id || contract._id} />
             </div>
+          )}
+
+          {/* Reseñas del contrato: la pública y, para quien la recibió, la privada */}
+          {(isClient || isDoer) && contract.status === 'completed' && user && (
+            <ContractReviewsPanel contractId={contract.id || contract._id} userId={String((user as any).id || (user as any)._id)} />
           )}
 
           {/* Control diario: marcas por día + fotos del avance. Evidencia, no dinero. */}

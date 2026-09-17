@@ -33,6 +33,7 @@ export interface PendingPostWorkRating {
     professionalism: number | null;
     recommendsApp: boolean | null;
     note: string | null;
+    privateNote: string | null;
   } | null;
 }
 
@@ -48,6 +49,7 @@ const draftFrom = (review: Review | undefined): PendingPostWorkRating["draft"] =
     professionalism: review.professionalism ?? null,
     recommendsApp: review.recommendsApp ?? null,
     note: review.comment ?? null,
+    privateNote: review.privateComment ?? null,
   };
 };
 

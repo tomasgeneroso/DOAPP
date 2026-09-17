@@ -118,6 +118,24 @@ export class Review extends Model {
   })
   comment?: string;
 
+  /**
+   * Nota privada: la lee solo la persona reseñada (y administración). No
+   * aparece en el perfil ni promedia nada. Es para lo que uno le diría a la
+   * otra parte en la puerta y no delante de todos: "la próxima avisá si
+   * llegás tarde", "el baño quedó sin limpiar". Opcional; la pública es la
+   * obligatoria.
+   */
+  @Column({
+    type: DataType.TEXT,
+    validate: {
+      len: {
+        args: [0, 1000],
+        msg: 'La nota privada no puede superar los 1000 caracteres',
+      },
+    },
+  })
+  privateComment?: string | null;
+
   // ============================================
   // POST-WORK SURVEY (máx. 2 preguntas)
   // ============================================

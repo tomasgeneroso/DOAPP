@@ -63,6 +63,8 @@ export const STATEMENTS: Array<{ label: string; sql: string }> = [
   { label: 'disputes.agreement_proposal', sql: `ALTER TABLE disputes ADD COLUMN IF NOT EXISTS agreement_proposal JSONB` },
   { label: 'disputes.escalation_reason', sql: `ALTER TABLE disputes ADD COLUMN IF NOT EXISTS escalation_reason VARCHAR(40)` },
   { label: 'disputes.contract_status_before', sql: `ALTER TABLE disputes ADD COLUMN IF NOT EXISTS contract_status_before VARCHAR(40)` },
+  // Reseña: nota privada que solo lee el reseñado y administracion.
+  { label: 'reviews.private_comment', sql: `ALTER TABLE reviews ADD COLUMN IF NOT EXISTS private_comment TEXT` },
   // Escalera de cancelaciones del trabajador.
   { label: 'users.cancellation_mark_until', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS cancellation_mark_until TIMESTAMPTZ` },
   { label: 'users.suspended_from_applying_until', sql: `ALTER TABLE users ADD COLUMN IF NOT EXISTS suspended_from_applying_until TIMESTAMPTZ` },

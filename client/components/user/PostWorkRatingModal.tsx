@@ -6,6 +6,7 @@ import {
   Loader2,
   CheckCircle,
   ArrowLeft,
+  Lock,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -28,6 +29,7 @@ export interface PostWorkRatingDraft {
   professionalism?: number | null;
   recommendsApp?: boolean | null;
   note?: string | null;
+  privateNote?: string | null;
 }
 
 interface PostWorkRatingModalProps {
@@ -76,6 +78,7 @@ export default function PostWorkRatingModal({
     useState<Record<DimensionKey, number>>(emptyDimensions);
   const [recommendsApp, setRecommendsApp] = useState<boolean | null>(null);
   const [note, setNote] = useState("");
+  const [privateNote, setPrivateNote] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
@@ -89,9 +92,10 @@ export default function PostWorkRatingModal({
     dimensions: emptyDimensions(),
     recommendsApp: null as boolean | null,
     note: "",
+    privateNote: "",
     done: false,
   });
-  latest.current = { overallRating, dimensions, recommendsApp, note, done };
+  latest.current = { overallRating, dimensions, recommendsApp, note, privateNote, done };
 
   // Al abrir la encuesta retomamos el progreso guardado (si lo hay)
   useEffect(() => {
@@ -110,6 +114,7 @@ export default function PostWorkRatingModal({
     setDimensions(restored);
     setRecommendsApp(draft?.recommendsApp ?? null);
     setNote(draft?.note || "");
+    setPrivateNote(draft?.privateNote || "");
     // Si ya había puntuado el trabajo, retomamos en la segunda pantalla
     setStep(draft?.rating ? 2 : 1);
     setError("");
@@ -123,11 +128,13 @@ export default function PostWorkRatingModal({
       dims: Record<DimensionKey, number>,
       recommends: boolean | null,
       text: string,
+      privateText = "",
     ) => {
       const payload: Record<string, any> = { contractId };
       if (rating > 0) payload.rating = rating;
       if (recommends !== null) payload.recommendsApp = recommends;
       if (text.trim()) payload.note = text.trim();
+      if (privateText.trim()) payload.privateNote = privateText.trim();
       for (const dim of dimensionsForRole(reviewedRole)) {
         if (dims[dim.key] > 0) payload[dim.key] = dims[dim.key];
       }
@@ -154,7 +161,8 @@ export default function PostWorkRatingModal({
     const hasProgress =
       rating > 0 ||
       current.recommendsApp !== null ||
-      current.note.trim().length > 0;
+      current.note.trim().length > 0 ||
+      current.privateNote.trim().length > 0;
     if (!hasProgress) return;
 
     try {
@@ -165,7 +173,7 @@ export default function PostWorkRatingModal({
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(
-          buildPayload(rating, dims, current.recommendsApp, current.note),
+          buildPayload(rating, dims, current.recommendsApp, current.note, current.privateNote),
         ),
       });
       dirty.current = false;
@@ -189,6 +197,7 @@ export default function PostWorkRatingModal({
     dimensions,
     recommendsApp,
     note,
+    privateNote,
     saveDraft,
   ]);
 
@@ -260,6 +269,15 @@ export default function PostWorkRatingModal({
       );
       return;
     }
+    if (note.trim().length < 10) {
+      setError(
+        t(
+          "review.postWork.errorPublicNote",
+          "Escribí una reseña pública de al menos 10 caracteres: es lo que va a leer el próximo que contrate.",
+        ),
+      );
+      return;
+    }
 
     setError("");
     setLoading(true);
@@ -269,6 +287,7 @@ export default function PostWorkRatingModal({
         dimensions,
         recommendsApp,
         note,
+        privateNote,
       );
 
       const res = await fetch("/api/reviews/post-work", {
@@ -502,27 +521,71 @@ export default function PostWorkRatingModal({
                   </div>
                 </div>
 
-                {/* Nota */}
+                {/* Reseña pública: obligatoria, se ve en el perfil */}
                 <div className="mb-4">
-                  <label className="mb-1.5 block text-sm font-medium text-slate-300">
-                    {t("review.postWork.noteLabel", "Nota (opcional)")}
+                  <label htmlFor="postwork-note" className="mb-1.5 block text-sm font-medium text-slate-300">
+                    {t("review.postWork.noteLabel", "Reseña pública *")}
                   </label>
+                  <p id="postwork-note-help" className="mb-1.5 text-xs text-slate-400">
+                    {t(
+                      "review.postWork.noteHelp",
+                      "Se ve en el perfil de {{name}}. Es lo que va a leer el próximo que contrate: qué salió bien, qué no.",
+                      { name: displayName },
+                    )}
+                  </p>
                   <textarea
+                    id="postwork-note"
                     value={note}
                     onChange={(e) => {
                       markDirty();
                       setNote(e.target.value);
                     }}
-                    rows={4}
+                    rows={3}
                     maxLength={1000}
+                    required
+                    aria-describedby="postwork-note-help"
                     placeholder={t(
                       "review.postWork.notePlaceholder",
-                      "Contanos algo más si querés...",
+                      "Contá cómo fue el trabajo (mínimo 10 caracteres)",
                     )}
                     className="w-full resize-none rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-transparent focus:ring-2 focus:ring-sky-500"
                   />
                   <p className="mt-1 text-right text-xs text-slate-500">
                     {note.length}/1000
+                  </p>
+                </div>
+
+                {/* Nota privada: opcional, la lee solo la persona reseñada */}
+                <div className="mb-4">
+                  <label htmlFor="postwork-private" className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-slate-300">
+                    <Lock className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
+                    {t("review.postWork.privateLabel", "Nota privada (opcional)")}
+                  </label>
+                  <p id="postwork-private-help" className="mb-1.5 text-xs text-slate-400">
+                    {t(
+                      "review.postWork.privateHelp",
+                      "La lee solo {{name}} y el equipo de DOAPP. No aparece en el perfil ni cambia la puntuación. Para lo que le dirías en la puerta y no delante de todos.",
+                      { name: displayName },
+                    )}
+                  </p>
+                  <textarea
+                    id="postwork-private"
+                    value={privateNote}
+                    onChange={(e) => {
+                      markDirty();
+                      setPrivateNote(e.target.value);
+                    }}
+                    rows={2}
+                    maxLength={1000}
+                    aria-describedby="postwork-private-help"
+                    placeholder={t(
+                      "review.postWork.privatePlaceholder",
+                      "Algo que quieras decirle solo a esta persona",
+                    )}
+                    className="w-full resize-none rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-transparent focus:ring-2 focus:ring-sky-500"
+                  />
+                  <p className="mt-1 text-right text-xs text-slate-500">
+                    {privateNote.length}/1000
                   </p>
                 </div>
 
@@ -548,7 +611,7 @@ export default function PostWorkRatingModal({
                   <button
                     type="button"
                     onClick={handleSubmit}
-                    disabled={loading || recommendsApp === null}
+                    disabled={loading || recommendsApp === null || note.trim().length < 10}
                     className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-sky-600 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:from-sky-600 hover:to-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {loading && <Loader2 className="h-4 w-4 animate-spin" />}
