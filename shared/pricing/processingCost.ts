@@ -20,6 +20,8 @@
  * recibe el trabajador. La plataforma se queda con la comision limpia.
  */
 
+import { POLITICAS } from '../constants/policies.js';
+
 /**
  * Tarifas de la cuenta de DOAPP tal como las muestra el panel de Mercado Pago
  * (Tu negocio → Costos → Tarjeta de credito), leidas el 2026-09-17. El panel
@@ -149,7 +151,8 @@ export interface DesgloseCancelacion {
 
 /**
  * Qué se devuelve cuando un trabajo se cancela ANTES de que un admin apruebe la
- * publicación (T&C 9.1): todo menos la pasarela.
+ * publicación (T&C 9.1): el precio y la parte de la comisión que la política
+ * no retiene, menos la pasarela.
  *
  * El costo de la pasarela no vuelve. Es la parte que la gente no espera y la
  * que hay que decir de frente: MercadoPago cobra por procesar el pago y ese
@@ -157,10 +160,9 @@ export interface DesgloseCancelacion {
  * "deshacer". Si la plataforma lo absorbiera, publicar-y-cancelar sería gratis
  * para el cliente y una pérdida directa para DOAPP en cada vuelta.
  *
- * La comisión y el IVA vuelven solo en este caso: la publicación no llegó a
- * aprobarse, así que la plataforma no gastó nada en ella. Una vez aprobada, la
- * comisión se retiene siempre (T&C 7.5) — eso lo resuelve liquidarCancelacion,
- * que es la función general; esta queda como el caso particular.
+ * Es una vista del caso particular de liquidarCancelacion (la función general,
+ * que decide la regla). No calcula nada por su cuenta: si las dos dijeran
+ * cosas distintas volveríamos al problema que esto vino a resolver.
  */
 export function desgloseCancelacionSinContratar(
   pagado: number,
@@ -171,27 +173,31 @@ export function desgloseCancelacionSinContratar(
   const total = round2(Math.max(0, pagado));
   const comm = round2(Math.max(0, comision));
   const tax = round2(Math.max(0, iva));
+  const precioTrabajo = round2(Math.max(0, total - comm - tax));
 
-  // Se calcula sobre lo que efectivamente pasó por la pasarela -- el total
-  // cobrado -- y no sobre el precio del trabajo.
-  const costoPasarela = rate > 0 ? round2(total * rate) : 0;
-  const devolver = round2(Math.max(0, total - costoPasarela));
+  const liq = liquidarCancelacion({
+    precio: precioTrabajo, comision: comm, iva: tax,
+    aprobada: false, hayTrabajador: false, tardia: false, rate,
+  });
 
   return {
     pagado: total,
-    precioTrabajo: round2(Math.max(0, total - comm - tax)),
+    precioTrabajo,
     comision: comm,
     iva: tax,
-    costoPasarela,
-    devolver,
-    retiene: round2(total - devolver),
+    costoPasarela: liq.costoPasarela,
+    devolver: liq.aCliente,
+    retiene: round2(total - liq.aCliente),
   };
 }
 
 export interface LiquidacionCancelacion {
   /** Lo que la pasarela ya se llevo y no vuelve: tarifa x total cobrado. */
   costoPasarela: number;
-  /** Comision + IVA que retiene la plataforma. Cero solo antes de la aprobacion. */
+  /**
+   * Comision + IVA que retiene la plataforma. Antes de la aprobacion, solo la
+   * parte que fija CANCELACION_EN_REVISION_PARTE_COMISION.
+   */
   retieneApp: number;
   /** Lo que vuelve al cliente, como saldo a favor. */
   aCliente: number;
@@ -213,9 +219,10 @@ export interface LiquidacionCancelacion {
  *      Si el dinero queda como saldo dentro de la app no hay un segundo costo;
  *      si despues se retira a un CBU, ese costo lo paga quien retira (T&C 7.9).
  *
- *   2. La comision no se devuelve, salvo que la publicacion no haya sido
- *      aprobada todavia (T&C 7.5 y 9.1). Aprobar y publicar tiene un costo
- *      para la plataforma que ya se gasto.
+ *   2. La comision no se devuelve una vez aprobada la publicacion (T&C 7.5):
+ *      aprobar y publicar tiene un costo para la plataforma que ya se gasto.
+ *      Si todavia no fue aprobada (T&C 9.1) se retiene solo una parte
+ *      (CANCELACION_EN_REVISION_PARTE_COMISION) y el resto vuelve.
  *
  *   3. Con menos de CANCELACION_CLIENTE_HORAS_ANTES y un trabajador
  *      seleccionado, la mitad del precio (ya sin la pasarela) es para el
@@ -235,6 +242,8 @@ export function liquidarCancelacion(args: {
   /** Si faltan menos de las horas de la politica, o el trabajo ya empezo. */
   tardia: boolean;
   parteTrabajador?: number;
+  /** Solo para tests; en produccion sale de POLITICAS. */
+  parteComisionEnRevision?: number;
   rate?: number;
 }): LiquidacionCancelacion {
   const precio = round2(Math.max(0, Number(args.precio) || 0));
@@ -247,11 +256,14 @@ export function liquidarCancelacion(args: {
   const costoPasarela = rate > 0 ? round2(totalCobrado * rate) : 0;
 
   if (!args.aprobada) {
-    // Nadie aprobo, nadie trabajo: vuelve todo menos lo que se llevo la pasarela.
+    // Nadie aprobo, nadie trabajo: vuelve el precio y la parte de la comision
+    // que la politica no retiene. La pasarela ya se la llevo Mercado Pago.
+    const parteRevision = args.parteComisionEnRevision ?? POLITICAS.CANCELACION_EN_REVISION_PARTE_COMISION;
+    const retieneApp = round2((comision + iva) * parteRevision);
     return {
       costoPasarela,
-      retieneApp: 0,
-      aCliente: round2(Math.max(0, totalCobrado - costoPasarela)),
+      retieneApp,
+      aCliente: round2(Math.max(0, totalCobrado - costoPasarela - retieneApp)),
       aTrabajador: 0,
       regla: 'antes_de_aprobar',
     };

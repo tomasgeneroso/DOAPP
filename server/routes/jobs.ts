@@ -2516,7 +2516,7 @@ const cancelarPublicacion = async (req: AuthRequest, res: Response): Promise<voi
           type: 'info',
           category: 'admin',
           title: 'Pedido de cancelación antes de aprobar',
-          message: `El cliente pidió cancelar "${job.title}" mientras esperaba aprobación. Si se aprueba la cancelación, se devuelve todo menos la pasarela.`,
+          message: `El cliente pidió cancelar "${job.title}" mientras esperaba aprobación. Si se aprueba la cancelación, se devuelve el precio y la mitad de la comisión; la otra mitad y la pasarela no vuelven (T&C 9.1).`,
           relatedModel: 'Job',
           relatedId: job.id,
           actionText: 'Revisar',

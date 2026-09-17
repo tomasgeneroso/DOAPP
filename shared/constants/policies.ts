@@ -47,6 +47,20 @@ export const POLITICAS = {
   DISPUTA_DIAS_PARA_AVISAR: 5,
 
   /**
+   * Cuanto deberia tardar el equipo en resolver una disputa, contado desde que
+   * se abrio. Interno: no es una promesa al usuario ni figura en los T&C, es
+   * la vara con la que el panel de admin/soporte muestra cuanto lleva cada
+   * una (verde hasta OBJETIVO, ambar hasta MAXIMO, rojo despues).
+   *
+   * Una disputa abierta es plata congelada de dos personas. Cuatro dias es
+   * lo que tarda leer las dos versiones, mirar las fotos y decidir; cinco es
+   * el tope. Si una parte no responde, la regla de silencio (7 dias) puede
+   * estirarlo: ese caso el panel lo muestra aparte, no como demora del equipo.
+   */
+  DISPUTA_OBJETIVO_RESOLUCION_DIAS: 4,
+  DISPUTA_MAXIMO_RESOLUCION_DIAS: 5,
+
+  /**
    * Escalera de cancelaciones del trabajador. T&C 9.4.
    * Las cancelaciones se cuentan dentro de VENTANA_DIAS:
    *   1a  aviso
@@ -78,6 +92,18 @@ export const POLITICAS = {
    * el precio vuelve entero al cliente. T&C 9.3.
    */
   CANCELACION_TARDIA_PARTE_TRABAJADOR: 0.5,
+
+  /**
+   * Si el cliente cancela ANTES de que un admin apruebe la publicacion, que
+   * parte de la comision (con su IVA) retiene la plataforma. El resto de la
+   * comision vuelve; el costo de pasarela no vuelve nunca. T&C 9.1.
+   *
+   * La mitad y no cero: publicar-y-cancelar a los dos minutos igual le costo
+   * a la plataforma una revision, y si fuera gratis seria una forma de probar
+   * tarjetas. La mitad y no todo: la publicacion no llego a existir. Con la
+   * comision de hoy es 5% del precio con piso de EUR 1.
+   */
+  CANCELACION_EN_REVISION_PARTE_COMISION: 0.5,
 
   /**
    * Dias habiles sin cotizacion aceptada antes de pausar una publicacion

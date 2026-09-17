@@ -14,12 +14,26 @@ import { Siren, Phone, Loader2, X } from "lucide-react";
  * Pide confirmación para que no salte por error, pero la confirmación es UN
  * toque, no un formulario: en una emergencia no se completa nada.
  */
+/**
+ * Un link `tel:` en una computadora de escritorio no marca nada (a lo sumo abre
+ * Skype o no hace nada, en silencio). En esos casos mostramos el número grande
+ * y decimos "desde tu teléfono", que es lo que la persona puede hacer.
+ */
+const puedeLlamar = (): boolean => {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  const movil = /Android|iPhone|iPad|iPod|Mobile|Windows Phone/i.test(ua);
+  const tactil = (navigator.maxTouchPoints || 0) > 0;
+  return movil || (tactil && window.innerWidth < 900);
+};
+
 export default function EmergencyButton({ contractId }: { contractId: string }) {
   const { t } = useTranslation();
   const [abierto, setAbierto] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [listo, setListo] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const llamaDesdeAca = puedeLlamar();
 
   const obtenerUbicacion = (): Promise<{ lat: number; lng: number } | null> =>
     new Promise((resolve) => {
@@ -100,12 +114,20 @@ export default function EmergencyButton({ contractId }: { contractId: string }) 
                     {enviando ? <Loader2 className="h-5 w-5 animate-spin" /> : <Siren className="h-5 w-5" />}
                     {t("emergency.confirm", "Sí, avisar ahora")}
                   </button>
-                  <a
-                    href="tel:911"
-                    className="w-full rounded-xl border border-slate-300 dark:border-slate-600 px-4 py-3 text-sm font-semibold text-slate-800 dark:text-slate-100 text-center flex items-center justify-center gap-2"
-                  >
-                    <Phone className="h-4 w-4" /> {t("emergency.callDirect", "Llamar al 911 sin avisar")}
-                  </a>
+                  {llamaDesdeAca ? (
+                    <a
+                      href="tel:911"
+                      className="w-full rounded-xl border border-slate-300 dark:border-slate-600 px-4 py-3 text-sm font-semibold text-slate-800 dark:text-slate-100 text-center flex items-center justify-center gap-2"
+                    >
+                      <Phone className="h-4 w-4" /> {t("emergency.callDirect", "Llamar al 911 sin avisar")}
+                    </a>
+                  ) : (
+                    <p className="w-full rounded-xl border border-slate-300 dark:border-slate-600 px-4 py-3 text-sm text-slate-800 dark:text-slate-100 text-center">
+                      {t("emergency.callFromPhone", "Si estás en peligro, llamá al")}{" "}
+                      <span className="text-xl font-bold tracking-wide">911</span>{" "}
+                      {t("emergency.fromYourPhone", "desde tu teléfono.")}
+                    </p>
+                  )}
                 </div>
               </>
             ) : (
@@ -115,12 +137,19 @@ export default function EmergencyButton({ contractId }: { contractId: string }) 
                     ? t("emergency.sentError", "No pudimos avisar al equipo ({{error}}). Llamá al 911 ahora.", { error })
                     : t("emergency.sentBody", "El equipo de DOAPP fue avisado con tu ubicación. Si estás en peligro, llamá ya al 911.")}
                 </p>
-                <a
-                  href={`tel:${listo}`}
-                  className="mt-5 w-full rounded-xl bg-red-600 px-4 py-4 text-lg font-bold text-white text-center flex items-center justify-center gap-2 hover:bg-red-700"
-                >
-                  <Phone className="h-5 w-5" /> {t("emergency.call", "Llamar al {{n}}", { n: listo })}
-                </a>
+                {llamaDesdeAca ? (
+                  <a
+                    href={`tel:${listo}`}
+                    className="mt-5 w-full rounded-xl bg-red-600 px-4 py-4 text-lg font-bold text-white text-center flex items-center justify-center gap-2 hover:bg-red-700"
+                  >
+                    <Phone className="h-5 w-5" /> {t("emergency.call", "Llamar al {{n}}", { n: listo })}
+                  </a>
+                ) : (
+                  <div className="mt-5 w-full rounded-xl bg-red-600 px-4 py-4 text-white text-center">
+                    <div className="text-sm font-semibold">{t("emergency.callFromPhoneTitle", "Llamá desde tu teléfono al")}</div>
+                    <div className="text-4xl font-black tracking-widest leading-tight">{listo}</div>
+                  </div>
+                )}
               </>
             )}
 

@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import { useAuth } from '../../hooks/useAuth';
+import DisputeSlaBadge from '@/components/admin/DisputeSlaBadge';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -308,6 +309,7 @@ const AdminDisputeDetail: React.FC = () => {
               <div className="flex items-center gap-3 flex-wrap">
                 {getStatusBadge(dispute.status)}
                 {getPriorityBadge(dispute.priority)}
+                <DisputeSlaBadge createdAt={dispute.createdAt} resolvedAt={dispute.resolvedAt} status={dispute.status} />
                 {hasPayment ? (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
                     {t('admin.disputes.withPayment', 'With Payment')}

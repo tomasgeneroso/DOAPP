@@ -9,6 +9,7 @@ import { leerMetadata } from '../server/utils/auditLog.js';
 import { gzipSync } from 'node:zlib';
 import { PROPORCION_MAXIMA_DEVOLUCIONES } from '../server/services/paymentSafeguards.js';
 import { desgloseCancelacionSinContratar, liquidarCancelacion } from '../shared/pricing/processingCost.js';
+import { POLITICAS } from '../shared/constants/policies.js';
 import { marcarDiasAlFinalizar, umbralAusencia, buildDailyLog } from '../server/services/dailyLog.js';
 import { evidenceToPdf, indicesAIncluir } from '../server/services/contractEvidence.js';
 import { puedePromocionarse } from '../server/routes/profilePromotion.js';
@@ -155,22 +156,32 @@ describe('sub-tope de devoluciones', () => {
 });
 
 describe('cancelacion antes de contratar', () => {
+  const PARTE = POLITICAS.CANCELACION_EN_REVISION_PARTE_COMISION;
 
   it('el costo de pasarela no vuelve', () => {
     // Es lo que la gente no espera: MercadoPago ya cobro por procesar, y
     // devolver es una segunda operacion, no un "deshacer".
     const d = desgloseCancelacionSinContratar(110000, 10000, 2100, 0.0531);
     expect(d.costoPasarela).toBeCloseTo(5841, 0);
-    expect(d.devolver).toBeCloseTo(110000 - 5841, 0);
-    expect(d.retiene).toBeCloseTo(d.costoPasarela, 2);
+    expect(d.devolver).toBeCloseTo(110000 - 5841 - (10000 + 2100) * PARTE, 0);
+    expect(d.retiene).toBeCloseTo(d.costoPasarela + (10000 + 2100) * PARTE, 0);
   });
 
-  it('la comision y el IVA vuelven porque no hubo contratacion', () => {
-    // La comision se cobra por intermediar una contratacion. Si no hubo
-    // ninguna, quedarsela seria cobrar por un servicio que no se presto.
+  it('vuelve el precio y la parte de la comision que la politica no retiene', () => {
+    // La publicacion no llego a existir, pero la revision si se hizo: se
+    // retiene la parte que fija la politica (hoy la mitad), no toda ni nada.
     const d = desgloseCancelacionSinContratar(110000, 10000, 2100, 0);
-    expect(d.devolver).toBe(110000);
-    expect(d.retiene).toBe(0);
+    expect(d.devolver).toBeCloseTo(110000 - (10000 + 2100) * PARTE, 2);
+    expect(d.retiene).toBeCloseTo((10000 + 2100) * PARTE, 2);
+    expect(PARTE).toBeGreaterThan(0);
+    expect(PARTE).toBeLessThan(1);
+  });
+
+  it('dice lo mismo que liquidarCancelacion, que es la regla general', () => {
+    const d = desgloseCancelacionSinContratar(110000, 10000, 2100, 0.0531);
+    const l = liquidarCancelacion({ precio: 97900, comision: 10000, iva: 2100, aprobada: false, hayTrabajador: false, tardia: false, rate: 0.0531 });
+    expect(d.devolver).toBeCloseTo(l.aCliente, 2);
+    expect(d.costoPasarela).toBeCloseTo(l.costoPasarela, 2);
   });
 
   it('nunca devuelve mas de lo que entro', () => {
@@ -459,12 +470,20 @@ describe('liquidacion de una cancelacion (T&C 7.5, 9.1-9.3)', () => {
     }
   });
 
-  it('antes de aprobar vuelve todo, comision incluida, menos la pasarela', () => {
+  it('antes de aprobar vuelve el precio y parte de la comision, menos la pasarela', () => {
+    const parte = POLITICAS.CANCELACION_EN_REVISION_PARTE_COMISION;
     const l = liquidarCancelacion({ ...base, aprobada: false, hayTrabajador: false, tardia: false });
     expect(l.regla).toBe('antes_de_aprobar');
-    expect(l.retieneApp).toBe(0);
-    expect(l.aCliente).toBeCloseTo(40356 - PASARELA, 1);
+    expect(l.retieneApp).toBeCloseTo(4356 * parte, 1);
+    expect(l.aCliente).toBeCloseTo(40356 - PASARELA - 4356 * parte, 1);
     expect(l.aTrabajador).toBe(0);
+  });
+
+  it('la parte retenida en revision equivale a la mitad de la comision: 5% con piso de EUR 1', () => {
+    // Es lo que dice el T&C 9.1 en numeros; si la politica cambia, el texto
+    // cambia solo, pero este test obliga a mirar que la frase siga teniendo sentido.
+    const l = liquidarCancelacion({ ...base, aprobada: false, hayTrabajador: false, tardia: false, parteComisionEnRevision: 0.5 });
+    expect(l.retieneApp).toBeCloseTo((3600 + 756) / 2, 1);
   });
 
   it('aprobada y sin trabajador: precio menos pasarela; la comision queda', () => {

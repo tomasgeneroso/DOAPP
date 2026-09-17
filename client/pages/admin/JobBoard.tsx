@@ -43,7 +43,7 @@ const ESTADOS: Record<string, { rotulo: string; ayuda: string; clase: string }> 
   cancelacion_pendiente: {
     rotulo: 'Pidió cancelar',
     ayuda:
-      'El cliente pidió cancelar mientras la publicación esperaba aprobación. Salió de la cola de aprobar. Si aprobás la cancelación se le acredita a su saldo todo lo que pagó menos la pasarela (T&C 9.1). Es el único caso donde la comisión se devuelve, por eso pasa por una persona.',
+      'El cliente pidió cancelar mientras la publicación esperaba aprobación. Salió de la cola de aprobar. Si aprobás la cancelación se le acredita a su saldo el precio y la mitad de la comisión; la otra mitad y la pasarela no vuelven (T&C 9.1). Es el único caso donde parte de la comisión se devuelve, por eso pasa por una persona.',
     clase: 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200',
   },
   pagada_fantasma: {
@@ -123,10 +123,10 @@ export default function JobBoard() {
 
   /**
    * Aprobar el pedido de cancelación del cliente. El servidor liquida
-   * (todo menos pasarela, T&C 9.1) y le avisa al cliente con su número.
+   * (precio + mitad de la comisión, T&C 9.1) y le avisa al cliente con su número.
    */
   const aprobarCancelacion = async (f: Fila) => {
-    if (!window.confirm(`Aprobar la cancelación de "${f.titulo}" y devolverle al cliente todo lo que pagó menos la pasarela?`)) return;
+    if (!window.confirm(`Aprobar la cancelación de "${f.titulo}" y devolverle al cliente el precio y la mitad de la comisión (la pasarela no vuelve)?`)) return;
     setAccionando(f.id);
     try {
       const res = await fetch(`/api/admin/jobs/${f.id}/status`, {

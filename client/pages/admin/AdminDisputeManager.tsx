@@ -5,6 +5,9 @@ import axios from 'axios';
 import { useSocket } from '@/hooks/useSocket';
 import { useAuth } from '@/hooks/useAuth';
 import { Wifi, WifiOff, Bell } from 'lucide-react';
+import DisputeSlaBadge from '@/components/admin/DisputeSlaBadge';
+import { POLITICAS } from '../../../shared/constants/policies';
+import { edadDeDisputa } from '../../../shared/disputes/sla';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -47,7 +50,7 @@ interface Dispute {
   resolution?: string;
   resolutionType?: string;
   resolutionAmount?: number;
-  resolvedAt?: string;
+  resolvedAt?: string | null;
   resolvedBy?: {
     id?: string;
     _id?: string;
@@ -487,6 +490,44 @@ const AdminDisputeManager: React.FC = () => {
           </div>
         )}
 
+        {/* Cuanto llevan las abiertas de esta pagina, contra el objetivo interno */}
+        {(() => {
+          const abiertas = disputes.filter((d) => !/^resolved|^cancelled|^closed/.test(d.status));
+          if (abiertas.length === 0) return null;
+          const niveles = abiertas.map((d) => edadDeDisputa(d.createdAt, { esperandoAParte: d.status === 'awaiting_info' }).nivel);
+          const vencidas = niveles.filter((n) => n === 'vencida').length;
+          const alLimite = niveles.filter((n) => n === 'al_limite').length;
+          const esperando = niveles.filter((n) => n === 'esperando').length;
+          return (
+            <div className="mb-6 flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm dark:border-slate-700 dark:bg-gray-800">
+              <span className="font-medium text-slate-800 dark:text-slate-100">
+                Tiempo de resolución: objetivo {POLITICAS.DISPUTA_OBJETIVO_RESOLUCION_DIAS} días, máximo {POLITICAS.DISPUTA_MAXIMO_RESOLUCION_DIAS}.
+              </span>
+              {vencidas > 0 && (
+                <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800 dark:bg-red-900/40 dark:text-red-200">
+                  {vencidas} pasaron el máximo
+                </span>
+              )}
+              {alLimite > 0 && (
+                <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                  {alLimite} pasaron el objetivo
+                </span>
+              )}
+              {esperando > 0 && (
+                <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+                  {esperando} esperando a una parte
+                </span>
+              )}
+              {vencidas === 0 && alLimite === 0 && (
+                <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
+                  todas en plazo
+                </span>
+              )}
+              <span className="text-xs text-slate-500 dark:text-slate-400">Solo lo ve el equipo; no es una promesa al usuario.</span>
+            </div>
+          );
+        })()}
+
         {/* Priority Distribution */}
         {stats && stats.byPriority && (
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-8">
@@ -704,6 +745,9 @@ const AdminDisputeManager: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">
                         <div>{new Date(dispute.createdAt).toLocaleDateString('es-AR')}</div>
                         <div className="text-xs">{new Date(dispute.createdAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</div>
+                        <div className="mt-1">
+                          <DisputeSlaBadge createdAt={dispute.createdAt} resolvedAt={dispute.resolvedAt} status={dispute.status} compact />
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <button

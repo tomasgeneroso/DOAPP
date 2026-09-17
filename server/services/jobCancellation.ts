@@ -109,7 +109,7 @@ export async function liquidarCancelacionDePublicacion(
       } as any);
 
       const detalle: Record<LiquidacionCancelacion['regla'], string> = {
-        antes_de_aprobar: `todo lo que pagaste (precio y comisión), menos ${$(liq.costoPasarela)} que ya cobró la pasarela y no vuelve.`,
+        antes_de_aprobar: `el precio y la mitad de la comisión. Se retienen ${$(liq.retieneApp)} de comisión por la revisión y ${$(liq.costoPasarela)} que ya cobró la pasarela y no vuelven.`,
         sin_trabajador: `el precio menos ${$(liq.costoPasarela)} de pasarela. La comisión de publicación no se devuelve.`,
         con_tiempo: `el precio menos ${$(liq.costoPasarela)} de pasarela. La comisión de publicación no se devuelve.`,
         tardia_con_trabajador: `tu mitad del precio (menos ${$(liq.costoPasarela)} de pasarela); la otra mitad es para el trabajador que reservó el día. La comisión de publicación no se devuelve.`,
@@ -193,7 +193,7 @@ export async function liquidarCancelacionDePublicacion(
 export function mensajeDeCancelacion(liq: LiquidacionCancelacion): string {
   const h = POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES;
   const m: Record<LiquidacionCancelacion['regla'], string> = {
-    antes_de_aprobar: `Publicación cancelada. Se acreditaron ${$(liq.aCliente)} a tu saldo: todo lo que pagaste (precio y comisión), menos ${$(liq.costoPasarela)} que ya cobró la pasarela y no vuelve.`,
+    antes_de_aprobar: `Publicación cancelada. Se acreditaron ${$(liq.aCliente)} a tu saldo: el precio y la mitad de la comisión. Se retienen ${$(liq.retieneApp)} de comisión por la revisión y ${$(liq.costoPasarela)} que ya cobró la pasarela.`,
     sin_trabajador: `Publicación cancelada. Se acreditaron ${$(liq.aCliente)} a tu saldo: el precio menos ${$(liq.costoPasarela)} de pasarela. La comisión de publicación no se devuelve.`,
     con_tiempo: `Publicación cancelada. Se acreditaron ${$(liq.aCliente)} a tu saldo: el precio menos ${$(liq.costoPasarela)} de pasarela. La comisión de publicación no se devuelve.`,
     tardia_con_trabajador: `Publicación cancelada con menos de ${h} horas. Del precio, menos ${$(liq.costoPasarela)} de pasarela, la mitad (${$(liq.aTrabajador)}) es para el trabajador por el día que reservó y ${$(liq.aCliente)} vuelven a tu saldo. La comisión de publicación no se devuelve.`,
