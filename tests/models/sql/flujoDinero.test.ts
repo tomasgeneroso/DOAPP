@@ -8,7 +8,6 @@ import {
 } from '../../../server/services/platformPhase.js';
 import { splitFees } from '../../../shared/pricing/processingCost.js';
 import { COMMISSION_RATES } from '../../../shared/constants/membershipPricing.js';
-import { MINIMUM_JOB_AMOUNT_ARS } from '../../../shared/pricing/minimums.js';
 
 /**
  * El flujo de plata completo, en las dos fases.
@@ -24,7 +23,7 @@ import { MINIMUM_JOB_AMOUNT_ARS } from '../../../shared/pricing/minimums.js';
  * valer en las dos fases y en cualquier precio.
  */
 
-const TICKETS = [MINIMUM_JOB_AMOUNT_ARS, 20000, 40000, 100000, 300000];
+const TICKETS = [5000, 20000, 40000, 100000, 300000];
 const FEE_RATE = 0.0531; // liberacion a 10 dias
 
 let userId: string;
@@ -158,8 +157,8 @@ describe('lo que cambia entre una fase y la otra', () => {
 describe('el minimo de trabajo protege el borde', () => {
   it('en el minimo, al trabajador le queda mas de lo que se descuenta', async () => {
     await enFase('live');
-    const c = await calculateCommission(userId, MINIMUM_JOB_AMOUNT_ARS);
-    const s = splitFees(MINIMUM_JOB_AMOUNT_ARS, c.commission, c.vat, FEE_RATE);
+    const c = await calculateCommission(userId, 5000);
+    const s = splitFees(5000, c.commission, c.vat, FEE_RATE);
 
     const descontado = c.commission + c.vat + s.processingCost;
     expect(s.workerReceives).toBeGreaterThan(descontado);

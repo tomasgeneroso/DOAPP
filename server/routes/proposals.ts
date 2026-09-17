@@ -10,7 +10,6 @@ import { User } from "../models/sql/User.model.js";
 import { Notification } from "../models/sql/Notification.model.js";
 import { protect, requireKyc } from "../middleware/auth.js";
 import { requirePostWorkRating, requireNotSuspended } from "../middleware/postWorkRating.js";
-import { MINIMUM_JOB_AMOUNT_ARS } from "../../shared/pricing/minimums.js";
 
 import { uploadProposalAttachments, getFileUrl } from "../middleware/upload.js";
 import type { AuthRequest } from "../types/index.js";
@@ -837,13 +836,10 @@ export const approveProposalHandler = async (req: AuthRequest, res: Response): P
     // agregado a selectedWorkers y sin contrato.
     const cotizado = Number((proposal as any).proposedPrice) || Number(job.price) || 0;
 
-    // El mínimo se controla acá y no al publicar, porque un trabajo "a cotizar"
-    // se publica sin precio: éste es el primer momento en que hay un monto real.
-    if (cotizado < MINIMUM_JOB_AMOUNT_ARS) {
-      res.status(400).json({
-        success: false,
-        message: `El monto mínimo de un trabajo es $${MINIMUM_JOB_AMOUNT_ARS.toLocaleString('es-AR')} ARS y la cotización es de $${cotizado.toLocaleString('es-AR')}.`,
-      });
+    // No hay monto minimo de trabajo. La comision minima la aplica
+    // calculateCommission; que el trabajo la valga es decision del cliente.
+    if (!(cotizado > 0)) {
+      res.status(400).json({ success: false, message: 'La cotización debe ser mayor a cero.' });
       return;
     }
 
@@ -931,7 +927,7 @@ export const approveProposalHandler = async (req: AuthRequest, res: Response): P
     }
 
     // Validar monto mínimo ANTES de modificar el job
-    const MINIMUM_CONTRACT_AMOUNT = MINIMUM_JOB_AMOUNT_ARS;
+    const MINIMUM_CONTRACT_AMOUNT = 1;
     if (workerAllocation < MINIMUM_CONTRACT_AMOUNT) {
       res.status(400).json({
         success: false,

@@ -1,6 +1,6 @@
 import express, { Request, Response } from "express";
 import { getEffectiveTier } from '../services/platformPhase.js';
-import { MINIMUM_JOB_AMOUNT_ARS, MINIMUM_COMMISSION_ARS, MINIMUM_EXTENSION_ARS } from '../../shared/pricing/minimums.js';
+import { MINIMUM_COMMISSION_ARS, MINIMUM_EXTENSION_ARS } from '../../shared/pricing/minimums.js';
 import { POLITICAS } from '../../shared/constants/policies.js';
 import { paraQuienMira, puedeVerDireccion } from '../services/privacidadTrabajo.js';
 import { body, validationResult } from "express-validator";
@@ -48,9 +48,10 @@ function isAdminUser(user: any): boolean {
   return user?.adminRole && ['owner', 'super_admin', 'admin'].includes(user.adminRole);
 }
 
-// Los minimos viven en shared/pricing/minimums.ts: estaban repetidos con
-// valores distintos en cada ruta.
-const MINIMUM_CONTRACT_AMOUNT = MINIMUM_JOB_AMOUNT_ARS;
+// No hay minimo de trabajo: lo unico obligatorio es la comision minima, que
+// aplica calculateCommission. Si un trabajo es chico, la comision es el piso.
+// Que el trabajo valga menos que su comision es decision del cliente.
+const MINIMUM_CONTRACT_AMOUNT = 1;
 const MINIMUM_COMMISSION = MINIMUM_COMMISSION_ARS;
 
 /**

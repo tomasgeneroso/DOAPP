@@ -1,5 +1,4 @@
 import { COMMISSION_RATES } from '../constants/membershipPricing.js';
-import { MP_FEE_BY_RELEASE_DAYS } from './processingCost.js';
 
 /**
  * Montos minimos de la plataforma.
@@ -32,11 +31,7 @@ import { MP_FEE_BY_RELEASE_DAYS } from './processingCost.js';
  *
  * EUR 2 es unas ocho veces el costo marginal de un contrato (unos 450 pesos),
  * con margen para que el piso siga cubriendolo aunque el costo suba.
- *
- * OJO, este numero arrastra el minimo de contratacion: MINIMUM_JOB_AMOUNT_ARS
- * se deriva de piso / comision, asi que duplicar el piso duplica el minimo
- * (EUR 1 -> $18.000; EUR 2 -> $36.000 con el euro a 1.800). No es un cambio
- * de margen: es un cambio de que trabajos entran a la plataforma.
+
  */
 export const MINIMUM_COMMISSION_EUR = 2;
 
@@ -69,50 +64,24 @@ export const MINIMUM_COMMISSION_ARS = minimumCommissionArs();
 export const TOP_COMMISSION_RATE = COMMISSION_RATES.free / 100;
 
 /**
- * Lo obligatorio es el piso de comision, no un precio minimo de trabajo.
+ * NO HAY MINIMO DE TRABAJO. Lo unico obligatorio es la comision minima.
  *
- * Antes el minimo se derivaba del piso: `piso / tasa`, que es el precio a
- * partir del cual el piso deja de morder. Con el piso en EUR 2 eso daba
- * $36.000, y dejaba afuera casi toda la demanda real de oficios -- la visita
- * del plomero, el arreglo electrico, el service de la estufa.
+ * Hubo dos versiones anteriores y las dos se sacaron por decision del owner:
+ * primero `piso / tasa` ($36.000, dejaba afuera casi toda la demanda de
+ * oficios); despues "el trabajo no puede valer menos que su comision". La
+ * regla final es la mas simple: un trabajo vale lo que el cliente diga; la
+ * comision es el 10% o el piso, lo que sea mayor; y si el cliente publica un
+ * trabajo de $2.000 con $3.600 de comision, es su decision y la ve antes de
+ * pagar. El codigo valida que la comision cobrada sea la correcta, no que el
+ * trabajo "tenga sentido".
  *
- * La regla es otra y es mas simple: **un trabajo puede valer lo que valga; lo
- * que no puede es generar menos comision que el piso.** Si el trabajo es chico,
- * la comision es el piso y se cobra el piso. La consecuencia es que en trabajos
- * chicos la comision efectiva es mayor al 10%, y eso **hay que mostrarlo**, no
- * esconderlo: es exactamente lo que hace Mercado Libre con su cargo fijo en
- * ventas de bajo monto.
- *
- * Queda un solo minimo, y es tecnico: el trabajo no puede valer menos que la
- * comision que genera. Por debajo de ahi el cliente pagaria mas de comision que
- * de trabajo, el trabajador cobraria una fraccion del precio, y no hay forma de
- * explicarlo. Ese punto es exactamente el piso.
- *
- * Sigue existiendo la regla de sanidad: que al trabajador le quede algo despues
- * de la pasarela. Hoy no manda -- da un numero mucho mas chico que el piso --
- * pero si algun dia sube la tarifa, corta sola en vez de que lo descubra un
- * usuario.
+ * Lo que se muestra al cliente es el monto de la comision, sin porcentajes:
+ * "Comision minima $3.600. Ver tarifas y comisiones."
  */
-function minimumFromWorkerTakeaway(): number {
-  // Punto donde al trabajador le queda cero: P*(1-tarifa) = tarifa*(comision+IVA).
-  // Con la comision al piso, que es el peor caso para un trabajo chico.
-  const vatRate = 0.21;
-  const feeRate = MP_FEE_BY_RELEASE_DAYS[0].withVat; // el tramo mas caro
-  const comisionConIva = MINIMUM_COMMISSION_ARS * (1 + vatRate);
-  return (feeRate * comisionConIva) / (1 - feeRate);
-}
-
-export const MINIMUM_JOB_AMOUNT_ARS = Math.ceil(
-  Math.max(MINIMUM_COMMISSION_ARS, minimumFromWorkerTakeaway()) / 100,
-) * 100;
 
 /**
- * La comision efectiva de un trabajo, como fraccion del precio.
- *
- * En trabajos por encima de `piso / tasa` es la tasa nominal (10%). Por debajo,
- * el piso manda y la proporcion sube. Las pantallas tienen que mostrar ESTE
- * numero, no el 10%, cuando el piso esta mordiendo: un cliente que ve "10%" y
- * le cobran 36% tiene razon en sentirse enganado.
+ * La comision efectiva de un trabajo, como fraccion del precio. Para
+ * analisis y para el panel, no para mostrarle al cliente (ver arriba).
  */
 export function comisionEfectiva(precio: number, eurArs?: number): number {
   const p = Math.max(0, Number(precio) || 0);

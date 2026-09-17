@@ -1,7 +1,6 @@
 import { Job } from '../models/sql/Job.model.js';
 import { calculateCommission } from './commissionService.js';
 import { splitFees } from '../../shared/pricing/processingCost.js';
-import { MINIMUM_JOB_AMOUNT_ARS } from '../../shared/pricing/minimums.js';
 import { POLITICAS } from '../../shared/constants/policies.js';
 
 /**
@@ -266,14 +265,6 @@ export async function trabajadorNoDisponible(
       return {
         ok: false,
         motivo: `El nuevo precio tiene que ser mayor a cero y menor a $${montoPagado.toLocaleString('es-AR')}. Si no querés bajarlo, elegí dejarlo publicado como está.`,
-      };
-    }
-    if (precioNuevo < MINIMUM_JOB_AMOUNT_ARS) {
-      // Republicar por debajo del minimo dejaria un trabajo que nadie puede
-      // aceptar: el minimo se vuelve a verificar al aceptar la cotizacion.
-      return {
-        ok: false,
-        motivo: `El nuevo precio no puede ser menor al mínimo de $${MINIMUM_JOB_AMOUNT_ARS.toLocaleString('es-AR')}. Si querés recuperar todo, elegí saldo a favor.`,
       };
     }
     aFavor = Math.round((montoPagado - precioNuevo) * 100) / 100;

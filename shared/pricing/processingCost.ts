@@ -21,20 +21,25 @@
  */
 
 /**
- * Tarifas reales de la cuenta de DOAPP, confirmadas por Mercado Pago en agosto
- * de 2026. Valen igual para tarjeta de credito y de debito -- el mix entre una
- * y otra no cambia el costo.
+ * Tarifas de la cuenta de DOAPP tal como las muestra el panel de Mercado Pago
+ * (Tu negocio → Costos → Tarjeta de credito), leidas el 2026-09-17. El panel
+ * ofrece solo tres plazos para esta cuenta: al instante, 5 y 10 dias. Los de
+ * 18 y 35 que figuraban antes no estan disponibles.
  *
- * El plazo es el de liberacion del dinero: cuanto antes queda disponible, mas
- * caro. Y no es solo una cuestion de costo: con plazos largos no se puede pagar
- * al trabajador ni reembolsar al cliente hasta que el dinero se libere, porque
- * ambas operaciones exigen saldo disponible.
+ * `base` es lo que muestra el panel; `withVat` es lo que efectivamente se
+ * descuenta (+21%). El plazo es el de liberacion del dinero: cuanto antes queda
+ * disponible, mas caro. Y no es solo costo: mientras esta "a liberar" no se
+ * puede pagar al trabajador ni reembolsar por MP sin saldo de otras operaciones.
+ *
+ * Esta tabla es una referencia. El descuento real al trabajador debe salir de
+ * `fee_details` del pago aprobado (lo que MP cobro de verdad en ESA operacion),
+ * no de aca: el cliente elige el medio en el checkout y la tarifa cambia con
+ * el medio.
  */
 export const MP_FEE_BY_RELEASE_DAYS: Record<number, { base: number; withVat: number }> = {
-  0: { base: 0.0629, withVat: 0.0761 },
-  10: { base: 0.0439, withVat: 0.0531 },
-  18: { base: 0.0339, withVat: 0.041 },
-  35: { base: 0.0149, withVat: 0.018 },
+  0: { base: 0.0599, withVat: 0.0725 },
+  5: { base: 0.0519, withVat: 0.0628 },
+  10: { base: 0.0419, withVat: 0.0507 },
 };
 
 /**

@@ -12,7 +12,6 @@ import { Conversation } from "../models/sql/Conversation.model.js";
 import { ChatMessage } from "../models/sql/ChatMessage.model.js";
 import { protect, requireKyc } from "../middleware/auth.js";
 import { requirePostWorkRating } from "../middleware/postWorkRating.js";
-import { MINIMUM_JOB_AMOUNT_ARS } from "../../shared/pricing/minimums.js";
 import { POLITICAS } from "../../shared/constants/policies.js";
 import { optionalAuth } from "../middleware/auth.js";
 import { paraQuienMira, ocultarDireccion, ocultarContacto } from "../services/privacidadTrabajo.js";
@@ -866,7 +865,7 @@ router.post(
       .isNumeric().withMessage("El precio debe ser un número")
       .custom((value) => {
         const num = Number(value);
-        if (num < MINIMUM_JOB_AMOUNT_ARS) throw new Error(`El precio mínimo es $${MINIMUM_JOB_AMOUNT_ARS.toLocaleString('es-AR')} ARS`);
+        if (num <= 0) throw new Error('El precio debe ser mayor a cero');
         if (num > 999999999) throw new Error('El precio máximo es $999,999,999 ARS');
         return true;
       }),
@@ -2831,7 +2830,7 @@ router.put("/:id/worker-allocations", protect, async (req: AuthRequest, res: Res
     }
 
     const jobPrice = typeof job.price === 'string' ? parseFloat(job.price) : Number(job.price);
-    const MINIMUM_CONTRACT_AMOUNT = MINIMUM_JOB_AMOUNT_ARS;
+    const MINIMUM_CONTRACT_AMOUNT = 1;
 
     // Validate all allocations
     let totalAllocation = 0;
