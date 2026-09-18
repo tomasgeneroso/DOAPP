@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Info, Loader2 } from 'lucide-react';
+import PaymentPaths, { CaminoDePagoDto } from '@/components/payments/PaymentPaths';
 
 /**
  * Las dos cifras que el trabajador necesita ver antes de postularse.
@@ -27,6 +28,8 @@ interface Quote {
   processingCost: number;
   processingRate: number;
   isBeta: boolean;
+  caminos?: CaminoDePagoDto[];
+  rangoTrabajador?: { min: number; max: number; varia: boolean };
 }
 
 const ars = (n: number) =>
@@ -90,7 +93,9 @@ export default function WorkerNetAmount({ jobId, price, className = '' }: Props)
       <div className="flex items-baseline justify-between gap-3 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
         <span className="text-sm font-medium text-slate-900 dark:text-white">Vos recibís</span>
         <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
-          {ars(quote.workerReceives)}
+          {quote.rangoTrabajador?.varia
+            ? `${ars(quote.rangoTrabajador.min)} a ${ars(quote.rangoTrabajador.max)}`
+            : ars(quote.workerReceives)}
         </span>
       </div>
 
@@ -99,7 +104,17 @@ export default function WorkerNetAmount({ jobId, price, className = '' }: Props)
         {quote.isBeta
           ? 'Durante la beta DOAPP no cobra comisión. Sólo se descuenta lo que cobra la pasarela por transferirte el dinero.'
           : 'La comisión de DOAPP la paga el cliente aparte. A vos sólo se te descuenta lo que cobra la pasarela por transferirte el dinero.'}
+        {quote.rangoTrabajador?.varia ? ' El número exacto depende de cómo pague el cliente; lo ves al confirmar.' : ''}
       </p>
+
+      {quote.caminos && quote.caminos.length > 0 && (
+        <details className="mt-3">
+          <summary className="cursor-pointer text-xs font-medium text-sky-700 dark:text-sky-300">
+            Ver cómo cambia según el medio de pago del cliente
+          </summary>
+          <PaymentPaths caminos={quote.caminos} para="trabajador" className="mt-2" />
+        </details>
+      )}
     </div>
   );
 }

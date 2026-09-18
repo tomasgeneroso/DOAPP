@@ -1,6 +1,7 @@
 import express, { Router, Response } from "express";
 import { protect, AuthRequest } from "../middleware/auth.js";
 import { splitFees } from "../../shared/pricing/processingCost.js";
+import { caminosDePago, rangoDelTrabajador } from "../../shared/pricing/paymentPaths.js";
 import { requireRole } from "../middleware/permissions.js";
 import { Payment } from "../models/sql/Payment.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
@@ -1987,6 +1988,10 @@ router.get("/quote", protect, async (req: AuthRequest, res: Response): Promise<v
         tierDescription: c.tierDescription,
         phase: phase.phase,
         isBeta: phase.isBeta,
+        // Como cambia lo que recibe el trabajador (y cuando) segun el medio con
+        // que pague el cliente. Solo los medios cuya tarifa esta configurada.
+        caminos: caminosDePago(price, c.commission, c.vat),
+        rangoTrabajador: rangoDelTrabajador(caminosDePago(price, c.commission, c.vat)),
       },
     });
   } catch (error: any) {

@@ -7,6 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/components/ui/Toast";
 import { CreditCard, ArrowLeft, Loader2, Calendar, FileText, Upload, Eye } from "lucide-react";
 import PaymentMethodSelector, { PaymentMethod, BinancePaymentData, BankTransferPaymentData } from "@/components/payments/PaymentMethodSelector";
+import PaymentPaths, { CaminoDePagoDto } from "@/components/payments/PaymentPaths";
 
 export default function JobPayment() {
   const { t } = useTranslation();
@@ -61,6 +62,7 @@ export default function JobPayment() {
     vat: number; vatRate: number; platformTotal: number; totalToPay: number;
     processingCost: number; processingRate: number;
     workerReceives: number; tierDescription: string; isBeta: boolean;
+    caminos?: CaminoDePagoDto[];
   } | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
 
@@ -619,6 +621,13 @@ export default function JobPayment() {
               )}
             </div>
           </div>
+
+          {/* Con qué pagás cambia lo que recibe el trabajador y cuándo. Vos pagás lo mismo. */}
+          {!isBudgetIncrease && quote?.caminos && quote.caminos.length > 0 && (
+            <div className="px-6 pb-6">
+              <PaymentPaths caminos={quote.caminos} para="cliente" />
+            </div>
+          )}
 
           {/* Tips before paying */}
           <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-amber-50 dark:bg-amber-900/10">

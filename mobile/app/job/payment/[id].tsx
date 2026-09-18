@@ -46,6 +46,7 @@ export default function JobPaymentScreen() {
     price: number; commission: number; commissionRate: number;
     vat: number; vatRate: number; processingCost: number; processingRate: number;
     totalToPay: number; workerReceives: number; isBeta: boolean;
+    caminos?: Array<{ id: string; titulo: string; ratePct: number; trabajadorRecibe: number; liberacionDias: number }>;
   } | null>(null);
 
   const jobPrice = job?.price || 0;
@@ -173,6 +174,32 @@ export default function JobPaymentScreen() {
           )}
         </View>
 
+        {/* Con qué pagás cambia lo que recibe el trabajador y cuándo. Vos pagás lo mismo. */}
+        {quote?.caminos && quote.caminos.length > 0 && (
+          <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
+            <Text style={[styles.cardTitle, { color: themeColors.text.primary }]}>Cómo pagás cambia lo que recibe el trabajador</Text>
+            <Text style={[styles.costLabel, { color: themeColors.text.secondary, fontSize: 12, marginBottom: 8 }]}>
+              Vos pagás lo mismo en todos los casos. La pasarela le descuenta su tarifa al trabajador, y con algunos medios retiene la plata más días.
+            </Text>
+            {quote.caminos.map((c) => (
+              <View key={c.id} style={[styles.costRow, { alignItems: 'flex-start' }]}>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={[styles.costLabel, { color: themeColors.text.primary, fontWeight: '600' }]}>{c.titulo}</Text>
+                  <Text style={[styles.costLabel, { color: themeColors.text.secondary, fontSize: 11 }]}>
+                    pasarela {c.ratePct}% · {c.liberacionDias === 0 ? 'MP libera al instante' : `MP libera a los ${c.liberacionDias} días`}
+                  </Text>
+                </View>
+                <Text style={[styles.costValue, { color: colors.success[600], fontWeight: '700' }]}>recibe ${Number(c.trabajadorRecibe).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</Text>
+              </View>
+            ))}
+            {quote.caminos.length === 1 && (
+              <Text style={[styles.costLabel, { color: themeColors.text.secondary, fontSize: 11, marginTop: 6 }]}>
+                Con dinero en cuenta de Mercado Pago o débito la tarifa suele ser menor y la liberación más rápida. Los números exactos los informa la pasarela en cada pago.
+              </Text>
+            )}
+          </View>
+        )}
+
         {/* Plan Info */}
         <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
           <Text style={[styles.cardTitle, { color: themeColors.text.primary }]}>Tu plan actual</Text>
@@ -184,7 +211,7 @@ export default function JobPaymentScreen() {
           </View>
           <View style={styles.planRow}>
             <Text style={[styles.planLabel, { color: themeColors.text.secondary }]}>Comisión:</Text>
-            <Text style={[styles.planValue, { color: themeColors.text.primary }]}>{getCommissionRate()}%</Text>
+            <Text style={[styles.planValue, { color: themeColors.text.primary }]}>{quote?.commissionRate ?? 0}%</Text>
           </View>
           {(user?.freeContractsRemaining || 0) > 0 && (
             <View style={styles.planRow}>
