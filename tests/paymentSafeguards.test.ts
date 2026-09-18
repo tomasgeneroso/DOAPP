@@ -581,6 +581,23 @@ describe('lo que cobra el trabajador (una sola cuenta)', () => {
     const m = montoParaElTrabajador({ price: 500, commission: 3600 }, { processingFee: 900 });
     expect(m.neto).toBe(0);
   });
+
+  it('tras una devolucion parcial por disputa, lo devuelto sale de la parte del trabajador', () => {
+    // El admin resolvio devolverle 10.000 al cliente. El trabajador cobra
+    // 26.000 menos la pasarela; antes cobraba los 36.000 y la diferencia la
+    // ponia la plataforma sin que nadie lo viera.
+    const m = montoParaElTrabajador(contrato, { processingFee: 1210, refundedAmount: 10000 });
+    expect(m.devueltoAlCliente).toBe(10000);
+    expect(m.bruto).toBe(26000);
+    expect(m.neto).toBe(25000);
+  });
+
+  it('con varios trabajadores, lo devuelto tambien se prorratea', () => {
+    const m = montoParaElTrabajador({ price: 36000, allocatedAmount: 18000, commission: 3600 }, { processingFee: 2420, refundedAmount: 10000 });
+    expect(m.devueltoAlCliente).toBe(5000);
+    expect(m.bruto).toBe(13000);
+    expect(m.neto).toBe(12000);
+  });
 });
 
 describe('escalera de cancelaciones', () => {

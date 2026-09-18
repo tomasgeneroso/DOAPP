@@ -73,17 +73,19 @@ export async function resolverDisputa(p: ResolucionParams): Promise<{ ok: boolea
 
     case 'full_refund':
     case 'partial_refund': {
-      // Cuanto vuelve. En full_refund se devuelve el precio del trabajo: la
-      // comision de la plataforma no se reembolsa (termino 7.5), y el costo de
-      // pasarela ya se cobro y no vuelve. En partial_refund es lo que decidio
-      // quien resolvio.
+      // Cuanto vuelve. En full_refund se devuelve el PRECIO del trabajo: la
+      // comision de la plataforma no se reembolsa (termino 7.5) y su IVA viaja
+      // con ella. Antes se hacia total - comision, que devolvia el IVA de una
+      // comision que se retenia. En partial_refund es lo que decidio quien
+      // resolvio. El reembolso sale por MP al medio de pago original; MP
+      // devuelve su tarifa en proporcion, asi que la pasarela no se descuenta.
       const yaDevuelto = Number((payment as any)?.refundedAmount) || 0;
       const disponible = Math.round((total - yaDevuelto) * 100) / 100;
 
-      const comision = Number((contract as any).commission) || 0;
+      const precioContrato = Number((contract as any).allocatedAmount || (contract as any).price) || 0;
       const objetivo =
         p.tipo === 'full_refund'
-          ? Math.round(Math.max(0, total - comision) * 100) / 100
+          ? Math.round(Math.max(0, Math.min(precioContrato || total, total)) * 100) / 100
           : Math.round((Number(p.montoDevolucion) || 0) * 100) / 100;
 
       devuelto = Math.min(objetivo, disponible);

@@ -34,28 +34,38 @@ interface PagoParaPago {
   processingFee?: number | string | null;
   amount?: number | string | null;
   platformFee?: number | string | null;
+  /** Lo ya devuelto al cliente por una disputa (parcial). Sale del bruto del trabajador. */
+  refundedAmount?: number | string | null;
 }
 
 export interface MontoTrabajador {
   /** Lo que se le transfiere. */
   neto: number;
-  /** Su parte del precio, antes de la pasarela. */
+  /** Su parte del precio, antes de la pasarela y ya descontado lo devuelto al cliente. */
   bruto: number;
   /** Pasarela que absorbe, ya prorrateada si el contrato tiene varios trabajadores. */
   pasarela: number;
+  /** Lo que se le devolvio al cliente por disputa y por eso no cobra el trabajador. */
+  devueltoAlCliente: number;
   /** De donde salio la pasarela: del pago real o de la tarifa configurada. */
   origenTarifa: 'pago_real' | 'tarifa_configurada';
 }
 
 export function montoParaElTrabajador(contract: ContratoParaPago, payment?: PagoParaPago | null): MontoTrabajador {
   const precio = Number(contract.price) || 0;
-  const bruto = contract.allocatedAmount != null && Number(contract.allocatedAmount) > 0
+  const parte = contract.allocatedAmount != null && Number(contract.allocatedAmount) > 0
     ? Number(contract.allocatedAmount)
     : precio;
 
   // En un contrato con varios trabajadores la pasarela se reparte proporcional
   // a lo que le toca a cada uno, no entera a cada uno.
-  const proporcion = precio > 0 ? bruto / precio : 1;
+  const proporcion = precio > 0 ? parte / precio : 1;
+
+  // Una disputa resuelta con devolucion parcial ya le dio X al cliente. Eso
+  // sale de la parte del trabajador: sin esto, tras una parcial se le pagaba
+  // el precio entero y la plataforma ponia la diferencia.
+  const devueltoAlCliente = Math.round(Math.max(0, Number(payment?.refundedAmount) || 0) * proporcion * 100) / 100;
+  const bruto = Math.max(0, Math.round((parte - devueltoAlCliente) * 100) / 100);
 
   const feeReal = Number(payment?.processingFee);
   let pasarelaTotal: number;
@@ -74,5 +84,5 @@ export function montoParaElTrabajador(contract: ContratoParaPago, payment?: Pago
 
   const pasarela = Math.round(pasarelaTotal * proporcion * 100) / 100;
   const neto = Math.max(0, Math.round((bruto - pasarela) * 100) / 100);
-  return { neto, bruto, pasarela, origenTarifa };
+  return { neto, bruto, pasarela, devueltoAlCliente, origenTarifa };
 }
