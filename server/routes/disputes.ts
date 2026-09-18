@@ -599,6 +599,65 @@ router.post("/:id/escalar", protect, async (req: AuthRequest, res: Response): Pr
 });
 
 /**
+ * Las pruebas del contrato agrupadas por detalle obligatorio (las tareas del
+ * trabajo, cada una con sus fotos y si fue reclamada) y por dia (las fotos del
+ * control diario). Es lo que un admin, o la otra parte, necesita mirar para
+ * decidir: no una grilla de fotos sueltas sino "este detalle, estas fotos".
+ * GET /api/disputes/:id/pruebas
+ */
+router.get("/:id/pruebas", protect, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const dispute = await Dispute.findByPk(req.params.id, { attributes: ['id', 'contractId', 'initiatedBy', 'against'] });
+    if (!dispute) { res.status(404).json({ success: false, message: 'Disputa no encontrada' }); return; }
+    const userId = String(req.user.id);
+    const isAdmin = !!req.user.adminRole && ['owner', 'super_admin', 'admin', 'moderator', 'support'].includes(req.user.adminRole);
+    if (!isAdmin && String(dispute.initiatedBy) !== userId && String(dispute.against) !== userId) {
+      res.status(403).json({ success: false, message: 'No tienes permiso para ver esta disputa' });
+      return;
+    }
+
+    const contract = await Contract.findByPk(dispute.contractId);
+    if (!contract) { res.status(404).json({ success: false, message: 'Contrato no encontrado' }); return; }
+
+    const { JobTask } = await import('../models/sql/JobTask.model.js');
+    const tareas = await JobTask.findAll({
+      where: { jobId: contract.jobId },
+      order: [['orderIndex', 'ASC']],
+      include: [{ model: User, as: 'claimer', attributes: ['id', 'name'] }],
+    });
+
+    const { buildDailyLog } = await import('../services/dailyLog.js');
+    const quienMira: 'client' | 'worker' = String(contract.clientId) === userId ? 'client' : 'worker';
+    const diario = buildDailyLog(contract, quienMira);
+
+    res.json({
+      success: true,
+      data: {
+        detalles: tareas.map((t: any) => ({
+          id: t.id,
+          titulo: t.title,
+          descripcion: t.description || null,
+          estado: t.status,
+          completadoEl: t.completedAt || null,
+          reclamado: !!t.isClaimed,
+          reclamadoEl: t.claimedAt || null,
+          reclamadoPor: t.claimer ? { id: t.claimer.id, name: t.claimer.name } : null,
+          notaDelReclamo: t.claimNotes || null,
+          fotos: Array.isArray(t.evidencePhotos) ? t.evidencePhotos : [],
+          fotosSubidasEl: t.evidenceUploadedAt || null,
+        })),
+        porDia: diario.dias
+          .filter((d) => d.adjuntos.length > 0 || d.estado !== 'sin_marcar')
+          .map((d) => ({ fecha: d.date, estado: d.estado, adjuntos: d.adjuntos })),
+        resumenDiario: { confirmados: diario.confirmados, total: diario.total },
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || 'Error del servidor' });
+  }
+});
+
+/**
  * Add message to dispute (with optional attachments)
  * POST /api/disputes/:id/messages
  */

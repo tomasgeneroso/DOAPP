@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import axios from 'axios';
 import { useAuth } from '../../hooks/useAuth';
 import DisputeSlaBadge from '@/components/admin/DisputeSlaBadge';
+import PruebasPorDetalle from '@/components/disputes/PruebasPorDetalle';
 import { POLITICAS } from '../../../shared/constants/policies';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
@@ -410,6 +411,9 @@ const AdminDisputeDetail: React.FC = () => {
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('admin.disputes.description', 'Description')}</h2>
               <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{dispute.detailedDescription}</p>
             </div>
+
+            {/* Pruebas por detalle obligatorio y por día: lo que hay que mirar para decidir */}
+            {id && <PruebasPorDetalle disputeId={id} token={token} />}
 
             {/* Evidence */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">

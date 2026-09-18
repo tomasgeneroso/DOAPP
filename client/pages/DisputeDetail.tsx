@@ -7,6 +7,7 @@ import { useAuth } from '../hooks/useAuth';
 import { getImageUrl } from '../utils/imageUrl';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import ReclamoDirectoPanel from '../components/disputes/ReclamoDirectoPanel';
+import PruebasPorDetalle from '../components/disputes/PruebasPorDetalle';
 
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
@@ -314,6 +315,9 @@ const DisputeDetail: React.FC = () => {
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{t('disputes.description', 'Description')}</h2>
               <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{dispute.detailedDescription}</p>
             </div>
+
+            {/* Pruebas agrupadas por detalle obligatorio y por día */}
+            {id && <PruebasPorDetalle disputeId={id} token={token} />}
 
             {/* Evidence */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6">

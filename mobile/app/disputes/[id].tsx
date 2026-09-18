@@ -35,6 +35,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { get, post } from '../../services/api';
 import ReclamoDirectoPanel from '../../components/ReclamoDirectoPanel';
+import PruebasPorDetalle from '../../components/PruebasPorDetalle';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 
 interface Attachment {
@@ -277,6 +278,15 @@ export default function DisputeDetailScreen() {
               onChanged={(d) => setDispute(d)}
             />
           )}
+
+          {/* Pruebas por detalle obligatorio y por día */}
+          <PruebasPorDetalle
+            disputeId={String(id)}
+            textColor={themeColors.text.primary}
+            mutedColor={themeColors.text.muted}
+            cardColor={themeColors.card}
+            borderColor={themeColors.border}
+          />
 
           {/* Dispute Info */}
           <View style={[styles.infoCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
