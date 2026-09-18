@@ -30,6 +30,26 @@ async function processExpiredJob(job: Job, sendEmail: boolean = true): Promise<b
     job.cancelledAt = new Date();
     await job.save();
 
+    // La plata. Esto cancelaba la publicacion y dejaba el pago del cliente en
+    // escrow para siempre: sin trabajador, sin reembolso y sin forma de
+    // reprogramar. Se liquida con la misma regla que cualquier cancelacion
+    // aprobada sin trabajador (T&C 9.2): el precio vuelve como saldo a favor
+    // menos la pasarela; la comision de publicacion queda. Con el saldo puede
+    // volver a publicar sin pagar de nuevo.
+    if ((job as any).publicationPaymentId && ['open', 'pending_approval', 'paused'].includes(previousStatus)) {
+      try {
+        const { liquidarCancelacionDePublicacion } = await import('../services/jobCancellation.js');
+        await liquidarCancelacionDePublicacion(job, {
+          aprobada: previousStatus !== 'pending_approval',
+          horasHastaInicio: 0,
+          actor: { id: 'system', tipo: 'admin' },
+          motivo: job.cancellationReason,
+        });
+      } catch (e: any) {
+        console.error(`❌ No se pudo liquidar la cancelacion automatica del trabajo ${job.id}:`, e.message);
+      }
+    }
+
     // Fetch client info if not already loaded
     let client = job.client as any;
     if (!client) {
