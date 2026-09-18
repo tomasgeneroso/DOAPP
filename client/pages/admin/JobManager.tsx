@@ -265,7 +265,8 @@ export default function AdminJobManager() {
 
   const confirmReject = () => {
     if (rejectModal) {
-      updateJobStatus(rejectModal.jobId, 'rejected', rejectReason || undefined);
+      if (rejectReason.trim().length < 10) return;
+      updateJobStatus(rejectModal.jobId, 'rejected', rejectReason.trim());
       setRejectModal(null);
       setRejectReason("");
     }
@@ -1008,19 +1009,25 @@ export default function AdminJobManager() {
             </p>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Razón del rechazo (opcional)
+              <label htmlFor="reject-reason" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Motivo del rechazo *
               </label>
-              <input
-                type="text"
+              <p id="reject-reason-help" className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">
+                El cliente lo lee tal cual en la notificación. La publicación queda cancelada y lo que pagó vuelve como saldo a favor.
+              </p>
+              <textarea
+                id="reject-reason"
                 value={rejectReason}
-                onChange={(e) => setRejectReason(e.target.value.slice(0, 100))}
-                placeholder="Ej: Comprobante ilegible, fecha incorrecta..."
+                onChange={(e) => setRejectReason(e.target.value.slice(0, 300))}
+                placeholder="Ej: La descripción no dice qué hay que hacer ni dónde. Volvé a publicar con la dirección aproximada y las tareas."
+                rows={3}
+                required
+                aria-describedby="reject-reason-help"
                 className="w-full px-3 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 text-gray-900 dark:text-white"
-                maxLength={100}
+                maxLength={300}
               />
               <p className="text-xs text-gray-400 mt-1 text-right">
-                {rejectReason.length}/100 caracteres
+                {rejectReason.trim().length < 10 ? `mínimo 10 caracteres · ` : ''}{rejectReason.length}/300
               </p>
             </div>
 
@@ -1033,9 +1040,10 @@ export default function AdminJobManager() {
               </button>
               <button
                 onClick={confirmReject}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                disabled={rejectReason.trim().length < 10}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Rechazar Publicación
+                Rechazar y devolver saldo
               </button>
             </div>
           </div>

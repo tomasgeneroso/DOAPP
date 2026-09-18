@@ -13,7 +13,7 @@ import { splitFees, getProcessingFeeRate } from './processingCost.js';
  * Los numeros de debito y dinero en cuenta NO estan escritos aca: los cobra
  * MP y cambian; el unico lugar que los sabe es el panel (Tu negocio → Costos).
  * Se leen del entorno (PAYMENT_FEE_RATE_DEBIT, PAYMENT_FEE_RATE_ACCOUNT_MONEY,
- * con IVA incluido) y si no estan, ese camino no se muestra. Mostrar un numero
+ * sin IVA, tal cual el panel) y si no estan, ese camino no se muestra. Mostrar un numero
  * inventado seria peor que no mostrarlo: el descuento real sale del pago
  * aprobado (fee_details), y una promesa distinta es un reclamo.
  */
@@ -21,7 +21,7 @@ import { splitFees, getProcessingFeeRate } from './processingCost.js';
 export type CaminoId = 'tarjeta_credito' | 'tarjeta_debito' | 'dinero_en_cuenta';
 
 export interface ConfigCamino {
-  /** Tarifa con IVA, fraccion del total cobrado. null = no configurado. */
+  /** Tarifa SIN IVA (la que se traslada), fraccion del total cobrado. null = no configurado. */
   rate: number | null;
   /** Dias hasta que MP libera la plata al vendedor. */
   liberacionDias: number;

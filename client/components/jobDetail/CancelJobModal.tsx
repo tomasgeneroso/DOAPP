@@ -6,6 +6,8 @@ interface CancelJobModalProps {
   timeRemaining: string | null;
   /** Menos de 24 h para el inicio: si hay trabajador, la mitad va para él. */
   tardia?: boolean;
+  /** Si ya hay un trabajador seleccionado. Cambia qué pasa con la comisión. */
+  hayTrabajador?: boolean;
   reason: string;
   onReasonChange: (value: string) => void;
   publicationAmount?: number;
@@ -19,6 +21,7 @@ export default function CancelJobModal({
   open,
   timeRemaining,
   tardia = false,
+  hayTrabajador = false,
   reason,
   onReasonChange,
   publicationAmount,
@@ -52,7 +55,16 @@ export default function CancelJobModal({
             justo en la cancelación tardía, la que tiene consecuencia, no decía
             nada.
           */}
-          {tardia ? (
+          {!hayTrabajador ? (
+            <div className="rounded-xl border border-emerald-600/50 bg-emerald-900/20 p-3">
+              <p className="text-sm text-emerald-200">
+                {t(
+                  "jobs.cancelNoWorker",
+                  "Todavía no hay un trabajador seleccionado, así que todo lo que pagaste vuelve a tu saldo a favor, comisión incluida. Con ese saldo podés volver a publicar sin pagar de nuevo. Si en cambio lo retirás a tu banco, se descuentan la mitad de la comisión por la revisión ya hecha y el costo de la pasarela.",
+                )}
+              </p>
+            </div>
+          ) : tardia ? (
             <div className="rounded-xl border border-amber-600/50 bg-amber-900/20 p-3">
               <p className="text-sm text-amber-300">
                 <Clock className="inline h-4 w-4 mr-1" />
@@ -92,7 +104,7 @@ export default function CancelJobModal({
             <p className="mt-1 text-xs text-slate-500 text-right">{reason.length}/500</p>
           </div>
 
-          {publicationAmount && (
+          {publicationAmount && hayTrabajador && (
             <div className="rounded-xl border border-red-600 bg-red-900/30 p-4">
               <p className="text-sm font-bold text-red-300 mb-2">
                 {t("common.importantWarning", "Important warning")}:

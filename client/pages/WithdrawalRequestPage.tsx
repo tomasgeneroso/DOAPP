@@ -102,6 +102,16 @@ export default function WithdrawalRequestPage() {
       return;
     }
 
+    await enviarRetiro(amountNum, false);
+  };
+
+  /**
+   * El servidor puede contestar 409 "requiereConfirmacion" cuando parte del
+   * saldo son devoluciones: retirarlas a efectivo descuenta la pasarela (y,
+   * si la publicación se canceló sin trabajador, media comisión). Se le
+   * muestra el número exacto y decide; dentro de la app ese saldo es gratis.
+   */
+  const enviarRetiro = async (amountNum: number, aceptaCostoPasarela: boolean) => {
     setSubmitting(true);
 
     try {
@@ -114,6 +124,7 @@ export default function WithdrawalRequestPage() {
         },
         body: JSON.stringify({
           amount: amountNum,
+          aceptaCostoPasarela,
           bankingInfo: {
             accountHolder,
             bankName,
@@ -125,6 +136,18 @@ export default function WithdrawalRequestPage() {
       });
 
       const data = await response.json();
+
+      if (response.status === 409 && data.requiereConfirmacion) {
+        setSubmitting(false);
+        confirmDialog({
+          tone: 'warning',
+          title: 'Retirar saldo devuelto tiene un costo',
+          message: data.message,
+          confirmLabel: `Retirar $${Number(data.detalle?.recibirias || 0).toLocaleString('es-AR')}`,
+          onConfirm: () => { void enviarRetiro(amountNum, true); },
+        });
+        return;
+      }
 
       if (data.success) {
         setSuccess(t('withdrawals.submitSuccess'));

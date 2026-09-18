@@ -1,4 +1,4 @@
-import { splitFees, getProcessingFeeRate } from '../../shared/pricing/processingCost.js';
+import { splitFees, getProcessingFeeRate, pasarelaSinIva } from '../../shared/pricing/processingCost.js';
 
 /**
  * Cuanto cobra el trabajador por un contrato. UNA cuenta, para los tres
@@ -17,6 +17,11 @@ import { splitFees, getProcessingFeeRate } from '../../shared/pricing/processing
  * La tarifa que se descuenta es la REAL del pago aprobado (payment.processingFee,
  * leida de fee_details en el webhook) cuando existe. La del .env es respaldo:
  * el cliente elige el medio en el checkout y la tarifa cambia con el medio.
+ *
+ * Y SIN el IVA de la pasarela: MP descuenta tarifa + IVA, pero ese IVA es
+ * credito fiscal de DOAPP (lo recupera al liquidar el IVA de su comision).
+ * fee_details viene con IVA incluido, asi que se le saca; la tarifa del .env
+ * ya esta sin IVA.
  */
 
 interface ContratoParaPago {
@@ -57,7 +62,7 @@ export function montoParaElTrabajador(contract: ContratoParaPago, payment?: Pago
   let origenTarifa: MontoTrabajador['origenTarifa'];
 
   if (Number.isFinite(feeReal) && feeReal > 0) {
-    pasarelaTotal = feeReal;
+    pasarelaTotal = pasarelaSinIva(feeReal);
     origenTarifa = 'pago_real';
   } else {
     const comision = Number(contract.commission) || Number(payment?.platformFee) || 0;

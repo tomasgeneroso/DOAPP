@@ -413,6 +413,16 @@ router.put(
         });
         return;
       }
+      // Rechazar sin decir por que deja al cliente adivinando y al equipo sin
+      // registro. El motivo lo lee el cliente en la notificacion y queda en el
+      // trabajo (rejectedReason) y en el libro.
+      if (status === 'rejected' && String(rejectedReason || '').trim().length < 10) {
+        res.status(400).json({
+          success: false,
+          message: 'Para rechazar una publicación hay que escribir el motivo (10 caracteres o más). El cliente lo va a leer.',
+        });
+        return;
+      }
 
       const newStatus: any = status === 'approved' ? 'open' : 'cancelled';
       const previousStatus = job.status;
@@ -436,8 +446,10 @@ router.put(
        * rige 9.2/9.3.
        */
       let liquidacion: any = null;
+      let mensajeDeCancelacion: (liq: any) => string = () => '';
       if (status !== 'approved' && (job as any).publicationPaid) {
-        const { liquidarCancelacionDePublicacion } = await import('../../services/jobCancellation.js');
+        const { liquidarCancelacionDePublicacion, mensajeDeCancelacion: mdc } = await import('../../services/jobCancellation.js');
+        mensajeDeCancelacion = mdc;
         const horas = (new Date(job.startDate).getTime() - Date.now()) / 3_600_000;
         const r = await liquidarCancelacionDePublicacion(job, {
           aprobada: estabaAprobada,
@@ -484,8 +496,8 @@ router.put(
         message: status === 'approved'
           ? `Tu publicación "${job.title}" ha sido aprobada y ya está visible.`
           : status === 'rejected'
-            ? `Tu publicación "${job.title}" fue rechazada.${rejectedReason ? ` Razón: ${rejectedReason}.` : ''}${liquidacion ? ` Se acreditaron $${Number(liquidacion.aCliente).toLocaleString('es-AR')} a tu saldo (todo lo que pagaste menos $${Number(liquidacion.costoPasarela).toLocaleString('es-AR')} de pasarela, que no vuelve).` : ''}`
-            : `Se aprobó tu pedido de cancelar "${job.title}".${liquidacion ? ` Se acreditaron $${Number(liquidacion.aCliente).toLocaleString('es-AR')} a tu saldo (todo lo que pagaste menos $${Number(liquidacion.costoPasarela).toLocaleString('es-AR')} de pasarela, que no vuelve).` : ''}`,
+            ? `Tu publicación "${job.title}" fue rechazada y quedó cancelada. Motivo: ${rejectedReason}.${liquidacion ? ` ${mensajeDeCancelacion(liquidacion)}` : ''}`
+            : `Se aprobó tu pedido de cancelar "${job.title}".${liquidacion ? ` ${mensajeDeCancelacion(liquidacion)}` : ''}`,
         type: status === 'approved' ? 'success' : 'warning',
         category: 'jobs',
         relatedId: job.id,

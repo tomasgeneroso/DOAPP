@@ -224,60 +224,82 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
     }
 
     // ============================================
-    // COSTO DE PASARELA SOBRE EL SALDO DEVUELTO
+    // LO QUE SE RETIENE AL RETIRAR SALDO DEVUELTO
     // ============================================
-    // El saldo que viene de una cotización menor al precio publicado no se ganó
-    // trabajando: es plata que el cliente ya pagó y que vuelve. Sacarla de la
-    // Plataforma cuesta una operación en la pasarela, y ese costo no lo puede
-    // absorber DOAPP: no cobró comisión alguna sobre esa diferencia.
+    // El saldo que no se gano trabajando -- una cotizacion menor al precio, una
+    // publicacion cancelada -- es plata que el cliente pago y que vuelve.
+    // Dentro de la app se usa gratis. Sacarla a un CBU tiene dos costos que
+    // no puede absorber DOAPP: la pasarela que ya cobro Mercado Pago al entrar,
+    // y, si la publicacion se cancelo sin trabajador, la mitad de la comision
+    // por la revision que ya se hizo (T&C 9.1 / 9.2). Cada credito de
+    // devolucion trae anotado en su metadata (`alRetirar`) cuanto le toca; los
+    // creditos anteriores a esa anotacion pagan la pasarela con la tarifa
+    // configurada, como siempre.
     //
-    // Usarla dentro de la app es gratis. Retirarla tiene este costo, y el
-    // usuario decide.
-    //
-    // El retiro es todo o nada, así que vacía el saldo: los créditos posteriores
-    // al último retiro son exactamente la porción devuelta del saldo actual.
+    // El retiro es todo o nada, asi que vacia el saldo: los creditos posteriores
+    // al ultimo retiro son exactamente la porcion devuelta del saldo actual. Si
+    // gasto parte dentro de la app, la retencion se prorratea a lo que retira.
     const ultimoRetiro = await WithdrawalRequest.findOne({
       where: { userId, status: { [Op.in]: ['completed', 'processing', 'approved'] } },
       order: [['createdAt', 'DESC']],
     });
 
-    const creditosDevueltos = await BalanceTransaction.sum('amount', {
+    const devoluciones = await BalanceTransaction.findAll({
       where: {
         userId,
         type: 'refund',
         ...(ultimoRetiro ? { createdAt: { [Op.gt]: (ultimoRetiro as any).createdAt } } : {}),
-        [Op.and]: [{ 'metadata.origen': 'cotizacion_menor' } as any],
       },
+      attributes: ['amount', 'metadata'],
     });
 
-    // No puede superar el saldo: si el usuario ya gastó parte del crédito dentro
-    // de la app, esa parte no se retira y no puede cobrar costo.
-    const porcionDevuelta = Math.min(Number(creditosDevueltos) || 0, amount);
-    const costoPasarela =
-      porcionDevuelta > 0
-        ? Math.round(porcionDevuelta * getProcessingFeeRate() * 100) / 100
-        : 0;
+    let creditosDevueltos = 0;
+    let retencionComision = 0;
+    let retencionPasarela = 0;
+    for (const d of devoluciones) {
+      const monto = Number((d as any).amount) || 0;
+      creditosDevueltos += monto;
+      const meta: any = (d as any).metadata || {};
+      if (meta.alRetirar) {
+        retencionComision += Number(meta.alRetirar.comision) || 0;
+        retencionPasarela += Number(meta.alRetirar.pasarela) || 0;
+      } else {
+        retencionPasarela += monto * getProcessingFeeRate();
+      }
+    }
 
-    if (costoPasarela > 0 && req.body.aceptaCostoPasarela !== true) {
+    // No puede superar el saldo: si el usuario ya gasto parte del credito dentro
+    // de la app, esa parte no se retira y no puede cobrar costo.
+    const porcionDevuelta = Math.min(creditosDevueltos, amount);
+    const factor = creditosDevueltos > 0 ? porcionDevuelta / creditosDevueltos : 0;
+    const costoComision = Math.round(retencionComision * factor * 100) / 100;
+    const costoPasarela = Math.round(retencionPasarela * factor * 100) / 100;
+    const retencion = Math.round((costoComision + costoPasarela) * 100) / 100;
+
+    if (retencion > 0 && req.body.aceptaCostoPasarela !== true) {
       res.status(409).json({
         success: false,
         requiereConfirmacion: true,
         message:
-          `De tu saldo, $${porcionDevuelta.toLocaleString('es-AR')} corresponden a una devolución por ` +
-          `una cotización menor al precio publicado. Transferirlos al banco tiene un costo de ` +
-          `$${costoPasarela.toLocaleString('es-AR')} que cobra la pasarela de pago. ` +
-          `Si preferís, ese saldo queda disponible en la app sin costo alguno.`,
+          `De tu saldo, $${porcionDevuelta.toLocaleString('es-AR')} son devoluciones (publicaciones canceladas o ` +
+          `cotizaciones menores al precio). Dentro de la app los usás sin costo. Transferirlos al banco descuenta ` +
+          (costoComision > 0
+            ? `$${costoComision.toLocaleString('es-AR')} de la comisión por la revisión que ya se hizo y `
+            : '') +
+          `$${costoPasarela.toLocaleString('es-AR')} del costo de la pasarela de pago. Recibirías $${(amount - retencion).toLocaleString('es-AR')}.`,
         detalle: {
           saldoTotal: amount,
           porcionDevuelta,
+          costoComision,
           costoPasarela,
-          recibirias: Math.round((amount - costoPasarela) * 100) / 100,
+          retencion,
+          recibirias: Math.round((amount - retencion) * 100) / 100,
         },
       });
       return;
     }
 
-    const montoATransferir = Math.round((amount - costoPasarela) * 100) / 100;
+    const montoATransferir = Math.round((amount - retencion) * 100) / 100;
 
     // Check for pending withdrawals
     const pendingWithdrawals = await WithdrawalRequest.count({
@@ -298,8 +320,8 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
     // Create withdrawal request
     const withdrawal = await WithdrawalRequest.create({
       userId,
-      // Se transfiere el saldo menos el costo de pasarela sobre la parte
-      // devuelta. El saldo se debita completo: el costo se pagó, no se perdió.
+      // Se transfiere el saldo menos lo retenido sobre la parte devuelta. El
+      // saldo se debita completo: la retencion se cobro, no se perdio.
       amount: montoATransferir,
       bankingInfo: {
         accountHolder: bankingInfo.accountHolder,
@@ -316,7 +338,9 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
         userAgent: req.get('user-agent'),
         saldoDebitado: amount,
         porcionDevuelta,
+        costoComision,
         costoPasarela,
+        retencion,
       }
     });
 

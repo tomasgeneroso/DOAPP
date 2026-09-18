@@ -2569,13 +2569,15 @@ const cancelarPublicacion = async (req: AuthRequest, res: Response): Promise<voi
 
     res.json({
       success: true,
-      message: mensajeDeCancelacion(liq),
-      refundTotal: false,
+      message: mensajeDeCancelacion(liq, job.title),
+      refundTotal: liq.retieneApp === 0,
       refund: {
         toClient: liq.aCliente,
         toWorker: liq.aTrabajador,
         commissionWithheld: liq.retieneApp,
-        processingCostWithheld: liq.costoPasarela,
+        processingCost: liq.costoPasarela,
+        // Lo que se descuenta solo si retira el saldo a su banco.
+        onWithdrawal: liq.alRetirar,
         rule: liq.regla,
       },
       job,

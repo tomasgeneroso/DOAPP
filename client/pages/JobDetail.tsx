@@ -4670,6 +4670,7 @@ export default function JobDetail() {
           open={showCancelModal}
           timeRemaining={getTimeUntilCancelDeadline()}
           tardia={esCancelacionTardia()}
+          hayTrabajador={Array.isArray(job.selectedWorkers) && job.selectedWorkers.length > 0}
           reason={cancellationReason}
           onReasonChange={setCancellationReason}
           publicationAmount={job.publicationAmount}

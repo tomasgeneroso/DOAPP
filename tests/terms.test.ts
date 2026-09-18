@@ -40,21 +40,32 @@ describe('terminos y condiciones', () => {
       expect(termsEs.s6p6).toMatch(/no se pausan/i);
     });
 
-    it('explica de donde salen los minimos sin fijar un numero', () => {
-      // El importe no va en los terminos: se deriva del costo de pasarela, del
-      // costo fijo por contrato y del tipo de cambio, asi que cambia solo. Un
-      // numero escrito en el documento legal quedaria mintiendo, y corregirlo
-      // implicaria reeditar los terminos cada vez que se mueve el dolar.
+    it('no promete un monto minimo de trabajo: solo existe el de ampliacion, sin numero', () => {
+      // El minimo de trabajo se elimino (la comision minima es lo unico que
+      // se valida). El de ampliacion sigue, y su importe no va en los
+      // terminos: se deriva del costo de pasarela y del costo fijo, asi que
+      // cambia solo. Un numero escrito quedaria mintiendo.
       expect(termsEs.s7p8).not.toMatch(/\d{2}\.\d{3}/);
+      expect(termsEs.s7p8).not.toMatch(/m[ií]nimo de contrataci[oó]n/i);
+      expect(termsEs.s7p8).toMatch(/ampliaci[oó]n/i);
       expect(termsEs.s7p8).toMatch(/costo fijo/i);
-      expect(termsEs.s7p8).toMatch(/tipo de cambio/i);
-      // Pero si tiene que prometer que el importe vigente se informa.
-      expect(termsEs.s7p8).toMatch(/se informan/i);
+      expect(termsEs.s7p8).toMatch(/se informa/i);
+      expect(termsEs.s7p4).toMatch(/no existe un monto m[ií]nimo de trabajo/i);
     });
 
-    it('dice que retirar el saldo devuelto tiene costo y usarlo no', () => {
-      expect(termsEs.s7p9).toMatch(/se descuenta del importe transferido/i);
+    it('dice que usar el saldo no cuesta, que retirarlo descuenta la pasarela, y que el IVA de la pasarela es de la plataforma', () => {
       expect(termsEs.s7p9).toMatch(/sin costo alguno/i);
+      expect(termsEs.s7p9).toMatch(/se descuentan el costo de procesamiento/i);
+      expect(termsEs.s7p9).toMatch(/sin su IVA/i);
+      expect(termsEs.s7p9).toMatch(/a cargo de la Plataforma/i);
+    });
+
+    it('sin trabajador seleccionado vuelve todo como saldo; con trabajador la comision se retiene', () => {
+      expect(termsEs.s9p1).toMatch(/totalidad de lo abonado, comisi[oó]n incluida/i);
+      expect(termsEs.s9p1).toMatch(/rechazo de una publicaci[oó]n/i);
+      expect(termsEs.s9p1).toMatch(/indicar el motivo/i);
+      expect(termsEs.s9p2).toMatch(/comisi[oó]n de publicaci[oó]n no se reembolsa/i);
+      expect(termsEs.s7p5).toMatch(/una vez que hubo un Trabajador seleccionado/i);
     });
   });
 });

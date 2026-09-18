@@ -1271,9 +1271,19 @@ router.post(
       const { Payment } = await import('../../models/sql/Payment.model.js');
 
       const yaLiquidado = ['refunded', 'completed', 'cancelled_settled'].includes(String(contract.paymentStatus));
-      let liquidacion: { aCliente: number; aTrabajador: number; costoPasarela: number; retieneApp: number; regla: string } | null = null;
+      let liquidacion: { aCliente: number; aTrabajador: number; costoPasarela: number; retieneApp: number; alRetirar: { comision: number; pasarela: number }; regla: string } | null = null;
 
-      if (!yaLiquidado && Number(contract.price) > 0) {
+      /**
+       * Si el que se bajo fue el TRABAJADOR y la publicacion puede volver a
+       * estar abierta, la plata no se mueve: sigue siendo el escrow del trabajo
+       * y el cliente elige otro trabajador. Devolverla y a la vez reabrir el
+       * trabajo dejaria una publicacion abierta sin fondos.
+       */
+      const pidioElTrabajador = String(request.requestedBy) === String(contract.doerId);
+      const jobVuelveAbierto =
+        pidioElTrabajador && !!request.previousJobStatus && ['open', 'pending_approval'].includes(request.previousJobStatus);
+
+      if (!yaLiquidado && !jobVuelveAbierto && Number(contract.price) > 0) {
         const precio = Number(contract.allocatedAmount || contract.price) || 0;
         let comision = 0;
         let iva = 0;
@@ -1285,7 +1295,6 @@ router.post(
           }
         }
 
-        const pidioElTrabajador = String(request.requestedBy) === String(contract.doerId);
         const horasHastaInicio = (new Date(contract.startDate).getTime() - Date.now()) / 3_600_000;
         const tardia = contract.status === 'in_progress' || horasHastaInicio <= POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES;
 
@@ -1340,7 +1349,8 @@ router.post(
             userId, type: tipo, amount: monto, balanceBefore: before, balanceAfter: before + monto,
             description: descripcion, status: 'completed',
             relatedContractId: contract.id,
-            metadata: { reason: 'contract_cancellation_approved', cancellationRequestId: request.id, ...liquidacion },
+            // alRetirar viaja para que el retiro sepa que descontar si saca este saldo a efectivo.
+            metadata: { reason: 'contract_cancellation_approved', origen: 'cancelacion', cancellationRequestId: request.id, ...liquidacion },
           } as any);
         };
 
@@ -1367,12 +1377,15 @@ router.post(
         });
       }
 
-      // Update job status - return to previous status or cancel if appropriate
+      // El trabajo: vuelve a estar abierto solo si el que se bajo fue el
+      // trabajador y la plata quedo como escrow; si no, queda cancelado (el
+      // cliente ya tiene su saldo para republicar).
       if (job) {
-        if (request.previousJobStatus && ['open', 'pending_approval'].includes(request.previousJobStatus)) {
+        if (jobVuelveAbierto) {
           job.status = request.previousJobStatus;
           job.pausedReason = null;
           job.pausedAt = null;
+          job.selectedWorkers = (Array.isArray(job.selectedWorkers) ? job.selectedWorkers : []).filter((w: string) => String(w) !== String(contract.doerId));
         } else {
           job.status = 'cancelled';
         }
@@ -1386,12 +1399,15 @@ router.post(
         if (!user) continue;
         const esCliente = String(user.id) === String(contract.clientId);
         const suMonto = liquidacion ? (esCliente ? liquidacion.aCliente : liquidacion.aTrabajador) : 0;
+        const retencion = liquidacion ? liquidacion.alRetirar.comision + liquidacion.alRetirar.pasarela : 0;
         const suTexto = !liquidacion
-          ? ''
+          ? (jobVuelveAbierto && esCliente
+              ? ' Tu publicación volvió a estar abierta con el dinero intacto: podés elegir otro trabajador.'
+              : '')
           : suMonto > 0
             ? esCliente
-              ? ` Se acreditaron ${$(suMonto)} a tu saldo a favor (el costo de la pasarela, ${$(liquidacion.costoPasarela)}, no vuelve; la comisión de publicación tampoco). Podés usarlo en tu próxima publicación o pedir la transferencia.`
-              : ` Por el día que reservaste se acreditaron ${$(suMonto)} a tu saldo. Podés pedir la transferencia desde Balance.`
+              ? ` Tenés ${$(suMonto)} de saldo a favor${liquidacion.retieneApp > 0 ? ' (la comisión de publicación no se devuelve: ya había un trabajador seleccionado)' : ', todo lo que pagaste'}. Usarlo en tu próxima publicación no cuesta nada.${retencion > 0 ? ` Si lo retirás a tu cuenta se descuentan${liquidacion.alRetirar.comision > 0 ? ` ${$(liquidacion.alRetirar.comision)} de la comisión y` : ''} ${$(liquidacion.alRetirar.pasarela)} de pasarela: recibirías ${$(Math.max(0, suMonto - retencion))}.` : ''}`
+              : ` Por el día que reservaste se acreditaron ${$(suMonto)} a tu saldo (ya neto de pasarela). Podés pedir la transferencia desde Balance.`
             : esCliente
               ? ' No hay saldo a devolver en este caso.'
               : ' No corresponde compensación en este caso.';

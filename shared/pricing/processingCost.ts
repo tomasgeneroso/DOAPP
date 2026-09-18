@@ -18,9 +18,28 @@
  * Consecuencia practica: el cliente paga exactamente trabajo + comision + IVA,
  * sin recargos escondidos, y el costo de la pasarela se descuenta de lo que
  * recibe el trabajador. La plataforma se queda con la comision limpia.
+ *
+ * El IVA de la pasarela es otra cosa. Mercado Pago le cobra a DOAPP su tarifa
+ * MAS el IVA de esa tarifa (4,19% + 21% = 5,07%). Ese IVA lo factura MP a
+ * DOAPP, y DOAPP -- responsable inscripto, que ya le cobra IVA al cliente sobre
+ * su comision -- lo toma como credito fiscal contra ese IVA que debe. O sea:
+ * no es un costo de DOAPP, es plata que vuelve al liquidar impuestos. Por eso
+ * al trabajador (y al cliente que cancela) se les traslada la tarifa SIN IVA:
+ * trasladar el IVA y ademas tomar el credito seria cobrar dos veces lo mismo.
  */
 
 import { POLITICAS } from '../constants/policies.js';
+
+/** IVA argentino. Se aplica sobre la tarifa de MP y sobre la comision de DOAPP. */
+export const IVA = 0.21;
+
+/**
+ * La tarifa de MP sin su IVA, a partir del importe con IVA que MP descuenta
+ * (fee_details / net_received_amount vienen con IVA incluido).
+ */
+export function pasarelaSinIva(conIva: number): number {
+  return round2(Math.max(0, Number(conIva) || 0) / (1 + IVA));
+}
 
 /**
  * Tarifas de la cuenta de DOAPP tal como las muestra el panel de Mercado Pago
@@ -28,10 +47,12 @@ import { POLITICAS } from '../constants/policies.js';
  * ofrece solo tres plazos para esta cuenta: al instante, 5 y 10 dias. Los de
  * 18 y 35 que figuraban antes no estan disponibles.
  *
- * `base` es lo que muestra el panel; `withVat` es lo que efectivamente se
- * descuenta (+21%). El plazo es el de liberacion del dinero: cuanto antes queda
- * disponible, mas caro. Y no es solo costo: mientras esta "a liberar" no se
- * puede pagar al trabajador ni reembolsar por MP sin saldo de otras operaciones.
+ * `base` es lo que muestra el panel y lo que se traslada al trabajador;
+ * `withVat` es lo que MP efectivamente descuenta de la cuenta (+21%), y la
+ * diferencia es el credito fiscal de DOAPP. El plazo es el de liberacion del
+ * dinero: cuanto antes queda disponible, mas caro. Y no es solo costo: mientras
+ * esta "a liberar" no se puede pagar al trabajador ni reembolsar por MP sin
+ * saldo de otras operaciones.
  *
  * Esta tabla es una referencia. El descuento real al trabajador debe salir de
  * `fee_details` del pago aprobado (lo que MP cobro de verdad en ESA operacion),
@@ -45,11 +66,14 @@ export const MP_FEE_BY_RELEASE_DAYS: Record<number, { base: number; withVat: num
 };
 
 /**
- * Lo que cobra la pasarela, como fraccion del total cobrado, IVA incluido.
+ * Lo que cobra la pasarela, como fraccion del total cobrado, SIN IVA: es lo
+ * que se traslada al trabajador. El IVA de la tarifa es credito fiscal de
+ * DOAPP (ver arriba), no se traslada.
  *
  * Se lee del entorno para poder corregirlo sin recompilar: la tarifa cambia si
  * se cambia el plazo de liberacion en el panel, o si se negocia por volumen.
- * Tiene que coincidir con lo que dice el panel.
+ * Tiene que coincidir con lo que dice el panel, tal cual (el panel ya la
+ * muestra sin IVA).
  *
  * El default es acreditacion inmediata, el tramo mas caro. Es a proposito: si
  * el valor real fuera menor se cobra de mas y alguien lo reclama enseguida; si
@@ -59,7 +83,7 @@ export function getProcessingFeeRate(): number {
   const raw = typeof process !== 'undefined' ? process.env?.PAYMENT_PROCESSING_FEE_RATE : undefined;
   const parsed = raw ? Number(raw) : NaN;
   if (Number.isFinite(parsed) && parsed >= 0 && parsed < 0.5) return parsed;
-  return MP_FEE_BY_RELEASE_DAYS[0].withVat;
+  return MP_FEE_BY_RELEASE_DAYS[0].base;
 }
 
 export interface FeeSplit {
@@ -150,9 +174,10 @@ export interface DesgloseCancelacion {
 }
 
 /**
- * Qué se devuelve cuando un trabajo se cancela ANTES de que un admin apruebe la
- * publicación (T&C 9.1): el precio y la parte de la comisión que la política
- * no retiene, menos la pasarela.
+ * Qué recibiría en efectivo el cliente si cancela ANTES de que un admin apruebe
+ * la publicación y retira el saldo (T&C 9.1): el total menos la mitad de la
+ * comisión y menos la pasarela. Si en cambio deja el saldo en la app, recupera
+ * el total (liq.aCliente) y no paga nada.
  *
  * El costo de la pasarela no vuelve. Es la parte que la gente no espera y la
  * que hay que decir de frente: MercadoPago cobra por procesar el pago y ese
@@ -180,29 +205,48 @@ export function desgloseCancelacionSinContratar(
     aprobada: false, hayTrabajador: false, tardia: false, rate,
   });
 
+  // "devolver" es lo que recibiria en efectivo si retira; "retiene" lo que
+  // queda en la plataforma en ese caso. Como saldo dentro de la app recupera
+  // el total (liq.aCliente).
+  const retiene = round2(liq.alRetirar.comision + liq.alRetirar.pasarela);
   return {
     pagado: total,
     precioTrabajo,
     comision: comm,
     iva: tax,
     costoPasarela: liq.costoPasarela,
-    devolver: liq.aCliente,
-    retiene: round2(total - liq.aCliente),
+    devolver: round2(Math.max(0, liq.aCliente - retiene)),
+    retiene,
   };
 }
 
 export interface LiquidacionCancelacion {
-  /** Lo que la pasarela ya se llevo y no vuelve: tarifa x total cobrado. */
+  /**
+   * Lo que la pasarela cobro por la operacion, SIN IVA (el IVA es credito
+   * fiscal de DOAPP): tarifa x total cobrado. Lo absorbe quien termina
+   * recibiendo la plata, y solo cuando la recibe en efectivo.
+   */
   costoPasarela: number;
   /**
-   * Comision + IVA que retiene la plataforma. Antes de la aprobacion, solo la
-   * parte que fija CANCELACION_EN_REVISION_PARTE_COMISION.
+   * Comision + IVA que retiene la plataforma EN EL ACTO. Solo cuando ya habia
+   * un trabajador seleccionado: la intermediacion ocurrio. Sin trabajador la
+   * comision vuelve como saldo, y se retiene una parte solo si el cliente
+   * retira ese saldo (ver alRetirar).
    */
   retieneApp: number;
-  /** Lo que vuelve al cliente, como saldo a favor. */
+  /**
+   * Lo que se acredita al cliente como saldo a favor, bruto: sin descontar la
+   * pasarela ni la retencion. Usarlo dentro de la app no cuesta nada.
+   */
   aCliente: number;
-  /** Lo que se le paga al trabajador por el dia que reservo. */
+  /** Lo que se le paga al trabajador por el dia que reservo, ya neto de su pasarela. */
   aTrabajador: number;
+  /**
+   * Lo que se retiene si el cliente RETIRA ese saldo a efectivo: la parte de
+   * la comision que fija la politica (solo sin trabajador) y la pasarela que
+   * le corresponde. Va en la metadata del credito para que el retiro lo lea.
+   */
+  alRetirar: { comision: number; pasarela: number };
   /** Por que salio asi, para mostrarlo y para el expediente. */
   regla: 'antes_de_aprobar' | 'sin_trabajador' | 'con_tiempo' | 'tardia_con_trabajador';
 }
@@ -212,24 +256,29 @@ export interface LiquidacionCancelacion {
  * caminos que la mueven (el cliente cancela la publicacion; un admin aprueba la
  * cancelacion de un contrato), asi no vuelven a decir cosas distintas.
  *
- * Tres reglas, en este orden:
+ * La idea de fondo: la plata que se queda en la app no cuesta nada; la que sale
+ * a efectivo paga lo que costo moverla. Por eso la liquidacion tiene dos
+ * momentos: lo que se acredita ahora (aCliente, aTrabajador, retieneApp) y lo
+ * que se retiene si el cliente retira (alRetirar).
  *
- *   1. La pasarela no la paga la plataforma. Mercado Pago ya cobro por
- *      procesar el pago y eso no vuelve; lo absorbe quien recibe el dinero.
- *      Si el dinero queda como saldo dentro de la app no hay un segundo costo;
- *      si despues se retira a un CBU, ese costo lo paga quien retira (T&C 7.9).
+ *   1. Sin trabajador seleccionado -- antes o despues de la aprobacion --
+ *      el cliente recupera TODO lo que pago como saldo a favor. Puede
+ *      republicar sin pagar de nuevo. Si en cambio retira ese saldo, se le
+ *      retiene la mitad de la comision (CANCELACION_EN_REVISION_PARTE_COMISION,
+ *      con su IVA) por la revision que ya se hizo, y la pasarela. T&C 9.1/9.2.
  *
- *   2. La comision no se devuelve una vez aprobada la publicacion (T&C 7.5):
- *      aprobar y publicar tiene un costo para la plataforma que ya se gasto.
- *      Si todavia no fue aprobada (T&C 9.1) se retiene solo una parte
- *      (CANCELACION_EN_REVISION_PARTE_COMISION) y el resto vuelve.
+ *   2. Con trabajador seleccionado, la comision se retiene en el acto: la
+ *      intermediacion ocurrio (T&C 7.5). El precio vuelve como saldo; si lo
+ *      retira, paga la pasarela.
  *
- *   3. Con menos de CANCELACION_CLIENTE_HORAS_ANTES y un trabajador
- *      seleccionado, la mitad del precio (ya sin la pasarela) es para el
- *      trabajador: reservo el dia y lo perdio (T&C 9.3).
+ *   3. Con trabajador y menos de CANCELACION_CLIENTE_HORAS_ANTES, la mitad del
+ *      precio es del trabajador (reservo el dia y lo perdio, T&C 9.3), neta de
+ *      su parte de la pasarela porque se le paga en efectivo. La otra mitad
+ *      vuelve al cliente como saldo, con su parte de la pasarela pendiente
+ *      para el retiro.
  *
- * Todo lo que va al cliente va como saldo a favor. Es lo que permite que no
- * haya un segundo costo de pasarela: la plata no sale de la plataforma.
+ * La pasarela nunca la paga la plataforma y nunca se cobra dos veces: cada
+ * peso de tarifa tiene un unico destinatario que la absorbe, cuando cobra.
  */
 export function liquidarCancelacion(args: {
   precio: number;
@@ -244,6 +293,7 @@ export function liquidarCancelacion(args: {
   parteTrabajador?: number;
   /** Solo para tests; en produccion sale de POLITICAS. */
   parteComisionEnRevision?: number;
+  /** Tarifa SIN IVA. Por defecto la configurada. */
   rate?: number;
 }): LiquidacionCancelacion {
   const precio = round2(Math.max(0, Number(args.precio) || 0));
@@ -251,40 +301,45 @@ export function liquidarCancelacion(args: {
   const iva = round2(Math.max(0, Number(args.iva) || 0));
   const rate = args.rate ?? getProcessingFeeRate();
   const parte = args.parteTrabajador ?? 0.5;
+  const parteRevision = args.parteComisionEnRevision ?? POLITICAS.CANCELACION_EN_REVISION_PARTE_COMISION;
 
   const totalCobrado = round2(precio + comision + iva);
   const costoPasarela = rate > 0 ? round2(totalCobrado * rate) : 0;
 
-  if (!args.aprobada) {
-    // Nadie aprobo, nadie trabajo: vuelve el precio y la parte de la comision
-    // que la politica no retiene. La pasarela ya se la llevo Mercado Pago.
-    const parteRevision = args.parteComisionEnRevision ?? POLITICAS.CANCELACION_EN_REVISION_PARTE_COMISION;
-    const retieneApp = round2((comision + iva) * parteRevision);
+  if (!args.hayTrabajador) {
+    // Nadie trabajo: vuelve todo como saldo. Retirarlo cuesta media comision
+    // (la revision se hizo igual) y la pasarela.
     return {
       costoPasarela,
-      retieneApp,
-      aCliente: round2(Math.max(0, totalCobrado - costoPasarela - retieneApp)),
+      retieneApp: 0,
+      aCliente: totalCobrado,
       aTrabajador: 0,
-      regla: 'antes_de_aprobar',
+      alRetirar: { comision: round2((comision + iva) * parteRevision), pasarela: costoPasarela },
+      regla: args.aprobada ? 'sin_trabajador' : 'antes_de_aprobar',
     };
   }
 
   const retieneApp = round2(comision + iva);
-  const bolsa = round2(Math.max(0, precio - costoPasarela));
 
-  if (!args.hayTrabajador) {
-    return { costoPasarela, retieneApp, aCliente: bolsa, aTrabajador: 0, regla: 'sin_trabajador' };
-  }
   if (!args.tardia) {
-    return { costoPasarela, retieneApp, aCliente: bolsa, aTrabajador: 0, regla: 'con_tiempo' };
+    return {
+      costoPasarela,
+      retieneApp,
+      aCliente: precio,
+      aTrabajador: 0,
+      alRetirar: { comision: 0, pasarela: costoPasarela },
+      regla: 'con_tiempo',
+    };
   }
 
-  const aTrabajador = round2(bolsa * parte);
+  const brutoTrabajador = round2(precio * parte);
+  const pasarelaTrabajador = round2(costoPasarela * parte);
   return {
     costoPasarela,
     retieneApp,
-    aCliente: round2(bolsa - aTrabajador),
-    aTrabajador,
+    aCliente: round2(precio - brutoTrabajador),
+    aTrabajador: round2(Math.max(0, brutoTrabajador - pasarelaTrabajador)),
+    alRetirar: { comision: 0, pasarela: round2(costoPasarela - pasarelaTrabajador) },
     regla: 'tardia_con_trabajador',
   };
 }
