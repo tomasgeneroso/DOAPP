@@ -10,15 +10,15 @@ import { splitFees, getProcessingFeeRate } from './processingCost.js';
  * es la mas alta y la liberacion la mas lenta; con dinero en cuenta de MP la
  * tarifa suele ser menor y la liberacion inmediata.
  *
- * Los numeros de debito y dinero en cuenta NO estan escritos aca: los cobra
- * MP y cambian; el unico lugar que los sabe es el panel (Tu negocio → Costos).
- * Se leen del entorno (PAYMENT_FEE_RATE_DEBIT, PAYMENT_FEE_RATE_ACCOUNT_MONEY,
- * sin IVA, tal cual el panel) y si no estan, ese camino no se muestra. Mostrar un numero
+ * Los numeros de cada medio NO estan escritos aca: los cobra MP y cambian; el
+ * unico lugar que los sabe es el panel (Tu negocio → Costos). Se leen del
+ * entorno (PAYMENT_FEE_RATE_DEBIT, _PREPAID, _ACCOUNT_MONEY, sin IVA, tal cual
+ * el panel) y si no estan, ese camino no se muestra. Mostrar un numero
  * inventado seria peor que no mostrarlo: el descuento real sale del pago
  * aprobado (fee_details), y una promesa distinta es un reclamo.
  */
 
-export type CaminoId = 'tarjeta_credito' | 'tarjeta_debito' | 'dinero_en_cuenta';
+export type CaminoId = 'tarjeta_credito' | 'tarjeta_debito' | 'tarjeta_prepaga' | 'dinero_en_cuenta';
 
 export interface ConfigCamino {
   /** Tarifa SIN IVA (la que se traslada), fraccion del total cobrado. null = no configurado. */
@@ -49,6 +49,10 @@ export const TITULOS: Record<CaminoId, { titulo: string; descripcion: string }> 
     titulo: 'Tarjeta de débito',
     descripcion: 'Tarifa menor y liberación más rápida que con crédito.',
   },
+  tarjeta_prepaga: {
+    titulo: 'Tarjeta prepaga',
+    descripcion: 'Se acredita al instante: es la vía más rápida para que el trabajador cobre.',
+  },
   dinero_en_cuenta: {
     titulo: 'Dinero en cuenta de Mercado Pago',
     descripcion: 'Pagás con el saldo de tu cuenta de MP. Suele ser la tarifa más baja y se libera al instante: el trabajador cobra antes.',
@@ -74,6 +78,7 @@ export function configDeCaminos(): Record<CaminoId, ConfigCamino> {
   return {
     tarjeta_credito: { rate: getProcessingFeeRate(), liberacionDias: dias('PAYMENT_RELEASE_DAYS', 0) },
     tarjeta_debito: { rate: tasa('PAYMENT_FEE_RATE_DEBIT'), liberacionDias: dias('PAYMENT_RELEASE_DAYS_DEBIT', 0) },
+    tarjeta_prepaga: { rate: tasa('PAYMENT_FEE_RATE_PREPAID'), liberacionDias: dias('PAYMENT_RELEASE_DAYS_PREPAID', 0) },
     dinero_en_cuenta: { rate: tasa('PAYMENT_FEE_RATE_ACCOUNT_MONEY'), liberacionDias: dias('PAYMENT_RELEASE_DAYS_ACCOUNT_MONEY', 0) },
   };
 }
@@ -88,7 +93,7 @@ export function caminosDePago(
   iva: number,
   config: Record<CaminoId, ConfigCamino> = configDeCaminos(),
 ): CaminoDePago[] {
-  const ids: CaminoId[] = ['tarjeta_credito', 'tarjeta_debito', 'dinero_en_cuenta'];
+  const ids: CaminoId[] = ['tarjeta_credito', 'tarjeta_debito', 'tarjeta_prepaga', 'dinero_en_cuenta'];
   const out: CaminoDePago[] = [];
   for (const id of ids) {
     const c = config[id];

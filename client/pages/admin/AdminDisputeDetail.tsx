@@ -157,6 +157,22 @@ const AdminDisputeDetail: React.FC = () => {
     }
   };
 
+  /**
+   * Ejecutar el acuerdo que las partes ya aceptaron. Es el único camino por el
+   * que ese acuerdo mueve plata; el servidor lo pasa por resolverDisputa.
+   */
+  const ejecutarAcuerdo = async () => {
+    const p = (dispute as any)?.agreementProposal;
+    const monto = p?.monto ? `$${Math.round(p.monto).toLocaleString('es-AR')}` : 'el precio del trabajo';
+    if (!window.confirm(`¿Ejecutar el acuerdo? Se le devuelven ${monto} al cliente por Mercado Pago. No se puede deshacer.`)) return;
+    try {
+      await axios.post(`${API_URL}/admin/disputes/${id}/ejecutar-acuerdo`, {}, { headers: { Authorization: `Bearer ${token}` } });
+      await fetchDispute();
+    } catch (error: any) {
+      alert(error?.response?.data?.message || 'No se pudo ejecutar el acuerdo');
+    }
+  };
+
   const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!note.trim()) return;
@@ -395,6 +411,29 @@ const AdminDisputeDetail: React.FC = () => {
                 )}
               </div>
             )}
+            {/* Acuerdo aceptado por las partes: la transacción la ejecuta el equipo */}
+            {(dispute as any).agreementAcceptedAt && !isResolved && (dispute as any).agreementProposal && (
+              <div className="rounded-lg border-2 border-emerald-300 bg-emerald-50 p-4 dark:border-emerald-700 dark:bg-emerald-900/20">
+                <div className="font-semibold text-emerald-900 dark:text-emerald-100">Las partes acordaron. Falta ejecutar la transacción.</div>
+                <p className="mt-1 text-sm text-emerald-900 dark:text-emerald-100">
+                  <span className="font-medium">{(dispute as any).agreementProposal.tipo === 'reembolso_total' ? 'Devolver todo el precio al cliente' : 'Devolver una parte al cliente'}</span>
+                  {(dispute as any).agreementProposal.monto ? ` · $${Math.round((dispute as any).agreementProposal.monto).toLocaleString('es-AR')}` : ''}
+                  {(dispute as any).agreementProposal.nota ? ` · "${(dispute as any).agreementProposal.nota}"` : ''}
+                  {' · aceptado el '}
+                  {new Date((dispute as any).agreementAcceptedAt).toLocaleString('es-AR')}
+                </p>
+                <p className="mt-1 text-xs text-emerald-800 dark:text-emerald-200">
+                  Revisá que el acuerdo tenga sentido antes de ejecutarlo: dos partes pueden acordar algo imposible, o una puede haber aceptado bajo presión. Si no corresponde, resolvé la disputa como cualquier otra.
+                </p>
+                <button
+                  onClick={ejecutarAcuerdo}
+                  className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 font-semibold text-white transition-colors hover:bg-emerald-700"
+                >
+                  Ejecutar el acuerdo y mover la plata
+                </button>
+              </div>
+            )}
+
             {(dispute as any).escalationReason && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
                 <span className="font-semibold">Cómo llegó acá:</span>{' '}

@@ -95,6 +95,22 @@ export default function ReclamoDirectoPanel({
     }
   };
 
+  // Acordaron y la plata la mueve el equipo: es otro estado, no una disputa.
+  if (dispute.escalationReason === "acuerdo_aceptado" && propuesta) {
+    return (
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-100">
+        <div className="flex items-center gap-2 font-semibold">
+          <Check className="h-4 w-4" aria-hidden="true" /> Acuerdo aceptado
+        </div>
+        <p className="mt-1">
+          Acordaron: <strong>{TIPOS_DE_ACUERDO[propuesta.tipo].titulo.toLowerCase()}</strong>
+          {propuesta.monto ? ` (${$(propuesta.monto)})` : ""}. Un administrador de DOAPP tiene que ejecutar la transacción; te avisamos cuando la plata se haya movido.
+          Ningún pago sale de la plataforma sin que una persona lo revise.
+        </p>
+      </div>
+    );
+  }
+
   // Ya paso a manos de un admin: solo se explica por que.
   if (escalada) {
     const porque =
@@ -102,7 +118,9 @@ export default function ReclamoDirectoPanel({
         ? `Pasaron las ${POLITICAS.RECLAMO_DIRECTO_HORAS} horas sin acuerdo.`
         : dispute.escalationReason === "intervencion_admin"
           ? "Un administrador decidió intervenir antes del plazo."
-          : "Una de las partes pidió que intervenga un administrador.";
+          : dispute.escalationReason === "silencio_vencido"
+            ? `Pasaron ${POLITICAS.DISPUTA_DIAS_PARA_RESPONDER} días sin respuesta de una de las partes (T&C 10.10).`
+            : "Una de las partes pidió que intervenga un administrador.";
     return (
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-100">
         <div className="flex items-center gap-2 font-semibold">
@@ -161,7 +179,11 @@ export default function ReclamoDirectoPanel({
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 onClick={() => {
-                  if (window.confirm(`¿Aceptar "${TIPOS_DE_ACUERDO[propuesta.tipo].titulo}${propuesta.monto ? ` (${$(propuesta.monto)})` : ""}"? Se aplica en el momento y el reclamo se cierra. No se puede deshacer.`)) {
+                  const conPlata = propuesta.tipo !== "rehacer";
+                  const aviso = conPlata
+                    ? `¿Aceptar "${TIPOS_DE_ACUERDO[propuesta.tipo].titulo}${propuesta.monto ? ` (${$(propuesta.monto)})` : ""}"? Queda cerrado el acuerdo y un administrador de DOAPP ejecuta la transacción. No se puede deshacer.`
+                    : `¿Aceptar "${TIPOS_DE_ACUERDO[propuesta.tipo].titulo}"? El reclamo se cierra y el contrato sigue en curso.`;
+                  if (window.confirm(aviso)) {
                     llamar("/acuerdo/aceptar", {}, "aceptar");
                   }
                 }}

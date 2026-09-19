@@ -23,6 +23,7 @@ import {
   WifiOff,
   AlertTriangle,
   ShieldAlert,
+  BookOpen,
   CreditCard,
   Sliders,
   ArrowDownLeft,
@@ -144,6 +145,9 @@ export default function AdminLayout() {
       roles: ["owner", "super_admin", "admin", "support", "marketing", "dpo"],
       items: [
         { path: "/admin", icon: LayoutDashboard, label: t('admin.sidebar.dashboard', 'Dashboard'), roles: ["owner", "super_admin", "admin", "support", "marketing", "dpo"] },
+        // El manual va arriba y lo ven todos los roles: es donde se busca "cómo
+        // se hace esto" en vez de preguntar.
+        { path: "/admin/manual", icon: BookOpen, label: t('admin.sidebar.manual', 'Manual del equipo'), roles: ["owner", "super_admin", "admin", "support", "marketing", "dpo"] },
         { path: "/admin/search", icon: Search, label: t('admin.sidebar.search', 'Global Search'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/analytics", icon: BarChart3, label: t('admin.sidebar.analytics', 'Analytics'), roles: ["owner", "super_admin", "admin", "marketing"] },
         { path: "/admin/performance", icon: Activity, label: t('admin.sidebar.performance', 'Performance'), roles: ["owner", "super_admin", "admin"] },

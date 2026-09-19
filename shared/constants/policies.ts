@@ -130,6 +130,23 @@ export const POLITICAS = {
   COTIZAR_DIAS_HABILES_ANTES_DE_PAUSAR: 10,
 
   /**
+   * Ventana de la puntuacion publica.
+   *
+   * La reputacion que se muestra sale de las reseñas de los ultimos
+   * RATING_VENTANA_DIAS, pero solo si en esa ventana hubo al menos
+   * RATING_CONTRATOS_MINIMOS reseñas: con dos o tres, una mala tarde hunde a
+   * alguien que trabaja bien hace años. Si no llega, se toma el ultimo año.
+   *
+   * Por que una ventana y no todo el historial: la gente cambia. Un trabajador
+   * que mejoro arrastra para siempre sus primeros trabajos, y uno que se
+   * abandono se escuda en los viejos. Noventa dias es lo que usan las
+   * plataformas de reparto para el mismo problema.
+   */
+  RATING_VENTANA_DIAS: 90,
+  RATING_VENTANA_LARGA_DIAS: 365,
+  RATING_CONTRATOS_MINIMOS: 5,
+
+  /**
    * Horas antes del inicio a partir de las cuales el trabajador CONTRATADO ve
    * la direccion exacta del trabajo. Antes de eso, y para todos los demas,
    * solo barrio y zona.

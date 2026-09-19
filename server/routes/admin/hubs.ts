@@ -208,6 +208,23 @@ router.get('/usuarios-marcados/:userId', async (req: AuthRequest, res: Response)
   }
 });
 
+/**
+ * GET /admin/hubs/historial/:userId — el expediente de un usuario: contratos,
+ * disputas (y a favor de quién terminaron), cancelaciones, contracargos, plata
+ * movida, y la serie por mes para ver el patrón de un vistazo.
+ */
+router.get('/historial/:userId', async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { historialDeUsuario } = await import('../../services/historialUsuario.js');
+    const meses = Math.min(Math.max(Number(req.query.meses) || 12, 3), 24);
+    const historial = await historialDeUsuario(String(req.params.userId), meses);
+    if (!historial) { res.status(404).json({ success: false, message: 'Usuario no encontrado' }); return; }
+    res.json({ success: true, data: historial });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 router.get('/chargebacks', async (_req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { Payment } = await import('../../models/sql/Payment.model.js');

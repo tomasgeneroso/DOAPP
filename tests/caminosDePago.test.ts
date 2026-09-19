@@ -9,6 +9,7 @@ describe('caminos de pago', () => {
   const config = {
     tarjeta_credito: { rate: 0.0507, liberacionDias: 10 },
     tarjeta_debito: { rate: null, liberacionDias: 0 },
+    tarjeta_prepaga: { rate: null, liberacionDias: 0 },
     dinero_en_cuenta: { rate: 0.03, liberacionDias: 0 },
   };
 
@@ -19,8 +20,21 @@ describe('caminos de pago', () => {
   });
 
   it('un camino sin tarifa configurada no se muestra', () => {
+    // Inventar la tarifa de un medio seria prometer un numero que no coincide
+    // con lo que MP descuenta despues.
     const c = caminosDePago(36000, 3600, 756, config);
     expect(c.map((x) => x.id)).not.toContain('tarjeta_debito');
+    expect(c.map((x) => x.id)).not.toContain('tarjeta_prepaga');
+  });
+
+  it('cada medio configurado trae su propio plazo de liberacion', () => {
+    const conDebito = caminosDePago(36000, 3600, 756, { ...config, tarjeta_debito: { rate: 0.0275, liberacionDias: 2 } });
+    const debito = conDebito.find((x) => x.id === 'tarjeta_debito')!;
+    expect(debito.ratePct).toBe(2.75);
+    expect(debito.liberacionDias).toBe(2);
+    // Mas barato que credito: el trabajador recibe mas.
+    const credito = conDebito.find((x) => x.id === 'tarjeta_credito')!;
+    expect(debito.trabajadorRecibe).toBeGreaterThan(credito.trabajadorRecibe);
   });
 
   it('ordena del que mas le conviene al trabajador al que menos', () => {

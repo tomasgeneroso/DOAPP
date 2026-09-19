@@ -34,6 +34,7 @@ import { getContract, confirmContract, rejectConfirmation } from '../../services
 import { post } from '../../services/api';
 import DailyLogPanel from '../../components/DailyLogPanel';
 import EmergencyButton from '../../components/EmergencyButton';
+import CompartirContrato from '../../components/CompartirContrato';
 import { Contract, Job, User as UserType } from '../../types';
 import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../constants/theme';
 
@@ -568,9 +569,24 @@ export default function ContractDetailScreen() {
           </View>
         )}
 
-        {/* Botón de emergencia: para las dos partes, mientras el trabajo está en curso */}
+        {/* Seguridad: avisarle a alguien quién viene, y el botón de emergencia. */}
         {(isClient || isDoer) && ['accepted', 'in_progress', 'awaiting_confirmation'].includes(contract.status) && (
-          <EmergencyButton contractId={contract._id || contract.id || ''} />
+          <>
+            <CompartirContrato
+              datos={{
+                nombreDeLaOtraParte: (isClient ? (contract.doer as any)?.name : (contract.client as any)?.name) || 'la otra parte',
+                rolDeLaOtraParte: isClient ? 'trabajador' : 'cliente',
+                tituloDelTrabajo: (contract.job as any)?.title || 'Trabajo en DOAPP',
+                cuando: (contract as any).startDate || (contract.job as any)?.startDate || null,
+                zona: (contract.job as any)?.neighborhood || (contract.job as any)?.location || null,
+                verificacion: (isClient ? (contract.doer as any)?.verificationLevel : (contract.client as any)?.verificationLevel) || null,
+                foto: (isClient ? (contract.doer as any)?.avatar : (contract.client as any)?.avatar) || null,
+                perfil: null,
+                quienComparte: (user as any)?.name || null,
+              }}
+            />
+            <EmergencyButton contractId={contract._id || contract.id || ''} />
+          </>
         )}
 
         {/* Control diario: marcas por día + fotos del avance. Evidencia, no dinero. */}

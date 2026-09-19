@@ -2,7 +2,7 @@ import { Op } from 'sequelize';
 import { Dispute } from '../models/sql/Dispute.model.js';
 import { Contract } from '../models/sql/Contract.model.js';
 import { Notification } from '../models/sql/Notification.model.js';
-import { resolverDisputa } from '../services/disputeResolution.js';
+import { User } from '../models/sql/User.model.js';
 import { logger } from '../services/logger.js';
 import { POLITICAS } from '../../shared/constants/policies.js';
 
@@ -18,6 +18,11 @@ import { POLITICAS } from '../../shared/constants/policies.js';
  * Abrir la disputa cuenta como hablar, asi que quien la recibe tiene 7 dias
  * desde la apertura. Si responde, el reloj pasa al iniciador. Y asi hasta que
  * alguien se calla o un administrador decide.
+ *
+ * Vencido el plazo este cron NO mueve la plata: marca la disputa como lista,
+ * deja la resolucion que corresponde segun la regla, y avisa al equipo para
+ * que un administrador la accione. Ninguna transferencia ni devolucion sale
+ * sin que una persona la ordene.
  *
  * A los 5 dias se avisa a quien esta en silencio. No es cortesia: una
  * resolucion automatica que llega sin aviso previo parece arbitraria, y una
@@ -78,6 +83,8 @@ export function estadoDeSilencio(
 }
 
 export async function revisarSilencioEnDisputas(): Promise<{ avisadas: number; resueltas: number }> {
+  // 'negotiation' queda afuera a proposito: ahi corre el reloj del reclamo
+  // directo (72 h), que tiene su propio cron.
   const abiertas = await Dispute.findAll({
     where: { status: { [Op.in]: ['open', 'awaiting_info'] } },
     limit: 500,
@@ -96,31 +103,61 @@ export async function revisarSilencioEnDisputas(): Promise<{ avisadas: number; r
       const s = estadoDeSilencio(d as any, clienteId, trabajadorId);
       if (!s) continue;
 
-      // Resolver a los 7 dias.
+      // Vencido el plazo, la regla ya decidió a favor de quién. Pero NO mueve
+      // la plata: la deja lista para que un administrador la accione.
+      //
+      // El silencio sigue perdiendo -- eso es lo que hace que la gente
+      // conteste -- pero una transferencia o una devolución las ordena una
+      // persona, no un cron a las tres de la mañana. Si el sistema se
+      // equivoca (un mensaje que no se registró, una parte que escribió por
+      // otro canal), el error se atrapa antes de que el dinero se mueva.
       if (s.dias >= DIAS_PARA_RESPONDER) {
         const ganaCliente = s.ultimoEnHablar === clienteId;
+        const yaMarcada = ((d as any).logs || []).some((l: any) => l.action === 'silencio_vencido');
+        if (yaMarcada) continue;
 
-        const r = await resolverDisputa({
-          disputeId: String(d.id),
-          // Si gana el cliente, se le devuelve; si gana el trabajador, se le
-          // libera. La comision no se reembolsa en ningun caso (termino 7.5).
-          tipo: ganaCliente ? 'full_refund' : 'full_release',
-          resolucion:
-            `La disputa se resolvió porque una de las partes no respondió en ${DIAS_PARA_RESPONDER} días. ` +
-            (ganaCliente
-              ? 'El trabajador no contestó y el dinero se devuelve al cliente.'
-              : 'El cliente no contestó y el pago se libera al trabajador.') +
-            ' Se avisó dos días antes.',
+        const recomendacion = ganaCliente ? 'full_refund' : 'full_release';
+        const texto =
+          `Pasaron ${s.dias} días sin respuesta de una de las partes (se avisó al día ${DIAS_PARA_AVISAR}). ` +
+          (ganaCliente
+            ? 'El trabajador no contestó: según el punto 10.10 corresponde devolverle el dinero al cliente.'
+            : 'El cliente no contestó: según el punto 10.10 corresponde liberarle el pago al trabajador.');
+
+        const logs = [...((d as any).logs || [])];
+        logs.push({
+          action: 'silencio_vencido',
+          performedBy: null,
           actor: 'system:silencio',
-          resueltoPor: null,
+          timestamp: new Date(),
+          details: `${texto} Resolución recomendada: ${recomendacion}. Espera acción de un administrador.`,
         });
+        await d.update({
+          status: 'in_review',
+          escalationReason: 'silencio_vencido',
+          escalatedAt: new Date(),
+          logs,
+        } as any);
 
-        if (r.ok) {
-          resueltas++;
-          logger.info('disputes', `Disputa ${d.id} resuelta por silencio de ${s.enSilencio} (${s.dias} dias)`);
-        } else {
-          logger.error('disputes', `No se pudo resolver por silencio la disputa ${d.id}: ${r.motivo}`);
+        const admins = await User.findAll({
+          where: { role: { [Op.in]: ['admin', 'super_admin', 'owner', 'support'] } },
+          attributes: ['id'],
+        });
+        for (const a of admins) {
+          await Notification.create({
+            recipientId: a.id,
+            type: 'warning',
+            category: 'admin',
+            title: 'Disputa lista para resolver por silencio',
+            message: `Disputa ${String(d.id).slice(0, 8)}: ${texto} Revisala y resolvé desde el panel.`,
+            relatedModel: 'Dispute',
+            relatedId: d.id,
+            actionText: 'Resolver',
+            sentVia: ['in_app'],
+          } as any);
         }
+
+        resueltas++;
+        logger.info('disputes', `Disputa ${d.id} marcada por silencio de ${s.enSilencio} (${s.dias} dias); espera a un admin`);
         continue;
       }
 

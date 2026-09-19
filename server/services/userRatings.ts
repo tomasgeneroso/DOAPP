@@ -3,6 +3,7 @@ import { Review } from "../models/sql/Review.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
 import { User } from "../models/sql/User.model.js";
 import { POST_WORK_DRAFT } from "./postWorkRating.js";
+import { ventanaDeRating, entraEnVentana } from "../../shared/rating/ventana.js";
 
 /**
  * Reputación por rol.
@@ -56,6 +57,10 @@ export interface RatingBreakdown {
   overall: { rating: number; count: number };
   doer: RoleStats;
   client: RoleStats;
+  /** De qué período salen estos números (shared/rating/ventana.ts). */
+  ventana?: { id: string; etiqueta: string; dias: number | null; desde: string | null };
+  /** Reseñas con estrellas en todo el historial, dentro y fuera de la ventana. */
+  historicas?: number;
   updatedAt: string;
 }
 
@@ -137,13 +142,21 @@ export async function recalculateUserRatings(userId: string): Promise<RatingBrea
   });
 
   // Los borradores y las reseñas sin estrellas no promedian
-  const reviews = allReviews.filter(
+  const conEstrellas = allReviews.filter(
     (r) =>
       r.rating !== null &&
       r.rating !== undefined &&
       r.source !== POST_WORK_DRAFT
   );
 
+  if (conEstrellas.length === 0) return null;
+
+  // La puntuación que se muestra es la de la ventana vigente (90 días si hay
+  // actividad suficiente, si no el último año). La gente cambia: arrastrar
+  // para siempre los primeros trabajos castiga a quien mejoró y protege a
+  // quien se abandonó.
+  const ventana = ventanaDeRating(conEstrellas.map((r) => r.createdAt as any));
+  const reviews = conEstrellas.filter((r) => entraEnVentana(r.createdAt as any, ventana));
   if (reviews.length === 0) return null;
 
   const roles = await resolveRoles(reviews);
@@ -160,6 +173,10 @@ export async function recalculateUserRatings(userId: string): Promise<RatingBrea
     },
     doer,
     client,
+    ventana: { id: ventana.id, etiqueta: ventana.etiqueta, dias: ventana.dias, desde: ventana.desde?.toISOString() ?? null },
+    // Cuántas reseñas tiene en total, dentro y fuera de la ventana: el perfil
+    // muestra "4,8 en los últimos 90 días" y, si difiere, cuántas hay en total.
+    historicas: conEstrellas.length,
     updatedAt: new Date().toISOString(),
   };
 

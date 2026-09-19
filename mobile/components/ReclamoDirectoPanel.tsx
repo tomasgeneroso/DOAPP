@@ -94,13 +94,31 @@ export default function ReclamoDirectoPanel({
     normal: { borde: colors.primary[300], fondo: colors.primary[50], texto: colors.primary[800] },
   };
 
+  // Acordaron: la transaccion la ejecuta el equipo.
+  if (dispute.escalationReason === 'acuerdo_aceptado' && propuesta) {
+    return (
+      <View style={[styles.caja, { borderColor: colors.success[400], backgroundColor: colors.success[50] }]}>
+        <View style={styles.fila}>
+          <Check size={18} color={colors.success[700]} />
+          <Text style={[styles.titulo, { color: colors.success[700] }]}>Acuerdo aceptado</Text>
+        </View>
+        <Text style={[styles.texto, { color: colors.success[700] }]}>
+          Acordaron: {TIPOS_DE_ACUERDO[propuesta.tipo].titulo.toLowerCase()}
+          {propuesta.monto ? ` (${$(propuesta.monto)})` : ''}. Un administrador de DOAPP tiene que ejecutar la transacción; te avisamos cuando la plata se haya movido.
+        </Text>
+      </View>
+    );
+  }
+
   if (escalada) {
     const porque =
       dispute.escalationReason === 'plazo_vencido'
         ? `Pasaron las ${POLITICAS.RECLAMO_DIRECTO_HORAS} horas sin acuerdo.`
         : dispute.escalationReason === 'intervencion_admin'
           ? 'Un administrador decidió intervenir antes del plazo.'
-          : 'Una de las partes pidió que intervenga un administrador.';
+          : dispute.escalationReason === 'silencio_vencido'
+            ? `Pasaron ${POLITICAS.DISPUTA_DIAS_PARA_RESPONDER} días sin respuesta de una de las partes (T&C 10.10).`
+            : 'Una de las partes pidió que intervenga un administrador.';
     const t = TONOS.aviso;
     return (
       <View style={[styles.caja, { borderColor: t.borde, backgroundColor: t.fondo }]}>
@@ -157,7 +175,9 @@ export default function ReclamoDirectoPanel({
                 onPress={() =>
                   confirmar(
                     'Aceptar el acuerdo',
-                    `${TIPOS_DE_ACUERDO[propuesta.tipo].titulo}${propuesta.monto ? ` (${$(propuesta.monto)})` : ''}. Se aplica en el momento y el reclamo se cierra. No se puede deshacer.`,
+                    propuesta.tipo === 'rehacer'
+                      ? `${TIPOS_DE_ACUERDO[propuesta.tipo].titulo}. El reclamo se cierra y el contrato sigue en curso.`
+                      : `${TIPOS_DE_ACUERDO[propuesta.tipo].titulo}${propuesta.monto ? ` (${$(propuesta.monto)})` : ''}. Queda cerrado el acuerdo y un administrador de DOAPP ejecuta la transacción. No se puede deshacer.`,
                     () => llamar('/acuerdo/aceptar', {}, 'aceptar'),
                   )
                 }

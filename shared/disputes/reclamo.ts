@@ -117,16 +117,16 @@ export const TIPOS_DE_ACUERDO: Record<'reembolso_total' | 'reembolso_parcial' | 
   reembolso_total: {
     titulo: 'Devolver todo el precio al cliente',
     explicacion:
-      'El trabajador renuncia al pago y el precio del trabajo vuelve al cliente. La comision de publicacion no se devuelve (T&C 7.5). El contrato queda cancelado.',
+      'El trabajador renuncia al pago y el precio del trabajo vuelve al cliente. La comision de publicacion no se devuelve (T&C 7.5). El contrato queda cancelado. Si las dos partes lo aceptan, un administrador de DOAPP ejecuta la transaccion.',
   },
   reembolso_parcial: {
     titulo: 'Devolver una parte al cliente',
     explicacion:
-      'Se acuerda un monto que vuelve al cliente; el resto se le paga al trabajador. El contrato queda terminado con ese reparto.',
+      'Se acuerda un monto que vuelve al cliente; el resto se le paga al trabajador. El contrato queda terminado con ese reparto. Si las dos partes lo aceptan, un administrador de DOAPP ejecuta la transaccion.',
   },
   rehacer: {
     titulo: 'El trabajador rehace o termina el trabajo',
     explicacion:
-      'El reclamo se cierra y el contrato vuelve a estar en curso. Si el problema sigue, el cliente puede abrir un reclamo nuevo dentro del plazo.',
+      'No mueve plata: el reclamo se cierra y el contrato vuelve a estar en curso, asi que se aplica solo. Si el problema sigue, el cliente puede abrir un reclamo nuevo dentro del plazo.',
   },
 };

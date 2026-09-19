@@ -137,6 +137,9 @@ export default function UsuariosMarcados() {
                       {p.nombre}
                     </Link>
                     <p className="text-xs text-slate-400">{p.email}</p>
+                    <Link to={`/admin/historial/${p.userId}`} className="text-xs text-sky-600 hover:underline dark:text-sky-400">
+                      Ver historial completo
+                    </Link>
                   </td>
                   <td className="px-4 py-3 text-slate-700 dark:text-slate-200 tabular-nums">
                     {p.contratos}

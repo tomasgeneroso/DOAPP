@@ -22,6 +22,23 @@ export interface RatingMostrable {
   valor: number | null;
 }
 
+/**
+ * De qué período es la puntuación, para mostrarlo al lado. Una puntuación sin
+ * decir de cuándo es miente por omisión: no es lo mismo un 4,8 de esta semana
+ * que uno de hace tres años.
+ */
+export function periodoDelRating(
+  breakdown: { ventana?: { etiqueta?: string; id?: string } | null; historicas?: number } | null | undefined,
+  reviewsCount?: number | null,
+): string | null {
+  const etiqueta = breakdown?.ventana?.etiqueta;
+  if (!etiqueta) return null;
+  const historicas = Number(breakdown?.historicas ?? NaN);
+  const enVentana = Number(reviewsCount ?? NaN);
+  const hayMas = Number.isFinite(historicas) && Number.isFinite(enVentana) && historicas > enVentana;
+  return hayMas ? `${etiqueta} · ${historicas} en total` : etiqueta;
+}
+
 export function mostrarRating(
   rating: number | string | null | undefined,
   reviewsCount?: number | null,

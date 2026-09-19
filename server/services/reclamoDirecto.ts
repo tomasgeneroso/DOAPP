@@ -108,7 +108,7 @@ export async function proponerAcuerdo(
     String(otra),
     'Te proponen un acuerdo',
     `La otra parte propone: ${TIPOS_DE_ACUERDO[p.tipo].titulo.toLowerCase()}${monto ? ` (${$(monto)})` : ''}. ` +
-      `Si aceptas, se aplica en el momento y el reclamo se cierra sin administrador. Si no, podes seguir conversando o pedir que intervenga uno.`,
+      `Si aceptás, el equipo de DOAPP ejecuta la transacción y el reclamo se cierra. Si no, podés seguir conversando o pedir que intervenga un administrador.`,
     d.id,
   );
   return { ok: true };
@@ -130,9 +130,16 @@ export async function rechazarAcuerdo(d: Dispute, userId: string, nota?: string)
 }
 
 /**
- * La otra parte acepta la propuesta: se aplica en el acto. Es la unica forma de
- * que se mueva plata sin un admin, y por eso pasa por resolverDisputa igual que
- * una resolucion: exclusion mutua, tope de devoluciones, libro de dinero.
+ * La otra parte acepta la propuesta.
+ *
+ * Aceptar NO mueve plata. El acuerdo queda anotado y el reclamo pasa a la cola
+ * del equipo para que un administrador ejecute la transaccion (o la rechace si
+ * ve algo raro: dos partes pueden acordar algo imposible, o acordar bajo
+ * presion). Ningun peso sale de la plataforma sin que una persona lo accione.
+ *
+ * La excepcion es "rehacer": no hay transaccion que ejecutar -- el contrato
+ * vuelve a estar en curso y el reclamo se cierra -- asi que no tiene sentido
+ * hacer esperar a nadie por una firma que no mueve dinero.
  */
 export async function aceptarAcuerdo(d: Dispute, userId: string): Promise<{ ok: boolean; motivo?: string }> {
   const estado = estadoDelReclamo(d as any, userId);
@@ -143,7 +150,7 @@ export async function aceptarAcuerdo(d: Dispute, userId: string): Promise<{ ok: 
 
   const nombres = await User.findAll({ where: { id: { [Op.in]: [d.initiatedBy, d.against] } }, attributes: ['id', 'name'] });
   const nombre = (id: string) => nombres.find((u) => String(u.id) === String(id))?.name || 'una de las partes';
-  const quien = `Acuerdo directo entre las partes: ${nombre(p.propuestoPor)} propuso y ${nombre(userId)} acepto.`;
+  const quien = `Acuerdo directo entre las partes: ${nombre(p.propuestoPor)} propuso y ${nombre(userId)} aceptó.`;
 
   if (p.tipo === 'rehacer') {
     // Sin plata de por medio: el contrato vuelve a donde estaba y el reclamo se cierra.
@@ -153,27 +160,72 @@ export async function aceptarAcuerdo(d: Dispute, userId: string): Promise<{ ok: 
     d.resolutionType = 'no_action';
     d.resolvedAt = new Date();
     d.resolvedBy = null as any;
+    d.agreementAcceptedAt = new Date();
+    d.agreementAcceptedBy = String(userId);
     log(d, 'Acuerdo aceptado', userId, TIPOS_DE_ACUERDO.rehacer.titulo);
     await d.save();
-  } else {
-    const r = await resolverDisputa({
-      disputeId: String(d.id),
-      tipo: p.tipo === 'reembolso_total' ? 'full_refund' : 'partial_refund',
-      montoDevolucion: p.monto,
-      resolucion: `${quien} ${TIPOS_DE_ACUERDO[p.tipo].titulo}${p.monto ? ` (${$(p.monto)})` : ''}. ${p.nota || ''}`.trim(),
-      actor: `acuerdo:${userId}`,
-      resueltoPor: null,
-    });
-    if (!r.ok) return { ok: false, motivo: r.motivo };
-    await d.reload();
-    log(d, 'Acuerdo aceptado', userId, `${TIPOS_DE_ACUERDO[p.tipo].titulo}${p.monto ? ` · ${$(p.monto)}` : ''}`);
-    await d.save();
+
+    for (const parte of [d.initiatedBy, d.against]) {
+      await avisar(String(parte), 'Reclamo cerrado por acuerdo', `${TIPOS_DE_ACUERDO.rehacer.titulo}. El contrato sigue en curso.`, d.id, 'success');
+    }
+    logger.info('disputes', `Reclamo ${d.id} cerrado por acuerdo (rehacer) aceptado por ${userId}`);
+    return { ok: true };
   }
 
+  // Con plata de por medio: queda esperando a un administrador.
+  d.agreementAcceptedAt = new Date();
+  d.agreementAcceptedBy = String(userId);
+  d.status = 'in_review';
+  d.escalationReason = 'acuerdo_aceptado';
+  d.escalatedAt = new Date();
+  log(d, 'Acuerdo aceptado, esperando ejecucion', userId, `${TIPOS_DE_ACUERDO[p.tipo].titulo}${p.monto ? ` · ${$(p.monto)}` : ''}`);
+  await d.save();
+
   for (const parte of [d.initiatedBy, d.against]) {
-    await avisar(String(parte), 'Reclamo cerrado por acuerdo', `${TIPOS_DE_ACUERDO[p.tipo].titulo}${p.monto ? ` (${$(p.monto)})` : ''}. Se aplico sin intervencion de un administrador.`, d.id, 'success');
+    await avisar(
+      String(parte),
+      'Acuerdo aceptado: lo ejecuta el equipo',
+      `${quien} ${TIPOS_DE_ACUERDO[p.tipo].titulo}${p.monto ? ` (${$(p.monto)})` : ''}. Un administrador de DOAPP tiene que ejecutar la transacción; te avisamos cuando la plata se haya movido. Ningún pago sale de la plataforma sin que una persona lo revise.`,
+      d.id,
+      'success',
+    );
   }
-  logger.info('disputes', `Reclamo ${d.id} cerrado por acuerdo (${p.tipo}) aceptado por ${userId}`);
+  await avisarAdmins(
+    'Acuerdo para ejecutar',
+    `Las partes acordaron en el reclamo ${String(d.id).slice(0, 8)}: ${TIPOS_DE_ACUERDO[p.tipo].titulo.toLowerCase()}${p.monto ? ` (${$(p.monto)})` : ''}. Hay que ejecutar la transacción desde la disputa.`,
+    d.id,
+  );
+  logger.info('disputes', `Reclamo ${d.id}: acuerdo (${p.tipo}) aceptado por ${userId}, esperando ejecucion de un admin`);
+  return { ok: true };
+}
+
+/**
+ * Un administrador ejecuta el acuerdo que las partes ya aceptaron. Es el unico
+ * camino por el que ese acuerdo mueve plata, y pasa por resolverDisputa igual
+ * que cualquier resolucion: exclusion mutua, tope de devoluciones, libro.
+ */
+export async function ejecutarAcuerdo(d: Dispute, adminId: string): Promise<{ ok: boolean; motivo?: string }> {
+  const p = d.agreementProposal;
+  if (!p || !d.agreementAcceptedAt) return { ok: false, motivo: 'No hay un acuerdo aceptado por las dos partes.' };
+  if (p.tipo === 'rehacer') return { ok: false, motivo: 'Un acuerdo de rehacer el trabajo no mueve plata: ya se aplicó.' };
+  if (String(d.status).startsWith('resolved') || d.status === 'cancelled') {
+    return { ok: false, motivo: `La disputa ya está ${d.status}.` };
+  }
+
+  const r = await resolverDisputa({
+    disputeId: String(d.id),
+    tipo: p.tipo === 'reembolso_total' ? 'full_refund' : 'partial_refund',
+    montoDevolucion: p.monto,
+    resolucion: `Acuerdo entre las partes, ejecutado por el equipo de DOAPP: ${TIPOS_DE_ACUERDO[p.tipo].titulo.toLowerCase()}${p.monto ? ` (${$(p.monto)})` : ''}. ${p.nota || ''}`.trim(),
+    actor: `admin:${adminId}`,
+    resueltoPor: adminId,
+  });
+  if (!r.ok) return { ok: false, motivo: r.motivo };
+
+  await d.reload();
+  log(d, 'Acuerdo ejecutado', adminId, `${TIPOS_DE_ACUERDO[p.tipo].titulo}${p.monto ? ` · ${$(p.monto)}` : ''}`);
+  await d.save();
+  logger.info('disputes', `Acuerdo del reclamo ${d.id} ejecutado por admin ${adminId}`);
   return { ok: true };
 }
 

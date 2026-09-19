@@ -318,6 +318,17 @@ export class Dispute extends Model {
   @Column(DataType.JSONB)
   agreementProposal?: IPropuestaAcuerdo | null;
 
+  /**
+   * Cuando la otra parte acepto la propuesta. Aceptar NO mueve plata: deja el
+   * reclamo listo para que un administrador ejecute la transaccion. Ningun
+   * peso sale de la plataforma sin que una persona lo accione.
+   */
+  @Column(DataType.DATE)
+  agreementAcceptedAt?: Date | null;
+
+  @Column(DataType.UUID)
+  agreementAcceptedBy?: string | null;
+
   /** Por que paso a manos de un admin: plazo_vencido | pedido_de_parte. */
   @Column(DataType.STRING(40))
   escalationReason?: string | null;

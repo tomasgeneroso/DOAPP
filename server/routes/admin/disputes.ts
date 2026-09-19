@@ -275,6 +275,42 @@ router.post(
 );
 
 /**
+ * Ejecutar el acuerdo que las partes ya aceptaron.
+ * POST /api/admin/disputes/:id/ejecutar-acuerdo
+ *
+ * Aceptar un acuerdo no mueve plata: la deja esperando esta acción. Es el
+ * único camino por el que un acuerdo entre partes toca el dinero, y pasa por
+ * resolverDisputa como cualquier otra resolución.
+ */
+router.post(
+  "/:id/ejecutar-acuerdo",
+  protect,
+  authorize("owner", "super_admin", "moderator", "support"),
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const dispute = await Dispute.findByPk(req.params.id);
+      if (!dispute) { res.status(404).json({ success: false, message: 'Disputa no encontrada' }); return; }
+      const { ejecutarAcuerdo } = await import('../../services/reclamoDirecto.js');
+      const r = await ejecutarAcuerdo(dispute, String(req.user.id));
+      if (!r.ok) { res.status(400).json({ success: false, message: r.motivo }); return; }
+      await logAudit({
+        req,
+        action: 'DISPUTE_AGREEMENT_EXECUTED',
+        category: 'disputes',
+        severity: 'high',
+        description: `Ejecutó el acuerdo aceptado por las partes en la disputa ${dispute.id}`,
+        targetModel: 'Dispute',
+        targetId: String(dispute.id),
+      } as any);
+      await dispute.reload();
+      res.json({ success: true, message: 'Acuerdo ejecutado', data: dispute });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message || 'Error del servidor' });
+    }
+  },
+);
+
+/**
  * Resolve dispute (Admin only)
  * POST /api/admin/disputes/:id/resolve
  */

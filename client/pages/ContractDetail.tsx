@@ -16,6 +16,7 @@ import TaskEvidenceUploadModal from "@/components/contracts/TaskEvidenceUploadMo
 import DailyLogPanel from "@/components/contracts/DailyLogPanel";
 import EmergencyButton from "@/components/contracts/EmergencyButton";
 import ContractReviewsPanel from "@/components/contracts/ContractReviewsPanel";
+import CompartirContrato from "@/components/contracts/CompartirContrato";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import { requestPostWorkRatingCheck } from "@/utils/postWorkRating";
 import {
@@ -1319,9 +1320,25 @@ export default function ContractDetail() {
             </div>
           )}
 
-          {/* Botón de emergencia: para las dos partes, mientras el trabajo está en curso */}
+          {/* Seguridad: avisarle a alguien quién viene, y el botón de emergencia.
+              Las dos, para las dos partes, mientras el trabajo está en curso. */}
           {(isClient || isDoer) && ['accepted', 'in_progress', 'awaiting_confirmation'].includes(contract.status) && (
-            <div className="mb-6">
+            <div className="mb-6 grid gap-2 sm:grid-cols-2">
+              <CompartirContrato
+                datos={{
+                  nombreDeLaOtraParte: (isClient ? contract.doer?.name : contract.client?.name) || 'la otra parte',
+                  rolDeLaOtraParte: isClient ? 'trabajador' : 'cliente',
+                  tituloDelTrabajo: contract.job?.title || 'Trabajo en DOAPP',
+                  cuando: contract.startDate || contract.job?.startDate || null,
+                  zona: (contract.job as any)?.neighborhood || contract.job?.location || null,
+                  verificacion: (isClient ? (contract.doer as any)?.verificationLevel : (contract.client as any)?.verificationLevel) || null,
+                  foto: (isClient ? contract.doer?.avatar : contract.client?.avatar) || null,
+                  perfil: (isClient ? contract.doer?.id : contract.client?.id)
+                    ? `${window.location.origin}/profile/${isClient ? contract.doer?.id : contract.client?.id}`
+                    : null,
+                  quienComparte: user?.name || null,
+                }}
+              />
               <EmergencyButton contractId={contract.id || contract._id} />
             </div>
           )}
