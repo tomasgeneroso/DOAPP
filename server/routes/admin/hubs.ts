@@ -225,6 +225,20 @@ router.get('/historial/:userId', async (req: AuthRequest, res: Response): Promis
   }
 });
 
+/**
+ * GET /admin/hubs/auditoria-saldos — los invariantes del dinero, con cada
+ * lugar donde no cierran. No arregla nada: lista para que una persona mire.
+ */
+router.get('/auditoria-saldos', async (_req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { auditarSaldos } = await import('../../services/auditoriaSaldos.js');
+    const r = await auditarSaldos();
+    res.json({ success: true, data: r });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 router.get('/chargebacks', async (_req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { Payment } = await import('../../models/sql/Payment.model.js');

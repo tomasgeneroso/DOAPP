@@ -282,8 +282,10 @@ export default function ContractDetailScreen() {
    * Avisar que el trabajador no puede sólo tiene sentido antes de empezar.
    * Después hay trabajo hecho que valorar, y eso se resuelve por disputa.
    */
+  // También en curso: el que abandona a mitad de camino avisa y renuncia a lo
+  // hecho; lo que no se resuelve por acá es un trabajo ya entregado (reclamo).
   const puedeAvisarNoDisponible =
-    ['pending', 'ready', 'accepted'].includes(contract.status) && (isClient || isDoer);
+    ['pending', 'ready', 'accepted', 'in_progress'].includes(contract.status) && (isClient || isDoer);
 
   /** El trabajador avisa; el cliente decide, porque es su plata. */
   const avisarNoDisponible = () => {
@@ -350,8 +352,16 @@ export default function ContractDetailScreen() {
             ),
         },
         {
-          text: 'Recuperar todo el dinero',
-          onPress: () => enviarResolucion('saldo'),
+          text: 'Pasar el precio a mi saldo',
+          onPress: () =>
+            Alert.alert(
+              'Saldo a favor',
+              'El precio del trabajo pasa a tu saldo a favor. La comisión de publicación no se devuelve porque ya había un trabajador seleccionado. El saldo se usa sin costo en la app; si lo retirás al banco se descuenta la pasarela.',
+              [
+                { text: 'Volver', style: 'cancel' },
+                { text: 'Sí, a mi saldo', onPress: () => enviarResolucion('saldo') },
+              ],
+            ),
         },
       ],
     );
@@ -643,19 +653,25 @@ export default function ContractDetailScreen() {
               </View>
             )}
 
-            {/* El trabajo todavía no arrancó y el trabajador no puede hacerlo.
-                Sólo aparece antes de empezar: una vez en curso hay trabajo
-                hecho que valorar, y eso es una disputa, no un trámite. */}
-            {puedeAvisarNoDisponible && (
+            {/* El trabajador no puede hacerlo: él avisa (le corre la escalera),
+                el cliente decide qué hacer con su plata. Al cliente sólo se le
+                muestra si hay un aviso registrado: sin aviso, cancelar es suyo
+                y no puede cargarle la penalidad al otro. */}
+            {puedeAvisarNoDisponible && (isDoer ? !(contract as any).avisoTrabajadorNoDisponible : !!(contract as any).avisoTrabajadorNoDisponible) && (
               <TouchableOpacity
                 style={[styles.cancelFormButton, { borderColor: colors.warning[400], marginTop: spacing.sm }]}
                 onPress={isDoer ? avisarNoDisponible : resolverNoDisponible}
               >
                 <AlertTriangle size={18} color={colors.warning[600]} />
                 <Text style={{ color: colors.warning[600], fontWeight: "600" }}>
-                  {isDoer ? 'No puedo hacer este trabajo' : 'El trabajador no puede'}
+                  {isDoer ? 'No puedo hacer este trabajo' : 'El trabajador avisó que no puede: decidí qué hacer'}
                 </Text>
               </TouchableOpacity>
+            )}
+            {isDoer && (contract as any).avisoTrabajadorNoDisponible && (
+              <Text style={{ color: colors.warning[600], fontSize: 12, marginTop: spacing.sm }}>
+                Avisaste que no podés. El cliente está decidiendo qué hacer con su pago.
+              </Text>
             )}
 
             {/* in_progress: nadie confirmó — boton para proponer horas */}

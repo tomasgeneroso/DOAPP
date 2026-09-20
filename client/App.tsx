@@ -109,6 +109,7 @@ const AdminChargebacks = lazy(() => import("./pages/admin/Chargebacks"));
 const AdminUsuariosMarcados = lazy(() => import("./pages/admin/UsuariosMarcados"));
 const AdminHistorialUsuario = lazy(() => import("./pages/admin/HistorialUsuario"));
 const AdminManual = lazy(() => import("./pages/admin/Manual"));
+const AdminAuditoriaSaldos = lazy(() => import("./pages/admin/AuditoriaSaldos"));
 const AdminBlogManager = lazy(() => import("./pages/admin/BlogManager"));
 const AdminFamilyCodes = lazy(() => import("./pages/admin/FamilyCodes"));
 const AdminBusinessPlan = lazy(() => import("./pages/admin/BusinessPlan"));
@@ -678,6 +679,7 @@ export default function App() {
               <Route path="usuarios-marcados" element={<AdminUsuariosMarcados />} />
               <Route path="historial/:userId" element={<AdminHistorialUsuario />} />
               <Route path="manual" element={<AdminManual />} />
+              <Route path="auditoria-saldos" element={<AdminAuditoriaSaldos />} />
               <Route path="family-codes" element={<AdminFamilyCodes />} />
               <Route path="business-plan" element={<AdminBusinessPlan />} />
               <Route path="performance" element={<AdminPerformanceMonitor />} />

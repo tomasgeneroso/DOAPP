@@ -39,6 +39,7 @@ import {
   Rocket,
   Sparkles,
   Calculator,
+  Scale,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -197,6 +198,7 @@ export default function AdminLayout() {
         { path: "/admin/pending-payments", icon: CreditCard, label: t('admin.sidebar.pendingPayments', 'Pending Payments'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/withdrawals", icon: ArrowDownLeft, label: t('admin.sidebar.withdrawals', 'Withdrawals'), roles: ["owner", "super_admin", "admin"] },
         { path: "/admin/financial-transactions", icon: TrendingUp, label: t('admin.sidebar.transactions', 'Transactions'), roles: ["owner", "super_admin", "admin"] },
+        { path: "/admin/auditoria-saldos", icon: Scale, label: t('admin.sidebar.balanceAudit', 'Auditoría de saldos'), roles: ["owner", "super_admin"] },
         { path: "/admin/family-codes", icon: Gift, label: t('admin.sidebar.familyCodes', 'Family Codes'), roles: ["owner"] },
         { path: "/admin/business-plan", icon: Calculator, label: t('admin.sidebar.businessPlan', 'Proyección de gastos'), roles: ["owner"] },
       ]

@@ -910,6 +910,19 @@ router.get("/:id", protect, async (req: AuthRequest, res: Response): Promise<voi
       }
     }
 
+    // Si el trabajador avisó que no puede, el cliente tiene que decidir qué
+    // hacer con su plata: la pantalla necesita saberlo para mostrarle las opciones.
+    if (['pending', 'ready', 'accepted', 'in_progress'].includes(String(plano.status))) {
+      const { ContractCancellationRequest } = await import('../models/sql/ContractCancellationRequest.model.js');
+      const aviso = await ContractCancellationRequest.findOne({
+        where: { contractId: contract.id, requestedBy: contract.doerId, status: 'pending' } as any,
+        attributes: ['id', 'reason', 'createdAt'],
+      });
+      plano.avisoTrabajadorNoDisponible = aviso
+        ? { motivo: (aviso as any).reason, avisadoEl: (aviso as any).createdAt }
+        : null;
+    }
+
     res.json({
       success: true,
       contract: plano,
@@ -2329,30 +2342,68 @@ router.post("/:id/worker-unavailable", protect, async (req: AuthRequest, res: Re
       return;
     }
 
-    // El trabajador avisa; el cliente resuelve. Si el que avisa es el
-    // trabajador, se le notifica al cliente y ahí elige, pero no se decide por
-    // él: liberar el puesto y quedarse con saldo son cosas muy distintas.
+    const { ContractCancellationRequest } = await import('../models/sql/ContractCancellationRequest.model.js');
+    const { Notification } = await import('../models/sql/Notification.model.js');
+
+    // El trabajador avisa; el cliente resuelve. El aviso queda REGISTRADO como
+    // solicitud de cancelación del trabajador: es lo que alimenta la escalera
+    // de penalidades, y lo que impide que un cliente cancele por su cuenta
+    // diciendo "el trabajador me dijo por chat" y le cargue la penalidad al
+    // otro. Sin aviso registrado, la cancelación es del cliente y sigue sus
+    // reglas (24 h, mitad al trabajador), no estas.
     if (!esCliente) {
-      const { Notification } = await import('../models/sql/Notification.model.js');
-      const job = await Job.findByPk(contract.jobId);
-      await Notification.create({
-        recipientId: contract.clientId,
-        type: 'warning',
-        category: 'contracts',
-        title: 'El trabajador no puede realizar el trabajo',
-        message:
-          `El trabajador avisó que no puede hacer "${job?.title || 'el trabajo'}": ${motivo}. ` +
-          'Podés dejarlo publicado con el precio ya abonado para que lo tome otro, o pedir el saldo a favor.',
-        relatedModel: 'Contract',
-        relatedId: contract.id,
-        actionText: 'Decidir',
-        sentVia: ['in_app'],
-      } as any);
+      const yaAviso = await ContractCancellationRequest.findOne({
+        where: { contractId: contract.id, requestedBy: contract.doerId, status: 'pending' } as any,
+      });
+      if (!yaAviso) {
+        const job = await Job.findByPk(contract.jobId);
+        await ContractCancellationRequest.create({
+          contractId: contract.id,
+          requestedBy: contract.doerId,
+          otherPartyId: contract.clientId,
+          reason: String(motivo).trim().padEnd(10, '.'),
+          status: 'pending',
+          priority: 'medium',
+          requestType: 'full_cancellation',
+          category: 'other',
+          previousJobStatus: job?.status,
+          previousContractStatus: contract.status,
+          statusHistory: [{ status: 'pending', changedBy: String(req.user.id), changedAt: new Date(), note: 'trabajador_no_disponible' }],
+        } as any);
+        await Notification.create({
+          recipientId: contract.clientId,
+          type: 'warning',
+          category: 'contracts',
+          title: 'El trabajador no puede realizar el trabajo',
+          message:
+            `El trabajador avisó que no puede hacer "${job?.title || 'el trabajo'}": ${motivo}. ` +
+            'Vos decidís: dejarlo publicado con el precio ya abonado para que lo tome otro, republicarlo por menos, o pasar el precio a tu saldo a favor (la comisión de publicación no se devuelve; si retirás el saldo se descuenta la pasarela).',
+          relatedModel: 'Contract',
+          relatedId: contract.id,
+          actionText: 'Decidir',
+          sentVia: ['in_app'],
+        } as any);
+      }
 
       res.json({
         success: true,
-        message: "Le avisamos al cliente. Él decide si deja el trabajo publicado o pide el saldo.",
+        message: "Le avisamos al cliente. Él decide si deja el trabajo publicado, lo republica por menos o pide el saldo.",
         esperandoDecisionDelCliente: true,
+      });
+      return;
+    }
+
+    // El cliente solo puede usar este camino si el trabajador avisó por la app.
+    const avisoDelTrabajador = await ContractCancellationRequest.findOne({
+      where: { contractId: contract.id, requestedBy: contract.doerId, status: 'pending' } as any,
+    });
+    if (!avisoDelTrabajador) {
+      res.status(409).json({
+        success: false,
+        code: 'SIN_AVISO_DEL_TRABAJADOR',
+        message:
+          'El trabajador no avisó por la app que no puede hacer el trabajo. Pedile que lo haga desde el contrato ' +
+          '(así le corre la penalidad a él y no a vos). Si sos vos quien quiere cancelar, usá la cancelación normal.',
       });
       return;
     }
@@ -2380,10 +2431,20 @@ router.post("/:id/worker-unavailable", protect, async (req: AuthRequest, res: Re
       return;
     }
 
+    // El aviso del trabajador queda cerrado por la decisión del cliente.
+    await avisoDelTrabajador.update({
+      status: 'approved',
+      resolution: 'approved',
+      resolvedBy: req.user.id,
+      resolvedAt: new Date(),
+      resolutionNote: `El cliente eligió: ${opcion}`,
+      statusHistory: [...(avisoDelTrabajador.statusHistory || []), { status: 'approved', changedBy: String(req.user.id), changedAt: new Date(), note: `cliente eligió ${opcion}` }],
+    } as any);
+
     const mensajes: Record<string, string> = {
       liberar: "El trabajo volvió a estar publicado con el precio que ya abonaste.",
       parcial: `El trabajo volvió a estar publicado a $${(r.precioPublicado || 0).toLocaleString('es-AR')} y $${(r.aFavor || 0).toLocaleString('es-AR')} quedaron a tu favor.`,
-      saldo: "El dinero quedó como saldo a favor en tu cuenta.",
+      saldo: `El precio del trabajo ($${(r.aFavor || 0).toLocaleString('es-AR')}) quedó como saldo a favor. La comisión de publicación no se devuelve; si retirás el saldo a tu banco se descuenta la pasarela.`,
     };
 
     res.json({

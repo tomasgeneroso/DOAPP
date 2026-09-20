@@ -1,12 +1,11 @@
 import { Job } from '../models/sql/Job.model.js';
 import { User } from '../models/sql/User.model.js';
 import { Payment } from '../models/sql/Payment.model.js';
-import { BalanceTransaction } from '../models/sql/BalanceTransaction.model.js';
 import { Notification } from '../models/sql/Notification.model.js';
 import { liquidarCancelacion, pasarelaSinIva, type LiquidacionCancelacion } from '../../shared/pricing/processingCost.js';
 import { POLITICAS } from '../../shared/constants/policies.js';
 import { logMoneyEvent } from '../utils/auditLog.js';
-import { socketService } from '../index.js';
+import { acreditarSaldo } from './quotePayment.js';
 
 /**
  * Liquidar la cancelacion de una PUBLICACION (un trabajo, con o sin trabajador
@@ -88,20 +87,15 @@ export async function liquidarCancelacionDePublicacion(
     rate,
   });
 
-  // Al cliente, como saldo a favor
+  // Al cliente, como saldo a favor. acreditarSaldo bloquea la fila y escribe
+  // el asiento en la misma transaccion: saldo y libro no pueden separarse.
   if (liq.aCliente > 0) {
-    const client = await User.findByPk(job.clientId);
+    const client = await User.findByPk(job.clientId, { attributes: ['id'] });
     if (client) {
-      const before = parseFloat((client as any).balanceArs as any) || 0;
-      await (client as any).addBalance(liq.aCliente);
-      await BalanceTransaction.create({
-        userId: job.clientId,
-        type: 'refund',
-        amount: liq.aCliente,
-        balanceBefore: before,
-        balanceAfter: before + liq.aCliente,
-        description: `Saldo a favor por cancelación de "${job.title}"`,
-        status: 'completed',
+      await acreditarSaldo(String(job.clientId), liq.aCliente, `Saldo a favor por cancelación de "${job.title}"`, {
+        relatedModel: 'Job',
+        relatedId: job.id,
+        tipo: 'refund',
         metadata: {
           reason: `job_cancelled_${liq.regla}`,
           origen: 'cancelacion',
@@ -115,7 +109,7 @@ export async function liquidarCancelacionDePublicacion(
           horasHastaInicio: Math.round(opts.horasHastaInicio * 100) / 100,
           actor: opts.actor,
         },
-      } as any);
+      });
 
       await Notification.create({
         recipientId: job.clientId,
@@ -140,18 +134,12 @@ export async function liquidarCancelacionDePublicacion(
     for (const workerId of selectedWorkers) {
       const worker = await User.findByPk(workerId).catch(() => null);
       if (!worker) continue;
-      const before = parseFloat((worker as any).balanceArs as any) || 0;
-      await (worker as any).addBalance(porTrabajador);
-      await BalanceTransaction.create({
-        userId: workerId,
-        type: 'payment',
-        amount: porTrabajador,
-        balanceBefore: before,
-        balanceAfter: before + porTrabajador,
-        description: `Compensación por cancelación tardía de "${job.title}"`,
-        status: 'completed',
+      await acreditarSaldo(String(workerId), porTrabajador, `Compensación por cancelación tardía de "${job.title}"`, {
+        relatedModel: 'Job',
+        relatedId: job.id,
+        tipo: 'payment',
         metadata: { reason: 'job_cancelled_late_compensation', jobId: job.id, jobPrice, costoPasarela: liq.costoPasarela },
-      } as any);
+      });
       await Notification.create({
         recipientId: workerId,
         type: 'warning',
@@ -162,7 +150,12 @@ export async function liquidarCancelacionDePublicacion(
         relatedId: job.id,
         read: false,
       } as any);
-      socketService.notifyUser(workerId, 'job_cancelled_compensation', { jobId: job.id, amount: porTrabajador });
+      // Import perezoso: traer server/index.js arriba arrastra el servidor
+      // entero (y rompe los tests que solo quieren liquidar).
+      try {
+        const { socketService } = await import('../index.js');
+        socketService.notifyUser(workerId, 'job_cancelled_compensation', { jobId: job.id, amount: porTrabajador });
+      } catch { /* sin socket en tests */ }
       if ((worker as any).email) {
         emailService.sendEmail({
           to: (worker as any).email,

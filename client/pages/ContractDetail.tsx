@@ -17,6 +17,7 @@ import DailyLogPanel from "@/components/contracts/DailyLogPanel";
 import EmergencyButton from "@/components/contracts/EmergencyButton";
 import ContractReviewsPanel from "@/components/contracts/ContractReviewsPanel";
 import CompartirContrato from "@/components/contracts/CompartirContrato";
+import TrabajadorNoDisponible from "@/components/contracts/TrabajadorNoDisponible";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 import { requestPostWorkRatingCheck } from "@/utils/postWorkRating";
 import {
@@ -1317,6 +1318,19 @@ export default function ContractDetail() {
                   )}
                 </>
               )}
+            </div>
+          )}
+
+          {/* El trabajador no puede: él avisa, el cliente decide qué hacer con su plata. */}
+          {(isClient || isDoer) && ['pending', 'ready', 'accepted', 'in_progress'].includes(contract.status) && (
+            <div className="mb-6">
+              <TrabajadorNoDisponible
+                contractId={contract.id || contract._id}
+                rol={isClient ? 'cliente' : 'trabajador'}
+                precio={Number(contract.allocatedAmount || contract.price) || 0}
+                aviso={(contract as any).avisoTrabajadorNoDisponible || null}
+                onDone={loadContract}
+              />
             </div>
           )}
 

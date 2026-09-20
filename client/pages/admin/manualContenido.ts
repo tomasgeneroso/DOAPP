@@ -90,6 +90,19 @@ export const MANUAL: EntradaManual[] = [
     ],
   },
   {
+    id: "trabajador-se-baja",
+    titulo: "El trabajador se baja",
+    roles: ["admin", "support"],
+    resumen: "Quién decide, qué pasa con la plata y por qué el aviso tiene que quedar registrado.",
+    claves: ["trabajador", "no puede", "se baja", "abandona", "escalera", "penalidad", "republicar"],
+    cuerpo: [
+      "El trabajador avisa desde el contrato que no puede (antes de empezar o en curso). El aviso queda registrado como solicitud de cancelación suya: es lo que hace correr la <b>escalera</b> (aviso → marca visible 90 días → 7 días sin postularse → 14) y lo que le permite al cliente decidir.",
+      "El cliente elige entre tres salidas, desde el contrato: <b>dejarla publicada</b> con la plata que ya está (otro trabajador la toma por el mismo precio, sin pagar de nuevo); <b>republicarla por menos</b> (la diferencia a su saldo); o <b>pasar el precio a su saldo a favor</b>. En las tres la comisión de publicación se retiene: ya hubo un trabajador seleccionado (T&C 7.5). La pasarela se descuenta solo si retira el saldo al banco.",
+      "<b>Sin aviso registrado el cliente no puede usar este camino.</b> Si lo intenta, el sistema le dice que le pida al trabajador que avise por la app, o que use la cancelación normal (que es suya, con sus reglas de 24 h). Es lo que impide que un cliente cancele por su cuenta y le cargue la penalidad al otro.",
+      "Un trabajo ya entregado (esperando confirmación o completado) no pasa por acá: hay trabajo hecho que valorar y eso es un reclamo.",
+    ],
+  },
+  {
     id: "pagos",
     titulo: "Pagarle al trabajador",
     roles: ["admin", "owner"],

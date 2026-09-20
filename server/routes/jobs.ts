@@ -1575,20 +1575,20 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
         // y procesar devolución parcial del monto de la diferencia
         if (job.publicationPaid) {
           const refundAmount = Math.abs(priceDifference);
-          // Crear registro de saldo a favor (se procesará la devolución)
-          const { BalanceTransaction } = await import('../models/sql/BalanceTransaction.model.js');
-          await BalanceTransaction.create({
-            userId: req.user.id,
-            type: 'refund',
-            amount: refundAmount,
-            description: `Saldo a favor por reducción de presupuesto del trabajo "${job.title}"`,
-            status: 'pending',
+          // Saldo a favor, acreditado de verdad y con asiento. Antes creaba un
+          // asiento 'pending' sin tocar el saldo: el cliente veia una
+          // devolucion que nunca llegaba y el libro no cerraba con el saldo.
+          const { acreditarSaldo } = await import('../services/quotePayment.js');
+          const { getProcessingFeeRate } = await import('../../shared/pricing/processingCost.js');
+          await acreditarSaldo(String(req.user.id), refundAmount, `Saldo a favor por reducción de presupuesto del trabajo "${job.title}"`, {
             relatedModel: 'Job',
             relatedId: job.id,
             metadata: {
+              origen: 'cotizacion_menor',
+              reason: 'price_decrease',
               oldPrice,
               newPrice,
-              reason: 'price_decrease',
+              alRetirar: { comision: 0, pasarela: Math.round(refundAmount * getProcessingFeeRate() * 100) / 100 },
             },
           });
 
@@ -2052,8 +2052,22 @@ router.patch("/:id/budget", protect, async (req: AuthRequest, res: Response): Pr
     if (priceDifference < 0) {
       const refundAmount = Math.abs(priceDifference);
 
-      // Acreditar al balance del usuario
-      await client.addBalance(refundAmount);
+      // Acreditar con asiento en el libro. Antes se tocaba balanceArs a secas:
+      // el saldo subia y ninguna transaccion lo explicaba, y el retiro no sabia
+      // que era una devolucion (con su pasarela pendiente).
+      const { acreditarSaldo } = await import('../services/quotePayment.js');
+      const { getProcessingFeeRate } = await import('../../shared/pricing/processingCost.js');
+      await acreditarSaldo(String(client.id), refundAmount, `Saldo a favor por bajar el precio de "${job.title}"`, {
+        relatedModel: 'Job',
+        relatedId: job.id,
+        metadata: {
+          origen: 'cotizacion_menor',
+          reason: 'price_decrease',
+          oldPrice: currentPrice,
+          newPrice,
+          alRetirar: { comision: 0, pasarela: Math.round(refundAmount * getProcessingFeeRate() * 100) / 100 },
+        },
+      });
 
       // Agregar al historial de cambios
       const priceHistory = job.priceHistory || [];
@@ -2109,8 +2123,13 @@ router.patch("/:id/budget", protect, async (req: AuthRequest, res: Response): Pr
 
       // Si el balance cubre todo, procesar directamente
       if (amountToPay <= 0) {
-        // Descontar del balance
-        await client.subtractBalance(totalRequired);
+        // Descontar del balance, con asiento.
+        const { debitarSaldo } = await import('../services/quotePayment.js');
+        await debitarSaldo(String(client.id), totalRequired, `Aumento de precio de "${job.title}" pagado con saldo`, {
+          relatedModel: 'Job',
+          relatedId: job.id,
+          metadata: { oldPrice: currentPrice, newPrice, comision: additionalCommission },
+        });
 
         // Agregar al historial de cambios
         const priceHistory = job.priceHistory || [];

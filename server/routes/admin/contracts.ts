@@ -1266,7 +1266,6 @@ router.post(
        */
       const { liquidarCancelacion } = await import('../../../shared/pricing/processingCost.js');
       const { POLITICAS } = await import('../../../shared/constants/policies.js');
-      const { BalanceTransaction } = await import('../../models/sql/BalanceTransaction.model.js');
       const { logMoneyEvent } = await import('../../utils/auditLog.js');
       const { Payment } = await import('../../models/sql/Payment.model.js');
 
@@ -1339,19 +1338,18 @@ router.post(
           ? { ...regla, aCliente: Number(montoCliente || 0), aTrabajador: Number(montoTrabajador || 0), regla: `manual (${regla.regla})` }
           : regla;
 
+        // acreditarSaldo bloquea la fila y escribe el asiento en la misma
+        // transaccion. alRetirar viaja en la metadata para que el retiro sepa
+        // que descontar si saca este saldo a efectivo.
+        const { acreditarSaldo } = await import('../../services/quotePayment.js');
         const acreditar = async (userId: string, monto: number, tipo: 'refund' | 'payment', descripcion: string) => {
           if (monto <= 0) return;
-          const u = await User.findByPk(userId);
-          if (!u) return;
-          const before = parseFloat((u as any).balanceArs as any) || 0;
-          await (u as any).addBalance(monto);
-          await BalanceTransaction.create({
-            userId, type: tipo, amount: monto, balanceBefore: before, balanceAfter: before + monto,
-            description: descripcion, status: 'completed',
-            relatedContractId: contract.id,
-            // alRetirar viaja para que el retiro sepa que descontar si saca este saldo a efectivo.
+          await acreditarSaldo(userId, monto, descripcion, {
+            relatedModel: 'Contract',
+            relatedId: String(contract.id),
+            tipo,
             metadata: { reason: 'contract_cancellation_approved', origen: 'cancelacion', cancellationRequestId: request.id, ...liquidacion },
-          } as any);
+          });
         };
 
         await acreditar(String(contract.clientId), liquidacion.aCliente, 'refund', `Saldo a favor por cancelación de "${job?.title || 'contrato'}"`);

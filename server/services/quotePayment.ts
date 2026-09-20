@@ -104,7 +104,13 @@ export async function acreditarSaldo(
   userId: string,
   monto: number,
   descripcion: string,
-  ref: { relatedModel?: string; relatedId?: string; metadata?: Record<string, any> } = {},
+  ref: {
+    relatedModel?: string;
+    relatedId?: string;
+    metadata?: Record<string, any>;
+    /** 'refund' (plata que vuelve al cliente) o 'payment' (plata que cobra el trabajador). */
+    tipo?: 'refund' | 'payment' | 'bonus';
+  } = {},
 ): Promise<void> {
   if (!(monto > 0)) return;
 
@@ -122,15 +128,66 @@ export async function acreditarSaldo(
     await BalanceTransaction.create(
       {
         userId,
-        type: 'refund',
+        type: ref.tipo || 'refund',
         amount: monto,
         balanceBefore: antes,
         balanceAfter: despues,
         description: descripcion,
         status: 'completed',
-        relatedModel: ref.relatedModel,
-        relatedId: ref.relatedId,
-        metadata: ref.metadata,
+        // El modelo no tiene relatedModel/relatedId: van a relatedContractId
+        // cuando corresponde y siempre a la metadata, donde la auditoria y el
+        // retiro los leen.
+        relatedContractId: ref.relatedModel === 'Contract' ? ref.relatedId : undefined,
+        metadata: { ...(ref.metadata || {}), relatedModel: ref.relatedModel, relatedId: ref.relatedId },
+      } as any,
+      { transaction: t },
+    );
+
+    (user as any).balanceArs = despues;
+    await user.save({ transaction: t });
+  });
+}
+
+/**
+ * Debita saldo de un usuario para pagar algo dentro de la app (una publicacion,
+ * un aumento de precio). Mismo bloqueo de fila que acreditarSaldo, y siempre
+ * con asiento: un saldo que baja sin asiento es plata que despues nadie puede
+ * explicar, y es como se rompio la conciliacion de saldos mas de una vez.
+ *
+ * Falla si no alcanza: quien llama tiene que haber verificado antes y cobrar
+ * la diferencia por la pasarela.
+ */
+export async function debitarSaldo(
+  userId: string,
+  monto: number,
+  descripcion: string,
+  ref: { relatedModel?: string; relatedId?: string; metadata?: Record<string, any> } = {},
+): Promise<void> {
+  if (!(monto > 0)) return;
+
+  const { sequelize } = await import('../config/database.js');
+  const { User } = await import('../models/sql/User.model.js');
+  const BalanceTransaction = (await import('../models/sql/BalanceTransaction.model.js')).default;
+
+  await sequelize.transaction(async (t) => {
+    const user = await User.findByPk(userId, { lock: t.LOCK.UPDATE, transaction: t });
+    if (!user) throw new Error(`Usuario ${userId} no encontrado al debitar saldo`);
+
+    const antes = parseFloat(String((user as any).balanceArs)) || 0;
+    if (antes + 0.005 < monto) throw new Error(`Saldo insuficiente: tiene ${antes}, se necesitan ${monto}`);
+    const despues = Math.round((antes - monto) * 100) / 100;
+
+    await BalanceTransaction.create(
+      {
+        userId,
+        type: 'adjustment',
+        amount: -monto,
+        balanceBefore: antes,
+        balanceAfter: despues,
+        description: descripcion,
+        status: 'completed',
+        relatedContractId: ref.relatedModel === 'Contract' ? ref.relatedId : undefined,
+        metadata: { origen: 'pago_con_saldo', ...(ref.metadata || {}), relatedModel: ref.relatedModel, relatedId: ref.relatedId },
       } as any,
       { transaction: t },
     );
@@ -240,13 +297,14 @@ export async function trabajadorNoDisponible(
   const contract = await Contract.findByPk(contractId);
   if (!contract) return { ok: false, motivo: 'contrato inexistente' };
 
-  const yaEmpezo = ['in_progress', 'awaiting_confirmation', 'completed'].includes(
-    String(contract.status),
-  );
-  if (yaEmpezo) {
-    // Un trabajo empezado no se resuelve por acá: hay trabajo hecho que valorar
-    // y eso es una disputa, no un tramite.
-    return { ok: false, motivo: 'el contrato ya esta en curso: corresponde una disputa' };
+  // Un trabajo ya ENTREGADO no se resuelve por acá: hay trabajo hecho que
+  // valorar y eso es una disputa, no un trámite. Un trabajo en curso que el
+  // trabajador abandona sí: el que se baja a mitad de camino renuncia a lo
+  // hecho (le corre la escalera) y el cliente decide qué hacer con su plata,
+  // igual que si se hubiera bajado antes de empezar.
+  const yaEntregado = ['awaiting_confirmation', 'completed'].includes(String(contract.status));
+  if (yaEntregado) {
+    return { ok: false, motivo: 'el trabajo ya fue entregado: si hay un problema, corresponde un reclamo' };
   }
 
   const job = await Job.findByPk(contract.jobId);
@@ -314,6 +372,21 @@ export async function trabajadorNoDisponible(
   });
 
   if (aFavor > 0) {
+    // Lo que se retiene si el cliente retira este saldo a efectivo: la parte de
+    // la pasarela que corresponde a lo que vuelve (la real del pago si el
+    // webhook la trajo). La comision no: ya hubo un trabajador seleccionado y
+    // se retuvo en el acto (T&C 7.5), asi que lo que vuelve es el precio.
+    const { pasarelaSinIva, getProcessingFeeRate } = await import('../../shared/pricing/processingCost.js');
+    const { Payment } = await import('../models/sql/Payment.model.js');
+    const pago = (job as any).publicationPaymentId ? await Payment.findByPk((job as any).publicationPaymentId).catch(() => null) : null;
+    const totalCobrado = Number((pago as any)?.amount) || 0;
+    const feeReal = Number((pago as any)?.processingFee);
+    const pasarelaTotal = Number.isFinite(feeReal) && feeReal > 0
+      ? pasarelaSinIva(feeReal)
+      : Math.round(totalCobrado * getProcessingFeeRate() * 100) / 100;
+    const proporcion = montoPagado > 0 ? aFavor / montoPagado : 1;
+    const alRetirar = { comision: 0, pasarela: Math.round(pasarelaTotal * proporcion * 100) / 100 };
+
     // Fuera de la transaccion porque acreditarSaldo abre la suya con su propio
     // bloqueo de fila. Si fallara acá, el contrato ya quedo cancelado y el
     // saldo no se acredito: por eso se avisa a administracion y no se traga.
@@ -327,7 +400,7 @@ export async function trabajadorNoDisponible(
         {
           relatedModel: 'Contract',
           relatedId: contract.id,
-          metadata: { origen: 'cotizacion_menor', jobId: job.id, motivo: 'trabajador_no_disponible' },
+          metadata: { origen: 'cancelacion', jobId: job.id, motivo: 'trabajador_no_disponible', alRetirar },
         },
       );
     } catch (e: any) {
