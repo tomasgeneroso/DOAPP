@@ -356,7 +356,7 @@ export default function ContractDetailScreen() {
           onPress: () =>
             Alert.alert(
               'Saldo a favor',
-              'El precio del trabajo pasa a tu saldo a favor. La comisión de publicación no se devuelve porque ya había un trabajador seleccionado. El saldo se usa sin costo en la app; si lo retirás al banco se descuenta la pasarela.',
+              'El precio del trabajo pasa a tu saldo a favor. La comisión de publicación no se devuelve porque ya había un trabajador seleccionado. El saldo se usa en la app o se retira al banco, sin costo en los dos casos.',
               [
                 { text: 'Volver', style: 'cancel' },
                 { text: 'Sí, a mi saldo', onPress: () => enviarResolucion('saldo') },

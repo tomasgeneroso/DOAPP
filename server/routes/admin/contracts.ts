@@ -1256,10 +1256,11 @@ router.post(
        * email que decía "Reembolso aprobado: $X" sin acreditar un peso a nadie.
        *
        * Ahora aplica la misma regla que la cancelación de una publicación
-       * (liquidarCancelacion, T&C 9.1–9.3): comisión retenida, pasarela a cargo
-       * de quien recibe, y si el cliente canceló tarde, la mitad al trabajador.
-       * Si el que pidió cancelar fue el trabajador, el cliente recupera todo
-       * menos la pasarela, y el trabajador entra en la escalera (arriba).
+       * (liquidarCancelacion, T&C 9.1–9.3): comisión retenida, y si el cliente
+       * canceló tarde, la mitad al trabajador. El costo de procesamiento no
+       * entra: lo pagó el cliente al pagar y no vuelve. Si el que pidió
+       * cancelar fue el trabajador, el cliente recupera el precio y el
+       * trabajador entra en la escalera (arriba).
        *
        * El admin puede apartarse de la regla mandando montos propios, pero solo
        * con justificación, y queda asentado con severidad alta.
@@ -1268,9 +1269,10 @@ router.post(
       const { POLITICAS } = await import('../../../shared/constants/policies.js');
       const { logMoneyEvent } = await import('../../utils/auditLog.js');
       const { Payment } = await import('../../models/sql/Payment.model.js');
+      const { componentesDelPago } = await import('../../services/payoutAmount.js');
 
       const yaLiquidado = ['refunded', 'completed', 'cancelled_settled'].includes(String(contract.paymentStatus));
-      let liquidacion: { aCliente: number; aTrabajador: number; costoPasarela: number; retieneApp: number; alRetirar: { comision: number; pasarela: number }; regla: string } | null = null;
+      let liquidacion: { aCliente: number; aTrabajador: number; procesamientoNoVuelve: number; retieneApp: number; alRetirar: { comision: number }; regla: string } | null = null;
 
       /**
        * Si el que se bajo fue el TRABAJADOR y la publicacion puede volver a
@@ -1284,15 +1286,8 @@ router.post(
 
       if (!yaLiquidado && !jobVuelveAbierto && Number(contract.price) > 0) {
         const precio = Number(contract.allocatedAmount || contract.price) || 0;
-        let comision = 0;
-        let iva = 0;
-        if (job?.publicationPaymentId) {
-          const pub = await Payment.findByPk(job.publicationPaymentId).catch(() => null);
-          if (pub) {
-            comision = Number((pub as any).platformFee) || 0;
-            iva = Math.max(0, (Number((pub as any).amount) || 0) - (Number(job.price) || 0) - comision);
-          }
-        }
+        const pub = job?.publicationPaymentId ? await Payment.findByPk(job.publicationPaymentId).catch(() => null) : null;
+        const { comision, iva, procesamiento } = componentesDelPago(pub as any, Number(job?.price) || 0);
 
         const horasHastaInicio = (new Date(contract.startDate).getTime() - Date.now()) / 3_600_000;
         const tardia = contract.status === 'in_progress' || horasHastaInicio <= POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES;
@@ -1301,6 +1296,7 @@ router.post(
           precio,
           comision,
           iva,
+          procesamiento,
           aprobada: true,
           // Si canceló el trabajador, no se le paga nada: hayTrabajador=false
           // hace que la bolsa entera vuelva al cliente.
@@ -1327,7 +1323,7 @@ router.post(
           if (totalPropuesto > totalRegla + 0.01) {
             res.status(400).json({
               success: false,
-              message: `No se puede repartir más de lo que hay (${totalRegla.toLocaleString('es-AR')}). La comisión y la pasarela no se devuelven.`,
+              message: `No se puede repartir más de lo que hay (${totalRegla.toLocaleString('es-AR')}). La comisión y el costo de procesamiento no se devuelven.`,
               reglaSugerida: regla,
             });
             return;
@@ -1397,15 +1393,18 @@ router.post(
         if (!user) continue;
         const esCliente = String(user.id) === String(contract.clientId);
         const suMonto = liquidacion ? (esCliente ? liquidacion.aCliente : liquidacion.aTrabajador) : 0;
-        const retencion = liquidacion ? liquidacion.alRetirar.comision + liquidacion.alRetirar.pasarela : 0;
+        const retencion = liquidacion ? liquidacion.alRetirar.comision : 0;
+        const proc = liquidacion && liquidacion.procesamientoNoVuelve > 0
+          ? ` El costo de procesamiento del pago (${$(liquidacion.procesamientoNoVuelve)}) no se devuelve: la pasarela ya lo cobró.`
+          : '';
         const suTexto = !liquidacion
           ? (jobVuelveAbierto && esCliente
               ? ' Tu publicación volvió a estar abierta con el dinero intacto: podés elegir otro trabajador.'
               : '')
           : suMonto > 0
             ? esCliente
-              ? ` Tenés ${$(suMonto)} de saldo a favor${liquidacion.retieneApp > 0 ? ' (la comisión de publicación no se devuelve: ya había un trabajador seleccionado)' : ', todo lo que pagaste'}. Usarlo en tu próxima publicación no cuesta nada.${retencion > 0 ? ` Si lo retirás a tu cuenta se descuentan${liquidacion.alRetirar.comision > 0 ? ` ${$(liquidacion.alRetirar.comision)} de la comisión y` : ''} ${$(liquidacion.alRetirar.pasarela)} de pasarela: recibirías ${$(Math.max(0, suMonto - retencion))}.` : ''}`
-              : ` Por el día que reservaste se acreditaron ${$(suMonto)} a tu saldo (ya neto de pasarela). Podés pedir la transferencia desde Balance.`
+              ? ` Tenés ${$(suMonto)} de saldo a favor${liquidacion.retieneApp > 0 ? ' (la comisión de publicación no se devuelve: ya había un trabajador seleccionado)' : ' (precio y comisión)'}. Usarlo en tu próxima publicación no cuesta nada.${retencion > 0 ? ` Si lo retirás a tu cuenta se descuentan ${$(retencion)} de la comisión por la revisión ya hecha: recibirías ${$(Math.max(0, suMonto - retencion))}.` : ' Retirarlo a tu cuenta tampoco tiene costo.'}${proc}`
+              : ` Por el día que reservaste se acreditaron ${$(suMonto)} a tu saldo. Podés pedir la transferencia desde Balance.`
             : esCliente
               ? ' No hay saldo a devolver en este caso.'
               : ' No corresponde compensación en este caso.';

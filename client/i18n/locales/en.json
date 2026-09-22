@@ -1025,7 +1025,7 @@
       "resume": "Resume job",
       "cancel": "Cancel job",
       "contactSupport": "Contact support",
-      "cantCancel": "Late cancellation: less than 24 h to the start and a worker is already selected. Half the price goes to them for the day they reserved (less their share of the gateway cost) and the other half returns to your credit. The publication commission is not refunded. If you transfer that credit to your bank, the corresponding share of the gateway cost is deducted.",
+      "cantCancel": "Late cancellation: less than 24 h to the start and a worker is already selected. Half the price goes to them for the day they reserved and the other half returns to your credit. The publication commission and the payment processing cost are not refunded. Transferring that credit to your bank is free.",
       "timeToCancel": "Time left to cancel with a full refund:",
       "publishedReceiving": "This job is published and receiving proposals",
       "cancelAndRefund": "Cancel and get a refund",
@@ -1868,7 +1868,7 @@
     "whatIsBalance": "What is account credit?",
     "whatIsBalanceDesc": "Your account credit is generated when you reduce a contract's price or when you receive refunds. You can use this credit to increase the price of future contracts without making a new payment.",
     "fastPayments": "When you get paid for a job",
-    "fastPaymentsDesc": "A job payment is transferred to your account once the {{dias}}-day claim period after completion has passed and Mercado Pago releases the client's money. Each contract shows the exact date. You receive the price minus the gateway cost, which is shown when you apply."
+    "fastPaymentsDesc": "A job payment is transferred to your account once the {{dias}}-day claim period after completion has passed and Mercado Pago releases the client's money. Each contract shows the exact date. You receive the full price: the commission and the processing cost are paid by the client."
   },
   "profile": {
     "title": "Profile",
@@ -3105,7 +3105,7 @@
     "tipsTitle": "Tips before publishing",
     "tip1": "Ask the worker to show you their <b>verification code</b> when starting the job to confirm their identity.",
     "tip2": "The publication commission is <b>non-refundable</b> once a <b>worker is selected</b>. Before that, if you cancel, it returns to your credit with the rest.",
-    "tip3": "You can cancel until the job starts. If there is still <b>no worker selected</b>, <b>everything you paid returns to your credit, commission included</b>, to republish at no cost; transferring it to your bank deducts half the commission and the gateway cost. With a worker selected: with <b>more than 24 hours</b> notice the price returns to your credit; with <b>24 hours or less</b>, <b>half goes to you and half to the worker</b>. The commission is not refunded once a worker is selected.",
+    "tip3": "You can cancel until the job starts. If there is still <b>no worker selected</b>, <b>price and commission return to your credit</b>, to republish at no cost; transferring it to your bank deducts half the commission. With a worker selected: with <b>more than 24 hours</b> notice the price returns to your credit; with <b>24 hours or less</b>, <b>half goes to you and half to the worker</b>. The commission is not refunded once a worker is selected, and the payment processing cost is never refunded: the gateway already charged it.",
     "tip4": "Describe the job in <b>as much detail as possible</b>: needed materials, access to the location, exact schedule. Avoid misunderstandings.",
     "tip5": "All communication and price negotiation must happen <b>within the platform</b> to stay protected.",
     "tip6": "If the job isn't completed correctly, you can open a <b>dispute</b> and the money stays held in escrow until resolved.",

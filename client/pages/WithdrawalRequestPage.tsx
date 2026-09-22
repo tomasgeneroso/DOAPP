@@ -107,9 +107,10 @@ export default function WithdrawalRequestPage() {
 
   /**
    * El servidor puede contestar 409 "requiereConfirmacion" cuando parte del
-   * saldo son devoluciones: retirarlas a efectivo descuenta la pasarela (y,
-   * si la publicación se canceló sin trabajador, media comisión). Se le
-   * muestra el número exacto y decide; dentro de la app ese saldo es gratis.
+   * saldo son devoluciones de publicaciones canceladas sin trabajador:
+   * retirarlas a efectivo descuenta media comisión (T&C 9.1). Se le muestra
+   * el número exacto y decide; dentro de la app ese saldo es gratis. Retirar
+   * no tiene costo de pasarela: el procesamiento se pagó al pagar.
    */
   const enviarRetiro = async (amountNum: number, aceptaCostoPasarela: boolean) => {
     setSubmitting(true);

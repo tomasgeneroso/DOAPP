@@ -8,14 +8,21 @@ import {
 import { leerMetadata } from '../server/utils/auditLog.js';
 import { gzipSync } from 'node:zlib';
 import { PROPORCION_MAXIMA_DEVOLUCIONES } from '../server/services/paymentSafeguards.js';
-import { desgloseCancelacionSinContratar, liquidarCancelacion, getProcessingFeeRate, pasarelaSinIva } from '../shared/pricing/processingCost.js';
+import {
+  desgloseCancelacionSinContratar,
+  liquidarCancelacion,
+  getProcessingFeeRate,
+  pasarelaSinIva,
+  procesamientoParaCobrar,
+  splitFees,
+} from '../shared/pricing/processingCost.js';
 import { POLITICAS } from '../shared/constants/policies.js';
 import { marcarDiasAlFinalizar, umbralAusencia, buildDailyLog } from '../server/services/dailyLog.js';
 import { evidenceToPdf, indicesAIncluir } from '../server/services/contractEvidence.js';
 import { puedePromocionarse } from '../server/routes/profilePromotion.js';
 import { estadoDeSilencio, DIAS_PARA_RESPONDER } from '../server/jobs/disputeSilence.js';
 import { VENTANA_DIAS, MARCA_VISIBLE_DIAS, SUSPENSION_3RA_DIAS, SUSPENSION_4TA_DIAS, diasDeSuspension } from '../server/services/cancellationLadder.js';
-import { montoParaElTrabajador } from '../server/services/payoutAmount.js';
+import { montoParaElTrabajador, componentesDelPago } from '../server/services/payoutAmount.js';
 
 /**
  * Estos controles solo sirven si fallan cerrados: ante la duda, no dejan pasar
@@ -157,15 +164,16 @@ describe('sub-tope de devoluciones', () => {
 
 describe('cancelacion antes de contratar', () => {
   const PARTE = POLITICAS.CANCELACION_EN_REVISION_PARTE_COMISION;
+  // Pago 115.841: precio 97.900 + comision 10.000 + IVA 2.100 + procesamiento 5.841 (con IVA).
 
-  it('como saldo recupera todo; en efectivo pierde media comision y la pasarela', () => {
-    // Es lo que la gente no espera: MercadoPago ya cobro por procesar, y
-    // devolver es una segunda operacion, no un "deshacer". Pero eso se cobra
-    // solo si la plata sale: dentro de la app no hay segunda operacion.
-    const d = desgloseCancelacionSinContratar(110000, 10000, 2100, 0.0531);
-    expect(d.costoPasarela).toBeCloseTo(5841, 0);
+  it('como saldo recupera precio y comision; en efectivo pierde ademas media comision. El procesamiento no vuelve nunca', () => {
+    // Es lo que la gente no espera: MercadoPago ya cobro por procesar cuando
+    // entro el pago, y devolver es una segunda operacion, no un "deshacer".
+    const d = desgloseCancelacionSinContratar(115841, 10000, 2100, 5841);
+    expect(d.precioTrabajo).toBe(97900);
+    expect(d.procesamiento).toBe(5841);
     expect(d.retiene).toBeCloseTo(5841 + (10000 + 2100) * PARTE, 0);
-    expect(d.devolver).toBeCloseTo(110000 - d.retiene, 0);
+    expect(d.devolver).toBeCloseTo(115841 - d.retiene, 0);
   });
 
   it('la parte de la comision que se retiene al retirar es la de la politica', () => {
@@ -176,21 +184,21 @@ describe('cancelacion antes de contratar', () => {
   });
 
   it('dice lo mismo que liquidarCancelacion, que es la regla general', () => {
-    const d = desgloseCancelacionSinContratar(110000, 10000, 2100, 0.0531);
-    const l = liquidarCancelacion({ precio: 97900, comision: 10000, iva: 2100, aprobada: false, hayTrabajador: false, tardia: false, rate: 0.0531 });
+    const d = desgloseCancelacionSinContratar(115841, 10000, 2100, 5841);
+    const l = liquidarCancelacion({ precio: 97900, comision: 10000, iva: 2100, procesamiento: 5841, aprobada: false, hayTrabajador: false, tardia: false });
     expect(l.aCliente).toBe(110000);
-    expect(d.devolver).toBeCloseTo(l.aCliente - l.alRetirar.comision - l.alRetirar.pasarela, 2);
-    expect(d.costoPasarela).toBeCloseTo(l.costoPasarela, 2);
+    expect(l.procesamientoNoVuelve).toBe(5841);
+    expect(d.devolver).toBeCloseTo(l.aCliente - l.alRetirar.comision, 2);
   });
 
   it('nunca devuelve mas de lo que entro', () => {
-    const d = desgloseCancelacionSinContratar(50000, 5000, 1050, 0.0531);
+    const d = desgloseCancelacionSinContratar(52655, 5000, 1050, 2655);
     expect(d.devolver).toBeLessThanOrEqual(d.pagado);
     expect(d.devolver + d.retiene).toBeCloseTo(d.pagado, 2);
   });
 
   it('un pago en cero no genera devoluciones negativas', () => {
-    const d = desgloseCancelacionSinContratar(0, 0, 0, 0.0531);
+    const d = desgloseCancelacionSinContratar(0, 0, 0, 0);
     expect(d.devolver).toBe(0);
     expect(d.retiene).toBe(0);
   });
@@ -449,14 +457,57 @@ describe('el silencio pierde en disputas', () => {
   });
 });
 
+describe('el costo de procesamiento lo paga el cliente, con una tasa unica, y cubre la tarifa de MP al centavo', () => {
+  // Trabajo de 36.000 con comision 3.600 e IVA 756: base 40.356. Tasa 4,19%.
+  const RATE = 0.0419;
+
+  it('se despeja sobre el total, no se suma sobre la base', () => {
+    const p = procesamientoParaCobrar(40356, RATE);
+    // Si se sumara 4,19% de la base (1.690,92), MP cobraria 4,19% del total
+    // (mayor) y faltarian ~90 pesos en cada operacion. Despejado, cierra.
+    expect(p.cargo).toBeGreaterThan(40356 * RATE);
+    const total = 40356 + p.total;
+    expect(total * RATE).toBeCloseTo(p.cargo, 1);
+    expect(p.iva).toBeCloseTo(p.cargo * 0.21, 1);
+  });
+
+  it('el trabajador recibe el precio entero y a DOAPP le queda comision + IVA', () => {
+    const s = splitFees(36000, 3600, 756, RATE);
+    expect(s.workerReceives).toBe(36000);
+    expect(s.clientPays).toBeCloseTo(40356 + s.processingCharge + s.processingVat, 2);
+    // Lo que MP cobra de verdad (con IVA) sale del total; lo que queda es la comision con su IVA.
+    expect(s.processingCost).toBeCloseTo(s.processingCharge, 0);
+    expect(s.platformKeeps).toBeCloseTo(3600 + 756, 0);
+    // La cuenta cierra al centavo.
+    expect(s.workerReceives + s.processingCost + s.processingCostVat + s.platformKeeps).toBeCloseTo(s.clientPays, 2);
+  });
+
+  it('con tasa cero (pago con saldo) no hay procesamiento', () => {
+    const s = splitFees(36000, 3600, 756, 0);
+    expect(s.processingCharge).toBe(0);
+    expect(s.clientPays).toBe(40356);
+  });
+
+  it('en beta (comision 0) el cliente paga el precio mas el procesamiento, nada mas', () => {
+    const s = splitFees(36000, 0, 0, RATE);
+    expect(s.commission).toBe(0);
+    expect(s.clientPays).toBeCloseTo(36000 + s.processingCharge + s.processingVat, 2);
+    expect(s.platformKeeps).toBeCloseTo(0, 0);
+  });
+
+  it('la tasa configurada por defecto es la del panel sin IVA, y el helper le saca el IVA a lo que MP informa', () => {
+    expect(getProcessingFeeRate()).toBeLessThan(0.07);
+    expect(pasarelaSinIva(121)).toBe(100);
+  });
+});
+
 describe('liquidacion de una cancelacion (T&C 7.5, 9.1-9.3)', () => {
-  // Trabajo de 36.000 con comision 3.600 e IVA 756: total cobrado 40.356.
-  // Tarifa 4,19% sin IVA (10 dias): pasarela 1.690,92.
-  const base = { precio: 36000, comision: 3600, iva: 756, rate: 0.0419 };
-  const PASARELA = 1690.92;
+  // Trabajo de 36.000 con comision 3.600 e IVA 756: 40.356 a repartir. El
+  // procesamiento (2.155 con IVA) lo pago el cliente y no entra en el reparto.
+  const base = { precio: 36000, comision: 3600, iva: 756, procesamiento: 2155.27 };
   const PARTE = POLITICAS.CANCELACION_EN_REVISION_PARTE_COMISION;
 
-  it('cada peso tiene un unico destino: saldo del cliente, trabajador, plataforma o retencion al retirar', () => {
+  it('cada peso tiene un unico destino: saldo del cliente, trabajador o plataforma. El procesamiento nunca vuelve', () => {
     for (const caso of [
       { aprobada: false, hayTrabajador: false, tardia: false },
       { aprobada: true, hayTrabajador: false, tardia: false },
@@ -464,18 +515,12 @@ describe('liquidacion de una cancelacion (T&C 7.5, 9.1-9.3)', () => {
       { aprobada: true, hayTrabajador: true, tardia: true },
     ]) {
       const l = liquidarCancelacion({ ...base, ...caso });
-      expect(l.costoPasarela).toBeCloseTo(PASARELA, 1);
-      // Lo que se acredita ahora + lo que retiene la app ahora + la pasarela
-      // que ya absorbio el trabajador (si cobro) = total cobrado menos la
-      // pasarela que todavia esta "pendiente" en el saldo del cliente.
-      const pasarelaYaAbsorbida = l.costoPasarela - l.alRetirar.pasarela;
-      expect(l.aCliente + l.aTrabajador + l.retieneApp + pasarelaYaAbsorbida).toBeCloseTo(40356, 1);
-      // Y la pasarela nunca la paga la plataforma: o la absorbe el trabajador ahora o el cliente al retirar.
-      expect(pasarelaYaAbsorbida + l.alRetirar.pasarela).toBeCloseTo(PASARELA, 1);
+      expect(l.aCliente + l.aTrabajador + l.retieneApp).toBeCloseTo(40356, 1);
+      expect(l.procesamientoNoVuelve).toBeCloseTo(2155.27, 2);
     }
   });
 
-  it('sin trabajador (antes o despues de aprobar): vuelve TODO como saldo, y retirar cuesta media comision + pasarela', () => {
+  it('sin trabajador (antes o despues de aprobar): vuelve precio + comision como saldo, y retirar cuesta media comision', () => {
     for (const aprobada of [false, true]) {
       const l = liquidarCancelacion({ ...base, aprobada, hayTrabajador: false, tardia: false });
       expect(l.regla).toBe(aprobada ? 'sin_trabajador' : 'antes_de_aprobar');
@@ -483,7 +528,6 @@ describe('liquidacion de una cancelacion (T&C 7.5, 9.1-9.3)', () => {
       expect(l.aCliente).toBe(40356);
       expect(l.aTrabajador).toBe(0);
       expect(l.alRetirar.comision).toBeCloseTo(4356 * PARTE, 1);
-      expect(l.alRetirar.pasarela).toBeCloseTo(PASARELA, 1);
     }
   });
 
@@ -494,109 +538,99 @@ describe('liquidacion de una cancelacion (T&C 7.5, 9.1-9.3)', () => {
     expect(l.alRetirar.comision).toBeCloseTo((3600 + 756) / 2, 1);
   });
 
-  it('con trabajador y con tiempo: el precio vuelve como saldo, la comision queda, la pasarela solo si retira', () => {
+  it('con trabajador y con tiempo: el precio vuelve como saldo, la comision queda, retirar no cuesta', () => {
     const l = liquidarCancelacion({ ...base, aprobada: true, hayTrabajador: true, tardia: false });
     expect(l.regla).toBe('con_tiempo');
     expect(l.retieneApp).toBeCloseTo(4356, 1);
     expect(l.aCliente).toBe(36000);
     expect(l.aTrabajador).toBe(0);
     expect(l.alRetirar.comision).toBe(0);
-    expect(l.alRetirar.pasarela).toBeCloseTo(PASARELA, 1);
   });
 
-  it('tardia con trabajador: mitad al trabajador neta de su pasarela, mitad al cliente con su pasarela pendiente', () => {
+  it('tardia con trabajador: mitad al trabajador ENTERA, mitad al cliente', () => {
     const l = liquidarCancelacion({ ...base, aprobada: true, hayTrabajador: true, tardia: true });
     expect(l.regla).toBe('tardia_con_trabajador');
-    expect(l.aTrabajador).toBeCloseTo(18000 - PASARELA / 2, 1);
+    expect(l.aTrabajador).toBe(18000);
     expect(l.aCliente).toBe(18000);
-    expect(l.alRetirar.pasarela).toBeCloseTo(PASARELA / 2, 1);
     expect(l.alRetirar.comision).toBe(0);
     expect(l.retieneApp).toBeCloseTo(4356, 1);
   });
 
   it('la parte del trabajador es la de la politica, no un 50% escrito a mano', () => {
     const l = liquidarCancelacion({ ...base, aprobada: true, hayTrabajador: true, tardia: true, parteTrabajador: 0.3 });
-    expect(l.aTrabajador).toBeCloseTo(36000 * 0.3 - PASARELA * 0.3, 1);
+    expect(l.aTrabajador).toBeCloseTo(36000 * 0.3, 1);
     expect(l.aCliente).toBeCloseTo(36000 * 0.7, 1);
   });
 
-  it('con tarifa cero (saldo interno) no hay pasarela que descontar', () => {
-    const l = liquidarCancelacion({ ...base, rate: 0, aprobada: true, hayTrabajador: true, tardia: false });
-    expect(l.costoPasarela).toBe(0);
-    expect(l.alRetirar.pasarela).toBe(0);
+  it('un pago sin procesamiento (anterior al cargo, o con saldo) liquida igual', () => {
+    const l = liquidarCancelacion({ precio: 36000, comision: 3600, iva: 756, aprobada: true, hayTrabajador: true, tardia: false });
+    expect(l.procesamientoNoVuelve).toBe(0);
     expect(l.aCliente).toBe(36000);
   });
 
   it('nunca devuelve negativos aunque el trabajo sea absurdamente chico', () => {
-    const l = liquidarCancelacion({ precio: 100, comision: 3600, iva: 756, rate: 0.0599, aprobada: true, hayTrabajador: true, tardia: true });
+    const l = liquidarCancelacion({ precio: 100, comision: 3600, iva: 756, aprobada: true, hayTrabajador: true, tardia: true });
     expect(l.aCliente).toBeGreaterThanOrEqual(0);
     expect(l.aTrabajador).toBeGreaterThanOrEqual(0);
   });
 });
 
 describe('lo que cobra el trabajador (una sola cuenta)', () => {
-  const contrato = { price: 36000, commission: 3600 };
+  const contrato = { price: 36000 };
 
-  it('usa la tarifa REAL del pago cuando el webhook la trajo, SIN su IVA', () => {
-    // MP descontó 1.815 en esta operacion: 1.500 de tarifa + 315 de IVA. El
-    // IVA es credito fiscal de DOAPP, asi que al trabajador se le traslada
-    // solo la tarifa. Cobrarle los 1.815 y ademas tomar el credito seria
-    // cobrar dos veces lo mismo.
-    const m = montoParaElTrabajador(contrato, { processingFee: 1815, amount: 40356 });
-    expect(m.origenTarifa).toBe('pago_real');
-    expect(m.pasarela).toBe(1500);
-    expect(m.neto).toBe(34500);
-  });
-
-  it('la tarifa configurada por defecto es la del panel sin IVA', () => {
-    expect(getProcessingFeeRate()).toBeLessThan(0.07);
-    expect(pasarelaSinIva(121)).toBe(100);
-  });
-
-  it('cae a la tarifa configurada si el pago no la trae', () => {
-    const m = montoParaElTrabajador(contrato, { amount: 40356 });
-    expect(m.origenTarifa).toBe('tarifa_configurada');
-    expect(m.pasarela).toBeGreaterThan(0);
-    expect(m.neto).toBeLessThan(36000);
-  });
-
-  it('NUNCA le descuenta la comision al trabajador', () => {
-    // La comision la paga el cliente. mark-paid hacia precio - comision: se la
-    // cobraba dos veces.
-    const m = montoParaElTrabajador(contrato, { processingFee: 1210 });
-    expect(m.neto).toBe(35000);
+  it('cobra el precio entero: ni la comision ni la pasarela lo tocan', () => {
+    // La comision la paga el cliente (mark-paid hacia precio - comision: se la
+    // cobraba dos veces), y el procesamiento tambien (antes se le descontaba
+    // al trabajador la tarifa real de fee_details).
+    const m = montoParaElTrabajador(contrato, { processingFee: 1815, amount: 40356 } as any);
     expect(m.bruto).toBe(36000);
+    expect(m.neto).toBe(36000);
   });
 
-  it('en un contrato con varios trabajadores prorratea la pasarela', () => {
-    // Dos trabajadores a 18.000 cada uno de un trabajo de 36.000: cada uno
-    // absorbe la mitad de la pasarela, no la pasarela entera.
-    const m = montoParaElTrabajador({ price: 36000, allocatedAmount: 18000, commission: 3600 }, { processingFee: 2420 });
+  it('en un contrato con varios trabajadores cobra su parte', () => {
+    const m = montoParaElTrabajador({ price: 36000, allocatedAmount: 18000 }, {});
     expect(m.bruto).toBe(18000);
-    expect(m.pasarela).toBe(1000);
-    expect(m.neto).toBe(17000);
-  });
-
-  it('nunca devuelve negativo', () => {
-    const m = montoParaElTrabajador({ price: 500, commission: 3600 }, { processingFee: 900 });
-    expect(m.neto).toBe(0);
+    expect(m.neto).toBe(18000);
   });
 
   it('tras una devolucion parcial por disputa, lo devuelto sale de la parte del trabajador', () => {
     // El admin resolvio devolverle 10.000 al cliente. El trabajador cobra
-    // 26.000 menos la pasarela; antes cobraba los 36.000 y la diferencia la
-    // ponia la plataforma sin que nadie lo viera.
-    const m = montoParaElTrabajador(contrato, { processingFee: 1210, refundedAmount: 10000 });
+    // 26.000; antes cobraba los 36.000 y la diferencia la ponia la plataforma
+    // sin que nadie lo viera.
+    const m = montoParaElTrabajador(contrato, { refundedAmount: 10000 });
     expect(m.devueltoAlCliente).toBe(10000);
-    expect(m.bruto).toBe(26000);
-    expect(m.neto).toBe(25000);
+    expect(m.bruto).toBe(36000);
+    expect(m.neto).toBe(26000);
   });
 
   it('con varios trabajadores, lo devuelto tambien se prorratea', () => {
-    const m = montoParaElTrabajador({ price: 36000, allocatedAmount: 18000, commission: 3600 }, { processingFee: 2420, refundedAmount: 10000 });
+    const m = montoParaElTrabajador({ price: 36000, allocatedAmount: 18000 }, { refundedAmount: 10000 });
     expect(m.devueltoAlCliente).toBe(5000);
-    expect(m.bruto).toBe(13000);
-    expect(m.neto).toBe(12000);
+    expect(m.neto).toBe(13000);
+  });
+
+  it('nunca devuelve negativo', () => {
+    const m = montoParaElTrabajador({ price: 500 }, { refundedAmount: 900 });
+    expect(m.neto).toBe(0);
+  });
+});
+
+describe('las partes de un pago se reconstruyen desde el pago, con o sin procesamiento', () => {
+  it('con procesamiento: el IVA de la comision es lo que queda despues de restar precio, comision y procesamiento con IVA', () => {
+    const c = componentesDelPago({ amount: 42511.27, platformFee: 3600, processingCharge: 1781.22 }, 36000);
+    expect(c.comision).toBe(3600);
+    expect(c.procesamiento).toBeCloseTo(2155.28, 1);
+    expect(c.iva).toBeCloseTo(756, 0);
+  });
+
+  it('sin procesamiento (pago anterior al cargo): procesamiento 0 y la cuenta sigue cerrando', () => {
+    const c = componentesDelPago({ amount: 40356, platformFee: 3600, processingCharge: null }, 36000);
+    expect(c.procesamiento).toBe(0);
+    expect(c.iva).toBe(756);
+  });
+
+  it('sin pago: todo cero', () => {
+    expect(componentesDelPago(null, 36000)).toEqual({ comision: 0, iva: 0, procesamiento: 0 });
   });
 });
 

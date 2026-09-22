@@ -287,6 +287,17 @@ export class Payment extends Model {
   @Column(DataType.DECIMAL(12, 2))
   processingFee?: number | null;
 
+  /**
+   * Lo que se le cobro al CLIENTE por procesamiento, sin IVA (shared/pricing/
+   * processingCost.ts). Es ingreso de DOAPP y cubre processingFee. Entra en
+   * `amount` junto con su IVA, asi que para reconstruir el precio del trabajo
+   * desde el pago hay que restarlo: amount - platformFee - IVA - processingCharge
+   * x 1,21. Null en pagos anteriores a este cargo (la pasarela la absorbia el
+   * trabajador) y en pagos con saldo, que no pasan por la pasarela.
+   */
+  @Column(DataType.DECIMAL(12, 2))
+  processingCharge?: number | null;
+
   /** Lo que MP dice que nos acredita neto: transaction_details.net_received_amount. */
   @Column(DataType.DECIMAL(12, 2))
   netReceivedAmount?: number | null;

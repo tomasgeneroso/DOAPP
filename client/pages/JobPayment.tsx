@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/components/ui/Toast";
 import { CreditCard, ArrowLeft, Loader2, Calendar, FileText, Upload, Eye } from "lucide-react";
 import PaymentMethodSelector, { PaymentMethod, BinancePaymentData, BankTransferPaymentData } from "@/components/payments/PaymentMethodSelector";
-import PaymentPaths, { CaminoDePagoDto } from "@/components/payments/PaymentPaths";
+import { PROCESSING_COST_LABEL, PROCESSING_COST_HELP } from "../../shared/pricing/processingCost";
 
 export default function JobPayment() {
   const { t } = useTranslation();
@@ -60,27 +60,43 @@ export default function JobPayment() {
   const [quote, setQuote] = useState<{
     price: number; commission: number; commissionRate: number; minimumApplied: boolean;
     vat: number; vatRate: number; platformTotal: number; totalToPay: number;
-    processingCost: number; processingRate: number;
+    processingCharge: number; processingVat: number; processingRate: number; totalVat: number;
     workerReceives: number; tierDescription: string; isBeta: boolean;
-    caminos?: CaminoDePagoDto[];
+  } | null>(null);
+  /**
+   * El desglose de un aumento tambien viene del servidor (liquidarAumento):
+   * diferencia, comision e IVA, lo que se cubre con saldo, y el procesamiento
+   * de lo que pasa por la pasarela. Antes se rearmaba aca con los parametros
+   * de la URL, sin IVA ni procesamiento, y el total no coincidia con las lineas.
+   */
+  const [aumento, setAumento] = useState<{
+    oldPrice: number; newPrice: number; priceDifference: number;
+    commission: number; commissionRate: number; vat: number; totalRequired: number;
+    balanceToUse: number; processingCharge: number; processingVat: number; processingRate: number;
+    totalToPay: number; isBeta: boolean;
   } | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
 
   const jobPrice = job?.price || job?.budget || 0;
 
   useEffect(() => {
-    if (isBudgetIncrease || !jobPrice || !token) return;
+    if (!token) return;
+    if (!isBudgetIncrease && !jobPrice) return;
     let cancelled = false;
     setQuoteLoading(true);
-    fetch(`/api/payments/quote?price=${jobPrice}`, { headers: { Authorization: `Bearer ${token}` } })
+    const url = isBudgetIncrease ? `/api/payments/quote?jobId=${id}&aumento=1` : `/api/payments/quote?price=${jobPrice}`;
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
-      .then((d) => { if (!cancelled && d.success) setQuote(d.data); })
+      .then((d) => {
+        if (cancelled || !d.success) return;
+        if (isBudgetIncrease) setAumento(d.data); else setQuote(d.data);
+      })
       .catch(() => { /* the button stays disabled while there is no quote */ })
       .finally(() => { if (!cancelled) setQuoteLoading(false); });
     return () => { cancelled = true; };
-  }, [jobPrice, token, isBudgetIncrease]);
+  }, [jobPrice, token, isBudgetIncrease, id]);
 
-  const commissionRate = quote?.commissionRate ?? 0;
+  const commissionRate = (isBudgetIncrease ? aumento?.commissionRate : quote?.commissionRate) ?? 0;
 
   // Free contracts info (display only — the server decides the amount)
   const freeContractsRemaining = user?.freeContractsRemaining || 0;
@@ -96,9 +112,12 @@ export default function JobPayment() {
 
   const publicationCost = isBudgetIncrease ? 0 : (quote?.commission ?? 0);
   const vatAmount = isBudgetIncrease ? 0 : (quote?.vat ?? 0);
+  // El total lo dice el servidor. Para un aumento, mientras no llega, se
+  // muestra el que trajo la URL (es el mismo numero, guardado en el trabajo).
   const totalAmount = isBudgetIncrease
-    ? parseFloat(amountParam || '0')
+    ? (aumento?.totalToPay ?? parseFloat(amountParam || '0'))
     : (quote?.totalToPay ?? 0);
+  const ars2 = (n: number) => `$${Number(n || 0).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ARS`;
 
   useEffect(() => {
     loadJob();
@@ -516,40 +535,56 @@ export default function JobPayment() {
                   {/* Previous price */}
                   <div className="flex justify-between text-gray-600 dark:text-gray-400 text-sm">
                     <span>Presupuesto anterior</span>
-                    <span>${parseFloat(oldPriceParam || '0').toLocaleString('es-AR')} ARS</span>
+                    <span>${Number(aumento?.oldPrice ?? parseFloat(oldPriceParam || '0')).toLocaleString('es-AR')} ARS</span>
                   </div>
 
                   {/* New price */}
                   <div className="flex justify-between text-gray-600 dark:text-gray-400 text-sm">
                     <span>Nuevo presupuesto</span>
-                    <span>${parseFloat(newPriceParam || '0').toLocaleString('es-AR')} ARS</span>
+                    <span>${Number(aumento?.newPrice ?? parseFloat(newPriceParam || '0')).toLocaleString('es-AR')} ARS</span>
                   </div>
 
                   {/* Price difference */}
                   <div className="flex justify-between text-gray-900 dark:text-white pt-2 border-t border-gray-200 dark:border-gray-700">
                     <span className="font-medium">Diferencia de presupuesto</span>
                     <span className="font-semibold text-orange-600 dark:text-orange-400">
-                      +${(parseFloat(newPriceParam || '0') - parseFloat(oldPriceParam || '0')).toLocaleString('es-AR')} ARS
+                      +${Number(aumento?.priceDifference ?? (parseFloat(newPriceParam || '0') - parseFloat(oldPriceParam || '0'))).toLocaleString('es-AR')} ARS
                     </span>
                   </div>
 
-                  {/* Commission on difference */}
-                  <div className="flex justify-between text-gray-600 dark:text-gray-400 text-sm">
-                    <div className="flex flex-col">
-                      <span>Comisión sobre la diferencia ({commissionRate}%)</span>
-                      <span className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                        Según tu membresía: {user?.membershipTier === 'super_pro' ? 'SUPER PRO' : user?.membershipTier === 'pro' ? 'PRO' : 'FREE'}
-                      </span>
-                    </div>
-                    <span>
-                      +${((parseFloat(newPriceParam || '0') - parseFloat(oldPriceParam || '0')) * (commissionRate / 100)).toLocaleString('es-AR', { minimumFractionDigits: 2 })} ARS
-                    </span>
-                  </div>
+                  {aumento && (
+                    <>
+                      {aumento.commission > 0 && (
+                        <div className="flex justify-between text-gray-600 dark:text-gray-400 text-sm">
+                          <span>Comisión sobre la diferencia ({aumento.commissionRate}%)</span>
+                          <span>+{ars2(aumento.commission)}</span>
+                        </div>
+                      )}
+                      {aumento.balanceToUse > 0 && (
+                        <div className="flex justify-between text-emerald-700 dark:text-emerald-400 text-sm">
+                          <span>Cubierto con tu saldo a favor</span>
+                          <span>−{ars2(aumento.balanceToUse)}</span>
+                        </div>
+                      )}
+                      {aumento.processingCharge > 0 && (
+                        <div className="flex justify-between text-gray-600 dark:text-gray-400 text-sm">
+                          <span title={PROCESSING_COST_HELP}>{PROCESSING_COST_LABEL} ({aumento.processingRate}%)</span>
+                          <span>+{ars2(aumento.processingCharge)}</span>
+                        </div>
+                      )}
+                      {aumento.vat + aumento.processingVat > 0 && (
+                        <div className="flex justify-between text-gray-600 dark:text-gray-400 text-sm">
+                          <span>IVA (21%) sobre comisión y procesamiento</span>
+                          <span>+{ars2(aumento.vat + aumento.processingVat)}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
 
                   {/* Total */}
                   <div className="flex justify-between text-xl font-bold text-gray-900 dark:text-white pt-3 border-t-2 border-gray-300 dark:border-gray-600">
                     <span>Total a pagar ahora</span>
-                    <span className="text-sky-600 dark:text-sky-400">${totalAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })} ARS</span>
+                    <span className="text-sky-600 dark:text-sky-400">{ars2(totalAmount)}</span>
                   </div>
 
                   {/* Info note */}
@@ -590,44 +625,53 @@ export default function JobPayment() {
                       ${publicationCost.toLocaleString('es-AR')} ARS
                     </span>
                   </div>
-                  {vatAmount > 0 && (
+                  {/* El costo de procesamiento del pago: una tasa única, igual con
+                      cualquier medio, que paga el cliente y no se devuelve. El
+                      trabajador recibe el precio entero. */}
+                  {(quote?.processingCharge ?? 0) > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600 dark:text-gray-400">
-                        IVA ({quote?.vatRate ?? 21}%) sobre la comisión
-                      </span>
-                      <span className="font-semibold">
-                        ${vatAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })} ARS
+                      <div className="flex flex-col">
+                        <span className="text-gray-600 dark:text-gray-400">
+                          {PROCESSING_COST_LABEL} ({quote?.processingRate}%)
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-500 mt-1">{PROCESSING_COST_HELP}</span>
+                      </div>
+                      <span className="font-semibold whitespace-nowrap">
+                        {ars2(quote?.processingCharge ?? 0)}
                       </span>
                     </div>
                   )}
-                  {/* El costo de la pasarela no figura acá: lo paga el trabajador.
-                      Mostrárselo al cliente como una línea de su cuenta sería
-                      cobrarle algo que no está pagando. */}
+                  {(quote?.totalVat ?? vatAmount) > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600 dark:text-gray-400">
+                        IVA ({quote?.vatRate ?? 21}%) sobre {publicationCost > 0 ? 'comisión y procesamiento' : 'el procesamiento'}
+                      </span>
+                      <span className="font-semibold">
+                        {ars2(quote?.totalVat ?? vatAmount)}
+                      </span>
+                    </div>
+                  )}
                   {quote?.isBeta && (
                     <div className="flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
                       <span>
-                        Estás en la <strong>beta</strong>: DOAPP no cobra comisión ni IVA. Pagás
-                        exactamente el valor del trabajo.
+                        Estás en la <strong>beta</strong>: DOAPP no cobra comisión. Pagás el valor del
+                        trabajo más el costo de procesamiento del pago, que es de la pasarela.
                       </span>
                     </div>
                   )}
                   <div className="flex justify-between text-xl font-bold text-gray-900 dark:text-white pt-3 border-t-2 border-gray-300 dark:border-gray-600">
                     <span>Total a pagar ahora</span>
                     <span className={totalAmount === 0 ? "text-green-600 dark:text-green-400" : ""}>
-                      ${totalAmount.toLocaleString('es-AR')} ARS
+                      {ars2(totalAmount)}
                     </span>
                   </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 pt-1">
+                    El trabajador recibe {ars2(quote?.workerReceives ?? jobPrice)}: el precio completo. Pagás lo mismo con cualquier medio de pago.
+                  </p>
                 </>
               )}
             </div>
           </div>
-
-          {/* Con qué pagás cambia lo que recibe el trabajador y cuándo. Vos pagás lo mismo. */}
-          {!isBudgetIncrease && quote?.caminos && quote.caminos.length > 0 && (
-            <div className="px-6 pb-6">
-              <PaymentPaths caminos={quote.caminos} para="cliente" />
-            </div>
-          )}
 
           {/* Tips before paying */}
           <div className="p-6 border-t border-gray-200 dark:border-gray-700 bg-amber-50 dark:bg-amber-900/10">
@@ -638,7 +682,7 @@ export default function JobPayment() {
             <ul className="space-y-2 text-sm text-amber-800 dark:text-amber-300">
               <li className="flex items-start gap-2"><span className="mt-0.5">🔑</span> <span><Trans i18nKey="jobPayment.tip1" components={{ b: <strong /> }} defaults="Pedile al trabajador que te muestre su <b>código de verificación</b> al iniciar el trabajo para confirmar su identidad." /></span></li>
               <li className="flex items-start gap-2"><span className="mt-0.5">💰</span> <span><Trans i18nKey="jobPayment.tip2" components={{ b: <strong /> }} defaults="La comisión de publicación <b>no se reembolsa</b> una vez que hay un <b>trabajador seleccionado</b>. Antes de eso, si cancelás, vuelve a tu saldo con el resto." /></span></li>
-              <li className="flex items-start gap-2"><span className="mt-0.5">🕒</span> <span><Trans i18nKey="jobPayment.tip3" components={{ b: <strong /> }} defaults="Podés cancelar hasta el inicio del trabajo. Si todavía <b>no hay ningún trabajador seleccionado</b>, <b>todo lo que pagaste vuelve a tu saldo a favor, comisión incluida</b>, para republicar sin costo; retirarlo a tu banco descuenta la mitad de la comisión y la pasarela. Con trabajador seleccionado: con <b>más de 24 horas</b> de anticipación el precio vuelve a tu saldo; con <b>24 horas o menos</b>, <b>la mitad es para vos y la otra mitad para el trabajador</b>. La comisión no se reembolsa una vez que hay un trabajador seleccionado." /></span></li>
+              <li className="flex items-start gap-2"><span className="mt-0.5">🕒</span> <span><Trans i18nKey="jobPayment.tip3" components={{ b: <strong /> }} defaults="Podés cancelar hasta el inicio del trabajo. Si todavía <b>no hay ningún trabajador seleccionado</b>, <b>precio y comisión vuelven a tu saldo a favor</b>, para republicar sin costo; retirarlo a tu banco descuenta la mitad de la comisión. Con trabajador seleccionado: con <b>más de 24 horas</b> de anticipación el precio vuelve a tu saldo; con <b>24 horas o menos</b>, <b>la mitad es para vos y la otra mitad para el trabajador</b>. La comisión no se reembolsa una vez que hay un trabajador seleccionado, y el costo de procesamiento del pago no se reembolsa nunca: la pasarela ya lo cobró." /></span></li>
               <li className="flex items-start gap-2"><span className="mt-0.5">📋</span> <span><Trans i18nKey="jobPayment.tip4" components={{ b: <strong /> }} defaults="Describí el trabajo con <b>la mayor cantidad de detalle posible</b>: materiales necesarios, acceso al lugar, horario exacto. Evita malentendidos." /></span></li>
               <li className="flex items-start gap-2"><span className="mt-0.5">💬</span> <span><Trans i18nKey="jobPayment.tip5" components={{ b: <strong /> }} defaults="Toda comunicación y negociación de precio debe hacerse <b>dentro de la plataforma</b> para estar protegido." /></span></li>
               <li className="flex items-start gap-2"><span className="mt-0.5">🛡️</span> <span><Trans i18nKey="jobPayment.tip6" components={{ b: <strong /> }} defaults="Si el trabajo no se completa correctamente, podés abrir una <b>disputa</b> y el dinero queda retenido en escrow hasta resolverse." /></span></li>

@@ -441,9 +441,9 @@ router.put(
       /**
        * La plata. Rechazar una publicación pagada la dejaba en "cancelled" con
        * el dinero en escrow para siempre; aprobar la cancelación del cliente
-       * no existía. Los dos casos son T&C 9.1 si nunca se aprobó: vuelve todo
-       * menos la pasarela. Si ya estaba aprobada y el admin la da de baja,
-       * rige 9.2/9.3.
+       * no existía. Los dos casos son T&C 9.1 si nunca se aprobó: vuelve
+       * precio y comisión como saldo (el procesamiento ya se fue a la
+       * pasarela). Si ya estaba aprobada y el admin la da de baja, rige 9.2/9.3.
        */
       let liquidacion: any = null;
       let mensajeDeCancelacion: (liq: any) => string = () => '';

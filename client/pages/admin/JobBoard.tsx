@@ -43,7 +43,7 @@ const ESTADOS: Record<string, { rotulo: string; ayuda: string; clase: string }> 
   cancelacion_pendiente: {
     rotulo: 'Pidió cancelar',
     ayuda:
-      'El cliente pidió cancelar mientras la publicación esperaba aprobación. Salió de la cola de aprobar. Si aprobás la cancelación, todo lo que pagó vuelve a su saldo a favor (comisión incluida) para republicar sin costo; solo si retira ese saldo a su banco se le descuentan la mitad de la comisión y la pasarela (T&C 9.1). Pasa por una persona porque devuelve comisión.',
+      'El cliente pidió cancelar mientras la publicación esperaba aprobación. Salió de la cola de aprobar. Si aprobás la cancelación, precio y comisión vuelven a su saldo a favor para republicar sin costo; solo si retira ese saldo a su banco se le descuenta la mitad de la comisión (T&C 9.1). El costo de procesamiento no vuelve: ya se lo llevó la pasarela. Pasa por una persona porque devuelve comisión.',
     clase: 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200',
   },
   pagada_fantasma: {
@@ -122,12 +122,12 @@ export default function JobBoard() {
   const [accionando, setAccionando] = useState<string | null>(null);
 
   /**
-   * Aprobar el pedido de cancelación del cliente. El servidor liquida (todo
-   * como saldo; media comisión y pasarela solo si lo retira, T&C 9.1) y le
-   * avisa al cliente con su número.
+   * Aprobar el pedido de cancelación del cliente. El servidor liquida (precio
+   * y comisión como saldo; media comisión solo si lo retira, T&C 9.1; el
+   * procesamiento no vuelve) y le avisa al cliente con su número.
    */
   const aprobarCancelacion = async (f: Fila) => {
-    if (!window.confirm(`Aprobar la cancelación de "${f.titulo}"? Todo lo que pagó vuelve a su saldo a favor; si lo retira al banco se le descuentan media comisión y la pasarela.`)) return;
+    if (!window.confirm(`Aprobar la cancelación de "${f.titulo}"? Precio y comisión vuelven a su saldo a favor; si lo retira al banco se le descuenta media comisión. El costo de procesamiento no se devuelve.`)) return;
     setAccionando(f.id);
     try {
       const res = await fetch(`/api/admin/jobs/${f.id}/status`, {
@@ -139,7 +139,7 @@ export default function JobBoard() {
       if (!res.ok || !data.success) throw new Error(data.message || 'No se pudo aprobar la cancelación');
       const liq = data.liquidacion;
       if (liq) {
-        window.alert(`Cancelación aprobada. Al cliente se le acreditaron $${Number(liq.aCliente).toLocaleString('es-AR')} de saldo. Si los retira al banco se le descuentan $${Number((liq.alRetirar?.comision || 0) + (liq.alRetirar?.pasarela || 0)).toLocaleString('es-AR')}.`);
+        window.alert(`Cancelación aprobada. Al cliente se le acreditaron $${Number(liq.aCliente).toLocaleString('es-AR')} de saldo. Si los retira al banco se le descuentan $${Number(liq.alRetirar?.comision || 0).toLocaleString('es-AR')} de la comisión.${Number(liq.procesamientoNoVuelve || 0) > 0 ? ` El procesamiento ($${Number(liq.procesamientoNoVuelve).toLocaleString('es-AR')}) no vuelve.` : ''}`);
       }
       setFilas((prev) => prev.filter((x) => x.id !== f.id));
     } catch (e: any) {

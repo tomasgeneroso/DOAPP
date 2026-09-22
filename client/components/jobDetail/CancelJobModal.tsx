@@ -60,7 +60,7 @@ export default function CancelJobModal({
               <p className="text-sm text-emerald-200">
                 {t(
                   "jobs.cancelNoWorker",
-                  "Todavía no hay un trabajador seleccionado, así que todo lo que pagaste vuelve a tu saldo a favor, comisión incluida. Con ese saldo podés volver a publicar sin pagar de nuevo. Si en cambio lo retirás a tu banco, se descuentan la mitad de la comisión por la revisión ya hecha y el costo de la pasarela.",
+                  "Todavía no hay un trabajador seleccionado, así que el precio y la comisión vuelven a tu saldo a favor. Con ese saldo podés volver a publicar sin pagar de nuevo. Si en cambio lo retirás a tu banco, se descuenta la mitad de la comisión por la revisión ya hecha. El costo de procesamiento del pago no se devuelve: la pasarela ya lo cobró.",
                 )}
               </p>
             </div>

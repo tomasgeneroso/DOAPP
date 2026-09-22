@@ -242,7 +242,7 @@ export default function ReclamoDirectoPanel({
                 placeholderTextColor={colors.slate[400]}
               />
               {precio > 0 && Number(monto) > 0 && Number(monto) < precio ? (
-                <Text style={styles.ayuda}>El trabajador cobraría {$(precio - Number(monto))} menos el costo de pasarela.</Text>
+                <Text style={styles.ayuda}>El trabajador cobraría {$(precio - Number(monto))}.</Text>
               ) : null}
             </>
           )}

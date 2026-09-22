@@ -208,8 +208,8 @@ export default function RefundModal({ abierto, onCerrar, onListo, pago }: Props)
                 </span>
                 <span className="block text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Van a quedar {pesos(disponible - importe)} sin devolver, retenidos a propósito —
-                  el costo de pasarela en una cancelación, o la parte del trabajador en una disputa
-                  resuelta a medias. Marcado, no se van a poder devolver después.
+                  la comisión y el costo de procesamiento en una cancelación, o la parte del trabajador
+                  en una disputa resuelta a medias. Marcado, no se van a poder devolver después.
                 </span>
               </span>
             </label>

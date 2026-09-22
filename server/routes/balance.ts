@@ -8,7 +8,6 @@ import { Contract } from "../models/sql/Contract.model.js";
 import { Payment } from "../models/sql/Payment.model.js";
 import { Op } from 'sequelize';
 import { sequelize } from '../config/database.js';
-import { getProcessingFeeRate } from '../../shared/pricing/processingCost.js';
 
 const router = express.Router();
 
@@ -226,15 +225,14 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
     // ============================================
     // LO QUE SE RETIENE AL RETIRAR SALDO DEVUELTO
     // ============================================
-    // El saldo que no se gano trabajando -- una cotizacion menor al precio, una
-    // publicacion cancelada -- es plata que el cliente pago y que vuelve.
-    // Dentro de la app se usa gratis. Sacarla a un CBU tiene dos costos que
-    // no puede absorber DOAPP: la pasarela que ya cobro Mercado Pago al entrar,
-    // y, si la publicacion se cancelo sin trabajador, la mitad de la comision
-    // por la revision que ya se hizo (T&C 9.1 / 9.2). Cada credito de
-    // devolucion trae anotado en su metadata (`alRetirar`) cuanto le toca; los
-    // creditos anteriores a esa anotacion pagan la pasarela con la tarifa
-    // configurada, como siempre.
+    // El saldo que no se gano trabajando -- una publicacion cancelada sin
+    // trabajador -- es plata que el cliente pago y que vuelve, comision
+    // incluida. Dentro de la app se usa gratis. Sacarla a un CBU descuenta la
+    // mitad de esa comision, por la revision que ya se hizo (T&C 9.1). Cada
+    // credito de devolucion trae anotado en su metadata (`alRetirar`) cuanto
+    // le toca. Transferir a un CBU no tiene costo de pasarela: el costo de
+    // procesamiento lo pago el cliente al pagar, una sola vez. (Los creditos
+    // anteriores a ese cambio pueden traer `alRetirar.pasarela`; se respeta.)
     //
     // El retiro es todo o nada, asi que vacia el saldo: los creditos posteriores
     // al ultimo retiro son exactamente la porcion devuelta del saldo actual. Si
@@ -260,12 +258,8 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
       const monto = Number((d as any).amount) || 0;
       creditosDevueltos += monto;
       const meta: any = (d as any).metadata || {};
-      if (meta.alRetirar) {
-        retencionComision += Number(meta.alRetirar.comision) || 0;
-        retencionPasarela += Number(meta.alRetirar.pasarela) || 0;
-      } else {
-        retencionPasarela += monto * getProcessingFeeRate();
-      }
+      retencionComision += Number(meta.alRetirar?.comision) || 0;
+      retencionPasarela += Number(meta.alRetirar?.pasarela) || 0;
     }
 
     // No puede superar el saldo: si el usuario ya gasto parte del credito dentro
@@ -281,12 +275,13 @@ router.post("/withdraw", protect, requireKyc, async (req: AuthRequest, res: Resp
         success: false,
         requiereConfirmacion: true,
         message:
-          `De tu saldo, $${porcionDevuelta.toLocaleString('es-AR')} son devoluciones (publicaciones canceladas o ` +
-          `cotizaciones menores al precio). Dentro de la app los usás sin costo. Transferirlos al banco descuenta ` +
-          (costoComision > 0
-            ? `$${costoComision.toLocaleString('es-AR')} de la comisión por la revisión que ya se hizo y `
-            : '') +
-          `$${costoPasarela.toLocaleString('es-AR')} del costo de la pasarela de pago. Recibirías $${(amount - retencion).toLocaleString('es-AR')}.`,
+          `De tu saldo, $${porcionDevuelta.toLocaleString('es-AR')} son devoluciones de publicaciones canceladas. ` +
+          `Dentro de la app los usás sin costo. Transferirlos al banco descuenta ` +
+          [
+            costoComision > 0 ? `$${costoComision.toLocaleString('es-AR')} de la comisión por la revisión que ya se hizo` : '',
+            costoPasarela > 0 ? `$${costoPasarela.toLocaleString('es-AR')} del costo de la pasarela de pago` : '',
+          ].filter(Boolean).join(' y ') +
+          `. Recibirías $${(amount - retencion).toLocaleString('es-AR')}.`,
         detalle: {
           saldoTotal: amount,
           porcionDevuelta,

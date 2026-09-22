@@ -1,27 +1,30 @@
-import { IVA, getProcessingFeeRate } from './processingCost.js';
+import { IVA, getProcessingFeeRate, splitFees } from './processingCost.js';
 
 /**
  * Que le queda a DOAPP de una operacion, despues de la pasarela y de los
  * impuestos. Es la cuenta que responde "¿la comision cubre IVA, IIBB y
  * retenciones?" con numeros, para cada operacion y para el piso.
  *
- * Los cuatro cargos que hay, y de que lado caen:
+ * Los cargos que hay, y de que lado caen:
  *
- *   Tarifa de MP (sin IVA)       la absorbe quien recibe la plata (trabajador,
- *                                o cliente si retira). Para DOAPP es cero.
- *   IVA de la tarifa de MP       MP se lo factura a DOAPP; DOAPP lo toma como
- *                                credito contra el IVA de su comision. Cero.
- *   IVA de la comision           DOAPP lo cobra al cliente y lo debe a ARCA.
- *                                Entra y sale: no es ingreso ni costo.
- *   Ingresos Brutos              DOS cosas distintas:
- *     - el impuesto PROPIO: alicuota sobre la comision (el ingreso real).
- *       Es un costo de DOAPP.
- *     - la RETENCION: MP retiene un % sobre el TOTAL acreditado (precio +
- *       comision + IVA), en cada pago. No es un impuesto sobre ese total, es
- *       un pago a cuenta del propio. Lo que excede al propio queda como
- *       credito fiscal. Si ese credito se puede usar, cuesta cero; si no,
- *       es plata parada, y con mucho dinero ajeno pasando por la cuenta se
- *       acumula mas rapido de lo que se consume.
+ *   Procesamiento cobrado al cliente   entra como ingreso de DOAPP y sale
+ *                                      como tarifa de MP. A la tasa de
+ *                                      credito queda en cero; con medios mas
+ *                                      baratos deja una diferencia a favor.
+ *   Tarifa real de MP (sin IVA)        costo de DOAPP, cubierto por lo anterior.
+ *   IVA de la tarifa de MP             MP se lo factura a DOAPP; credito
+ *                                      contra el IVA que DOAPP cobro.
+ *   IVA de comision + procesamiento    DOAPP lo cobra al cliente y lo debe.
+ *                                      Menos el credito, gira el IVA de la
+ *                                      comision. Entra y sale.
+ *   Ingresos Brutos                    DOS cosas distintas:
+ *     - el impuesto PROPIO: alicuota sobre el ingreso real (comision +
+ *       diferencia de procesamiento). Es un costo de DOAPP.
+ *     - la RETENCION: MP retiene un % sobre el TOTAL acreditado en cada pago.
+ *       No es un impuesto sobre ese total, es un pago a cuenta del propio.
+ *       Lo que excede al propio queda como credito fiscal. Si ese credito se
+ *       puede usar, cuesta cero; si no, es plata parada, y con mucho dinero
+ *       ajeno pasando por la cuenta se acumula mas rapido de lo que se consume.
  *
  * Las alicuotas son de cada empresa (padron, jurisdiccion) y cambian: se leen
  * del entorno. Los defaults son el PEOR caso (no inscripto: 3% de retencion;
@@ -30,18 +33,24 @@ import { IVA, getProcessingFeeRate } from './processingCost.js';
  */
 
 export interface CostosDeOperacion {
-  /** Lo que cobro el cliente y entro a MP. */
+  /** Lo que pago el cliente y entro a MP, procesamiento incluido. */
   totalCobrado: number;
-  /** Ingreso de DOAPP: la comision, sin IVA. */
+  /** Comision de DOAPP, sin IVA. */
+  comision: number;
+  /** Procesamiento cobrado al cliente, sin IVA. */
+  procesamientoCobrado: number;
+  /** Tarifa real de MP sobre el total, sin IVA. */
+  pasarela: number;
+  /** procesamientoCobrado - pasarela: cero a la tasa de credito, positivo con medios mas baratos. */
+  diferenciaProcesamiento: number;
+  /** Ingreso real de DOAPP: comision + diferencia de procesamiento. */
   ingreso: number;
-  /** IVA que DOAPP cobro al cliente sobre la comision. Lo debe. */
+  /** IVA que DOAPP cobro al cliente (comision + procesamiento). Lo debe. */
   ivaDebito: number;
   /** IVA que MP le facturo a DOAPP sobre su tarifa. Lo descuenta. */
   ivaCredito: number;
   /** Lo que DOAPP gira de IVA: debito - credito (nunca negativo aca; el resto queda a favor). */
   ivaAPagar: number;
-  /** Tarifa de MP sin IVA. La absorbe otro, se muestra para completar la cuenta. */
-  pasarela: number;
   /** IIBB propio: alicuota x ingreso. Costo real. */
   iibbPropio: number;
   /** Lo que MP retiene a cuenta sobre el total acreditado. */
@@ -76,6 +85,9 @@ export function costosDeOperacion(args: {
   precio: number;
   comision: number;
   iva?: number;
+  /** Tasa de procesamiento cobrada al cliente. Por defecto la configurada. */
+  rateCobrada?: number;
+  /** Tarifa real que cobro MP por el medio usado. Por defecto la misma que la cobrada. */
   ratePasarela?: number;
   retencionIIBB?: number;
   iibbPropio?: number;
@@ -83,30 +95,39 @@ export function costosDeOperacion(args: {
   const precio = Math.max(0, Number(args.precio) || 0);
   const comision = Math.max(0, Number(args.comision) || 0);
   const iva = args.iva != null ? Math.max(0, Number(args.iva) || 0) : r2(comision * IVA);
-  const rate = args.ratePasarela ?? getProcessingFeeRate();
+  const rateCobrada = args.rateCobrada ?? getProcessingFeeRate();
+  const ratePasarela = args.ratePasarela ?? rateCobrada;
   const retencion = args.retencionIIBB ?? alicuotaRetencionIIBB();
   const propio = args.iibbPropio ?? alicuotaIIBBPropia();
 
-  const totalCobrado = r2(precio + comision + iva);
-  const pasarela = r2(totalCobrado * rate);
+  const s = splitFees(precio, comision, iva, rateCobrada);
+  const totalCobrado = s.clientPays;
+  const procesamientoCobrado = s.processingCharge;
+  const pasarela = r2(totalCobrado * ratePasarela);
+  const diferenciaProcesamiento = r2(procesamientoCobrado - pasarela);
+  const ingreso = r2(comision + diferenciaProcesamiento);
+
+  const ivaDebito = s.totalVat;
   const ivaCredito = r2(pasarela * IVA);
-  const ivaDebito = iva;
   const ivaAPagar = r2(Math.max(0, ivaDebito - ivaCredito));
-  const iibbPropio = r2(comision * propio);
+  const iibbPropio = r2(Math.max(0, ingreso) * propio);
   const iibbRetenido = r2(totalCobrado * retencion);
   const iibbCreditoExcedente = r2(Math.max(0, iibbRetenido - iibbPropio));
 
   return {
     totalCobrado,
-    ingreso: comision,
+    comision,
+    procesamientoCobrado,
+    pasarela,
+    diferenciaProcesamiento,
+    ingreso,
     ivaDebito,
     ivaCredito,
     ivaAPagar,
-    pasarela,
     iibbPropio,
     iibbRetenido,
     iibbCreditoExcedente,
-    margenSiCreditoSeUsa: r2(comision - iibbPropio),
-    margenSiCreditoSePierde: r2(comision - Math.max(iibbPropio, iibbRetenido)),
+    margenSiCreditoSeUsa: r2(ingreso - iibbPropio),
+    margenSiCreditoSePierde: r2(ingreso - Math.max(iibbPropio, iibbRetenido)),
   };
 }

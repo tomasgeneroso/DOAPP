@@ -19,12 +19,12 @@ import { COMMISSION_RATES } from '../../../shared/constants/membershipPricing.js
  *
  * Lo que se verifica no es que los numeros sean unos numeros particulares, sino
  * que la CUENTA CIERRE: que lo que paga el cliente sea exactamente lo que se
- * reparten la pasarela, el trabajador y la plataforma. Esa invariante tiene que
- * valer en las dos fases y en cualquier precio.
+ * reparten la pasarela (tarifa + su IVA), el trabajador y la plataforma. Esa
+ * invariante tiene que valer en las dos fases y en cualquier precio.
  */
 
 const TICKETS = [5000, 20000, 40000, 100000, 300000];
-const FEE_RATE = 0.0531; // liberacion a 10 dias
+const FEE_RATE = 0.0419; // tarjeta de credito, liberacion a 10 dias, sin IVA
 
 let userId: string;
 let faseOriginal: 'beta' | 'live';
@@ -67,22 +67,22 @@ describe('la cuenta cierra en las dos fases', () => {
         const s = splitFees(precio, c.commission, c.vat, FEE_RATE);
 
         // La invariante: nada se pierde ni aparece de la nada.
-        const repartido = s.processingCost + s.workerReceives + s.platformKeeps;
+        const repartido = s.processingCost + s.processingCostVat + s.workerReceives + s.platformKeeps;
         expect(Math.abs(s.clientPays - repartido)).toBeLessThan(0.05);
       });
 
-      it('el trabajador nunca recibe un monto negativo', async () => {
+      it('el trabajador recibe el precio entero', async () => {
         for (const precio of TICKETS) {
           const c = await calculateCommission(userId, precio);
           const s = splitFees(precio, c.commission, c.vat, FEE_RATE);
-          expect(s.workerReceives).toBeGreaterThanOrEqual(0);
+          expect(s.workerReceives).toBe(precio);
         }
       });
 
-      it('a la plataforma le queda exactamente comision + IVA', async () => {
+      it('a la plataforma le queda comision + IVA: el procesamiento cobrado cubre la tarifa de MP', async () => {
         const c = await calculateCommission(userId, 40000);
         const s = splitFees(40000, c.commission, c.vat, FEE_RATE);
-        expect(s.platformKeeps).toBeCloseTo(c.commission + c.vat, 2);
+        expect(s.platformKeeps).toBeCloseTo(c.commission + c.vat, 0);
       });
     });
   }
@@ -96,13 +96,15 @@ describe('lo que cambia entre una fase y la otra', () => {
     expect(c.vat).toBe(0);
   });
 
-  it('en beta el cliente paga exactamente el precio del trabajo', async () => {
+  it('en beta el cliente paga el precio del trabajo mas el procesamiento, y nada mas', async () => {
     await enFase('beta');
     const c = await calculateCommission(userId, 40000);
     const s = splitFees(40000, c.commission, c.vat, FEE_RATE);
-    expect(s.clientPays).toBe(40000);
-    // Y la plataforma no gana nada, que es lo correcto sin comision.
-    expect(s.platformKeeps).toBe(0);
+    expect(s.commission).toBe(0);
+    expect(s.clientPays).toBeCloseTo(40000 + s.processingCharge + s.processingVat, 2);
+    // Y la plataforma no gana nada, que es lo correcto sin comision: el
+    // procesamiento entra y sale.
+    expect(s.platformKeeps).toBeCloseTo(0, 0);
   });
 
   it('en estable un usuario FREE paga la comision del plan', async () => {
@@ -133,11 +135,10 @@ describe('lo que cambia entre una fase y la otra', () => {
     await User.destroy({ where: { id: conGratis.id } });
   });
 
-  it('el trabajador cobra menos en beta que en estable, y no al reves', async () => {
-    // Suena contraintuitivo y es correcto: en beta el cliente paga sólo el
-    // trabajo, así que la pasarela se calcula sobre una base más chica... pero
-    // el trabajador igual absorbe ese costo. Lo que cambia es cuánto paga el
-    // cliente, no quién absorbe qué.
+  it('el trabajador cobra lo mismo en beta que en estable: el precio', async () => {
+    // Lo que cambia entre fases es cuánto paga el cliente (en estable está la
+    // comisión), no lo que recibe el trabajador. Antes el trabajador absorbía
+    // la pasarela y cobraba distinto según la fase y el medio de pago.
     await enFase('beta');
     const beta = await calculateCommission(userId, 40000);
     const sBeta = splitFees(40000, beta.commission, beta.vat, FEE_RATE);
@@ -146,21 +147,19 @@ describe('lo que cambia entre una fase y la otra', () => {
     const live = await calculateCommission(userId, 40000);
     const sLive = splitFees(40000, live.commission, live.vat, FEE_RATE);
 
-    // El cliente paga más en estable: ahí está la comisión.
     expect(sLive.clientPays).toBeGreaterThan(sBeta.clientPays);
-    // El trabajador recibe menos en estable porque la pasarela se calcula sobre
-    // un total mayor. Es chico, pero conviene tenerlo medido y no descubrirlo.
-    expect(sLive.workerReceives).toBeLessThan(sBeta.workerReceives);
+    expect(sLive.workerReceives).toBe(sBeta.workerReceives);
+    expect(sLive.workerReceives).toBe(40000);
   });
 });
 
 describe('el minimo de trabajo protege el borde', () => {
-  it('en el minimo, al trabajador le queda mas de lo que se descuenta', async () => {
+  it('en el minimo, lo que paga el cliente por encima del precio es menos que el precio', async () => {
     await enFase('live');
     const c = await calculateCommission(userId, 5000);
     const s = splitFees(5000, c.commission, c.vat, FEE_RATE);
 
-    const descontado = c.commission + c.vat + s.processingCost;
-    expect(s.workerReceives).toBeGreaterThan(descontado);
+    const cargos = s.clientPays - s.jobPrice;
+    expect(cargos).toBeLessThan(s.jobPrice);
   });
 });

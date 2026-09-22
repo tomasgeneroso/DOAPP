@@ -44,8 +44,8 @@ export const MANUAL: EntradaManual[] = [
     claves: ["dinero", "plata", "cancelación", "reembolso", "devolución", "escrow", "comisión", "pasarela", "contracargo", "saldo"],
     cuerpo: [
       "Es la página de referencia: las siete fases de una publicación con un mismo ejemplo numérico, quién se lleva cada peso y qué tiene que hacer el admin en cada caso.",
-      "Tres cosas no cambian nunca: <b>el cliente nunca paga la pasarela</b> y DOAPP tampoco (la paga quien recibe el dinero, y solo cuando lo recibe en efectivo); <b>la comisión se retiene en el acto solo si hubo un trabajador seleccionado</b>; y <b>lo que vuelve al cliente por una cancelación va a su saldo a favor</b>, con el que puede republicar sin pagar de nuevo.",
-      "El IVA de la tarifa de Mercado Pago no se le traslada a nadie: es crédito fiscal de DOAPP. Al trabajador se le descuenta la tarifa sin IVA.",
+      "Cuatro cosas no cambian nunca: <b>el cliente paga el costo de procesamiento del pago</b> al pagar, con una tasa única igual para todos los medios, y <b>ese costo no se devuelve en ningún caso</b> (la pasarela ya lo cobró); <b>el trabajador recibe el precio entero</b>, sin descuentos; <b>la comisión se retiene en el acto solo si hubo un trabajador seleccionado</b>; y <b>lo que vuelve al cliente por una cancelación va a su saldo a favor</b>, con el que puede republicar sin pagar de nuevo. Retirar saldo a un CBU no tiene costo de pasarela.",
+      "El IVA: DOAPP factura con IVA la comisión y el procesamiento; el IVA que Mercado Pago le cobra a DOAPP sobre su tarifa es crédito fiscal y compensa el del procesamiento. A DOAPP le queda la comisión, limpia.",
     ],
     links: [{ texto: "Abrir la página completa", href: "https://claude.ai/artifact/NiuAeCNy4vzu4164CF5HFN", externo: true }],
   },
@@ -85,7 +85,7 @@ export const MANUAL: EntradaManual[] = [
     cuerpo: [
       "El tablero ordena por lo que está trabado, no por fecha. Primero «Pidió cancelar», después «Pagada fantasma» (pagó y nadie la atiende).",
       "<b>Rechazar exige motivo</b> (10 caracteres o más). El cliente lo lee tal cual, así que escribilo como para que pueda corregir y volver a publicar.",
-      "Rechazar y aprobar una cancelación liquidan igual: sin trabajador seleccionado, todo lo que pagó vuelve a su saldo a favor, comisión incluida. Solo si retira ese saldo al banco se le descuentan media comisión y la pasarela.",
+      "Rechazar y aprobar una cancelación liquidan igual: sin trabajador seleccionado, precio y comisión vuelven a su saldo a favor. Solo si retira ese saldo al banco se le descuenta media comisión. El costo de procesamiento del pago no vuelve: ya se lo llevó la pasarela, y el mensaje al cliente lo dice.",
       "No se puede aprobar una publicación cuyo dueño ya pidió cancelar: el panel rebota. Si querés publicarla igual, hablá con el cliente primero.",
     ],
   },
@@ -97,7 +97,7 @@ export const MANUAL: EntradaManual[] = [
     claves: ["trabajador", "no puede", "se baja", "abandona", "escalera", "penalidad", "republicar"],
     cuerpo: [
       "El trabajador avisa desde el contrato que no puede (antes de empezar o en curso). El aviso queda registrado como solicitud de cancelación suya: es lo que hace correr la <b>escalera</b> (aviso → marca visible 90 días → 7 días sin postularse → 14) y lo que le permite al cliente decidir.",
-      "El cliente elige entre tres salidas, desde el contrato: <b>dejarla publicada</b> con la plata que ya está (otro trabajador la toma por el mismo precio, sin pagar de nuevo); <b>republicarla por menos</b> (la diferencia a su saldo); o <b>pasar el precio a su saldo a favor</b>. En las tres la comisión de publicación se retiene: ya hubo un trabajador seleccionado (T&C 7.5). La pasarela se descuenta solo si retira el saldo al banco.",
+      "El cliente elige entre tres salidas, desde el contrato: <b>dejarla publicada</b> con la plata que ya está (otro trabajador la toma por el mismo precio, sin pagar de nuevo); <b>republicarla por menos</b> (la diferencia a su saldo); o <b>pasar el precio a su saldo a favor</b>. En las tres la comisión de publicación se retiene: ya hubo un trabajador seleccionado (T&C 7.5). Retirar el saldo al banco no tiene costo.",
       "<b>Sin aviso registrado el cliente no puede usar este camino.</b> Si lo intenta, el sistema le dice que le pida al trabajador que avise por la app, o que use la cancelación normal (que es suya, con sus reglas de 24 h). Es lo que impide que un cliente cancele por su cuenta y le cargue la penalidad al otro.",
       "Un trabajo ya entregado (esperando confirmación o completado) no pasa por acá: hay trabajo hecho que valorar y eso es un reclamo.",
     ],
@@ -111,7 +111,7 @@ export const MANUAL: EntradaManual[] = [
     cuerpo: [
       `El día de pago es el <b>máximo</b> entre dos relojes: contrato completado + ${POLITICAS.DIAS_PARA_DISPUTAR} días de reclamo, y pago del cliente + los días que Mercado Pago retiene (10 con tarjeta de crédito). El panel ya lo calcula y lo muestra.`,
       "Antes de esa fecha, «marcar pagado» devuelve 409. Se puede forzar con justificación de 15 caracteres o más, y queda en el libro con severidad alta. Forzar es para casos raros, no para apurar.",
-      "<b>Transferí el monto que muestra el panel</b>, no lo recalcules: ya descuenta la pasarela real del pago y lo que se haya devuelto en una disputa parcial. Subí el comprobante antes de marcar pagado.",
+      "<b>Transferí el monto que muestra el panel</b>, no lo recalcules: es el precio del trabajo (su parte, si hay varios trabajadores) menos lo que se haya devuelto en una disputa parcial. Ni la comisión ni la pasarela se le descuentan: las pagó el cliente. Subí el comprobante antes de marcar pagado.",
       "Es el único movimiento irreversible de todo el circuito. Si hay una disputa abierta, el ledger bloquea el pago solo.",
     ],
   },
@@ -147,8 +147,8 @@ export const MANUAL: EntradaManual[] = [
     resumen: "Qué se descuenta al sacar plata de la plataforma y por qué.",
     claves: ["retiro", "cbu", "saldo", "transferencia", "withdrawal"],
     cuerpo: [
-      "Usar el saldo dentro de la app no cuesta nada. Sacarlo a un CBU sí: se le descuenta la pasarela que se cobró al entrar y, si la publicación se canceló sin trabajador, la mitad de la comisión.",
-      "El usuario ve los dos números antes de confirmar. Si no acepta, el saldo queda disponible sin vencimiento.",
+      "Usar el saldo dentro de la app no cuesta nada, y sacarlo a un CBU tampoco: el costo de procesamiento lo pagó el cliente al pagar. Lo único que se descuenta al retirar es la mitad de la comisión cuando el saldo viene de una publicación cancelada sin trabajador (T&C 9.1).",
+      "El usuario ve el número antes de confirmar. Si no acepta, el saldo queda disponible sin vencimiento.",
       "Cambiar el CBU activa un enfriamiento: es la única protección contra una cuenta tomada. No lo saltees.",
     ],
   },

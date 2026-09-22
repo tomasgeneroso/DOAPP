@@ -48,12 +48,12 @@ describe('saldos: acreditar, debitar, liquidar y auditar', () => {
     (await BalanceTransaction.findAll({ where: { userId: id, status: 'completed' } as any })).reduce((s, a: any) => s + Number(a.amount), 0);
 
   it('acreditar deja saldo y asiento iguales, con la metadata para el retiro', async () => {
-    await acreditarSaldo(String(cliente.id), 1000, 'prueba', { metadata: { origen: 'cancelacion', alRetirar: { comision: 100, pasarela: 42 } } });
+    await acreditarSaldo(String(cliente.id), 1000, 'prueba', { metadata: { origen: 'cancelacion', alRetirar: { comision: 100 } } });
     expect(await saldoDe(cliente.id)).toBe(1000);
     expect(await libroDe(cliente.id)).toBe(1000);
     const asiento: any = await BalanceTransaction.findOne({ where: { userId: cliente.id } as any, order: [['createdAt', 'DESC']] });
     expect(asiento.type).toBe('refund');
-    expect(asiento.metadata.alRetirar).toEqual({ comision: 100, pasarela: 42 });
+    expect(asiento.metadata.alRetirar).toEqual({ comision: 100 });
   });
 
   it('debitar baja el saldo con asiento negativo, y no deja pasar mas de lo que hay', async () => {
@@ -64,17 +64,20 @@ describe('saldos: acreditar, debitar, liquidar y auditar', () => {
     expect(await saldoDe(cliente.id)).toBe(600);
   });
 
-  it('cancelar una publicacion pagada sin trabajador devuelve TODO como saldo y anota que retener al retirar', async () => {
+  it('cancelar una publicacion pagada sin trabajador devuelve precio + comision como saldo y anota que retener al retirar', async () => {
+    // El cliente pago 42.511,27: precio 36.000 + comision 3.600 + IVA 756 +
+    // procesamiento 1.781,22 + su IVA 374,05. El procesamiento no vuelve.
     const pago: any = await Payment.create({
       payerId: cliente.id,
       recipientId: cliente.id,
-      amount: 40356,
-      amountArs: 40356,
+      amount: 42511.27,
+      amountArs: 42511.27,
       currency: 'ARS',
       status: 'held_escrow',
       paymentType: 'job_publication',
       platformFee: 3600,
-      processingFee: 2046, // lo que MP descuenta, con IVA
+      processingCharge: 1781.22,
+      processingFee: 2155.28, // lo que MP descuenta de verdad, con IVA
     } as any);
     const job: any = await Job.create({
       title: 'Arreglo de canilla',
@@ -109,16 +112,17 @@ describe('saldos: acreditar, debitar, liquidar y auditar', () => {
     });
 
     expect(liq.regla).toBe('sin_trabajador');
-    expect(liq.aCliente).toBe(40356);
-    expect(await saldoDe(cliente.id)).toBe(antes + 40356);
+    // Precio + comision + IVA. El procesamiento (2.155,28 con IVA) ya se fue a la pasarela.
+    expect(liq.aCliente).toBeCloseTo(40356, 0);
+    expect(liq.procesamientoNoVuelve).toBeCloseTo(2155.28, 1);
+    expect(await saldoDe(cliente.id)).toBeCloseTo(antes + 40356, 0);
     expect(await libroDe(cliente.id)).toBe(await saldoDe(cliente.id));
 
     const asiento: any = await BalanceTransaction.findOne({ where: { userId: cliente.id, type: 'refund' } as any, order: [['createdAt', 'DESC']] });
     expect(asiento.metadata.jobId).toBe(String(job.id));
     expect(asiento).toBeTruthy();
-    // La pasarela pendiente es la REAL del pago, sin IVA: 2046 / 1.21 = 1690.91
-    expect(asiento.metadata.alRetirar.pasarela).toBeCloseTo(1690.91, 1);
-    // Media comision con su IVA: (3600 + 756) / 2
+    // Retirar a un CBU no tiene costo de pasarela: solo la media comision con su IVA, (3600 + 756) / 2.
+    expect(asiento.metadata.alRetirar.pasarela).toBeUndefined();
     expect(asiento.metadata.alRetirar.comision).toBeCloseTo(2178, 0);
   });
 

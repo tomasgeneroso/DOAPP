@@ -1,21 +1,20 @@
 import { useEffect, useState } from 'react';
 import { Info, Loader2 } from 'lucide-react';
-import PaymentPaths, { CaminoDePagoDto } from '@/components/payments/PaymentPaths';
 
 /**
- * Las dos cifras que el trabajador necesita ver antes de postularse.
+ * Lo que el trabajador necesita ver antes de postularse: cuánto cobra.
  *
- * El precio publicado es lo que ofrece el cliente; lo que el trabajador cobra
- * es eso menos el costo de la pasarela, que corre por su lado. Mostrar sólo el
- * bruto lo lleva a cotizar sobre un número que no va a recibir, y a reclamar
- * cuando le llega menos. Mostrar sólo el neto es peor: no entiende de dónde
- * sale ni contra qué comparar.
+ * Es el precio, entero. La comisión de DOAPP y el costo de procesamiento del
+ * pago los paga el cliente aparte, así que no hay nada que restar. Se dice
+ * explícitamente porque es lo que la gente espera que NO pase: que le
+ * descuenten algo al cobrar. Antes pasaba (el trabajador absorbía la pasarela
+ * y cobraba "entre X e Y según cómo pague el cliente"); ya no.
  *
- * Por eso van las dos, con el descuento explicado en el medio.
+ * El número sigue viniendo del servidor: es la misma cuenta que se cobra.
  */
 
 interface Props {
-  /** El trabajo del que se quiere saber. La comisión depende de su dueño. */
+  /** El trabajo del que se quiere saber. */
   jobId?: string;
   /** Alternativa cuando todavía no hay trabajo creado (una contraoferta). */
   price?: number;
@@ -25,11 +24,7 @@ interface Props {
 interface Quote {
   price: number;
   workerReceives: number;
-  processingCost: number;
-  processingRate: number;
   isBeta: boolean;
-  caminos?: CaminoDePagoDto[];
-  rangoTrabajador?: { min: number; max: number; varia: boolean };
 }
 
 const ars = (n: number) =>
@@ -65,7 +60,7 @@ export default function WorkerNetAmount({ jobId, price, className = '' }: Props)
     );
   }
 
-  // Sin presupuesto no se inventa un neto: se calla en vez de mostrar un número
+  // Sin presupuesto no se inventa un número: se calla en vez de mostrar uno
   // que después no coincide con la liquidación.
   if (!quote) return null;
 
@@ -74,47 +69,17 @@ export default function WorkerNetAmount({ jobId, price, className = '' }: Props)
       className={`rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-4 ${className}`}
     >
       <div className="flex items-baseline justify-between gap-3">
-        <span className="text-sm text-slate-600 dark:text-slate-400">El cliente ofrece</span>
-        <span className="text-base font-semibold text-slate-900 dark:text-white tabular-nums">
-          {ars(quote.price)}
-        </span>
-      </div>
-
-      {quote.processingCost > 0 && (
-        <div className="flex items-baseline justify-between gap-3 mt-1.5 text-sm text-slate-500 dark:text-slate-400">
-          <span>
-            Costo de la pasarela de pago
-            {quote.processingRate ? ` (${quote.processingRate}%)` : ''}
-          </span>
-          <span className="tabular-nums">−{ars(quote.processingCost)}</span>
-        </div>
-      )}
-
-      <div className="flex items-baseline justify-between gap-3 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
-        <span className="text-sm font-medium text-slate-900 dark:text-white">Vos recibís</span>
+        <span className="text-sm font-medium text-slate-900 dark:text-white">Vos cobrás</span>
         <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
-          {quote.rangoTrabajador?.varia
-            ? `${ars(quote.rangoTrabajador.min)} a ${ars(quote.rangoTrabajador.max)}`
-            : ars(quote.workerReceives)}
+          {ars(quote.workerReceives)}
         </span>
       </div>
 
       <p className="flex items-start gap-1.5 mt-2 text-xs text-slate-500 dark:text-slate-400">
         <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-        {quote.isBeta
-          ? 'Durante la beta DOAPP no cobra comisión. Sólo se descuenta lo que cobra la pasarela por transferirte el dinero.'
-          : 'La comisión de DOAPP la paga el cliente aparte. A vos sólo se te descuenta lo que cobra la pasarela por transferirte el dinero.'}
-        {quote.rangoTrabajador?.varia ? ' El número exacto depende de cómo pague el cliente; lo ves al confirmar.' : ''}
+        El precio completo, sin descuentos. La comisión de DOAPP y el costo de procesamiento del pago
+        los paga el cliente aparte; a vos no se te resta nada, pagues como pague el cliente.
       </p>
-
-      {quote.caminos && quote.caminos.length > 0 && (
-        <details className="mt-3">
-          <summary className="cursor-pointer text-xs font-medium text-sky-700 dark:text-sky-300">
-            Ver cómo cambia según el medio de pago del cliente
-          </summary>
-          <PaymentPaths caminos={quote.caminos} para="trabajador" className="mt-2" />
-        </details>
-      )}
     </div>
   );
 }

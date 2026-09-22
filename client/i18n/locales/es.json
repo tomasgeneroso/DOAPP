@@ -790,7 +790,7 @@
       "resume": "Reanudar trabajo",
       "cancel": "Cancelar trabajo",
       "contactSupport": "Contactar soporte",
-      "cantCancel": "Cancelación tardía: faltan menos de 24 h para el inicio y ya hay un trabajador seleccionado. La mitad del precio se le paga a él por el día que reservó (descontada su parte de la pasarela) y la otra mitad vuelve a tu saldo a favor. La comisión de publicación no se devuelve. Si retirás ese saldo a tu banco, se descuenta la parte de la pasarela que le corresponde.",
+      "cantCancel": "Cancelación tardía: faltan menos de 24 h para el inicio y ya hay un trabajador seleccionado. La mitad del precio se le paga a él por el día que reservó y la otra mitad vuelve a tu saldo a favor. La comisión de publicación y el costo de procesamiento del pago no se devuelven. Retirar ese saldo a tu banco no tiene costo.",
       "timeToCancel": "Tiempo restante para cancelar con devolución completa:",
       "publishedReceiving": "Este trabajo está publicado y recibiendo propuestas",
       "cancelAndRefund": "Cancelar y obtener reembolso",
@@ -1615,7 +1615,7 @@
     "whatIsBalance": "¿Qué es el saldo a favor?",
     "whatIsBalanceDesc": "Tu saldo a favor se genera cuando reducís el precio de un contrato o cuando recibís reembolsos. Podés usar este saldo para aumentar el precio de contratos futuros sin necesidad de realizar un nuevo pago.",
     "fastPayments": "Cuándo cobrás un trabajo",
-    "fastPaymentsDesc": "El pago de un trabajo se transfiere a tu cuenta una vez que pasan los {{dias}} días de reclamo desde que terminó y Mercado Pago libera el dinero del cliente. En cada contrato ves la fecha exacta. Lo que recibís es el precio menos el costo de la pasarela, que se te informa al postularte."
+    "fastPaymentsDesc": "El pago de un trabajo se transfiere a tu cuenta una vez que pasan los {{dias}} días de reclamo desde que terminó y Mercado Pago libera el dinero del cliente. En cada contrato ves la fecha exacta. Recibís el precio completo: la comisión y el costo de procesamiento los paga el cliente."
   },
   "profile": {
     "title": "Perfil",

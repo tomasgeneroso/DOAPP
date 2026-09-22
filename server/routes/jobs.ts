@@ -1579,7 +1579,6 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
           // asiento 'pending' sin tocar el saldo: el cliente veia una
           // devolucion que nunca llegaba y el libro no cerraba con el saldo.
           const { acreditarSaldo } = await import('../services/quotePayment.js');
-          const { getProcessingFeeRate } = await import('../../shared/pricing/processingCost.js');
           await acreditarSaldo(String(req.user.id), refundAmount, `Saldo a favor por reducción de presupuesto del trabajo "${job.title}"`, {
             relatedModel: 'Job',
             relatedId: job.id,
@@ -1588,7 +1587,8 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
               reason: 'price_decrease',
               oldPrice,
               newPrice,
-              alRetirar: { comision: 0, pasarela: Math.round(refundAmount * getProcessingFeeRate() * 100) / 100 },
+              // Retirarlo no cuesta: el procesamiento lo pago el cliente al pagar.
+              alRetirar: { comision: 0 },
             },
           });
 
@@ -2053,10 +2053,8 @@ router.patch("/:id/budget", protect, async (req: AuthRequest, res: Response): Pr
       const refundAmount = Math.abs(priceDifference);
 
       // Acreditar con asiento en el libro. Antes se tocaba balanceArs a secas:
-      // el saldo subia y ninguna transaccion lo explicaba, y el retiro no sabia
-      // que era una devolucion (con su pasarela pendiente).
+      // el saldo subia y ninguna transaccion lo explicaba.
       const { acreditarSaldo } = await import('../services/quotePayment.js');
-      const { getProcessingFeeRate } = await import('../../shared/pricing/processingCost.js');
       await acreditarSaldo(String(client.id), refundAmount, `Saldo a favor por bajar el precio de "${job.title}"`, {
         relatedModel: 'Job',
         relatedId: job.id,
@@ -2065,7 +2063,8 @@ router.patch("/:id/budget", protect, async (req: AuthRequest, res: Response): Pr
           reason: 'price_decrease',
           oldPrice: currentPrice,
           newPrice,
-          alRetirar: { comision: 0, pasarela: Math.round(refundAmount * getProcessingFeeRate() * 100) / 100 },
+          // Retirarlo no cuesta: el procesamiento lo pago el cliente al pagar.
+          alRetirar: { comision: 0 },
         },
       });
 
@@ -2111,24 +2110,24 @@ router.patch("/:id/budget", protect, async (req: AuthRequest, res: Response): Pr
 
     // CASO 2: El precio SUBE -> Usar balance disponible y cobrar lo que falta
     if (priceDifference > 0) {
-      // Calcular comisión usando el servicio centralizado basado en volumen
-      const commissionResult = await calculateCommission(client.id, priceDifference);
-      const commissionRate = commissionResult.rate;
-      const additionalCommission = commissionResult.commission;
-      const totalRequired = priceDifference + additionalCommission;
-
-      // Calcular cuánto se puede cubrir con el balance
-      const balanceToUse = Math.min(userBalance, totalRequired);
-      const amountToPay = totalRequired - balanceToUse;
+      // Una sola cuenta (liquidarAumento) para esta ruta, la orden de pago y
+      // la pantalla: diferencia + comision + IVA; lo que no cubre el saldo va
+      // por la pasarela con su procesamiento.
+      const { liquidarAumento, debitarSaldo } = await import('../services/quotePayment.js');
+      const aumento = await liquidarAumento(job as any, newPrice, userBalance);
+      const commissionRate = aumento.comisionRate;
+      const additionalCommission = aumento.comision;
+      const totalRequired = aumento.totalRequerido;
+      const balanceToUse = aumento.saldoAUsar;
+      const amountToPay = aumento.aPagar;
 
       // Si el balance cubre todo, procesar directamente
-      if (amountToPay <= 0) {
+      if (aumento.restante <= 0) {
         // Descontar del balance, con asiento.
-        const { debitarSaldo } = await import('../services/quotePayment.js');
         await debitarSaldo(String(client.id), totalRequired, `Aumento de precio de "${job.title}" pagado con saldo`, {
           relatedModel: 'Job',
           relatedId: job.id,
-          metadata: { oldPrice: currentPrice, newPrice, comision: additionalCommission },
+          metadata: { oldPrice: currentPrice, newPrice, comision: additionalCommission, iva: aumento.iva },
         });
 
         // Agregar al historial de cambios
@@ -2199,9 +2198,12 @@ router.patch("/:id/budget", protect, async (req: AuthRequest, res: Response): Pr
           priceDifference,
           commission: additionalCommission,
           commissionRate,
+          vat: aumento.iva,
           totalRequired,
           balanceAvailable: userBalance,
           balanceToUse,
+          processingCharge: aumento.procesamiento,
+          processingVat: aumento.procesamientoIva,
           amountToPay,
         },
         redirectTo: `/jobs/${job.id}/payment?amount=${amountToPay}&reason=budget_increase&oldPrice=${currentPrice}&newPrice=${newPrice}&balanceUsed=${balanceToUse}`,
@@ -2273,6 +2275,7 @@ router.patch("/:id/cancel-budget-change", protect, async (req: AuthRequest, res:
     await job.update({
       pendingNewPrice: null,
       pendingPaymentAmount: 0,
+      pendingBalanceDeduction: 0,
       previousStatus: null,
       priceChangeReason: null,
       status: previousStatus,
@@ -2594,7 +2597,8 @@ const cancelarPublicacion = async (req: AuthRequest, res: Response): Promise<voi
         toClient: liq.aCliente,
         toWorker: liq.aTrabajador,
         commissionWithheld: liq.retieneApp,
-        processingCost: liq.costoPasarela,
+        // El procesamiento del pago: ya se fue a la pasarela, no vuelve.
+        processingNotRefunded: liq.procesamientoNoVuelve,
         // Lo que se descuenta solo si retira el saldo a su banco.
         onWithdrawal: liq.alRetirar,
         rule: liq.regla,

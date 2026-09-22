@@ -2,10 +2,11 @@ import { Job } from '../models/sql/Job.model.js';
 import { User } from '../models/sql/User.model.js';
 import { Payment } from '../models/sql/Payment.model.js';
 import { Notification } from '../models/sql/Notification.model.js';
-import { liquidarCancelacion, pasarelaSinIva, type LiquidacionCancelacion } from '../../shared/pricing/processingCost.js';
+import { liquidarCancelacion, type LiquidacionCancelacion } from '../../shared/pricing/processingCost.js';
 import { POLITICAS } from '../../shared/constants/policies.js';
 import { logMoneyEvent } from '../utils/auditLog.js';
 import { acreditarSaldo } from './quotePayment.js';
+import { componentesDelPago } from './payoutAmount.js';
 
 /**
  * Liquidar la cancelacion de una PUBLICACION (un trabajo, con o sin trabajador
@@ -19,8 +20,10 @@ import { acreditarSaldo } from './quotePayment.js';
  *
  * Lo que va al cliente es SALDO A FAVOR, bruto. Si despues lo retira a
  * efectivo, el retiro le descuenta lo que la liquidacion dejo anotado en
- * `alRetirar` (parte de la comision si no hubo trabajador, y la pasarela).
- * Esa anotacion viaja en la metadata del credito: es lo que lee balance.ts.
+ * `alRetirar` (parte de la comision si no hubo trabajador). Esa anotacion
+ * viaja en la metadata del credito: es lo que lee balance.ts. El costo de
+ * procesamiento no entra en ningun lado: el cliente lo pago al pagar y ya se
+ * fue a la pasarela.
  *
  * El tercero no devolvia nada: rechazar ponia el trabajo en `cancelled` y la
  * plata quedaba en escrow para siempre.
@@ -55,36 +58,21 @@ export async function liquidarCancelacionDePublicacion(
   const hasWorker = selectedWorkers.length > 0;
   const esTardia = opts.horasHastaInicio <= POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES;
 
-  // Comision e IVA tal como se cobraron: platformFee es la comision sin IVA,
-  // amount es el total (precio + comision + IVA).
-  let comision = 0;
-  let iva = 0;
-  let pagoReal: Payment | null = null;
-  if (job.publicationPaymentId) {
-    pagoReal = await Payment.findByPk(job.publicationPaymentId).catch(() => null);
-    if (pagoReal) {
-      comision = Number((pagoReal as any).platformFee) || 0;
-      const total = Number((pagoReal as any).amount) || 0;
-      iva = Math.max(0, total - jobPrice - comision);
-    }
-  }
-
-  // La pasarela REAL de este pago si el webhook la trajo (viene con IVA; se
-  // le saca, el IVA es credito fiscal de DOAPP); si no, la tarifa configurada
-  // (liquidarCancelacion la toma del entorno, ya sin IVA).
-  const feeReal = Number((pagoReal as any)?.processingFee);
-  const totalCobrado = jobPrice + comision + iva;
-  const rate = Number.isFinite(feeReal) && feeReal > 0 && totalCobrado > 0 ? pasarelaSinIva(feeReal) / totalCobrado : undefined;
+  // Comision, IVA y procesamiento tal como se cobraron, leidos del pago.
+  const pagoReal: Payment | null = job.publicationPaymentId
+    ? await Payment.findByPk(job.publicationPaymentId).catch(() => null)
+    : null;
+  const { comision, iva, procesamiento } = componentesDelPago(pagoReal as any, jobPrice);
 
   const liq = liquidarCancelacion({
     precio: jobPrice,
     comision,
     iva,
+    procesamiento,
     aprobada: opts.aprobada,
     hayTrabajador: hasWorker,
     tardia: esTardia,
     parteTrabajador: POLITICAS.CANCELACION_TARDIA_PARTE_TRABAJADOR,
-    rate,
   });
 
   // Al cliente, como saldo a favor. acreditarSaldo bloquea la fila y escribe
@@ -101,7 +89,7 @@ export async function liquidarCancelacionDePublicacion(
           origen: 'cancelacion',
           jobId: job.id,
           jobPrice,
-          costoPasarela: liq.costoPasarela,
+          procesamientoNoVuelve: liq.procesamientoNoVuelve,
           retieneApp: liq.retieneApp,
           aTrabajador: liq.aTrabajador,
           // Lo que se descuenta si retira este saldo a efectivo. Lo lee el retiro.
@@ -138,7 +126,7 @@ export async function liquidarCancelacionDePublicacion(
         relatedModel: 'Job',
         relatedId: job.id,
         tipo: 'payment',
-        metadata: { reason: 'job_cancelled_late_compensation', jobId: job.id, jobPrice, costoPasarela: liq.costoPasarela },
+        metadata: { reason: 'job_cancelled_late_compensation', jobId: job.id, jobPrice },
       });
       await Notification.create({
         recipientId: workerId,
@@ -163,7 +151,7 @@ export async function liquidarCancelacionDePublicacion(
           html: `
             <h2>El cliente canceló el trabajo</h2>
             <p>Hola <strong>${(worker as any).name || ''}</strong>, el cliente canceló <strong>"${job.title}"</strong> con menos de ${POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES} horas de anticipación.</p>
-            <p>Por el día que reservaste te corresponde la mitad del precio, descontado el costo de la pasarela: <strong>${$(porTrabajador)}</strong>. Ya está en tu saldo de DOAPP y podés pedir la transferencia a tu cuenta desde la sección Balance.</p>
+            <p>Por el día que reservaste te corresponde la mitad del precio: <strong>${$(porTrabajador)}</strong>. Ya está en tu saldo de DOAPP y podés pedir la transferencia a tu cuenta desde la sección Balance.</p>
             <p style="color:#666;font-size:12px">Es lo que dicen los términos (punto 9.3). Si algo no te cierra, escribinos desde el centro de ayuda.</p>
           `,
         }).catch((e: any) => console.error('[cancelación] email al trabajador:', e?.message));
@@ -179,7 +167,7 @@ export async function liquidarCancelacionDePublicacion(
     userId: job.clientId,
     monto: jobPrice,
     moneda: 'ARS',
-    metadata: { jobId: job.id, ...liq, tarifaReal: rate != null, horasHastaInicio: Math.round(opts.horasHastaInicio * 100) / 100, trabajadores: selectedWorkers },
+    metadata: { jobId: job.id, ...liq, horasHastaInicio: Math.round(opts.horasHastaInicio * 100) / 100, trabajadores: selectedWorkers },
   }).catch(() => {});
 
   return { liq, trabajadores: selectedWorkers, porTrabajador };
@@ -193,16 +181,19 @@ export async function liquidarCancelacionDePublicacion(
 export function mensajeDeCancelacion(liq: LiquidacionCancelacion, titulo?: string): string {
   const h = POLITICAS.CANCELACION_CLIENTE_HORAS_ANTES;
   const que = titulo ? `"${titulo}"` : 'la publicación';
-  const retencion = liq.alRetirar.comision + liq.alRetirar.pasarela;
+  const retencion = liq.alRetirar.comision;
   const enEfectivo = Math.max(0, liq.aCliente - retencion);
   const retiro = retencion > 0
-    ? ` Si en cambio lo retirás a tu cuenta, recibís ${$(enEfectivo)}: se descuentan${liq.alRetirar.comision > 0 ? ` ${$(liq.alRetirar.comision)} de la comisión por la revisión ya hecha y` : ''} ${$(liq.alRetirar.pasarela)} del costo de la pasarela.`
+    ? ` Si en cambio lo retirás a tu cuenta, recibís ${$(enEfectivo)}: se descuentan ${$(retencion)} de la comisión por la revisión ya hecha.`
+    : ' Retirarlo a tu cuenta no tiene costo.';
+  const proc = liq.procesamientoNoVuelve > 0
+    ? ` El costo de procesamiento del pago (${$(liq.procesamientoNoVuelve)}) no se devuelve: la pasarela ya lo cobró.`
     : '';
   const m: Record<LiquidacionCancelacion['regla'], string> = {
-    antes_de_aprobar: `Se canceló ${que} antes de aprobarse. Tenés ${$(liq.aCliente)} de saldo a favor, todo lo que pagaste: podés volver a publicar sin pagar de nuevo.${retiro}`,
-    sin_trabajador: `Se canceló ${que} sin trabajador seleccionado. Tenés ${$(liq.aCliente)} de saldo a favor, todo lo que pagaste: podés volver a publicar sin pagar de nuevo.${retiro}`,
-    con_tiempo: `Se canceló ${que}. Tenés ${$(liq.aCliente)} de saldo a favor (el precio del trabajo; la comisión de publicación no se devuelve porque ya había un trabajador seleccionado).${retiro}`,
-    tardia_con_trabajador: `Se canceló ${que} con menos de ${h} horas. La mitad del precio es para el trabajador que reservó el día (${$(liq.aTrabajador)}, ya neto de pasarela); la otra mitad, ${$(liq.aCliente)}, es tu saldo a favor. La comisión de publicación no se devuelve.${retiro}`,
+    antes_de_aprobar: `Se canceló ${que} antes de aprobarse. Tenés ${$(liq.aCliente)} de saldo a favor (precio y comisión): podés volver a publicar sin pagar de nuevo.${retiro}${proc}`,
+    sin_trabajador: `Se canceló ${que} sin trabajador seleccionado. Tenés ${$(liq.aCliente)} de saldo a favor (precio y comisión): podés volver a publicar sin pagar de nuevo.${retiro}${proc}`,
+    con_tiempo: `Se canceló ${que}. Tenés ${$(liq.aCliente)} de saldo a favor (el precio del trabajo; la comisión de publicación no se devuelve porque ya había un trabajador seleccionado).${retiro}${proc}`,
+    tardia_con_trabajador: `Se canceló ${que} con menos de ${h} horas. La mitad del precio es para el trabajador que reservó el día (${$(liq.aTrabajador)}); la otra mitad, ${$(liq.aCliente)}, es tu saldo a favor. La comisión de publicación no se devuelve.${retiro}${proc}`,
   };
   return m[liq.regla];
 }

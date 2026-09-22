@@ -53,19 +53,48 @@ describe('terminos y condiciones', () => {
       expect(termsEs.s7p4).toMatch(/no existe un monto m[ií]nimo de trabajo/i);
     });
 
-    it('dice que usar el saldo no cuesta, que retirarlo descuenta la pasarela, y que el IVA de la pasarela es de la plataforma', () => {
+    it('dice que usar el saldo no cuesta y que transferirlo tampoco (salvo la media comision del 9.1)', () => {
       expect(termsEs.s7p9).toMatch(/sin costo alguno/i);
-      expect(termsEs.s7p9).toMatch(/se descuentan el costo de procesamiento/i);
-      expect(termsEs.s7p9).toMatch(/sin su IVA/i);
-      expect(termsEs.s7p9).toMatch(/a cargo de la Plataforma/i);
+      expect(termsEs.s7p9).toMatch(/la transferencia no tiene costo/i);
+      expect(termsEs.s7p9).toMatch(/9\.1/);
+      // Ya no se le descuenta la pasarela al retirar: la pago el cliente al pagar.
+      expect(termsEs.s7p9).not.toMatch(/se descuentan el costo de procesamiento/i);
     });
 
-    it('sin trabajador seleccionado vuelve todo como saldo; con trabajador la comision se retiene', () => {
+    it('el procesamiento lo paga el cliente, con una tasa unica, no se devuelve, y el trabajador cobra el precio entero', () => {
+      for (const t of [termsEs.s7p10, termsEn.s7p10]) {
+        expect(t).toMatch(/a cargo del Cliente|borne by the Client/);
+        expect(t).toMatch(/única tasa|single rate/i);
+        expect(t).toMatch(/igual para todos los medios|same for every payment method/i);
+        expect(t).toMatch(/no es reembolsable|non-refundable/i);
+        expect(t).toMatch(/precio del trabajo íntegro|full job price/i);
+      }
+      // Y en la beta se cobra igual: la comision es 0, el procesamiento no.
+      expect(termsEs.s7p3).toMatch(/se cobra también durante la beta/i);
+    });
+
+    it('sin trabajador seleccionado vuelve todo (menos el procesamiento) como saldo; con trabajador la comision se retiene', () => {
       expect(termsEs.s9p1).toMatch(/totalidad de lo abonado, comisi[oó]n incluida/i);
+      expect(termsEs.s9p1).toMatch(/excepci[oó]n del costo de procesamiento/i);
       expect(termsEs.s9p1).toMatch(/rechazo de una publicaci[oó]n/i);
       expect(termsEs.s9p1).toMatch(/indicar el motivo/i);
       expect(termsEs.s9p2).toMatch(/comisi[oó]n de publicaci[oó]n no se reembolsa/i);
+      expect(termsEs.s9p3).toMatch(/íntegro/i);
       expect(termsEs.s7p5).toMatch(/una vez que hubo un Trabajador seleccionado/i);
+    });
+
+    it('ninguna disputa ni acuerdo mueve plata sin un administrador', () => {
+      // El codigo lo hace asi (disputeSilence marca en revision; aceptar un
+      // acuerdo no mueve plata; ejecutarAcuerdo es del admin). El texto tiene
+      // que decir lo mismo.
+      for (const t of [termsEs.s10p10, termsEn.s10p10]) {
+        expect(t).not.toMatch(/autom[aá]ticamente|automatically resolved/i);
+        expect(t).toMatch(/Administrador|Administrator/);
+      }
+      for (const t of [termsEs.s10p11, termsEn.s10p11]) {
+        expect(t).not.toMatch(/se aplica de inmediato|applied immediately/i);
+        expect(t).toMatch(/la ejecuta un Administrador|an Administrator executes it/);
+      }
     });
   });
 });

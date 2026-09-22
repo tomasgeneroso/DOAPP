@@ -1,7 +1,6 @@
 import express, { Router, Response } from "express";
 import { protect, AuthRequest } from "../middleware/auth.js";
-import { splitFees } from "../../shared/pricing/processingCost.js";
-import { caminosDePago, rangoDelTrabajador } from "../../shared/pricing/paymentPaths.js";
+import { splitFees, getProcessingFeeRate } from "../../shared/pricing/processingCost.js";
 import { requireRole } from "../middleware/permissions.js";
 import { Payment } from "../models/sql/Payment.model.js";
 import { Contract } from "../models/sql/Contract.model.js";
@@ -147,17 +146,17 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
       const publicationCost = commissionResult.commission;
       const vat = commissionResult.vat;
 
-      // What the client pays: the work, plus DOAPP's fee, plus IVA on that fee.
-      // The tax sits on the commission only — the platform invoices its own
-      // service, not the work, which is a contract between client and worker.
-      // During the beta the commission is 0, so the IVA is 0 and the client
-      // pays exactly the contract price.
-      // El cliente paga trabajo + comision + IVA, sin recargos escondidos. El
-      // costo de la pasarela sale del lado del trabajador (ver splitFees).
+      // Lo que paga el cliente: el trabajo, la comision de DOAPP, el costo de
+      // procesamiento del pago, y el IVA de esos dos ultimos (la plataforma
+      // factura su servicio, no el trabajo, que es un contrato entre cliente y
+      // trabajador). El trabajador recibe el precio entero. La tasa de
+      // procesamiento es una sola, igual con cualquier medio, tambien con
+      // transferencia: cobrar distinto segun como se paga es lo que la ley de
+      // tarjetas prohibe (ver shared/pricing/processingCost.ts).
       const split = splitFees(jobPrice, publicationCost, vat);
       const totalAmountARS = split.clientPays;
 
-      console.log(`💵 Job publication payment: ${totalAmountARS.toFixed(2)} ARS (trabajo: ${jobPrice.toFixed(2)}, comision: ${publicationCost.toFixed(2)}, IVA ${commissionResult.vatRate}%: ${vat.toFixed(2)} | pasarela ${(split.rate * 100).toFixed(2)}%: ${split.processingCost.toFixed(2)} la paga el trabajador, recibe ${split.workerReceives.toFixed(2)}) - ${selectedPaymentMethod}`);
+      console.log(`💵 Job publication payment: ${totalAmountARS.toFixed(2)} ARS (trabajo: ${jobPrice.toFixed(2)}, comision: ${publicationCost.toFixed(2)}, procesamiento ${(split.rate * 100).toFixed(2)}%: ${split.processingCharge.toFixed(2)}, IVA ${commissionResult.vatRate}%: ${split.totalVat.toFixed(2)} | el trabajador recibe ${split.workerReceives.toFixed(2)}) - ${selectedPaymentMethod}`);
 
       // Handle different payment methods
       if (selectedPaymentMethod === 'bank_transfer') {
@@ -174,6 +173,7 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
           description: `Publicación: ${job.title}`,
           platformFee: publicationCost,
           platformFeePercentage: commissionResult.rate,
+          processingCharge: split.processingCharge,
           isEscrow: false,
         });
 
@@ -234,6 +234,7 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
           description: `Publicación: ${job.title}`,
           platformFee: publicationCost,
           platformFeePercentage: commissionResult.rate,
+          processingCharge: split.processingCharge,
           isEscrow: false,
         });
         job.publicationAmount = totalAmountARS;
@@ -277,6 +278,7 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
         description: `Publicación: ${job.title}`,
         platformFee: publicationCost,
         platformFeePercentage: commissionResult.rate,
+        processingCharge: split.processingCharge,
         isEscrow: false,
       });
 
@@ -311,20 +313,33 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
 
       // Verify the job has pending payment amount
       const pendingAmount = parseFloat(job.pendingPaymentAmount as any) || 0;
-      if (pendingAmount <= 0) {
+      if (pendingAmount <= 0 || !job.pendingNewPrice) {
         res.status(400).json({ success: false, message: "No pending payment amount for this job" });
         return;
       }
 
-      // Use the amount from the request or the job's pending payment
-      const totalAmountARS = amount ? parseFloat(amount) : pendingAmount;
+      // La misma cuenta que fijo el monto pendiente (liquidarAumento): la
+      // diferencia, su comision e IVA, menos el saldo reservado, mas el
+      // procesamiento de lo que pasa por la pasarela. Se recalcula y se cobra
+      // ESO, no lo que mande el cliente en `amount`: el monto lo decide el
+      // servidor. Antes se aceptaba el del request y la comision se calculaba
+      // sobre el total en vez de sobre la diferencia.
+      const { liquidarAumento } = await import('../services/quotePayment.js');
+      const aumento = await liquidarAumento(job as any, Number(job.pendingNewPrice), Number((job as any).pendingBalanceDeduction) || 0);
+      const totalAmountARS = aumento.aPagar;
+      if (totalAmountARS <= 0) {
+        res.status(400).json({ success: false, message: "El saldo cubre el aumento: no hay nada que pagar por la pasarela." });
+        return;
+      }
+      if (Math.abs(totalAmountARS - pendingAmount) > 0.05) {
+        // El monto pendiente quedo viejo (cambio la comision o la tasa): se
+        // actualiza para que la pantalla y el cobro digan lo mismo.
+        job.pendingPaymentAmount = totalAmountARS;
+        await job.save();
+      }
+      const aumentoComision = { commission: aumento.comision, rate: aumento.comisionRate };
 
-      // Cuánto de ese total es comisión. Se guarda desglosado en el pago
-      // porque si no, el panel financiero suma platform_fee y da siempre 0:
-      // la comisión existe dentro del monto pero nadie la registra.
-      const aumentoComision = await calculateCommission(job.clientId, totalAmountARS);
-
-      console.log(`💵 Budget increase payment: ${totalAmountARS.toFixed(2)} ARS for job ${jobId} - ${selectedPaymentMethod}`);
+      console.log(`💵 Budget increase payment: ${totalAmountARS.toFixed(2)} ARS for job ${jobId} (diferencia ${aumento.diferencia}, comision ${aumento.comision}, IVA ${aumento.iva}, saldo ${aumento.saldoAUsar}, procesamiento ${aumento.procesamiento}) - ${selectedPaymentMethod}`);
 
       // Handle different payment methods
       if (selectedPaymentMethod === 'bank_transfer' || selectedPaymentMethod === 'binance') {
@@ -341,6 +356,7 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
           description: `Aumento de presupuesto: ${job.title}`,
           platformFee: aumentoComision.commission,
           platformFeePercentage: aumentoComision.rate,
+          processingCharge: aumento.procesamiento,
           isEscrow: false,
         });
 
@@ -401,6 +417,7 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
           description: `Aumento de presupuesto: ${job.title}`,
           platformFee: aumentoComision.commission,
           platformFeePercentage: aumentoComision.rate,
+          processingCharge: aumento.procesamiento,
           isEscrow: false,
         });
         job.publicationPaymentId = payment.id;
@@ -443,6 +460,7 @@ router.post("/create-order", protect, async (req: AuthRequest, res: Response): P
         description: `Aumento de presupuesto: ${job.title}`,
         platformFee: aumentoComision.commission,
         platformFeePercentage: aumentoComision.rate,
+        processingCharge: aumento.procesamiento,
         isEscrow: false,
       });
 
@@ -900,6 +918,47 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
         const newPrice = Number(job.pendingNewPrice);
         const previousStatus = job.previousStatus || 'open';
 
+        /**
+         * La parte que se reservo del saldo a favor se descuenta AHORA, con
+         * asiento. Se guardaba en pendingBalanceDeduction al pedir el aumento
+         * y nunca se debitaba: el cliente pagaba por la pasarela solo el resto
+         * y el saldo le quedaba entero. Si no alcanza (lo gasto mientras
+         * pagaba), el aumento se aplica igual -- la pasarela ya cobro -- y se
+         * avisa a administracion, que es quien puede reclamar la diferencia.
+         */
+        const reservado = Number((job as any).pendingBalanceDeduction) || 0;
+        let saldoDebitado = 0;
+        if (reservado > 0) {
+          const { debitarSaldo } = await import('../services/quotePayment.js');
+          try {
+            await debitarSaldo(String(job.clientId), reservado, `Aumento de precio de "${job.title}": parte cubierta con saldo`, {
+              relatedModel: 'Job',
+              relatedId: job.id,
+              metadata: { oldPrice, newPrice, paymentId: payment.id, origen: 'aumento_de_precio' },
+            });
+            saldoDebitado = reservado;
+          } catch (e: any) {
+            logger.payment('ERROR', 'Aumento pagado por la pasarela pero el saldo reservado no se pudo debitar', {
+              paymentId: payment.id?.toString(),
+              data: { jobId: job.id, reservado, motivo: e?.message },
+              userId: String(job.clientId),
+            });
+            const admins = await User.findAll({ where: { role: { [Op.in]: ['admin', 'super_admin', 'owner'] } } });
+            for (const admin of admins) {
+              await Notification.create({
+                recipientId: admin.id,
+                type: 'error',
+                category: 'admin',
+                title: 'Saldo reservado que no se pudo debitar',
+                message: `El aumento de "${job.title}" se pago por la pasarela, pero los $${reservado.toLocaleString('es-AR')} que iban a salir del saldo del cliente no se pudieron debitar: ${e?.message}. El cliente debe esa diferencia.`,
+                relatedModel: 'Job',
+                relatedId: job.id,
+                sentVia: ['in_app'],
+              } as any);
+            }
+          }
+        }
+
         // Agregar al historial de cambios
         const priceHistory = job.priceHistory || [];
         priceHistory.push({
@@ -907,6 +966,8 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
           newPrice,
           reason: job.priceChangeReason || 'Aumento de presupuesto',
           changedAt: new Date(),
+          paidFromBalance: saldoDebitado,
+          paidViaGateway: Number(payment.amount) || 0,
         });
 
         // Aplicar el nuevo precio y reactivar el trabajo
@@ -916,9 +977,10 @@ router.post("/capture-order", protect, async (req: AuthRequest, res: Response): 
           priceHistory,
           pendingNewPrice: null,
           pendingPaymentAmount: 0,
+          pendingBalanceDeduction: 0,
           previousStatus: null,
           status: previousStatus, // Restaurar estado anterior (usualmente 'open')
-        });
+        } as any);
 
         console.log(`✅ [CAPTURE] Budget increase applied: $${oldPrice} -> $${newPrice} for job ${job.id}`);
 
@@ -1682,6 +1744,7 @@ router.post("/quote/:proposalId", protect, async (req: AuthRequest, res: Respons
       description: `Cotización aceptada: ${job.title}`,
       platformFee: liquidacion.comision,
       platformFeePercentage: liquidacion.aPagar > 0 ? (liquidacion.comision / liquidacion.aPagar) * 100 : 0,
+      processingCharge: liquidacion.procesamiento,
       isEscrow: true,
       escrowStatus: "pending",
       // El webhook necesita saber a que cotizacion corresponde este pago y por
@@ -1945,15 +2008,53 @@ router.get("/quote", protect, async (req: AuthRequest, res: Response): Promise<v
     const jobId = String((req.query as any).jobId || '');
     let price = Number((req.query as any).price);
     let quienPaga = req.user!.id;
+    let job: Job | null = null;
 
     if (jobId) {
-      const job = await Job.findByPk(jobId, { attributes: ['id', 'price', 'clientId'] });
+      job = await Job.findByPk(jobId, { attributes: ['id', 'price', 'clientId', 'pendingNewPrice', 'pendingBalanceDeduction', 'pendingPaymentAmount'] });
       if (!job) {
         res.status(404).json({ success: false, message: "Trabajo no encontrado" });
         return;
       }
       price = Number(job.price);
       quienPaga = (job as any).clientId;
+    }
+
+    const phase = await getPhaseInfo();
+
+    /**
+     * Con `aumento=1` y un trabajo con aumento pendiente, el desglose es el del
+     * aumento: la misma cuenta que fijo el monto (liquidarAumento), para que la
+     * pantalla de pago no lo rearme a partir de parametros de la URL.
+     */
+    if (job && String((req.query as any).aumento || '') === '1') {
+      if (!job.pendingNewPrice) {
+        res.status(400).json({ success: false, message: "Este trabajo no tiene un aumento pendiente" });
+        return;
+      }
+      const { liquidarAumento } = await import('../services/quotePayment.js');
+      const a = await liquidarAumento(job as any, Number(job.pendingNewPrice), Number((job as any).pendingBalanceDeduction) || 0);
+      res.json({
+        success: true,
+        data: {
+          modo: 'aumento',
+          oldPrice: a.precioActual,
+          newPrice: a.precioNuevo,
+          priceDifference: a.diferencia,
+          commission: a.comision,
+          commissionRate: a.comisionRate,
+          vat: a.iva,
+          vatRate: 21,
+          totalRequired: a.totalRequerido,
+          balanceToUse: a.saldoAUsar,
+          processingCharge: a.procesamiento,
+          processingVat: a.procesamientoIva,
+          processingRate: Math.round(getProcessingFeeRate() * 10000) / 100,
+          totalToPay: a.aPagar,
+          isBeta: phase.isBeta,
+        },
+      });
+      return;
     }
 
     if (!Number.isFinite(price) || price <= 0) {
@@ -1963,7 +2064,6 @@ router.get("/quote", protect, async (req: AuthRequest, res: Response): Promise<v
 
     const isFreeContract = String((req.query as any).isFreeContract || '') === 'true';
     const c = await calculateCommission(quienPaga, price, { isFreeContract });
-    const phase = await getPhaseInfo();
     const split = splitFees(price, c.commission, c.vat);
 
     res.json({
@@ -1976,11 +2076,13 @@ router.get("/quote", protect, async (req: AuthRequest, res: Response): Promise<v
         vat: c.vat,
         vatRate: c.vatRate,
         platformTotal: c.totalFee,
-        // El costo de la pasarela lo paga el trabajador, no el cliente. Se
-        // informa igual para que las dos pantallas puedan mostrarlo: el
-        // trabajador tiene que ver por que recibe menos que el precio.
-        processingCost: split.processingCost,
+        // El costo de procesamiento lo paga el cliente, con una tasa unica. Se
+        // muestra como una linea de su cuenta, con su IVA.
+        processingCharge: split.processingCharge,
+        processingVat: split.processingVat,
         processingRate: Math.round(split.rate * 10000) / 100,
+        // IVA total de la factura: sobre la comision y sobre el procesamiento.
+        totalVat: split.totalVat,
         // Las dos cifras que a cada parte le importan, ya calculadas, para que
         // ninguna tenga que sumar por su cuenta y llegar a otro numero.
         totalToPay: split.clientPays,
@@ -1988,10 +2090,6 @@ router.get("/quote", protect, async (req: AuthRequest, res: Response): Promise<v
         tierDescription: c.tierDescription,
         phase: phase.phase,
         isBeta: phase.isBeta,
-        // Como cambia lo que recibe el trabajador (y cuando) segun el medio con
-        // que pague el cliente. Solo los medios cuya tarifa esta configurada.
-        caminos: caminosDePago(price, c.commission, c.vat),
-        rangoTrabajador: rangoDelTrabajador(caminosDePago(price, c.commission, c.vat)),
       },
     });
   } catch (error: any) {

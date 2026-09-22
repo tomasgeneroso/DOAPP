@@ -35,9 +35,12 @@ export interface QuoteSettlement {
   /** Comision e IVA sobre lo que falta pagar. */
   comision: number;
   iva: number;
-  /** El total a cobrar: diferencia + comision + IVA. */
+  /** Costo de procesamiento del pago que falta (sin IVA) y su IVA. Lo paga el cliente; no vuelve. */
+  procesamiento: number;
+  procesamientoIva: number;
+  /** El total a cobrar: diferencia + comision + procesamiento + IVA de los dos. */
   totalACobrar: number;
-  /** Lo que va a recibir el trabajador, ya descontada la pasarela. */
+  /** Lo que va a recibir el trabajador: el precio acordado, entero. */
   trabajadorRecibe: number;
   /** Si se puede contratar sin pagar nada mas. */
   listoParaContratar: boolean;
@@ -57,7 +60,6 @@ export async function settleQuote(job: Job, precioCotizado: number): Promise<Quo
 
   if (diferencia <= 0) {
     // Cotizó por menos: no se cobra nada y la diferencia queda a favor.
-    const s = splitFees(acordado, 0, 0);
     return {
       yaPagado,
       acordado,
@@ -65,14 +67,17 @@ export async function settleQuote(job: Job, precioCotizado: number): Promise<Quo
       aFavor: Math.round(-diferencia * 100) / 100,
       comision: 0,
       iva: 0,
+      procesamiento: 0,
+      procesamientoIva: 0,
       totalACobrar: 0,
-      trabajadorRecibe: s.workerReceives,
+      trabajadorRecibe: acordado,
       listoParaContratar: true,
     };
   }
 
   // La comisión se calcula sobre la diferencia, no sobre el total: la parte ya
-  // pagada ya pagó su comisión al publicarse.
+  // pagada ya pagó su comisión al publicarse. El procesamiento tambien: es
+  // sobre lo que pasa por la pasarela ahora.
   const c = await calculateCommission((job as any).clientId, diferencia);
   const s = splitFees(diferencia, c.commission, c.vat);
 
@@ -83,10 +88,83 @@ export async function settleQuote(job: Job, precioCotizado: number): Promise<Quo
     aFavor: 0,
     comision: c.commission,
     iva: c.vat,
+    procesamiento: s.processingCharge,
+    procesamientoIva: s.processingVat,
     totalACobrar: s.clientPays,
-    // Lo que recibe el trabajador es sobre el precio acordado completo.
-    trabajadorRecibe: splitFees(acordado, c.commission, c.vat).workerReceives,
+    trabajadorRecibe: acordado,
     listoParaContratar: false,
+  };
+}
+
+export interface AumentoSettlement {
+  precioActual: number;
+  precioNuevo: number;
+  diferencia: number;
+  /** Comision e IVA sobre la diferencia. */
+  comision: number;
+  comisionRate: number;
+  iva: number;
+  /** Lo que se debe por el aumento: diferencia + comision + IVA. */
+  totalRequerido: number;
+  saldoDisponible: number;
+  /** Cuanto del total se cubre con saldo a favor (no pasa por la pasarela: sin procesamiento). */
+  saldoAUsar: number;
+  /** Lo que queda por cobrar por la pasarela, antes del procesamiento. */
+  restante: number;
+  /** Procesamiento sobre lo que pasa por la pasarela, y su IVA. */
+  procesamiento: number;
+  procesamientoIva: number;
+  /** Lo que el cliente paga por la pasarela: restante + procesamiento + su IVA. Cero si el saldo cubre todo. */
+  aPagar: number;
+}
+
+/**
+ * Cuanto cuesta subir el precio de una publicacion ya pagada, y como se paga.
+ *
+ * Una sola cuenta para los tres lugares que la necesitan: la ruta que recibe
+ * el pedido (y decide si alcanza con el saldo), la que crea la orden de pago
+ * (y tiene que cobrar exactamente eso) y la pantalla que lo muestra. Antes
+ * cada una hacia la suya: una sin IVA, otra con la comision calculada sobre
+ * el total en vez de sobre la diferencia.
+ *
+ * El procesamiento se cobra solo sobre lo que pasa por la pasarela. Lo que se
+ * cubre con saldo a favor no la toca, asi que no lo paga.
+ */
+export async function liquidarAumento(
+  job: { clientId: string; price: number | string },
+  precioNuevo: number,
+  saldoDisponible: number,
+): Promise<AumentoSettlement> {
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const precioActual = Number(job.price) || 0;
+  const nuevo = Math.max(0, Number(precioNuevo) || 0);
+  const diferencia = r2(Math.max(0, nuevo - precioActual));
+  const saldo = Math.max(0, Number(saldoDisponible) || 0);
+
+  const c = diferencia > 0 ? await calculateCommission(String(job.clientId), diferencia) : { commission: 0, rate: 0, vat: 0 };
+  const totalRequerido = r2(diferencia + c.commission + c.vat);
+  const saldoAUsar = r2(Math.min(saldo, totalRequerido));
+  const restante = r2(totalRequerido - saldoAUsar);
+
+  // splitFees despeja el procesamiento sobre la base que pasa por la pasarela.
+  // Se le pasa el restante como "precio" y cero de comision e IVA porque esos
+  // ya estan adentro del restante: lo que importa es la base, no su desglose.
+  const s = restante > 0 ? splitFees(restante, 0, 0) : null;
+
+  return {
+    precioActual,
+    precioNuevo: nuevo,
+    diferencia,
+    comision: c.commission,
+    comisionRate: c.rate,
+    iva: c.vat,
+    totalRequerido,
+    saldoDisponible: saldo,
+    saldoAUsar,
+    restante,
+    procesamiento: s?.processingCharge ?? 0,
+    procesamientoIva: s?.processingVat ?? 0,
+    aPagar: s?.clientPays ?? 0,
   };
 }
 
@@ -372,21 +450,11 @@ export async function trabajadorNoDisponible(
   });
 
   if (aFavor > 0) {
-    // Lo que se retiene si el cliente retira este saldo a efectivo: la parte de
-    // la pasarela que corresponde a lo que vuelve (la real del pago si el
-    // webhook la trajo). La comision no: ya hubo un trabajador seleccionado y
-    // se retuvo en el acto (T&C 7.5), asi que lo que vuelve es el precio.
-    const { pasarelaSinIva, getProcessingFeeRate } = await import('../../shared/pricing/processingCost.js');
-    const { Payment } = await import('../models/sql/Payment.model.js');
-    const pago = (job as any).publicationPaymentId ? await Payment.findByPk((job as any).publicationPaymentId).catch(() => null) : null;
-    const totalCobrado = Number((pago as any)?.amount) || 0;
-    const feeReal = Number((pago as any)?.processingFee);
-    const pasarelaTotal = Number.isFinite(feeReal) && feeReal > 0
-      ? pasarelaSinIva(feeReal)
-      : Math.round(totalCobrado * getProcessingFeeRate() * 100) / 100;
-    const proporcion = montoPagado > 0 ? aFavor / montoPagado : 1;
-    const alRetirar = { comision: 0, pasarela: Math.round(pasarelaTotal * proporcion * 100) / 100 };
-
+    // Lo que vuelve es el precio (o la diferencia), sin retencion al retirar:
+    // la comision ya se retuvo en el acto porque hubo un trabajador
+    // seleccionado (T&C 7.5), y el procesamiento lo pago el cliente al pagar.
+    // Transferir a un CBU no tiene costo.
+    //
     // Fuera de la transaccion porque acreditarSaldo abre la suya con su propio
     // bloqueo de fila. Si fallara acá, el contrato ya quedo cancelado y el
     // saldo no se acredito: por eso se avisa a administracion y no se traga.
@@ -400,7 +468,7 @@ export async function trabajadorNoDisponible(
         {
           relatedModel: 'Contract',
           relatedId: contract.id,
-          metadata: { origen: 'cancelacion', jobId: job.id, motivo: 'trabajador_no_disponible', alRetirar },
+          metadata: { origen: 'cancelacion', jobId: job.id, motivo: 'trabajador_no_disponible', alRetirar: { comision: 0 } },
         },
       );
     } catch (e: any) {
@@ -411,7 +479,7 @@ export async function trabajadorNoDisponible(
   const mensajePorOpcion = {
     liberar: `"${job.title}" volvió a estar publicado con el precio que ya abonaste. Otro trabajador puede tomarlo por ese mismo monto sin que pagues nada más.`,
     parcial: `"${job.title}" volvió a estar publicado a $${precioNuevo.toLocaleString('es-AR')} y se acreditaron $${aFavor.toLocaleString('es-AR')} a tu saldo.`,
-    saldo: `Se acreditaron $${aFavor.toLocaleString('es-AR')} a tu saldo. Podés usarlos sin costo en la app o pedir su transferencia al banco, en cuyo caso se descuenta el costo de la pasarela.`,
+    saldo: `Se acreditaron $${aFavor.toLocaleString('es-AR')} a tu saldo. Podés usarlos en la app o pedir su transferencia al banco; ninguna de las dos tiene costo.`,
   };
 
   await Notification.create({

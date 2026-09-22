@@ -37,16 +37,15 @@ export default function JobPaymentScreen() {
    * El desglose lo calcula el servidor, no esta pantalla.
    *
    * Antes se recalculaba acá con las tasas escritas a mano (8/3/1). Eso ignora
-   * la fase beta, el IVA y el costo de la pasarela, así que el celular mostraba
+   * la fase beta, el IVA y el costo de procesamiento, así que el celular mostraba
    * un total y el servidor cobraba otro. En una pantalla de pago esa diferencia
    * es un reclamo, y encima había que acordarse de tocar dos lugares con cada
    * cambio de precios. Es el mismo endpoint que usa la web.
    */
   const [quote, setQuote] = useState<{
     price: number; commission: number; commissionRate: number;
-    vat: number; vatRate: number; processingCost: number; processingRate: number;
-    totalToPay: number; workerReceives: number; isBeta: boolean;
-    caminos?: Array<{ id: string; titulo: string; ratePct: number; trabajadorRecibe: number; liberacionDias: number }>;
+    vat: number; vatRate: number; processingCharge: number; processingVat: number; processingRate: number;
+    totalVat: number; totalToPay: number; workerReceives: number; isBeta: boolean;
   } | null>(null);
 
   const jobPrice = job?.price || 0;
@@ -152,53 +151,39 @@ export default function JobPaymentScreen() {
                   <Text style={[styles.costValue, { color: themeColors.text.primary }]}>${Number(commission).toLocaleString('es-AR')}</Text>
                 </View>
               )}
-              {(quote?.vat ?? 0) > 0 && (
+              {/* El costo de procesamiento del pago: una tasa única, igual con
+                  cualquier medio, que paga el cliente y no se devuelve. El
+                  trabajador recibe el precio entero. */}
+              {(quote?.processingCharge ?? 0) > 0 && (
                 <View style={styles.costRow}>
-                  <Text style={[styles.costLabel, { color: themeColors.text.secondary }]}>IVA ({quote?.vatRate ?? 21}%) sobre la comisión</Text>
-                  <Text style={[styles.costValue, { color: themeColors.text.primary }]}>${Number(quote?.vat).toLocaleString('es-AR')}</Text>
+                  <Text style={[styles.costLabel, { color: themeColors.text.secondary, flex: 1, paddingRight: 8 }]}>Costo de procesamiento del pago ({quote?.processingRate}%)</Text>
+                  <Text style={[styles.costValue, { color: themeColors.text.primary }]}>${Number(quote?.processingCharge).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</Text>
                 </View>
               )}
-              {/* El costo de la pasarela lo paga el trabajador: no se le
-                  muestra al cliente como un cargo suyo. */}
+              {(quote?.totalVat ?? 0) > 0 && (
+                <View style={styles.costRow}>
+                  <Text style={[styles.costLabel, { color: themeColors.text.secondary, flex: 1, paddingRight: 8 }]}>
+                    IVA ({quote?.vatRate ?? 21}%) sobre {commission > 0 ? 'comisión y procesamiento' : 'el procesamiento'}
+                  </Text>
+                  <Text style={[styles.costValue, { color: themeColors.text.primary }]}>${Number(quote?.totalVat).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</Text>
+                </View>
+              )}
               {quote?.isBeta && (
                 <Text style={[styles.costLabel, { color: themeColors.text.secondary, fontSize: 11, marginTop: 6 }]}>
-                  Estás en la beta: DOAPP no cobra comisión ni IVA. Pagás exactamente el valor
-                  del trabajo.
+                  Estás en la beta: DOAPP no cobra comisión. Pagás el valor del trabajo más el
+                  costo de procesamiento del pago, que es de la pasarela.
                 </Text>
               )}
               <View style={[styles.costRow, styles.totalRow]}>
                 <Text style={[styles.costLabel, styles.totalLabel, { color: themeColors.text.primary }]}>Total a pagar</Text>
-                <Text style={[styles.costValue, styles.totalValue, { color: colors.primary[600] }]}>${Number(total).toLocaleString('es-AR')} ARS</Text>
+                <Text style={[styles.costValue, styles.totalValue, { color: colors.primary[600] }]}>${Number(total).toLocaleString('es-AR', { maximumFractionDigits: 2 })} ARS</Text>
               </View>
+              <Text style={[styles.costLabel, { color: themeColors.text.secondary, fontSize: 11, marginTop: 6 }]}>
+                El trabajador recibe ${Number(quote?.workerReceives ?? jobPrice).toLocaleString('es-AR')}: el precio completo. Pagás lo mismo con cualquier medio de pago, y el costo de procesamiento no se devuelve si cancelás.
+              </Text>
             </>
           )}
         </View>
-
-        {/* Con qué pagás cambia lo que recibe el trabajador y cuándo. Vos pagás lo mismo. */}
-        {quote?.caminos && quote.caminos.length > 0 && (
-          <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
-            <Text style={[styles.cardTitle, { color: themeColors.text.primary }]}>Cómo pagás cambia lo que recibe el trabajador</Text>
-            <Text style={[styles.costLabel, { color: themeColors.text.secondary, fontSize: 12, marginBottom: 8 }]}>
-              Vos pagás lo mismo en todos los casos. La pasarela le descuenta su tarifa al trabajador, y con algunos medios retiene la plata más días.
-            </Text>
-            {quote.caminos.map((c) => (
-              <View key={c.id} style={[styles.costRow, { alignItems: 'flex-start' }]}>
-                <View style={{ flex: 1, paddingRight: 8 }}>
-                  <Text style={[styles.costLabel, { color: themeColors.text.primary, fontWeight: '600' }]}>{c.titulo}</Text>
-                  <Text style={[styles.costLabel, { color: themeColors.text.secondary, fontSize: 11 }]}>
-                    pasarela {c.ratePct}% · {c.liberacionDias === 0 ? 'MP libera al instante' : `MP libera a los ${c.liberacionDias} días`}
-                  </Text>
-                </View>
-                <Text style={[styles.costValue, { color: colors.success[600], fontWeight: '700' }]}>recibe ${Number(c.trabajadorRecibe).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</Text>
-              </View>
-            ))}
-            {quote.caminos.length === 1 && (
-              <Text style={[styles.costLabel, { color: themeColors.text.secondary, fontSize: 11, marginTop: 6 }]}>
-                Con dinero en cuenta de Mercado Pago o débito la tarifa suele ser menor y la liberación más rápida. Los números exactos los informa la pasarela en cada pago.
-              </Text>
-            )}
-          </View>
-        )}
 
         {/* Plan Info */}
         <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>

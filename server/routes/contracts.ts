@@ -1563,8 +1563,8 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
     const Payment = (await import('../models/sql/Payment.model.js')).default;
     const payment = await Payment.findOne({ where: { contractId: id } });
 
-    // Lo que efectivamente cobra el trabajador: su parte menos la pasarela
-    // REAL de este pago (o la configurada, si el webhook no la trajo). Una sola
+    // Lo que efectivamente cobra el trabajador: su parte del precio, entera,
+    // menos lo que una disputa parcial ya le devolvio al cliente. Una sola
     // cuenta para completar, auto-confirmar y marcar pagado: payoutAmount.ts.
     const monto = montoParaElTrabajador(contract as any, payment as any);
     const paymentAmount = monto.neto;
@@ -2718,6 +2718,7 @@ router.post("/:id/approve-extension", protect, async (req: AuthRequest, res: Res
         description: `Ampliación del contrato ${contract.id}`,
         platformFee: c.commission,
         platformFeePercentage: c.rate,
+        processingCharge: split.processingCharge,
         isEscrow: true,
       } as any);
 

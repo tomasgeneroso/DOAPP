@@ -282,7 +282,7 @@ export default function ReclamoDirectoPanel({
               />
               {precio > 0 && Number(monto) > 0 && Number(monto) < precio && (
                 <span className="mt-1 block text-xs opacity-80">
-                  El trabajador cobraría {$(precio - Number(monto))} menos el costo de pasarela.
+                  El trabajador cobraría {$(precio - Number(monto))}.
                 </span>
               )}
             </label>

@@ -456,6 +456,8 @@ export class Job extends Model {
     changedAt: Date;
     refundedToBalance?: number;
     paidFromBalance?: number;
+    /** Lo que se cobro por la pasarela por este cambio (procesamiento incluido). */
+    paidViaGateway?: number;
   }>;
 
   // ============================================
@@ -524,6 +526,17 @@ export class Job extends Model {
   // Nuevo precio propuesto (solo se aplica después del pago exitoso)
   @Column(DataType.DECIMAL(12, 2))
   pendingNewPrice?: number;
+
+  /**
+   * Cuanto del aumento se cubre con saldo a favor. Se reserva al pedir el
+   * aumento y se debita cuando el pago de la pasarela por el resto se acredita.
+   * Sin esta columna el valor se escribia y Sequelize lo descartaba: el saldo
+   * nunca se debitaba y el cliente pagaba solo la parte de la pasarela.
+   */
+  @Default(0)
+  @AllowNull(false)
+  @Column(DataType.DECIMAL(12, 2))
+  pendingBalanceDeduction!: number;
 
   // Estado anterior del job (para restaurar si se cancela el pago)
   @Column(DataType.STRING(50))

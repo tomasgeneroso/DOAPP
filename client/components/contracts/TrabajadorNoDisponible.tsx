@@ -124,7 +124,7 @@ export default function TrabajadorNoDisponible({ contractId, rol, precio, aviso,
           <RotateCcw className="mt-0.5 h-5 w-5 shrink-0 text-slate-600 dark:text-slate-300" aria-hidden="true" />
           <span>
             <span className="block font-medium text-slate-900 dark:text-white">Dejarlo publicado con la plata que ya está</span>
-            <span className="block text-xs text-slate-600 dark:text-slate-300">Otro trabajador puede tomarlo por {$(precio)} sin que pagues nada más ni vuelvas a pasar por la pasarela. Es la salida barata para los dos.</span>
+            <span className="block text-xs text-slate-600 dark:text-slate-300">Otro trabajador puede tomarlo por {$(precio)} sin que pagues nada más. Es la salida barata para los dos.</span>
           </span>
         </button>
 
@@ -159,7 +159,7 @@ export default function TrabajadorNoDisponible({ contractId, rol, precio, aviso,
 
         <button
           onClick={() => {
-            if (window.confirm(`¿Pasar ${$(precio)} a tu saldo a favor? La comisión de publicación no se devuelve porque ya había un trabajador seleccionado. El saldo se usa sin costo en la app; si lo retirás al banco se descuenta la pasarela.`)) {
+            if (window.confirm(`¿Pasar ${$(precio)} a tu saldo a favor? La comisión de publicación no se devuelve porque ya había un trabajador seleccionado. El saldo se usa en la app o se retira al banco, sin costo en los dos casos.`)) {
               llamar({ opcion: "saldo", motivo: "El trabajador avisó que no puede" }, "saldo");
             }
           }}
@@ -169,7 +169,7 @@ export default function TrabajadorNoDisponible({ contractId, rol, precio, aviso,
           <Wallet className="mt-0.5 h-5 w-5 shrink-0 text-slate-600 dark:text-slate-300" aria-hidden="true" />
           <span>
             <span className="block font-medium text-slate-900 dark:text-white">Pasar el precio a mi saldo a favor</span>
-            <span className="block text-xs text-slate-600 dark:text-slate-300">{$(precio)} a tu saldo, para usar en otra publicación sin costo o retirar (con la pasarela descontada). La comisión de publicación no se devuelve.</span>
+            <span className="block text-xs text-slate-600 dark:text-slate-300">{$(precio)} a tu saldo, para usar en otra publicación o retirar al banco, sin costo. La comisión de publicación no se devuelve.</span>
           </span>
         </button>
       </div>
