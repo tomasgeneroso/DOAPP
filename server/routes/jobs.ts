@@ -2513,6 +2513,13 @@ const cancelarPublicacion = async (req: AuthRequest, res: Response): Promise<voi
     }
 
     const { reason } = req.body;
+    /**
+     * Por dónde quiere el cliente su plata: 'saldo' (queda en la app, se usa
+     * sin costo) o 'devolucion' (sale por Mercado Pago al medio con que pagó,
+     * descontando lo que corresponda). Cualquier otra cosa es 'saldo': ante un
+     * valor que no se entiende, el camino que no depende de un tercero.
+     */
+    const salida: 'saldo' | 'devolucion' = req.body?.salida === 'devolucion' ? 'devolucion' : 'saldo';
     const { Notification } = await import('../models/sql/Notification.model.js');
 
     /**
@@ -2528,6 +2535,9 @@ const cancelarPublicacion = async (req: AuthRequest, res: Response): Promise<voi
       }
       (job as any).cancellationRequestedAt = new Date();
       job.cancellationReason = reason || null;
+      // La elección se guarda ahora, no cuando el admin aprueba: entre las dos
+      // cosas pueden pasar días y el cliente no vuelve a estar para elegir.
+      (job as any).cancellationRefundPreference = salida;
       await job.save();
       cacheService.delPattern('jobs:*');
 
@@ -2538,7 +2548,10 @@ const cancelarPublicacion = async (req: AuthRequest, res: Response): Promise<voi
           type: 'info',
           category: 'admin',
           title: 'Pedido de cancelación antes de aprobar',
-          message: `El cliente pidió cancelar "${job.title}" mientras esperaba aprobación. Si se aprueba la cancelación, se devuelve el precio y la mitad de la comisión; la otra mitad y la pasarela no vuelven (T&C 9.1).`,
+          message:
+            `El cliente pidió cancelar "${job.title}" mientras esperaba aprobación y eligió ` +
+            `${salida === 'devolucion' ? 'que se le devuelva al medio con que pagó' : 'que quede como saldo a favor'}. ` +
+            `Si aprobás la cancelación: precio y comisión vuelven (T&C 9.1); si la plata sale de la plataforma se retiene media comisión. El costo de procesamiento no vuelve.`,
           relatedModel: 'Job',
           relatedId: job.id,
           actionText: 'Revisar',
@@ -2549,7 +2562,8 @@ const cancelarPublicacion = async (req: AuthRequest, res: Response): Promise<voi
 
       res.json({
         success: true,
-        message: "Tu pedido de cancelación quedó en revisión. Cuando un administrador lo apruebe, se acredita a tu saldo todo lo que pagaste menos el costo de la pasarela, que ya fue cobrado y no vuelve.",
+        message:
+          "Tu pedido de cancelación quedó en revisión. Cuando un administrador lo apruebe vas a poder elegir si el dinero queda como saldo a favor o se devuelve al medio con que pagaste. El costo de procesamiento del pago no vuelve: la pasarela ya lo cobró.",
         pendingReview: true,
         job,
       });
@@ -2582,17 +2596,29 @@ const cancelarPublicacion = async (req: AuthRequest, res: Response): Promise<voi
     // La liquidación (T&C 9.2 / 9.3) vive en services/jobCancellation.ts,
     // compartida con el rechazo y la cancelación aprobada por admin.
     const { liquidarCancelacionDePublicacion, mensajeDeCancelacion } = await import('../services/jobCancellation.js');
-    const { liq } = await liquidarCancelacionDePublicacion(job, {
+    const r = await liquidarCancelacionDePublicacion(job, {
       aprobada: true,
       horasHastaInicio: hoursUntilStart,
       actor: { id: String(req.user.id), tipo: 'cliente' },
       motivo: reason || null,
+      salida,
     });
+    const { liq } = r;
 
     res.json({
       success: true,
-      message: mensajeDeCancelacion(liq, job.title),
+      // Si pidió devolución y salió por MP, el mensaje es otro: la plata no
+      // está en su saldo, está volviendo a su tarjeta.
+      message:
+        r.salida === 'devolucion'
+          ? `Se canceló "${job.title}" y se devolvieron $${r.devueltoPorMp.toLocaleString('es-AR')} al medio con que pagaste. Según el banco puede tardar unos días.`
+          : mensajeDeCancelacion(liq, job.title),
       refundTotal: liq.retieneApp === 0,
+      salida: r.salida,
+      devueltoPorMp: r.devueltoPorMp,
+      // Lo que no se pudo hacer, si algo falló. El cliente tiene que saber que
+      // administración lo está mirando, no descubrirlo por un saldo que no llega.
+      problemas: r.errores,
       refund: {
         toClient: liq.aCliente,
         toWorker: liq.aTrabajador,

@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { XCircle, Clock, Loader2 } from "lucide-react";
+import { XCircle, Clock, Loader2, Wallet, Undo2 } from "lucide-react";
+
+export type SalidaDeLaPlata = "saldo" | "devolucion";
 
 interface CancelJobModalProps {
   open: boolean;
@@ -12,7 +15,8 @@ interface CancelJobModalProps {
   onReasonChange: (value: string) => void;
   publicationAmount?: number;
   loading: boolean;
-  onConfirm: () => void;
+  /** Recibe por dónde eligió el cliente que vuelva su plata. */
+  onConfirm: (salida: SalidaDeLaPlata) => void;
   onClose: () => void;
 }
 
@@ -30,6 +34,12 @@ export default function CancelJobModal({
   onClose,
 }: CancelJobModalProps) {
   const { t } = useTranslation();
+  /**
+   * Por dónde vuelve la plata. Arranca en "saldo" porque es lo que no cuesta
+   * nada y lo que sirve para republicar, que es lo que la mayoría hace después
+   * de cancelar. Quien quiere la plata de vuelta lo dice explícitamente.
+   */
+  const [salida, setSalida] = useState<SalidaDeLaPlata>("saldo");
   if (!open) return null;
 
   return (
@@ -85,6 +95,83 @@ export default function CancelJobModal({
             </div>
           ) : null}
 
+          {/*
+            Por dónde vuelve la plata. Las dos opciones son legítimas y cuestan
+            distinto, así que se muestran las dos con su consecuencia escrita en
+            vez de decidir por el cliente: dejarla adentro no cuesta nada;
+            sacarla paga la revisión que ya se hizo, igual que un retiro.
+          */}
+          <fieldset>
+            <legend className="block text-sm font-medium text-slate-300 mb-2">
+              {t("jobs.refundRouteTitle", "¿Qué hacemos con tu dinero?")}
+            </legend>
+            <div className="grid gap-2">
+              <label
+                className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${
+                  salida === "saldo"
+                    ? "border-emerald-500 bg-emerald-900/30"
+                    : "border-slate-600 bg-slate-800 hover:bg-slate-700"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="salida"
+                  value="saldo"
+                  checked={salida === "saldo"}
+                  onChange={() => setSalida("saldo")}
+                  className="mt-1 accent-emerald-500"
+                />
+                <span>
+                  <span className="flex items-center gap-1.5 font-semibold text-white">
+                    <Wallet className="h-4 w-4" aria-hidden="true" />
+                    {t("jobs.refundRouteBalance", "Dejarlo como saldo a favor")}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-slate-300">
+                    {t(
+                      "jobs.refundRouteBalanceHelp",
+                      "Queda en tu cuenta de DOAPP, sin descuentos, y lo usás para volver a publicar sin pagar de nuevo. Podés retirarlo al banco cuando quieras.",
+                    )}
+                  </span>
+                </span>
+              </label>
+
+              <label
+                className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-colors ${
+                  salida === "devolucion"
+                    ? "border-sky-500 bg-sky-900/30"
+                    : "border-slate-600 bg-slate-800 hover:bg-slate-700"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="salida"
+                  value="devolucion"
+                  checked={salida === "devolucion"}
+                  onChange={() => setSalida("devolucion")}
+                  className="mt-1 accent-sky-500"
+                />
+                <span>
+                  <span className="flex items-center gap-1.5 font-semibold text-white">
+                    <Undo2 className="h-4 w-4" aria-hidden="true" />
+                    {t("jobs.refundRouteGateway", "Devolvérmelo al medio con que pagué")}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-slate-300">
+                    {t(
+                      "jobs.refundRouteGatewayHelp",
+                      "Vuelve a tu tarjeta o cuenta de Mercado Pago; según el banco puede tardar unos días. Como el dinero sale de la plataforma, se descuenta la mitad de la comisión por la revisión que ya se hizo.",
+                    )}
+                  </span>
+                </span>
+              </label>
+            </div>
+            <p className="mt-2 text-xs text-slate-400">
+              {t(
+                "jobs.refundRouteProcessingNote",
+                "En los dos casos, el costo de procesamiento del pago no se devuelve: la pasarela ya lo cobró.",
+              )}
+            </p>
+          </fieldset>
+
           {/* Reason textarea */}
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -130,7 +217,7 @@ export default function CancelJobModal({
             {t("jobs.keepPublished", "No, keep published")}
           </button>
           <button
-            onClick={onConfirm}
+            onClick={() => onConfirm(salida)}
             disabled={loading}
             className="flex-1 rounded-xl bg-gradient-to-r from-red-500 to-red-600 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:from-red-600 hover:to-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >

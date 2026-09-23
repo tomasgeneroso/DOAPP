@@ -446,18 +446,33 @@ router.put(
        * pasarela). Si ya estaba aprobada y el admin la da de baja, rige 9.2/9.3.
        */
       let liquidacion: any = null;
+      let resultadoLiquidacion: any = null;
       let mensajeDeCancelacion: (liq: any) => string = () => '';
       if (status !== 'approved' && (job as any).publicationPaid) {
         const { liquidarCancelacionDePublicacion, mensajeDeCancelacion: mdc } = await import('../../services/jobCancellation.js');
         mensajeDeCancelacion = mdc;
         const horas = (new Date(job.startDate).getTime() - Date.now()) / 3_600_000;
+        /**
+         * Por dónde sale la plata. El cliente lo eligió al pedir la cancelación
+         * (queda en `cancellationRefundPreference`); el admin puede forzarlo
+         * mandando `salida`, por ejemplo cuando el cliente escribe pidiendo lo
+         * contrario de lo que había marcado.
+         */
+        const salida =
+          req.body?.salida === 'devolucion' || req.body?.salida === 'saldo'
+            ? req.body.salida
+            : (job as any).cancellationRefundPreference === 'devolucion'
+              ? 'devolucion'
+              : 'saldo';
         const r = await liquidarCancelacionDePublicacion(job, {
           aprobada: estabaAprobada,
           horasHastaInicio: horas,
           actor: { id: String(req.user.id), tipo: 'admin' },
           motivo: status === 'rejected' ? (rejectedReason || 'rechazada por admin') : (job.cancellationReason || 'cancelación pedida por el cliente'),
+          salida,
         });
         liquidacion = r.liq;
+        resultadoLiquidacion = { salida: r.salida, devueltoPorMp: r.devueltoPorMp, problemas: r.errores };
       }
 
       void logAudit({
@@ -493,11 +508,19 @@ router.put(
       const notification = await Notification.create({
         recipientId: job.clientId,
         title: status === 'approved' ? 'Publicación aprobada' : status === 'rejected' ? 'Publicación rechazada' : 'Cancelación aprobada',
-        message: status === 'approved'
-          ? `Tu publicación "${job.title}" ha sido aprobada y ya está visible.`
-          : status === 'rejected'
-            ? `Tu publicación "${job.title}" fue rechazada y quedó cancelada. Motivo: ${rejectedReason}.${liquidacion ? ` ${mensajeDeCancelacion(liquidacion)}` : ''}`
-            : `Se aprobó tu pedido de cancelar "${job.title}".${liquidacion ? ` ${mensajeDeCancelacion(liquidacion)}` : ''}`,
+        message: (() => {
+          if (status === 'approved') return `Tu publicación "${job.title}" ha sido aprobada y ya está visible.`;
+          // Si salió por Mercado Pago, el mensaje de saldo no aplica: la plata
+          // no quedó en la app, está volviendo a su medio de pago.
+          const plata = !liquidacion
+            ? ''
+            : resultadoLiquidacion?.salida === 'devolucion'
+              ? ` Se devolvieron $${Number(resultadoLiquidacion.devueltoPorMp).toLocaleString('es-AR')} al medio con que pagaste; según el banco puede tardar unos días.`
+              : ` ${mensajeDeCancelacion(liquidacion)}`;
+          return status === 'rejected'
+            ? `Tu publicación "${job.title}" fue rechazada y quedó cancelada. Motivo: ${rejectedReason}.${plata}`
+            : `Se aprobó tu pedido de cancelar "${job.title}".${plata}`;
+        })(),
         type: status === 'approved' ? 'success' : 'warning',
         category: 'jobs',
         relatedId: job.id,
@@ -514,6 +537,7 @@ router.put(
         message: status === 'approved' ? 'Publicación aprobada' : status === 'rejected' ? 'Publicación rechazada y saldo devuelto al cliente' : 'Cancelación aprobada y saldo devuelto al cliente',
         data: updatedJob,
         liquidacion,
+        ...(resultadoLiquidacion || {}),
       });
     } catch (error: any) {
       console.error('Error updating job status:', error);

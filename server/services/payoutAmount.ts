@@ -1,4 +1,4 @@
-import { IVA } from '../../shared/pricing/processingCost.js';
+import { IVA, importeValido } from '../../shared/pricing/processingCost.js';
 
 /**
  * Cuanto cobra el trabajador por un contrato. UNA cuenta, para los tres
@@ -37,19 +37,21 @@ export interface MontoTrabajador {
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 export function montoParaElTrabajador(contract: ContratoParaPago, payment?: PagoParaPago | null): MontoTrabajador {
-  const precio = Number(contract.price) || 0;
-  const parte = contract.allocatedAmount != null && Number(contract.allocatedAmount) > 0
-    ? Number(contract.allocatedAmount)
-    : precio;
+  // Todo lo que llega de la base pasa por importeValido: los DECIMAL vienen
+  // como string, y un NaN o un Infinity acá se convierte en una transferencia
+  // con monto invalido que el admin descubre cuando el banco la rechaza.
+  const precio = importeValido(contract.price, 'precio del contrato');
+  const asignado = importeValido(contract.allocatedAmount, 'monto asignado');
+  const parte = asignado > 0 ? asignado : precio;
 
   // En un contrato con varios trabajadores lo devuelto se reparte proporcional
   // a lo que le toca a cada uno, no entero a cada uno.
-  const proporcion = precio > 0 ? parte / precio : 1;
+  const proporcion = precio > 0 ? Math.min(1, parte / precio) : 1;
 
   // Una disputa resuelta con devolucion parcial ya le dio X al cliente. Eso
   // sale de la parte del trabajador: sin esto, tras una parcial se le pagaba
   // el precio entero y la plataforma ponia la diferencia.
-  const devueltoAlCliente = r2(Math.max(0, Number(payment?.refundedAmount) || 0) * proporcion);
+  const devueltoAlCliente = r2(importeValido(payment?.refundedAmount, 'monto devuelto') * proporcion);
   const neto = Math.max(0, r2(parte - devueltoAlCliente));
   return { neto, bruto: r2(parte), devueltoAlCliente };
 }
@@ -77,10 +79,10 @@ export function componentesDelPago(
   precio: number,
 ): ComponentesDelPago {
   if (!pago) return { comision: 0, iva: 0, procesamiento: 0 };
-  const total = Number(pago.amount) || 0;
-  const comision = Math.max(0, Number(pago.platformFee) || 0);
-  const cargo = Math.max(0, Number(pago.processingCharge) || 0);
+  const total = importeValido(pago.amount, 'total del pago');
+  const comision = importeValido(pago.platformFee, 'comisión del pago');
+  const cargo = importeValido(pago.processingCharge, 'procesamiento del pago');
   const procesamiento = r2(cargo * (1 + IVA));
-  const iva = Math.max(0, r2(total - precio - comision - procesamiento));
+  const iva = Math.max(0, r2(total - importeValido(precio, 'precio') - comision - procesamiento));
   return { comision, iva, procesamiento };
 }

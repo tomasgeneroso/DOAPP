@@ -1,4 +1,4 @@
-import { IVA, getProcessingFeeRate, splitFees } from './processingCost.js';
+import { IVA, getProcessingFeeRate, splitFees, importeValido } from './processingCost.js';
 
 /**
  * Que le queda a DOAPP de una operacion, despues de la pasarela y de los
@@ -63,10 +63,22 @@ export interface CostosDeOperacion {
   margenSiCreditoSePierde: number;
 }
 
+/**
+ * Una alicuota impositiva valida. Entre 0 y 20%: arriba de eso no existe
+ * ninguna de IIBB en el pais, asi que es un error de escritura (5 en vez de
+ * 0.05) y usarlo daria una cuenta sin sentido. Vale tanto para lo que viene
+ * del entorno como para lo que pasa un llamador.
+ */
+const ALICUOTA_MAXIMA = 0.2;
+
+function alicuotaValida(v: unknown, porDefecto: number): number {
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 && n < ALICUOTA_MAXIMA ? n : porDefecto;
+}
+
 function leerAlicuota(nombre: string, porDefecto: number): number {
   const raw = typeof process !== 'undefined' ? process.env?.[nombre] : undefined;
-  const n = Number(raw);
-  return Number.isFinite(n) && n >= 0 && n < 0.2 ? n : porDefecto;
+  return alicuotaValida(raw, porDefecto);
 }
 
 /** Retencion de IIBB que aplica MP sobre cada acreditacion. Peor caso: no inscripto, 3%. */
@@ -92,13 +104,14 @@ export function costosDeOperacion(args: {
   retencionIIBB?: number;
   iibbPropio?: number;
 }): CostosDeOperacion {
-  const precio = Math.max(0, Number(args.precio) || 0);
-  const comision = Math.max(0, Number(args.comision) || 0);
-  const iva = args.iva != null ? Math.max(0, Number(args.iva) || 0) : r2(comision * IVA);
+  const precio = importeValido(args.precio, 'precio');
+  const comision = importeValido(args.comision, 'comisión');
+  const iva = args.iva != null ? importeValido(args.iva, 'IVA') : r2(comision * IVA);
   const rateCobrada = args.rateCobrada ?? getProcessingFeeRate();
   const ratePasarela = args.ratePasarela ?? rateCobrada;
-  const retencion = args.retencionIIBB ?? alicuotaRetencionIIBB();
-  const propio = args.iibbPropio ?? alicuotaIIBBPropia();
+  // Las alicuotas se validan vengan de donde vengan: del entorno o del llamador.
+  const retencion = alicuotaValida(args.retencionIIBB ?? alicuotaRetencionIIBB(), alicuotaRetencionIIBB());
+  const propio = alicuotaValida(args.iibbPropio ?? alicuotaIIBBPropia(), alicuotaIIBBPropia());
 
   const s = splitFees(precio, comision, iva, rateCobrada);
   const totalCobrado = s.clientPays;

@@ -78,6 +78,8 @@ export default function JobDetailScreen() {
   const [copiedJobCode, setCopiedJobCode] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+  /** Por dónde vuelve la plata al cancelar. Arranca en saldo: es lo que no cuesta. */
+  const [salidaDePlata, setSalidaDePlata] = useState<'saldo' | 'devolucion'>('saldo');
   const [actionLoading, setActionLoading] = useState(false);
 
   // Animations
@@ -257,15 +259,26 @@ export default function JobDetailScreen() {
     }
   };
 
-  const handleCancel = async () => {
+  const handleCancel = async (salida: 'saldo' | 'devolucion' = 'saldo') => {
     if (!job) return;
     setActionLoading(true);
     try {
-      const response = await cancelJob(job.id || job._id, cancelReason);
+      const response = await cancelJob(job.id || job._id, cancelReason, salida);
       if (response.success) {
         setJob((prev) => prev ? { ...prev, status: 'cancelled' } : prev);
         setShowCancelModal(false);
-        Alert.alert('Trabajo cancelado', 'El trabajo fue cancelado.');
+        // Si algo del movimiento de plata falló, el servidor lo dice en
+        // `problemas`. Decirlo: es peor que el cliente se entere por un saldo
+        // que nunca llega.
+        const problemas = (response as any).problemas as string[] | undefined;
+        if (problemas && problemas.length > 0) {
+          Alert.alert(
+            'Cancelado, pero revisá esto',
+            `${(response as any).message || 'El trabajo fue cancelado.'}\n\nHubo un problema al mover el dinero: ${problemas.join(' · ')}. Administración ya fue avisada.`,
+          );
+        } else {
+          Alert.alert('Trabajo cancelado', (response as any).message || 'El trabajo fue cancelado.');
+        }
       } else {
         Alert.alert('Error', (response as any).message || 'No se pudo cancelar');
       }
@@ -963,6 +976,48 @@ export default function JobDetailScreen() {
             <Text style={[styles.modalDesc, { color: themeColors.text.secondary }]}>
               ¿Estás seguro? Esta acción no se puede deshacer.
             </Text>
+
+            {/*
+              Por dónde vuelve la plata. Las dos opciones son legítimas y
+              cuestan distinto, así que se muestran las dos con su consecuencia
+              escrita: dejarla adentro no cuesta nada; sacarla paga la revisión
+              que ya se hizo, igual que un retiro.
+            */}
+            <Text style={[styles.inputLabel, { color: themeColors.text.secondary }]}>¿Qué hacemos con tu dinero?</Text>
+            {([
+              {
+                id: 'saldo' as const,
+                titulo: 'Dejarlo como saldo a favor',
+                ayuda: 'Queda en tu cuenta de DOAPP, sin descuentos, y lo usás para volver a publicar sin pagar de nuevo.',
+              },
+              {
+                id: 'devolucion' as const,
+                titulo: 'Devolvérmelo al medio con que pagué',
+                ayuda: 'Vuelve a tu tarjeta o cuenta de Mercado Pago; puede tardar unos días. Como el dinero sale de la plataforma, se descuenta la mitad de la comisión por la revisión ya hecha.',
+              },
+            ]).map((op) => (
+              <TouchableOpacity
+                key={op.id}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: salidaDePlata === op.id }}
+                onPress={() => setSalidaDePlata(op.id)}
+                style={{
+                  borderWidth: 1,
+                  borderRadius: 12,
+                  padding: spacing.md,
+                  marginBottom: spacing.sm,
+                  borderColor: salidaDePlata === op.id ? colors.primary[500] : themeColors.border,
+                  backgroundColor: salidaDePlata === op.id ? colors.primary[50] : 'transparent',
+                }}
+              >
+                <Text style={{ fontWeight: '700', color: themeColors.text.primary }}>{op.titulo}</Text>
+                <Text style={{ fontSize: 12, marginTop: 2, color: themeColors.text.secondary }}>{op.ayuda}</Text>
+              </TouchableOpacity>
+            ))}
+            <Text style={{ fontSize: 11, marginBottom: spacing.md, color: themeColors.text.muted }}>
+              En los dos casos, el costo de procesamiento del pago no se devuelve: la pasarela ya lo cobró.
+            </Text>
+
             <Text style={[styles.inputLabel, { color: themeColors.text.secondary }]}>Motivo (opcional)</Text>
             <TextInput
               style={[styles.textArea, { backgroundColor: themeColors.slate[50], borderColor: themeColors.border, color: themeColors.text.primary }]}
@@ -983,7 +1038,7 @@ export default function JobDetailScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.submitButton, { flex: 1, backgroundColor: colors.danger[600] }, actionLoading && styles.buttonDisabled]}
-                onPress={handleCancel}
+                onPress={() => handleCancel(salidaDePlata)}
                 disabled={actionLoading}
               >
                 {actionLoading ? (

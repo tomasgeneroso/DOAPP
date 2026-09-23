@@ -51,6 +51,81 @@ import { POLITICAS } from '../constants/policies.js';
 export const IVA = 0.21;
 
 /**
+ * Error de una cuenta de dinero. Tiene su propio tipo para que las rutas lo
+ * puedan distinguir de "se cayo la base" y contestar 400 con el motivo en vez
+ * de un 500 mudo.
+ */
+export class ErrorDeCalculo extends Error {
+  constructor(message: string, readonly detalle?: Record<string, unknown>) {
+    super(message);
+    this.name = 'ErrorDeCalculo';
+  }
+}
+
+/**
+ * Un importe que entra a una cuenta. Todo lo que llega de afuera --
+ * `DECIMAL` de Postgres (que Sequelize devuelve como string), un body de
+ * request, una variable de entorno -- pasa por aca.
+ *
+ * NaN, Infinity, null y negativos se convierten en 0 en vez de propagarse:
+ * un NaN se contagia a toda la suma y aparece recien en la pantalla del
+ * usuario como "$NaN", o peor, como un `amount` que MercadoPago rechaza sin
+ * decir por que. Cero es incorrecto pero acotado y visible.
+ *
+ * El tope existe porque un importe absurdo casi siempre es un bug de unidades
+ * (centavos tomados como pesos) y es mejor que falle la cuenta y no que se
+ * cree una orden de pago por mil millones.
+ */
+const TOPE_IMPORTE = 1_000_000_000;
+
+export function importeValido(v: unknown, nombre = 'importe'): number {
+  const n = typeof v === 'string' ? Number(v) : (v as number);
+  if (v === null || v === undefined || !Number.isFinite(n)) return 0;
+  if (n < 0) return 0;
+  if (n > TOPE_IMPORTE) {
+    throw new ErrorDeCalculo(`El ${nombre} supera el máximo admitido`, { valor: n, tope: TOPE_IMPORTE });
+  }
+  return n;
+}
+
+/**
+ * La tasa maxima que admite el despeje del procesamiento. Arriba de
+ * 1/(1+IVA) = 82,6% el denominador se hace cero o negativo y la cuenta
+ * devuelve un cargo negativo o infinito. Nunca va a pasar con una tarifa real
+ * (la mas cara de MP es 5,99%), pero es la clase de dato que llega mal desde
+ * una variable de entorno mal escrita (0.0419 vs 4.19) y no puede terminar en
+ * un cobro.
+ */
+const RATE_MAXIMA = 0.5;
+
+/**
+ * Una proporcion de reparto (la mitad al trabajador, media comision). Fuera
+ * de 0..1 no significa nada y repartiria mas de lo que hay: es preferible que
+ * falle la liquidacion a que acredite de mas y despues haya que pedirlo.
+ */
+function proporcionValida(v: unknown, nombre: string): number {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0 || n > 1) {
+    throw new ErrorDeCalculo(`La ${nombre} tiene que estar entre 0 y 1`, { valor: v });
+  }
+  return n;
+}
+
+function rateValida(rate: unknown): number {
+  const n = Number(rate);
+  if (!Number.isFinite(n) || n < 0) {
+    throw new ErrorDeCalculo('La tasa de procesamiento no es un número válido', { valor: rate });
+  }
+  if (n >= RATE_MAXIMA) {
+    throw new ErrorDeCalculo(
+      'La tasa de procesamiento es demasiado alta: revisá PAYMENT_PROCESSING_FEE_RATE (se escribe como fracción: 0.0419, no 4.19)',
+      { valor: n, maxima: RATE_MAXIMA },
+    );
+  }
+  return n;
+}
+
+/**
  * La tarifa de MP sin su IVA, a partir del importe con IVA que MP descuenta
  * (fee_details / net_received_amount vienen con IVA incluido). Sirve para la
  * conciliacion: comparar lo que MP cobro de verdad con lo que se le cobro al
@@ -124,11 +199,25 @@ export interface Procesamiento {
  * tarifa de MP sobre 42.511,26 es 1.781,22: cubierta al centavo.
  */
 export function procesamientoParaCobrar(base: number, rate: number = getProcessingFeeRate()): Procesamiento {
-  const b = Math.max(0, Number(base) || 0);
-  if (!(rate > 0) || b <= 0) return { cargo: 0, iva: 0, total: 0, rate: rate > 0 ? rate : 0 };
-  const cargo = round2((b * rate) / (1 - rate * (1 + IVA)));
+  const b = importeValido(base, 'importe a procesar');
+  const r = rateValida(rate);
+  if (r === 0 || b === 0) return { cargo: 0, iva: 0, total: 0, rate: r };
+
+  const cargo = round2((b * r) / (1 - r * (1 + IVA)));
   const iva = round2(cargo * IVA);
-  return { cargo, iva, total: round2(cargo + iva), rate };
+
+  // La comprobacion de la propia cuenta: la tarifa que MP va a cobrar sobre el
+  // total tiene que quedar cubierta por lo que se cobro. Si esto no se cumple
+  // el despeje esta mal y cada operacion pierde plata en silencio, que es
+  // justo el error que no se detecta hasta que no cierra el mes.
+  const totalCobrado = b + cargo + iva;
+  if (!Number.isFinite(cargo) || cargo < 0 || totalCobrado * r > cargo + 0.02) {
+    throw new ErrorDeCalculo('El costo de procesamiento no cubre la tarifa de la pasarela', {
+      base: b, rate: r, cargo, totalCobrado,
+    });
+  }
+
+  return { cargo, iva, total: round2(cargo + iva), rate: r };
 }
 
 export interface FeeSplit {
@@ -188,15 +277,27 @@ export function splitFees(
   vat: number,
   rate: number = getProcessingFeeRate(),
 ): FeeSplit {
-  const price = Math.max(0, Number(jobPrice) || 0);
-  const comm = Math.max(0, Number(commission) || 0);
-  const tax = Math.max(0, Number(vat) || 0);
+  const price = importeValido(jobPrice, 'precio');
+  const comm = importeValido(commission, 'comisión');
+  const tax = importeValido(vat, 'IVA');
 
   const base = round2(price + comm + tax);
   const proc = procesamientoParaCobrar(base, rate);
   const clientPays = round2(base + proc.total);
   const processingCost = proc.rate > 0 ? round2(clientPays * proc.rate) : 0;
   const processingCostVat = round2(processingCost * IVA);
+
+  // Lo que le queda a la plataforma es el residuo del reparto, asi que la
+  // cuenta cierra por construccion. Lo que hay que verificar es que ese
+  // residuo sea lo que tiene que ser: la comision con su IVA, ni mas ni
+  // menos. Si el despeje del procesamiento se rompe, acá se nota -- y frena
+  // antes de cobrar, en vez de aparecer como una diferencia al cierre del mes.
+  const platformKeeps = round2(clientPays - price - processingCost - processingCostVat);
+  if (Math.abs(platformKeeps - (comm + tax)) > 0.05) {
+    throw new ErrorDeCalculo('Lo que retiene la plataforma no coincide con la comisión y su IVA', {
+      platformKeeps, comision: comm, iva: tax, clientPays, processingCost,
+    });
+  }
 
   return {
     jobPrice: round2(price),
@@ -209,7 +310,7 @@ export function splitFees(
     processingCost,
     processingCostVat,
     workerReceives: round2(price),
-    platformKeeps: round2(clientPays - price - processingCost - processingCostVat),
+    platformKeeps,
     rate: proc.rate,
   };
 }
@@ -250,10 +351,20 @@ export function desgloseCancelacionSinContratar(
   iva: number,
   procesamiento = 0,
 ): DesgloseCancelacion {
-  const total = round2(Math.max(0, pagado));
-  const comm = round2(Math.max(0, comision));
-  const tax = round2(Math.max(0, iva));
-  const proc = round2(Math.max(0, procesamiento));
+  const total = round2(importeValido(pagado, 'total pagado'));
+  const comm = round2(importeValido(comision, 'comisión'));
+  const tax = round2(importeValido(iva, 'IVA'));
+  const proc = round2(importeValido(procesamiento, 'procesamiento'));
+
+  // Las partes no pueden sumar mas que el total: seria devolver mas de lo que
+  // entro. Si eso pasa, el pago esta mal registrado y hay que mirarlo, no
+  // seguir con una cuenta inventada.
+  if (comm + tax + proc > total + 0.01) {
+    throw new ErrorDeCalculo('Las partes del pago suman más que el total pagado', {
+      pagado: total, comision: comm, iva: tax, procesamiento: proc,
+    });
+  }
+
   const precioTrabajo = round2(Math.max(0, total - comm - tax - proc));
 
   const liq = liquidarCancelacion({
@@ -342,12 +453,15 @@ export function liquidarCancelacion(args: {
   /** Solo para tests; en produccion sale de POLITICAS. */
   parteComisionEnRevision?: number;
 }): LiquidacionCancelacion {
-  const precio = round2(Math.max(0, Number(args.precio) || 0));
-  const comision = round2(Math.max(0, Number(args.comision) || 0));
-  const iva = round2(Math.max(0, Number(args.iva) || 0));
-  const procesamientoNoVuelve = round2(Math.max(0, Number(args.procesamiento) || 0));
-  const parte = args.parteTrabajador ?? 0.5;
-  const parteRevision = args.parteComisionEnRevision ?? POLITICAS.CANCELACION_EN_REVISION_PARTE_COMISION;
+  const precio = round2(importeValido(args.precio, 'precio'));
+  const comision = round2(importeValido(args.comision, 'comisión'));
+  const iva = round2(importeValido(args.iva, 'IVA'));
+  const procesamientoNoVuelve = round2(importeValido(args.procesamiento, 'procesamiento'));
+  const parte = proporcionValida(args.parteTrabajador ?? 0.5, 'parte del trabajador');
+  const parteRevision = proporcionValida(
+    args.parteComisionEnRevision ?? POLITICAS.CANCELACION_EN_REVISION_PARTE_COMISION,
+    'parte de la comisión por la revisión',
+  );
 
   if (!args.hayTrabajador) {
     // Nadie trabajo: vuelve precio + comision + IVA como saldo. Retirarlo

@@ -53,10 +53,16 @@ describe('terminos y condiciones', () => {
       expect(termsEs.s7p4).toMatch(/no existe un monto m[ií]nimo de trabajo/i);
     });
 
-    it('dice que usar el saldo no cuesta y que transferirlo tampoco (salvo la media comision del 9.1)', () => {
+    it('el cliente elige entre saldo y devolucion al medio de pago, y las dos salidas cuestan lo mismo', () => {
+      // Son los dos botones que ve al cancelar (CancelJobModal). El texto tiene
+      // que ofrecer las dos vias, no solo el saldo.
+      for (const t of [termsEs.s7p9, termsEn.s7p9]) {
+        expect(t).toMatch(/elige entre dos vías|chooses between two routes/i);
+        expect(t).toMatch(/medio de pago|payment method/i);
+        expect(t).toMatch(/9\.1/);
+      }
       expect(termsEs.s7p9).toMatch(/sin costo alguno/i);
-      expect(termsEs.s7p9).toMatch(/la transferencia no tiene costo/i);
-      expect(termsEs.s7p9).toMatch(/9\.1/);
+      expect(termsEs.s7p9).toMatch(/ninguna de las dos tiene costo/i);
       // Ya no se le descuenta la pasarela al retirar: la pago el cliente al pagar.
       expect(termsEs.s7p9).not.toMatch(/se descuentan el costo de procesamiento/i);
     });

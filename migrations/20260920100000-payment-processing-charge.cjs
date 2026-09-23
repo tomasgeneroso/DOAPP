@@ -11,6 +11,10 @@
  * El codigo la escribia desde siempre pero la columna no existia, asi que se
  * perdia y el saldo nunca se debitaba.
  *
+ * jobs.cancellation_refund_preference: por donde eligio el cliente que vuelva
+ * su plata ('saldo' | 'devolucion'), guardado mientras el pedido de
+ * cancelacion espera a un admin.
+ *
  * Idempotente: IF NOT EXISTS, y ensureCriticalSchema la repite al arrancar.
  */
 module.exports = {
@@ -18,6 +22,7 @@ module.exports = {
     await queryInterface.sequelize.query(`
       ALTER TABLE payments ADD COLUMN IF NOT EXISTS processing_charge NUMERIC(12,2);
       ALTER TABLE jobs ADD COLUMN IF NOT EXISTS pending_balance_deduction NUMERIC(12,2) NOT NULL DEFAULT 0;
+      ALTER TABLE jobs ADD COLUMN IF NOT EXISTS cancellation_refund_preference VARCHAR(20);
     `);
   },
 
@@ -25,6 +30,7 @@ module.exports = {
     await queryInterface.sequelize.query(`
       ALTER TABLE payments DROP COLUMN IF EXISTS processing_charge;
       ALTER TABLE jobs DROP COLUMN IF EXISTS pending_balance_deduction;
+      ALTER TABLE jobs DROP COLUMN IF EXISTS cancellation_refund_preference;
     `);
   },
 };

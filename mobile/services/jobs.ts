@@ -92,10 +92,20 @@ export async function resumeJob(id: string): Promise<ApiResponse<{ job: Job }>> 
 }
 
 /**
- * Cancelar un trabajo
+ * Cancelar un trabajo.
+ *
+ * `salida` es por dónde vuelve la plata del cliente: 'saldo' queda en la app
+ * (sin costo, sirve para republicar) o 'devolucion' sale por Mercado Pago al
+ * medio con que pagó (descontando la parte de la comisión que corresponde
+ * cuando el dinero se va de la plataforma). El costo de procesamiento no se
+ * devuelve en ninguno de los dos casos.
  */
-export async function cancelJob(id: string, reason?: string): Promise<ApiResponse<{ job: Job }>> {
-  return post<{ job: Job }>(`/jobs/${id}/cancel`, { reason });
+export async function cancelJob(
+  id: string,
+  reason?: string,
+  salida: 'saldo' | 'devolucion' = 'saldo',
+): Promise<ApiResponse<{ job: Job }> & { problemas?: string[]; salida?: string; devueltoPorMp?: number }> {
+  return post<{ job: Job }>(`/jobs/${id}/cancel`, { reason, salida }) as any;
 }
 
 /**

@@ -538,6 +538,16 @@ export class Job extends Model {
   @Column(DataType.DECIMAL(12, 2))
   pendingBalanceDeduction!: number;
 
+  /**
+   * Por donde quiere el cliente que vuelva su plata si se cancela: 'saldo'
+   * (queda en la app, sin costo) o 'devolucion' (sale por Mercado Pago al
+   * medio con que pago, descontando lo que corresponda). Se guarda cuando el
+   * pedido de cancelacion queda esperando a un admin, para que la eleccion no
+   * se pierda entre que la hace y que alguien la aprueba.
+   */
+  @Column(DataType.STRING(20))
+  cancellationRefundPreference?: 'saldo' | 'devolucion' | null;
+
   // Estado anterior del job (para restaurar si se cancela el pago)
   @Column(DataType.STRING(50))
   previousStatus?: string;

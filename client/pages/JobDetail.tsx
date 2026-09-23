@@ -934,7 +934,7 @@ export default function JobDetail() {
     }
   };
 
-  const handleCancelJob = async () => {
+  const handleCancelJob = async (salida: "saldo" | "devolucion" = "saldo") => {
     if (!job || !token) return;
 
     setActionLoading(true);
@@ -950,6 +950,8 @@ export default function JobDetail() {
         credentials: "include",
         body: JSON.stringify({
           reason: cancellationReason.trim() || null,
+          // Por dónde eligió el cliente que vuelva su plata.
+          salida,
         }),
       });
 
@@ -958,7 +960,22 @@ export default function JobDetail() {
       if (data.success) {
         setShowCancelModal(false);
         setCancellationReason("");
-        // Redirect to dashboard
+        /**
+         * El servidor puede haber cancelado pero no haber podido mover la
+         * plata (la devolución de Mercado Pago falló, por ejemplo). Eso vuelve
+         * en `problemas`: se muestra y NO se navega, porque irse al dashboard
+         * dejaría al cliente esperando un dinero que nadie le va a mandar solo.
+         */
+        if (Array.isArray(data.problemas) && data.problemas.length > 0) {
+          notify(
+            `${data.message} Hubo un problema al mover el dinero: ${data.problemas.join(" · ")}. ` +
+              `Administración ya fue avisada y lo va a resolver.`,
+            "warning",
+          );
+          return;
+        }
+        // Sin problemas: al dashboard. El detalle de la liquidación le llega
+        // igual como notificación, así que no hace falta frenarlo con un modal.
         navigate("/dashboard");
       } else {
         setError(
