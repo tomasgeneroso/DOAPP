@@ -81,13 +81,35 @@ function leerAlicuota(nombre: string, porDefecto: number): number {
   return alicuotaValida(raw, porDefecto);
 }
 
+/**
+ * Alicuotas fijadas desde el panel. Igual que la tasa de procesamiento: las
+ * define el contador, cambian por padron y por jurisdiccion, y quien las
+ * recibe no tiene por que entrar al servidor a editar un .env. Panel →
+ * entorno → peor caso.
+ */
+let alicuotasConfiguradas: { retencion: number | null; propia: number | null } = {
+  retencion: null,
+  propia: null,
+};
+
+export function configurarAlicuotasIIBB(v: { retencion?: number | null; propia?: number | null }): void {
+  const limpiar = (n: unknown) => {
+    if (n === null || n === undefined) return null;
+    const x = Number(n);
+    return Number.isFinite(x) && x >= 0 && x < ALICUOTA_MAXIMA ? x : null;
+  };
+  alicuotasConfiguradas = { retencion: limpiar(v.retencion), propia: limpiar(v.propia) };
+}
+
 /** Retencion de IIBB que aplica MP sobre cada acreditacion. Peor caso: no inscripto, 3%. */
 export function alicuotaRetencionIIBB(): number {
+  if (alicuotasConfiguradas.retencion !== null) return alicuotasConfiguradas.retencion;
   return leerAlicuota('IIBB_RETENCION_ALICUOTA', 0.03);
 }
 
 /** IIBB propio sobre el ingreso de DOAPP. Servicios en CABA/PBA rondan 3-5%. */
 export function alicuotaIIBBPropia(): number {
+  if (alicuotasConfiguradas.propia !== null) return alicuotasConfiguradas.propia;
   return leerAlicuota('IIBB_ALICUOTA_PROPIA', 0.05);
 }
 

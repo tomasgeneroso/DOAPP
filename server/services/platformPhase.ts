@@ -20,23 +20,63 @@ export type PlatformPhase = 'beta' | 'live';
 
 export const PHASE_SETTING_KEY = 'platform:phase';
 
-/** Beta ends at the close of 31 December 2026 (Argentina, UTC-3). */
-export const BETA_ENDS_AT = new Date('2026-12-31T23:59:59-03:00');
+/**
+ * Fecha de cierre de la beta por defecto: fin del 31/12/2026 (Argentina).
+ *
+ * Es el valor de fábrica. Se puede mover desde el panel (queda auditado y
+ * pide la contraseña de acción), porque una fecha que para correrla hay que
+ * recompilar es una fecha que se termina incumpliendo. Lo que NO se puede es
+ * dejarla sin definir: la beta siempre tiene un día de cierre publicado.
+ */
+export const BETA_ENDS_AT_DEFECTO = new Date('2026-12-31T23:59:59-03:00');
+
+/** Compatibilidad: lo que la fecha vale hoy, ya con lo configurado aplicado. */
+export let BETA_ENDS_AT = BETA_ENDS_AT_DEFECTO;
+
+/**
+ * Cuándo arranca la fase estable. Por defecto, el instante en que termina la
+ * beta. Se puede separar para dejar un período de gracia entre "la beta
+ * terminó" y "empieza a cobrarse comisión", que es útil para avisar sin que
+ * el cambio de precio caiga el mismo día del anuncio. Durante ese hueco la
+ * comisión sigue en 0.
+ */
+let liveStartsAt: Date = BETA_ENDS_AT_DEFECTO;
 
 /** In-process cache: this is read on every commission calculation. */
 let cached: { phase: PlatformPhase; at: number } | null = null;
 const CACHE_MS = 30_000;
 
+/** Aplica las fechas configuradas. Lo llama el arranque y el panel al guardar. */
+export function configurarFechasDeFase(v: { betaEndsAt?: string | Date | null; liveStartsAt?: string | Date | null }): void {
+  const fin = fechaValida(v.betaEndsAt) ?? BETA_ENDS_AT_DEFECTO;
+  BETA_ENDS_AT = fin;
+  // El inicio de la fase estable nunca puede ser anterior al fin de la beta:
+  // seria cobrar comision mientras se sigue anunciando que no se cobra.
+  const inicio = fechaValida(v.liveStartsAt);
+  liveStartsAt = inicio && inicio.getTime() > fin.getTime() ? inicio : fin;
+  cached = null;
+}
+
+function fechaValida(v: unknown): Date | null {
+  if (!v) return null;
+  const d = v instanceof Date ? v : new Date(String(v));
+  return isNaN(d.getTime()) ? null : d;
+}
+
+export function fechasDeFase() {
+  return { betaEndsAt: BETA_ENDS_AT, liveStartsAt };
+}
+
 /**
  * Current phase.
  *
- * The stored value can only ever *hold back* the switch to live: once the beta
- * end date passes, the phase is live regardless of what the row says. That way
- * a forgotten setting cannot keep the platform giving away commission forever,
- * and the deadline we publish to users is the one the code actually honours.
+ * The stored value can only ever *hold back* the switch to live: once the live
+ * start date passes, the phase is live regardless of what the row says. That
+ * way a forgotten setting cannot keep the platform giving away commission
+ * forever, and the deadline we publish to users is the one the code honours.
  */
 export async function getPlatformPhase(): Promise<PlatformPhase> {
-  if (Date.now() > BETA_ENDS_AT.getTime()) return 'live';
+  if (Date.now() > liveStartsAt.getTime()) return 'live';
 
   if (cached && Date.now() - cached.at < CACHE_MS) return cached.phase;
 
@@ -51,6 +91,56 @@ export async function getPlatformPhase(): Promise<PlatformPhase> {
     // charging a commission nobody agreed to is not.
     return 'beta';
   }
+}
+
+/** Carga las fechas guardadas y las aplica. Se llama al arrancar. */
+export async function cargarFechasDeFase(): Promise<void> {
+  try {
+    const row = await AppSetting.findByPk(PHASE_SETTING_KEY);
+    configurarFechasDeFase({
+      betaEndsAt: row?.value?.betaEndsAt ?? null,
+      liveStartsAt: row?.value?.liveStartsAt ?? null,
+    });
+  } catch {
+    configurarFechasDeFase({});
+  }
+}
+
+/**
+ * Guarda las fechas. El llamador autoriza y audita.
+ *
+ * Mover el cierre hacia atrás (adelantarlo) es tan delicado como moverlo hacia
+ * adelante: adelantarlo hace que empiece a cobrarse comisión antes de lo que
+ * se le dijo a la gente. Por eso las dos direcciones pasan por el mismo
+ * control que el cambio de fase.
+ */
+export async function setFechasDeFase(
+  v: { betaEndsAt?: string | null; liveStartsAt?: string | null },
+  updatedBy?: string,
+): Promise<{ betaEndsAt: Date; liveStartsAt: Date }> {
+  const fin = fechaValida(v.betaEndsAt);
+  if (v.betaEndsAt && !fin) throw new Error('La fecha de fin de la beta no es válida');
+  const inicio = fechaValida(v.liveStartsAt);
+  if (v.liveStartsAt && !inicio) throw new Error('La fecha de inicio de la fase estable no es válida');
+  if (fin && inicio && inicio.getTime() < fin.getTime()) {
+    throw new Error('La fase estable no puede empezar antes de que termine la beta');
+  }
+
+  const row = await AppSetting.findByPk(PHASE_SETTING_KEY);
+  const actual = row?.value || {};
+  await AppSetting.upsert({
+    key: PHASE_SETTING_KEY,
+    value: {
+      ...actual,
+      betaEndsAt: fin ? fin.toISOString() : null,
+      liveStartsAt: inicio ? inicio.toISOString() : null,
+      fechasCambiadasEn: new Date().toISOString(),
+    },
+    updatedBy,
+  } as any);
+
+  configurarFechasDeFase({ betaEndsAt: fin, liveStartsAt: inicio });
+  return fechasDeFase();
 }
 
 /**
@@ -74,9 +164,18 @@ export async function isBetaPhase(): Promise<boolean> {
 
 /** Change the phase. Callers are responsible for authorising and auditing. */
 export async function setPlatformPhase(phase: PlatformPhase, updatedBy?: string): Promise<void> {
+  // Se conserva lo que ya haya en la fila (las fechas): un upsert que pisa el
+  // value entero borraba las fechas configuradas cada vez que se cambiaba de
+  // fase, y la beta volvía a la fecha de fábrica sin que nadie lo pidiera.
+  let actual: any = {};
+  try {
+    const row = await AppSetting.findByPk(PHASE_SETTING_KEY);
+    actual = row?.value || {};
+  } catch { /* fila nueva */ }
+
   await AppSetting.upsert({
     key: PHASE_SETTING_KEY,
-    value: { phase, changedAt: new Date().toISOString() },
+    value: { ...actual, phase, changedAt: new Date().toISOString() },
     updatedBy,
   } as any);
   cached = { phase, at: Date.now() };
@@ -86,6 +185,7 @@ export async function setPlatformPhase(phase: PlatformPhase, updatedBy?: string)
 export async function getPhaseInfo() {
   const phase = await getPlatformPhase();
   const endsAt = BETA_ENDS_AT.toISOString();
+  const liveAt = liveStartsAt.toISOString();
 
   // When the switch was actually thrown. The owner can go live before the
   // deadline, so "the beta ended" and "BETA_ENDS_AT" are not the same date, and
@@ -100,6 +200,9 @@ export async function getPhaseInfo() {
     phase,
     isBeta: phase === 'beta',
     betaEndsAt: endsAt,
+    liveStartsAt: liveAt,
+    /** Si las fechas se movieron desde el panel o son las de fábrica. */
+    fechasPorDefecto: BETA_ENDS_AT.getTime() === BETA_ENDS_AT_DEFECTO.getTime() && liveAt === endsAt,
     betaDaysLeft: phase === 'beta' ? daysLeft : 0,
     phaseChangedAt: changedAt,
   };

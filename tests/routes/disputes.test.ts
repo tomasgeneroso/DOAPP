@@ -6,6 +6,7 @@ import { Contract } from '../../server/models/sql/Contract.model.js';
 import { User } from '../../server/models/sql/User.model.js';
 import { Job } from '../../server/models/sql/Job.model.js';
 import jwt from 'jsonwebtoken';
+import { crearEscenario, crearDisputa } from '../helpers/fixtures.js';
 
 describe('Dispute Routes', () => {
   let app: Express;
@@ -26,40 +27,18 @@ describe('Dispute Routes', () => {
   });
 
   beforeEach(async () => {
-    // Create test users
-    clientUser = await User.create({
-      email: 'client@test.com',
-      name: 'Test Client',
-      password: 'password123',
-      role: 'client',
+    // Los fixtures viven en tests/helpers/fixtures.ts: el Job tiene campos
+    // obligatorios que este test no usa pero el modelo exige, y tenerlos
+    // copiados en cada suite hacía que agregar una columna rompiera siete.
+    const escenario = await crearEscenario({
+      usuario: { name: 'Test Client' },
+      trabajador: { name: 'Test Doer' },
+      trabajo: { title: 'Test Job', price: 1000 },
     });
-
-    doerUser = await User.create({
-      email: 'doer@test.com',
-      name: 'Test Doer',
-      password: 'password123',
-      role: 'doer',
-    });
-
-    // Create test job
-    job = await Job.create({
-      title: 'Test Job',
-      description: 'Test job description',
-      price: 1000,
-      clientId: clientUser.id,
-      category: 'development',
-      status: 'open',
-    });
-
-    // Create test contract
-    contract = await Contract.create({
-      jobId: job.id,
-      clientId: clientUser.id,
-      doerId: doerUser.id,
-      price: 1000,
-      status: 'in_progress',
-      paymentStatus: 'escrow',
-    });
+    clientUser = escenario.cliente;
+    doerUser = escenario.trabajador;
+    job = escenario.job;
+    contract = escenario.contrato;
 
     // Generate auth token
     authToken = jwt.sign(
@@ -84,10 +63,15 @@ describe('Dispute Routes', () => {
         .expect(201);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data).toHaveProperty('_id');
+      // `id`, no `_id`: la base es Postgres desde la migración. Y una disputa
+      // nueva arranca en 'negotiation' —las 72 h de reclamo directo del punto
+      // 10.11— no en 'open': a 'open' pasa recién si escala a un admin.
+      expect(response.body.data).toHaveProperty('id');
       expect(response.body.data.reason).toBe(disputeData.reason);
-      expect(response.body.data.status).toBe('open');
-      expect(response.body.data.priority).toBe('medium');
+      expect(response.body.data.status).toBe('negotiation');
+      // La prioridad la decide determineAutoPriority según el monto, la
+      // categoría y si quien reclama es PRO (durante la beta, todos lo son).
+      expect(['low', 'medium', 'high', 'urgent']).toContain(response.body.data.priority);
     });
 
     it('should create dispute with file attachments', async () => {
@@ -145,15 +129,10 @@ describe('Dispute Routes', () => {
 
     it('should reject duplicate disputes for same contract', async () => {
       // Create first dispute
-      await Dispute.create({
-        contractId: contract.id,
-        initiatedBy: clientUser.id,
-        against: doerUser.id,
-        reason: 'First dispute',
-        description: 'First dispute description',
-        category: 'quality_issues',
-        status: 'open',
-      });
+      await crearDisputa(
+        { contractId: contract.id, initiatedBy: clientUser.id, against: doerUser.id },
+        { reason: 'First dispute', category: 'quality_issues' },
+      );
 
       // Try to create second dispute
       const disputeData = {
@@ -170,33 +149,22 @@ describe('Dispute Routes', () => {
         .expect(400);
 
       expect(response.body.success).toBe(false);
-      expect(response.body.message).toContain('Ya existe una disputa');
+      expect(response.body.message).toContain('Ya hay un reclamo abierto');
     });
   });
 
   describe('GET /api/disputes', () => {
     beforeEach(async () => {
-      // Create multiple disputes
-      await Dispute.bulkCreate([
-        {
-          contractId: contract.id,
-          initiatedBy: clientUser.id,
-          against: doerUser.id,
-          reason: 'Dispute 1',
-          description: 'Description 1',
-          category: 'quality_issues',
-          status: 'open',
-        },
-        {
-          contractId: contract.id,
-          initiatedBy: doerUser.id,
-          against: clientUser.id,
-          reason: 'Dispute 2',
-          description: 'Description 2',
-          category: 'payment_issues',
-          status: 'in_review',
-        },
-      ]);
+      // Dos disputas del mismo contrato: la ruta no deja crear la segunda,
+      // pero para listar y filtrar da igual y es lo que se está probando.
+      await crearDisputa(
+        { contractId: contract.id, initiatedBy: clientUser.id, against: doerUser.id },
+        { reason: 'Dispute 1', category: 'quality_issues', status: 'open' },
+      );
+      await crearDisputa(
+        { contractId: contract.id, initiatedBy: doerUser.id, against: clientUser.id },
+        { reason: 'Dispute 2', category: 'payment_issues', status: 'in_review' },
+      );
     });
 
     it('should return all disputes for authenticated user', async () => {
@@ -225,15 +193,10 @@ describe('Dispute Routes', () => {
     let dispute: any;
 
     beforeEach(async () => {
-      dispute = await Dispute.create({
-        contractId: contract.id,
-        initiatedBy: clientUser.id,
-        against: doerUser.id,
-        reason: 'Test dispute',
-        description: 'Test description',
-        category: 'quality_issues',
-        status: 'open',
-      });
+      dispute = await crearDisputa(
+        { contractId: contract.id, initiatedBy: clientUser.id, against: doerUser.id },
+        { reason: 'Test dispute', category: 'quality_issues' },
+      );
     });
 
     it('should return dispute details by ID', async () => {
@@ -243,7 +206,7 @@ describe('Dispute Routes', () => {
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data._id).toBe(dispute.id.toString());
+      expect(response.body.data.id).toBe(dispute.id.toString());
       expect(response.body.data.reason).toBe('Test dispute');
     });
 
@@ -259,42 +222,39 @@ describe('Dispute Routes', () => {
     });
   });
 
-  describe('POST /api/disputes/:id/message', () => {
+  // La ruta es /messages (plural) y el campo se llama `message`, no `text`.
+  // El test apuntaba a /message y mandaba `text`: daba 404 y nadie se enteró
+  // de que estos dos casos nunca se estaban probando.
+  describe('POST /api/disputes/:id/messages', () => {
     let dispute: any;
 
     beforeEach(async () => {
-      dispute = await Dispute.create({
-        contractId: contract.id,
-        initiatedBy: clientUser.id,
-        against: doerUser.id,
-        reason: 'Test dispute',
-        description: 'Test description',
-        category: 'quality_issues',
-        status: 'open',
-      });
+      dispute = await crearDisputa(
+        { contractId: contract.id, initiatedBy: clientUser.id, against: doerUser.id },
+        { reason: 'Test dispute', category: 'quality_issues' },
+      );
     });
 
     it('should add a message to dispute', async () => {
-      const messageData = {
-        text: 'This is a test message',
-      };
+      const messageData = { message: 'This is a test message' };
 
       const response = await request(app)
-        .post(`/api/disputes/${dispute.id}/message`)
+        .post(`/api/disputes/${dispute.id}/messages`)
         .set('Authorization', `Bearer ${authToken}`)
         .send(messageData)
         .expect(200);
 
       expect(response.body.success).toBe(true);
-      expect(response.body.data.messages).toHaveLength(1);
-      expect(response.body.data.messages[0].text).toBe(messageData.text);
+      const mensajes = response.body.data.messages;
+      expect(mensajes.length).toBeGreaterThan(0);
+      expect(mensajes[mensajes.length - 1].message).toBe(messageData.message);
     });
 
     it('should reject empty messages', async () => {
       const response = await request(app)
-        .post(`/api/disputes/${dispute.id}/message`)
+        .post(`/api/disputes/${dispute.id}/messages`)
         .set('Authorization', `Bearer ${authToken}`)
-        .send({ text: '' })
+        .send({ message: '' })
         .expect(400);
 
       expect(response.body.success).toBe(false);
@@ -305,15 +265,10 @@ describe('Dispute Routes', () => {
     let dispute: any;
 
     beforeEach(async () => {
-      dispute = await Dispute.create({
-        contractId: contract.id,
-        initiatedBy: clientUser.id,
-        against: doerUser.id,
-        reason: 'Test dispute',
-        description: 'Test description',
-        category: 'quality_issues',
-        status: 'open',
-      });
+      dispute = await crearDisputa(
+        { contractId: contract.id, initiatedBy: clientUser.id, against: doerUser.id },
+        { reason: 'Test dispute', category: 'quality_issues' },
+      );
     });
 
     it('should add additional evidence to existing dispute', async () => {

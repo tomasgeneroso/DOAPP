@@ -23,6 +23,8 @@ export default function AdminUsers() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [realtimeAlert, setRealtimeAlert] = useState<string | null>(null);
+  /** Por qué la lista está vacía. Vacío sin explicación parece una pantalla rota. */
+  const [notFound, setNotFound] = useState<string | null>(null);
   const [verifiedFilter, setVerifiedFilter] = useState<'all' | 'verified' | 'unverified'>('all');
 
   // Membership modal
@@ -96,8 +98,36 @@ export default function AdminUsers() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, search, verifiedFilter]);
 
+  /**
+   * Buscar por id NO puede depender del buscador de texto.
+   *
+   * El botón "Admin: ver info" del perfil manda acá con el id del usuario, y
+   * ese id tiene que resolver siempre a esa persona. Pasarlo por el buscador
+   * general lo dejaba a merced de cómo esté armada la consulta (ILIKE sobre
+   * varias tablas, filtros que se acumulan, paginación) y a veces no traía
+   * nada: el admin llegaba a una lista vacía sin entender por qué.
+   *
+   * Con un id se pide ese usuario y punto. Si no existe se dice, en vez de
+   * mostrar una lista vacía que parece un error de la pantalla.
+   */
+  const ES_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
   const loadUsers = async () => {
+    setNotFound(null);
     try {
+      if (ES_UUID.test(search.trim())) {
+        const res = await adminApi.users.get(search.trim());
+        if (res.success && res.data) {
+          setUsers([res.data as AdminUser]);
+          setTotalPages(1);
+        } else {
+          setUsers([]);
+          setTotalPages(1);
+          setNotFound(`No existe ningún usuario con el id ${search.trim()}.`);
+        }
+        return;
+      }
+
       const params: Record<string, string> = {
         page: page.toString(),
         limit: "20",
@@ -112,9 +142,16 @@ export default function AdminUsers() {
         if (res.pagination) {
           setTotalPages(res.pagination.pages);
         }
+      } else {
+        // Una respuesta sin éxito dejaba la lista anterior en pantalla: el
+        // admin veía datos viejos creyendo que eran el resultado de su búsqueda.
+        setUsers([]);
+        setNotFound((res as any)?.message || 'No se pudo cargar la lista de usuarios.');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error loading users:", error);
+      setUsers([]);
+      setNotFound(error?.message || 'Error de conexión al cargar usuarios.');
     } finally {
       setLoading(false);
     }
@@ -544,7 +581,12 @@ export default function AdminUsers() {
                       <div className="flex items-center gap-1.5">
                         <span className="text-sm font-medium text-gray-900 dark:text-white hover:text-sky-600 dark:hover:text-sky-400">{user.name}</span>
                         {(user as any).dniVerified && (
-                          <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" title="Identidad verificada" />
+                          // El title va en el span: los iconos de lucide no lo
+                          // aceptan como prop, así que antes no se mostraba nada
+                          // al pasar el mouse.
+                          <span title="Identidad verificada" className="inline-flex">
+                            <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" aria-label="Identidad verificada" />
+                          </span>
                         )}
                       </div>
                       {user.adminRole && (
@@ -766,7 +808,9 @@ export default function AdminUsers() {
                   colSpan={verifiedFilter === 'unverified' ? 9 : 8}
                   className="px-6 py-12 text-center text-sm text-gray-500 dark:text-gray-400"
                 >
-                  {verifiedFilter === 'verified'
+                  {notFound
+                    ? notFound
+                    : verifiedFilter === 'verified'
                     ? 'No hay usuarios verificados todavía.'
                     : verifiedFilter === 'unverified'
                     ? 'No hay usuarios pendientes de verificación.'

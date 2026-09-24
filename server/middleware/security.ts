@@ -202,25 +202,58 @@ export const preventDirectoryTraversal = (req: Request, res: Response, next: Nex
     return suspiciousPatterns.some((pattern) => value.toLowerCase().includes(pattern));
   };
 
-  const checkObject = (obj: any): boolean => {
-    if (typeof obj === "string") {
-      return checkValue(obj);
-    }
-    if (Array.isArray(obj)) {
-      return obj.some(checkObject);
-    }
+  /**
+   * Revisar SOLO donde una ruta puede terminar siendo un path.
+   *
+   * Antes se revisaba `req.body` entero y a cualquier profundidad. Eso hacía
+   * dos cosas malas: llenaba el log de errores con escaneos automáticos a
+   * rutas que ni existen (`/api/templates/preview`), y, peor, rechazaba con
+   * "Solicitud inválida" a un usuario que escribiera `../` dentro de la
+   * descripción de un trabajo o de un mensaje de chat. Un texto libre no es
+   * un path y nunca se usa como tal.
+   *
+   * Los params y la query sí se revisan enteros: de ahí salen los `:id` y los
+   * nombres de archivo que el código usa para construir rutas.
+   */
+  const checkObject = (obj: any, profundidad = 0): boolean => {
+    if (typeof obj === "string") return checkValue(obj);
+    if (profundidad > 4) return false;
+    if (Array.isArray(obj)) return obj.some((v) => checkObject(v, profundidad + 1));
     if (obj && typeof obj === "object") {
-      return Object.values(obj).some(checkObject);
+      return Object.values(obj).some((v) => checkObject(v, profundidad + 1));
     }
     return false;
   };
 
-  if (
-    checkObject(req.params) ||
-    checkObject(req.query) ||
-    checkObject(req.body)
-  ) {
-    console.error(`[Security] Directory traversal attempt detected: ${req.method} ${req.path}`);
+  /** Campos de un body que el servidor puede llegar a tratar como archivo o ruta. */
+  const CAMPOS_DE_ARCHIVO = [
+    'filename', 'fileName', 'file', 'path', 'filepath', 'filePath',
+    'template', 'templateName', 'ruta', 'archivo', 'nombreArchivo',
+    'avatar', 'coverImage', 'image', 'imagen', 'url', 'src', 'key',
+  ];
+
+  const bodySospechoso = (() => {
+    const body = req.body;
+    if (!body || typeof body !== 'object') return typeof body === 'string' ? checkValue(body) : false;
+    return CAMPOS_DE_ARCHIVO.some((campo) => {
+      const v = (body as any)[campo];
+      return typeof v === 'string' ? checkValue(v) : checkObject(v);
+    });
+  })();
+
+  if (checkObject(req.params) || checkObject(req.query) || bodySospechoso) {
+    /**
+     * Nivel `warn`, no `error`, y con la IP.
+     *
+     * Cualquier servidor con IP pública recibe escaneos automáticos todo el
+     * día. Anotarlos como errores hace que el log de errores —el que se mira
+     * cuando algo se rompe— sea noventa por ciento ruido, y ahí es donde se
+     * pierden los incidentes de verdad. La IP es lo único accionable: permite
+     * ver si es uno insistiendo (y bloquearlo en Cloudflare) o mil distintos.
+     */
+    console.warn(
+      `[Security] Intento de path traversal: ${req.method} ${req.path} desde ${req.ip || 'ip desconocida'}`,
+    );
     res.status(400).json({
       success: false,
       message: "Solicitud inválida",

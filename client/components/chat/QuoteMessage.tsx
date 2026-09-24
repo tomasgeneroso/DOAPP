@@ -46,6 +46,10 @@ interface Props {
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 export default function QuoteMessage({ message, onRefresh, token }: Props) {
+  // Faltaba, y el componente usa `t` en cuatro lugares: cualquiera de los dos
+  // errores de pago (o abrir el modal de aviso) tiraba "t is not defined" y
+  // rompía el chat entero en vez de mostrar el mensaje.
+  const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
   const meta = message.metadata || {};

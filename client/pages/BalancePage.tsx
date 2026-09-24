@@ -419,7 +419,7 @@ export default function BalancePage() {
                 {t('balance.fastPayments', 'Cuándo cobrás un trabajo')}
               </h3>
               <p className="text-sm text-green-800 dark:text-green-300">
-                {t('balance.fastPaymentsDesc', 'El pago de un trabajo se transfiere a tu cuenta una vez que pasan los {{dias}} días de reclamo desde que terminó y Mercado Pago libera el dinero del cliente. En cada contrato ves la fecha exacta. Lo que recibís es el precio menos el costo de la pasarela, que se te informa al postularte.', { dias: POLITICAS.DIAS_PARA_DISPUTAR })}
+                {t('balance.fastPaymentsDesc', 'El pago de un trabajo se transfiere a tu cuenta una vez que pasan los {{dias}} días de reclamo desde que terminó y Mercado Pago libera el dinero del cliente. En cada contrato ves la fecha exacta. Recibís el precio completo: la comisión y el costo de procesamiento los paga el cliente.', { dias: POLITICAS.DIAS_PARA_DISPUTAR })}
               </p>
             </div>
           </div>

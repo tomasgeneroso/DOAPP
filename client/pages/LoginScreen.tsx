@@ -14,6 +14,7 @@ import { FacebookSDK } from "../components/FacebookSDK";
 import MembershipOfferModal from "../components/MembershipOfferModal";
 import { analytics, identifyUser } from "../utils/analytics";
 import { ThemeToggle } from "../components/ui/ThemeToggle";
+import AuthHero from "../components/auth/AuthHero";
 
 type FormMode = "login" | "register";
 
@@ -353,7 +354,14 @@ export default function LoginScreen() {
       <div className="fixed top-4 right-4 z-50">
         <ThemeToggle />
       </div>
-      <div className="flex min-h-screen flex-col justify-center px-4 py-6 sm:px-6 sm:py-12 lg:px-8">
+      {/*
+        Dos columnas en escritorio: el panel oscuro cuenta qué es DOAPP mientras
+        el formulario ocupa la derecha. En teléfono el panel no se muestra —ahí
+        el espacio es del formulario— y la pantalla queda como estaba.
+      */}
+      <div className="grid min-h-screen lg:grid-cols-2">
+        <AuthHero />
+        <div className="flex flex-col justify-center px-4 py-6 sm:px-6 sm:py-12 lg:px-8">
         <div className="mx-auto w-full max-w-[95%] sm:max-w-md rounded-xl bg-white dark:bg-slate-800 p-4 shadow-lg sm:p-5 animate-scaleIn">
           <Link
             to="/"
@@ -910,6 +918,7 @@ export default function LoginScreen() {
           </div>
 
           {fbError && <p className="mt-4 text-sm text-center text-red-600">{fbError}</p>}
+        </div>
         </div>
       </div>
 

@@ -267,21 +267,32 @@ export default function Header() {
                 </Link>
               )}
 
+              {/*
+                Publicar un trabajo es LA acción de la que vive la plataforma:
+                sin publicaciones no hay nada que hacer para nadie. Estaba en
+                slate-900, que sobre el header oscuro desaparecía y quedaba por
+                debajo del botón de admin —una herramienta interna— en peso
+                visual. Ahora es el único botón lleno con color de marca.
+              */}
               <Link
                 to="/contracts/create"
                 onClick={() => analytics.navClick('/contracts/create', 'header')}
-                className="inline-flex items-center justify-center gap-1 sm:gap-2 rounded-lg sm:rounded-xl bg-slate-900 px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white transition-colors hover:bg-black focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 whitespace-nowrap"
+                className="inline-flex items-center justify-center gap-1 sm:gap-2 rounded-lg sm:rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-3 sm:px-5 py-2 text-xs sm:text-sm font-semibold text-white shadow-lg shadow-sky-500/25 transition-all hover:from-sky-400 hover:to-blue-500 hover:shadow-sky-500/40 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 dark:focus:ring-offset-slate-900 whitespace-nowrap"
                 data-onboarding="create-job"
               >
-                <PlusCircle className="h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="hidden sm:inline">{t('nav.publishJob')}</span>
-                <span className="inline sm:hidden">{t('nav.publishJob')}</span>
+                <PlusCircle className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
+                <span>{t('nav.publishJob')}</span>
               </Link>
 
+              {/*
+                El panel de admin es una herramienta interna que ve una persona
+                por día: va como botón secundario para no competir con
+                "Publicar trabajo", que es lo que tiene que mirar todo el mundo.
+              */}
               {user.adminRole && (
                 <Link
                   to="/admin"
-                  className="inline-flex items-center justify-center gap-1 sm:gap-2 rounded-lg sm:rounded-xl bg-sky-600 dark:bg-sky-700 px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium text-white transition-colors hover:bg-sky-700 dark:hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2"
+                  className="inline-flex items-center justify-center gap-1 sm:gap-2 rounded-lg sm:rounded-xl border border-slate-300 dark:border-slate-600 bg-white/80 dark:bg-slate-800/80 px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-200 transition-colors hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 dark:focus:ring-offset-slate-900"
                   title="Panel de Administración"
                 >
                   <Shield className="h-4 w-4 sm:h-5 sm:w-5" />

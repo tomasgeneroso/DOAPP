@@ -7,6 +7,8 @@ import { logAudit, getSeverityForAction } from '../../utils/auditLog.js';
 import {
   getPhaseInfo,
   setPlatformPhase,
+  setFechasDeFase,
+  fechasDeFase,
   BETA_ENDS_AT,
   type PlatformPhase,
 } from '../../services/platformPhase.js';
@@ -244,6 +246,119 @@ router.post('/phase', async (req: AuthRequest, res: Response) => {
     });
 
     res.json({ success: true, data: await getPhaseInfo(), betaEndsAt: BETA_ENDS_AT.toISOString() });
+  } catch (e: any) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+/**
+ * Fechas de la beta y de la fase estable.
+ * POST /api/admin/platform/phase-dates
+ *
+ * Mover estas fechas cambia cuándo empieza a cobrarse comisión, así que pasa
+ * por la misma contraseña de acción y el mismo registro que el cambio de fase:
+ * adelantar el cierre cobra comisión antes de lo anunciado, y atrasarlo
+ * regala comisión. Las dos direcciones importan.
+ */
+router.post('/phase-dates', async (req: AuthRequest, res: Response) => {
+  try {
+    const { betaEndsAt, liveStartsAt, password } = req.body || {};
+
+    if (!(await isActionPasswordSet(ACTIONS.PLATFORM_PHASE))) {
+      res.status(400).json({ success: false, message: 'Primero creá la contraseña de cambio de fase', needsSetup: true });
+      return;
+    }
+    if (!(await verifyActionPassword(ACTIONS.PLATFORM_PHASE, String(password || '')))) {
+      await logAudit({
+        req, action: 'platform_phase_change_denied', category: 'system',
+        severity: getSeverityForAction('platform_phase_change_denied'),
+        description: 'Intento fallido de cambiar las fechas de fase: contraseña incorrecta',
+        targetModel: 'AppSetting', targetId: ACTIONS.PLATFORM_PHASE,
+      });
+      res.status(401).json({ success: false, message: 'Contraseña incorrecta' });
+      return;
+    }
+
+    const antes = fechasDeFase();
+    const despues = await setFechasDeFase({ betaEndsAt, liveStartsAt }, req.user!.id);
+
+    await logAudit({
+      req, action: 'platform_phase_changed', category: 'system',
+      severity: getSeverityForAction('platform_phase_changed'),
+      description: `Fechas de fase: beta termina ${despues.betaEndsAt.toISOString()}, estable empieza ${despues.liveStartsAt.toISOString()}`,
+      targetModel: 'AppSetting', targetId: ACTIONS.PLATFORM_PHASE,
+      changes: [
+        { field: 'betaEndsAt', oldValue: antes.betaEndsAt.toISOString(), newValue: despues.betaEndsAt.toISOString() },
+        { field: 'liveStartsAt', oldValue: antes.liveStartsAt.toISOString(), newValue: despues.liveStartsAt.toISOString() },
+      ],
+    });
+
+    res.json({ success: true, data: await getPhaseInfo() });
+  } catch (e: any) {
+    res.status(400).json({ success: false, message: e.message });
+  }
+});
+
+/**
+ * Tasas y alícuotas: procesamiento de la pasarela y IIBB.
+ * GET  /api/admin/platform/fiscal
+ * PUT  /api/admin/platform/fiscal
+ *
+ * No piden contraseña de acción como la fase: no cambian lo que ya se cobró
+ * ni encienden la comisión, y el contador puede necesitar corregirlos el
+ * mismo día que los recibe. Sí quedan auditados con el valor viejo y el nuevo.
+ */
+router.get('/fiscal', async (_req: AuthRequest, res: Response) => {
+  try {
+    const { ajustesVigentes } = await import('../../services/fiscalSettings.js');
+    res.json({ success: true, data: ajustesVigentes() });
+  } catch (e: any) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+router.put('/fiscal', async (req: AuthRequest, res: Response) => {
+  try {
+    const { ajustesVigentes, guardarAjustesFiscales, AjusteInvalido } = await import(
+      '../../services/fiscalSettings.js'
+    );
+    const antes = ajustesVigentes();
+
+    try {
+      const despues = await guardarAjustesFiscales(
+        {
+          tasaProcesamiento: req.body?.tasaProcesamiento,
+          iibbRetencion: req.body?.iibbRetencion,
+          iibbPropia: req.body?.iibbPropia,
+        },
+        req.user!.id,
+      );
+
+      await logAudit({
+        req, action: 'platform_fiscal_changed', category: 'system',
+        severity: 'high',
+        description:
+          `Tasas actualizadas: procesamiento ${antes.vigente.tasaProcesamiento} -> ${despues.vigente.tasaProcesamiento}, ` +
+          `retención IIBB ${antes.vigente.iibbRetencion} -> ${despues.vigente.iibbRetencion}, ` +
+          `IIBB propio ${antes.vigente.iibbPropia} -> ${despues.vigente.iibbPropia}`,
+        targetModel: 'AppSetting', targetId: 'platform:fiscal',
+        changes: [
+          { field: 'tasaProcesamiento', oldValue: antes.vigente.tasaProcesamiento, newValue: despues.vigente.tasaProcesamiento },
+          { field: 'iibbRetencion', oldValue: antes.vigente.iibbRetencion, newValue: despues.vigente.iibbRetencion },
+          { field: 'iibbPropia', oldValue: antes.vigente.iibbPropia, newValue: despues.vigente.iibbPropia },
+        ],
+      });
+
+      res.json({ success: true, data: despues });
+    } catch (e: any) {
+      // Un número fuera de rango es culpa de quien lo escribió, no del
+      // servidor: 400 con el motivo, no 500.
+      if (e instanceof AjusteInvalido) {
+        res.status(400).json({ success: false, message: e.message });
+        return;
+      }
+      throw e;
+    }
   } catch (e: any) {
     res.status(500).json({ success: false, message: e.message });
   }

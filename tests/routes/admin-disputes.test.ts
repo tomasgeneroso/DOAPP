@@ -7,6 +7,7 @@ import { Payment } from '../../server/models/sql/Payment.model.js';
 import { User } from '../../server/models/sql/User.model.js';
 import { Job } from '../../server/models/sql/Job.model.js';
 import jwt from 'jsonwebtoken';
+import { crearEscenario, crearDisputa, crearUsuario } from '../helpers/fixtures.js';
 
 describe('Admin Dispute Routes', () => {
   let app: Express;
@@ -27,79 +28,59 @@ describe('Admin Dispute Routes', () => {
     app.use('/api/admin/disputes', adminDisputeRoutes.default);
   });
 
+  /**
+   * Este setup venía de cuando la base era Mongo: `client: clientUser._id`,
+   * `job: job._id`, `contract._id`, y un token firmado con `_id`. Sequelize
+   * descarta esos campos en silencio (las columnas se llaman clientId, jobId,
+   * id) y después falla por los obligatorios que quedaron vacíos. Toda la
+   * suite fallaba por eso, no por las rutas que dice probar.
+   */
   beforeEach(async () => {
-    // Create admin user
-    adminUser = await User.create({
-      email: 'admin@test.com',
+    adminUser = await crearUsuario({
       name: 'Admin User',
-      password: 'adminpass123',
-      role: 'super_admin',
+      role: 'admin',
+      adminRole: 'super_admin',
     });
 
-    // Create client and doer
-    clientUser = await User.create({
-      email: 'client@test.com',
-      name: 'Test Client',
-      password: 'password123',
-      role: 'client',
+    const escenario = await crearEscenario({
+      usuario: { name: 'Test Client' },
+      trabajador: { name: 'Test Doer' },
+      trabajo: { title: 'Test Job', price: 10000, status: 'in_progress' },
+      contrato: { price: 10000 },
     });
+    clientUser = escenario.cliente;
+    doerUser = escenario.trabajador;
+    job = escenario.job;
+    contract = escenario.contrato;
 
-    doerUser = await User.create({
-      email: 'doer@test.com',
-      name: 'Test Doer',
-      password: 'password123',
-      role: 'doer',
-    });
-
-    // Create job
-    job = await Job.create({
-      title: 'Test Job',
-      description: 'Test description',
-      price: 10000,
-      client: clientUser._id,
-      category: 'development',
-      status: 'in_progress',
-    });
-
-    // Create contract
-    contract = await Contract.create({
-      job: job._id,
-      client: clientUser._id,
-      doer: doerUser._id,
-      price: 10000,
-      status: 'in_progress',
-      paymentStatus: 'escrow',
-    });
-
-    // Create payment
     payment = await Payment.create({
-      contractId: contract._id,
-      userId: clientUser._id,
-      amount: 100,
-      amountARS: 10000,
+      contractId: contract.id,
+      payerId: clientUser.id,
+      recipientId: doerUser.id,
+      amount: 10000,
+      amountArs: 10000,
       currency: 'ARS',
       status: 'held_escrow',
       paymentType: 'escrow_deposit',
-      mercadopagoPaymentId: 'MP-12345',
-    });
+      mercadopagoPaymentId: `MP-${Date.now()}`,
+      isEscrow: true,
+    } as any);
 
-    // Create dispute
-    dispute = await Dispute.create({
-      contractId: contract._id,
-      paymentId: payment._id,
-      initiatedBy: clientUser._id,
-      against: doerUser._id,
-      reason: 'Work not completed',
-      description: 'The work was not delivered on time',
-      category: 'incomplete_work',
-      status: 'open',
-      priority: 'medium',
-    });
+    dispute = await crearDisputa(
+      { contractId: contract.id, initiatedBy: clientUser.id, against: doerUser.id },
+      {
+        paymentId: payment.id,
+        reason: 'Work not completed',
+        category: 'incomplete_work',
+        status: 'open',
+        priority: 'medium',
+      },
+    );
 
-    // Generate admin token
+    // El token lleva `id`: es lo que lee `protect` para buscar al usuario.
     adminToken = jwt.sign(
-      { _id: adminUser._id, email: adminUser.email, role: 'super_admin' },
-      process.env.JWT_SECRET || 'test-secret'
+      { id: adminUser.id, email: adminUser.email, role: 'admin' },
+      process.env.JWT_SECRET || 'test-secret',
     );
   });
 

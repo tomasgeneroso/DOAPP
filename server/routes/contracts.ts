@@ -2377,7 +2377,7 @@ router.post("/:id/worker-unavailable", protect, async (req: AuthRequest, res: Re
           title: 'El trabajador no puede realizar el trabajo',
           message:
             `El trabajador avisó que no puede hacer "${job?.title || 'el trabajo'}": ${motivo}. ` +
-            'Vos decidís: dejarlo publicado con el precio ya abonado para que lo tome otro, republicarlo por menos, o pasar el precio a tu saldo a favor (la comisión de publicación no se devuelve; si retirás el saldo se descuenta la pasarela).',
+            'Vos decidís: dejarlo publicado con el precio ya abonado para que lo tome otro, republicarlo por menos, o pasar el precio a tu saldo a favor (la comisión de publicación no se devuelve porque ya hubo un trabajador seleccionado; retirar el saldo no tiene costo).',
           relatedModel: 'Contract',
           relatedId: contract.id,
           actionText: 'Decidir',
@@ -2444,7 +2444,7 @@ router.post("/:id/worker-unavailable", protect, async (req: AuthRequest, res: Re
     const mensajes: Record<string, string> = {
       liberar: "El trabajo volvió a estar publicado con el precio que ya abonaste.",
       parcial: `El trabajo volvió a estar publicado a $${(r.precioPublicado || 0).toLocaleString('es-AR')} y $${(r.aFavor || 0).toLocaleString('es-AR')} quedaron a tu favor.`,
-      saldo: `El precio del trabajo ($${(r.aFavor || 0).toLocaleString('es-AR')}) quedó como saldo a favor. La comisión de publicación no se devuelve; si retirás el saldo a tu banco se descuenta la pasarela.`,
+      saldo: `El precio del trabajo ($${(r.aFavor || 0).toLocaleString('es-AR')}) quedó como saldo a favor. La comisión de publicación no se devuelve porque ya hubo un trabajador seleccionado; retirar el saldo a tu banco no tiene costo.`,
     };
 
     res.json({

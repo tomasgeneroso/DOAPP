@@ -168,10 +168,37 @@ export const MP_FEE_BY_RELEASE_DAYS: Record<number, { base: number; withVat: num
  * valor real fuera menor se cobra de mas y alguien lo reclama enseguida; si
  * fuera al reves se pierde plata en silencio, que es el error que no se detecta.
  */
+/**
+ * Tasa fijada desde el panel de administración, si hay una.
+ *
+ * Existe para que cambiar la tarifa no requiera tocar el .env del VPS y
+ * reiniciar: las tarifas de Mercado Pago cambian y quien las ve en el panel no
+ * es necesariamente quien tiene acceso al servidor. El orden de precedencia es
+ * panel → entorno → tabla de MP, y el panel gana porque es el único de los
+ * tres que alguien miró hoy.
+ *
+ * Vive en el módulo y no en la base porque estas cuentas son síncronas y se
+ * llaman en medio de un cálculo de precio; el servidor la carga al arrancar y
+ * la refresca cuando el panel la cambia (server/services/fiscalSettings.ts).
+ */
+let tasaConfigurada: number | null = null;
+
+export function configurarTasaDeProcesamiento(rate: number | null | undefined): void {
+  if (rate === null || rate === undefined) {
+    tasaConfigurada = null;
+    return;
+  }
+  // Se valida acá: una tasa inválida guardada en la base no puede convertirse
+  // en un cobro. Si no pasa, se ignora y queda la del entorno.
+  const n = Number(rate);
+  tasaConfigurada = Number.isFinite(n) && n >= 0 && n < RATE_MAXIMA ? n : null;
+}
+
 export function getProcessingFeeRate(): number {
+  if (tasaConfigurada !== null) return tasaConfigurada;
   const raw = typeof process !== 'undefined' ? process.env?.PAYMENT_PROCESSING_FEE_RATE : undefined;
   const parsed = raw ? Number(raw) : NaN;
-  if (Number.isFinite(parsed) && parsed >= 0 && parsed < 0.5) return parsed;
+  if (Number.isFinite(parsed) && parsed >= 0 && parsed < RATE_MAXIMA) return parsed;
   return MP_FEE_BY_RELEASE_DAYS[0].base;
 }
 

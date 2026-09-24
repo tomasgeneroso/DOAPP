@@ -18,8 +18,17 @@ export const protect = async (
   try {
     let token;
 
-    // Prioridad 1: Obtener token de la cookie httpOnly (más seguro)
-    if (req.cookies.token) {
+    /**
+     * Prioridad 1: la cookie httpOnly (más segura que el header).
+     *
+     * El `?.` no es decorativo: si `cookie-parser` no corrió antes que este
+     * middleware, `req.cookies` es undefined y leerlo tiraba un TypeError que
+     * caía en el catch de abajo y devolvía **500 "Error del servidor en
+     * autenticación"** a un pedido que simplemente no estaba autenticado. Un
+     * 500 donde corresponde un 401 se lee como "el servidor está roto", manda
+     * al usuario a soporte en vez de a iniciar sesión, y ensucia las alertas.
+     */
+    if (req.cookies?.token) {
       token = req.cookies.token;
     }
     // Prioridad 2: Fallback al header Authorization para compatibilidad

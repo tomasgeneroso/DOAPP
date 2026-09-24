@@ -81,10 +81,44 @@ describe('GET /api/membership/analytics', () => {
     expect(res.status).toBe(401);
   });
 
-  it('returns 403 for a non-SUPER PRO user', async () => {
-    const res = await request(app).get('/api/membership/analytics').set('Authorization', `Bearer ${freeToken}`);
-    expect(res.status).toBe(403);
-    expect(res.body.code).toBe('SUPER_PRO_REQUIRED');
+  /**
+   * El panel es de SUPER PRO, pero durante la beta TODOS son SUPER PRO
+   * (getEffectiveTier): vender un plan cuyo beneficio es bajar una comisión
+   * que hoy es 0% no tendría sentido. Por eso el caso hay que probarlo en las
+   * dos fases, y el test tiene que decir en cuál está parado; antes asumía
+   * la fase estable y fallaba con un 200 que era el comportamiento correcto.
+   */
+  it('en fase estable, un usuario free no entra', async () => {
+    const { setPlatformPhase, __resetPhaseCache, getPlatformPhase } = await import(
+      '../../server/services/platformPhase.js'
+    );
+    const original = await getPlatformPhase();
+    await setPlatformPhase('live');
+    __resetPhaseCache();
+    try {
+      const res = await request(app).get('/api/membership/analytics').set('Authorization', `Bearer ${freeToken}`);
+      expect(res.status).toBe(403);
+      expect(res.body.code).toBe('SUPER_PRO_REQUIRED');
+    } finally {
+      await setPlatformPhase(original);
+      __resetPhaseCache();
+    }
+  });
+
+  it('durante la beta, un usuario free sí entra: todos son SUPER PRO', async () => {
+    const { setPlatformPhase, __resetPhaseCache, getPlatformPhase } = await import(
+      '../../server/services/platformPhase.js'
+    );
+    const original = await getPlatformPhase();
+    await setPlatformPhase('beta');
+    __resetPhaseCache();
+    try {
+      const res = await request(app).get('/api/membership/analytics').set('Authorization', `Bearer ${freeToken}`);
+      expect(res.status).toBe(200);
+    } finally {
+      await setPlatformPhase(original);
+      __resetPhaseCache();
+    }
   });
 
   it('returns 200 with the analytics shape for a SUPER PRO user', async () => {

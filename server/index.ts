@@ -191,6 +191,23 @@ app.set('trust proxy', 1);
 // Conectar a PostgreSQL
 await initDatabase();
 
+/**
+ * Números que se editan desde el panel: tasas de pasarela, alícuotas de IIBB
+ * y las fechas de las fases. Se cargan una vez acá porque las cuentas de
+ * dinero son síncronas y no pueden ir a la base en cada operación.
+ *
+ * Si algo falla se sigue con lo que diga el .env, que es exactamente el
+ * comportamiento que había antes de que esto existiera: un problema leyendo
+ * una configuración no puede impedir que el servidor arranque.
+ */
+try {
+  const { cargarAjustesFiscales } = await import('./services/fiscalSettings.js');
+  const { cargarFechasDeFase } = await import('./services/platformPhase.js');
+  await Promise.all([cargarAjustesFiscales(), cargarFechasDeFase()]);
+} catch (e: any) {
+  console.warn('[arranque] no se pudieron cargar los ajustes del panel, se usa el entorno:', e?.message);
+}
+
 // Middleware de seguridad
 app.use(helmet({
   contentSecurityPolicy: false, // Desactivar para desarrollo
