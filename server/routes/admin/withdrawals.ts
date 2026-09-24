@@ -293,11 +293,23 @@ router.post("/:id/complete", protect, requireRole('admin', 'super_admin', 'owner
       return;
     }
 
-    // Deduct balance
+    /**
+     * Se debita el SALDO COMPROMETIDO, no el monto transferido.
+     *
+     * Son dos números distintos cuando el saldo venía de una devolución: el
+     * retiro transfiere `amount` (neto) pero el saldo que sale de la cuenta es
+     * `metadata.saldoDebitado` (bruto), porque la diferencia es la parte de la
+     * comisión que se retiene al sacar la plata de la plataforma (T&C 9.1).
+     *
+     * Debitando solo lo transferido, esa retención le quedaba al usuario como
+     * saldo: se le cobraba y se la devolvíamos en el mismo movimiento. Los
+     * retiros viejos sin esa metadata debitan el monto, que es lo que valía
+     * cuando se crearon.
+     */
+    const saldoADebitar = Number((withdrawal as any).metadata?.saldoDebitado) || Number(withdrawal.amount) || 0;
     const balanceBefore = parseFloat(user.balanceArs as any) || 0;
-    const newBalance = balanceBefore - withdrawal.amount;
 
-    if (newBalance < 0) {
+    if (balanceBefore - saldoADebitar < 0) {
       res.status(400).json({
         success: false,
         message: "Balance insuficiente para completar el retiro"
@@ -305,22 +317,37 @@ router.post("/:id/complete", protect, requireRole('admin', 'super_admin', 'owner
       return;
     }
 
-    await user.update({ balanceArs: newBalance });
-
-    // Create balance transaction
-    const transaction = await BalanceTransaction.create({
-      user: user.id,
-      type: 'withdrawal',
-      amount: -withdrawal.amount,
-      balanceBefore,
-      balanceAfter: newBalance,
-      description: `Retiro a cuenta bancaria (${withdrawal.bankingInfo.bankName})`,
-      metadata: {
-        withdrawalId: withdrawal.id,
-        bankingInfo: withdrawal.bankingInfo,
-        proofOfTransfer
+    /**
+     * debitarSaldo bloquea la fila y escribe el asiento en la MISMA
+     * transacción. Acá se hacía a mano: leer el saldo, restarle, guardar, y
+     * recién después crear el asiento. Dos problemas que ya pasaron: dos
+     * retiros concurrentes leían el mismo saldo y el segundo pisaba al primero,
+     * y el asiento se creaba con `user:` en vez de `userId:` —un campo que el
+     * modelo no tiene— así que Sequelize lo descartaba y el asiento quedaba
+     * huérfano o fallaba, con el saldo ya descontado.
+     */
+    const { debitarSaldo } = await import('../../services/quotePayment.js');
+    await debitarSaldo(
+      String(user.id),
+      saldoADebitar,
+      `Retiro a cuenta bancaria (${withdrawal.bankingInfo?.bankName || 'CBU'})`,
+      {
+        tipo: 'withdrawal',
+        metadata: {
+          withdrawalId: withdrawal.id,
+          transferido: Number(withdrawal.amount) || 0,
+          retencion: Math.round((saldoADebitar - (Number(withdrawal.amount) || 0)) * 100) / 100,
+          bankingInfo: withdrawal.bankingInfo,
+          proofOfTransfer,
+        },
       },
-      status: 'completed'
+    );
+
+    await user.reload();
+    const newBalance = parseFloat(user.balanceArs as any) || 0;
+    const transaction = await BalanceTransaction.findOne({
+      where: { userId: user.id, type: 'withdrawal' },
+      order: [['createdAt', 'DESC']],
     });
 
     // Update withdrawal
@@ -328,7 +355,7 @@ router.post("/:id/complete", protect, requireRole('admin', 'super_admin', 'owner
       status: 'completed',
       completedAt: new Date(),
       processedBy: adminId,
-      transactionId: transaction.id,
+      ...(transaction ? { transactionId: transaction.id } : {}),
       ...(proofOfTransfer && { proofOfTransfer }),
       ...(adminNotes && { adminNotes })
     });
@@ -351,8 +378,9 @@ router.post("/:id/complete", protect, requireRole('admin', 'super_admin', 'owner
       },
       metadata: {
         withdrawalId: withdrawal.id,
-        transactionId: transaction.id,
+        transactionId: transaction?.id ?? null,
         saldoAntes: balanceBefore,
+        saldoDebitado: saldoADebitar,
         saldoDespues: newBalance,
         comprobante: proofOfTransfer || null,
         topeDiario: tope.detalle,
@@ -364,7 +392,7 @@ router.post("/:id/complete", protect, requireRole('admin', 'super_admin', 'owner
       req, action: 'withdrawal.complete', category: 'payment', severity: 'high',
       description: `Completó el retiro ${withdrawal.id} por $${Number(withdrawal.amount).toLocaleString('es-AR')} (saldo del usuario: $${newBalance.toLocaleString('es-AR')})`,
       targetModel: 'WithdrawalRequest', targetId: withdrawal.id,
-      metadata: { amount: Number(withdrawal.amount) || null, newBalance, transactionId: transaction.id },
+      metadata: { amount: Number(withdrawal.amount) || null, newBalance, saldoDebitado: saldoADebitar, transactionId: transaction?.id ?? null },
     });
 
     // Send email notification

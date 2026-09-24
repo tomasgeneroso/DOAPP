@@ -886,6 +886,33 @@ router.post(
         return;
       }
 
+      /**
+       * Ni teléfonos, ni correos, ni la dirección exacta en el texto libre.
+       *
+       * La publicación la lee cualquiera, incluso sin cuenta. La dirección se
+       * le muestra solo al trabajador contratado y 48 h antes de empezar
+       * (regla de la plataforma): escribirla en la descripción la publica para
+       * todo internet junto con el horario en que va a haber —o no— alguien en
+       * casa. Casi nunca es a propósito; es alguien que copió y pegó donde no
+       * iba, y por eso se frena acá en vez de descubrirlo después.
+       */
+      const { revisarPublicacion, mensajeDeRechazo } = await import('../../shared/jobs/textoPublico.js');
+      const hallazgos = revisarPublicacion({
+        title: req.body.title,
+        summary: req.body.summary,
+        description: req.body.description,
+        requirements: req.body.requirements,
+      });
+      if (hallazgos.length > 0) {
+        res.status(400).json({
+          success: false,
+          code: 'DATOS_DE_CONTACTO_EN_LA_PUBLICACION',
+          message: mensajeDeRechazo(hallazgos),
+          hallazgos: hallazgos.map((h) => ({ tipo: h.tipo, campo: h.campo })),
+        });
+        return;
+      }
+
       // Get full user data to check free contracts
       const user = await User.findByPk(req.user.id);
       if (!user) {
@@ -1164,6 +1191,27 @@ router.put("/:id", protect, upload.array('images', 5), async (req: AuthRequest, 
         message: "No tienes permiso para actualizar este trabajo",
       });
       return;
+    }
+
+    // La misma revisión que al crear: si no estuviera acá, alcanzaría con
+    // publicar limpio y editar después para dejar la dirección publicada.
+    // Solo se miran los campos que vienen en el pedido.
+    {
+      const { revisarPublicacion, mensajeDeRechazo } = await import('../../shared/jobs/textoPublico.js');
+      const aRevisar: Record<string, unknown> = {};
+      for (const campo of ['title', 'summary', 'description', 'requirements']) {
+        if (req.body[campo] !== undefined) aRevisar[campo] = req.body[campo];
+      }
+      const hallazgos = revisarPublicacion(aRevisar);
+      if (hallazgos.length > 0) {
+        res.status(400).json({
+          success: false,
+          code: 'DATOS_DE_CONTACTO_EN_LA_PUBLICACION',
+          message: mensajeDeRechazo(hallazgos),
+          hallazgos: hallazgos.map((h) => ({ tipo: h.tipo, campo: h.campo })),
+        });
+        return;
+      }
     }
 
     // Check if job is permanently cancelled

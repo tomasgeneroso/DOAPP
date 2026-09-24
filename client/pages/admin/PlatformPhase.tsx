@@ -99,6 +99,7 @@ export default function PlatformPhase() {
           tasaProcesamiento: num(formFiscal.tasaProcesamiento),
           iibbRetencion: num(formFiscal.iibbRetencion),
           iibbPropia: num(formFiscal.iibbPropia),
+          password,
         }),
       });
       const d = await r.json();
@@ -373,9 +374,22 @@ export default function PlatformPhase() {
               </div>
             ))}
 
+            {/*
+              Contraseña también acá: la tasa de procesamiento entra en el
+              precio de cada operación apenas se guarda. Bajarla hace que DOAPP
+              pague la diferencia de la tarifa de MP en cada pago con crédito.
+            */}
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Contraseña de cambio de fase"
+              autoComplete="off"
+              className="w-full px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-700 text-slate-900 dark:text-white"
+            />
             <button
               onClick={guardarFiscal}
-              disabled={busy}
+              disabled={busy || !password}
               className="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold"
             >
               {busy ? "Guardando..." : "Guardar tasas"}

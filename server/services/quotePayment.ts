@@ -239,7 +239,18 @@ export async function debitarSaldo(
   userId: string,
   monto: number,
   descripcion: string,
-  ref: { relatedModel?: string; relatedId?: string; metadata?: Record<string, any> } = {},
+  ref: {
+    relatedModel?: string;
+    relatedId?: string;
+    metadata?: Record<string, any>;
+    /**
+     * Qué tipo de salida es. Por defecto 'adjustment' (pago con saldo dentro
+     * de la app). Un retiro a un CBU tiene que decir 'withdrawal': es lo que
+     * mira el resumen del usuario y la auditoría para distinguir la plata que
+     * se usó adentro de la que se fue de la plataforma.
+     */
+    tipo?: 'adjustment' | 'withdrawal' | 'payment';
+  } = {},
 ): Promise<void> {
   if (!(monto > 0)) return;
 
@@ -258,14 +269,19 @@ export async function debitarSaldo(
     await BalanceTransaction.create(
       {
         userId,
-        type: 'adjustment',
+        type: ref.tipo || 'adjustment',
         amount: -monto,
         balanceBefore: antes,
         balanceAfter: despues,
         description: descripcion,
         status: 'completed',
         relatedContractId: ref.relatedModel === 'Contract' ? ref.relatedId : undefined,
-        metadata: { origen: 'pago_con_saldo', ...(ref.metadata || {}), relatedModel: ref.relatedModel, relatedId: ref.relatedId },
+        metadata: {
+          origen: ref.tipo === 'withdrawal' ? 'retiro' : 'pago_con_saldo',
+          ...(ref.metadata || {}),
+          relatedModel: ref.relatedModel,
+          relatedId: ref.relatedId,
+        },
       } as any,
       { transaction: t },
     );

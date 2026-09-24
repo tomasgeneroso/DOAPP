@@ -576,6 +576,65 @@ async function handlePaymentWebhook(data: any, ip: string) {
       if (!isNaN(d.getTime())) foundPayment.moneyReleaseDate = d;
     }
 
+    /**
+     * DOAPP no pone la diferencia. Nunca.
+     *
+     * Al cliente se le cobró una tasa de procesamiento fija (processingCharge),
+     * calculada para cubrir la tarifa de Mercado Pago. Esa tarifa depende del
+     * plazo de acreditación configurado en el panel de MP —una opción de la
+     * CUENTA, no de cada pago— así que en condiciones normales coincide.
+     *
+     * Deja de coincidir cuando alguien cambia el plazo en el panel de MP y no
+     * actualiza la tasa acá: de golpe cada pago con tarjeta cuesta 5,99% y se
+     * está cobrando 4,19%. La pérdida es chica por operación y no rompe nada,
+     * que es justo lo que la hace peligrosa: no se nota hasta el cierre.
+     *
+     * Esta comparación es la que lo hace notar el mismo día.
+     */
+    try {
+      const cobrado = Number((foundPayment as any).processingCharge) || 0;
+      if (cobrado > 0 && comisionMp > 0) {
+        const { pasarelaSinIva } = await import('../../shared/pricing/processingCost.js');
+        const realSinIva = pasarelaSinIva(comisionMp);
+        // Un peso de tolerancia: los redondeos de MP no son una alarma.
+        if (realSinIva > cobrado + 1) {
+          const diferencia = Math.round((realSinIva - cobrado) * 100) / 100;
+          const { logMoneyEvent } = await import('../utils/auditLog.js');
+          await logMoneyEvent({
+            action: 'PROCESSING_FEE_MISMATCH',
+            actor: 'system',
+            severity: 'high',
+            description:
+              `Mercado Pago cobró más de lo que se le cobró al cliente por procesamiento: ` +
+              `$${realSinIva} contra $${cobrado} (diferencia $${diferencia}). ` +
+              `Revisá el plazo de acreditación en el panel de MP y la tasa en /admin/platform.`,
+            paymentId: String(foundPayment.id),
+            userId: foundPayment.payerId ? String(foundPayment.payerId) : undefined,
+            monto: diferencia,
+            moneda: 'ARS',
+            metadata: { cobradoAlCliente: cobrado, tarifaRealSinIva: realSinIva, tarifaConIva: comisionMp },
+          }).catch(() => {});
+
+          const admins = await User.findAll({ where: { role: { [Op.in]: ['admin', 'super_admin', 'owner'] } } });
+          for (const admin of admins) {
+            await Notification.create({
+              recipientId: admin.id,
+              type: 'error',
+              category: 'admin',
+              title: 'La tarifa de Mercado Pago no coincide',
+              message:
+                `En este pago MP cobró $${realSinIva} de tarifa y al cliente se le cobraron $${cobrado}: ` +
+                `DOAPP está poniendo $${diferencia} por operación. Suele ser el plazo de acreditación ` +
+                `cambiado en el panel de MP. Ajustá la tasa en Panel → Fase de la plataforma.`,
+              relatedModel: 'Payment',
+              relatedId: foundPayment.id,
+              sentVia: ['in_app'],
+            } as any).catch(() => {});
+          }
+        }
+      }
+    } catch { /* la conciliación no puede impedir que se procese el pago */ }
+
     if (status === 'succeeded' || status === 'approved') {
       /**
        * El monto que informa MercadoPago tiene que ser el que esperábamos.

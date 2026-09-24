@@ -1593,35 +1593,34 @@ router.post("/:id/confirm", protect, async (req: AuthRequest, res: Response): Pr
 
     // Balance y job completion
     if (job && (job.maxWorkers || 1) > 1) {
-      const BalanceTransaction = (await import('../models/sql/BalanceTransaction.model.js')).default;
-      const worker = await User.findByPk(contract.doerId);
-      const currentBalance = worker?.balanceArs || 0;
-      const newBalance = currentBalance + paymentAmount;
-
-      await BalanceTransaction.create({
-        userId: contract.doerId,
-        type: 'payment',
-        amount: paymentAmount,
-        balanceBefore: currentBalance,
-        balanceAfter: newBalance,
-        description: `Pago por contrato #${contract.id} - ${job.title}`,
-        status: 'pending',
+      /**
+       * Tres cosas estaban mal en este asiento y las tres eran silenciosas:
+       *
+       *   status 'pending'        nunca pasaba a 'completed', así que el saldo
+       *                           subía y el libro decía que el pago seguía en
+       *                           camino. La auditoría lo marca como pendiente
+       *                           para siempre.
+       *   relatedModel/relatedId  columnas que BalanceTransaction no tiene.
+       *                           Sequelize las descarta sin avisar: el asiento
+       *                           quedaba sin referencia al contrato.
+       *   sin bloqueo             leer-sumar-guardar. Dos contratos del mismo
+       *                           trabajo confirmados a la vez y uno pisa al
+       *                           otro: el trabajador cobra una sola vez.
+       */
+      const { acreditarSaldo } = await import('../services/quotePayment.js');
+      await acreditarSaldo(String(contract.doerId), paymentAmount, `Pago por contrato #${contract.id} - ${job.title}`, {
         relatedModel: 'Contract',
-        relatedId: contract.id,
+        relatedId: String(contract.id),
+        tipo: 'payment',
         metadata: {
           jobId: job.id,
           contractId: contract.id,
           jobTitle: job.title,
           isMultiWorker: true,
           totalWorkers: job.maxWorkers,
-          percentageOfBudget: contract.percentageOfBudget || (paymentAmount / job.price * 100),
+          percentageOfBudget: contract.percentageOfBudget || (paymentAmount / Number(job.price) * 100),
         },
       });
-
-      if (worker) {
-        worker.balanceArs = newBalance;
-        await worker.save();
-      }
 
       const allJobContracts = await Contract.findAll({ where: { jobId: job.id } });
       const allContractsCompleted = allJobContracts.every(c => c.clientConfirmed && c.doerConfirmed);
@@ -3221,50 +3220,48 @@ router.put("/:id/modify-price", protect, async (req: AuthRequest, res: Response)
         return;
       }
 
-      // Deduct from user balance
-      const balanceBefore = client.balanceArs;
-      client.balanceArs -= priceDifference;
-      await client.save();
-
-      // Create transaction record
-      transaction = await BalanceTransaction.create({
-        userId: userId,
-        type: 'payment',
-        amount: -priceDifference,
-        balanceBefore,
-        balanceAfter: client.balanceArs,
-        description: `Pago de diferencia por aumento de precio de contrato`,
-        relatedContractId: contract.id,
-        metadata: {
-          previousPrice,
-          newPrice,
-          reason: reason || 'Aumento de precio'
-        },
-        status: 'completed'
+      /**
+       * Con bloqueo de fila y el asiento en la misma transacción.
+       *
+       * Acá se leía el saldo, se le restaba y se guardaba, y recién después se
+       * creaba el asiento. Dos pedidos a la vez leen el mismo saldo y el
+       * segundo pisa al primero: se cobra una vez y se descuenta una vez, pero
+       * el precio sube dos. Y si fallaba el asiento, el saldo ya se había
+       * movido sin nada que lo explicara.
+       */
+      const { debitarSaldo } = await import('../services/quotePayment.js');
+      await debitarSaldo(String(userId), priceDifference, 'Pago de diferencia por aumento de precio de contrato', {
+        relatedModel: 'Contract',
+        relatedId: String(contract.id),
+        metadata: { previousPrice, newPrice, reason: reason || 'Aumento de precio' },
+      });
+      await client.reload();
+      transaction = await BalanceTransaction.findOne({
+        where: { userId, relatedContractId: contract.id },
+        order: [['createdAt', 'DESC']],
       });
 
     } else if (priceDifference < 0) {
       // Price decreased - refund to user balance
       const refundAmount = Math.abs(priceDifference);
-      const balanceBefore = client.balanceArs;
-      client.balanceArs += refundAmount;
-      await client.save();
-
-      // Create transaction record
-      transaction = await BalanceTransaction.create({
-        userId: userId,
-        type: 'refund',
-        amount: refundAmount,
-        balanceBefore,
-        balanceAfter: client.balanceArs,
-        description: `Reembolso por reducción de precio de contrato`,
-        relatedContractId: contract.id,
+      const { acreditarSaldo } = await import('../services/quotePayment.js');
+      await acreditarSaldo(String(userId), refundAmount, 'Reembolso por reducción de precio de contrato', {
+        relatedModel: 'Contract',
+        relatedId: String(contract.id),
+        tipo: 'refund',
         metadata: {
           previousPrice,
           newPrice,
-          reason: reason || 'Reducción de precio'
+          reason: reason || 'Reducción de precio',
+          // Ya hubo trabajador seleccionado, así que la comisión se retuvo en
+          // su momento: retirar este saldo no cuesta nada.
+          alRetirar: { comision: 0 },
         },
-        status: 'completed'
+      });
+      await client.reload();
+      transaction = await BalanceTransaction.findOne({
+        where: { userId, relatedContractId: contract.id },
+        order: [['createdAt', 'DESC']],
       });
     }
 
@@ -3549,26 +3546,18 @@ router.post("/:id/approve-price-change", protect, async (req: AuthRequest, res: 
         const additionalCommission = commissionResult.commission;
         const totalDeduct = priceDifference + additionalCommission;
 
-        const balanceBefore = client.balanceArs;
-        client.balanceArs -= totalDeduct;
-        await client.save();
-
-        transaction = await BalanceTransaction.create({
-          userId: client.id,
-          type: 'payment',
-          amount: -totalDeduct,
-          balanceBefore,
-          balanceAfter: client.balanceArs,
-          description: `Pago de diferencia + comisión por aumento de precio de contrato`,
-          relatedContractId: contract.id,
-          metadata: {
-            previousPrice,
-            newPrice,
-            priceDifference,
-            additionalCommission,
-            reason: contract.pendingModification.notes
-          },
-          status: 'completed'
+        // Mismo motivo que arriba: bloqueo de fila y asiento en la misma
+        // transacción, en vez de leer-restar-guardar y anotar después.
+        const { debitarSaldo } = await import('../services/quotePayment.js');
+        await debitarSaldo(String(client.id), totalDeduct, 'Pago de diferencia + comisión por aumento de precio de contrato', {
+          relatedModel: 'Contract',
+          relatedId: String(contract.id),
+          metadata: { previousPrice, newPrice, priceDifference, additionalCommission, reason: contract.pendingModification.notes },
+        });
+        await client.reload();
+        transaction = await BalanceTransaction.findOne({
+          where: { userId: client.id, relatedContractId: contract.id },
+          order: [['createdAt', 'DESC']],
         });
 
         // Update contract commission and total
@@ -3577,24 +3566,22 @@ router.post("/:id/approve-price-change", protect, async (req: AuthRequest, res: 
       } else if (priceDifference < 0) {
         // Price decreased - refund to client
         const refundAmount = Math.abs(priceDifference);
-        const balanceBefore = client.balanceArs;
-        client.balanceArs += refundAmount;
-        await client.save();
-
-        transaction = await BalanceTransaction.create({
-          userId: client.id,
-          type: 'refund',
-          amount: refundAmount,
-          balanceBefore,
-          balanceAfter: client.balanceArs,
-          description: `Reembolso por reducción de precio de contrato`,
-          relatedContractId: contract.id,
+        const { acreditarSaldo } = await import('../services/quotePayment.js');
+        await acreditarSaldo(String(client.id), refundAmount, 'Reembolso por reducción de precio de contrato', {
+          relatedModel: 'Contract',
+          relatedId: String(contract.id),
+          tipo: 'refund',
           metadata: {
             previousPrice,
             newPrice,
-            reason: contract.pendingModification.notes
+            reason: contract.pendingModification.notes,
+            alRetirar: { comision: 0 },
           },
-          status: 'completed'
+        });
+        await client.reload();
+        transaction = await BalanceTransaction.findOne({
+          where: { userId: client.id, relatedContractId: contract.id },
+          order: [['createdAt', 'DESC']],
         });
       }
 

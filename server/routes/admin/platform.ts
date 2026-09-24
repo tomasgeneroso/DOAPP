@@ -304,9 +304,11 @@ router.post('/phase-dates', async (req: AuthRequest, res: Response) => {
  * GET  /api/admin/platform/fiscal
  * PUT  /api/admin/platform/fiscal
  *
- * No piden contraseña de acción como la fase: no cambian lo que ya se cobró
- * ni encienden la comisión, y el contador puede necesitar corregirlos el
- * mismo día que los recibe. Sí quedan auditados con el valor viejo y el nuevo.
+ * Piden la contraseña de acción, igual que la fase y las fechas. La tasa de
+ * procesamiento entra en el precio de cada operación desde el momento en que
+ * se guarda: bajarla hace que DOAPP pague la diferencia de la tarifa de
+ * Mercado Pago en cada pago con crédito, y subirla le cobra de más a todos.
+ * Que una sesión abierta y un descuido alcancen para eso es demasiado poco.
  */
 router.get('/fiscal', async (_req: AuthRequest, res: Response) => {
   try {
@@ -322,6 +324,22 @@ router.put('/fiscal', async (req: AuthRequest, res: Response) => {
     const { ajustesVigentes, guardarAjustesFiscales, AjusteInvalido } = await import(
       '../../services/fiscalSettings.js'
     );
+
+    if (!(await isActionPasswordSet(ACTIONS.PLATFORM_PHASE))) {
+      res.status(400).json({ success: false, message: 'Primero creá la contraseña de cambio de fase', needsSetup: true });
+      return;
+    }
+    if (!(await verifyActionPassword(ACTIONS.PLATFORM_PHASE, String(req.body?.password || '')))) {
+      await logAudit({
+        req, action: 'platform_phase_change_denied', category: 'system',
+        severity: getSeverityForAction('platform_phase_change_denied'),
+        description: 'Intento fallido de cambiar las tasas: contraseña incorrecta',
+        targetModel: 'AppSetting', targetId: 'platform:fiscal',
+      });
+      res.status(401).json({ success: false, message: 'Contraseña incorrecta' });
+      return;
+    }
+
     const antes = ajustesVigentes();
 
     try {
