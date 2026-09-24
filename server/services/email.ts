@@ -22,6 +22,32 @@ interface TemplateEmailOptions {
   templateData: Record<string, any>;
 }
 
+/** Un UUID, que es lo que Postgres acepta en una columna id. */
+const ES_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Busca un usuario para mandarle un correo, sin poder fallar.
+ *
+ * `User.findByPk('no-es-un-uuid')` hace que Postgres rechace la consulta y
+ * lance. Eso convertía un id mal formado —o un usuario borrado— en una
+ * excepción DENTRO de la función de correo, que se propaga al llamador: el
+ * contrato no se crea, la disputa no se abre, el retiro no se aprueba.
+ *
+ * El correo es el último eslabón de cualquiera de esas operaciones y el menos
+ * importante de todos: que no salga es un problema; que impida que la
+ * operación ocurra es un problema mucho peor. Por eso acá se devuelve null y
+ * el llamador simplemente no manda ese correo.
+ */
+async function destinatario(id: unknown): Promise<any | null> {
+  const s = String(id ?? '');
+  if (!ES_UUID.test(s)) return null;
+  try {
+    return await User.findByPk(s);
+  } catch {
+    return null;
+  }
+}
+
 class EmailService {
   private sendgridInitialized = false;
   private mailgunInitialized = false;
@@ -269,7 +295,7 @@ class EmailService {
     text?: string
   ): Promise<boolean> {
     try {
-      const user = await User.findByPk(userId);
+      const user = await destinatario(userId);
 
       if (!user) {
         console.error(`User ${userId} not found`);
@@ -572,7 +598,7 @@ ${ctaBlock}
   }
 
   async sendNewMessageNotification(userId: string, senderName: string, messagePreview: string, conversationId: string): Promise<void> {
-    const user = await User.findByPk(userId);
+    const user = await destinatario(userId);
     if (!user?.notificationPreferences?.newMessage) return;
     const html = this.tpl({
       eyebrow: 'Mensaje',
@@ -588,7 +614,7 @@ ${ctaBlock}
   }
 
   async sendJobUpdateNotification(userId: string, jobTitle: string, updateType: string, jobId: string): Promise<void> {
-    const user = await User.findByPk(userId);
+    const user = await destinatario(userId);
     if (!user?.notificationPreferences?.jobUpdate) return;
     const html = this.tpl({
       eyebrow: 'Publicación',
@@ -604,7 +630,7 @@ ${ctaBlock}
   }
 
   async sendContractUpdateNotification(userId: string, contractTitle: string, updateType: string, contractId: string): Promise<void> {
-    const user = await User.findByPk(userId);
+    const user = await destinatario(userId);
     if (!user?.notificationPreferences?.contractUpdate) return;
     const html = this.tpl({
       eyebrow: 'Contrato',
@@ -620,7 +646,7 @@ ${ctaBlock}
   }
 
   async sendPaymentNotification(userId: string, amount: number, updateType: string, _paymentId: string): Promise<void> {
-    const user = await User.findByPk(userId);
+    const user = await destinatario(userId);
     if (!user?.notificationPreferences?.paymentUpdate) return;
     const numericAmount = typeof amount === 'number' ? amount : parseFloat(String(amount)) || 0;
     const html = this.tpl({
@@ -658,8 +684,8 @@ ${ctaBlock}
       cta: { label: role === 'client' ? 'Ver el contrato' : 'Revisar y aceptar', url },
     });
 
-    const client = await User.findByPk(clientId);
-    const doer = await User.findByPk(doerId);
+    const client = await destinatario(clientId);
+    const doer = await destinatario(doerId);
     if (client?.email) await this.sendEmail({ to: client.email, subject: `Contrato creado: ${jobTitle}`, html: makeHtml(client.name, 'client') });
     if (doer?.email) await this.sendEmail({ to: doer.email, subject: `Te seleccionaron: ${jobTitle}`, html: makeHtml(doer.name, 'doer') });
   }
@@ -677,14 +703,14 @@ ${ctaBlock}
       `,
       cta: { label: 'Ver el contrato', url },
     });
-    const client = await User.findByPk(clientId);
-    const doer = await User.findByPk(doerId);
+    const client = await destinatario(clientId);
+    const doer = await destinatario(doerId);
     if (client?.email) await this.sendEmail({ to: client.email, subject: `Contrato aceptado: ${jobTitle}`, html: makeHtml(client.name) });
     if (doer?.email) await this.sendEmail({ to: doer.email, subject: `Contrato aceptado: ${jobTitle}`, html: makeHtml(doer.name) });
   }
 
   async sendPaymentEscrowEmail(userId: string, jobTitle: string, amount: number, currency: string, contractId: string): Promise<void> {
-    const user = await User.findByPk(userId);
+    const user = await destinatario(userId);
     if (!user?.email) return;
     const html = this.tpl({
       eyebrow: 'Pago protegido',
@@ -723,8 +749,8 @@ ${ctaBlock}
 
   async sendContractCompletedEmail(clientId: string, doerId: string, contractId: string, jobTitle: string, workerAmount: number, currency = 'ARS'): Promise<void> {
     const url = `${config.clientUrl}/contracts/${contractId}`;
-    const doer = await User.findByPk(doerId);
-    const client = await User.findByPk(clientId);
+    const doer = await destinatario(doerId);
+    const client = await destinatario(clientId);
 
     if (doer?.email) {
       const html = this.tpl({
@@ -772,14 +798,14 @@ ${ctaBlock}
       `,
       cta: { label: 'Responder a la disputa', url },
     });
-    const client = await User.findByPk(clientId);
-    const doer = await User.findByPk(doerId);
+    const client = await destinatario(clientId);
+    const doer = await destinatario(doerId);
     if (client?.email) await this.sendEmail({ to: client.email, subject: `Disputa abierta: ${contractTitle}`, html: makeHtml(client.name) });
     if (doer?.email) await this.sendEmail({ to: doer.email, subject: `Disputa abierta: ${contractTitle}`, html: makeHtml(doer.name) });
   }
 
   async sendDisputeResolvedEmail(userId: string, disputeId: string, resolution: string, amount: number, currency = 'ARS'): Promise<void> {
-    const user = await User.findByPk(userId);
+    const user = await destinatario(userId);
     if (!user?.email) return;
     const html = this.tpl({
       eyebrow: 'Disputa resuelta',
@@ -920,7 +946,7 @@ ${ctaBlock}
 
   async sendBankingInfoRequiredEmail(userId: string, _contractId: string, amount: number): Promise<void> {
     try {
-      const user = await User.findByPk(userId);
+      const user = await destinatario(userId);
       if (!user?.email) return;
       const html = this.tpl({
         eyebrow: 'Falta información',

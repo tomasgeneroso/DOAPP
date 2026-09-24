@@ -19,8 +19,19 @@ process.env.NODE_ENV = 'test';
 process.env.PORT = '5001';
 process.env.CLIENT_URL = 'http://localhost:5173';
 
+/**
+ * 60 segundos, y tiene que estar acá.
+ *
+ * `testTimeout` dentro de `projects[]` en jest.config.js esta version lo
+ * ignora: sin esta línea el timeout vuelve al default de 5 s y falla hasta el
+ * test más simple. Estaba en 30 s, y el del ciclo de vida de una disputa
+ * —siete pedidos HTTP encadenados contra la base real— los pasaba al final de
+ * la corrida completa, con la base ya cargada por las suites anteriores. Sólo
+ * fallaba en ese orden, que es la peor forma de fallar: enseña a ignorar el
+ * rojo.
+ */
 if (typeof jest !== 'undefined') {
-  jest.setTimeout(30000);
+  jest.setTimeout(60000);
 }
 
 beforeAll(async () => {

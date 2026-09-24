@@ -32,6 +32,9 @@ export default {
         '<rootDir>/tests/models/sql/',
         '<rootDir>/tests/integration/',
         '<rootDir>/tests/routes/',
+        // Necesitan un servidor corriendo: tienen su propio proyecto ("e2e")
+        // y se corren contra staging, no en cada commit.
+        '<rootDir>/tests/e2e/',
       ],
     },
     {
@@ -58,6 +61,9 @@ export default {
         '<rootDir>/tests/routes/*.test.ts',
       ],
       maxWorkers: 1,
+      // OJO: `testTimeout` acá dentro NO se aplica (esta version de jest lo
+      // ignora en `projects[]`). El que rige lo fija jest.setTimeout en
+      // tests/setup.integration.ts.
     },
     {
       ...base,
@@ -68,6 +74,28 @@ export default {
       setupFiles: ['<rootDir>/tests/env.first.ts'],
       setupFilesAfterEnv: ['<rootDir>/tests/setup.models.ts'],
       testMatch: ['<rootDir>/tests/models/sql/*.test.ts'],
+    },
+    {
+      ...base,
+      /**
+       * Pruebas contra un servidor CORRIENDO, no contra la app en proceso.
+       *
+       * Estas dos estaban mezcladas con las de integración y fallaban siempre
+       * —178 tests en rojo— porque apuntan a `API_URL` por HTTP y necesitan
+       * datos sembrados. No eran tests rotos: estaban en el lugar equivocado,
+       * y su rojo permanente tapaba a los que sí probaban algo.
+       *
+       * Acá tienen sentido: es lo que se corre contra staging antes de pasar a
+       * producción (`npm run test:staging`). No entran en `npm test` porque
+       * sin servidor no prueban nada y bloquearían cada commit.
+       */
+      displayName: 'e2e',
+      transform: {
+        '^.+\\.ts$': ['ts-jest', { useESM: false, isolatedModules: true }],
+      },
+      setupFiles: ['<rootDir>/tests/env.first.ts'],
+      testMatch: ['<rootDir>/tests/e2e/*.test.ts'],
+      maxWorkers: 1,
     },
   ],
   collectCoverageFrom: [

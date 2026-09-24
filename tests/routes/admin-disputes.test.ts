@@ -29,8 +29,8 @@ describe('Admin Dispute Routes', () => {
   });
 
   /**
-   * Este setup venía de cuando la base era Mongo: `client: clientUser._id`,
-   * `job: job._id`, `contract._id`, y un token firmado con `_id`. Sequelize
+   * Este setup venía de cuando la base era Mongo: `client: clientUser.id`,
+   * `job: job.id`, `contract.id`, y un token firmado con `_id`. Sequelize
    * descarta esos campos en silencio (las columnas se llaman clientId, jobId,
    * id) y después falla por los obligatorios que quedaron vacíos. Toda la
    * suite fallaba por eso, no por las rutas que dice probar.
@@ -117,18 +117,14 @@ describe('Admin Dispute Routes', () => {
     });
 
     it('should paginate results', async () => {
-      // Create multiple disputes
+      // 25 disputas para que haya más de una página. Van por el fixture: el
+      // campo obligatorio se llama detailedDescription, y `description` lo
+      // descartaba Sequelize dejando el create fallando por un null.
       for (let i = 0; i < 25; i++) {
-        await Dispute.create({
-          contractId: contract._id,
-          paymentId: payment._id,
-          initiatedBy: clientUser._id,
-          against: doerUser._id,
-          reason: `Dispute ${i}`,
-          description: `Description ${i}`,
-          category: 'quality_issues',
-          status: 'open',
-        });
+        await crearDisputa(
+          { contractId: contract.id, initiatedBy: clientUser.id, against: doerUser.id },
+          { paymentId: payment.id, reason: `Dispute ${i}`, category: 'quality_issues', status: 'open' },
+        );
       }
 
       const response = await request(app)
@@ -145,9 +141,9 @@ describe('Admin Dispute Routes', () => {
   describe('PUT /api/admin/disputes/:id/assign', () => {
     it('should assign dispute to admin', async () => {
       const response = await request(app)
-        .put(`/api/admin/disputes/${dispute._id}/assign`)
+        .put(`/api/admin/disputes/${dispute.id}/assign`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ assignedTo: adminUser._id.toString() })
+        .send({ assignedTo: adminUser.id.toString() })
         .expect(200);
 
       expect(response.body.success).toBe(true);
@@ -157,9 +153,9 @@ describe('Admin Dispute Routes', () => {
 
     it('should add log entry when assigning', async () => {
       const response = await request(app)
-        .put(`/api/admin/disputes/${dispute._id}/assign`)
+        .put(`/api/admin/disputes/${dispute.id}/assign`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({ assignedTo: adminUser._id.toString() })
+        .send({ assignedTo: adminUser.id.toString() })
         .expect(200);
 
       expect(response.body.data.logs.length).toBeGreaterThan(0);
@@ -170,7 +166,7 @@ describe('Admin Dispute Routes', () => {
   describe('PUT /api/admin/disputes/:id/priority', () => {
     it('should update dispute priority', async () => {
       const response = await request(app)
-        .put(`/api/admin/disputes/${dispute._id}/priority`)
+        .put(`/api/admin/disputes/${dispute.id}/priority`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ priority: 'urgent' })
         .expect(200);
@@ -181,7 +177,7 @@ describe('Admin Dispute Routes', () => {
 
     it('should reject invalid priority values', async () => {
       const response = await request(app)
-        .put(`/api/admin/disputes/${dispute._id}/priority`)
+        .put(`/api/admin/disputes/${dispute.id}/priority`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ priority: 'invalid_priority' })
         .expect(400);
@@ -191,7 +187,7 @@ describe('Admin Dispute Routes', () => {
 
     it('should add log entry when updating priority', async () => {
       const response = await request(app)
-        .put(`/api/admin/disputes/${dispute._id}/priority`)
+        .put(`/api/admin/disputes/${dispute.id}/priority`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ priority: 'high' })
         .expect(200);
@@ -204,7 +200,7 @@ describe('Admin Dispute Routes', () => {
   describe('POST /api/admin/disputes/:id/resolve', () => {
     it('should resolve dispute with full_release', async () => {
       const response = await request(app)
-        .post(`/api/admin/disputes/${dispute._id}/resolve`)
+        .post(`/api/admin/disputes/${dispute.id}/resolve`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           resolution: 'Work was completed satisfactorily',
@@ -217,18 +213,18 @@ describe('Admin Dispute Routes', () => {
       expect(response.body.data.resolutionType).toBe('full_release');
 
       // Verify contract status updated
-      const updatedContract = await Contract.findByPk(contract._id);
+      const updatedContract = await Contract.findByPk(contract.id);
       expect(updatedContract?.status).toBe('completed');
       expect(updatedContract?.paymentStatus).toBe('released');
 
       // Verify payment status updated
-      const updatedPayment = await Payment.findByPk(payment._id);
+      const updatedPayment = await Payment.findByPk(payment.id);
       expect(updatedPayment?.status).toBe('completed');
     });
 
     it('should resolve dispute with full_refund', async () => {
       const response = await request(app)
-        .post(`/api/admin/disputes/${dispute._id}/resolve`)
+        .post(`/api/admin/disputes/${dispute.id}/resolve`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           resolution: 'Client is right, work was not delivered',
@@ -240,7 +236,7 @@ describe('Admin Dispute Routes', () => {
       expect(response.body.data.status).toBe('resolved_refunded');
 
       // Verify contract cancelled
-      const updatedContract = await Contract.findByPk(contract._id);
+      const updatedContract = await Contract.findByPk(contract.id);
       expect(updatedContract?.status).toBe('cancelled');
       expect(updatedContract?.paymentStatus).toBe('refunded');
 
@@ -250,7 +246,7 @@ describe('Admin Dispute Routes', () => {
 
     it('should resolve dispute with partial_refund', async () => {
       const response = await request(app)
-        .post(`/api/admin/disputes/${dispute._id}/resolve`)
+        .post(`/api/admin/disputes/${dispute.id}/resolve`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           resolution: 'Partial work completed',
@@ -266,7 +262,7 @@ describe('Admin Dispute Routes', () => {
 
     it('should reject invalid resolution types', async () => {
       const response = await request(app)
-        .post(`/api/admin/disputes/${dispute._id}/resolve`)
+        .post(`/api/admin/disputes/${dispute.id}/resolve`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           resolution: 'Test',
@@ -279,7 +275,7 @@ describe('Admin Dispute Routes', () => {
 
     it('should require resolution text', async () => {
       const response = await request(app)
-        .post(`/api/admin/disputes/${dispute._id}/resolve`)
+        .post(`/api/admin/disputes/${dispute.id}/resolve`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           resolutionType: 'full_release',
@@ -292,7 +288,7 @@ describe('Admin Dispute Routes', () => {
 
     it('should add log entry when resolving', async () => {
       const response = await request(app)
-        .post(`/api/admin/disputes/${dispute._id}/resolve`)
+        .post(`/api/admin/disputes/${dispute.id}/resolve`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({
           resolution: 'Resolved',
@@ -310,7 +306,7 @@ describe('Admin Dispute Routes', () => {
   describe('POST /api/admin/disputes/:id/note', () => {
     it('should add admin note to dispute', async () => {
       const response = await request(app)
-        .post(`/api/admin/disputes/${dispute._id}/note`)
+        .post(`/api/admin/disputes/${dispute.id}/note`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ note: 'Admin note: investigating this case' })
         .expect(200);
@@ -321,7 +317,7 @@ describe('Admin Dispute Routes', () => {
 
     it('should reject empty notes', async () => {
       const response = await request(app)
-        .post(`/api/admin/disputes/${dispute._id}/note`)
+        .post(`/api/admin/disputes/${dispute.id}/note`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ note: '' })
         .expect(400);
@@ -332,43 +328,26 @@ describe('Admin Dispute Routes', () => {
 
   describe('GET /api/admin/disputes/stats/overview', () => {
     beforeEach(async () => {
-      // Create diverse disputes
-      await Dispute.bulkCreate([
+      // Una de cada estado, para que las cuentas del panel tengan qué contar.
+      await crearDisputa(
+        { contractId: contract.id, initiatedBy: clientUser.id, against: doerUser.id },
+        { paymentId: payment.id, reason: 'Open dispute', category: 'quality_issues', status: 'open', priority: 'high' },
+      );
+      await crearDisputa(
+        { contractId: contract.id, initiatedBy: doerUser.id, against: clientUser.id },
+        { paymentId: payment.id, reason: 'In review dispute', category: 'payment_issues', status: 'in_review', priority: 'urgent' },
+      );
+      await crearDisputa(
+        { contractId: contract.id, initiatedBy: clientUser.id, against: doerUser.id },
         {
-          contractId: contract.id,
           paymentId: payment.id,
-          initiatedBy: clientUser.id,
-          against: doerUser.id,
-          reason: 'Open dispute',
-          description: 'Description',
-          category: 'quality_issues',
-          status: 'open',
-          priority: 'high',
-        },
-        {
-          contractId: contract.id,
-          paymentId: payment.id,
-          initiatedBy: doerUser.id,
-          against: clientUser.id,
-          reason: 'In review dispute',
-          description: 'Description',
-          category: 'payment_issues',
-          status: 'in_review',
-          priority: 'urgent',
-        },
-        {
-          contractId: contract.id,
-          paymentId: payment.id,
-          initiatedBy: clientUser.id,
-          against: doerUser.id,
           reason: 'Resolved dispute',
-          description: 'Description',
           category: 'other',
           status: 'resolved_released',
           priority: 'low',
           resolutionType: 'full_release',
         },
-      ]);
+      );
     });
 
     it('should return dispute statistics', async () => {
@@ -403,12 +382,10 @@ describe('Admin Dispute Routes', () => {
     let regularUserToken: string;
 
     beforeEach(async () => {
-      const regularUser = await User.create({
-        email: 'regular@test.com',
-        name: 'Regular User',
-        password: 'password123',
-        role: 'client',
-      });
+      // Por el fixture, que genera un email único: con 'regular@test.com' fijo
+      // el segundo test del bloque chocaba contra el índice único de email y
+      // fallaba en el beforeEach, antes de llegar a probar nada.
+      const regularUser = await crearUsuario({ name: 'Regular User', role: 'client' });
 
       regularUserToken = jwt.sign(
         { id: regularUser.id, email: regularUser.email, role: 'client' },
