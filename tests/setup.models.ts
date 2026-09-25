@@ -47,6 +47,27 @@ beforeAll(async () => {
   await initDatabase();
 });
 
+/**
+ * Por qué el cierre del pool NO está acá.
+ *
+ * Cada archivo de este proyecto termina con `afterAll(() => sequelize.close())`
+ * y parece repetición evitable. No lo es: jest corre los `afterAll` del mismo
+ * nivel en orden de definición, y el de este archivo se define primero —los
+ * `setupFilesAfterEach` corren antes que el test—. Si el cierre viviera acá,
+ * se ejecutaría ANTES del `afterAll` de cada archivo, y cualquiera que use la
+ * base para limpiar lo que dejó —flujoDinero restaura la fase de la
+ * plataforma, por ejemplo— moriría con "ConnectionManager.getConnection was
+ * called after the connection manager was closed".
+ *
+ * Y cerrar importa: sin cierre los tests pasan y jest se queda colgado para
+ * siempre ("Jest did not exit one second after the test run has completed"),
+ * con dos docenas de conexiones en `idle` sobre doapp_test. En CI eso no se ve
+ * como un test roto: se ve como un job que corre hasta el límite de tiempo y
+ * se reporta en rojo con todo en verde adentro.
+ *
+ * Si agregás un archivo de tests de modelos, cerrá el pool en su `afterAll`.
+ */
+
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });

@@ -4,6 +4,7 @@
 
 import { describe, it, test, expect, beforeEach, afterEach, afterAll } from '@jest/globals';
 import { User } from '../../../server/models/sql/User.model.js';
+import { sequelize } from '../../../server/config/database.js';
 
 describe('User Model', () => {
   afterEach(async () => {
@@ -337,4 +338,18 @@ describe('User Model', () => {
       expect(user.trustScore).toBe(0);
     });
   });
+});
+
+/**
+ * Cerrar el pool al terminar el archivo.
+ *
+ * Sin esto los tests pasan y jest se queda colgado para siempre ("Jest did not
+ * exit one second after the test run has completed"), dejando el pool de
+ * Sequelize abierto. En CI eso no se ve como un test roto: se ve como un job
+ * que corre hasta el limite de tiempo y se reporta en rojo con todo en verde
+ * adentro. Va a nivel raiz y al final, no en tests/setup.models.ts: ahi se
+ * ejecutaria antes del afterAll de este archivo. Ver el comentario del setup.
+ */
+afterAll(async () => {
+  await sequelize.close();
 });
