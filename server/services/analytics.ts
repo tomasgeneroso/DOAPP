@@ -83,7 +83,7 @@ class AnalyticsService {
     });
 
     return users.map((u: any) => ({
-      _id: u.date,
+      clave: u.date,
       count: parseInt(u.count, 10),
     }));
   }
@@ -124,7 +124,7 @@ class AnalyticsService {
 
     const result = {
       byCategory: categoryStats.map((c: any) => ({
-        _id: c.category,
+        clave: c.category,
         count: parseInt(c.count, 10),
       })),
       averagePrice: parseFloat((avgPrice as any)?.avgPrice) || 0,
@@ -182,7 +182,7 @@ class AnalyticsService {
 
     const result = {
       statusBreakdown: statusBreakdown.map((s: any) => ({
-        _id: s.status,
+        clave: s.status,
         count: parseInt(s.count, 10),
       })),
       averageDuration: avgDuration,
@@ -235,7 +235,7 @@ class AnalyticsService {
 
     const result = {
       revenueByDay: revenueByDay.map((r: any) => ({
-        _id: r.date,
+        clave: r.date,
         revenue: parseFloat(r.revenue) || 0,
         volume: parseFloat(r.volume) || 0,
         count: parseInt(r.count, 10),
@@ -280,7 +280,7 @@ class AnalyticsService {
     });
 
     return buckets.map(b => ({
-      _id: b.min,
+      clave: b.min,
       count: b.count,
       avgRating: b.count > 0 ? b.totalRating / b.count : 0,
     }));
@@ -333,11 +333,11 @@ class AnalyticsService {
 
     const result = {
       byStatus: statusBreakdown.map((s: any) => ({
-        _id: s.status,
+        clave: s.status,
         count: parseInt(s.count, 10),
       })),
       byCategory: categoryBreakdown.map((c: any) => ({
-        _id: c.category,
+        clave: c.category,
         count: parseInt(c.count, 10),
       })),
       avgResolutionTime,

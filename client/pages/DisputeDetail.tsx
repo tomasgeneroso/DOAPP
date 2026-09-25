@@ -21,7 +21,6 @@ interface Attachment {
 
 interface DisputeMessage {
   from: string | {
-    _id?: string;
     id?: string;
     name: string;
     avatar?: string;
@@ -34,7 +33,6 @@ interface DisputeMessage {
 
 interface Dispute {
   id: string;
-  _id?: string;
   contractId: string;
   reason: string;
   detailedDescription: string;
@@ -47,13 +45,11 @@ interface Dispute {
   // Backend returns these as 'initiator' and 'defendant' from includes
   initiator?: {
     id?: string;
-    _id?: string;
     name: string;
     avatar?: string;
   };
   defendant?: {
     id?: string;
-    _id?: string;
     name: string;
     avatar?: string;
   };
@@ -304,7 +300,7 @@ const DisputeDetail: React.FC = () => {
             {user && (
               <ReclamoDirectoPanel
                 dispute={dispute as any}
-                userId={String((user as any).id || (user as any)._id)}
+                userId={String((user as any).id || (user as any).id)}
                 token={token}
                 onChanged={(d) => setDispute(d)}
               />
@@ -411,7 +407,7 @@ const DisputeDetail: React.FC = () => {
                     // Check if sender is the initiator, defendant, or admin
                     const isAdmin = msg.isAdmin;
                     const senderId = isFromObject
-                      ? ((msg.from as any)._id || (msg.from as any).id)
+                      ? ((msg.from as any).id || (msg.from as any).id)
                       : msg.from;
                     const isInitiator = senderId === dispute.initiatedBy;
 

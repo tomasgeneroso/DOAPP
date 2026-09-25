@@ -105,16 +105,15 @@ export const JobsScreen: React.FC = () => {
   // En Job model, el campo es "client" no "postedBy"
   const myJobs = jobs.filter((job) => {
     // Handle both populated and non-populated client field
-    // Support both PostgreSQL (id) and MongoDB (_id) for compatibility
-    const clientId = typeof job.client === 'string' ? job.client : (job.client?.id || job.client?._id);
-    const userId = user?.id || user?._id;
+    const clientId = typeof job.client === 'string' ? job.client : (job.client?.id);
+    const userId = user?.id;
     return clientId === userId;
   });
 
   // Show only "open" status jobs to others (exclude drafts and pending payment)
   const otherJobs = jobs.filter((job) => {
-    const clientId = typeof job.client === 'string' ? job.client : (job.client?.id || job.client?._id);
-    const userId = user?.id || user?._id;
+    const clientId = typeof job.client === 'string' ? job.client : (job.client?.id);
+    const userId = user?.id;
     const isNotMyJob = clientId !== userId;
     const isOpen = job.status === 'open';
     return isNotMyJob && isOpen;
@@ -231,11 +230,11 @@ export const JobsScreen: React.FC = () => {
 
                 return (
                   <div
-                    key={`my-job-${job.id || job._id}`}
+                    key={`my-job-${job.id}`}
                     className="w-full p-5 rounded-2xl bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-2 border-orange-200 dark:border-orange-700 hover:shadow-md transition-all"
                   >
                     <button
-                      onClick={() => navigate(`/jobs/${job.id || job._id}`)}
+                      onClick={() => navigate(`/jobs/${job.id}`)}
                       className="w-full text-left"
                     >
                       <div className="flex justify-between items-start mb-2">
@@ -284,7 +283,7 @@ export const JobsScreen: React.FC = () => {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/jobs/${job.id || job._id}/payment`);
+                          navigate(`/jobs/${job.id}/payment`);
                         }}
                         className="mt-3 w-full px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-lg transition-all active:scale-95"
                       >
@@ -333,7 +332,7 @@ export const JobsScreen: React.FC = () => {
               if (item.type === 'ad') {
                 return (
                   <Advertisement
-                    key={`ad-${item.data.id || item.data._id}`}
+                    key={`ad-${item.data.id}`}
                     ad={item.data}
                     onImpression={recordImpression}
                     onClick={recordClick}
@@ -349,8 +348,8 @@ export const JobsScreen: React.FC = () => {
               const client = (job as any).client;
               return (
                 <button
-                  key={`job-${job.id || job._id}`}
-                  onClick={() => navigate(`/jobs/${job.id || job._id}`)}
+                  key={`job-${job.id}`}
+                  onClick={() => navigate(`/jobs/${job.id}`)}
                   className="w-full p-5 rounded-2xl text-left bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:shadow-md hover:border-sky-300 dark:hover:border-sky-700 transition-all active:scale-[0.98]"
                 >
                   {/* Category + price row */}

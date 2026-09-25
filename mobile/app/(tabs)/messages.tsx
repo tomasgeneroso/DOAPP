@@ -91,8 +91,8 @@ export default function MessagesScreen() {
         const response = await searchUsers(query);
         if (response.success) {
           const users = (response as any).users || response.data?.users || [];
-          const userId = user?._id || user?.id;
-          setSearchedUsers(users.filter((u: any) => (u.id || u._id) !== userId));
+          const userId = user?.id || user?.id;
+          setSearchedUsers(users.filter((u: any) => (u.id) !== userId));
         }
       } catch (error) {
         console.error('Error searching users:', error);
@@ -124,14 +124,14 @@ export default function MessagesScreen() {
     if (!newConvMessage.trim() && !selectedJob) return;
     setCreatingConv(true);
     try {
-      const body: any = { participantId: selectedUser.id || selectedUser._id };
-      if (selectedJob) body.jobId = selectedJob.id || selectedJob._id;
+      const body: any = { participantId: selectedUser.id };
+      if (selectedJob) body.jobId = selectedJob.id;
       if (newConvMessage.trim()) body.message = newConvMessage.trim();
 
       const response = await startConversation(body);
       if (response.success) {
         const conv = (response as any).data || response.data?.conversation;
-        const convId = conv?.id || conv?._id;
+        const convId = conv?.id;
         closeNewMessageModal();
         await fetchConversations();
         if (convId) router.push(`/chat/${convId}`);
@@ -194,7 +194,7 @@ export default function MessagesScreen() {
           styles.conversationItem,
           { backgroundColor: hasUnread ? themeColors.primary[50] : themeColors.card, borderBottomColor: themeColors.border },
         ]}
-        onPress={() => router.push(`/chat/${item._id}`)}
+        onPress={() => router.push(`/chat/${item.id}`)}
         activeOpacity={0.7}
       >
         {other?.avatar ? (
@@ -273,7 +273,7 @@ export default function MessagesScreen() {
         <FlatList
           data={conversations}
           renderItem={renderConversation}
-          keyExtractor={(item) => item._id || item.id || String(Math.random())}
+          keyExtractor={(item) => item.id || item.id || String(Math.random())}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           refreshControl={
@@ -343,7 +343,7 @@ export default function MessagesScreen() {
                     <View style={[styles.searchResults, { borderColor: themeColors.border }]}>
                       {searchedUsers.map((u) => (
                         <TouchableOpacity
-                          key={u.id || u._id}
+                          key={u.id}
                           onPress={() => handleSelectUser(u)}
                           style={[styles.userItem, { borderBottomColor: themeColors.border }]}
                         >
@@ -419,7 +419,7 @@ export default function MessagesScreen() {
                       ) : availableJobs.length > 0 ? (
                         availableJobs.map((job: any) => (
                           <TouchableOpacity
-                            key={job.id || job._id}
+                            key={job.id}
                             onPress={() => { setSelectedJob(job); setShowJobPicker(false); }}
                             style={[styles.jobPickerItem, { borderBottomColor: themeColors.border }]}
                           >

@@ -8,7 +8,7 @@ import { useAuth } from "../../hooks/useAuth";
 import Button from "../ui/Button";
 
 interface Author {
-  _id: string;
+  id: string;
   name: string;
   username?: string;
   avatar?: string;
@@ -18,7 +18,7 @@ interface Author {
 }
 
 interface Comment {
-  _id: string;
+  id: string;
   author: Author;
   content: string;
   likes: string[];
@@ -110,13 +110,13 @@ export default function PostComments({ postId }: PostCommentsProps) {
       if (data.success) {
         setComments(
           comments.map((comment) =>
-            comment._id === commentId
+            comment.id === commentId
               ? {
                   ...comment,
                   likesCount: data.likesCount,
                   likes: data.liked
-                    ? [...comment.likes, user._id || user.id || '']
-                    : comment.likes.filter((id) => id !== user._id && id !== user.id),
+                    ? [...comment.likes, user.id || user.id || '']
+                    : comment.likes.filter((id) => id !== user.id && id !== user.id),
                 }
               : comment
           )
@@ -148,7 +148,7 @@ export default function PostComments({ postId }: PostCommentsProps) {
       const data = await response.json();
 
       if (data.success) {
-        setComments(comments.filter((comment) => comment._id !== commentId));
+        setComments(comments.filter((comment) => comment.id !== commentId));
       }
     } catch (error) {
       console.error("Error deleting comment:", error);
@@ -229,17 +229,17 @@ export default function PostComments({ postId }: PostCommentsProps) {
         ) : (
           comments.map((comment) => {
             const isLiked = user
-              ? comment.likes.includes(user._id || user.id || '')
+              ? comment.likes.includes(user.id || user.id || '')
               : false;
-            const isAuthor = user?._id === comment.author._id || user?.id === comment.author._id;
+            const isAuthor = user?.id === comment.author.id || user?.id === comment.author.id;
 
             // Generate profile link - prefer username over id
             const profileLink = comment.author.username
               ? `/u/${comment.author.username}`
-              : `/profile/${comment.author._id}`;
+              : `/profile/${comment.author.id}`;
 
             return (
-              <div key={comment._id} className="flex gap-3">
+              <div key={comment.id} className="flex gap-3">
                 <Link to={profileLink}>
                   <img
                     src={getImageUrl(comment.author.avatar)}
@@ -273,7 +273,7 @@ export default function PostComments({ postId }: PostCommentsProps) {
                   </div>
                   <div className="flex items-center gap-4 mt-2 px-3">
                     <button
-                      onClick={() => handleLikeComment(comment._id)}
+                      onClick={() => handleLikeComment(comment.id)}
                       disabled={!user}
                       className={`flex items-center gap-1 text-sm ${
                         isLiked
@@ -291,7 +291,7 @@ export default function PostComments({ postId }: PostCommentsProps) {
                     </span>
                     {isAuthor && (
                       <button
-                        onClick={() => handleDeleteComment(comment._id)}
+                        onClick={() => handleDeleteComment(comment.id)}
                         className="text-xs text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 flex items-center gap-1"
                       >
                         <Trash2 className="h-3 w-3" />

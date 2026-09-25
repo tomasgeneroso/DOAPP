@@ -89,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const data = await response.json();
           console.log(
             "✅ User validated from cookie:",
-            data.user?._id,
+            data.user?.id,
             data.user?.name,
           );
           // Guardar token en localStorage para Socket.io

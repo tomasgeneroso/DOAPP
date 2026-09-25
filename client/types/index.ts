@@ -1,8 +1,7 @@
 export interface Job {
   views: undefined;
   publicationPaid: import("react/jsx-runtime").JSX.Element;
-  _id: string;
-  id?: string; // PostgreSQL UUID (for compatibility with SQL migration)
+  id: string;
   title: string;
   description: string;
   summary?: string;
@@ -21,8 +20,7 @@ export interface Job {
   status: 'open' | 'in_progress' | 'completed' | 'cancelled' | 'draft' | 'pending_payment' | 'pending_approval' | 'paused' | 'suspended';
   postedBy: string;
   client?: {
-    _id?: string;
-    id?: string; // PostgreSQL UUID
+    id: string;
     name: string;
     rating: number;
     reviewsCount: number;
@@ -30,8 +28,7 @@ export interface Job {
     completedJobs?: number;
   } | string;
   doer?: {
-    _id?: string;
-    id?: string;
+    id: string;
     name: string;
     rating: number;
     reviewsCount: number;
@@ -119,8 +116,7 @@ export interface RatingBreakdown {
 }
 
 export interface User {
-  _id: string;
-  id?: string; // Alias for _id (PostgreSQL UUID)
+  id: string;
   name: string;
   username?: string;
   email: string;
@@ -238,7 +234,7 @@ export interface RegisterData {
 }
 
 export interface BlogPost {
-  _id: string;
+  id: string;
   title: string;
   subtitle: string;
   slug: string;
@@ -280,7 +276,7 @@ export interface BlogPost {
 }
 
 export interface Contract {
-  _id: string;
+  id: string;
   job: Job | string;
   client: User | string;
   doer: User | string;
@@ -365,8 +361,7 @@ export interface Contract {
 }
 
 export interface JobTask {
-  _id: string;
-  id?: string;
+  id: string;
   jobId: string;
   createdById: string;
   title: string;
@@ -393,7 +388,7 @@ export interface JobTask {
 }
 
 export interface BalanceTransaction {
-  _id: string;
+  id: string;
   user: User | string;
   type: 'refund' | 'payment' | 'bonus' | 'adjustment' | 'withdrawal';
   amount: number;
@@ -422,8 +417,7 @@ export interface BalanceTransaction {
 }
 
 export interface WithdrawalRequest {
-  _id: string;
-  id?: string; // Alias for _id
+  id: string;
   user: User | string;
   amount: number;
   bankingInfo: {
@@ -450,8 +444,7 @@ export interface WithdrawalRequest {
 }
 
 export interface PortfolioItem {
-  id?: string;
-  _id?: string;
+  id: string;
   userId: User | string;
   title: string;
   description: string;
@@ -505,7 +498,7 @@ export interface InvitationCode {
   codesUsed: number;
   maxCodes: number;
   invitedUsers: Array<{
-    _id: string;
+    id: string;
     name: string;
     email: string;
     avatar?: string;
@@ -514,7 +507,7 @@ export interface InvitationCode {
 }
 
 export interface Review {
-  _id: string;
+  id: string;
   contract: Contract | string;
   reviewer: User | string;
   reviewee: User | string;

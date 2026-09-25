@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
 interface Advertisement {
-  _id: string;
+  id: string;
   title: string;
   description: string;
   imageUrl: string;

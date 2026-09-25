@@ -111,7 +111,7 @@ export const apiRateLimit = createRateLimitMiddleware(apiLimiter);
 export const strictRateLimit = createRateLimitMiddleware(strictLimiter);
 export const perUserRateLimit = createRateLimitMiddleware(
   perUserLimiter,
-  (req: any) => req.user?._id?.toString() || req.ip || "unknown"
+  (req: any) => req.user?.id?.toString() || req.ip || "unknown"
 );
 
 export function customRateLimit(options: {
@@ -147,7 +147,7 @@ export function endpointRateLimit(endpoint: string, points = 20, duration = 60) 
     duration,
     keyPrefix: `rl:endpoint:${endpoint}`,
     keyGenerator: (req: any) => {
-      const userId = req.user?._id?.toString() || req.ip || "unknown";
+      const userId = req.user?.id?.toString() || req.ip || "unknown";
       return `${userId}:${endpoint}`;
     },
   });

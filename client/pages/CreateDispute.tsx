@@ -15,7 +15,6 @@ interface FileWithPreview extends File {
 
 interface Contract {
   id: string;
-  _id?: string; // MongoDB compatibility
   job?: {
     title: string;
     summary?: string;
@@ -158,7 +157,7 @@ const CreateDispute: React.FC = () => {
         withCredentials: true,
       });
 
-      navigate(`/disputes/${response.data.data.id || response.data.data._id}`);
+      navigate(`/disputes/${response.data.data.id}`);
     } catch (err: any) {
       setError(err.response?.data?.message || t('disputes.createError', 'Error creating dispute'));
     } finally {
@@ -218,7 +217,7 @@ const CreateDispute: React.FC = () => {
                 ) : (
                   <div className="space-y-3">
                     {contracts.map((contract) => {
-                      const contractId = contract.id || contract._id;
+                      const contractId = contract.id;
                       const jobTitle = contract.job?.title || contract.jobId?.title || t('disputes.noTitle', 'No title');
                       const clientName = contract.client?.name || contract.clientId?.name || t('contracts.client', 'Client');
                       const doerName = contract.doer?.name || contract.doerId?.name || t('contracts.provider', 'Provider');

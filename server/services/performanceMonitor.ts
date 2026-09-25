@@ -114,7 +114,6 @@ class PerformanceMonitor {
   private normalizeRoute(route: string): string {
     return route
       .replace(/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '/:id') // UUID
-      .replace(/\/[0-9a-f]{24}/gi, '/:id') // MongoDB ObjectId
       .replace(/\/\d+/g, '/:id'); // Numeric IDs
   }
 

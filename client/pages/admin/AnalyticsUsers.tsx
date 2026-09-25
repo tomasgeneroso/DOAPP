@@ -19,11 +19,11 @@ import {
 } from "recharts";
 
 interface UserAnalytics {
-  newUsers: Array<{ _id: string; count: number }>;
-  usersByRole: Array<{ _id: string; count: number }>;
-  usersByVerification: Array<{ _id: string; count: number }>;
+  newUsers: Array<{ clave: string; count: number }>;
+  usersByRole: Array<{ clave: string; count: number }>;
+  usersByVerification: Array<{ clave: string; count: number }>;
   topRatedUsers: Array<{
-    _id: string;
+    id: string;
     name: string;
     email: string;
     avatar?: string;
@@ -143,7 +143,7 @@ export default function AnalyticsUsers() {
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Verificados</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {analytics.usersByVerification.find((v) => v._id === "verified")?.count || 0}
+                {analytics.usersByVerification.find((v) => v.clave === "verified")?.count || 0}
               </p>
             </div>
           </div>
@@ -174,7 +174,7 @@ export default function AnalyticsUsers() {
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={analytics.newUsers}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="_id" stroke="#9CA3AF" />
+              <XAxis dataKey="clave" stroke="#9CA3AF" />
               <YAxis stroke="#9CA3AF" />
               <Tooltip
                 contentStyle={{
@@ -205,7 +205,7 @@ export default function AnalyticsUsers() {
               <Pie
                 data={analytics.usersByRole}
                 dataKey="count"
-                nameKey="_id"
+                nameKey="clave"
                 cx="50%"
                 cy="50%"
                 outerRadius={100}
@@ -238,7 +238,7 @@ export default function AnalyticsUsers() {
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={analytics.usersByVerification}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="_id" stroke="#9CA3AF" />
+              <XAxis dataKey="clave" stroke="#9CA3AF" />
               <YAxis stroke="#9CA3AF" />
               <Tooltip
                 contentStyle={{
@@ -261,7 +261,7 @@ export default function AnalyticsUsers() {
           <div className="space-y-3 max-h-[300px] overflow-y-auto">
             {analytics.topRatedUsers.map((user, index) => (
               <div
-                key={user._id}
+                key={user.id}
                 className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
               >
                 <div className="flex-shrink-0 w-8 h-8 bg-sky-100 dark:bg-sky-900/30 rounded-full flex items-center justify-center">

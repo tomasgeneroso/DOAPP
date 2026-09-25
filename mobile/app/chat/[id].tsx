@@ -53,7 +53,7 @@ export default function ChatScreen() {
   };
 
   const handleCopyJobCode = async () => {
-    const jobId = conversation?.jobId || conversation?.job?.id || conversation?.job?._id;
+    const jobId = conversation?.jobId || conversation?.job?.id;
     if (jobId) {
       const code = getJobCode(jobId);
       await Clipboard.setStringAsync(code);
@@ -138,7 +138,7 @@ export default function ChatScreen() {
     try {
       if (selectedJob) {
         // Send with job attachment via HTTP
-        const body: any = { jobId: selectedJob.id || selectedJob._id };
+        const body: any = { jobId: selectedJob.id };
         if (text) body.content = text;
 
         const response = await sendMessageWithJob(id!, body);
@@ -209,12 +209,12 @@ export default function ChatScreen() {
   const getMessageContent = (msg: Message) => msg.message || msg.content || '';
 
   // Helper to get sender info
-  const getSenderId = (sender: any) => sender?.id || sender?._id || '';
+  const getSenderId = (sender: any) => sender?.id || '';
 
   const renderMessage = ({ item, index }: { item: Message; index: number }) => {
     const sender = item.sender as UserType;
     const senderId = getSenderId(sender);
-    const userId = user?._id || user?.id;
+    const userId = user?.id || user?.id;
     const isOwn = senderId === userId;
     const showDate = shouldShowDate(index);
     const messageContent = getMessageContent(item);
@@ -510,7 +510,7 @@ export default function ChatScreen() {
             >
               <Key size={12} color={themeColors.primary[600]} />
               <Text style={[styles.jobCodeText, { color: themeColors.primary[700] }]}>
-                #{getJobCode(conversation?.jobId || conversation?.job?.id || conversation?.job?._id)}
+                #{getJobCode(conversation?.jobId || conversation?.job?.id)}
               </Text>
               {copiedJobCode ? (
                 <Check size={12} color={colors.success[500]} />
@@ -533,7 +533,7 @@ export default function ChatScreen() {
           ref={flatListRef}
           data={messages}
           renderItem={renderMessage}
-          keyExtractor={(item) => item.id || item._id}
+          keyExtractor={(item) => item.id}
           inverted
           contentContainerStyle={styles.messagesList}
           showsVerticalScrollIndicator={false}
@@ -567,7 +567,7 @@ export default function ChatScreen() {
             ) : inlineJobs.length > 0 ? (
               <FlatList
                 data={inlineJobs}
-                keyExtractor={(item) => item.id || item._id}
+                keyExtractor={(item) => item.id}
                 style={{ maxHeight: 160 }}
                 renderItem={({ item: job }) => (
                   <TouchableOpacity

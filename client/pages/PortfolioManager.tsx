@@ -44,7 +44,7 @@ export default function PortfolioManager() {
   const loadPortfolio = async () => {
     try {
       const token = localStorage.getItem('token');
-      const userId = user?.id || user?._id;
+      const userId = user?.id;
       const response = await fetch(`/api/portfolio/user/${userId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -336,7 +336,7 @@ export default function PortfolioManager() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {portfolioItems.map((item) => {
-            const itemId = item.id || item._id;
+            const itemId = item.id;
             return (
             <div
               key={itemId}

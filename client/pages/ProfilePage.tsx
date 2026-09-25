@@ -113,8 +113,8 @@ export default function ProfilePage() {
   // Helper function to check if viewing own profile
   const isOwnProfile = () => {
     if (!currentUser || !user) return false;
-    const currentUserId = currentUser.id || currentUser._id;
-    const profileUserId = user.id || user._id;
+    const currentUserId = currentUser.id;
+    const profileUserId = user.id;
     return currentUserId === profileUserId;
   };
 
@@ -125,15 +125,15 @@ export default function ProfilePage() {
   }, [profileIdentifier, currentUser]);
 
   useEffect(() => {
-    if (user?._id || user?.id) {
+    if (user?.id || user?.id) {
       fetchPosts();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?._id, user?.id, viewMode]);
+  }, [user?.id, user?.id, viewMode]);
 
   // Track profile view (logged-in viewer, not own profile) — feeds the Crecimiento funnel
   useEffect(() => {
-    const viewedId = user?.id || user?._id;
+    const viewedId = user?.id;
     if (!viewedId || !currentUser || !token || isOwnProfile()) return;
     fetch('/api/user-analytics/profile-view', {
       method: 'POST',
@@ -141,10 +141,10 @@ export default function ProfilePage() {
       body: JSON.stringify({ profileUserId: viewedId, referrer: document.referrer || undefined }),
     }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?._id, user?.id, currentUser]);
+  }, [user?.id, user?.id, currentUser]);
 
   const fetchPosts = async () => {
-    const userIdForPosts = user?._id || user?.id;
+    const userIdForPosts = user?.id || user?.id;
     if (!userIdForPosts) return;
 
     try {
@@ -189,7 +189,7 @@ export default function ProfilePage() {
         }
 
         // Fetch completed jobs using the user's ID
-        fetchCompletedJobs(data.user.id || data.user._id);
+        fetchCompletedJobs(data.user.id);
       } else {
         setError(data.message || 'Error al cargar el perfil');
       }
@@ -202,7 +202,7 @@ export default function ProfilePage() {
   };
 
   const fetchCompletedJobs = async (userIdToFetch?: string, category?: string | null) => {
-    const idToUse = userIdToFetch || user?.id || user?._id || userId;
+    const idToUse = userIdToFetch || user?.id || userId;
     if (!idToUse) return;
 
     try {
@@ -241,7 +241,7 @@ export default function ProfilePage() {
   };
 
   const fetchUserReviews = async (userIdToFetch?: string) => {
-    const idToUse = userIdToFetch || user?.id || user?._id || userId;
+    const idToUse = userIdToFetch || user?.id || userId;
     if (!idToUse) return;
 
     try {
@@ -268,10 +268,10 @@ export default function ProfilePage() {
     if (selectedCategory === categoryId) {
       // Deselect if clicking same category
       setSelectedCategory(null);
-      fetchCompletedJobs(user?.id || user?._id, null);
+      fetchCompletedJobs(user?.id, null);
     } else {
       setSelectedCategory(categoryId);
-      fetchCompletedJobs(user?.id || user?._id, categoryId);
+      fetchCompletedJobs(user?.id, categoryId);
     }
   };
 
@@ -279,7 +279,7 @@ export default function ProfilePage() {
     // Solo cargar si es el perfil propio
     if (!currentUser) return;
     const isOwn =
-      (userId && (currentUser._id === userId || currentUser.id === userId)) ||
+      (userId && (currentUser.id === userId || currentUser.id === userId)) ||
       (username && currentUser.username === username);
     if (!isOwn) return;
 
@@ -311,7 +311,7 @@ export default function ProfilePage() {
     if (user?.username) {
       return `${baseUrl}/u/${user.username}`;
     }
-    return `${baseUrl}/profile/${user?.id || user?._id}`;
+    return `${baseUrl}/profile/${user?.id}`;
   };
 
   // Copy profile link
@@ -323,9 +323,9 @@ export default function ProfilePage() {
     setShowShareMenu(false);
 
     // Track share event
-    if (user?.id || user?._id) {
+    if (user?.id) {
       try {
-        await fetch(`/api/users/${user.id || user._id}/track-share`, {
+        await fetch(`/api/users/${user.id}/track-share`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -355,8 +355,8 @@ export default function ProfilePage() {
         const filtered = data.users.filter((u: User) =>
           u.id !== user?.id &&
           u.id !== currentUser?.id &&
-          u._id !== user?._id &&
-          u._id !== currentUser?._id
+          u.id !== user?.id &&
+          u.id !== currentUser?.id
         );
         setShareSearchResults(filtered);
       }
@@ -380,7 +380,7 @@ export default function ProfilePage() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
-          participants: [targetUser.id || targetUser._id],
+          participants: [targetUser.id],
         }),
       });
       const convData = await convResponse.json();
@@ -393,7 +393,7 @@ export default function ProfilePage() {
       const profileUrl = getProfileUrl();
       const message = `Te comparto el perfil de ${user.name}: ${profileUrl}`;
 
-      await fetch(`/api/chat/conversations/${convData.conversation._id || convData.conversation.id}/messages`, {
+      await fetch(`/api/chat/conversations/${convData.conversation.id || convData.conversation.id}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -401,7 +401,7 @@ export default function ProfilePage() {
           content: message,
           type: 'profile_share',
           metadata: {
-            sharedUserId: user.id || user._id,
+            sharedUserId: user.id,
             sharedUserName: user.name,
             sharedUserAvatar: user.avatar,
             sharedUserUsername: user.username,
@@ -410,11 +410,11 @@ export default function ProfilePage() {
       });
 
       // Track share event
-      await fetch(`/api/users/${user.id || user._id}/track-share`, {
+      await fetch(`/api/users/${user.id}/track-share`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ type: 'private_message', targetUserId: targetUser.id || targetUser._id }),
+        body: JSON.stringify({ type: 'private_message', targetUserId: targetUser.id }),
       });
 
       setShowShareModal(false);
@@ -442,7 +442,7 @@ export default function ProfilePage() {
 
   const handleStartChat = async () => {
     // Use the loaded profile's actual ID, not the URL param (which can be a username)
-    const participantId = user?.id || user?._id;
+    const participantId = user?.id;
     if (!participantId || !token) return;
 
     try {
@@ -458,7 +458,7 @@ export default function ProfilePage() {
       const data = await response.json();
 
       if (data.success) {
-        const convId = data.data?.id || data.data?._id || data.conversation?.id || data.conversation?._id;
+        const convId = data.data?.id || data.conversation?.id;
         if (convId) {
           navigate(`/messages/${convId}`);
         }
@@ -781,7 +781,7 @@ export default function ProfilePage() {
                       {/* Admin: jump to this user's info & config in the admin panel */}
                       {(currentUser as any)?.adminRole && (
                         <button
-                          onClick={() => navigate(`/admin/users?search=${encodeURIComponent(user.id || user._id || '')}`)}
+                          onClick={() => navigate(`/admin/users?search=${encodeURIComponent(user.id || '')}`)}
                           className="inline-flex items-center gap-2 rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 px-4 py-2.5 text-sm font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-all duration-200 active:scale-95"
                           title="Ver información y configuración del usuario (admin)"
                         >
@@ -1009,7 +1009,7 @@ export default function ProfilePage() {
                     <button
                       onClick={() => {
                         setSelectedCategory(null);
-                        fetchCompletedJobs(user?.id || user?._id, null);
+                        fetchCompletedJobs(user?.id, null);
                       }}
                       className={`w-full flex items-center justify-between p-3 rounded-lg transition-colors ${
                         selectedCategory === null
@@ -1159,7 +1159,7 @@ export default function ProfilePage() {
                         <button
                           onClick={() => {
                             setSelectedCategory(null);
-                            fetchCompletedJobs(user?.id || user?._id, null);
+                            fetchCompletedJobs(user?.id, null);
                           }}
                           className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                         >
@@ -1446,8 +1446,8 @@ export default function ProfilePage() {
                     <div className="space-y-4">
                       {posts.map((post) => (
                         <Link
-                          key={post.id || post._id}
-                          to={`/posts/${post.id || post._id}`}
+                          key={post.id}
+                          to={`/posts/${post.id}`}
                           className="block p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-sky-300 dark:hover:border-sky-600 transition-colors"
                         >
                           <div className="flex gap-4">
@@ -1519,7 +1519,7 @@ export default function ProfilePage() {
         {/* Report Profile Modal */}
         {showReportModal && user && (
           <ReportProfileModal
-            userId={user._id || user.id || ''}
+            userId={user.id || user.id || ''}
             userName={user.name}
             onClose={() => setShowReportModal(false)}
             onSuccess={() => {
@@ -1615,7 +1615,7 @@ export default function ProfilePage() {
                   <div className="space-y-6">
                     {userReviews.map((review) => (
                       <div
-                        key={review.id || review._id}
+                        key={review.id}
                         className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-xl"
                       >
                         {/* Review Header */}

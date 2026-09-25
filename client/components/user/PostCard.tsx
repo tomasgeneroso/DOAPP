@@ -7,7 +7,6 @@ import { useAuth } from "../../hooks/useAuth";
 
 interface Author {
   id?: string;
-  _id?: string;
   name: string;
   avatar?: string;
   membershipTier?: string;
@@ -24,7 +23,6 @@ interface GalleryItem {
 
 interface Post {
   id?: string;
-  _id?: string;
   author: Author;
   title: string;
   description: string;
@@ -39,8 +37,8 @@ interface Post {
   tags?: string[];
   createdAt: string;
   // Portfolio-related fields
-  linkedJob?: string | { id?: string; _id?: string; title?: string };
-  linkedContract?: string | { id?: string; _id?: string };
+  linkedJob?: string | { id?: string; title?: string };
+  linkedContract?: string | { id?: string };
 }
 
 interface PostCardProps {
@@ -52,11 +50,11 @@ interface PostCardProps {
 export default function PostCard({ post, onLike, onComment }: PostCardProps) {
   const { user } = useAuth();
   const { t } = useTranslation();
-  // Handle both id and _id (Sequelize vs MongoDB style)
-  const postId = post.id || post._id || '';
-  const authorId = post.author.id || post.author._id || '';
+  
+  const postId = post.id || '';
+  const authorId = post.author.id || '';
   const [isLiked, setIsLiked] = useState(
-    user ? post.likes.includes(user._id || user.id || '') : false
+    user ? post.likes.includes(user.id || user.id || '') : false
   );
   const [likesCount, setLikesCount] = useState(post.likesCount);
   const [isLiking, setIsLiking] = useState(false);
@@ -168,7 +166,7 @@ export default function PostCard({ post, onLike, onComment }: PostCardProps) {
         <div className="flex-1">
           <div className="flex items-center gap-2">
             <Link
-              to={`/profile/${post.author._id}`}
+              to={`/profile/${post.author.id}`}
               className="font-semibold text-slate-900 dark:text-white hover:underline"
             >
               {post.author.name}

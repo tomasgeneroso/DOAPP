@@ -95,7 +95,6 @@ router.get("/search", async (req: Request, res: Response): Promise<void> => {
     res.json({
       success: true,
       users: users.map(user => ({
-        _id: user.id,
         id: user.id,
         name: user.name,
         username: user.username,
@@ -149,7 +148,6 @@ router.get("/u/:username", async (req: Request, res: Response): Promise<void> =>
     res.json({
       success: true,
       user: {
-        _id: user.id,
         id: user.id,
         name: user.name,
         username: user.username,
@@ -225,7 +223,6 @@ router.get("/:id/profile", dataMinimizationMiddleware, async (req: Request, res:
     res.json({
       success: true,
       data: {
-        _id: user.id,
         id: user.id,
         name: user.name,
         username: user.username,
@@ -524,7 +521,6 @@ router.get("/:id", async (req: Request, res: Response): Promise<void> => {
     res.json({
       success: true,
       user: {
-        _id: user.id,
         id: user.id,
         name: user.name,
         username: user.username,

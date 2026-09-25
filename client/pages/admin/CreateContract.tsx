@@ -7,17 +7,16 @@ import { CustomDatePicker } from "@/components/ui/CustomDatePicker";
 import { ArrowLeft, Search, Calendar, DollarSign, FileText, Users } from "lucide-react";
 
 interface User {
-  _id: string;
+  id: string;
   name: string;
   email: string;
   avatar?: string;
 }
 
 interface Job {
-  _id: string;
+  id: string;
   title: string;
   client: {
-    _id: string;
     name: string;
   };
   budget: number;
@@ -103,7 +102,7 @@ export default function AdminCreateContract() {
     if (!selectedClient) return;
 
     try {
-      const response = await fetch(`/api/jobs?userId=${selectedClient._id}`, {
+      const response = await fetch(`/api/jobs?userId=${selectedClient.id}`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
@@ -157,9 +156,9 @@ export default function AdminCreateContract() {
       setSubmitting(true);
 
       const contractData = {
-        clientId: selectedClient._id,
-        doerId: selectedDoer._id,
-        jobId: selectedJob?._id,
+        clientId: selectedClient.id,
+        doerId: selectedDoer.id,
+        jobId: selectedJob?.id,
         title: formData.title || selectedJob?.title,
         description: formData.description,
         price: parseFloat(formData.price),
@@ -270,7 +269,7 @@ export default function AdminCreateContract() {
                 <div className="border border-gray-200 dark:border-gray-700 rounded-lg max-h-64 overflow-y-auto">
                   {clientUsers.map((user) => (
                     <button
-                      key={user._id}
+                      key={user.id}
                       type="button"
                       onClick={() => {
                         setSelectedClient(user);
@@ -315,14 +314,14 @@ export default function AdminCreateContract() {
             <div className="space-y-3">
               {jobs.map((job) => (
                 <button
-                  key={job._id}
+                  key={job.id}
                   type="button"
                   onClick={() => {
                     setSelectedJob(job);
                     setFormData({ ...formData, title: job.title, price: job.budget.toString() });
                   }}
                   className={`w-full p-4 rounded-lg border-2 transition text-left ${
-                    selectedJob?._id === job._id
+                    selectedJob?.id === job.id
                       ? "border-green-500 bg-green-50 dark:bg-green-900/20"
                       : "border-gray-200 dark:border-gray-700 hover:border-gray-300"
                   }`}
@@ -366,7 +365,7 @@ export default function AdminCreateContract() {
                 <div className="border border-gray-200 dark:border-gray-700 rounded-lg max-h-64 overflow-y-auto">
                   {doerUsers.map((user) => (
                     <button
-                      key={user._id}
+                      key={user.id}
                       type="button"
                       onClick={() => {
                         setSelectedDoer(user);

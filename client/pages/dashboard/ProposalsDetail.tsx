@@ -17,19 +17,19 @@ import {
 } from "lucide-react";
 
 interface Proposal {
-  _id: string;
+  id: string;
   job: {
-    _id: string;
+    id: string;
     title: string;
     price: number;
   };
   client: {
-    _id: string;
+    id: string;
     name: string;
     avatar?: string;
   };
   freelancer: {
-    _id: string;
+    id: string;
     name: string;
     avatar?: string;
   };
@@ -274,7 +274,7 @@ export default function ProposalsDetail() {
             <div className="space-y-4">
               {filteredProposals.map((proposal) => (
                 <div
-                  key={proposal._id}
+                  key={proposal.id}
                   className="rounded-xl bg-white dark:bg-slate-800 p-6 border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow"
                 >
                   <div className="flex items-start justify-between mb-4">
@@ -285,7 +285,7 @@ export default function ProposalsDetail() {
                         </h3>
                         {getStatusBadge(proposal.status)}
                         <Link
-                          to={`/jobs/${proposal.job._id}`}
+                          to={`/jobs/${proposal.job.id}`}
                           className="text-sky-600 hover:text-sky-700 dark:text-sky-400"
                         >
                           <ExternalLink className="h-4 w-4" />

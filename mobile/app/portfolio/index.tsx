@@ -48,7 +48,7 @@ export default function PortfolioScreen() {
 
   const fetchPortfolio = async () => {
     try {
-      const userId = user?.id || user?._id;
+      const userId = user?.id;
       if (!userId) return;
       const response = await get<any>(`/portfolio/user/${userId}`);
       if (response.success) {

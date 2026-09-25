@@ -416,7 +416,7 @@ router.get(
         raw: true
       }).then((results: any[]) =>
         results.map(r => ({
-          _id: { year: r.year, month: r.month },
+          clave: { year: r.year, month: r.month },
           count: parseInt(r.count)
         }))
       );
@@ -448,7 +448,7 @@ router.get(
         raw: true
       }).then((results: any[]) =>
         results.map(r => ({
-          _id: r.currency,
+          clave: r.currency,
           total: parseFloat(r.total) || 0,
           count: parseInt(r.count)
         }))
@@ -474,12 +474,12 @@ router.get(
         const currency = promoter.pricing?.currency || 'ARS';
         const totalPaid = promoter.pricing?.totalPaid || 0;
 
-        const existing = acc.find(r => r._id === currency);
+        const existing = acc.find(r => r.clave === currency);
         if (existing) {
           existing.total += totalPaid;
           existing.count += 1;
         } else {
-          acc.push({ _id: currency, total: totalPaid, count: 1 });
+          acc.push({ clave: currency, total: totalPaid, count: 1 });
         }
         return acc;
       }, []);

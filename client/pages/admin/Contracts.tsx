@@ -38,7 +38,6 @@ interface PaymentInfo {
 
 interface Contract {
   id: string;
-  _id?: string;
   title?: string;
   job?: {
     id?: string;
@@ -46,13 +45,11 @@ interface Contract {
   } | null;
   client: {
     id?: string;
-    _id?: string;
     name: string;
     email: string;
   };
   doer: {
     id?: string;
-    _id?: string;
     name: string;
     email: string;
   };
@@ -427,10 +424,10 @@ export default function AdminContracts() {
 
   const filteredContracts = contracts.filter((contract) => {
     const jobTitle = contract.job?.title || contract.title || '';
-    const contractId = contract.id || contract._id || '';
+    const contractId = contract.id || '';
     const jobId = contract.job?.id || '';
-    const clientId = contract.client?.id || contract.client?._id || '';
-    const doerId = contract.doer?.id || contract.doer?._id || '';
+    const clientId = contract.client?.id || '';
+    const doerId = contract.doer?.id || '';
     const q = searchQuery.toLowerCase();
     const matchesSearch =
       searchQuery === "" ||
@@ -687,10 +684,10 @@ export default function AdminContracts() {
                 </tr>
               ) : (
                 getSortedAndFilteredContracts().map((contract) => (
-                  <tr key={contract.id || contract._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                  <tr key={contract.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                     <td className="px-4 py-4">
-                      <div className="text-xs font-mono text-gray-600 dark:text-gray-400" title={contract.id || contract._id}>
-                        {(contract.id || contract._id || '').slice(-8).toUpperCase()}
+                      <div className="text-xs font-mono text-gray-600 dark:text-gray-400" title={contract.id}>
+                        {(contract.id || '').slice(-8).toUpperCase()}
                       </div>
                     </td>
                     <td className="px-4 py-4">
@@ -700,7 +697,7 @@ export default function AdminContracts() {
                       <div className="text-xs text-gray-500 dark:text-gray-400">
                         {new Date(contract.createdAt).toLocaleDateString("es-AR")} {new Date(contract.createdAt).toLocaleTimeString("es-AR", { hour: '2-digit', minute: '2-digit' })}
                       </div>
-                      <IdBadge id={contract.id || contract._id} />
+                      <IdBadge id={contract.id} />
                     </td>
                     <td className="px-4 py-4">
                       <a href={`/admin/users?search=${encodeURIComponent(contract.client?.name || '')}`} className="text-sm text-sky-600 dark:text-sky-400 hover:underline">{contract.client?.name || 'N/A'}</a>
@@ -788,7 +785,7 @@ export default function AdminContracts() {
                     <td className="px-4 py-4">
                       <div className="flex gap-2">
                         <Link
-                          to={`/contracts/${contract.id || contract._id}`}
+                          to={`/contracts/${contract.id}`}
                           className="p-1 text-sky-600 dark:text-sky-400 hover:bg-sky-50 dark:hover:bg-sky-900/20 rounded"
                           title={t('admin.contracts.viewDetails', 'View details')}
                         >
@@ -800,7 +797,7 @@ export default function AdminContracts() {
                               setChangeStatusContract(contract);
                               setNewStatus(contract.status);
                               setLinkedDisputeId("");
-                              fetchContractDisputes(contract.id || contract._id || "");
+                              fetchContractDisputes(contract.id || "");
                             }}
                             className="p-1 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded"
                             title={t('admin.contracts.changeStatusOwner', 'Change status (Owner)')}

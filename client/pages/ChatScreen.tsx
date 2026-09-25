@@ -37,8 +37,7 @@ import ConfirmModal from '../components/ui/ConfirmModal';
 
 interface ConversationPreview {
   id?: string;
-  _id?: string;
-  participants: Array<{ id?: string; _id?: string; name: string; avatar?: string }>;
+  participants: Array<{ id?: string; name: string; avatar?: string }>;
   lastMessage?: string;
   lastMessageAt?: string;
   unreadCount?: Record<string, number>;
@@ -49,10 +48,8 @@ interface ConversationPreview {
 
 interface Message {
   id?: string; // PostgreSQL
-  _id?: string; // MongoDB backward compatibility
   sender: {
     id?: string; // PostgreSQL
-    _id?: string; // MongoDB backward compatibility
     name: string;
     avatar?: string;
   };
@@ -83,14 +80,12 @@ interface JobContext {
 
 interface Participant {
   id?: string; // PostgreSQL
-  _id?: string; // MongoDB backward compatibility
   name: string;
   avatar?: string;
 }
 
 interface ConversationData {
   id?: string; // PostgreSQL
-  _id?: string; // MongoDB backward compatibility
   participants: Participant[];
   contractId?: string;
   jobId?: string;
@@ -99,7 +94,6 @@ interface ConversationData {
 
 interface Job {
   id?: string; // PostgreSQL
-  _id?: string; // MongoDB backward compatibility
   title: string;
   description: string;
   price: number;
@@ -281,14 +275,14 @@ export default function ChatScreen() {
       if (msgData.success && msgData.data) {
         setMessages(prev => {
           // Merge new messages avoiding duplicates
-          const existingIds = new Set(prev.map(m => m.id || m._id));
-          const newMessages = msgData.data.filter((m: Message) => !existingIds.has(m.id || m._id));
+          const existingIds = new Set(prev.map(m => m.id));
+          const newMessages = msgData.data.filter((m: Message) => !existingIds.has(m.id));
           if (newMessages.length > 0) {
             return [...prev, ...newMessages];
           }
           // También actualizar si hay cambios en metadata (ej: proposalStatus)
           const hasMetadataChanges = msgData.data.some((newMsg: Message) => {
-            const existing = prev.find(p => (p.id || p._id) === (newMsg.id || newMsg._id));
+            const existing = prev.find(p => (p.id) === (newMsg.id));
             if (existing && newMsg.metadata && existing.metadata) {
               return JSON.stringify(newMsg.metadata) !== JSON.stringify(existing.metadata);
             }
@@ -313,13 +307,13 @@ export default function ChatScreen() {
         // Get IDs of existing messages, excluding temporary optimistic messages
         const existingIds = new Set(
           prev
-            .filter(m => !String(m.id || m._id).startsWith('temp-'))
-            .map(m => m.id || m._id)
+            .filter(m => !String(m.id).startsWith('temp-'))
+            .map(m => m.id)
         );
 
         // Filter out messages that already exist
         const newMessages = socketMessages.filter(m => {
-          const msgId = (m as any).id || (m as any)._id;
+          const msgId = (m as any).id || (m as any).id;
           return !existingIds.has(msgId);
         });
 
@@ -327,7 +321,7 @@ export default function ChatScreen() {
           // Remove any temp messages that match the content of new messages
           // and add the real messages from server
           const filteredPrev = prev.filter(m => {
-            if (!String(m.id || m._id).startsWith('temp-')) return true;
+            if (!String(m.id).startsWith('temp-')) return true;
             // Check if this temp message is now confirmed by server
             const hasServerVersion = newMessages.some(nm =>
               (nm as any).message === m.message &&
@@ -391,7 +385,7 @@ export default function ChatScreen() {
 
         // Find the other participant
         const participants = convData.data.participants;
-        const other = participants.find((p: any) => (p.id || p._id) !== user?.id);
+        const other = participants.find((p: any) => (p.id) !== user?.id);
         if (other) {
           setOtherParticipant(other);
         }
@@ -589,7 +583,7 @@ export default function ChatScreen() {
     try {
       // Fetch participant's jobs and my proposals in parallel
       const [jobsResponse, proposalsResponse] = await Promise.all([
-        fetch(`/api/jobs?client=${otherParticipant.id || otherParticipant._id}&status=open`, {
+        fetch(`/api/jobs?client=${otherParticipant.id}&status=open`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
         fetch(`/api/proposals/my-proposals`, {
@@ -609,7 +603,7 @@ export default function ChatScreen() {
       // Create a set of job IDs I've already applied to
       if (proposalsData.success && proposalsData.proposals) {
         const appliedIds = new Set<string>(
-          proposalsData.proposals.map((p: any) => p.jobId || p.job?.id || p.job?._id)
+          proposalsData.proposals.map((p: any) => p.jobId || p.job?.id)
         );
         setMyAppliedJobIds(appliedIds);
       }
@@ -629,11 +623,9 @@ export default function ChatScreen() {
 
     // Add message optimistically to UI immediately
     const optimisticMessage: Message = {
-      _id: `temp-${Date.now()}`,
       id: `temp-${Date.now()}`,
       sender: {
-        id: user?.id || user?._id || '',
-        _id: user?._id || user?.id || '',
+        id: user?.id || '',
         name: user?.name || '',
         avatar: user?.avatar,
       },
@@ -657,7 +649,7 @@ export default function ChatScreen() {
     } catch (error) {
       console.error('Error sending message:', error);
       // Remove optimistic message on error
-      setMessages(prev => prev.filter(m => m._id !== optimisticMessage._id));
+      setMessages(prev => prev.filter(m => m.id !== optimisticMessage.id));
     } finally {
       setSending(false);
     }
@@ -672,7 +664,7 @@ export default function ChatScreen() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          job: targetJob.id || (targetJob as any)._id,
+          job: targetJob.id || (targetJob as any).id,
           coverLetter: `Te propongo un precio de $${Number(priceProposalAmount).toLocaleString('es-AR')} ARS para este trabajo.`,
           proposedPrice: parseFloat(priceProposalAmount),
           estimatedDuration: 1,
@@ -831,7 +823,7 @@ export default function ChatScreen() {
       // If there are attachments, use FormData
       if (data.attachments && data.attachments.length > 0) {
         const formData = new FormData();
-        formData.append('recipientId', data.recipientId || otherParticipant?.id || otherParticipant?._id);
+        formData.append('recipientId', data.recipientId || otherParticipant?.id);
         formData.append('title', data.title);
         formData.append('description', data.description);
         formData.append('proposedPrice', data.price.toString());
@@ -865,7 +857,7 @@ export default function ChatScreen() {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            recipientId: data.recipientId || otherParticipant?.id || otherParticipant?._id,
+            recipientId: data.recipientId || otherParticipant?.id,
             title: data.title,
             description: data.description,
             proposedPrice: data.price,
@@ -911,7 +903,7 @@ export default function ChatScreen() {
 
   // Sidebar helpers
   const getSidebarName = (conv: ConversationPreview) => {
-    const other = conv.participants.find(p => (p.id || p._id) !== user?.id);
+    const other = conv.participants.find(p => (p.id) !== user?.id);
     return other?.name || 'Chat';
   };
   const getSidebarLastMsg = (conv: ConversationPreview) => {
@@ -919,7 +911,7 @@ export default function ChatScreen() {
     return conv.lastMessage.includes('||') ? conv.lastMessage.split('||')[0] : conv.lastMessage;
   };
   const getUnread = (conv: ConversationPreview) => {
-    const uid = user?.id || (user as any)?._id || '';
+    const uid = user?.id || (user as any)?.id || '';
     return conv.unreadCount?.[uid] || 0;
   };
 
@@ -950,7 +942,7 @@ export default function ChatScreen() {
               <div className="px-4 py-8 text-center text-xs text-slate-400">Sin conversaciones</div>
             ) : (
               conversations.map(conv => {
-                const cid = conv.id || conv._id || '';
+                const cid = conv.id || '';
                 const isActive = cid === conversationId;
                 const unread = getUnread(conv);
                 return (
@@ -1044,7 +1036,7 @@ export default function ChatScreen() {
               {otherParticipant && (
                 <button
                   onClick={() => {
-                    const recipientId = otherParticipant.id || otherParticipant._id || '';
+                    const recipientId = otherParticipant.id || '';
                     const params = new URLSearchParams({ recipientId, conversationId: conversationId || '' });
                     if (conversationData?.jobId) params.set('jobId', conversationData.jobId);
                     window.location.href = `/quotes/new?${params.toString()}`;
@@ -1149,13 +1141,13 @@ export default function ChatScreen() {
                       </button>
                     )}
                     {/* Other open jobs */}
-                    {allMyJobs.filter(j => j.id !== jobForProposal?.id && (j as any)._id !== (jobForProposal as any)?._id).map(job => (
+                    {allMyJobs.filter(j => j.id !== jobForProposal?.id && (j as any).id !== (jobForProposal as any)?.id).map(job => (
                       <button
-                        key={job.id || (job as any)._id}
+                        key={job.id || (job as any).id}
                         type="button"
                         onClick={() => setSelectedProposalJob(job)}
                         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold transition-all ${
-                          (selectedProposalJob?.id || (selectedProposalJob as any)?._id) === (job.id || (job as any)._id)
+                          (selectedProposalJob?.id || (selectedProposalJob as any)?.id) === (job.id || (job as any).id)
                             ? 'bg-amber-500 text-white border-amber-500'
                             : 'bg-white dark:bg-slate-700 text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-600 hover:border-amber-500'
                         }`}
@@ -1181,7 +1173,7 @@ export default function ChatScreen() {
                       Precio publicado: ${Number(selectedProposalJob.price).toLocaleString('es-AR')} ARS
                     </p>
                   </div>
-                  <Link to={`/jobs/${selectedProposalJob.id || (selectedProposalJob as any)._id}`} target="_blank" className="shrink-0 text-xs font-semibold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1">
+                  <Link to={`/jobs/${selectedProposalJob.id || (selectedProposalJob as any).id}`} target="_blank" className="shrink-0 text-xs font-semibold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1">
                     <Briefcase className="h-3 w-3" /> Ver
                   </Link>
                 </div>
@@ -1238,7 +1230,7 @@ export default function ChatScreen() {
                 <div className="grid gap-3 max-h-96 overflow-y-auto">
                   {participantJobs.map((job) => (
                     <div
-                      key={job.id || job._id}
+                      key={job.id}
                       className="flex items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700"
                     >
                       <div className="flex-1 min-w-0">
@@ -1258,16 +1250,16 @@ export default function ChatScreen() {
                           </span>
                         </div>
                       </div>
-                      {myAppliedJobIds.has(job.id || job._id || '') ? (
+                      {myAppliedJobIds.has(job.id || '') ? (
                         <button
-                          onClick={() => navigate(`/jobs/${job.id || job._id}`)}
+                          onClick={() => navigate(`/jobs/${job.id}`)}
                           className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap"
                         >
                           {t('chat.viewJob', 'View Job')}
                         </button>
                       ) : (
                         <button
-                          onClick={() => navigate(`/jobs/${job.id || job._id}/apply`)}
+                          onClick={() => navigate(`/jobs/${job.id}/apply`)}
                           className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold rounded-lg transition-colors whitespace-nowrap"
                         >
                           {t('chat.apply', 'Apply')}
@@ -1475,7 +1467,7 @@ export default function ChatScreen() {
               if (isQuoteMessage) {
                 return (
                   <QuoteMessage
-                    key={message.id || message._id}
+                    key={message.id}
                     message={message as any}
                     onRefresh={fetchConversationData}
                     token={token}
@@ -1486,7 +1478,7 @@ export default function ChatScreen() {
               if (isSystemMessage) {
                 return (
                   <SystemMessageCard
-                    key={message.id || message._id}
+                    key={message.id}
                     message={message}
                     currentUserId={user?.id}
                     onRefresh={fetchConversationData}
@@ -1498,14 +1490,14 @@ export default function ChatScreen() {
               // Regular chat message
               return (
                 <div
-                  key={message.id || message._id}
+                  key={message.id}
                   className={`flex ${
-                    (message.sender.id || message.sender._id) === user?.id ? 'justify-end' : 'justify-start'
+                    (message.sender.id) === user?.id ? 'justify-end' : 'justify-start'
                   }`}
                 >
                   <div
                     className={`max-w-[70%] rounded-2xl px-4 py-3 ${
-                      (message.sender.id || message.sender._id) === user?.id
+                      (message.sender.id) === user?.id
                         ? 'bg-sky-600 text-white'
                         : (message.sender as any).adminRole
                           ? 'bg-sky-50 dark:bg-sky-900/30 text-slate-900 dark:text-white border-2 border-sky-300 dark:border-sky-600 ring-2 ring-sky-200/60 dark:ring-sky-800/40 shadow-sm'
@@ -1521,7 +1513,7 @@ export default function ChatScreen() {
                     <p className="whitespace-pre-wrap">{linkifyText(messageText)}</p>
                     <p
                       className={`text-xs mt-2 ${
-                        (message.sender.id || message.sender._id) === user?.id
+                        (message.sender.id) === user?.id
                           ? 'text-sky-100'
                           : 'text-slate-500 dark:text-slate-400'
                       }`}
@@ -1623,7 +1615,7 @@ export default function ChatScreen() {
           onClose={() => setShowDirectProposalModal(false)}
           modalType="direct_proposal"
           directProposalData={{
-            recipientId: otherParticipant.id || otherParticipant._id || '',
+            recipientId: otherParticipant.id || '',
             recipientName: otherParticipant.name,
             conversationId: conversationId,
           }}

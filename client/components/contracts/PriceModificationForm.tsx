@@ -28,7 +28,7 @@ export default function PriceModificationForm({ contract, onSuccess, onCancel }:
     setError(null);
 
     try {
-      const response = await fetch(`/api/contracts/${contract._id}/modify-price`, {
+      const response = await fetch(`/api/contracts/${contract.id}/modify-price`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

@@ -44,7 +44,7 @@ export function dataMinimizationMiddleware(
 
       const minimize = (user: Record<string, any>) => {
         if (!user || typeof user !== 'object') return user;
-        const userId = (user.id || user._id)?.toString();
+        const userId = user.id?.toString();
         // Owner or admin get full profile
         if (isAdmin || (requesterId && requesterId === userId)) return user;
         return minimizePublicProfile(user);
@@ -72,7 +72,7 @@ export function sanitizeUserForResponse(
   isAdmin = false
 ): Record<string, any> {
   if (!user) return user;
-  const userId = (user.id || user._id)?.toString();
+  const userId = user.id?.toString();
   if (isAdmin || (requesterId && requesterId === userId)) return user;
   return minimizePublicProfile(user);
 }

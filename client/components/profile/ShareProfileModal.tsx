@@ -75,7 +75,7 @@ export default function ShareProfileModal({
             <div className="divide-y divide-slate-100 dark:divide-slate-700">
               {results.map((targetUser) => (
                 <button
-                  key={targetUser.id || targetUser._id}
+                  key={targetUser.id}
                   onClick={() => onSelectUser(targetUser)}
                   disabled={sending}
                   className="w-full px-4 py-3 flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors text-left disabled:opacity-50"

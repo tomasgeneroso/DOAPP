@@ -92,11 +92,16 @@ async function checkNpmAudit(): Promise<SecurityCheckResult> {
  * Check 2: Verify environment variables
  */
 function checkEnvironmentVariables(): SecurityCheckResult {
+  /**
+   * Las que tienen que estar sí o sí. Pedía MONGODB_URI, que dejó de existir
+   * con la migración a Postgres: el chequeo avisaba de una variable faltante
+   * que nadie tenía que definir, y esa clase de aviso enseña a ignorar la
+   * salida entera del script.
+   */
   const requiredVars = [
-    "MONGODB_URI",
+    "DATABASE_URL",
     "JWT_SECRET",
-    "PAYPAL_CLIENT_ID",
-    "PAYPAL_CLIENT_SECRET",
+    "MERCADOPAGO_ACCESS_TOKEN",
     "GOOGLE_CLOUD_AUTH_ID",
     "GOOGLE_CLOUD_AUTH_PASS",
     "FACEBOOK_APP_ID",

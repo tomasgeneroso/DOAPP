@@ -352,7 +352,6 @@ router.put(
         message: "Rol actualizado exitosamente",
         data: {
           user: {
-            _id: user.id,
             name: user.name,
             email: user.email,
             adminRole: user.adminRole,
@@ -447,7 +446,6 @@ router.put(
         message: "Permisos actualizados exitosamente",
         data: {
           user: {
-            _id: user.id,
             name: user.name,
             email: user.email,
             adminRole: user.adminRole,

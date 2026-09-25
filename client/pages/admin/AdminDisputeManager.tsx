@@ -16,7 +16,6 @@ type SortDirection = 'asc' | 'desc' | null;
 
 interface Dispute {
   id: string;
-  _id?: string;
   reason: string;
   status: string;
   priority: string;
@@ -31,19 +30,16 @@ interface Dispute {
   createdAt: Date | string;
   initiatedBy: {
     id?: string;
-    _id?: string;
     name: string;
     email?: string;
   };
   against: {
     id?: string;
-    _id?: string;
     name: string;
     email?: string;
   };
   contract?: {
     id?: string;
-    _id?: string;
     title?: string;
     price?: number;
   };
@@ -53,7 +49,6 @@ interface Dispute {
   resolvedAt?: string | null;
   resolvedBy?: {
     id?: string;
-    _id?: string;
     name: string;
   };
 }
@@ -155,7 +150,7 @@ const AdminDisputeManager: React.FC = () => {
     console.log('🔔 Dispute updated:', data);
     setRealtimeAlert(`${t('admin.disputes.disputeUpdated', 'Dispute updated')}: ${data.dispute?.reason || t('admin.disputes.noReason', 'No reason')}`);
     setDisputes(prev =>
-      prev.map(d => (d.id === data.dispute?.id || d._id === data.dispute?._id) ? { ...d, ...data.dispute } : d)
+      prev.map(d => (d.id === data.dispute?.id || d.id === data.dispute?.id) ? { ...d, ...data.dispute } : d)
     );
     // Refresh stats
     fetchStats();
@@ -313,7 +308,7 @@ const AdminDisputeManager: React.FC = () => {
 
   const getFilteredDisputes = () => {
     return disputes.filter((dispute) => {
-      const disputeId = dispute.id || dispute._id || '';
+      const disputeId = dispute.id || '';
       const matchesSearch =
         searchQuery === "" ||
         disputeId.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -714,10 +709,10 @@ const AdminDisputeManager: React.FC = () => {
                 </thead>
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {getSortedDisputes().map((dispute) => (
-                    <tr key={dispute.id || dispute._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <tr key={dispute.id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                       <td className="px-6 py-4">
-                        <div className="text-xs font-mono text-gray-600 dark:text-gray-400" title={dispute.id || dispute._id}>
-                          {(dispute.id || dispute._id || '').slice(-8).toUpperCase()}
+                        <div className="text-xs font-mono text-gray-600 dark:text-gray-400" title={dispute.id}>
+                          {(dispute.id || '').slice(-8).toUpperCase()}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -755,7 +750,7 @@ const AdminDisputeManager: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <button
-                          onClick={() => navigate(`/admin/disputes/${dispute.id || dispute._id}`)}
+                          onClick={() => navigate(`/admin/disputes/${dispute.id}`)}
                           className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
                         >
                           {t('common.viewDetails', 'View Details')}

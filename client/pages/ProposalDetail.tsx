@@ -20,10 +20,8 @@ import MultipleRatings from "../components/user/MultipleRatings";
 import ConfirmModal from "../components/ui/ConfirmModal";
 
 interface Proposal {
-  _id?: string;
   id?: string;
   job: {
-    _id?: string;
     id?: string;
     title: string;
     summary: string;
@@ -32,7 +30,6 @@ interface Proposal {
     category: string;
   };
   freelancer: {
-    _id?: string;
     id?: string;
     name: string;
     avatar?: string;
@@ -41,7 +38,6 @@ interface Proposal {
     completedJobs?: number;
   };
   client: {
-    _id?: string;
     id?: string;
     name: string;
     avatar?: string;
@@ -84,7 +80,7 @@ export default function ProposalDetail() {
     if (!proposal || !token) return;
     setActionLoading(true);
     try {
-      const pago = await fetch(`/api/payments/quote/${proposal._id}`, {
+      const pago = await fetch(`/api/payments/quote/${proposal.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       });
@@ -198,7 +194,7 @@ export default function ProposalDetail() {
     setConfirmAcceptOpen(false);
     setActionLoading(true);
     try {
-      const response = await fetch(`/api/proposals/${proposal._id}/approve`, {
+      const response = await fetch(`/api/proposals/${proposal.id}/approve`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -250,7 +246,7 @@ export default function ProposalDetail() {
     setRejectOpen(false);
     setActionLoading(true);
     try {
-      const response = await fetch(`/api/proposals/${proposal._id}/reject`, {
+      const response = await fetch(`/api/proposals/${proposal.id}/reject`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -299,9 +295,9 @@ export default function ProposalDetail() {
     );
   }
 
-  const currentUserId = user?._id || user?.id;
-  const freelancerId = proposal.freelancer._id || proposal.freelancer.id;
-  const clientId = proposal.client._id || proposal.client.id;
+  const currentUserId = user?.id || user?.id;
+  const freelancerId = proposal.freelancer.id || proposal.freelancer.id;
+  const clientId = proposal.client.id || proposal.client.id;
   const isFreelancer = freelancerId === currentUserId;
   const isClient = clientId === currentUserId;
   const otherParty = isFreelancer ? proposal.client : proposal.freelancer;
@@ -370,7 +366,7 @@ export default function ProposalDetail() {
                   </span>
                 </div>
                 <Link
-                  to={`/jobs/${proposal.job._id}`}
+                  to={`/jobs/${proposal.job.id}`}
                   className="text-2xl font-bold text-slate-900 dark:text-white hover:text-sky-600 dark:hover:text-sky-400"
                 >
                   {proposal.job.title}
@@ -439,7 +435,7 @@ export default function ProposalDetail() {
                   <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">
                     Freelancer
                   </p>
-                  <Link to={`/users/${proposal.freelancer._id}`} className="flex items-center gap-3 group">
+                  <Link to={`/users/${proposal.freelancer.id}`} className="flex items-center gap-3 group">
                     <img
                       src={getImageUrl(proposal.freelancer.avatar)}
                       alt={proposal.freelancer.name}
@@ -463,7 +459,7 @@ export default function ProposalDetail() {
                 </div>
                 <div>
                   <p className="text-sm text-slate-600 dark:text-slate-400 mb-2">Cliente</p>
-                  <Link to={`/users/${proposal.client._id}`} className="flex items-center gap-3 group">
+                  <Link to={`/users/${proposal.client.id}`} className="flex items-center gap-3 group">
                     <img
                       src={getImageUrl(proposal.client.avatar)}
                       alt={proposal.client.name}
@@ -559,14 +555,14 @@ export default function ProposalDetail() {
           {/* Actions */}
           <div className="flex gap-3 justify-center flex-wrap">
             <Link
-              to={`/jobs/${proposal.job._id}`}
+              to={`/jobs/${proposal.job.id}`}
               className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition font-semibold"
             >
               <FileText className="h-5 w-5" />
               Ver Trabajo
             </Link>
             <button
-              onClick={() => navigate(`/chat/${proposal.freelancer._id}`)}
+              onClick={() => navigate(`/chat/${proposal.freelancer.id}`)}
               className="flex items-center gap-2 px-6 py-3 bg-sky-500 hover:bg-sky-600 text-white rounded-lg transition font-semibold"
             >
               <MessageCircle className="h-5 w-5" />

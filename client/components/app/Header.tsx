@@ -392,7 +392,7 @@ export default function Header() {
                       Dashboard
                     </Link>
                     <Link
-                      to={`/profile/${user._id}`}
+                      to={`/profile/${user.id}`}
                       onClick={() => handleNavClick('/profile')}
                       className="flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                       role="menuitem"

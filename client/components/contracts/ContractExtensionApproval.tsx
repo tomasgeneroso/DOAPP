@@ -25,7 +25,7 @@ export default function ContractExtensionApproval({
     return null;
   }
 
-  const isRequester = contract.extensionRequestedBy === user?._id;
+  const isRequester = contract.extensionRequestedBy === user?.id;
   if (isRequester) {
     return (
       <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
@@ -42,7 +42,7 @@ export default function ContractExtensionApproval({
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/contracts/${contract._id}/approve-extension`, {
+      const response = await fetch(`/api/contracts/${contract.id}/approve-extension`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -70,7 +70,7 @@ export default function ContractExtensionApproval({
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/contracts/${contract._id}/reject-extension`, {
+      const response = await fetch(`/api/contracts/${contract.id}/reject-extension`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -93,9 +93,9 @@ export default function ContractExtensionApproval({
     }
   };
 
-  const requesterName = typeof contract.client === 'object' && contract.extensionRequestedBy === contract.client._id
+  const requesterName = typeof contract.client === 'object' && contract.extensionRequestedBy === contract.client.id
     ? contract.client.name
-    : typeof contract.doer === 'object' && contract.extensionRequestedBy === (contract.doer as User)._id
+    : typeof contract.doer === 'object' && contract.extensionRequestedBy === (contract.doer as User).id
     ? (contract.doer as User).name
     : t('contracts.otherParty', 'The other party');
 

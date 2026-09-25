@@ -101,7 +101,7 @@ export default function MobileBottomNav() {
             )}
 
             <Link
-              to={`/profile/${user._id || (user as any).id}`}
+              to={`/profile/${user.id || (user as any).id}`}
               className={itemClass(isActive("/profile"))}
               aria-label={t("nav.profile")}
             >

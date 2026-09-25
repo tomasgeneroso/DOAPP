@@ -22,7 +22,7 @@ router.use(protect);
 router.get('/', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { type = 'all', status, page = '1', limit = '20' } = req.query;
-    const userId = req.user.id || req.user._id;
+    const userId = req.user.id || req.user.id;
     const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
 
     const where: any = {};
@@ -76,7 +76,7 @@ router.get('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
     }
 
     // Only sender or recipient can view
-    if (quote.senderId !== (req.user.id || req.user._id) && quote.recipientId !== (req.user.id || req.user._id)) {
+    if (quote.senderId !== req.user.id && quote.recipientId !== req.user.id) {
       res.status(403).json({ success: false, message: 'Sin permiso para ver esta cotización' });
       return;
     }
@@ -119,7 +119,7 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
       return;
     }
 
-    const sender = await User.findByPk(req.user.id || req.user._id, {
+    const sender = await User.findByPk(req.user.id || req.user.id, {
       attributes: ['id', 'name', 'email', 'avatar'],
     });
 
@@ -137,7 +137,7 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
     const total = subtotal + taxAmount + otherTaxesTotal;
 
     const quote = await Quote.create({
-      senderId: req.user.id || req.user._id,
+      senderId: req.user.id || req.user.id,
       recipientId,
       jobId: jobId || null,
       proposalId: proposalId || null,
@@ -167,10 +167,10 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
     let convId = conversationId;
     if (applyMode && jobId) {
       const [proposal, proposalCreated] = await Proposal.findOrCreate({
-        where: { jobId, freelancerId: req.user.id || req.user._id },
+        where: { jobId, freelancerId: req.user.id || req.user.id },
         defaults: {
           jobId,
-          freelancerId: req.user.id || req.user._id,
+          freelancerId: req.user.id || req.user.id,
           coverLetter: title,
           proposedPrice: total,
           estimatedDuration: 1,
@@ -186,12 +186,12 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
       let conv = await Conversation.findOne({
         where: {
           jobId,
-          participants: { [Op.contains]: [req.user.id || req.user._id, recipientId] },
+          participants: { [Op.contains]: [req.user.id || req.user.id, recipientId] },
         } as any,
       });
       if (!conv) {
         conv = await Conversation.create({
-          participants: [req.user.id || req.user._id, recipientId],
+          participants: [req.user.id || req.user.id, recipientId],
           jobId,
         } as any);
       }
@@ -201,7 +201,7 @@ router.post('/', async (req: AuthRequest, res: Response): Promise<void> => {
 
     // If linked to conversation, post a system message in chat
     if (convId && status === 'sent') {
-      await _postQuoteChatMessage(quote, req.user.id || req.user._id, convId, 'sent');
+      await _postQuoteChatMessage(quote, req.user.id || req.user.id, convId, 'sent');
     }
 
     // Notify recipient
@@ -249,7 +249,7 @@ router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
       return;
     }
 
-    if (quote.senderId !== (req.user.id || req.user._id)) {
+    if (quote.senderId !== req.user.id) {
       res.status(403).json({ success: false, message: 'Solo el remitente puede editar la cotización' });
       return;
     }
@@ -306,7 +306,7 @@ router.put('/:id', async (req: AuthRequest, res: Response): Promise<void> => {
 
     // If had a conversationId and was rejected, post updated message
     if (quote.conversationId && wasRejected) {
-      await _postQuoteChatMessage(quote, req.user.id || req.user._id, quote.conversationId, 'revised');
+      await _postQuoteChatMessage(quote, req.user.id || req.user.id, quote.conversationId, 'revised');
 
       // Notify recipient
       await Notification.create({
@@ -351,7 +351,7 @@ router.post('/:id/accept', async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    if (quote.recipientId !== (req.user.id || req.user._id)) {
+    if (quote.recipientId !== req.user.id) {
       res.status(403).json({ success: false, message: 'Solo el destinatario puede aceptar la cotización' });
       return;
     }
@@ -374,7 +374,7 @@ router.post('/:id/accept', async (req: AuthRequest, res: Response): Promise<void
       try {
         const job = await Job.findByPk(quote.jobId);
         if (job && job.status === 'open') {
-          const clientId = req.user.id || req.user._id;
+          const clientId = req.user.id || req.user.id;
           const doerId = quote.senderId; // worker sent the quote
           const price = Number(quote.total);
 
@@ -517,7 +517,7 @@ router.post('/:id/pay', protect, async (req: AuthRequest, res: Response): Promis
       return;
     }
 
-    const userId = req.user.id || req.user._id;
+    const userId = req.user.id || req.user.id;
 
     if (quote.recipientId !== userId) {
       res.status(403).json({ success: false, message: 'Solo el destinatario puede pagar la cotización' });
@@ -608,7 +608,7 @@ router.post('/:id/reject', async (req: AuthRequest, res: Response): Promise<void
       return;
     }
 
-    if (quote.recipientId !== (req.user.id || req.user._id)) {
+    if (quote.recipientId !== req.user.id) {
       res.status(403).json({ success: false, message: 'Solo el destinatario puede rechazar la cotización' });
       return;
     }
@@ -672,7 +672,7 @@ router.get('/:id/pdf', async (req: AuthRequest, res: Response): Promise<void> =>
       return;
     }
 
-    if (quote.senderId !== (req.user.id || req.user._id) && quote.recipientId !== (req.user.id || req.user._id)) {
+    if (quote.senderId !== req.user.id && quote.recipientId !== req.user.id) {
       res.status(403).json({ success: false, message: 'Sin permiso' });
       return;
     }

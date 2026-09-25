@@ -438,7 +438,7 @@ export default function BlogDetailScreen() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {relatedPosts.map((relatedPost) => (
                   <Link
-                    key={relatedPost._id}
+                    key={relatedPost.id}
                     to={`/blog/${relatedPost.slug}`}
                     className="bg-slate-50 dark:bg-slate-700 rounded-xl overflow-hidden hover:shadow-lg transition-shadow group"
                   >

@@ -21,8 +21,8 @@ import {
 } from "recharts";
 
 interface ContractAnalytics {
-  contractsByStatus: Array<{ _id: string; count: number }>;
-  contractsByDay: Array<{ _id: string; count: number; revenue: number }>;
+  contractsByStatus: Array<{ clave: string; count: number }>;
+  contractsByDay: Array<{ clave: string; count: number; revenue: number }>;
   avgContractValue: number;
   totalRevenue: number;
 }
@@ -83,13 +83,13 @@ export default function AnalyticsContracts() {
 
   const totalContracts = analytics.contractsByStatus.reduce((sum, s) => sum + s.count, 0);
   const completedContracts =
-    analytics.contractsByStatus.find((s) => s._id === "completed")?.count || 0;
+    analytics.contractsByStatus.find((s) => s.clave === "completed")?.count || 0;
   const completionRate = totalContracts > 0 ? (completedContracts / totalContracts) * 100 : 0;
 
   // Transform data for charts
   const statusChartData = analytics.contractsByStatus.map((item) => ({
     ...item,
-    name: STATUS_LABELS[item._id] || item._id,
+    name: STATUS_LABELS[item.clave] || item.clave,
   }));
 
   return (
@@ -190,7 +190,7 @@ export default function AnalyticsContracts() {
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={analytics.contractsByDay}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="_id" stroke="#9CA3AF" />
+              <XAxis dataKey="clave" stroke="#9CA3AF" />
               <YAxis stroke="#9CA3AF" />
               <Tooltip
                 contentStyle={{
@@ -220,7 +220,7 @@ export default function AnalyticsContracts() {
           <ResponsiveContainer width="100%" height={300}>
             <AreaChart data={analytics.contractsByDay}>
               <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="_id" stroke="#9CA3AF" />
+              <XAxis dataKey="clave" stroke="#9CA3AF" />
               <YAxis stroke="#9CA3AF" />
               <Tooltip
                 contentStyle={{
@@ -323,7 +323,7 @@ export default function AnalyticsContracts() {
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {statusChartData.map((item) => (
-                <tr key={item._id}>
+                <tr key={item.clave}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                     {item.name}
                   </td>

@@ -6,30 +6,27 @@ import { adminApi } from "@/lib/adminApi";
 import { ArrowLeft, Send, Search, Upload, X } from "lucide-react";
 
 interface User {
-  _id: string;
+  id: string;
   name: string;
   email: string;
   avatar?: string;
 }
 
 interface Contract {
-  _id: string;
+  id: string;
   job?: {
-    _id: string;
     title: string;
   };
   jobId?: {
     title: string;
   };
   client?: {
-    _id: string;
     name: string;
   };
   clientId?: {
     name: string;
   };
   doer?: {
-    _id: string;
     name: string;
   };
   doerId?: {
@@ -86,7 +83,7 @@ export default function AdminCreateDispute() {
     if (!selectedUser) return;
 
     try {
-      const response = await adminApi.contracts.list({ userId: selectedUser._id });
+      const response = await adminApi.contracts.list({ userId: selectedUser.id });
       if (response.success && response.data) {
         setContracts(response.data as any || []);
       }
@@ -122,8 +119,8 @@ export default function AdminCreateDispute() {
     try {
       setSubmitting(true);
       const formDataToSend = new FormData();
-      formDataToSend.append("userId", selectedUser._id);
-      formDataToSend.append("contractId", selectedContract._id);
+      formDataToSend.append("userId", selectedUser.id);
+      formDataToSend.append("contractId", selectedContract.id);
       formDataToSend.append("title", formData.title);
       formDataToSend.append("category", formData.category);
       formDataToSend.append("description", formData.description);
@@ -201,7 +198,7 @@ export default function AdminCreateDispute() {
                 <div className="border border-gray-200 dark:border-gray-700 rounded-lg max-h-64 overflow-y-auto">
                   {users.map((user) => (
                     <button
-                      key={user._id}
+                      key={user.id}
                       type="button"
                       onClick={() => {
                         setSelectedUser(user);
@@ -287,11 +284,11 @@ export default function AdminCreateDispute() {
               <div className="space-y-3">
                 {contracts.map((contract) => (
                   <button
-                    key={contract._id}
+                    key={contract.id}
                     type="button"
                     onClick={() => setSelectedContract(contract)}
                     className={`w-full p-4 rounded-lg border-2 transition text-left ${
-                      selectedContract?._id === contract._id
+                      selectedContract?.id === contract.id
                         ? "border-orange-500 bg-orange-50 dark:bg-orange-900/20"
                         : "border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600"
                     }`}

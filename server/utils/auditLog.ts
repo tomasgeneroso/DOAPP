@@ -147,7 +147,7 @@ export const logAudit = async (params: LogAuditParams): Promise<void> => {
     const userAgent = req.headers["user-agent"] || "unknown";
 
     await AuditLog.create({
-      performedBy: req.user.id || req.user._id,
+      performedBy: req.user.id || req.user.id,
       adminRole: req.user.adminRole,
       action,
       category,

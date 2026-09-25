@@ -89,7 +89,7 @@ export default function DashboardScreen() {
       // summary endpoint returns { success, summary: {...} }
       const balanceSummary = (balanceRes as any)?.summary || (balanceRes as any)?.data || {};
 
-      const userId = user?.id || (user as any)?._id;
+      const userId = user?.id || (user as any)?.id;
 
       const activeContracts = Array.isArray(contracts) ? contracts.filter((c: any) =>
         ['accepted', 'in_progress', 'ready'].includes(c.status)
@@ -105,14 +105,14 @@ export default function DashboardScreen() {
 
       const earnings = Array.isArray(contracts) ? contracts
         .filter((c: any) => {
-          const doerId = typeof c.doer === 'object' ? (c.doer?.id || c.doer?._id) : c.doer;
+          const doerId = typeof c.doer === 'object' ? (c.doer?.id) : c.doer;
           return doerId === userId && c.status === 'completed';
         })
         .reduce((sum: number, c: any) => sum + (c.price || 0), 0) : 0;
 
       const spent = Array.isArray(contracts) ? contracts
         .filter((c: any) => {
-          const clientId = typeof c.client === 'object' ? (c.client?.id || c.client?._id) : c.client;
+          const clientId = typeof c.client === 'object' ? (c.client?.id) : c.client;
           return clientId === userId && c.status === 'completed';
         })
         .reduce((sum: number, c: any) => sum + (c.totalPrice || c.price || 0), 0) : 0;

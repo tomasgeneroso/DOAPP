@@ -23,7 +23,6 @@ const DAY_NAMES_SHORT = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
 interface UserProfile {
   id: string;
-  _id?: string;
   name: string;
   username?: string;
   email?: string;
@@ -113,16 +112,16 @@ export default function UserProfileScreen() {
       const conversations = (response as any).conversations || (response as any).data || [];
       const existing = conversations.find((c: any) => {
         const parts = c.participants || [];
-        return parts.some((p: any) => (p.id || p._id) === id || p === id);
+        return parts.some((p: any) => (p.id) === id || p === id);
       });
       if (existing) {
-        router.push(`/chat/${existing.id || existing._id}`);
+        router.push(`/chat/${existing.id}`);
       } else {
         const { post } = await import('../../services/api');
         const newConv = await post<any>('/chat/conversations', { participantId: id });
         if (newConv.success) {
           const conv = (newConv as any).conversation || newConv.data;
-          router.push(`/chat/${conv.id || conv._id}`);
+          router.push(`/chat/${conv.id}`);
         }
       }
     } catch (err) {
@@ -372,9 +371,9 @@ export default function UserProfileScreen() {
                 const cat = getCategoryById(item.category);
                 return (
                   <TouchableOpacity
-                    key={item.id || item._id}
+                    key={item.id}
                     style={[styles.portfolioCard, { backgroundColor: themeColors.background, borderColor: themeColors.border }]}
-                    onPress={() => router.push(`/portfolio/${item.id || item._id}`)}
+                    onPress={() => router.push(`/portfolio/${item.id}`)}
                   >
                     {item.images && item.images.length > 0 ? (
                       <Image source={{ uri: getImageUrl(item.images[0]) || item.images[0] }} style={styles.portfolioImage} resizeMode="cover" />
@@ -413,7 +412,7 @@ export default function UserProfileScreen() {
               const reviewerAvatar = typeof reviewer === 'object' ? reviewer?.avatar : null;
               const avgRating = ((review.workQualityRating || 0) + (review.workerRating || 0) + (review.contractRating || 0)) / 3;
               return (
-                <View key={review._id || idx} style={[styles.reviewItem, { borderTopColor: themeColors.border, borderTopWidth: idx > 0 ? 1 : 0 }]}>
+                <View key={review.id || idx} style={[styles.reviewItem, { borderTopColor: themeColors.border, borderTopWidth: idx > 0 ? 1 : 0 }]}>
                   <View style={styles.reviewHeader}>
                     {reviewerAvatar ? (
                       <Image source={{ uri: getImageUrl(reviewerAvatar) || reviewerAvatar }} style={styles.reviewAvatar} />

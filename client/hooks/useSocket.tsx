@@ -23,11 +23,9 @@ const RECONNECT_BACKOFF_MULTIPLIER = 2;
 
 interface Message {
   id?: string;
-  _id: string;
   conversationId: string;
   sender: {
     id?: string;
-    _id: string;
     name: string;
     avatar?: string;
   };
@@ -170,7 +168,7 @@ export function useSocket() {
     socketInstance.on("message:new", (message: Message) => {
       // Debug logging for socket messages - TEMPORARY
       console.log('🔔 Socket message:new received:', {
-        id: (message as any).id || message._id,
+        id: (message as any).id || message.id,
         type: message.type,
         hasMessage: !!(message as any).message,
         messageField: (message as any).message?.substring?.(0, 50),
@@ -192,7 +190,7 @@ export function useSocket() {
       if (mountedRef.current) {
         setMessages((prev) =>
           prev.map((msg) =>
-            msg._id === messageId
+            msg.id === messageId
               ? { ...msg, read: true, readAt: new Date(readAt) }
               : msg
           )
@@ -205,7 +203,7 @@ export function useSocket() {
       if (mountedRef.current) {
         setMessages((prev) =>
           prev.map((msg) =>
-            (msg.id === updatedMessage.id || msg._id === updatedMessage.id || msg._id === (updatedMessage as any)._id)
+            (msg.id === updatedMessage.id || msg.id === updatedMessage.id || msg.id === (updatedMessage as any).id)
               ? { ...msg, ...updatedMessage }
               : msg
           )

@@ -44,7 +44,7 @@ export const checkPermission = (
     }
 
     if (!hasRequiredPermission) {
-      console.warn(`[Permission Denied] User ${req.user._id} (${userRole}) attempted to access resource requiring: ${requiredPermissions.join(", ")}`);
+      console.warn(`[Permission Denied] User ${req.user.id} (${userRole}) attempted to access resource requiring: ${requiredPermissions.join(", ")}`);
 
       res.status(403).json({
         success: false,

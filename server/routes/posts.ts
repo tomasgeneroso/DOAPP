@@ -40,10 +40,8 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
     const transformedPosts = posts.map(post => {
       const postData = post.toJSON() as any;
       return {
-        _id: postData.id,
         ...postData,
         author: postData.authorUser ? {
-          _id: postData.authorUser.id,
           name: postData.authorUser.name,
           avatar: postData.authorUser.avatar,
           membershipTier: postData.authorUser.membershipTier,
@@ -104,10 +102,8 @@ router.get("/:id", async (req: Request, res: Response): Promise<void> => {
     // Transform to match frontend expectations
     const postData = post.toJSON() as any;
     const transformedPost = {
-      _id: postData.id,
       ...postData,
       author: postData.authorUser ? {
-        _id: postData.authorUser.id,
         name: postData.authorUser.name,
         avatar: postData.authorUser.avatar,
         bio: postData.authorUser.bio,
@@ -410,10 +406,8 @@ router.get("/:id/comments", async (req: Request, res: Response): Promise<void> =
     const transformedComments = comments.map(comment => {
       const commentData = comment.toJSON() as any;
       return {
-        _id: commentData.id,
         ...commentData,
         author: commentData.authorUser ? {
-          _id: commentData.authorUser.id,
           name: commentData.authorUser.name,
           username: commentData.authorUser.username,
           avatar: commentData.authorUser.avatar,
@@ -480,10 +474,8 @@ router.post("/:id/comments", protect, async (req: AuthRequest, res: Response): P
     // Transform to match frontend expectations
     const commentData = populatedComment?.toJSON() as any;
     const transformedComment = commentData ? {
-      _id: commentData.id,
       ...commentData,
       author: commentData.authorUser ? {
-        _id: commentData.authorUser.id,
         name: commentData.authorUser.name,
         username: commentData.authorUser.username,
         avatar: commentData.authorUser.avatar,

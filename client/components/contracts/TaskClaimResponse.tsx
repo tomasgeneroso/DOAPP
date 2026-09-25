@@ -26,8 +26,8 @@ export default function TaskClaimResponse({
 
   // Check if current user is the doer
   const isDoer = typeof contract.doer === 'object'
-    ? contract.doer._id === user?._id
-    : contract.doer === user?._id;
+    ? contract.doer.id === user?.id
+    : contract.doer === user?.id;
 
   // Load claimed tasks
   useEffect(() => {
@@ -39,7 +39,7 @@ export default function TaskClaimResponse({
 
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch(`/api/contracts/${contract._id}/task-claim`, {
+        const response = await fetch(`/api/contracts/${contract.id}/task-claim`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await response.json();
@@ -55,7 +55,7 @@ export default function TaskClaimResponse({
     };
 
     loadClaimedTasks();
-  }, [contract._id, contract.hasPendingTaskClaim, contract.claimedTaskIds]);
+  }, [contract.id, contract.hasPendingTaskClaim, contract.claimedTaskIds]);
 
   const handleResponse = async (accept: boolean) => {
     if (!accept && !rejectionReason.trim()) {
@@ -68,7 +68,7 @@ export default function TaskClaimResponse({
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/contracts/${contract._id}/respond-task-claim`, {
+      const response = await fetch(`/api/contracts/${contract.id}/respond-task-claim`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -184,7 +184,7 @@ export default function TaskClaimResponse({
               {claimedTasks.length > 0 ? (
                 claimedTasks.map((task) => (
                   <div
-                    key={task._id || task.id}
+                    key={task.id || task.id}
                     className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
                   >
                     <div className="w-2 h-2 bg-amber-500 rounded-full mt-2 flex-shrink-0" />

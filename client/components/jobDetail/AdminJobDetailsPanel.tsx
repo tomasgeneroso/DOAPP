@@ -30,7 +30,7 @@ export default function AdminJobDetailsPanel({ job, clientInfo }: AdminJobDetail
             <p className="font-semibold text-amber-800 dark:text-amber-300 mb-2">Job Info</p>
             <div className="grid grid-cols-2 gap-1 text-slate-600 dark:text-slate-400">
               <span>ID:</span>
-              <span className="font-mono text-[10px]">{job.id || job._id}</span>
+              <span className="font-mono text-[10px]">{job.id}</span>
               <span>Status:</span>
               <span className="font-semibold">{job.status}</span>
               <span>Created:</span>
@@ -57,7 +57,7 @@ export default function AdminJobDetailsPanel({ job, clientInfo }: AdminJobDetail
             <p className="font-semibold text-amber-800 dark:text-amber-300 mb-2">Client: {clientInfo?.name}</p>
             <div className="grid grid-cols-2 gap-1 text-slate-600 dark:text-slate-400">
               <span>ID:</span>
-              <span className="font-mono text-[10px]">{clientInfo?.id || clientInfo?._id}</span>
+              <span className="font-mono text-[10px]">{clientInfo?.id}</span>
               <span>Email:</span>
               <span>{(clientInfo as any)?.email || "-"}</span>
               <span>Rating:</span>
@@ -79,7 +79,7 @@ export default function AdminJobDetailsPanel({ job, clientInfo }: AdminJobDetail
               </p>
               <div className="grid grid-cols-2 gap-1 text-slate-600 dark:text-slate-400">
                 <span>ID:</span>
-                <span className="font-mono text-[10px]">{(job.doer as any).id || (job.doer as any)._id}</span>
+                <span className="font-mono text-[10px]">{(job.doer as any).id || (job.doer as any).id}</span>
                 <span>Email:</span>
                 <span>{(job.doer as any).email || "-"}</span>
                 <span>Rating:</span>

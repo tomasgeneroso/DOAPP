@@ -19,7 +19,6 @@ import { colors, spacing, borderRadius, fontSize, fontWeight } from '../../const
 
 interface BlogPost {
   id: string;
-  _id: string;
   title: string;
   subtitle: string;
   excerpt: string;
@@ -79,7 +78,7 @@ export default function MyBlogScreen() {
           onPress: async () => {
             const response = await del(`/blogs/${id}`);
             if (response.success) {
-              setPosts(prev => prev.filter(p => (p.id || p._id) !== id));
+              setPosts(prev => prev.filter(p => (p.id) !== id));
             } else {
               Alert.alert('Error', 'No se pudo eliminar el artículo');
             }
@@ -110,7 +109,7 @@ export default function MyBlogScreen() {
     new Date(dateString).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' });
 
   const renderPost = ({ item }: { item: BlogPost }) => {
-    const postId = item.id || item._id;
+    const postId = item.id;
     return (
       <View style={[styles.card, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
         <View style={styles.cardHeader}>
@@ -176,7 +175,7 @@ export default function MyBlogScreen() {
       <FlatList
         data={posts}
         renderItem={renderPost}
-        keyExtractor={(item) => item.id || item._id}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary[500]} />

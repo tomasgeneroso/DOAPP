@@ -231,19 +231,19 @@ export default function CreateJobScreen() {
         if (requiresPayment === false) {
           // Job published for free (user has free contracts)
           showAlert('Trabajo publicado', 'Tu trabajo ha sido publicado exitosamente.', () => {
-            router.replace(`/job/${job.id || job._id}`);
+            router.replace(`/job/${job.id}`);
           });
         } else {
           // Job created as draft, needs payment
 
           try {
-            const paymentResponse = await createJobPaymentOrder(job.id || job._id, 'mercadopago');
+            const paymentResponse = await createJobPaymentOrder(job.id, 'mercadopago');
 
 
             if (paymentResponse.success && (paymentResponse as any).requiresPayment === false) {
               // Free contract detected at payment step
               showAlert('Trabajo publicado', 'Tu trabajo ha sido publicado con un contrato gratuito.', () => {
-                router.replace(`/job/${job.id || job._id}`);
+                router.replace(`/job/${job.id}`);
               });
             } else if (paymentResponse.success && (paymentResponse as any).approvalUrl) {
               // Open MercadoPago checkout
@@ -277,7 +277,7 @@ export default function CreateJobScreen() {
           } catch (payError: any) {
             console.error('Payment error:', payError.message);
             showAlert('Trabajo creado', 'Tu trabajo fue creado pero hubo un error al procesar el pago.', () => {
-              router.replace(`/job/${job.id || job._id}`);
+              router.replace(`/job/${job.id}`);
             });
           }
         }

@@ -174,7 +174,7 @@ export default function BlogDetailScreen() {
           {/* Author */}
           <TouchableOpacity
             style={[styles.authorCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
-            onPress={() => router.push(`/user/${author.id || author._id}`)}
+            onPress={() => router.push(`/user/${author.id}`)}
             activeOpacity={0.8}
           >
             {author.avatar ? (

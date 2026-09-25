@@ -42,7 +42,7 @@ const AdvertisementManager: React.FC = () => {
     try {
       const perf = await getPerformance(adId);
       setPerformance(perf);
-      setSelectedAd(ads.find((ad) => ad._id === adId));
+      setSelectedAd(ads.find((ad) => ad.id === adId));
     } catch (err) {
       console.error('Error loading performance:', err);
     }
@@ -219,7 +219,7 @@ const AdvertisementManager: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {ads.map((ad) => (
               <div
-                key={ad._id}
+                key={ad.id}
                 className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden"
               >
                 {/* Image */}
@@ -280,7 +280,7 @@ const AdvertisementManager: React.FC = () => {
                   {/* Actions */}
                   <div className="space-y-2">
                     <button
-                      onClick={() => handleViewPerformance(ad._id)}
+                      onClick={() => handleViewPerformance(ad.id)}
                       className="w-full px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition-colors"
                     >
                       {t('ads.viewPerformance', 'View Performance')}
@@ -288,7 +288,7 @@ const AdvertisementManager: React.FC = () => {
 
                     {ad.status === 'active' && (
                       <button
-                        onClick={() => handlePause(ad._id)}
+                        onClick={() => handlePause(ad.id)}
                         className="w-full px-4 py-2 bg-yellow-500 hover:bg-yellow-600 text-white font-medium rounded-lg transition-colors"
                       >
                         {t('ads.pause', 'Pause')}
@@ -297,7 +297,7 @@ const AdvertisementManager: React.FC = () => {
 
                     {ad.status === 'paused' && (
                       <button
-                        onClick={() => handleResume(ad._id)}
+                        onClick={() => handleResume(ad.id)}
                         className="w-full px-4 py-2 bg-green-500 hover:bg-green-600 text-white font-medium rounded-lg transition-colors"
                       >
                         {t('ads.resume', 'Resume')}
@@ -306,7 +306,7 @@ const AdvertisementManager: React.FC = () => {
 
                     {ad.status === 'pending' && (
                       <button
-                        onClick={() => handleDelete(ad._id)}
+                        onClick={() => handleDelete(ad.id)}
                         className="w-full px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-medium rounded-lg transition-colors"
                       >
                         {t('ads.delete', 'Delete')}

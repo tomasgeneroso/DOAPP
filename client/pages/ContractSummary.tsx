@@ -18,22 +18,22 @@ import {
 } from "lucide-react";
 
 interface Contract {
-  _id: string;
+  id: string;
   job: {
-    _id: string;
+    id: string;
     title: string;
     description: string;
     startDate: string;
     endDate: string;
   };
   client: {
-    _id: string;
+    id: string;
     name: string;
     avatar: string;
     email: string;
   };
   doer: {
-    _id: string;
+    id: string;
     name: string;
     avatar: string;
     email: string;
@@ -94,7 +94,7 @@ export default function ContractSummary() {
 
     try {
       // Create MercadoPago payment preference
-      const response = await fetch(`/api/payments/contract/${contract._id}`, {
+      const response = await fetch(`/api/payments/contract/${contract.id}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -145,7 +145,7 @@ export default function ContractSummary() {
     );
   }
 
-  const isClient = contract.client._id === user?._id;
+  const isClient = contract.client.id === user?.id;
   const otherParty = isClient ? contract.doer : contract.client;
   const commissionRate = contract.commission > 0 ? ((contract.commission / contract.price) * 100).toFixed(0) : "0";
   const isFreeContract = contract.commission === 0;

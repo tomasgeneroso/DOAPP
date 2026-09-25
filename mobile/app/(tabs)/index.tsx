@@ -459,7 +459,7 @@ export default function HomeScreen() {
     return (
       <TouchableOpacity
         style={[styles.jobCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
-        onPress={() => router.push(`/job/${item._id || item.id}`)}
+        onPress={() => router.push(`/job/${item.id || item.id}`)}
         activeOpacity={0.7}
       >
         {/* Price Badge */}
@@ -632,7 +632,7 @@ export default function HomeScreen() {
       <FlatList
         data={jobs}
         renderItem={renderJob}
-        keyExtractor={(item) => item._id || item.id || String(Math.random())}
+        keyExtractor={(item) => item.id || item.id || String(Math.random())}
         contentContainerStyle={[styles.listContent, { backgroundColor: themeColors.background }]}
         refreshControl={
           <RefreshControl

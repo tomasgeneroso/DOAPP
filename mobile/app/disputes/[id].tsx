@@ -47,7 +47,6 @@ interface Attachment {
 
 interface DisputeMessage {
   from: string | {
-    _id?: string;
     id?: string;
     name: string;
     avatar?: string;
@@ -274,7 +273,7 @@ export default function DisputeDetailScreen() {
           {user && (
             <ReclamoDirectoPanel
               dispute={dispute as any}
-              userId={String((user as any).id || (user as any)._id)}
+              userId={String((user as any).id || (user as any).id)}
               onChanged={(d) => setDispute(d)}
             />
           )}
@@ -393,8 +392,8 @@ export default function DisputeDetailScreen() {
             ) : (
               dispute.messages.map((msg, index) => {
                 const fromUser = typeof msg.from === 'object' ? msg.from : null;
-                const fromId = fromUser?._id || fromUser?.id || msg.from;
-                const isOwnMessage = fromId === user?._id || fromId === user?.id;
+                const fromId = fromUser?.id || fromUser?.id || msg.from;
+                const isOwnMessage = fromId === user?.id || fromId === user?.id;
                 const senderName = fromUser?.name || (isOwnMessage ? 'Tú' : 'Usuario');
 
                 return (

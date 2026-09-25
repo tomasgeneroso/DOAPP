@@ -7,9 +7,6 @@ export const config = {
   // Puerto del servidor
   port: process.env.PORT || 5000,
 
-  // MongoDB
-  mongodbUri: process.env.MONGODB_URI || "",
-
   // JWT
   jwtSecret: process.env.JWT_SECRET || "tu-secreto-super-seguro-cambialo",
   jwtExpire: process.env.JWT_EXPIRE || "7d",

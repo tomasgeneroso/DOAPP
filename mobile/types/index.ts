@@ -2,8 +2,7 @@
 // Sincronizado con client/types/index.ts
 
 export interface Job {
-  _id: string;
-  id?: string;
+  id: string;
   title: string;
   description: string;
   summary?: string;
@@ -37,8 +36,7 @@ export interface Job {
 }
 
 export interface UserSummary {
-  _id?: string;
-  id?: string;
+  id: string;
   name: string;
   rating: number;
   reviewsCount: number;
@@ -54,8 +52,7 @@ export interface WorkerAllocation {
 }
 
 export interface User {
-  _id: string;
-  id?: string;
+  id: string;
   name: string;
   username?: string;
   email: string;
@@ -182,8 +179,7 @@ export interface NotificationPreferences {
 }
 
 export interface Contract {
-  _id: string;
-  id?: string;
+  id: string;
   job: Job | string;
   client: User | string;
   doer: User | string;
@@ -229,7 +225,7 @@ export interface Contract {
 }
 
 export interface Proposal {
-  _id: string;
+  id: string;
   job: Job | string;
   doer: User | string;
   message?: string;
@@ -240,10 +236,9 @@ export interface Proposal {
 }
 
 export interface Message {
-  _id: string;
-  id?: string; // PostgreSQL support
+  id: string;
   conversationId: string;
-  sender: User | { id?: string; _id?: string; name: string; avatar?: string };
+  sender: User | { id?: string; name: string; avatar?: string };
   content?: string;
   message?: string; // Backend uses 'message' field
   type: 'text' | 'image' | 'file' | 'system';
@@ -274,8 +269,7 @@ export interface Message {
 }
 
 export interface Conversation {
-  _id: string;
-  id?: string;
+  id: string;
   participants: User[] | string[];
   job?: Job | string;
   jobId?: string;
@@ -289,7 +283,7 @@ export interface Conversation {
 }
 
 export interface Notification {
-  _id: string;
+  id: string;
   user: string;
   type: 'info' | 'success' | 'warning' | 'error';
   category: 'job' | 'contract' | 'payment' | 'system' | 'chat';
@@ -301,7 +295,7 @@ export interface Notification {
 }
 
 export interface Review {
-  _id: string;
+  id: string;
   contract: Contract | string;
   reviewer: User | string;
   reviewee: User | string;
@@ -314,7 +308,7 @@ export interface Review {
 }
 
 export interface BalanceTransaction {
-  _id: string;
+  id: string;
   user: User | string;
   type: 'refund' | 'payment' | 'bonus' | 'adjustment' | 'withdrawal';
   amount: number;
@@ -326,7 +320,7 @@ export interface BalanceTransaction {
 }
 
 export interface WithdrawalRequest {
-  _id: string;
+  id: string;
   user: User | string;
   amount: number;
   bankingInfo: BankingInfo;

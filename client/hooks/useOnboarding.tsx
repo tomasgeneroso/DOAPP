@@ -87,7 +87,7 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
   // Check if user needs onboarding when they first log in
   useEffect(() => {
     if (user && !hasCheckedOnboarding) {
-      const userId = user.id || user._id;
+      const userId = user.id;
       if (!userId) {
         setHasCheckedOnboarding(true);
         return;
@@ -190,7 +190,7 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
 
     // Save to localStorage
     if (user) {
-      localStorage.setItem(`onboarding_tooltips_${user.id || user._id}`, 'skipped');
+      localStorage.setItem(`onboarding_tooltips_${user.id}`, 'skipped');
     }
 
     // Optionally save to backend
@@ -214,7 +214,7 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
 
     // Save to localStorage
     if (user) {
-      localStorage.setItem(`onboarding_tooltips_${user.id || user._id}`, 'completed');
+      localStorage.setItem(`onboarding_tooltips_${user.id}`, 'completed');
     }
 
     // Save to backend
@@ -235,7 +235,7 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
   const startOnboarding = () => {
     // Clear localStorage to allow restart
     if (user) {
-      const userId = user.id || user._id;
+      const userId = user.id;
       if (userId) {
         localStorage.removeItem(`onboarding_tooltips_${userId}`);
       }

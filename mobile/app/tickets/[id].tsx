@@ -296,7 +296,7 @@ export default function TicketDetailScreen() {
               </View>
             ) : (
               visibleMessages.map((msg, index) => {
-                const isOwnMessage = msg.author === user?._id || msg.author === user?.id;
+                const isOwnMessage = msg.author === user?.id || msg.author === user?.id;
                 return (
                   <View key={msg.id || index} style={[styles.messageItem, { borderBottomColor: themeColors.border }]}>
                     <View style={[

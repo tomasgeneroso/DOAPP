@@ -174,7 +174,7 @@ export default function CreatePortfolioPost() {
         throw new Error(errorMsg);
       }
 
-      const portfolioId = data.data?._id || data.data?.id;
+      const portfolioId = data.data?.id || data.data?.id;
 
       // If there are images, upload them
       if (images.length > 0 && portfolioId) {

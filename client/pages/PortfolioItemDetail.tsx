@@ -17,8 +17,7 @@ import {
 
 interface PortfolioItem {
   id?: string;
-  _id?: string;
-  userId: string | { id?: string; _id?: string; name: string; avatar?: string };
+  userId: string | { id?: string; name: string; avatar?: string };
   title: string;
   description: string;
   category: string;
@@ -27,8 +26,8 @@ interface PortfolioItem {
   tags?: string[];
   clientName?: string;
   projectDuration?: string;
-  linkedJob?: string | { id?: string; _id?: string; title?: string };
-  linkedContract?: string | { id?: string; _id?: string };
+  linkedJob?: string | { id?: string; title?: string };
+  linkedContract?: string | { id?: string };
   createdAt: string;
   updatedAt: string;
 }
@@ -108,14 +107,14 @@ export default function PortfolioItemDetail() {
     );
   }
 
-  // Handle both id and _id (Sequelize vs MongoDB style)
+  
   const linkedJobId = typeof item.linkedJob === 'object'
-    ? (item.linkedJob?.id || item.linkedJob?._id)
+    ? (item.linkedJob?.id)
     : item.linkedJob;
   const userName = typeof item.userId === 'object' ? item.userId.name : null;
   const userAvatar = typeof item.userId === 'object' ? item.userId.avatar : undefined;
   const userIdStr = typeof item.userId === 'object'
-    ? (item.userId.id || item.userId._id)
+    ? (item.userId.id)
     : item.userId;
 
   return (

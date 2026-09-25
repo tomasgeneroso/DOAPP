@@ -17,7 +17,7 @@ export function PaymentHistory({ type = "all" }: PaymentHistoryProps) {
   const [pagination, setPagination] = useState<any>(null);
 
   const getPaymentLink = (payment: Payment): string | null => {
-    const contractId = payment.contract?.id || (typeof payment.contractId === 'string' ? payment.contractId : payment.contractId?.id || payment.contractId?._id);
+    const contractId = payment.contract?.id || (typeof payment.contractId === 'string' ? payment.contractId : payment.contractId?.id);
     if (contractId) return `/contracts/${contractId}`;
     if (payment.relatedJob?.id) return `/jobs/${payment.relatedJob.id}`;
     if (payment.contract?.job?.id) return `/jobs/${(payment.contract.job as any).id}`;
@@ -113,7 +113,7 @@ export function PaymentHistory({ type = "all" }: PaymentHistoryProps) {
           const link = getPaymentLink(payment);
           return (
             <div
-              key={payment._id || payment.id}
+              key={payment.id || payment.id}
               onClick={() => link && navigate(link)}
               className={`bg-white dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-4 hover:shadow-md transition ${link ? 'cursor-pointer hover:border-sky-300 dark:hover:border-sky-600' : ''}`}
             >
@@ -121,7 +121,7 @@ export function PaymentHistory({ type = "all" }: PaymentHistoryProps) {
                 <div className="flex items-start gap-3 flex-1">
                   <div className="mt-1">
                     {payment.paymentType === "contract_payment" &&
-                    payment.payerId._id ? (
+                    payment.payerId.id ? (
                       <ArrowUpCircle className="h-6 w-6 text-red-500" />
                     ) : (
                       <ArrowDownCircle className="h-6 w-6 text-green-500" />

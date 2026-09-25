@@ -6,24 +6,21 @@ import { adminApi } from "@/lib/adminApi";
 import { ArrowLeft, Send, Search } from "lucide-react";
 
 interface User {
-  _id: string;
+  id: string;
   name: string;
   email: string;
   avatar?: string;
 }
 
 interface Contract {
-  _id: string;
+  id: string;
   job?: {
-    _id: string;
     title: string;
   };
   client?: {
-    _id: string;
     name: string;
   };
   doer?: {
-    _id: string;
     name: string;
   };
   price: number;
@@ -77,7 +74,7 @@ export default function AdminCreateTicket() {
     if (!selectedUser) return;
 
     try {
-      const response = await adminApi.contracts.list({ userId: selectedUser._id });
+      const response = await adminApi.contracts.list({ userId: selectedUser.id });
       if (response.success && response.data) {
         setContracts(response.data as any || []);
       }
@@ -98,13 +95,13 @@ export default function AdminCreateTicket() {
       setSubmitting(true);
 
       const ticketData: any = {
-        userId: selectedUser._id,
+        userId: selectedUser.id,
         ...formData,
       };
 
       // Add contractId if selected
       if (selectedContract) {
-        ticketData.contractId = selectedContract._id;
+        ticketData.contractId = selectedContract.id;
       }
 
       const response = await fetch("/api/admin/tickets/create", {
@@ -179,7 +176,7 @@ export default function AdminCreateTicket() {
                 <div className="border border-gray-200 dark:border-gray-700 rounded-lg max-h-64 overflow-y-auto">
                   {users.map((user) => (
                     <button
-                      key={user._id}
+                      key={user.id}
                       type="button"
                       onClick={() => {
                         setSelectedUser(user);
@@ -288,7 +285,7 @@ export default function AdminCreateTicket() {
               <div className="space-y-3">
                 {contracts.map((contract) => (
                   <button
-                    key={contract._id}
+                    key={contract.id}
                     type="button"
                     onClick={() => setSelectedContract(contract)}
                     className="w-full p-4 rounded-lg border-2 border-gray-200 dark:border-gray-700 hover:border-sky-500 dark:hover:border-sky-500 transition text-left"

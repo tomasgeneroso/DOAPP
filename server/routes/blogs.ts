@@ -56,7 +56,6 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
       allPosts.push(...officialPosts.map(post => {
         const p = post.toJSON() as any;
         return {
-          _id: p.id,
           id: p.id,
           title: p.title,
           subtitle: p.subtitle,
@@ -118,7 +117,6 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
         const readingTime = Math.max(1, Math.ceil(wordCount / 200));
 
         return {
-          _id: p.id,
           id: p.id,
           title: p.title,
           subtitle: '',
@@ -380,7 +378,6 @@ router.get("/my-posts", protect, async (req: AuthRequest, res: Response): Promis
     res.json({
       success: true,
       posts: posts.map(post => ({
-        _id: post.id,
         ...post.toJSON(),
         seoSuggestions: post.getSeoSuggestions(),
       })),
@@ -491,7 +488,6 @@ router.post(
       res.status(201).json({
         success: true,
         post: {
-          _id: post.id,
           ...post.toJSON(),
           seoSuggestions: post.getSeoSuggestions(),
         },
@@ -575,7 +571,6 @@ router.put(
       res.json({
         success: true,
         post: {
-          _id: post.id,
           ...post.toJSON(),
           seoSuggestions: post.getSeoSuggestions(),
         },
@@ -722,7 +717,6 @@ router.get("/:slug", async (req: Request, res: Response): Promise<void> => {
         res.json({
           success: true,
           post: {
-            _id: p.id,
             id: p.id,
             title: p.title,
             subtitle: '',
@@ -784,7 +778,6 @@ router.get("/:slug", async (req: Request, res: Response): Promise<void> => {
     res.json({
       success: true,
       post: {
-        _id: post.id,
         ...post.toJSON(),
         postType: 'official',
         source: 'blog_posts',
@@ -846,7 +839,6 @@ router.get("/:slug/related", async (req: Request, res: Response): Promise<void> 
 
     // Transform to match frontend expectations
     const transformedPosts = relatedPosts.map(post => ({
-      _id: post.id,
       ...post.toJSON(),
     }));
 

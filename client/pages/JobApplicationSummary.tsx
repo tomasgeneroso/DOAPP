@@ -82,7 +82,7 @@ export default function JobApplicationSummary() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          jobId: job.id || job._id, // Use id for PostgreSQL, fallback to _id for backward compatibility
+          jobId: job.id,
         }),
       });
 
@@ -93,7 +93,7 @@ export default function JobApplicationSummary() {
         navigate(`/chat/${data.conversationId}`, {
           state: {
             jobContext: {
-              jobId: job.id || job._id,
+              jobId: job.id,
               title: job.title,
               description: job.description,
               budget: job.price,
@@ -128,7 +128,7 @@ export default function JobApplicationSummary() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          jobId: job.id || job._id,
+          jobId: job.id,
         }),
       });
 
@@ -190,7 +190,7 @@ export default function JobApplicationSummary() {
               No puedes aplicar a tu propio trabajo
             </p>
             <Link
-              to={`/jobs/${job.id || job._id}`}
+              to={`/jobs/${job.id}`}
               className="inline-flex items-center gap-2 text-sky-600 hover:text-sky-700 font-medium"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -218,7 +218,7 @@ export default function JobApplicationSummary() {
               {!['pending_approval', 'in_progress', 'completed', 'cancelled', 'paused'].includes(job.status) && t('jobApply.statusUnavailable')}
             </p>
             <Link
-              to={`/jobs/${job.id || job._id}`}
+              to={`/jobs/${job.id}`}
               className="inline-flex items-center gap-2 text-sky-600 hover:text-sky-700 font-medium"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -241,7 +241,7 @@ export default function JobApplicationSummary() {
           {/* Back Button - Only visible on mobile */}
           <div className="mb-6 md:hidden">
             <Link
-              to={`/jobs/${job.id || job._id}`}
+              to={`/jobs/${job.id}`}
               className="inline-flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -437,9 +437,9 @@ export default function JobApplicationSummary() {
               <button
                 onClick={() => {
                   const clientId = typeof job?.client === 'object'
-                    ? job?.client?._id || job?.client?.id
+                    ? job?.client?.id || job?.client?.id
                     : job?.postedBy;
-                  navigate(`/quotes/new?recipientId=${clientId}&jobId=${job?.id || job?._id || id}&apply=true`);
+                  navigate(`/quotes/new?recipientId=${clientId}&jobId=${job?.id || id}&apply=true`);
                 }}
                 disabled={accepting}
                 className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-emerald-500 bg-white dark:bg-slate-800 px-6 py-5 font-semibold text-emerald-600 dark:text-emerald-400 transition-all hover:bg-emerald-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"

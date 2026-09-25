@@ -128,7 +128,6 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
         count: users.length,
         total: count,
         users: users.map(user => ({
-          _id: user.id,
           id: user.id,
           name: user.name,
           username: user.username,
@@ -254,7 +253,7 @@ router.get("/", async (req: Request, res: Response): Promise<void> => {
     const limitNum = Number(limit);
     jobs = jobs.slice(0, limitNum);
 
-    // Convert to plain objects (like .lean() in MongoDB)
+    // A objetos planos: las instancias de Sequelize no se serializan solas
     const plainJobs = jobs.map(job => {
       // Listado publico y cacheado por consulta, no por usuario: nadie necesita
       // la direccion exacta en una lista. Se saca siempre.

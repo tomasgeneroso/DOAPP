@@ -83,7 +83,7 @@ export default function AdminUsers() {
     console.log('🔔 User updated:', data);
     setRealtimeAlert(`Usuario actualizado: ${data.user?.name || data.user?.email}`);
     setUsers(prev =>
-      prev.map(u => (u.id === data.user?.id || u._id === data.user?._id) ? { ...u, ...data.user } : u)
+      prev.map(u => (u.id === data.user?.id || u.id === data.user?.id) ? { ...u, ...data.user } : u)
     );
     setTimeout(() => setRealtimeAlert(null), 5000);
   }, []);
@@ -197,7 +197,7 @@ export default function AdminUsers() {
     setDeleteError(null);
     try {
       const res = await adminApi.users.delete(
-        deleteModal.id || deleteModal._id!,
+        deleteModal.id!,
         deletePassword,
         deleteReason.trim() || undefined,
       );
@@ -226,7 +226,7 @@ export default function AdminUsers() {
     setVerifyChatMessages([]);
     setVerifyChatInput('');
     try {
-      const res = await fetch(`/api/admin/users/${user.id || user._id}/profile-detail`, {
+      const res = await fetch(`/api/admin/users/${user.id}/profile-detail`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -245,7 +245,7 @@ export default function AdminUsers() {
     setLicenseDetailLoading(true);
     setLicenseRejectReason('');
     try {
-      const res = await fetch(`/api/admin/users/${user.id || user._id}/profile-detail`, {
+      const res = await fetch(`/api/admin/users/${user.id}/profile-detail`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -261,7 +261,7 @@ export default function AdminUsers() {
     if (!licenseModal) return;
     setLicenseActionLoading(true);
     try {
-      const res = await fetch(`/api/admin/users/${licenseModal.id || licenseModal._id}/approve-license`, {
+      const res = await fetch(`/api/admin/users/${licenseModal.id}/approve-license`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -269,7 +269,7 @@ export default function AdminUsers() {
       if (data.success) {
         setLicenseDetail((prev: any) => prev ? { ...prev, licenseVerificationStatus: 'approved', licenseVerified: true } : prev);
         setUsers(prev => prev.map(u =>
-          (u.id === (licenseModal.id || licenseModal._id) || u._id === (licenseModal.id || licenseModal._id))
+          (u.id === (licenseModal.id) || u.id === (licenseModal.id))
             ? { ...u, licenseVerificationStatus: 'approved' } as any
             : u
         ));
@@ -282,7 +282,7 @@ export default function AdminUsers() {
     if (!licenseModal || !licenseRejectReason.trim()) return;
     setLicenseActionLoading(true);
     try {
-      const res = await fetch(`/api/admin/users/${licenseModal.id || licenseModal._id}/reject-license`, {
+      const res = await fetch(`/api/admin/users/${licenseModal.id}/reject-license`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ reason: licenseRejectReason.trim() }),
@@ -292,7 +292,7 @@ export default function AdminUsers() {
         setLicenseDetail((prev: any) => prev ? { ...prev, licenseVerificationStatus: 'rejected', licenseRejectedReason: licenseRejectReason.trim() } : prev);
         setLicenseRejectReason('');
         setUsers(prev => prev.map(u =>
-          (u.id === (licenseModal.id || licenseModal._id) || u._id === (licenseModal.id || licenseModal._id))
+          (u.id === (licenseModal.id) || u.id === (licenseModal.id))
             ? { ...u, licenseVerificationStatus: 'rejected' } as any
             : u
         ));
@@ -306,7 +306,7 @@ export default function AdminUsers() {
     if (action === 'reject' && !licenseRejectReason.trim()) return;
     setLicenseActionLoading(true);
     try {
-      const res = await fetch(`/api/admin/users/${licenseModal.id || licenseModal._id}/${action}-insurance`, {
+      const res = await fetch(`/api/admin/users/${licenseModal.id}/${action}-insurance`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: action === 'reject' ? JSON.stringify({ reason: licenseRejectReason.trim() }) : undefined,
@@ -333,7 +333,7 @@ export default function AdminUsers() {
     setVerifyChatError(null);
     setVerifyChatConvId(null);
     try {
-      const userId = verifyModal.id || verifyModal._id;
+      const userId = verifyModal.id;
       // Find or create conversation with this user
       const res = await fetch('/api/chat/conversations/find-or-create', {
         method: 'POST',
@@ -344,7 +344,7 @@ export default function AdminUsers() {
       // Backend returns the conversation under `conversation` (fallback to `data`)
       const conv = data.conversation || data.data;
       if (data.success && conv) {
-        const convId = conv.id || conv._id;
+        const convId = conv.id;
         setVerifyChatConvId(convId);
         // Load messages
         const msgRes = await fetch(`/api/chat/conversations/${convId}/messages`, {
@@ -398,7 +398,7 @@ export default function AdminUsers() {
     if (!verifyModal) return;
     setVerifyLoading(true);
     try {
-      const res = await fetch(`/api/admin/users/${verifyModal.id || verifyModal._id}/verify`, {
+      const res = await fetch(`/api/admin/users/${verifyModal.id}/verify`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ verified }),
@@ -406,7 +406,7 @@ export default function AdminUsers() {
       const data = await res.json();
       if (data.success) {
         setUsers(prev => prev.map(u =>
-          (u.id === (verifyModal.id || verifyModal._id) || u._id === (verifyModal.id || verifyModal._id))
+          (u.id === (verifyModal.id) || u.id === (verifyModal.id))
             ? { ...u, dniVerified: verified, verificationLevel: verified ? 'document' : 'email' }
             : u
         ));
@@ -431,7 +431,7 @@ export default function AdminUsers() {
       const res = await adminApi.users.assignMembership(membershipModal.userId, membershipTier, days);
       if (res.success) {
         setUsers(prev => prev.map(u =>
-          (u.id === membershipModal.userId || u._id === membershipModal.userId)
+          (u.id === membershipModal.userId || u.id === membershipModal.userId)
             ? { ...u, membershipTier, membershipExpiresAt: (res.data as any)?.membershipExpiresAt }
             : u
         ));
@@ -560,9 +560,9 @@ export default function AdminUsers() {
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {users.map((user) => (
               <tr
-                key={user.id || user._id}
+                key={user.id}
                 className="hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer transition-colors"
-                onClick={() => navigate(`/profile/${user.id || user._id}`)}
+                onClick={() => navigate(`/profile/${user.id}`)}
               >
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
@@ -742,7 +742,7 @@ export default function AdminUsers() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        navigate(`/profile/${user.id || user._id}`);
+                        navigate(`/profile/${user.id}`);
                       }}
                       className="text-sky-600 hover:text-sky-900 dark:text-sky-400 dark:hover:text-sky-300"
                       title="Ver perfil"
@@ -755,7 +755,7 @@ export default function AdminUsers() {
                           e.stopPropagation();
                           setMembershipTier(((user as any).membershipTier as any) || 'pro');
                           setMembershipDays("30");
-                          setMembershipModal({ userId: user.id || user._id!, userName: user.name, currentTier: (user as any).membershipTier });
+                          setMembershipModal({ userId: user.id!, userName: user.name, currentTier: (user as any).membershipTier });
                         }}
                         className="text-amber-600 hover:text-amber-800 dark:text-amber-400 dark:hover:text-amber-300"
                         title="Asignar membresía"
@@ -767,7 +767,7 @@ export default function AdminUsers() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleUnban(user.id || user._id!);
+                          handleUnban(user.id!);
                         }}
                         className="text-green-600 hover:text-green-900"
                         title="Desbanear"
@@ -778,7 +778,7 @@ export default function AdminUsers() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleBan(user.id || user._id!, user.name);
+                          handleBan(user.id!, user.name);
                         }}
                         className="text-red-600 hover:text-red-900"
                         title="Banear"
@@ -1157,7 +1157,7 @@ export default function AdminUsers() {
 
                 {/* Identity documentation — Didit on demand, local files as fallback */}
                 <KycMediaViewer
-                  userId={verifyDetail.user.id || verifyDetail.user._id}
+                  userId={verifyDetail.user.id}
                   hasDiditSession={!!verifyDetail.user.diditSessionId}
                   localPhotos={{
                     dniPhotoFront: verifyDetail.user.dniPhotoFront,
@@ -1239,10 +1239,10 @@ export default function AdminUsers() {
                       <p className="text-center text-xs text-gray-400 py-4">Sin mensajes aún. Usá el botón para solicitar los documentos.</p>
                     ) : (
                       verifyChatMessages.map((msg: any, i: number) => {
-                        const isMe = (msg.sender?.id || msg.sender?._id) === currentUser?.id;
+                        const isMe = (msg.sender?.id) === currentUser?.id;
                         const text = msg.message || msg.content || '';
                         return (
-                          <div key={msg.id || msg._id || i} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                          <div key={msg.id || i} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                             <div className={`max-w-[80%] rounded-xl px-3 py-2 text-xs ${
                               isMe ? 'bg-sky-600 text-white' : 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white border border-gray-200 dark:border-gray-600'
                             }`}>

@@ -36,7 +36,7 @@ export default function TaskClaimModal({
 
       setLoadingTasks(true);
       try {
-        const jobId = typeof contract.job === 'object' ? contract.job._id : contract.job;
+        const jobId = typeof contract.job === 'object' ? contract.job.id : contract.job;
         const token = localStorage.getItem('token');
         const response = await fetch(`/api/jobs/${jobId}/tasks`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -79,7 +79,7 @@ export default function TaskClaimModal({
     if (selectedTasks.length === tasks.length) {
       setSelectedTasks([]);
     } else {
-      setSelectedTasks(tasks.map(t => t._id || t.id || ''));
+      setSelectedTasks(tasks.map(t => t.id || t.id || ''));
     }
   };
 
@@ -110,7 +110,7 @@ export default function TaskClaimModal({
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/contracts/${contract._id}/claim-tasks`, {
+      const response = await fetch(`/api/contracts/${contract.id}/claim-tasks`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -213,7 +213,7 @@ export default function TaskClaimModal({
             ) : (
               <div className="space-y-2 max-h-60 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-lg p-3">
                 {tasks.map((task) => {
-                  const taskId = task._id || task.id || '';
+                  const taskId = task.id || task.id || '';
                   const isSelected = selectedTasks.includes(taskId);
 
                   return (

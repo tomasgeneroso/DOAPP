@@ -132,11 +132,10 @@ router.get("/conversations", protect, async (req: AuthRequest, res: Response): P
         const user = usersMap.get(id);
         return user ? {
           id: user.id,
-          _id: user.id,
           name: user.name,
           avatar: user.avatar,
           username: user.username,
-        } : { id, _id: id, name: 'Usuario', avatar: null };
+        } : { id, name: 'Usuario', avatar: null };
       });
       return data;
     });
@@ -229,7 +228,6 @@ router.get("/conversations/:id", protect, async (req: AuthRequest, res: Response
     const conversationData = conversation.toJSON();
     conversationData.participants = participantUsers.map(u => ({
       id: u.id,
-      _id: u.id,
       name: u.name,
       avatar: u.avatar,
       username: u.username,
@@ -421,7 +419,6 @@ router.post(
       const conversationData = conversation.toJSON();
       conversationData.participants = participantUsers.map((u: any) => ({
         id: u.id,
-        _id: u.id,
         name: u.name,
         avatar: u.avatar,
         username: u.username,
@@ -524,7 +521,6 @@ router.get("/contract/:contractId", protect, async (req: AuthRequest, res: Respo
     const conversationData = conversation!.toJSON();
     conversationData.participants = participantUsers.map(u => ({
       id: u.id,
-      _id: u.id,
       name: u.name,
       avatar: u.avatar,
       username: u.username,

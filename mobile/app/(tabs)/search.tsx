@@ -23,7 +23,6 @@ type SearchTab = 'jobs' | 'users';
 
 interface UserResult {
   id: string;
-  _id: string;
   name: string;
   username?: string;
   avatar?: string;
@@ -119,7 +118,7 @@ export default function SearchScreen() {
   const renderJob = ({ item }: { item: Job }) => (
     <TouchableOpacity
       style={[styles.jobCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
-      onPress={() => router.push(`/job/${item._id || item.id}`)}
+      onPress={() => router.push(`/job/${item.id || item.id}`)}
       activeOpacity={0.7}
     >
       <View style={styles.jobHeader}>
@@ -142,7 +141,7 @@ export default function SearchScreen() {
   const renderUser = ({ item }: { item: UserResult }) => (
     <TouchableOpacity
       style={[styles.userCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
-      onPress={() => router.push(`/user/${item.id || item._id}`)}
+      onPress={() => router.push(`/user/${item.id}`)}
       activeOpacity={0.7}
     >
       <View style={styles.userAvatarContainer}>
@@ -270,7 +269,7 @@ export default function SearchScreen() {
           <FlatList
             data={jobs}
             renderItem={renderJob}
-            keyExtractor={(item) => item._id || item.id || String(Math.random())}
+            keyExtractor={(item) => item.id || item.id || String(Math.random())}
             contentContainerStyle={[styles.resultsContent, { backgroundColor: themeColors.background }]}
             showsVerticalScrollIndicator={false}
           />
@@ -290,7 +289,7 @@ export default function SearchScreen() {
           <FlatList
             data={users}
             renderItem={renderUser}
-            keyExtractor={(item) => item.id || item._id || String(Math.random())}
+            keyExtractor={(item) => item.id || String(Math.random())}
             contentContainerStyle={[styles.resultsContent, { backgroundColor: themeColors.background }]}
             showsVerticalScrollIndicator={false}
           />

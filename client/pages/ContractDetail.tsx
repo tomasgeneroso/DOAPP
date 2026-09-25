@@ -125,7 +125,7 @@ export default function ContractDetail() {
   useEffect(() => {
     if (contract?.jobId || contract?.job) {
       // Handle both Sequelize (job relation) and raw ID formats
-      const jobId = contract.job?.id || (typeof contract.jobId === 'object' ? contract.jobId._id || contract.jobId.id : contract.jobId);
+      const jobId = contract.job?.id || (typeof contract.jobId === 'object' ? contract.jobId.id || contract.jobId.id : contract.jobId);
       if (jobId) {
         loadAllContracts(jobId);
       }
@@ -176,7 +176,7 @@ export default function ContractDetail() {
       const response = await api.get(`/chat/conversations/by-contract/${id}`);
       if (response.data.success && response.data.conversation) {
         // Navigate to chat with conversation ID
-        navigate(`/chat/${response.data.conversation._id}`);
+        navigate(`/chat/${response.data.conversation.id}`);
       }
     } catch (error) {
       console.error("Error opening chat:", error);
@@ -494,8 +494,8 @@ export default function ContractDetail() {
   }
 
   // Handle both Sequelize (client/doer relations) and raw ID formats
-  const isClient = (contract.client?.id || contract.clientId) === (user?.id || user?._id);
-  const isDoer = (contract.doer?.id || contract.doerId) === (user?.id || user?._id);
+  const isClient = (contract.client?.id || contract.clientId) === (user?.id);
+  const isDoer = (contract.doer?.id || contract.doerId) === (user?.id);
   const escrowPayment = payments.find((p) => p.status === "held_escrow");
   const canPayContract =
     isClient &&
@@ -571,7 +571,7 @@ export default function ContractDetail() {
               </div>
               <div className="flex gap-3">
                 <Link
-                  to={`/jobs/${contract.job?.id || contract.job?._id || contract.jobId?.id || contract.jobId?._id || contract.jobId}`}
+                  to={`/jobs/${contract.job?.id || contract.jobId?.id || contract.jobId}`}
                   className="flex items-center gap-2 px-6 py-3 bg-sky-600 text-white rounded-lg hover:bg-sky-700 dark:bg-sky-700 dark:hover:bg-sky-600 transition font-semibold shadow-sm"
                   title={t('contracts.viewAssociatedJob', 'View the job associated with this contract')}
                 >
@@ -975,7 +975,7 @@ export default function ContractDetail() {
               <div className="space-y-3">
                 {allContracts.map((c, index) => (
                   <div
-                    key={c.id || c._id || `contract-${index}`}
+                    key={c.id || `contract-${index}`}
                     className={`p-4 rounded-lg border-2 ${
                       c.clientConfirmed && c.doerConfirmed
                         ? 'bg-green-50 dark:bg-green-900/20 border-green-300 dark:border-green-700'
@@ -1090,7 +1090,7 @@ export default function ContractDetail() {
                   <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-amber-200 dark:border-amber-800">
                     <p className="font-semibold text-amber-800 dark:text-amber-300 mb-2">Contract</p>
                     <div className="grid grid-cols-2 gap-1 text-slate-600 dark:text-slate-400">
-                      <span>ID:</span><span className="font-mono text-[10px]">{contract.id || (contract as any)._id}</span>
+                      <span>ID:</span><span className="font-mono text-[10px]">{contract.id || (contract as any).id}</span>
                       <span>Status:</span><span className="font-semibold">{contract.status}</span>
                       <span>Payment Status:</span><span>{contract.paymentStatus || '-'}</span>
                       <span>Escrow:</span><span>{contract.escrowStatus || '-'}</span>
@@ -1105,7 +1105,7 @@ export default function ContractDetail() {
                   <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-amber-200 dark:border-amber-800">
                     <p className="font-semibold text-amber-800 dark:text-amber-300 mb-2">Client: {contract.client?.name}</p>
                     <div className="grid grid-cols-2 gap-1 text-slate-600 dark:text-slate-400">
-                      <span>ID:</span><span className="font-mono text-[10px]">{contract.client?.id || contract.client?._id}</span>
+                      <span>ID:</span><span className="font-mono text-[10px]">{contract.client?.id}</span>
                       <span>Email:</span><span>{(contract.client as any)?.email || '-'}</span>
                     </div>
                   </div>
@@ -1113,7 +1113,7 @@ export default function ContractDetail() {
                   <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-amber-200 dark:border-amber-800">
                     <p className="font-semibold text-amber-800 dark:text-amber-300 mb-2">Worker: {contract.doer?.name}</p>
                     <div className="grid grid-cols-2 gap-1 text-slate-600 dark:text-slate-400">
-                      <span>ID:</span><span className="font-mono text-[10px]">{contract.doer?.id || contract.doer?._id}</span>
+                      <span>ID:</span><span className="font-mono text-[10px]">{contract.doer?.id}</span>
                       <span>Email:</span><span>{(contract.doer as any)?.email || '-'}</span>
                     </div>
                   </div>
@@ -1325,7 +1325,7 @@ export default function ContractDetail() {
           {(isClient || isDoer) && ['pending', 'ready', 'accepted', 'in_progress'].includes(contract.status) && (
             <div className="mb-6">
               <TrabajadorNoDisponible
-                contractId={contract.id || contract._id}
+                contractId={contract.id}
                 rol={isClient ? 'cliente' : 'trabajador'}
                 precio={Number(contract.allocatedAmount || contract.price) || 0}
                 aviso={(contract as any).avisoTrabajadorNoDisponible || null}
@@ -1353,13 +1353,13 @@ export default function ContractDetail() {
                   quienComparte: user?.name || null,
                 }}
               />
-              <EmergencyButton contractId={contract.id || contract._id} />
+              <EmergencyButton contractId={contract.id} />
             </div>
           )}
 
           {/* Reseñas del contrato: la pública y, para quien la recibió, la privada */}
           {(isClient || isDoer) && contract.status === 'completed' && user && (
-            <ContractReviewsPanel contractId={contract.id || contract._id} userId={String((user as any).id || (user as any)._id)} />
+            <ContractReviewsPanel contractId={contract.id} userId={String((user as any).id || (user as any).id)} />
           )}
 
           {/* Control diario: marcas por día + fotos del avance. Evidencia, no dinero. */}
@@ -1367,7 +1367,7 @@ export default function ContractDetail() {
             ['accepted', 'in_progress', 'awaiting_confirmation', 'completed', 'disputed'].includes(contract.status) && (
             <div className="mb-6">
               <DailyLogPanel
-                contractId={contract.id || contract._id}
+                contractId={contract.id}
                 rol={isClient ? 'client' : 'worker'}
                 soloLectura={!['accepted', 'in_progress', 'awaiting_confirmation'].includes(contract.status)}
               />
@@ -1523,7 +1523,7 @@ export default function ContractDetail() {
               <div className="space-y-3">
                 {payments.map((payment, index) => (
                   <div
-                    key={payment._id || payment.id || `payment-${index}`}
+                    key={payment.id || payment.id || `payment-${index}`}
                     className="border border-gray-200 dark:border-gray-700 rounded-lg p-4"
                   >
                     <div className="flex items-start justify-between">
@@ -1550,7 +1550,7 @@ export default function ContractDetail() {
                           payment.status === "held_escrow" &&
                           isClient && (
                             <button
-                              onClick={() => handleReleaseEscrow(payment._id)}
+                              onClick={() => handleReleaseEscrow(payment.id)}
                               className="mt-2 text-sm text-sky-600 hover:text-sky-700 font-medium"
                             >
                               {t('contracts.releasePayment', 'Release Payment')}
@@ -1571,7 +1571,7 @@ export default function ContractDetail() {
         <PaymentModal
           isOpen={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}
-          contractId={contract.id || contract._id}
+          contractId={contract.id}
           contractTitle={contract.job?.title || contract.jobId?.title || t('contracts.contract', 'Contract')}
           amount={contract.price}
           recipientName={contract.doer?.name || t('contracts.provider', 'Provider')}
@@ -1597,7 +1597,7 @@ export default function ContractDetail() {
       {/* Evidence Upload Modal for Workers */}
       {(contract.jobId || contract.job) && (
         <TaskEvidenceUploadModal
-          jobId={contract.job?.id || (typeof contract.jobId === 'object' ? contract.jobId._id || contract.jobId.id : contract.jobId)}
+          jobId={contract.job?.id || (typeof contract.jobId === 'object' ? contract.jobId.id || contract.jobId.id : contract.jobId)}
           isOpen={showEvidenceModal}
           onClose={() => setShowEvidenceModal(false)}
           onSuccess={() => {

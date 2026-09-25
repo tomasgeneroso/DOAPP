@@ -17,9 +17,9 @@ import {
 } from "recharts";
 
 interface TicketAnalytics {
-  ticketsByStatus: Array<{ _id: string; count: number }>;
-  ticketsByCategory: Array<{ _id: string; count: number }>;
-  ticketsByPriority: Array<{ _id: string; count: number }>;
+  ticketsByStatus: Array<{ clave: string; count: number }>;
+  ticketsByCategory: Array<{ clave: string; count: number }>;
+  ticketsByPriority: Array<{ clave: string; count: number }>;
   avgResolutionTimeHours: number;
 }
 
@@ -94,28 +94,28 @@ export default function AnalyticsTickets() {
 
   const totalTickets = analytics.ticketsByStatus.reduce((sum, s) => sum + s.count, 0);
   const openTickets =
-    (analytics.ticketsByStatus.find((s) => s._id === "open")?.count || 0) +
-    (analytics.ticketsByStatus.find((s) => s._id === "assigned")?.count || 0) +
-    (analytics.ticketsByStatus.find((s) => s._id === "in_progress")?.count || 0);
+    (analytics.ticketsByStatus.find((s) => s.clave === "open")?.count || 0) +
+    (analytics.ticketsByStatus.find((s) => s.clave === "assigned")?.count || 0) +
+    (analytics.ticketsByStatus.find((s) => s.clave === "in_progress")?.count || 0);
   const closedTickets =
-    (analytics.ticketsByStatus.find((s) => s._id === "closed")?.count || 0) +
-    (analytics.ticketsByStatus.find((s) => s._id === "resolved")?.count || 0);
+    (analytics.ticketsByStatus.find((s) => s.clave === "closed")?.count || 0) +
+    (analytics.ticketsByStatus.find((s) => s.clave === "resolved")?.count || 0);
   const resolutionRate = totalTickets > 0 ? (closedTickets / totalTickets) * 100 : 0;
 
   // Transform data for charts
   const statusChartData = analytics.ticketsByStatus.map((item) => ({
     ...item,
-    name: STATUS_LABELS[item._id] || item._id,
+    name: STATUS_LABELS[item.clave] || item.clave,
   }));
 
   const categoryChartData = analytics.ticketsByCategory.map((item) => ({
     ...item,
-    name: CATEGORY_LABELS[item._id] || item._id,
+    name: CATEGORY_LABELS[item.clave] || item.clave,
   }));
 
   const priorityChartData = analytics.ticketsByPriority.map((item) => ({
     ...item,
-    name: PRIORITY_LABELS[item._id] || item._id,
+    name: PRIORITY_LABELS[item.clave] || item.clave,
   }));
 
   return (
@@ -344,7 +344,7 @@ export default function AnalyticsTickets() {
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {categoryChartData.map((item) => (
-                  <tr key={item._id}>
+                  <tr key={item.clave}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                       {item.name}
                     </td>
@@ -383,7 +383,7 @@ export default function AnalyticsTickets() {
               </thead>
               <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                 {priorityChartData.map((item) => (
-                  <tr key={item._id}>
+                  <tr key={item.clave}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                       {item.name}
                     </td>

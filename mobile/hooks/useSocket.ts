@@ -205,7 +205,7 @@ export function useChat(conversationId: string | null) {
 
     const unsubUpdated = subscribe('message:updated', (message) => {
       setMessages(prev =>
-        prev.map(m => (m.id === message.id || m._id === message._id) ? { ...m, ...message } : m)
+        prev.map(m => (m.id === message.id || m.id === message.id) ? { ...m, ...message } : m)
       );
     });
 

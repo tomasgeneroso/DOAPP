@@ -132,7 +132,7 @@ export default function ProposalsScreen() {
       <View style={[styles.proposalCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
         <TouchableOpacity
           style={styles.proposalContent}
-          onPress={() => router.push(`/job/${job?._id || job?.id}`)}
+          onPress={() => router.push(`/job/${job?.id || job?.id}`)}
         >
           <View style={styles.proposalHeader}>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
@@ -190,10 +190,10 @@ export default function ProposalsScreen() {
         {item.status === 'pending' && (
           <TouchableOpacity
             style={[styles.withdrawButton, { borderTopColor: themeColors.border }]}
-            onPress={() => handleWithdraw(item._id)}
-            disabled={withdrawing === item._id}
+            onPress={() => handleWithdraw(item.id)}
+            disabled={withdrawing === item.id}
           >
-            {withdrawing === item._id ? (
+            {withdrawing === item.id ? (
               <ActivityIndicator size="small" color={colors.danger[500]} />
             ) : (
               <>
@@ -242,7 +242,7 @@ export default function ProposalsScreen() {
       <FlatList
         data={proposals}
         renderItem={renderProposal}
-        keyExtractor={(item) => item._id}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         refreshControl={

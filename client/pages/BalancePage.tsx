@@ -247,7 +247,7 @@ export default function BalancePage() {
                 </button>
                 <div className="text-right">
                   <p className="text-sm opacity-90">{t('balance.user', 'User')}: {user?.name}</p>
-                  <p className="text-xs opacity-70">ID: {user?._id?.slice(-8)}</p>
+                  <p className="text-xs opacity-70">ID: {user?.id?.slice(-8)}</p>
                 </div>
               </div>
             </div>
@@ -344,7 +344,7 @@ export default function BalancePage() {
                 <div className="space-y-4">
                   {transactions.map((transaction) => (
                     <div
-                      key={transaction._id}
+                      key={transaction.id}
                       className="flex items-center justify-between p-4 rounded-lg bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
                     >
                       <div className="flex items-center gap-4 flex-1">

@@ -5,7 +5,7 @@ import { Shield, UserCog, Search, Check, X, Lock, Eye, EyeOff, KeyRound } from "
 import { useAuth } from "@/hooks/useAuth";
 
 interface User {
-  _id: string;
+  id: string;
   name: string;
   email: string;
   avatar?: string;
@@ -149,7 +149,7 @@ export default function RoleManagement() {
 
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(`/api/admin/roles/users/${selectedUser._id}/role`, {
+      const response = await fetch(`/api/admin/roles/users/${selectedUser.id}/role`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -300,7 +300,7 @@ export default function RoleManagement() {
 
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(`/api/admin/roles/users/${selectedUser._id}/permissions`, {
+      const response = await fetch(`/api/admin/roles/users/${selectedUser.id}/permissions`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -461,7 +461,7 @@ export default function RoleManagement() {
                 </tr>
               ) : (
                 users.map((user) => (
-                  <tr key={user._id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                  <tr key={user.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
                         <img

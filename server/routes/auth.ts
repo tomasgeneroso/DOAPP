@@ -251,7 +251,6 @@ router.post(
         token, // Mantener para compatibilidad temporal
         requiresEmailVerification: true,
         user: {
-          _id: user.id,
           id: user.id, // Alias for compatibility
           name: user.name,
           username: user.username,
@@ -401,7 +400,6 @@ router.post(
       });
 
       const userData = {
-        _id: user.id,
         id: user.id,
         name: user.name,
         username: user.username,
@@ -504,7 +502,6 @@ router.get("/me", protect, async (req: AuthRequest, res: Response): Promise<void
       success: true,
       token, // Token para Socket.io
       user: {
-        _id: (user?.id as unknown as string),
         id: (user?.id as unknown as string), // Alias for compatibility
         name: user?.name,
         username: user?.username,
@@ -712,7 +709,6 @@ router.put("/update", protect, async (req: AuthRequest, res: Response): Promise<
     res.json({
       success: true,
       user: {
-        _id: (user?.id as unknown as string),
         id: (user?.id as unknown as string),
         name: user?.name,
         username: user?.username,
@@ -753,7 +749,6 @@ router.post("/onboarding", protect, async (req: AuthRequest, res: Response): Pro
     res.json({
       success: true,
       user: {
-        _id: (user?.id as unknown as string),
         id: (user?.id as unknown as string), // Alias for compatibility
         name: user?.name,
         email: user?.email,
@@ -963,7 +958,6 @@ router.put("/settings", protect, async (req: AuthRequest, res: Response): Promis
     res.json({
       success: true,
       user: {
-        _id: (updatedUser?.id as unknown as string),
         id: (updatedUser?.id as unknown as string), // Alias for compatibility
         name: updatedUser?.name,
         email: updatedUser?.email,
@@ -1143,8 +1137,7 @@ router.post("/facebook/token", async (req: Request, res: Response): Promise<void
       token,
       refreshToken,
       user: {
-        _id: (user as any)._id,
-        id: (user as any)._id, // Alias for compatibility
+        id: (user as any).id,
         name: user.name,
         email: user.email,
         phone: user.phone,

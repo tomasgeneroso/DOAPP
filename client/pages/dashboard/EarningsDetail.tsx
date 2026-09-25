@@ -15,13 +15,11 @@ import {
 } from "lucide-react";
 
 interface EarningRecord {
-  _id: string;
+  id: string;
   job: {
-    _id: string;
     title: string;
   };
   client: {
-    _id: string;
     name: string;
     avatar?: string;
   };
@@ -60,7 +58,7 @@ export default function EarningsDetail() {
       if (data.success) {
         // Filtrar contratos completados donde el usuario es el doer (recibe pago)
         const completedEarnings = data.contracts.filter(
-          (c: any) => c.doer?._id === user?.id && c.status === "completed"
+          (c: any) => c.doer?.id === user?.id && c.status === "completed"
         );
 
         setEarnings(completedEarnings);
@@ -185,7 +183,7 @@ export default function EarningsDetail() {
             <div className="space-y-4">
               {earnings.map((earning) => (
                 <div
-                  key={earning._id}
+                  key={earning.id}
                   className="rounded-xl bg-white dark:bg-slate-800 p-6 border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow"
                 >
                   <div className="flex items-start justify-between mb-4">
@@ -195,7 +193,7 @@ export default function EarningsDetail() {
                           {earning.job.title}
                         </h3>
                         <Link
-                          to={`/contracts/${earning._id}`}
+                          to={`/contracts/${earning.id}`}
                           className="text-sky-600 hover:text-sky-700 dark:text-sky-400"
                         >
                           <ExternalLink className="h-4 w-4" />
@@ -272,7 +270,7 @@ export default function EarningsDetail() {
 
                   <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                     <Link
-                      to={`/contracts/${earning._id}`}
+                      to={`/contracts/${earning.id}`}
                       className="inline-flex items-center gap-2 text-sm font-medium text-sky-600 hover:text-sky-700 dark:text-sky-400"
                     >
                       Ver detalles del contrato

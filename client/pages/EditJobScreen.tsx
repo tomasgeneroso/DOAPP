@@ -150,8 +150,8 @@ export default function EditJobScreen() {
           const job = data.job;
 
           // Check if user is the owner
-          const clientId = typeof job.client === 'string' ? job.client : (job.client?.id || job.client?._id);
-          const userId = user?.id || user?._id;
+          const clientId = typeof job.client === 'string' ? job.client : (job.client?.id);
+          const userId = user?.id;
 
           if (clientId !== userId) {
             setError(t('jobs.noPermissionToEdit', 'You do not have permission to edit this job'));
@@ -217,7 +217,7 @@ export default function EditJobScreen() {
           // Filter out the current job and only keep active ones
           const activeJobs = (data.jobs || []).filter((job: any) =>
             job.id !== id &&
-            job._id !== id &&
+            job.id !== id &&
             ['open', 'in_progress', 'pending_payment', 'pending_approval'].includes(job.status)
           );
           setUserJobs(activeJobs);

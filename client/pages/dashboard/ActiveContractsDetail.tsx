@@ -16,18 +16,18 @@ import {
 } from "lucide-react";
 
 interface ActiveContract {
-  _id: string;
+  id: string;
   job: {
-    _id: string;
+    id: string;
     title: string;
   };
   client: {
-    _id: string;
+    id: string;
     name: string;
     avatar?: string;
   };
   doer: {
-    _id: string;
+    id: string;
     name: string;
     avatar?: string;
   };
@@ -65,7 +65,7 @@ export default function ActiveContractsDetail() {
         // Filtrar contratos activos (pending, accepted, in_progress)
         const activeContracts = data.contracts.filter(
           (c: any) =>
-            (c.client?._id === user?.id || c.doer?._id === user?.id) &&
+            (c.client?.id === user?.id || c.doer?.id === user?.id) &&
             (c.status === "pending" || c.status === "accepted" || c.status === "in_progress")
         );
 
@@ -114,8 +114,8 @@ export default function ActiveContractsDetail() {
   };
 
   const getUserRole = (contract: ActiveContract) => {
-    if (contract.client._id === user?.id) return "cliente";
-    if (contract.doer._id === user?.id) return "doer";
+    if (contract.client.id === user?.id) return "cliente";
+    if (contract.doer.id === user?.id) return "doer";
     return "unknown";
   };
 
@@ -228,7 +228,7 @@ export default function ActiveContractsDetail() {
 
                 return (
                   <div
-                    key={contract._id}
+                    key={contract.id}
                     className="rounded-xl bg-white dark:bg-slate-800 p-6 border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow"
                   >
                     <div className="flex items-start justify-between mb-4">
@@ -239,7 +239,7 @@ export default function ActiveContractsDetail() {
                           </h3>
                           {getStatusBadge(contract.status)}
                           <Link
-                            to={`/contracts/${contract._id}`}
+                            to={`/contracts/${contract.id}`}
                             className="text-sky-600 hover:text-sky-700 dark:text-sky-400"
                           >
                             <ExternalLink className="h-4 w-4" />
@@ -332,7 +332,7 @@ export default function ActiveContractsDetail() {
 
                     <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
                       <Link
-                        to={`/contracts/${contract._id}`}
+                        to={`/contracts/${contract.id}`}
                         className="inline-flex items-center gap-2 text-sm font-medium text-sky-600 hover:text-sky-700 dark:text-sky-400"
                       >
                         Ver detalles del contrato

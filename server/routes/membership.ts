@@ -28,7 +28,7 @@ const router = Router();
  */
 router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userId = req.user.id || req.user._id?.toString();
+    const userId = req.user.id || req.user.id?.toString();
     const membershipInfo = await membershipService.getMembershipInfo(userId);
 
     if (!membershipInfo) {
@@ -60,7 +60,7 @@ router.get("/", protect, async (req: AuthRequest, res: Response): Promise<void> 
  */
 router.post("/create", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userId = req.user.id || req.user._id?.toString();
+    const userId = req.user.id || req.user.id?.toString();
 
     const result = await membershipService.createMembership(userId);
 
@@ -101,7 +101,7 @@ router.post(
         return;
       }
 
-      const userId = req.user.id || req.user._id?.toString();
+      const userId = req.user.id || req.user.id?.toString();
       const { paymentId } = req.body;
 
       const membership = await membershipService.activateMembership(userId, paymentId);
@@ -130,7 +130,7 @@ router.post(
   protect,
   async (req: AuthRequest, res: Response): Promise<void> => {
     try {
-      const userId = req.user.id || req.user._id?.toString();
+      const userId = req.user.id || req.user.id?.toString();
       const { reason } = req.body;
 
       const membership = await membershipService.cancelMembership(userId, reason);
@@ -239,7 +239,7 @@ router.get("/pricing", async (req, res) => {
  */
 router.post("/upgrade-to-pro", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userId = req.user.id || req.user._id?.toString();
+    const userId = req.user.id || req.user.id?.toString();
     const { User } = await import('../models/sql/User.model.js');
 
     const user = await User.findByPk(userId);
@@ -343,7 +343,7 @@ router.post("/upgrade-to-pro", protect, async (req: AuthRequest, res: Response):
  */
 router.post("/create-payment", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userId = req.user.id || req.user._id?.toString();
+    const userId = req.user.id || req.user.id?.toString();
     const { plan } = req.body; // 'monthly', 'quarterly', or 'super_pro'
 
     if (!plan || !['monthly', 'quarterly', 'super_pro'].includes(plan)) {
@@ -578,7 +578,7 @@ router.post("/create-payment", protect, async (req: AuthRequest, res: Response):
  */
 router.get("/usage", protect, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const userId = req.user.id || req.user._id?.toString();
+    const userId = req.user.id || req.user.id?.toString();
     const { User } = await import('../models/sql/User.model.js');
 
     const user = await User.findByPk(userId, {
@@ -644,7 +644,7 @@ router.get("/analytics", protect, async (req: AuthRequest, res: Response): Promi
       return;
     }
 
-    const userId = req.user.id || req.user._id?.toString();
+    const userId = req.user.id || req.user.id?.toString();
     const { Contract } = await import('../models/sql/Contract.model.js');
     const { User } = await import('../models/sql/User.model.js');
     const { Job } = await import('../models/sql/Job.model.js');
@@ -922,7 +922,7 @@ router.put("/fiscal", protect, async (req: AuthRequest, res: Response): Promise<
     }
 
     const { User } = await import('../models/sql/User.model.js');
-    const userId = req.user.id || req.user._id?.toString();
+    const userId = req.user.id || req.user.id?.toString();
     const user: any = await User.findByPk(userId);
     if (!user) {
       res.status(404).json({ success: false, message: 'Usuario no encontrado' });
@@ -979,7 +979,7 @@ router.get("/analytics/export.csv", protect, async (req: AuthRequest, res: Respo
       res.status(403).json({ success: false, message: 'Exclusivo de miembros SUPER PRO' });
       return;
     }
-    const userId = req.user.id || req.user._id?.toString();
+    const userId = req.user.id || req.user.id?.toString();
     const { Contract } = await import('../models/sql/Contract.model.js');
     const { User } = await import('../models/sql/User.model.js');
     const { Job } = await import('../models/sql/Job.model.js');
@@ -1043,7 +1043,7 @@ router.get("/analytics/export.pdf", protect, async (req: AuthRequest, res: Respo
       res.status(403).json({ success: false, message: 'Exclusivo de miembros SUPER PRO' });
       return;
     }
-    const userId = req.user.id || req.user._id?.toString();
+    const userId = req.user.id || req.user.id?.toString();
     const { Contract } = await import('../models/sql/Contract.model.js');
     const { User } = await import('../models/sql/User.model.js');
     const { Job } = await import('../models/sql/Job.model.js');

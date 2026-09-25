@@ -171,7 +171,7 @@ export default function InvitationCodesModal({ isOpen, onClose }: InvitationCode
                   <div className="space-y-2">
                     {invitationData.invitedUsers.map((invitedUser, index) => (
                       <div
-                        key={invitedUser._id}
+                        key={invitedUser.id}
                         className="flex items-center gap-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3"
                       >
                         <div className="flex-shrink-0 w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold">

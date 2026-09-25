@@ -48,7 +48,7 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, index = 0 }) => {
     >
       <button
         ref={cardRef}
-        onClick={() => navigate(`/jobs/${(job as any)._id ?? job.id}`)}
+        onClick={() => navigate(`/jobs/${(job as any).id ?? job.id}`)}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => { setIsHovered(false); cardRef.current?.style.setProperty('--spotlight-opacity', '0'); }}
         onMouseMove={(e) => {
@@ -137,7 +137,7 @@ const JobCardComponent: React.FC<JobCardProps> = ({ job, index = 0 }) => {
 };
 
 export const JobCard = memo(JobCardComponent, (prev, next) =>
-  prev.job._id === next.job._id &&
+  prev.job.id === next.job.id &&
   prev.job.title === next.job.title &&
   (prev.job as any).budget === (next.job as any).budget &&
   prev.job.description === next.job.description &&

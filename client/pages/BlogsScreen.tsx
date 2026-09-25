@@ -314,7 +314,7 @@ export default function BlogsScreen() {
                   <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
                     {posts.map((post) => (
                       <Link
-                        key={post._id}
+                        key={post.id}
                         to={`/blog/${post.slug}`}
                         className={`bg-white dark:bg-slate-800 rounded-2xl shadow-md hover:shadow-xl transition-shadow overflow-hidden group relative ${
                           post.featured ? 'ring-2 ring-amber-400 dark:ring-amber-500' : ''

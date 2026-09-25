@@ -36,7 +36,7 @@ router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
 
     // Si no es staff, solo ver sus propios tickets
     if (!req.user.adminRole) {
-      query.createdBy = req.user._id;
+      query.createdBy = req.user.id;
     } else {
       // Staff puede filtrar por asignado
       if (assignedTo) query.assignedTo = assignedTo;
@@ -97,7 +97,7 @@ router.get("/", async (req: AuthRequest, res: Response): Promise<void> => {
         'status',
         [fn('COUNT', col('id')), 'count'],
       ],
-      where: req.user.adminRole ? {} : { createdBy: req.user._id },
+      where: req.user.adminRole ? {} : { createdBy: req.user.id },
       group: ['status'],
       raw: true,
     }) as unknown as Array<{ status: string; count: string }>;
@@ -149,7 +149,7 @@ router.get("/:id", async (req: AuthRequest, res: Response): Promise<void> => {
 
     // Usuarios normales solo ven sus tickets
     const createdById = typeof ticket.createdBy === "object" ? (ticket.createdBy as any)?.id : ticket.createdBy;
-    if (!req.user.adminRole && createdById.toString() !== req.user._id.toString()) {
+    if (!req.user.adminRole && createdById.toString() !== req.user.id.toString()) {
       res.status(403).json({
         success: false,
         message: "No tienes permiso para ver este ticket",
@@ -209,12 +209,12 @@ router.post("/", async (req: AuthRequest, res: Response): Promise<void> => {
       subject,
       category,
       priority: priority || "medium",
-      createdBy: req.user._id,
+      createdBy: req.user.id,
       relatedUser,
       relatedContract,
       messages: [
         {
-          author: req.user._id,
+          author: req.user.id,
           message,
           isInternal: false,
         },
@@ -268,7 +268,7 @@ router.post("/:id/messages", async (req: AuthRequest, res: Response): Promise<vo
 
     // Usuarios normales solo pueden comentar en sus tickets
     const createdById = typeof ticket.createdBy === "object" ? (ticket.createdBy as any)?.id : ticket.createdBy;
-    if (!req.user.adminRole && createdById.toString() !== req.user._id.toString()) {
+    if (!req.user.adminRole && createdById.toString() !== req.user.id.toString()) {
       res.status(403).json({
         success: false,
         message: "No tienes permiso para comentar en este ticket",
@@ -281,7 +281,7 @@ router.post("/:id/messages", async (req: AuthRequest, res: Response): Promise<vo
 
     const messages = ticket.messages || [];
     messages.push({
-      author: req.user._id,
+      author: req.user.id,
       message,
       isInternal: messageIsInternal,
       createdAt: new Date(),
@@ -500,7 +500,7 @@ router.put(
         status: "closed",
         resolution,
         closedAt: new Date(),
-        closedBy: req.user._id,
+        closedBy: req.user.id,
       });
 
       await ticket.reload({

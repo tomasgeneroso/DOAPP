@@ -39,11 +39,11 @@ export function startEscalateExpiredChangeRequestsJob() {
         try {
           const contract = request.contract as any;
           const requesterUser =
-            request.requestedBy.toString() === contract.client._id.toString()
+            request.requestedBy.toString() === contract.client.id.toString()
               ? contract.client
               : contract.doer;
           const otherUser =
-            request.requestedBy.toString() === contract.client._id.toString()
+            request.requestedBy.toString() === contract.client.id.toString()
               ? contract.doer
               : contract.client;
           const jobTitle = contract.job?.title || 'Contrato';
@@ -58,7 +58,7 @@ Solicitud automáticamente escalada después de 2 días sin respuesta.
 **Tipo:** ${request.type === 'cancel' ? 'Cancelación' : 'Modificación'}
 **Razón:** ${request.reason}
 
-**Contrato:** ${contract._id}
+**Contrato:** ${contract.id}
 **Cliente:** ${contract.client.name} (${contract.client.email})
 **Doer:** ${contract.doer.name} (${contract.doer.email})
 
@@ -130,10 +130,10 @@ Solicitud automáticamente escalada después de 2 días sin respuesta.
 
           escalatedCount++;
           console.log(
-            `✅ [CRON] Escalada solicitud ${request._id} → Ticket ${(ticket as any).id}`
+            `✅ [CRON] Escalada solicitud ${request.id} → Ticket ${(ticket as any).id}`
           );
         } catch (error) {
-          console.error(`❌ [CRON] Error escalando solicitud ${request._id}:`, error);
+          console.error(`❌ [CRON] Error escalando solicitud ${request.id}:`, error);
         }
       }
 

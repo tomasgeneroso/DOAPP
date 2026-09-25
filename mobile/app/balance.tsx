@@ -462,7 +462,7 @@ export default function BalanceScreen() {
             ) : (
               filteredTransactions.map((tx) => (
                 <View
-                  key={tx._id}
+                  key={tx.id}
                   style={[styles.transactionItem, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
                 >
                   <View style={[styles.txIconContainer, { backgroundColor: themeColors.slate[50] }]}>
@@ -504,7 +504,7 @@ export default function BalanceScreen() {
             ) : (
               filteredWithdrawals.map((withdrawal) => (
                 <View
-                  key={withdrawal._id}
+                  key={withdrawal.id}
                   style={[styles.withdrawalItem, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
                 >
                   <View style={styles.withdrawalHeader}>

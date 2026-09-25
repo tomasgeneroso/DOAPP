@@ -204,11 +204,22 @@ const HEADER_INJECTION_PATTERNS = [
   /\\r\\n/i,
 ];
 
-// A04:2021 - Insecure Direct Object Reference patterns
+/**
+ * A04:2021 — referencias directas a objetos.
+ *
+ * Se sacó el patrón de ObjectId de Mongo (24 hexadecimales): la base es
+ * Postgres y los ids son UUID, así que no podía atrapar nada real. Lo que sí
+ * hacía era marcar como sospechoso cualquier hash de 24+ caracteres que
+ * viajara en un parámetro llamado `id` —un token, una firma— y eso es ruido
+ * en la única lista que hay que mirar cuando pasa algo.
+ *
+ * No se agrega un patrón para UUID: un UUID en la URL es el caso NORMAL de
+ * toda la app, no una señal de manipulación. Contra el IDOR de verdad protege
+ * la comprobación de dueño en cada ruta, no un regex.
+ */
 const IDOR_SUSPICIOUS_PATTERNS = [
   /\.\.\/\.\.\/\.\.\//,
-  /id=(-?\d{10,})/i, // Suspicious large IDs
-  /\bid\s*=\s*['"]?[a-f0-9]{24,}['"]?/i, // MongoDB ObjectId manipulation
+  /id=(-?\d{10,})/i, // Ids numéricos absurdamente largos
 ];
 
 // ============================================

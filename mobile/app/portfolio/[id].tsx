@@ -102,7 +102,7 @@ export default function PortfolioDetailScreen() {
     );
   };
 
-  const isOwner = item && (user?.id === item.userId || user?._id === item.userId);
+  const isOwner = item && (user?.id === item.userId || user?.id === item.userId);
   const cat = item ? getCategoryById(item.category) : null;
 
   if (loading) {

@@ -316,7 +316,7 @@ export default function AdminJobManager() {
       });
       const data = await res.json();
       const conv = data.conversation || data.data;
-      if (data.success && conv) setActionChatConvId(conv.id || conv._id);
+      if (data.success && conv) setActionChatConvId(conv.id);
     } catch { /* chat is best-effort */ }
   };
 

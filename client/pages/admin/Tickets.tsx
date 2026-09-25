@@ -39,7 +39,7 @@ export default function AdminTickets() {
     console.log('🔔 Ticket updated:', data);
     setRealtimeAlert(`Ticket actualizado: ${data.ticket?.subject || 'Sin asunto'}`);
     setTickets(prev =>
-      prev.map(t => (t.id === data.ticket?.id || t._id === data.ticket?._id) ? { ...t, ...data.ticket } : t)
+      prev.map(t => (t.id === data.ticket?.id || t.id === data.ticket?.id) ? { ...t, ...data.ticket } : t)
     );
     setTimeout(() => setRealtimeAlert(null), 5000);
   }, []);
@@ -403,15 +403,15 @@ export default function AdminTickets() {
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {getSortedTickets().map((ticket) => (
-              <tr key={ticket.id || ticket._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+              <tr key={ticket.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                 <td className="px-6 py-4">
-                  <div className="text-xs font-mono text-gray-600 dark:text-gray-400" title={ticket.id || ticket._id}>
-                    {(ticket.id || ticket._id || '').slice(-8).toUpperCase()}
+                  <div className="text-xs font-mono text-gray-600 dark:text-gray-400" title={ticket.id}>
+                    {(ticket.id || '').slice(-8).toUpperCase()}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <Link
-                    to={`/admin/tickets/${ticket.id || ticket._id}`}
+                    to={`/admin/tickets/${ticket.id}`}
                     className="text-sm font-medium text-sky-600 hover:text-sky-900 dark:text-sky-400 dark:hover:text-sky-300"
                   >
                     {ticket.ticketNumber}

@@ -19,19 +19,20 @@ import {
 } from 'lucide-react';
 
 interface ContractChangeRequest {
-  _id: string;
+  id: string;
   contract: {
-    _id: string;
+    id: string;
     job: {
+      id: string;
       title: string;
     };
     client: {
-      _id: string;
+      id: string;
       name: string;
       avatar?: string;
     };
     doer: {
-      _id: string;
+      id: string;
       name: string;
       avatar?: string;
     };
@@ -40,7 +41,7 @@ interface ContractChangeRequest {
     endDate: string;
   };
   requestedBy: {
-    _id: string;
+    id: string;
     name: string;
     avatar?: string;
   };
@@ -48,12 +49,14 @@ interface ContractChangeRequest {
   reason: string;
   status: 'pending' | 'accepted' | 'rejected' | 'escalated_to_support';
   newTerms?: {
+    id: string;
     price?: number;
     startDate?: string;
     endDate?: string;
     description?: string;
   };
   respondedBy?: {
+    id: string;
     name: string;
   };
   respondedAt?: string;
@@ -135,7 +138,7 @@ export default function ContractChangeRequestDetail() {
 
       const data = await response.json();
       if (data.success) {
-        navigate(`/contracts/${request.contract._id}`);
+        navigate(`/contracts/${request.contract.id}`);
       } else {
         setNotice(data.message || t('contracts.changeRequest.respondError', 'Error responding to request'));
       }
@@ -173,7 +176,7 @@ export default function ContractChangeRequestDetail() {
     );
   }
 
-  const isRequester = request.requestedBy._id === user?._id;
+  const isRequester = request.requestedBy.id === user?.id;
   const canRespond = !isRequester && request.status === 'pending';
   const statusColor = {
     pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
@@ -195,7 +198,7 @@ export default function ContractChangeRequestDetail() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Back Button */}
           <button
-            onClick={() => navigate(`/contracts/${request.contract._id}`)}
+            onClick={() => navigate(`/contracts/${request.contract.id}`)}
             className="flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6 transition-colors"
           >
             <ArrowLeft className="h-5 w-5" />

@@ -102,8 +102,8 @@ export default function JobDetailScreen() {
   };
 
   const handleCopyJobCode = async () => {
-    if (job?.id || job?._id) {
-      const code = getJobCode(job.id || job._id);
+    if (job?.id) {
+      const code = getJobCode(job.id);
       await Clipboard.setStringAsync(code);
       setCopiedJobCode(true);
       setTimeout(() => setCopiedJobCode(false), 3000);
@@ -130,7 +130,7 @@ export default function JobDetailScreen() {
         setProposals(response.data.proposals);
         const userProposal = response.data.proposals.find((p) => {
           const doer = p.doer as UserSummary;
-          return doer?._id === user?._id || doer?.id === user?._id;
+          return doer?.id === user?.id || doer?.id === user?.id;
         });
         setHasApplied(!!userProposal);
       }
@@ -227,7 +227,7 @@ export default function JobDetailScreen() {
     if (!job) return;
     setActionLoading(true);
     try {
-      const response = await pauseJob(job.id || job._id);
+      const response = await pauseJob(job.id);
       if (response.success) {
         setJob((prev) => prev ? { ...prev, status: 'paused' } : prev);
         Alert.alert('Trabajo pausado', 'El trabajo fue pausado correctamente.');
@@ -245,7 +245,7 @@ export default function JobDetailScreen() {
     if (!job) return;
     setActionLoading(true);
     try {
-      const response = await resumeJob(job.id || job._id);
+      const response = await resumeJob(job.id);
       if (response.success) {
         setJob((prev) => prev ? { ...prev, status: 'open' } : prev);
         Alert.alert('Trabajo reanudado', 'El trabajo fue reanudado correctamente.');
@@ -263,7 +263,7 @@ export default function JobDetailScreen() {
     if (!job) return;
     setActionLoading(true);
     try {
-      const response = await cancelJob(job.id || job._id, cancelReason, salida);
+      const response = await cancelJob(job.id, cancelReason, salida);
       if (response.success) {
         setJob((prev) => prev ? { ...prev, status: 'cancelled' } : prev);
         setShowCancelModal(false);
@@ -370,24 +370,24 @@ export default function JobDetailScreen() {
   };
 
   const isOwner = !!(user && job && (
-    (job.client as UserSummary)?._id === user._id ||
-    (job.client as UserSummary)?.id === user._id ||
-    job.postedBy === user._id
+    (job.client as UserSummary)?.id === user.id ||
+    (job.client as UserSummary)?.id === user.id ||
+    job.postedBy === user.id
   ));
 
   const myContract = contracts.find((c) => {
     const contractDoer = c.doer as any;
     const contractClient = c.client as any;
     return (
-      contractDoer?._id === user?._id || contractDoer?.id === user?._id ||
-      contractClient?._id === user?._id || contractClient?.id === user?._id
+      contractDoer?.id === user?.id || contractDoer?.id === user?.id ||
+      contractClient?.id === user?.id || contractClient?.id === user?.id
     );
   });
 
   const isWorkerSelected = !!(job && user && (
-    job.selectedWorkers?.includes(user._id) ||
-    (job.doer as UserSummary)?._id === user._id ||
-    (job.doer as UserSummary)?.id === user._id
+    job.selectedWorkers?.includes(user.id) ||
+    (job.doer as UserSummary)?.id === user.id ||
+    (job.doer as UserSummary)?.id === user.id
   ));
 
   if (loading) {
@@ -455,7 +455,7 @@ export default function JobDetailScreen() {
           >
             <Key size={14} color={themeColors.primary[600]} />
             <Text style={[styles.jobCodeText, { color: themeColors.primary[700] }]}>
-              #{getJobCode(job.id || job._id)}
+              #{getJobCode(job.id)}
             </Text>
             {copiedJobCode
               ? <Check size={14} color={colors.success[500]} />
@@ -559,7 +559,7 @@ export default function JobDetailScreen() {
             <View style={[styles.infoGrid, { borderBottomColor: themeColors.border }]}>
               <View style={styles.infoGridItem}>
                 <Text style={[styles.infoGridLabel, { color: themeColors.text.secondary }]}>Cliente</Text>
-                <TouchableOpacity onPress={() => client && router.push(`/user/${client._id || client.id}`)}>
+                <TouchableOpacity onPress={() => client && router.push(`/user/${client.id || client.id}`)}>
                   <Text style={[styles.infoGridValue, { color: themeColors.primary[600] }]}>
                     {client?.name || 'N/A'}
                   </Text>
@@ -568,7 +568,7 @@ export default function JobDetailScreen() {
               <View style={styles.infoGridItem}>
                 <Text style={[styles.infoGridLabel, { color: themeColors.text.secondary }]}>Trabajador</Text>
                 {doer ? (
-                  <TouchableOpacity onPress={() => router.push(`/user/${doer._id || doer.id}`)}>
+                  <TouchableOpacity onPress={() => router.push(`/user/${doer.id || doer.id}`)}>
                     <Text style={[styles.infoGridValue, { color: themeColors.primary[600] }]}>{doer.name}</Text>
                   </TouchableOpacity>
                 ) : (
@@ -611,9 +611,9 @@ export default function JobDetailScreen() {
               const cDoer = contract.doer as any;
               return (
                 <TouchableOpacity
-                  key={contract._id || contract.id}
+                  key={contract.id || contract.id}
                   style={[styles.contractItem, { borderColor: themeColors.border }]}
-                  onPress={() => router.push(`/contracts/${contract._id || contract.id}`)}
+                  onPress={() => router.push(`/contracts/${contract.id || contract.id}`)}
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.contractWorker, { color: themeColors.text.primary }]}>
@@ -717,7 +717,7 @@ export default function JobDetailScreen() {
             {((isOwner && !myContract.clientConfirmed) || (!isOwner && !myContract.doerConfirmed)) && (
               <TouchableOpacity
                 style={[styles.confirmButton, actionLoading && styles.buttonDisabled]}
-                onPress={() => handleConfirmContract(myContract._id || myContract.id || '')}
+                onPress={() => handleConfirmContract(myContract.id || myContract.id || '')}
                 disabled={actionLoading}
               >
                 {actionLoading ? (
@@ -742,7 +742,7 @@ export default function JobDetailScreen() {
             {proposals.map((proposal) => {
               const proposalDoer = proposal.doer as UserSummary;
               return (
-                <View key={proposal._id} style={[styles.proposalItem, { borderColor: themeColors.border }]}>
+                <View key={proposal.id} style={[styles.proposalItem, { borderColor: themeColors.border }]}>
                   <View style={styles.proposalHeader}>
                     <View style={styles.proposalDoerRow}>
                       <Text style={[styles.proposalDoer, { color: themeColors.text.primary }]}>
@@ -751,7 +751,7 @@ export default function JobDetailScreen() {
                       <View style={[styles.proposalJobCode, { backgroundColor: themeColors.primary[50] }]}>
                         <Key size={10} color={themeColors.primary[600]} />
                         <Text style={[styles.proposalJobCodeText, { color: themeColors.primary[700] }]}>
-                          #{getJobCode(job.id || job._id)}
+                          #{getJobCode(job.id)}
                         </Text>
                       </View>
                     </View>
@@ -884,7 +884,7 @@ export default function JobDetailScreen() {
         {client && (
           <TouchableOpacity
             style={[styles.clientCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
-            onPress={() => router.push(`/user/${client._id || client.id}`)}
+            onPress={() => router.push(`/user/${client.id || client.id}`)}
           >
             <View style={styles.clientAvatar}>
               <User size={24} color={themeColors.text.secondary} />

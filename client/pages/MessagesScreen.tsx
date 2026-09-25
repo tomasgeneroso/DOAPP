@@ -31,10 +31,8 @@ import {
 
 interface Conversation {
   id?: string;
-  _id?: string;
   participants: Array<{
     id?: string;
-    _id?: string;
     name: string;
     avatar?: string;
   }>;
@@ -42,7 +40,6 @@ interface Conversation {
   lastMessageAt?: string;
   jobId?: {
     id?: string;
-    _id?: string;
     title: string;
   };
   job?: {
@@ -62,10 +59,8 @@ interface Conversation {
 
 interface Message {
   id?: string;
-  _id?: string;
   sender: {
     id?: string;
-    _id?: string;
     name: string;
     avatar?: string;
   };
@@ -80,8 +75,8 @@ interface Message {
 }
 
 // Helper to get ID from object (supports both PostgreSQL and MongoDB format)
-const getId = (obj: { id?: string; _id?: string } | null | undefined): string => {
-  return obj?.id || obj?._id || '';
+const getId = (obj: { id?: string } | null | undefined): string => {
+  return obj?.id || '';
 };
 
 export default function MessagesScreen() {
@@ -174,7 +169,7 @@ export default function MessagesScreen() {
     }
 
     // Update local unread count (using functional update to avoid dependency)
-    const userId = user?.id || user?._id || "";
+    const userId = user?.id || "";
     if (userId) {
       setConversations(prev => prev.map(c => {
         if (getId(c) === conversationIdParam && c.unreadCount?.[userId] > 0) {
@@ -249,7 +244,7 @@ export default function MessagesScreen() {
       });
       const data = await response.json();
       if (data.success) {
-        const userId = user?.id || user?._id;
+        const userId = user?.id;
         setSearchedUsers((data.users || []).filter((u: any) => u.id !== userId));
       }
     } catch (error) {
@@ -315,7 +310,7 @@ export default function MessagesScreen() {
       });
       const data = await response.json();
       if (data.success && data.data) {
-        const convId = data.data.id || data.data._id;
+        const convId = data.data.id;
         setShowNewMessageModal(false);
         setSelectedUser(null);
         setSelectedJob(null);
@@ -439,7 +434,7 @@ export default function MessagesScreen() {
   };
 
   const getOtherParticipant = (participants: Conversation["participants"]) => {
-    const userId = user?.id || user?._id;
+    const userId = user?.id;
     return participants.find((p) => getId(p) !== userId);
   };
 
@@ -600,7 +595,7 @@ export default function MessagesScreen() {
             ) : (
               filteredConversations.map((conversation) => {
                 const other = getOtherParticipant(conversation.participants);
-                const userId = user?.id || user?._id || "";
+                const userId = user?.id || "";
                 const unreadCount = conversation.unreadCount?.[userId] || 0;
                 const isActive = getId(activeConversation) === getId(conversation);
                 const jobTitle = conversation.job?.title || conversation.jobId?.title || conversation.contract?.job?.title;
@@ -756,7 +751,7 @@ export default function MessagesScreen() {
               >
                 <div className="max-w-4xl mx-auto space-y-4">
                   {messages.map((message, index) => {
-                    const currentUserId = user?.id || user?._id;
+                    const currentUserId = user?.id;
                     const isCurrentUser = getId(message.sender) === currentUserId;
                     const msgText = String((message as any).message || (message as any).content || '');
                     const showDate =

@@ -3,7 +3,6 @@ export type AdminRole = "owner" | "super_admin" | "admin" | "support" | "marketi
 
 export interface AdminUser {
   id: string;
-  _id?: string; // Retrocompatibilidad MongoDB
   name: string;
   username?: string;
   email: string;
@@ -43,24 +42,20 @@ export interface AdminUser {
 
 export interface AdminContract {
   id: string;
-  _id?: string; // Retrocompatibilidad MongoDB
   client: {
     id?: string;
-    _id?: string;
     name: string;
     email: string;
     username?: string;
   };
   doer: {
     id?: string;
-    _id?: string;
     name: string;
     email: string;
     username?: string;
   };
   job?: {
     id?: string;
-    _id?: string;
     title: string;
   } | null;
   title?: string;
@@ -74,7 +69,6 @@ export interface AdminContract {
   isHidden?: boolean;
   deletedBy?: {
     id?: string;
-    _id?: string;
     name: string;
   };
   deletionReason?: string;
@@ -87,10 +81,8 @@ export interface AdminContract {
 
 export interface TicketMessage {
   id: string;
-  _id?: string;
   author: {
     id?: string;
-    _id?: string;
     name: string;
     email: string;
     avatar?: string;
@@ -106,7 +98,6 @@ export interface TicketMessage {
 export interface Ticket {
   contractId: import("react/jsx-runtime").JSX.Element;
   id: string;
-  _id?: string;
   ticketNumber: string;
   subject: string;
   category: "bug" | "feature" | "support" | "report_user" | "report_contract" | "dispute" | "payment" | "other";
@@ -115,14 +106,12 @@ export interface Ticket {
   createdBy?: string; // FK UUID
   creator?: {
     id?: string;
-    _id?: string;
     name: string;
     email: string;
     avatar?: string;
   };
   user?: {
     id?: string;
-    _id?: string;
     name: string;
     email: string;
     avatar?: string;
@@ -130,7 +119,6 @@ export interface Ticket {
   assignedTo?: string; // FK UUID
   assignee?: {
     id?: string;
-    _id?: string;
     name: string;
     email: string;
     adminRole?: AdminRole;
@@ -142,7 +130,6 @@ export interface Ticket {
   closedBy?: string; // FK UUID
   closer?: {
     id?: string;
-    _id?: string;
     name: string;
   };
   createdAt: string;
@@ -151,10 +138,8 @@ export interface Ticket {
 
 export interface AuditLogEntry {
   id: string;
-  _id?: string;
   performedBy: {
     id?: string;
-    _id?: string;
     name: string;
     email: string;
     adminRole?: AdminRole;

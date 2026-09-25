@@ -6,7 +6,7 @@ import FamilyBadge from './FamilyBadge';
 import { useProStatus } from '../../hooks/useProStatus';
 
 interface UserNameWithBadgeProps {
-  user: User | { _id: string; name: string; membershipTier?: string; hasMembership?: boolean; isPremiumVerified?: boolean; hasFamilyPlan?: boolean };
+  user: User | { id: string; name: string; membershipTier?: string; hasMembership?: boolean; isPremiumVerified?: boolean; hasFamilyPlan?: boolean };
   badgeSize?: 'sm' | 'md' | 'lg';
   className?: string;
 }

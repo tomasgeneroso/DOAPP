@@ -274,9 +274,9 @@ export default function ContractDetailScreen() {
   const job = contract.job as Job;
   const client = contract.client as UserType;
   const doer = contract.doer as UserType;
-  const userId = user?._id || user?.id;
-  const isClient = client?._id === userId || client?.id === userId;
-  const isDoer = doer?._id === userId || doer?.id === userId;
+  const userId = user?.id || user?.id;
+  const isClient = client?.id === userId || client?.id === userId;
+  const isDoer = doer?.id === userId || doer?.id === userId;
   // Can this party propose hours? (first to confirm)
   /**
    * Avisar que el trabajador no puede sólo tiene sentido antes de empezar.
@@ -301,7 +301,7 @@ export default function ContractDetailScreen() {
               Alert.alert('Falta el motivo', 'Contá brevemente por qué no podés.');
               return;
             }
-            const res = await post<any>(`/contracts/${contract._id || contract.id}/worker-unavailable`, {
+            const res = await post<any>(`/contracts/${contract.id || contract.id}/worker-unavailable`, {
               motivo: motivo.trim(),
             });
             Alert.alert(
@@ -368,7 +368,7 @@ export default function ContractDetailScreen() {
   };
 
   const enviarResolucion = async (opcion: string, nuevoPrecio?: number) => {
-    const res = await post<any>(`/contracts/${contract._id || contract.id}/worker-unavailable`, {
+    const res = await post<any>(`/contracts/${contract.id || contract.id}/worker-unavailable`, {
       opcion,
       nuevoPrecio,
       motivo: 'El trabajador informó que no puede realizar el trabajo',
@@ -427,7 +427,7 @@ export default function ContractDetailScreen() {
         {/* Job Info */}
         <TouchableOpacity
           style={[styles.section, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
-          onPress={() => router.push(`/job/${job?._id || job?.id}`)}
+          onPress={() => router.push(`/job/${job?.id || job?.id}`)}
         >
           <Text style={[styles.sectionTitle, { color: themeColors.text.primary }]}>
             Trabajo
@@ -495,7 +495,7 @@ export default function ContractDetailScreen() {
 
           <TouchableOpacity
             style={styles.partyRow}
-            onPress={() => router.push(`/user/${client?._id || client?.id}`)}
+            onPress={() => router.push(`/user/${client?.id || client?.id}`)}
           >
             <View style={[styles.partyAvatar, { backgroundColor: themeColors.slate[100] }]}>
               <User size={20} color={themeColors.text.secondary} />
@@ -518,7 +518,7 @@ export default function ContractDetailScreen() {
 
           <TouchableOpacity
             style={styles.partyRow}
-            onPress={() => router.push(`/user/${doer?._id || doer?.id}`)}
+            onPress={() => router.push(`/user/${doer?.id || doer?.id}`)}
           >
             <View style={[styles.partyAvatar, { backgroundColor: themeColors.slate[100] }]}>
               <User size={20} color={themeColors.text.secondary} />
@@ -595,7 +595,7 @@ export default function ContractDetailScreen() {
                 quienComparte: (user as any)?.name || null,
               }}
             />
-            <EmergencyButton contractId={contract._id || contract.id || ''} />
+            <EmergencyButton contractId={contract.id || contract.id || ''} />
           </>
         )}
 
@@ -603,7 +603,7 @@ export default function ContractDetailScreen() {
         {(isClient || isDoer) &&
           ['accepted', 'in_progress', 'awaiting_confirmation', 'completed', 'disputed'].includes(contract.status) && (
           <DailyLogPanel
-            contractId={contract._id || contract.id || ''}
+            contractId={contract.id || contract.id || ''}
             rol={isClient ? 'client' : 'worker'}
             soloLectura={!['accepted', 'in_progress', 'awaiting_confirmation'].includes(contract.status)}
           />
@@ -630,7 +630,7 @@ export default function ContractDetailScreen() {
             {contract.proposedStartTime && (
               <View style={[styles.proposedHours, { backgroundColor: colors.primary[50], borderColor: colors.primary[200] }]}>
                 <Text style={[styles.proposedHoursLabel, { color: colors.primary[700] }]}>
-                  Horas reportadas por {contract.confirmationProposedBy === (client?._id || client?.id) ? (client?.name || 'Cliente') : (doer?.name || 'Trabajador')}
+                  Horas reportadas por {contract.confirmationProposedBy === (client?.id || client?.id) ? (client?.name || 'Cliente') : (doer?.name || 'Trabajador')}
                 </Text>
                 <Text style={[styles.proposedHoursText, { color: colors.primary[800] }]}>
                   {new Date(contract.proposedStartTime).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} - {new Date(contract.proposedEndTime!).toLocaleString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}

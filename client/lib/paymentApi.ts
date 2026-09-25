@@ -25,8 +25,10 @@ export interface CaptureOrderResponse {
 }
 
 export interface Payment {
-  id?: string;
-  _id: string;
+  // Obligatorio: todo pago que llega del servidor tiene id. Era opcional por
+  // herencia de cuando el identificador podía venir como `_id`, y eso obligaba
+  // a un `!` o un `|| ''` en cada uso.
+  id: string;
   contractId: any;
   contract?: {
     id: string;

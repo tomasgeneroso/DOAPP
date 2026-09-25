@@ -23,7 +23,7 @@ interface DisputaMinima {
   against: string;
   createdAt: string | Date;
   negotiationDeadline?: string | Date | null;
-  messages?: Array<{ from: string | { id?: string; _id?: string }; isAdmin?: boolean; createdAt: string | Date }>;
+  messages?: Array<{ from: string | { id?: string }; isAdmin?: boolean; createdAt: string | Date }>;
   agreementProposal?: Propuesta | null;
   escalatedAt?: string | Date | null;
   escalationReason?: string | null;
@@ -66,7 +66,7 @@ export default function ReclamoDirectoPanel({
 
   const estado = useMemo(() => {
     const mensajes = (dispute.messages || []).map((m) => ({
-      from: typeof m.from === "string" ? m.from : String(m.from?.id || m.from?._id || ""),
+      from: typeof m.from === "string" ? m.from : String(m.from?.id || ""),
       isAdmin: m.isAdmin,
       createdAt: m.createdAt,
     }));

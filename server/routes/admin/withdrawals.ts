@@ -72,12 +72,12 @@ router.get("/", protect, requireRole('admin', 'super_admin', 'owner'), async (re
     });
 
     const stats = allWithdrawals.reduce((acc: any[], w) => {
-      const existing = acc.find(s => s._id === w.status);
+      const existing = acc.find(s => s.clave === w.status);
       if (existing) {
         existing.count += 1;
         existing.totalAmount += w.amount;
       } else {
-        acc.push({ _id: w.status, count: 1, totalAmount: w.amount });
+        acc.push({ clave: w.status, count: 1, totalAmount: w.amount });
       }
       return acc;
     }, []);
@@ -517,14 +517,14 @@ router.get("/stats", protect, requireRole('admin', 'super_admin', 'owner'), asyn
     });
 
     const stats = withdrawalsData.reduce((acc: any[], w) => {
-      const existing = acc.find(s => s._id === w.status);
+      const existing = acc.find(s => s.clave === w.status);
       if (existing) {
         existing.count += 1;
         existing.totalAmount += w.amount;
         existing.amounts.push(w.amount);
       } else {
         acc.push({
-          _id: w.status,
+          clave: w.status,
           count: 1,
           totalAmount: w.amount,
           amounts: [w.amount]

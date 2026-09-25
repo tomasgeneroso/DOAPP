@@ -449,7 +449,7 @@ export default function AdminWithdrawalManager() {
                 const user = typeof withdrawal.user === 'object' ? withdrawal.user : null;
                 const proof = (withdrawal as any).proofOfTransfer;
                 return (
-                  <tr key={withdrawal._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
+                  <tr key={withdrawal.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
                     <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-400">
                       <div>{new Date(withdrawal.requestedAt).toLocaleDateString('es-AR')}</div>
                       <div className="text-xs">{new Date(withdrawal.requestedAt).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })}</div>
@@ -461,7 +461,7 @@ export default function AdminWithdrawalManager() {
                           <div className="text-xs text-gray-500 dark:text-gray-400">{user.email}</div>
                         </>
                       ) : <span className="text-gray-400">—</span>}
-                      <IdBadge id={(withdrawal as any).id || (withdrawal as any)._id} />
+                      <IdBadge id={(withdrawal as any).id || (withdrawal as any).id} />
                     </td>
                     <td className="px-4 py-3">
                       <div className="text-gray-900 dark:text-white">{withdrawal.bankingInfo?.accountHolder || '—'}</div>
@@ -492,12 +492,12 @@ export default function AdminWithdrawalManager() {
                           <Eye className="w-5 h-5" />
                         </button>
                         {withdrawal.status === 'pending' && (
-                          <button onClick={() => handleApprove(withdrawal._id)} disabled={processing === withdrawal._id} className="text-green-600 hover:text-green-800 disabled:opacity-50" title={t('common.approve', 'Approve')}>
+                          <button onClick={() => handleApprove(withdrawal.id)} disabled={processing === withdrawal.id} className="text-green-600 hover:text-green-800 disabled:opacity-50" title={t('common.approve', 'Approve')}>
                             <CheckCircle className="w-5 h-5" />
                           </button>
                         )}
                         {withdrawal.status === 'approved' && (
-                          <button onClick={() => handleProcessing(withdrawal._id)} disabled={processing === withdrawal._id} className="text-blue-600 hover:text-blue-800 disabled:opacity-50" title={t('common.process', 'Process')}>
+                          <button onClick={() => handleProcessing(withdrawal.id)} disabled={processing === withdrawal.id} className="text-blue-600 hover:text-blue-800 disabled:opacity-50" title={t('common.process', 'Process')}>
                             <Loader2 className="w-5 h-5" />
                           </button>
                         )}
@@ -571,8 +571,8 @@ export default function AdminWithdrawalManager() {
                   />
                   <Button
                     variant="primary"
-                    onClick={() => handleComplete(selectedWithdrawal._id)}
-                    disabled={processing === selectedWithdrawal._id}
+                    onClick={() => handleComplete(selectedWithdrawal.id)}
+                    disabled={processing === selectedWithdrawal.id}
                     className="mt-2 w-full"
                   >
                     <CheckCircle className="w-4 h-4 mr-2" />
@@ -595,8 +595,8 @@ export default function AdminWithdrawalManager() {
                   />
                   <Button
                     variant="secondary"
-                    onClick={() => handleReject(selectedWithdrawal._id)}
-                    disabled={processing === selectedWithdrawal._id}
+                    onClick={() => handleReject(selectedWithdrawal.id)}
+                    disabled={processing === selectedWithdrawal.id}
                     className="mt-2 w-full text-red-600 hover:text-red-700"
                   >
                     <XCircle className="w-4 h-4 mr-2" />

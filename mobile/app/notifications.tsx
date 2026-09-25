@@ -90,7 +90,7 @@ export default function NotificationsScreen() {
     try {
       await put<any>(`/notifications/${id}/read`, {});
       setNotifications(prev =>
-        prev.map(n => (n._id === id || (n as any).id === id) ? { ...n, read: true } : n)
+        prev.map(n => (n.id === id || (n as any).id === id) ? { ...n, read: true } : n)
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (error) {
@@ -111,7 +111,7 @@ export default function NotificationsScreen() {
   const deleteNotification = async (id: string) => {
     try {
       await del<any>(`/notifications/${id}`);
-      setNotifications(prev => prev.filter(n => (n._id !== id && (n as any).id !== id)));
+      setNotifications(prev => prev.filter(n => (n.id !== id && (n as any).id !== id)));
     } catch (error) {
       console.error('Error deleting notification:', error);
     }
@@ -157,7 +157,7 @@ export default function NotificationsScreen() {
   };
 
   const handleNotificationPress = (notif: Notification) => {
-    const id = (notif as any).id || notif._id;
+    const id = (notif as any).id || notif.id;
     if (!notif.read) {
       markAsRead(id);
     }
@@ -173,7 +173,7 @@ export default function NotificationsScreen() {
   };
 
   const renderNotification = ({ item }: { item: Notification }) => {
-    const id = (item as any).id || item._id;
+    const id = (item as any).id || item.id;
     return (
       <TouchableOpacity
         style={[
@@ -256,7 +256,7 @@ export default function NotificationsScreen() {
         <FlatList
           data={notifications}
           renderItem={renderNotification}
-          keyExtractor={(item) => (item as any).id || item._id}
+          keyExtractor={(item) => (item as any).id || item.id}
           contentContainerStyle={styles.listContent}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary[600]} />}
           onEndReached={loadMore}

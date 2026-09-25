@@ -18,7 +18,6 @@ interface GalleryItem {
 }
 
 interface Author {
-  _id: string;
   id?: string;
   name: string;
   avatar?: string;
@@ -29,7 +28,6 @@ interface Author {
 }
 
 interface Post {
-  _id: string;
   id?: string;
   title: string;
   description: string;
@@ -71,7 +69,7 @@ export default function PostDetail() {
 
   useEffect(() => {
     if (post && user) {
-      setIsLiked(post.likes?.includes(user.id || user._id || ''));
+      setIsLiked(post.likes?.includes(user.id || ''));
       setLikesCount(post.likesCount || 0);
     }
   }, [post, user]);
@@ -100,7 +98,7 @@ export default function PostDetail() {
     if (!user || !post) return;
 
     try {
-      const response = await fetch(`/api/posts/${post._id || post.id}/like`, {
+      const response = await fetch(`/api/posts/${post.id || post.id}/like`, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -171,7 +169,7 @@ export default function PostDetail() {
     );
   }
 
-  const authorId = post.author?._id || post.author?.id;
+  const authorId = post.author?.id || post.author?.id;
 
   return (
     <>
@@ -352,7 +350,7 @@ export default function PostDetail() {
               {/* Comments Section */}
               {showComments && (
                 <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700">
-                  <PostComments postId={post._id || post.id || ''} />
+                  <PostComments postId={post.id || post.id || ''} />
                 </div>
               )}
             </div>

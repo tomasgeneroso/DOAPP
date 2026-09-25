@@ -79,7 +79,7 @@ export default function MyJobsScreen() {
         const proposals = (workerJobsRes as any).proposals || [];
         const jobs = proposals
           .filter((p: any) => p.job)
-          .map((p: any) => ({ ...p.job, _id: p.job.id || p.job._id, proposalStatus: p.status, proposedPrice: p.proposedPrice }));
+          .map((p: any) => ({ ...p.job, proposalStatus: p.status, proposedPrice: p.proposedPrice }));
         setAppliedJobs(jobs);
       }
     } catch (error) {
@@ -346,7 +346,7 @@ export default function MyJobsScreen() {
   const renderJob = ({ item }: { item: Job }) => (
     <TouchableOpacity
       style={[styles.jobCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
-      onPress={() => router.push(`/job/${item.id || item._id}`)}
+      onPress={() => router.push(`/job/${item.id}`)}
     >
       <View style={styles.jobHeader}>
         <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
@@ -567,9 +567,9 @@ export default function MyJobsScreen() {
                   const start = new Date(job.startDate);
                   return (
                     <TouchableOpacity
-                      key={job.id || job._id}
+                      key={job.id}
                       style={[styles.upcomingJobCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
-                      onPress={() => router.push(`/job/${job.id || job._id}`)}
+                      onPress={() => router.push(`/job/${job.id}`)}
                     >
                       <View style={[styles.upcomingJobDate, { backgroundColor: themeColors.primary[50] }]}>
                         <Text style={[styles.upcomingJobDay, { color: themeColors.primary[600] }]}>{start.getDate()}</Text>
@@ -639,9 +639,9 @@ export default function MyJobsScreen() {
                       <View style={[styles.timetableTrack, { borderLeftColor: isAvail ? colors.success[400] : themeColors.border }]}>
                         {jobsHere.map(job => (
                           <TouchableOpacity
-                            key={job.id || job._id}
+                            key={job.id}
                             style={[styles.timetableJobChip, { backgroundColor: themeColors.primary[50], borderColor: themeColors.primary[600] }]}
-                            onPress={() => router.push(`/job/${job.id || job._id}`)}
+                            onPress={() => router.push(`/job/${job.id}`)}
                           >
                             <View style={{ flex: 1 }}>
                               <Text style={[styles.timetableJobTitle, { color: themeColors.primary[600] }]} numberOfLines={1}>
@@ -670,7 +670,7 @@ export default function MyJobsScreen() {
       <FlatList
         data={currentJobs}
         renderItem={renderJob}
-        keyExtractor={(item) => item.id || item._id}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         refreshControl={

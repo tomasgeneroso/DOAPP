@@ -252,7 +252,7 @@ export default function TicketDetail() {
               ticket.messages
                 .filter(msg => !msg.isInternal) // Users don't see internal messages
                 .map((msg, index) => {
-                  const isOwnMessage = msg.author === user?._id;
+                  const isOwnMessage = msg.author === user?.id;
                   return (
                     <div key={msg.id || index} className="p-4">
                       <div className="flex items-start gap-3">

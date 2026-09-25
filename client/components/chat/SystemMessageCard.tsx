@@ -26,11 +26,9 @@ import {
 interface SystemMessageCardProps {
   message: {
     id?: string;
-    _id?: string;
     message: string;
     sender?: {
       id?: string;
-      _id?: string;
       name?: string;
       avatar?: string;
     } | null;
@@ -168,7 +166,7 @@ export const SystemMessageCard: React.FC<SystemMessageCardProps> = ({
   const [dialogLoading, setDialogLoading] = useState(false);
   const proposalStatus = localStatus ?? message.metadata?.proposalStatus;
 
-  const isCurrentUser = (message.sender?.id || message.sender?._id) === currentUserId;
+  const isCurrentUser = (message.sender?.id) === currentUserId;
   const isPending = proposalStatus === 'pending';
   const isApproved = proposalStatus === 'approved';
   const isRejected = proposalStatus === 'rejected';

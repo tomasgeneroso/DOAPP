@@ -418,7 +418,7 @@ export default function PendingPayments() {
         const data = await res.json();
         const conv = data.conversation || data.data;
         if (data.success && conv) {
-          const cid = conv.id || conv._id;
+          const cid = conv.id;
           setProofChatConvId(cid);
           loadChatAttachments(cid);
         }
@@ -736,7 +736,7 @@ export default function PendingPayments() {
       });
       const data = await res.json();
       const conv = data.conversation || data.data;
-      const convId = conv?.id || conv?._id;
+      const convId = conv?.id;
       if (!convId) return;
       await fetch(`/api/chat/conversations/${convId}/messages`, {
         method: 'POST',

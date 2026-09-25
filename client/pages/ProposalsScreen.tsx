@@ -8,19 +8,19 @@ import { SkeletonProposalCard } from "../components/ui/Skeleton";
 import { FileText, Calendar, DollarSign, Clock, CheckCircle, XCircle } from "lucide-react";
 
 interface Proposal {
-  _id: string;
+  id: string;
   job: {
-    _id: string;
+    id: string;
     title: string;
     price: number;
   };
   freelancer: {
-    _id: string;
+    id: string;
     name: string;
     avatar: string;
   };
   client: {
-    _id: string;
+    id: string;
     name: string;
     avatar: string;
   };
@@ -114,8 +114,8 @@ export default function ProposalsScreen() {
   };
 
   // Filtrar propuestas según si son enviadas o recibidas
-  const sentProposals = proposals.filter((p) => p.freelancer._id === user?._id);
-  const receivedProposals = proposals.filter((p) => p.client._id === user?._id);
+  const sentProposals = proposals.filter((p) => p.freelancer.id === user?.id);
+  const receivedProposals = proposals.filter((p) => p.client.id === user?.id);
 
   const displayProposals = type === "sent" ? sentProposals : receivedProposals;
 
@@ -263,8 +263,8 @@ export default function ProposalsScreen() {
 
                     return (
                       <Link
-                        key={proposal._id}
-                        to={`/proposals/${proposal._id}`}
+                        key={proposal.id}
+                        to={`/proposals/${proposal.id}`}
                         className="block bg-white dark:bg-slate-800 rounded-xl border-2 border-sky-200 dark:border-sky-800 p-6 hover:shadow-lg transition-shadow"
                       >
                         <div className="flex items-start justify-between mb-4">
@@ -346,8 +346,8 @@ export default function ProposalsScreen() {
 
                     return (
                       <Link
-                        key={proposal._id}
-                        to={`/proposals/${proposal._id}`}
+                        key={proposal.id}
+                        to={`/proposals/${proposal.id}`}
                         className="block bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6 hover:shadow-lg transition-shadow"
                       >
                         <div className="flex items-start justify-between mb-4">

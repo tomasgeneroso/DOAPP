@@ -365,8 +365,8 @@ export default function JobDetail() {
       const clientId =
         typeof job.client === "string"
           ? job.client
-          : job.client?.id || job.client?._id;
-      const userId = user?.id || user?._id;
+          : job.client?.id;
+      const userId = user?.id;
 
       if (clientId !== userId) return;
       // Cargar propuestas si el trabajo está abierto o in_progress (para ver historial de postulaciones)
@@ -375,7 +375,7 @@ export default function JobDetail() {
       setLoadingProposals(true);
       try {
         const response = await fetch(
-          `/api/proposals/job/${job.id || job._id}`,
+          `/api/proposals/job/${job.id}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -435,14 +435,14 @@ export default function JobDetail() {
       const clientId =
         typeof job.client === "string"
           ? job.client
-          : job.client?.id || job.client?._id;
-      const userId = user?.id || user?._id;
+          : job.client?.id;
+      const userId = user?.id;
       if (clientId === userId) return;
 
       setCheckingApplication(true);
       try {
         const response = await fetch(
-          `/api/proposals/check/${job.id || job._id}`,
+          `/api/proposals/check/${job.id}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -483,7 +483,7 @@ export default function JobDetail() {
 
     try {
       const response = await fetch(
-        `/api/contracts/all-by-job/${job.id || job._id}`,
+        `/api/contracts/all-by-job/${job.id}`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -513,9 +513,9 @@ export default function JobDetail() {
         job.doerId || (typeof job.doer === "object" ? job.doer?.id : job.doer);
       const jobClientId =
         typeof job.client === "object"
-          ? job.client?.id || job.client?._id
+          ? job.client?.id
           : job.client;
-      const userId = user?.id || user?._id;
+      const userId = user?.id;
 
       // Additional check: Jobs in certain statuses don't have contracts yet
       const jobStatusWithoutContract = [
@@ -547,7 +547,7 @@ export default function JobDetail() {
       try {
         // Fetch contract by job ID
         const response = await fetch(
-          `/api/contracts/by-job/${job.id || job._id}`,
+          `/api/contracts/by-job/${job.id}`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -557,7 +557,7 @@ export default function JobDetail() {
         const data = await response.json();
         if (data.success && data.contract) {
           setContractData({
-            id: data.contract.id || data.contract._id,
+            id: data.contract.id,
             pairingCode: data.contract.pairingCode,
             pairingExpiry: data.contract.pairingExpiry,
             doerId: data.contract.doerId,
@@ -680,7 +680,7 @@ export default function JobDetail() {
       );
       const data = await response.json();
       if (data.success && data.conversation) {
-        navigate(`/chat/${data.conversation._id || data.conversation.id}`);
+        navigate(`/chat/${data.conversation.id || data.conversation.id}`);
       } else {
         setErrorMessage(t("chat.couldNotOpen", "Could not open chat"));
         setShowErrorModal(true);
@@ -751,7 +751,7 @@ export default function JobDetail() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          jobId: job.id || job._id,
+          jobId: job.id,
         }),
       });
 
@@ -806,7 +806,7 @@ export default function JobDetail() {
         },
         body: JSON.stringify({
           participantId: freelancerId,
-          jobId: job.id || job._id,
+          jobId: job.id,
           proposalId: proposal.id,
         }),
       });
@@ -815,7 +815,7 @@ export default function JobDetail() {
 
       if (data.success) {
         // Navigate to chat with job context
-        navigate(`/chat/${data.conversation.id}?jobId=${job.id || job._id}`);
+        navigate(`/chat/${data.conversation.id}?jobId=${job.id}`);
       } else {
         setError(
           data.message ||
@@ -998,7 +998,7 @@ export default function JobDetail() {
   const handleEditJob = () => {
     if (!job) return;
     // Navigate to edit page
-    navigate(`/jobs/${job.id || job._id}/edit`);
+    navigate(`/jobs/${job.id}/edit`);
   };
 
   const handleDeleteJob = async () => {
@@ -1008,7 +1008,7 @@ export default function JobDetail() {
     setError(null);
 
     try {
-      const response = await fetch(`/api/jobs/${job.id || job._id}`, {
+      const response = await fetch(`/api/jobs/${job.id}`, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
@@ -1062,7 +1062,7 @@ export default function JobDetail() {
     setError(null);
 
     try {
-      const response = await fetch(`/api/jobs/${job.id || job._id}/budget`, {
+      const response = await fetch(`/api/jobs/${job.id}/budget`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -1297,10 +1297,10 @@ export default function JobDetail() {
     );
   }
 
-  // Support both PostgreSQL (id) and MongoDB (_id)
+  
   const clientInfo = getClientInfo(job.client);
   const clientId = clientInfo?.id;
-  const userId = user?.id || user?._id;
+  const userId = user?.id;
   const isOwnJob = user && clientId === userId;
   const isDraft = job.status === "draft" || job.status === "pending_payment";
 
@@ -1348,7 +1348,7 @@ export default function JobDetail() {
                       title={t("jobs.copyJobCode", "Copy job code")}
                     >
                       <Key className="h-4 w-4" />#
-                      {getJobCode(job.id || job._id)}
+                      {getJobCode(job.id)}
                       {copiedJobCode ? (
                         <Check className="h-4 w-4 text-green-500" />
                       ) : (
@@ -1625,7 +1625,7 @@ export default function JobDetail() {
                             </p>
                             {job.doer ? (
                               <Link
-                                to={`/profile/${typeof job.doer === "string" ? job.doer : job.doer.id || job.doer._id}`}
+                                to={`/profile/${typeof job.doer === "string" ? job.doer : job.doer.id}`}
                                 className="font-medium text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300 hover:underline"
                               >
                                 {typeof job.doer === "string"
@@ -2387,7 +2387,7 @@ export default function JobDetail() {
               job.status !== "cancelled" &&
               job.status !== "draft" && (
                 <JobTasks
-                  jobId={job.id || job._id}
+                  jobId={job.id}
                   isOwner={!!isOwnJob}
                   isWorker={!!isWorkerOnJob}
                   jobStatus={job.status}
@@ -2446,7 +2446,7 @@ export default function JobDetail() {
                 {/* Dropdown Menu */}
                 <ClientDropdownMenu
                   open={showClientMenu}
-                  clientId={clientInfo?.id || clientInfo?._id}
+                  clientId={clientInfo?.id}
                   onClose={() => setShowClientMenu(false)}
                 />
               </div>
@@ -2513,7 +2513,7 @@ export default function JobDetail() {
                   typeof job.doer === "object" &&
                   !job.selectedWorkersData?.length && (
                     <Link
-                      to={`/profile/${job.doer.id || job.doer._id}`}
+                      to={`/profile/${job.doer.id}`}
                       className="flex items-center gap-3 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-xl p-2 -m-2 transition-colors"
                     >
                       <div className="h-12 w-12 overflow-hidden rounded-full bg-sky-100">
@@ -2686,8 +2686,8 @@ export default function JobDetail() {
                       {(user?.role === 'doer' || user?.role === 'both') && (
                         <button
                           onClick={() => {
-                            const clientId = typeof job.client === 'object' ? (job.client?._id || job.client?.id) : job.postedBy;
-                            navigate(`/quotes/new?recipientId=${clientId}&jobId=${job._id || job.id}`);
+                            const clientId = typeof job.client === 'object' ? (job.client?.id || job.client?.id) : job.postedBy;
+                            navigate(`/quotes/new?recipientId=${clientId}&jobId=${job.id || job.id}`);
                           }}
                           className="w-full flex items-center justify-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-700 px-6 py-3 text-base font-semibold text-white transition-all"
                         >
@@ -3468,7 +3468,7 @@ export default function JobDetail() {
                     <button
                       onClick={() =>
                         navigate(
-                          `/portfolio/create?fromJob=${job.id || job._id}`,
+                          `/portfolio/create?fromJob=${job.id}`,
                         )
                       }
                       className="mt-4 inline-flex items-center gap-2 rounded-xl border border-sky-200 dark:border-sky-800/60 bg-sky-50 dark:bg-sky-900/20 px-4 py-2.5 text-sm font-semibold text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/40 hover:border-sky-300 dark:hover:border-sky-700 transition-all duration-200 active:scale-95 shadow-sm"
@@ -3483,7 +3483,7 @@ export default function JobDetail() {
             {isOwnJob && isDraft && (
               <div className="space-y-3">
                 <button
-                  onClick={() => navigate(`/jobs/${job.id || job._id}/payment`)}
+                  onClick={() => navigate(`/jobs/${job.id}/payment`)}
                   className="w-full gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 px-6 py-3 text-lg font-semibold text-white shadow-lg shadow-orange-500/30 transition-all hover:from-orange-600 hover:to-orange-700"
                 >
                   {t("jobs.payAndPublish", "Pay and Publish")}
@@ -3634,7 +3634,7 @@ export default function JobDetail() {
                                   {/* Job Code Badge */}
                                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-sky-100 dark:bg-sky-900/40 text-xs font-mono font-bold text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-700">
                                     <Key className="h-3 w-3" />#
-                                    {getJobCode(job.id || job._id)}
+                                    {getJobCode(job.id)}
                                   </span>
                                   {/* Marca de cancelaciones (T&C 9.4): justo donde el cliente elige */}
                                   <CancellationMark until={(proposal.freelancer as any)?.cancellationMarkUntil} compact />
@@ -3817,7 +3817,7 @@ export default function JobDetail() {
                       onCancel={() => setShowCancelModal(true)}
                       onContactSupport={() =>
                         navigate(
-                          `/tickets/new?type=job&jobId=${job.id || job._id}&jobTitle=${encodeURIComponent(job.title)}`,
+                          `/tickets/new?type=job&jobId=${job.id}&jobTitle=${encodeURIComponent(job.title)}`,
                         )
                       }
                       onClose={() => setShowActionsMenu(false)}
@@ -4759,7 +4759,7 @@ export default function JobDetail() {
           breakdown={paymentBreakdown}
           onGoToPayment={() => {
             if (job && paymentBreakdown) {
-              window.location.href = `/jobs/${job.id || (job as any)._id}/payment?amount=${paymentBreakdown.amountRequired}&reason=budget_increase&oldPrice=${paymentBreakdown.oldPrice}&newPrice=${paymentBreakdown.newPrice}`;
+              window.location.href = `/jobs/${job.id || (job as any).id}/payment?amount=${paymentBreakdown.amountRequired}&reason=budget_increase&oldPrice=${paymentBreakdown.oldPrice}&newPrice=${paymentBreakdown.newPrice}`;
             }
           }}
           onClose={() => {

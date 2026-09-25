@@ -531,7 +531,7 @@ export default function WithdrawalRequestPage() {
                 </div>
               ) : (
                 withdrawals.map((withdrawal) => (
-                  <div key={withdrawal.id || withdrawal._id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                  <div key={withdrawal.id} className="p-6 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-3">
@@ -573,7 +573,7 @@ export default function WithdrawalRequestPage() {
                         <div>
                           <Button
                             variant="secondary"
-                            onClick={() => handleCancel(withdrawal.id || withdrawal._id)}
+                            onClick={() => handleCancel(withdrawal.id)}
                             className="text-red-600 hover:text-red-700"
                           >
                             <XCircle className="w-4 h-4 mr-2" />

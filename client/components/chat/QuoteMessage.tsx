@@ -26,8 +26,7 @@ const STATUS_COLORS: Record<string, string> = {
 interface Props {
   message: {
     id?: string;
-    _id?: string;
-    sender?: { id?: string; _id?: string; name?: string } | null;
+    sender?: { id?: string; name?: string } | null;
     metadata?: {
       quoteId?: string;
       quoteNumber?: string;
@@ -61,7 +60,7 @@ export default function QuoteMessage({ message, onRefresh, token }: Props) {
 
   const quoteId = meta.quoteId;
   const hasJobId = !!meta.jobId;
-  const isRecipient = (message.sender?.id || message.sender?._id) !== user?.id;
+  const isRecipient = (message.sender?.id) !== user?.id;
 
   const handleAccept = async () => {
     if (!quoteId || acting) return;

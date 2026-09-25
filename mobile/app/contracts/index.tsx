@@ -60,12 +60,12 @@ export default function ContractsScreen() {
   const filteredContracts = contracts.filter((contract) => {
     const client = contract.client as UserType;
     const doer = contract.doer as UserType;
-    const userId = user?._id || user?.id;
+    const userId = user?.id || user?.id;
 
     if (activeTab === 'as_client') {
-      return client?._id === userId || client?.id === userId;
+      return client?.id === userId || client?.id === userId;
     } else {
-      return doer?._id === userId || doer?.id === userId;
+      return doer?.id === userId || doer?.id === userId;
     }
   });
 
@@ -125,7 +125,7 @@ export default function ContractsScreen() {
     return (
       <TouchableOpacity
         style={[styles.contractCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}
-        onPress={() => router.push(`/contracts/${item.id || item._id}`)}
+        onPress={() => router.push(`/contracts/${item.id}`)}
       >
         <View style={styles.contractHeader}>
           <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) + '20' }]}>
@@ -243,7 +243,7 @@ export default function ContractsScreen() {
       <FlatList
         data={filteredContracts}
         renderItem={renderContract}
-        keyExtractor={(item) => item.id || item._id}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         refreshControl={

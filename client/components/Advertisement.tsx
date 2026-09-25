@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 
 interface AdvertisementProps {
   ad: {
-    _id: string;
+    id: string;
     title: string;
     description: string;
     imageUrl: string;
@@ -20,13 +20,13 @@ const Advertisement: React.FC<AdvertisementProps> = ({ ad, onImpression, onClick
   const { t } = useTranslation();
   useEffect(() => {
     if (onImpression) {
-      onImpression(ad._id);
+      onImpression(ad.id);
     }
-  }, [ad._id, onImpression]);
+  }, [ad.id, onImpression]);
 
   const handleClick = () => {
     if (onClick) {
-      onClick(ad._id);
+      onClick(ad.id);
     }
     // Open target URL in new tab
     window.open(ad.targetUrl, '_blank', 'noopener,noreferrer');

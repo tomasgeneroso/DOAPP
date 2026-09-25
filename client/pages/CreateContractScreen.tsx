@@ -255,7 +255,7 @@ export default function CreateContractScreen() {
       await refreshUser();
 
       if (data.requiresPayment) {
-        navigate(`/jobs/${data.job.id || data.job._id}/payment`);
+        navigate(`/jobs/${data.job.id}/payment`);
       } else {
         navigate("/");
       }

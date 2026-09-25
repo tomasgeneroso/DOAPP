@@ -32,7 +32,7 @@ export default function ContractExtensionRequest({
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`/api/contracts/${contract._id}/request-extension`, {
+      const response = await fetch(`/api/contracts/${contract.id}/request-extension`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -70,11 +70,11 @@ export default function ContractExtensionRequest({
   }
 
   const isClient = typeof contract.client === 'object'
-    ? contract.client._id === user?._id
-    : contract.client === user?._id;
+    ? contract.client.id === user?.id
+    : contract.client === user?.id;
   const isDoer = typeof contract.doer === 'object'
-    ? contract.doer._id === user?._id
-    : contract.doer === user?._id;
+    ? contract.doer.id === user?.id
+    : contract.doer === user?.id;
 
   if (!isClient && !isDoer) {
     return null;

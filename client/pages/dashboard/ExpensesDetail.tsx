@@ -15,13 +15,11 @@ import {
 } from "lucide-react";
 
 interface ExpenseRecord {
-  _id: string;
+  id: string;
   job: {
-    _id: string;
     title: string;
   };
   doer: {
-    _id: string;
     name: string;
     avatar?: string;
   };
@@ -60,7 +58,7 @@ export default function ExpensesDetail() {
       if (data.success) {
         // Filtrar contratos completados donde el usuario es el cliente (paga)
         const completedExpenses = data.contracts.filter(
-          (c: any) => c.client?._id === user?.id && c.status === "completed"
+          (c: any) => c.client?.id === user?.id && c.status === "completed"
         );
 
         setExpenses(completedExpenses);
@@ -179,7 +177,7 @@ export default function ExpensesDetail() {
             <div className="space-y-4">
               {expenses.map((expense) => (
                 <div
-                  key={expense._id}
+                  key={expense.id}
                   className="rounded-xl bg-white dark:bg-slate-800 p-6 border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow"
                 >
                   <div className="flex items-start justify-between mb-4">
@@ -189,7 +187,7 @@ export default function ExpensesDetail() {
                           {expense.job.title}
                         </h3>
                         <Link
-                          to={`/contracts/${expense._id}`}
+                          to={`/contracts/${expense.id}`}
                           className="text-sky-600 hover:text-sky-700 dark:text-sky-400"
                         >
                           <ExternalLink className="h-4 w-4" />
@@ -266,7 +264,7 @@ export default function ExpensesDetail() {
 
                   <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
                     <Link
-                      to={`/contracts/${expense._id}`}
+                      to={`/contracts/${expense.id}`}
                       className="inline-flex items-center gap-2 text-sm font-medium text-sky-600 hover:text-sky-700 dark:text-sky-400"
                     >
                       Ver detalles del contrato

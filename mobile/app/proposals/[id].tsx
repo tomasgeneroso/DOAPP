@@ -69,7 +69,7 @@ export default function ProposalDetailScreen() {
   const irAPagar = async () => {
     setActionLoading(true);
     try {
-      const pago = await post<any>(`/payments/quote/${proposal._id || id}`, {});
+      const pago = await post<any>(`/payments/quote/${proposal.id || id}`, {});
       if (pago.success && (pago as any).paymentUrl) {
         await Linking.openURL((pago as any).paymentUrl);
       } else {
@@ -88,7 +88,7 @@ export default function ProposalDetailScreen() {
       { text: 'Aceptar', style: 'default', onPress: async () => {
         setActionLoading(true);
         try {
-          const res = await put<any>(`/proposals/${proposal._id || id}/approve`, {});
+          const res = await put<any>(`/proposals/${proposal.id || id}/approve`, {});
 
           // 402: falta pagar. No es un error que el usuario pueda corregir,
           // así que se le muestra el desglose y se lo manda a pagar en vez de
@@ -134,7 +134,7 @@ export default function ProposalDetailScreen() {
       { text: 'Rechazar', style: 'destructive', onPress: async (reason) => {
         setActionLoading(true);
         try {
-          const res = await put<any>(`/proposals/${proposal._id || id}/reject`, { reason: reason || '' });
+          const res = await put<any>(`/proposals/${proposal.id || id}/reject`, { reason: reason || '' });
           if (res.success) {
             Alert.alert('Rechazada', 'La propuesta fue rechazada.', [
               { text: 'OK', onPress: () => router.back() },
@@ -157,7 +157,7 @@ export default function ProposalDetailScreen() {
       { text: 'Retirar', style: 'destructive', onPress: async () => {
         setActionLoading(true);
         try {
-          const res = await put<any>(`/proposals/${proposal._id || id}/withdraw`, {});
+          const res = await put<any>(`/proposals/${proposal.id || id}/withdraw`, {});
           if (res.success) {
             router.back();
           } else {
@@ -256,7 +256,7 @@ export default function ProposalDetailScreen() {
               <Text style={[styles.infoText, { color: themeColors.text.secondary }]}>Presupuesto: ${Number(job.price).toLocaleString('es-AR')} ARS</Text>
             </View>
           )}
-          <TouchableOpacity style={styles.linkBtn} onPress={() => router.push(`/job/${job.id || job._id}`)}>
+          <TouchableOpacity style={styles.linkBtn} onPress={() => router.push(`/job/${job.id}`)}>
             <Text style={[styles.linkBtnText, { color: colors.primary[600] }]}>Ver trabajo →</Text>
           </TouchableOpacity>
         </View>
@@ -276,7 +276,7 @@ export default function ProposalDetailScreen() {
                 <Text style={[styles.userRating, { color: themeColors.text.secondary }]}>⭐ {Number(freelancer.rating).toFixed(1)}</Text>
               )}
             </View>
-            <TouchableOpacity onPress={() => router.push(`/user/${freelancer.id || freelancer._id}`)}>
+            <TouchableOpacity onPress={() => router.push(`/user/${freelancer.id}`)}>
               <Text style={[styles.linkBtnText, { color: colors.primary[600] }]}>Ver perfil</Text>
             </TouchableOpacity>
           </View>
@@ -347,7 +347,7 @@ export default function ProposalDetailScreen() {
         {isClient && proposal.status === 'approved' && (
           <TouchableOpacity
             style={[styles.actionBtn, { backgroundColor: colors.primary[600], marginTop: 16 }]}
-            onPress={() => router.push(`/contracts/create?proposalId=${proposal._id || id}`)}
+            onPress={() => router.push(`/contracts/create?proposalId=${proposal.id || id}`)}
           >
             <Text style={styles.actionBtnText}>Crear contrato</Text>
           </TouchableOpacity>
