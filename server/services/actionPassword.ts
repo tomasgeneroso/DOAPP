@@ -17,6 +17,14 @@ import { ActionPassword } from '../models/sql/ActionPassword.model.js';
 export const ACTIONS = {
   /** Switching the platform between beta (no commission) and live. */
   PLATFORM_PHASE: 'platform:phase',
+  /**
+   * Promover el commit que corre staging a producción.
+   *
+   * Separada de la de fase a propósito: son dos poderes distintos y no tienen
+   * por qué viajar juntos. Quien puede publicar una versión no debería poder,
+   * con la misma contraseña, encender la comisión para todo el mundo.
+   */
+  PROMOTE_TO_PROD: 'deploy:promote',
 } as const;
 
 export type ActionKey = (typeof ACTIONS)[keyof typeof ACTIONS];

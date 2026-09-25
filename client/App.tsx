@@ -6,6 +6,7 @@ import { GoogleAnalytics } from "./components/GoogleAnalytics";
 import { OnboardingProvider } from "./hooks/useOnboarding";
 import OnboardingTooltip from "./components/onboarding/OnboardingTooltip";
 import FirstContractGuide from "./components/FirstContractGuide";
+import StagingBar from "./components/StagingBar";
 import { useEffect, lazy, Suspense } from "react";
 import { setupFetchInterceptor } from "./utils/fetchWithAuth";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -145,6 +146,12 @@ export default function App() {
               <OnboardingProvider>
                 <OnboardingTooltip />
                 <FirstContractGuide />
+                {/*
+                  Fuera del <Routes>: la franja de staging tiene que verse en
+                  todas las pantallas, incluidas las que no son rutas del
+                  Layout. En producción no dibuja nada.
+                */}
+                <StagingBar />
                 <Suspense fallback={
                   <div className="min-h-screen flex items-center justify-center">
                     <div className="h-10 w-10 animate-spin rounded-full border-4 border-sky-500 border-t-transparent" />

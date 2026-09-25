@@ -64,6 +64,8 @@ import adminBannedIdentitiesRoutes from "./routes/admin/bannedIdentities.js";
 import adminUserDataRoutes from "./routes/admin/userData.js";
 import adminPadronesRoutes from "./routes/admin/padrones.js";
 import adminPlatformRoutes from "./routes/admin/platform.js";
+import adminStagingRoutes from "./routes/admin/staging.js";
+import { esStaging } from "./services/deployInfo.js";
 import adminContentAgentRoutes from "./routes/admin/contentAgent.js";
 import adminArcaRoutes from "./routes/admin/arca.js";
 import adminFlaggedMessagesRoutes from "./routes/admin/flaggedMessages.js";
@@ -251,6 +253,26 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
+/**
+ * Qué instancia es ésta. Público a propósito, y acotado a propósito.
+ *
+ * La barra de staging tiene que aparecer para cualquiera que entre a
+ * staging.doapparg.com —un tester que no sabe en qué copia está probando
+ * reporta bugs contra el servidor equivocado— así que esto no puede pedir
+ * sesión. En producción devuelve el entorno y nada más: el commit exacto que
+ * está expuesto no es información que necesite un visitante.
+ */
+app.get("/api/deploy/info", async (_req, res) => {
+  try {
+    const { infoDeDespliegue } = await import("./services/deployInfo.js");
+    res.json({ success: true, data: await infoDeDespliegue() });
+  } catch {
+    // Que esto falle no puede romper una pantalla: sin respuesta, la barra
+    // simplemente no se dibuja.
+    res.json({ success: true, data: { entorno: "produccion" } });
+  }
+});
+
 // WAF - Web Application Firewall (aplicar temprano para bloquear ataques)
 app.use(wafMiddleware);
 
@@ -386,6 +408,19 @@ app.use("/api/admin/banned-identities", adminBannedIdentitiesRoutes);
 app.use("/api/admin/user-data", adminUserDataRoutes);
 app.use("/api/admin/padrones", adminPadronesRoutes);
 app.use("/api/admin/platform", adminPlatformRoutes);
+
+/**
+ * El botón de promover existe sólo en staging.
+ *
+ * Podría montarse siempre y rechazar adentro —el router lo hace igual, por si
+ * acaso—, pero una ruta que ejecuta un deploy en el servidor es la clase de
+ * superficie que conviene que directamente no exista donde no se usa. En
+ * producción esto es un 404, no un 403.
+ */
+if (esStaging()) {
+  app.use("/api/admin/staging", adminStagingRoutes);
+  console.log("🧪 Instancia de STAGING: /api/admin/staging habilitado");
+}
 app.use("/api/admin/content-agent", adminContentAgentRoutes);
 app.use("/api/admin/arca", adminArcaRoutes);
 app.use("/api/admin/flagged-messages", adminFlaggedMessagesRoutes);

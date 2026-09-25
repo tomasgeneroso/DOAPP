@@ -304,6 +304,14 @@ export const ACTION_SEVERITIES: Record<string, "low" | "medium" | "high" | "crit
   "platform_phase_password_created": "high",
   "platform_phase_password_reset": "high",
   "platform_phase_password_reset_requested": "medium",
+  // Promover staging a producción. Es el único botón de la app que cambia lo
+  // que ven todos los usuarios, así que el que sale bien pesa tanto como el que
+  // falla: el día que algo se rompa, lo primero que se mira es qué se publicó y
+  // cuándo.
+  "staging_promote_ok": "critical",
+  "staging_promote_start": "high",
+  "staging_promote_fail": "high",
+  "staging_promote_denied": "high",
   // Publishing carries the platform's name; both decisions are on the record.
   "blog_agent_draft_approved": "medium",
   "blog_agent_draft_rejected": "low",
