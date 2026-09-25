@@ -355,9 +355,10 @@ export default function LoginScreen() {
         <ThemeToggle />
       </div>
       {/*
-        Dos columnas en escritorio: el panel oscuro cuenta qué es DOAPP mientras
-        el formulario ocupa la derecha. En teléfono el panel no se muestra —ahí
-        el espacio es del formulario— y la pantalla queda como estaba.
+        Dos columnas en escritorio: el panel de la izquierda cuenta qué es DOAPP
+        mientras el formulario ocupa la derecha. En teléfono el panel no se
+        muestra —ahí el espacio es del formulario— y la pantalla queda como
+        estaba.
       */}
       <div className="grid min-h-screen lg:grid-cols-2">
         <AuthHero />
