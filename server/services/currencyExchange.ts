@@ -13,6 +13,52 @@ export interface QuotedRate {
 }
 
 /**
+ * De dónde salió cada cotización, en castellano y listo para mostrar.
+ *
+ * Por qué se muestra: los precios de la membresía están fijados en euros y se
+ * cobran en pesos al cambio del día, así que el importe en pesos cambia solo
+ * de un mes a otro. Un número que se mueve sin explicación se lee como un
+ * aumento encubierto. Decir de dónde sale y de cuándo es convierte una
+ * sospecha en un dato verificable: el usuario puede ir a la misma fuente.
+ *
+ * También sirve hacia adentro: cuando la cotización cae al valor de respaldo
+ * —porque se cayeron todas las fuentes— el precio se calcula con un número
+ * inventado, y eso tiene que ser visible, no un detalle del log.
+ */
+export const ORIGEN_LEGIBLE: Record<string, { nombre: string; url?: string; confiable: boolean }> = {
+  dolarapi: { nombre: 'Dólar blue (venta) de dolarapi.com', url: 'https://dolarapi.com/v1/dolares/blue', confiable: true },
+  bluelytics: { nombre: 'Dólar blue (venta) de Bluelytics', url: 'https://bluelytics.com.ar/', confiable: true },
+  'api-internacional': { nombre: 'Cotización oficial de exchangerate-api.com', url: 'https://www.exchangerate-api.com/', confiable: true },
+  'eur-directo': { nombre: 'Cotización EUR/ARS de exchangerate-api.com', url: 'https://www.exchangerate-api.com/', confiable: true },
+  'eur-cruzado': { nombre: 'EUR/USD de exchangerate-api.com sobre el dólar blue', confiable: true },
+  binance: { nombre: 'USDT/ARS de Binance', url: 'https://www.binance.com/', confiable: true },
+  cache: { nombre: 'Última cotización obtenida', confiable: true },
+  respaldo: { nombre: 'Valor de respaldo: no se pudo consultar ninguna fuente', confiable: false },
+};
+
+export interface CotizacionMostrable {
+  valor: number;
+  origen: string;
+  nombreDelOrigen: string;
+  url?: string;
+  /** false cuando se usó el valor de respaldo: el precio no refleja el mercado. */
+  confiable: boolean;
+  actualizada: string;
+}
+
+export function describirCotizacion(q: QuotedRate): CotizacionMostrable {
+  const info = ORIGEN_LEGIBLE[q.source] || { nombre: q.source, confiable: true };
+  return {
+    valor: Math.round(q.rate * 100) / 100,
+    origen: q.source,
+    nombreDelOrigen: info.nombre,
+    url: info.url,
+    confiable: info.confiable,
+    actualizada: (q.timestamp instanceof Date ? q.timestamp : new Date(q.timestamp)).toISOString(),
+  };
+}
+
+/**
  * Servicio de conversión de moneda USD/EUR a ARS
  * Utiliza APIs públicas con fallback y caché en memoria
  */
@@ -25,7 +71,6 @@ class CurrencyExchangeService {
   // diferencia la termina pagando el usuario o la plataforma.
   private readonly USDT_CACHE_TTL = 300; // 5 minutos
   private memoryCache: Map<string, { data: any; expiresAt: number }> = new Map();
-  private readonly DOLAR_HOY_URL = 'https://dolarhoy.com/';
   private readonly APIS = [
     'https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json',
     'https://api.exchangerate-api.com/v4/latest/USD'
@@ -55,48 +100,51 @@ class CurrencyExchangeService {
   }
 
   /**
-   * Obtiene el dólar blue (venta) desde dolarhoy.com
+   * Obtiene el dólar blue (venta). Devuelve además de qué fuente salió.
    * @private
    */
-  private async fetchDolarBlueFromDolarHoy(): Promise<number> {
-    try {
-      console.log('📊 Fetching dólar blue from dolarhoy.com...');
-      const response = await fetch(this.DOLAR_HOY_URL);
+  private async fetchDolarBlue(): Promise<{ rate: number; source: string }> {
+    /**
+     * El blue, por API y no raspando HTML.
+     *
+     * Esto leía la portada de dolarhoy.com con una expresión regular contra su
+     * maquetado. Cuando el sitio cambió el HTML —cosa que un sitio hace sin
+     * avisarle a nadie— la expresión dejó de encontrar el número, el método
+     * empezó a fallar SIEMPRE y todo el sistema cayó al dólar oficial de la
+     * API internacional. No se rompió nada visible: los precios simplemente
+     * pasaron a calcularse con otra cotización, varios cientos de pesos más
+     * barata por dólar, y nadie se enteró.
+     *
+     * Dos APIs de verdad, que devuelven JSON y tienen contrato estable. La
+     * segunda existe porque una sola fuente vuelve a dejarnos donde estábamos.
+     */
+    const fuentes: Array<{ id: string; url: string; leer: (d: any) => number }> = [
+      { id: 'dolarapi', url: 'https://dolarapi.com/v1/dolares/blue', leer: (d) => Number(d?.venta) },
+      { id: 'bluelytics', url: 'https://api.bluelytics.com.ar/v2/latest', leer: (d) => Number(d?.blue?.value_sell) },
+    ];
 
-      if (!response.ok) {
-        throw new Error(`DolarHoy returned status ${response.status}`);
-      }
+    for (const f of fuentes) {
+      try {
+        const controlador = new AbortController();
+        const corte = setTimeout(() => controlador.abort(), 8000);
+        const resp = await fetch(f.url, { signal: controlador.signal });
+        clearTimeout(corte);
+        if (!resp.ok) throw new Error(`estado ${resp.status}`);
 
-      const html = await response.text();
-
-      // Buscar el valor de venta del dólar blue
-      // El HTML tiene estructura: <div class="val">$1430</div>
-      // Buscamos específicamente la sección del dólar blue
-      const dolarBlueMatch = html.match(/DOLAR BLUE[\s\S]*?Venta[\s\S]*?\$(\d+)/i);
-
-      if (dolarBlueMatch && dolarBlueMatch[1]) {
-        const rate = parseInt(dolarBlueMatch[1], 10);
-        console.log(`✅ Dólar Blue (Venta) obtenido de dolarhoy.com: $${rate}`);
-        return rate;
-      }
-
-      // Método alternativo: buscar directamente por clases
-      const ventaMatch = html.match(/<div[^>]*class="val"[^>]*>\$(\d+)<\/div>/g);
-      if (ventaMatch && ventaMatch.length >= 2) {
-        // El segundo valor suele ser la venta
-        const secondMatch = ventaMatch[1].match(/\$(\d+)/);
-        if (secondMatch && secondMatch[1]) {
-          const rate = parseInt(secondMatch[1], 10);
-          console.log(`✅ Dólar Blue (Venta) obtenido de dolarhoy.com (método alt): $${rate}`);
-          return rate;
+        const rate = f.leer(await resp.json());
+        // Un rango amplio a propósito: sirve para descartar un 0, un NaN o un
+        // cambio de formato, no para opinar sobre cuánto "debería" valer.
+        if (!Number.isFinite(rate) || rate < 100 || rate > 100_000) {
+          throw new Error(`valor fuera de rango: ${rate}`);
         }
+        console.log(`✅ Dólar blue (venta) de ${f.id}: $${rate}`);
+        return { rate, source: f.id };
+      } catch (e: any) {
+        console.warn(`⚠️ ${f.id} no respondió: ${e?.message}`);
       }
-
-      throw new Error('No se pudo extraer el dólar blue de dolarhoy.com');
-    } catch (error) {
-      console.error('❌ Error fetching from dolarhoy.com:', error);
-      throw error;
     }
+
+    throw new Error('Ninguna fuente del dólar blue respondió');
   }
 
   /**
@@ -112,38 +160,94 @@ class CurrencyExchangeService {
         return cached.rate;
       }
 
-      // Primero intentar obtener dólar blue de dolarhoy.com
+      // Primero el dólar blue, que es el que se usa para cotizar.
       try {
-        const dolarBlueRate = await this.fetchDolarBlueFromDolarHoy();
+        const blue = await this.fetchDolarBlue();
 
-        // Guardar en caché
+        // El origen viaja con la cotización: es lo que se le muestra al
+        // usuario para que pueda ir a verificarla a la misma fuente.
         await this.cacheSet(this.CACHE_KEY, {
-          rate: dolarBlueRate,
-          timestamp: new Date()
+          rate: blue.rate,
+          timestamp: new Date(),
+          source: blue.source,
         }, this.CACHE_TTL);
 
-        return dolarBlueRate;
-      } catch (dolarHoyError) {
-        console.warn('⚠️ DolarHoy failed, falling back to international APIs');
+        return blue.rate;
+      } catch (sinBlue) {
+        // Caer al oficial no es equivalente: son cotizaciones distintas y la
+        // diferencia la paga alguien. Queda como advertencia, no como info.
+        console.warn('⚠️ Sin dólar blue; se usa la cotización oficial internacional');
       }
 
       // Fallback: Obtener tasa de APIs internacionales
       const rate = await this.fetchRateFromAPIs();
 
-      // Guardar en caché
       await this.cacheSet(this.CACHE_KEY, {
         rate,
-        timestamp: new Date()
+        timestamp: new Date(),
+        source: 'api-internacional',
       }, this.CACHE_TTL);
 
       return rate;
     } catch (error) {
       console.error('❌ Error getting USD/ARS rate:', error);
-      // Fallback a una tasa predeterminada en caso de error
+      /**
+       * Se cayeron las dos fuentes del blue Y las APIs internacionales. El
+       * precio se va a calcular con un
+       * número escrito a mano, así que NO se cachea: cachearlo haría que el
+       * valor inventado sobreviviera una hora más allá de que las fuentes
+       * vuelvan. Y queda marcado como no confiable para que la pantalla lo diga.
+       */
       console.warn('⚠️ Using fallback rate: 1430 ARS/USD');
+      this.ultimoOrigenUSD = 'respaldo';
       return 1430; // Tasa de respaldo (dólar blue aproximado)
     }
   }
+
+  /** El origen de la última cotización USD/ARS servida, para poder mostrarlo. */
+  private ultimoOrigenUSD: string | null = null;
+
+  /** USD/ARS con su procedencia. Es lo que consume la UI. */
+  async getQuotedUSDRate(): Promise<QuotedRate> {
+    const cached = await this.cacheGet<ExchangeRate>(this.CACHE_KEY);
+    if (cached?.rate) {
+      return {
+        rate: cached.rate,
+        timestamp: cached.timestamp instanceof Date ? cached.timestamp : new Date(cached.timestamp),
+        source: cached.source || 'cache',
+      };
+    }
+    this.ultimoOrigenUSD = null;
+    const rate = await this.getUSDtoARSRate();
+    const fresco = await this.cacheGet<ExchangeRate>(this.CACHE_KEY);
+    return {
+      rate,
+      timestamp: fresco?.timestamp ? new Date(fresco.timestamp) : new Date(),
+      source: fresco?.source || this.ultimoOrigenUSD || 'respaldo',
+    };
+  }
+
+  /** EUR/ARS con su procedencia. */
+  async getQuotedEURRate(): Promise<QuotedRate> {
+    const cached = await this.cacheGet<ExchangeRate>('currency:eur_ars_rate');
+    if (cached?.rate) {
+      return {
+        rate: cached.rate,
+        timestamp: cached.timestamp instanceof Date ? cached.timestamp : new Date(cached.timestamp),
+        source: cached.source || 'cache',
+      };
+    }
+    this.ultimoOrigenEUR = null;
+    const rate = await this.getEURtoARSRate();
+    const fresco = await this.cacheGet<ExchangeRate>('currency:eur_ars_rate');
+    return {
+      rate,
+      timestamp: fresco?.timestamp ? new Date(fresco.timestamp) : new Date(),
+      source: fresco?.source || this.ultimoOrigenEUR || 'respaldo',
+    };
+  }
+
+  private ultimoOrigenEUR: string | null = null;
 
   /**
    * Convierte una cantidad en USD a ARS
@@ -219,7 +323,7 @@ class CurrencyExchangeService {
         const data: any = await resp.json();
         const rate = Number(data?.rates?.ARS);
         if (Number.isFinite(rate) && rate > 100) {
-          await this.cacheSet('currency:eur_ars_rate', { rate, timestamp: new Date(), source: 'eur-direct' }, this.CACHE_TTL);
+          await this.cacheSet('currency:eur_ars_rate', { rate, timestamp: new Date(), source: 'eur-directo' }, this.CACHE_TTL);
           console.log(`EUR/ARS (directo): ${rate.toFixed(2)}`);
           return rate;
         }
@@ -233,11 +337,14 @@ class CurrencyExchangeService {
       const usdToArs = await this.getUSDtoARSRate();
       const eurToUsd = await this.getEURtoUSDRate();
       const rate = usdToArs * eurToUsd;
-      await this.cacheSet('currency:eur_ars_rate', { rate, timestamp: new Date(), source: 'eur-cross' }, this.CACHE_TTL);
+      await this.cacheSet('currency:eur_ars_rate', { rate, timestamp: new Date(), source: 'eur-cruzado' }, this.CACHE_TTL);
       console.log(`EUR/ARS (cruzado): ${rate.toFixed(2)} = USD/ARS ${usdToArs} x EUR/USD ${eurToUsd}`);
       return rate;
     } catch (error) {
       console.error('Error getting EUR/ARS rate:', error);
+      // No se cachea, por el mismo motivo que en USD: un valor inventado no
+      // puede sobrevivir a que las fuentes vuelvan.
+      this.ultimoOrigenEUR = 'respaldo';
       return 1080;
     }
   }

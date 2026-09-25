@@ -10,28 +10,53 @@ const getUserId = (req: Request): string | null => {
   return req.headers['x-user-id'] as string || null;
 };
 
-// Pricing in USD, charged in ARS at the day's dólar blue (dolarhoy.com).
+/**
+ * ⚠️ SERVICIO DORMIDO — NO ENCENDER SIN ACTUALIZAR ESTOS NÚMEROS.
+ *
+ * Este microservicio no corre en producción (sólo aparece en
+ * docker-compose.microservices.yml) y su tabla de precios quedó congelada en un
+ * modelo que ya no existe: acá dice super_pro con 1% y pro con 3%, cuando el
+ * modelo vigente es un solo plan PRO, precio en EUR y 10% de comisión para
+ * todos. La fuente de verdad es `shared/constants/membershipPricing.ts`.
+ *
+ * Si algún día se enciende este servicio: borrar esta tabla y consumir la
+ * compartida, no copiarla de nuevo. Un número de plata copiado a mano en dos
+ * lugares termina siempre con los dos lugares diciendo cosas distintas —esta
+ * tabla es la prueba—.
+ */
 const MEMBERSHIP_PRICING = {
   pro: { priceUSD: 6, contractsPerMonth: 3, commissionRate: 3 },
   super_pro: { priceUSD: 8, contractsPerMonth: 3, commissionRate: 1 },
 };
 
-// Lightweight cached dólar-blue fetch (same source as the monolith).
+/**
+ * Dólar blue por API. Antes raspaba el HTML de dolarhoy.com con una expresión
+ * regular; el sitio cambió el maquetado, la expresión dejó de encontrar el
+ * número y devolvía el valor de respaldo para siempre sin fallar ni avisar.
+ * Mismas fuentes que el monolito (`server/services/currencyExchange.ts`).
+ */
 let blueCache: { rate: number; expiresAt: number } | null = null;
 const BLUE_FALLBACK = 1430;
 async function getDolarBlueRate(): Promise<number> {
   if (blueCache && Date.now() < blueCache.expiresAt) return blueCache.rate;
-  try {
-    const res = await fetch('https://dolarhoy.com/');
-    if (!res.ok) throw new Error(`status ${res.status}`);
-    const html = await res.text();
-    const m = html.match(/DOLAR BLUE[\s\S]*?Venta[\s\S]*?\$(\d+)/i);
-    const rate = m && m[1] ? parseInt(m[1], 10) : BLUE_FALLBACK;
-    blueCache = { rate, expiresAt: Date.now() + 3600 * 1000 };
-    return rate;
-  } catch {
-    return BLUE_FALLBACK;
+  const fuentes: Array<{ id: string; url: string; leer: (d: any) => number }> = [
+    { id: 'dolarapi', url: 'https://dolarapi.com/v1/dolares/blue', leer: (d) => Number(d?.venta) },
+    { id: 'bluelytics', url: 'https://api.bluelytics.com.ar/v2/latest', leer: (d) => Number(d?.blue?.value_sell) },
+  ];
+  for (const f of fuentes) {
+    try {
+      const res = await fetch(f.url);
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      const rate = f.leer(await res.json());
+      if (!Number.isFinite(rate) || rate < 100 || rate > 100_000) throw new Error(`fuera de rango: ${rate}`);
+      blueCache = { rate, expiresAt: Date.now() + 3600 * 1000 };
+      return rate;
+    } catch (e: any) {
+      console.warn(`⚠️ ${f.id} no respondió: ${e?.message}`);
+    }
   }
+  console.warn('⚠️ Ninguna fuente del blue respondió; se usa el valor de respaldo');
+  return BLUE_FALLBACK;
 }
 async function getPriceARS(tier: keyof typeof MEMBERSHIP_PRICING): Promise<number> {
   const rate = await getDolarBlueRate();

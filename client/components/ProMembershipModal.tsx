@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MembershipPricing } from '../types';
 import Button from './ui/Button';
+import OrigenDeLaCotizacion, { type Cotizacion } from './ui/OrigenDeLaCotizacion';
 import { Crown, Check, X, TrendingDown, Info } from 'lucide-react';
 
 interface ProMembershipModalProps {
@@ -12,6 +13,7 @@ interface ProMembershipModalProps {
 export default function ProMembershipModal({ isOpen, onClose }: ProMembershipModalProps) {
   const { t } = useTranslation();
   const [pricing, setPricing] = useState<MembershipPricing | null>(null);
+  const [cotizacion, setCotizacion] = useState<Cotizacion | null>(null);
   const [loading, setLoading] = useState(true);
   const [upgrading, setUpgrading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -28,6 +30,7 @@ export default function ProMembershipModal({ isOpen, onClose }: ProMembershipMod
       const data = await response.json();
       if (data.success) {
         setPricing(data.tiers);
+        setCotizacion(data.cotizacion || null);
       }
     } catch (err) {
       console.error('Error loading pricing:', err);
@@ -187,6 +190,8 @@ export default function ProMembershipModal({ isOpen, onClose }: ProMembershipMod
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                       €{pricing.pro.priceEUR} EUR ≈ ${pricing.pro.priceARS?.toLocaleString('es-AR')} ARS
                     </p>
+                    {/* Con qué cotización se hizo esa conversión y de dónde salió. */}
+                    <OrigenDeLaCotizacion cotizacion={cotizacion} moneda="EUR" className="mt-1 text-center" />
                   </div>
 
                   <ul className="space-y-3 mb-6">

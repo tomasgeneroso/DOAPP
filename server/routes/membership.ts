@@ -163,9 +163,21 @@ router.get("/pricing", async (req, res) => {
     // la fase estable.
     const disponibles = await areMembershipsAvailable();
 
+    /**
+     * De dónde salió el tipo de cambio con el que se calculó el precio.
+     *
+     * El plan está fijado en euros y se cobra en pesos al cambio del día, así
+     * que el importe en pesos cambia solo de un mes a otro. Un número que se
+     * mueve sin explicación se lee como un aumento encubierto; decir la fuente
+     * y la fecha lo convierte en un dato que el usuario puede ir a verificar.
+     */
+    const { describirCotizacion } = await import('../services/currencyExchange.js');
+    const cotizacion = describirCotizacion(await currencyExchange.getQuotedEURRate());
+
     res.json({
       success: true,
       available: disponibles,
+      cotizacion,
       unavailableReason: disponibles
         ? null
         : 'Durante la beta no cobramos comisión, así que los planes no están a la venta. Se habilitan cuando termine.',

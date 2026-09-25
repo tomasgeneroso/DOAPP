@@ -5,6 +5,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../components/ui/Toast';
 import { Crown, Check, TrendingUp, Shield, BarChart3, Loader2, AlertCircle, ArrowLeft } from 'lucide-react';
 import Button from '../components/ui/Button';
+import OrigenDeLaCotizacion, { type Cotizacion } from '../components/ui/OrigenDeLaCotizacion';
 
 export default function MembershipCheckout() {
   const { t } = useTranslation();
@@ -18,6 +19,7 @@ export default function MembershipCheckout() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pricing, setPricing] = useState<any>(null);
+  const [cotizacion, setCotizacion] = useState<Cotizacion | null>(null);
   const [upgradeInfo, setUpgradeInfo] = useState<any>(null);
 
   console.log('🔄 MembershipCheckout renderizando...');
@@ -78,6 +80,7 @@ export default function MembershipCheckout() {
       console.log('📊 Precios recibidos:', data);
       if (data.success) {
         setPricing(data.pricing);
+        setCotizacion(data.cotizacion || null);
       }
     } catch (err: any) {
       console.error('❌ Error cargando precios:', err);
@@ -436,6 +439,13 @@ export default function MembershipCheckout() {
                       ${Math.round(selectedPlan.priceARS).toLocaleString('es-AR')} ARS
                     </p>
                   </div>
+                  {/*
+                    El plan está fijado en euros y se cobra en pesos al cambio
+                    del día: acá se dice con qué cotización salió este importe
+                    y de dónde, para que el mes que viene un número distinto no
+                    parezca un aumento sin aviso.
+                  */}
+                  <OrigenDeLaCotizacion cotizacion={cotizacion} moneda="EUR" className="mt-2 text-right" />
                 </div>
               </div>
 

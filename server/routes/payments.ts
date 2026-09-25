@@ -2126,6 +2126,8 @@ router.get("/conversion/usdt", async (req: AuthRequest, res: Response): Promise<
         // that is the number that tells the user how stale the quote is.
         quotedAt: quote.timestamp,
         source: quote.source,
+        // El mismo dato, ya legible para mostrarlo tal cual en pantalla.
+        cotizacion: (await import('../services/currencyExchange.js')).describirCotizacion(quote),
         timestamp: new Date(),
       },
       binanceInfo: {
