@@ -22,7 +22,6 @@
     "typecheck": "tsc --noEmit",
     "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --selectProjects esm",
     "test:integration": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --selectProjects integration --runInBand --forceExit",
-    "test:all": "npm run test && npm run test:models && npm run test:integration",
     "test:staging": "cross-env API_URL=https://staging.doapparg.com API_BASE=https://staging.doapparg.com/api NODE_OPTIONS=--experimental-vm-modules jest --selectProjects e2e --runInBand --forceExit",
     "check:columns": "tsx server/scripts/checkMissingColumns.ts",
     "test:e2e": "playwright test",
@@ -46,7 +45,7 @@
     "security:audit": "npm audit && npm audit fix",
     "lint": "eslint client",
     "lint:hooks": "eslint client",
-    "test:all": "npm run lint:hooks && npm run typecheck && npm test && npm run test:models"
+    "test:all": "npm run lint:hooks && npm run typecheck && npm test && npm run test:models && npm run test:integration"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.120.0",

@@ -13,6 +13,8 @@ import AdPlaceholder from "../components/AdPlaceholder";
 import { useSocket } from "../hooks/useSocket";
 import { getImageUrl } from "../utils/imageUrl";
 import WorkInProgress from "../components/jobs/WorkInProgress";
+import TrabajosDeEjemplo from "../components/home/TrabajosDeEjemplo";
+import MovilPagoLiberado from "../components/home/MovilPagoLiberado";
 import { fetchWithAuth } from "../utils/fetchWithAuth";
 
 const handleSpotlightMove = (e: React.MouseEvent<HTMLElement>) => {
@@ -323,20 +325,41 @@ export default function Index() {
             <div style={{ position:'absolute', width:'50vw', height:'55vh', bottom:'8%', right:'-5%', background:'radial-gradient(ellipse at center, rgba(249,115,22,0.18) 0%, transparent 65%)', animation:'blobFloat2 12s ease-in-out infinite', willChange:'transform' }} />
             <div style={{ position:'absolute', width:'45vw', height:'45vh', top:'40%', left:'28%', background:'radial-gradient(ellipse at center, rgba(99,102,241,0.15) 0%, transparent 65%)', animation:'blobFloat3 10s ease-in-out infinite', willChange:'transform' }} />
           </div>
-          {/* Hero — full screen */}
-          <div className="flex flex-col items-center justify-center text-center px-4"
+          {/*
+            Hero — full screen. Desde xl se reserva la banda derecha para el
+            teléfono: el texto sigue centrado, pero dentro del espacio que
+            queda. Sin eso el título se metía por encima del equipo y la
+            superposición parecía un error de maquetado y no una composición.
+          */}
+          <div className="flex flex-col items-center justify-center text-center px-4 xl:pr-[420px]"
                style={{ position:'relative', zIndex:1, minHeight:'100vh' }}>
-            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight text-white leading-tight max-w-4xl">
+            {/*
+              El teléfono con el final del proceso: confirmar, liberar, cobrado.
+              Va detrás del texto y a la derecha. Sólo desde xl porque abajo de
+              eso el título ocupa todo el ancho y se superpondría encima.
+
+              El texto de arriba lleva `pointer-events-none` para que los clics
+              atraviesen y lleguen al botón del teléfono; los enlaces del hero
+              vuelven a habilitarlo, si no dejarían de ser clicables.
+            */}
+            <div
+              className="pointer-events-none absolute inset-y-0 right-0 hidden w-[420px] items-center justify-center xl:flex"
+              style={{ zIndex: 0 }}
+            >
+              <MovilPagoLiberado className="pointer-events-auto" />
+            </div>
+
+            <h1 className="pointer-events-none relative z-10 text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight text-white leading-tight max-w-4xl">
               {t('home.title')}{" "}
               <span className="text-sky-400">{t('home.titleHighlight')}</span>
             </h1>
-            <p className="mx-auto mt-6 max-w-xl text-lg sm:text-xl leading-7 text-slate-300">
+            <p className="pointer-events-none relative z-10 mx-auto mt-6 max-w-xl text-lg sm:text-xl leading-7 text-slate-300">
               {t('home.subtitle')}
             </p>
-            <p className="mx-auto mt-3 max-w-lg text-sm text-slate-400">
+            <p className="pointer-events-none relative z-10 mx-auto mt-3 max-w-lg text-sm text-slate-400">
               {t('home.subtitleSecond')}
             </p>
-            <div className="mt-10 flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full max-w-sm sm:max-w-none sm:w-auto px-4 sm:px-0">
+            <div className="relative z-10 mt-10 flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full max-w-sm sm:max-w-none sm:w-auto px-4 sm:px-0">
               <Link
                 to="/login"
                 className="w-full sm:w-auto text-center rounded-xl bg-orange-500 px-6 sm:px-10 py-4 text-base font-bold text-white shadow-xl shadow-orange-500/30 hover:bg-orange-400 hover:scale-105 hover:shadow-orange-500/50 active:scale-95 transition-all duration-200"
@@ -557,52 +580,13 @@ export default function Index() {
                   {t('home.showcaseSubtitle', 'Publicá lo que necesitás, elegí al mejor profesional y pagá de forma segura.')}
                 </p>
               </div>
-              <div className="max-w-2xl mx-auto bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-2xl shadow-black/40 hover:-translate-y-2 hover:border-sky-500/40 hover:shadow-sky-500/10 transition-all duration-500 cursor-default group/card">
-                <div className="flex items-start justify-between gap-4 mb-5">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="w-2 h-2 rounded-full bg-green-400 inline-block animate-pulse" />
-                      <span className="text-xs font-semibold text-green-400 uppercase tracking-wide">{t('home.demoStatusOpen', 'Abierto')}</span>
-                    </div>
-                    <h3 className="text-lg font-bold text-white leading-tight">{t('home.demoJobTitle', 'Reparación de plomería urgente')}</h3>
-                    <p className="text-slate-400 text-sm mt-1 line-clamp-2">{t('home.demoJobDesc', 'Necesito un plomero para arreglar una pérdida de agua en la cocina. Trabajo de media jornada.')}</p>
-                  </div>
-                  <span className="flex-shrink-0 bg-sky-500 text-white text-base font-bold px-4 py-1.5 rounded-full shadow-lg shadow-sky-500/20 group-hover/card:shadow-sky-500/50 group-hover/card:scale-105 transition-all duration-300">$18.000</span>
-                </div>
-                <div className="grid grid-cols-2 gap-3 mb-5">
-                  {[{ label: t('home.demoStartDate', 'Fecha inicio'), value: '15 Feb 2025' }, { label: t('home.demoStartTime', 'Hora inicio'), value: '09:00 hs' }, { label: t('home.demoEndDate', 'Fecha fin'), value: '15 Feb 2025' }, { label: t('home.demoEndTime', 'Hora fin'), value: '14:00 hs' }].map(({ label, value }) => (
-                    <div key={label} className="bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 hover:border-sky-600/40 hover:bg-slate-800/80 transition-colors duration-200">
-                      <p className="text-xs text-slate-500 mb-0.5">{label}</p>
-                      <p className="text-sm font-semibold text-white">{value}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="grid grid-cols-3 gap-3 mb-5">
-                  {[{ label: t('home.demoParties', 'Partes'), value: t('home.demoPartiesValue', '1 cliente · 1 profesional') }, { label: t('home.demoPayment', 'Pago'), value: t('home.demoPaymentValue', 'Garantizado en escrow') }, { label: t('home.demoLocation', 'Ubicación'), value: 'Palermo, CABA' }].map(({ label, value }) => (
-                    <div key={label} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-3 hover:border-sky-600/40 hover:bg-slate-800/80 transition-colors duration-200">
-                      <p className="text-xs text-slate-500 mb-1">{label}</p>
-                      <p className="text-xs font-medium text-slate-300 leading-tight">{value}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex items-center gap-4 pt-4 border-t border-slate-700">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-sky-500 to-sky-700 flex items-center justify-center text-white font-bold text-sm flex-shrink-0 group-hover/card:ring-2 group-hover/card:ring-sky-400/50 transition-all duration-300">MC</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-slate-500 mb-1">{t('home.demoPostedBy', 'Publicado por')}</p>
-                    <p className="text-sm font-semibold text-white">María C.</p>
-                    <div className="flex items-center gap-2 mt-1.5">
-                      {[{ label: t('home.demoRatingQuality', 'Calidad'), width: 92 }, { label: t('home.demoRatingTreatment', 'Trato'), width: 88 }, { label: t('home.demoRatingPunctuality', 'Puntualidad'), width: 95 }].map(({ label, width }) => (
-                        <div key={label} className="flex-1">
-                          <span className="text-[10px] text-slate-500">{label}</span>
-                          <div className="h-1 bg-[#1e2d42] rounded-full overflow-hidden mt-0.5">
-                            <div className="h-full bg-sky-500 rounded-full" style={{ width: `${width}%` }} />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              {/*
+                Tres ejemplos y no uno: el único que había era de plomería y
+                dejaba la impresión de que la app es para arreglos de casa.
+                Ahora hay un oficio presencial, un servicio por hora y uno
+                remoto, que es lo que alguien mira para decidir si esto le sirve.
+              */}
+              <TrabajosDeEjemplo />
             </div>
           </div>
 
