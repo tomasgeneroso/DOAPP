@@ -44,6 +44,7 @@ import * as Clipboard from 'expo-clipboard';
 import { useTheme } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { SuspendedNotice } from '../../components/CancellationLadder';
+import AvisoSinProteccion from '../../components/AvisoSinProteccion';
 import { getJob, pauseJob, resumeJob, cancelJob } from '../../services/jobs';
 import { createProposal, getProposalsByJob } from '../../services/proposals';
 import { getContractsByJob, confirmContract } from '../../services/contracts';
@@ -474,6 +475,11 @@ export default function JobDetailScreen() {
           </Text>
         </View>
 
+        {/* Sin proteccion de pago: pegado al precio, que es donde se decide. */}
+        {job.paymentMode === 'on_completion' && (
+          <AvisoSinProteccion momento="publicacion" />
+        )}
+
         {/* Info Card */}
         <View style={[styles.infoCard, { backgroundColor: themeColors.card, borderColor: themeColors.border }]}>
           {/* Location with map button */}
@@ -594,10 +600,14 @@ export default function JobDetailScreen() {
               </View>
             </View>
 
-            <View style={[styles.escrowBadge, { backgroundColor: colors.success[50], borderColor: colors.success[200] }]}>
-              <Shield size={14} color={colors.success[600]} />
-              <Text style={[styles.escrowText, { color: colors.success[700] }]}>Pago protegido con escrow</Text>
-            </View>
+            {job.paymentMode === 'on_completion' ? (
+              <AvisoSinProteccion momento="postulacion" />
+            ) : (
+              <View style={[styles.escrowBadge, { backgroundColor: colors.success[50], borderColor: colors.success[200] }]}>
+                <Shield size={14} color={colors.success[600]} />
+                <Text style={[styles.escrowText, { color: colors.success[700] }]}>Pago protegido con escrow</Text>
+              </View>
+            )}
           </View>
         )}
 

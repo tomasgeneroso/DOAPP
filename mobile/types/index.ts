@@ -1,7 +1,15 @@
+import type { ModoDePago } from '../../shared/pagos/modoDePago';
+
 // Types compartidos con el cliente web
 // Sincronizado con client/types/index.ts
 
 export interface Job {
+  /**
+   * Con protección de pago ('escrow', el normal) o sin ella ('on_completion').
+   * Sale de shared/pagos/modoDePago.ts, que es donde vive la regla de hasta
+   * dónde responde DOAPP en cada uno.
+   */
+  paymentMode?: ModoDePago;
   id: string;
   title: string;
   description: string;
@@ -179,6 +187,12 @@ export interface NotificationPreferences {
 }
 
 export interface Contract {
+  /**
+   * Con protección de pago ('escrow', el normal) o sin ella ('on_completion').
+   * Sale de shared/pagos/modoDePago.ts, que es donde vive la regla de hasta
+   * dónde responde DOAPP en cada uno.
+   */
+  paymentMode?: ModoDePago;
   id: string;
   job: Job | string;
   client: User | string;

@@ -33,6 +33,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getContract, confirmContract, rejectConfirmation } from '../../services/contracts';
 import { post } from '../../services/api';
 import DailyLogPanel from '../../components/DailyLogPanel';
+import AvisoSinProteccion from '../../components/AvisoSinProteccion';
 import EmergencyButton from '../../components/EmergencyButton';
 import CompartirContrato from '../../components/CompartirContrato';
 import { Contract, Job, User as UserType } from '../../types';
@@ -477,7 +478,13 @@ export default function ContractDetailScreen() {
                 Estado del pago
               </Text>
               <Text style={[styles.detailValue, { color: themeColors.text.primary }]}>
-                {contract.paymentStatus === 'held_escrow'
+                {/*
+                  En el modo sin proteccion no hay nada retenido, asi que decir
+                  "Retenido en escrow" seria falso. Se dice lo que hay.
+                */}
+                {contract.paymentMode === 'on_completion'
+                  ? 'Se paga al terminar (sin retencion)'
+                  : contract.paymentStatus === 'held_escrow'
                   ? 'Retenido en escrow'
                   : contract.paymentStatus === 'released'
                   ? 'Liberado'
@@ -485,6 +492,11 @@ export default function ContractDetailScreen() {
               </Text>
             </View>
           </View>
+
+          {/* Al contratar: que quede claro donde esta la plata, o donde no esta. */}
+          {contract.paymentMode === 'on_completion' && (
+            <AvisoSinProteccion momento="contratacion" />
+          )}
         </View>
 
         {/* Parties */}

@@ -1445,7 +1445,7 @@ export default function JobDetail() {
                 al final de la página. Quien lee una publicación decide en los
                 primeros segundos, y este dato cambia quién corre el riesgo.
               */}
-              {(job as any).paymentMode === "on_completion" && (
+              {job.paymentMode === "on_completion" && (
                 <AvisoSinProteccion momento="publicacion" className="mt-4" />
               )}
 

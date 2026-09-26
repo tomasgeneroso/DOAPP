@@ -296,7 +296,7 @@ export default function JobApplicationSummary() {
                 última pantalla antes de comprometer tiempo, así que acá el
                 aviso va completo y no compacto.
               */}
-              {(job as any).paymentMode === "on_completion" && (
+              {job.paymentMode === "on_completion" && (
                 <AvisoSinProteccion momento="postulacion" className="mb-6" />
               )}
 
